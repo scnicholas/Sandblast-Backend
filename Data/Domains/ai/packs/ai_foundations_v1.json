@@ -132,8 +132,10 @@
     "domain": "artificial_intelligence",
     "layer": "foundations",
     "routeAliases": [
-      "foundations",
+      "ai",
+      "artificial intelligence",
       "core_ai",
+      "foundations",
       "fundamentals"
     ],
     "crossLinks": [
@@ -163,10 +165,11 @@
     "sourceCoverage": {
       "hasBibliographicReferences": true,
       "hasDirectUrlsOrPersistentIds": false
-    }
+    },
+    "runtimeDomainKey": "ai"
   },
   "qualityAudit": {
-    "status": "needs_source_attachment",
+    "status": "runtime_hardened",
     "strengths": [
       "Valid JSON and coherent top-level object structure.",
       "Compact trunk pack with clean conceptual scope and low schema noise."
@@ -180,7 +183,17 @@
       "Keep manifest and pack versions synchronized.",
       "Use alias routing when layer labels differ from case-study domain labels.",
       "Preserve bibliographic references without embedding copyrighted chapters."
-    ]
+    ],
+    "auditDate": "2026-05-13",
+    "lineByLineAudit": "completed_structure_and_runtime_metadata_pass",
+    "criticalFixesApplied": [
+      "added runtimeDefinitionIndex for direct AI definitions",
+      "added generic fallback suppression for known AI terms",
+      "added technical-debug regression block for definition prompts",
+      "normalized domain alias compatibility to runtime key ai",
+      "added ambiguityPolicy for overlapping AI subdomains"
+    ],
+    "remainingExternalDependency": "Router must honor domain_question + knowledgeDomain=ai before technical_debug for definition prompts."
   },
   "runtimePath": "Data/Domains/ai/packs/ai_foundations_v1.json",
   "runtimeDomainKey": "ai",
@@ -198,5 +211,527 @@
     "conflictMarkersRemoved": 1,
     "runtimePathConfirmed": true,
     "batch2Hardened": true
-  }
+  },
+  "runtimeSchema": "ai_domain_runtime_v1_2",
+  "runtimeUpdatedAt": "2026-05-13",
+  "preservedStructuralIntegrity": true,
+  "manifestCompatibility": {
+    "expectedFolder": "Data/Domains/ai",
+    "filename": "ai_foundations_v1.json",
+    "packId": "ai_foundations",
+    "layer": "foundations",
+    "compatibleDomainAliases": [
+      "ai",
+      "AI",
+      "artificial_intelligence",
+      "artificial intelligence"
+    ],
+    "manifestPackKey": "foundations"
+  },
+  "answerPolicy": {
+    "routeFamily": "ai_definition_first",
+    "directDefinitionRequired": true,
+    "noGenericFallbackForKnownTerms": true,
+    "preserveMeaningBeforeExpansion": true,
+    "answerShape": [
+      "direct answer first",
+      "one short explanation of AI-system relevance",
+      "clarifying branch only when the term is genuinely cross-domain"
+    ],
+    "technicalDebugPrecedenceRule": "AI/domain definition prompts outrank technical_debug unless the user explicitly asks for autopsy, code, script, endpoint, patch, or validation.",
+    "humanOversightBoundary": "For AI governance, law, psychology, security, and high-impact decision support, keep human oversight and source limits visible.",
+    "layer": "foundations",
+    "primaryIntent": "core_ai_foundation_definition",
+    "definitionRoutingLock": true,
+    "mustAnswerKnownTermsBeforeClarifying": true,
+    "blockedWrongLanes": [
+      "technical_debug",
+      "generic_fallback",
+      "schedule",
+      "identity",
+      "emotional_support"
+    ]
+  },
+  "ambiguityPolicy": {
+    "mode": "answer_then_clarify",
+    "doNotDeadEnd": true,
+    "clarifyOnlyWhenMaterial": true,
+    "template": "Give a neutral definition, name the plausible AI subdomain interpretations, then ask which angle the user wants.",
+    "crossDomainBranches": {
+      "ai_cybersecurity": "security of AI systems, prompt injection, model/data integrity, and tool-use control",
+      "ai_psychology": "human cognition, trust, human-AI interaction, mental models, and affective computing",
+      "ai_marketing": "personalization, segmentation, recommendation, lifecycle automation, and measurement",
+      "ethics_law": "regulation, liability, privacy, IP, due process, and governance",
+      "agents_systems": "agent architecture, tools, memory, planning, orchestration, and evaluation",
+      "foundations": "core AI concepts such as learning, search, optimization, uncertainty, and evaluation"
+    }
+  },
+  "runtimeGuards": {
+    "genericFallbackSuppression": true,
+    "technicalDebugRegressionBlock": true,
+    "knownDefinitionMustAnswer": true,
+    "definitionBeforeTechnicalFallback": true,
+    "blockPhrases": [
+      "I need one more concrete detail to route this cleanly.",
+      "The specific technical move is to name the active component",
+      "I’ll keep this broad and practical",
+      "Schedule depends on where you are.",
+      "Reply held."
+    ],
+    "allowTechnicalDebugOnlyWhenExplicit": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "backend",
+      "script",
+      "route",
+      "endpoint",
+      "patch",
+      "debug",
+      "validation",
+      "node --check"
+    ]
+  },
+  "runtimeDefinitionIndex": [
+    {
+      "term": "artificial intelligence",
+      "aliases": [
+        "AI",
+        "what is AI"
+      ],
+      "definition": "Artificial intelligence is the design of systems that can perceive information, reason over it, learn from patterns, and act or assist toward goals.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "machine learning",
+      "aliases": [
+        "ML"
+      ],
+      "definition": "Machine learning is an AI approach where models improve task performance by learning patterns from data rather than relying only on hand-written rules.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "neural network",
+      "aliases": [
+        "deep learning model"
+      ],
+      "definition": "A neural network is a model made of connected layers of parameters that learn patterns by adjusting weights during training.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "deep learning",
+      "aliases": [],
+      "definition": "Deep learning uses multi-layer neural networks to learn representations from data for tasks such as language, vision, prediction, and decision support.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "reinforcement learning",
+      "aliases": [
+        "RL"
+      ],
+      "definition": "Reinforcement learning trains an agent to choose actions by receiving feedback from rewards or penalties over time.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "model evaluation",
+      "aliases": [
+        "evaluation",
+        "generalization"
+      ],
+      "definition": "Model evaluation measures how well an AI system performs on relevant data, especially outside the examples it learned from.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "overfitting",
+      "aliases": [],
+      "definition": "Overfitting happens when a model learns training data too closely and performs poorly on new or different examples.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "symbolic AI",
+      "aliases": [],
+      "definition": "Symbolic AI uses explicit rules, logic, and structured representations to reason, unlike statistical AI that learns patterns from data.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "Bayesian reasoning",
+      "aliases": [
+        "probabilistic reasoning"
+      ],
+      "definition": "Bayesian reasoning updates beliefs as new evidence appears, making it useful for uncertainty, diagnosis, and probabilistic decision support.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "direct_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "intelligent agents",
+      "aliases": [
+        "intelligent_agents"
+      ],
+      "definition": "Intelligent agents is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "search and optimization",
+      "aliases": [
+        "search_and_optimization"
+      ],
+      "definition": "Search and optimization is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "constraint satisfaction",
+      "aliases": [
+        "constraint_satisfaction"
+      ],
+      "definition": "Constraint satisfaction is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "adversarial search",
+      "aliases": [
+        "adversarial_search"
+      ],
+      "definition": "Adversarial search is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "probability and bayesian reasoning",
+      "aliases": [
+        "probability_and_bayesian_reasoning"
+      ],
+      "definition": "Probability and bayesian reasoning is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "decision theory",
+      "aliases": [
+        "decision_theory"
+      ],
+      "definition": "Decision theory is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "machine learning basics",
+      "aliases": [
+        "machine_learning_basics"
+      ],
+      "definition": "Machine learning basics is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "statistical learning",
+      "aliases": [
+        "statistical_learning"
+      ],
+      "definition": "Statistical learning is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "model evaluation and generalization",
+      "aliases": [
+        "model_evaluation_and_generalization"
+      ],
+      "definition": "Model evaluation and generalization is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "neural networks",
+      "aliases": [
+        "neural_networks"
+      ],
+      "definition": "Neural networks is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "representation learning",
+      "aliases": [
+        "representation_learning"
+      ],
+      "definition": "Representation learning is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    },
+    {
+      "term": "deep learning basics",
+      "aliases": [
+        "deep_learning_basics"
+      ],
+      "definition": "Deep learning basics is an AI concept in the foundations layer; answer it from this pack before using generic fallback.",
+      "domain": "ai",
+      "knowledgeDomain": "ai",
+      "layer": "foundations",
+      "answerMode": "pack_grounded_definition",
+      "routeLock": {
+        "intent": "domain_question",
+        "domain": "ai",
+        "knowledgeDomain": "ai",
+        "layer": "foundations"
+      },
+      "suppressGenericFallback": true,
+      "suppressTechnicalDebugFallback": true
+    }
+  ],
+  "crossDomainAmbiguousTerms": [
+    {
+      "term": "risk",
+      "definition": "Risk generally means exposure to possible harm, loss, uncertainty, or failure.",
+      "domains": [
+        "ai_cybersecurity",
+        "ethics_law",
+        "ai_marketing",
+        "foundations"
+      ],
+      "clarifier": "Do you mean security risk, legal/governance risk, business/marketing risk, or model-performance risk?"
+    },
+    {
+      "term": "validation",
+      "definition": "Validation means checking whether a model, system, claim, or workflow actually performs as intended under relevant conditions.",
+      "domains": [
+        "foundations",
+        "ai_cybersecurity",
+        "ethics_law",
+        "ai_psychology"
+      ],
+      "clarifier": "Do you mean model validation, security validation, legal/governance validation, or psychological measurement validation?"
+    },
+    {
+      "term": "alignment",
+      "definition": "Alignment means making AI behavior match intended goals, user needs, policy boundaries, and human values.",
+      "domains": [
+        "foundations",
+        "agents_systems",
+        "ethics_law",
+        "ai_psychology"
+      ],
+      "clarifier": "Do you mean technical alignment, agent behavior alignment, governance alignment, or human trust/mental-model alignment?"
+    },
+    {
+      "term": "agency",
+      "definition": "Agency means the capacity to act toward goals; in AI, it usually refers to how much a system can plan, choose tools, and execute actions.",
+      "domains": [
+        "agents_systems",
+        "ethics_law",
+        "ai_psychology"
+      ],
+      "clarifier": "Do you mean agent autonomy, legal/ethical responsibility, or human perception of agency?"
+    }
+  ]
 }
