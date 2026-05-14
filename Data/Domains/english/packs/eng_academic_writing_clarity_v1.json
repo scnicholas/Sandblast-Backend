@@ -1,6 +1,6 @@
 {
   "id": "eng_academic_writing_clarity_v2",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "title": "Academic Writing, Clarity, and Revision",
   "description": "Reader-centered academic writing with emphasis on clarity, cohesion, argument control, revision workflow, and sentence-level decision making.",
   "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
@@ -254,41 +254,83 @@
     "version": "2.0.0"
   },
   "normalizationMeta": {
-    "normalizedAt": "2026-04-07",
+    "normalizedAt": "2026-05-13",
     "targetRuntime": "Marion/Nyx",
-    "schemaProfile": "english_domain_runtime_v2_1",
-    "preservedStructuralIntegrity": true
+    "schemaProfile": "english_domain_runtime_v2_2",
+    "preservedStructuralIntegrity": true,
+    "lineAuditPass": "full-file structural and runtime retrieval audit",
+    "criticalPatch": "six_domain_definition_routing_lock_english_pack_hardening"
   },
   "aliases": [
-    "eng_academic_writing_clarity_v2",
     "academic_writing_clarity_and_revision",
     "eng_academic_writing_clarity_v1",
-    "eng_academic_writing_clarity_v1.json"
+    "eng_academic_writing_clarity_v1.json",
+    "eng_academic_writing_clarity_v2"
   ],
   "pathwayHints": {
     "domain": "english",
     "primaryIntent": "academic_writing_clarity_and_revision",
     "keywords": [
       "academic",
+      "academic writing",
+      "across a paragraph",
+      "action clarity",
+      "actor",
+      "add a",
+      "add topic-stringing",
+      "and academic voice",
+      "and revision",
+      "and sentence-level decision making",
+      "and speculation",
       "argument",
+      "argument control",
       "clarity",
+      "clarity as reader experience",
       "cohesion",
+      "cohesion and flow",
+      "cohesion and information flow",
+      "consistent terms",
       "control",
       "decision",
       "deterministic",
+      "distinguish certainty",
+      "e strength",
       "emphasis",
+      "en it obscures agency",
+      "eng",
       "experience",
       "flow",
+      "hasis on clarity",
+      "hedging",
+      "ide action",
       "making",
+      "new information",
+      "ogy",
+      "ormation flow",
+      "pass to a paragraph",
+      "probability",
       "protocol",
       "reader",
       "reader-centered",
+      "repair abrupt topic drift",
       "revision",
+      "revision protocol",
+      "revision workflow",
+      "rewrite",
+      "rity matters",
+      "sentence clarity",
+      "sentence openings matter",
       "sentence-level",
+      "sentences by restoring action to verbs",
+      "stance",
+      "ture",
+      "use intentionally",
+      "who does what",
       "with",
       "workflow",
       "writing"
-    ]
+    ],
+    "runtimeDomainKey": "english"
   },
   "sourceCoverage": {
     "anchorCount": 3,
@@ -301,7 +343,8 @@
     "modules": 3,
     "caseStudies": 2,
     "projects": 2,
-    "referenceTextsUsed": 6
+    "referenceTextsUsed": 6,
+    "definitionTerms": 5
   },
   "auditSummary": {
     "gradeBeforeNormalization": null,
@@ -375,5 +418,148 @@
     ],
     "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
     "normalizedAt": "2026-05-03"
+  },
+  "runtimeSchema": "english_domain_runtime_v2_2",
+  "updated": "2026-05-13",
+  "runtimeDefinitionIndex": {
+    "version": "english.runtimeDefinitionIndex/1.0",
+    "domain": "english",
+    "answerStyle": "direct_definition_then_optional_example",
+    "definitionTerms": [
+      {
+        "term": "sentence clarity",
+        "aliases": [
+          "sentence clarity",
+          "sentence_clarity"
+        ],
+        "definition": "Sentence clarity is the quality that lets readers identify the main actor, action, and relationship in a sentence without unnecessary effort.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_academic_writing_clarity_v2"
+      },
+      {
+        "term": "academic writing",
+        "aliases": [
+          "academic writing",
+          "academic_writing"
+        ],
+        "definition": "Academic writing is formal, evidence-based writing that presents claims, supports them with reasoning or sources, and calibrates certainty for a specific scholarly audience.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_academic_writing_clarity_v2"
+      },
+      {
+        "term": "cohesion",
+        "aliases": [
+          "cohesion"
+        ],
+        "definition": "Cohesion is the way sentences and paragraphs connect so readers can follow familiar information into new information.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_academic_writing_clarity_v2"
+      },
+      {
+        "term": "revision",
+        "aliases": [
+          "revision"
+        ],
+        "definition": "Revision is the process of improving meaning, structure, argument, and expression, not just correcting surface errors.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_academic_writing_clarity_v2"
+      },
+      {
+        "term": "hedging",
+        "aliases": [
+          "hedging"
+        ],
+        "definition": "Hedging is the use of language that limits certainty, such as 'may', 'suggests', or 'is likely', so a claim matches the strength of the evidence.",
+        "routeDomain": "english",
+        "knowledgeDomain": "english",
+        "sourcePack": "eng_academic_writing_clarity_v2"
+      }
+    ],
+    "fallbackRule": "If term appears here, answer directly. Do not ask for more detail unless the user requests a specific register, example, or comparison."
+  },
+  "answerPolicy": {
+    "version": "english.definitionRoutingLock/1.0",
+    "domain": "english",
+    "priority": "definition_queries_before_generic_fallback",
+    "rules": [
+      "If the user asks 'what is', 'define', 'meaning of', or 'explain' plus a known English term, answer directly from this domain before generic fallback.",
+      "Do not route English definition questions into technical_debug unless the user explicitly asks for backend, code, file, audit, autopsy, patch, route, script, endpoint, deployment, or validation.",
+      "If a term overlaps with another domain, give a brief neutral definition, name the possible English interpretation, and ask one targeted clarification question.",
+      "Preserve meaning first; revise form second; never over-correct when the user asks for explanation rather than rewriting.",
+      "No user-facing generic fallback such as 'I need one more concrete detail' when the term is present in this pack. Use answer + clarification instead."
+    ],
+    "blockedFallbacks": [
+      "I need one more concrete detail to route this cleanly.",
+      "I’ll keep this broad and practical",
+      "Reply held.",
+      "Backend reply unavailable."
+    ]
+  },
+  "ambiguityPolicy": {
+    "version": "english.ambiguityPolicy/1.0",
+    "method": "answer_plus_targeted_clarification",
+    "overlapTerms": [
+      {
+        "term": "clarity",
+        "interpretations": [
+          "English: sentence-level and reader-centered clarity",
+          "business/UX: product or message clarity"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "syntax",
+        "interpretations": [
+          "English: grammar and sentence structure",
+          "technical: programming syntax"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "semantics",
+        "interpretations": [
+          "English/linguistics: meaning in language",
+          "technical/AI: meaning representation or data semantics"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "register",
+        "interpretations": [
+          "English: style variation by context",
+          "technical: stored value/state register"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "agency",
+        "interpretations": [
+          "English/pragmatics: who is acting or responsible",
+          "psychology/AI: autonomy or decision capacity"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      },
+      {
+        "term": "validation",
+        "interpretations": [
+          "English: checking wording/usage against context",
+          "technical/cyber: checking data or system behavior"
+        ],
+        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
+      }
+    ],
+    "neverDeadEnd": true
+  },
+  "runtimeGuards": {
+    "definitionBeforeTechnicalFallback": true,
+    "blockGenericFallbackForKnownTerms": true,
+    "preserveMeaningBeforeCorrection": true,
+    "noMenuDumping": true,
+    "noTechLeak": true,
+    "commercialRuntimeSafe": true
   }
 }
