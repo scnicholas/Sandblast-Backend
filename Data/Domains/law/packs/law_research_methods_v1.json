@@ -31,365 +31,77 @@
           "source",
           "authority",
           "canlii",
-          "statute"
+          "statute",
+          "hierarchy of legal sources in canada",
+          "lr hierarchy of sources"
         ],
         "intentSignals": [
           "how do i research",
           "where can i read the law"
         ]
-      }
-    },
-    {
-      "id": "lr_statutes_and_regulations",
-      "title": "Finding Statutes and Regulations",
-      "coreDefinition": "Statutes are enacted by legislatures (Parliament or provincial assemblies). Regulations are subordinate legislation made under statutory authority.",
-      "frameworkSteps": [
-        "Identify jurisdiction (federal or province/territory).",
-        "Search official government websites for consolidated statutes.",
-        "Check regulations linked to the statute.",
-        "Confirm currency (in force date and amendments)."
-      ],
-      "quickExamples": [
-        "Federal: laws-lois.justice.gc.ca for consolidated statutes.",
-        "Ontario: e-Laws website for statutes and regulations."
-      ],
-      "commonMistakes": [
-        "Using outdated versions.",
-        "Not checking if the section has been amended."
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "statute",
-          "regulation",
-          "act",
-          "section",
-          "amended"
-        ],
-        "intentSignals": [
-          "what does the law say",
-          "what section covers"
-        ]
-      }
-    },
-    {
-      "id": "lr_case_law_research",
-      "title": "Case Law Research",
-      "coreDefinition": "Case law consists of judicial decisions interpreting statutes or developing common law principles.",
-      "frameworkSteps": [
-        "Search CanLII or official court websites.",
-        "Identify leading or frequently cited cases.",
-        "Note the court level (Supreme Court decisions bind lower courts).",
-        "Check if the case has been followed, distinguished, or overturned."
-      ],
-      "quickExamples": [
-        "Use keyword search plus jurisdiction filter on CanLII.",
-        "Review headnotes for quick overview but read key reasoning sections."
-      ],
-      "commonMistakes": [
-        "Relying only on headnotes.",
-        "Not verifying whether a case is still good law."
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "case law",
-          "precedent",
-          "supreme court",
-          "appeal"
-        ],
-        "intentSignals": [
-          "what case says",
-          "leading case"
-        ]
-      }
-    },
-    {
-      "id": "lr_reading_a_case",
-      "title": "How to Read a Case",
-      "coreDefinition": "Judicial decisions contain procedural history, facts, issues, reasoning, and a holding (ratio decidendi).",
-      "frameworkSteps": [
-        "Identify material facts.",
-        "Determine the legal issue(s).",
-        "Extract the court’s reasoning.",
-        "Isolate the binding principle (ratio).",
-        "Distinguish obiter dicta from binding reasoning."
-      ],
-      "quickExamples": [
-        "Ratio: The principle necessary for the decision.",
-        "Obiter: Comments not essential to the decision."
-      ],
-      "commonMistakes": [
-        "Confusing facts with legal principles.",
-        "Treating obiter dicta as binding."
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "ratio",
-          "obiter",
-          "holding",
-          "reasoning"
-        ],
-        "intentSignals": [
-          "how do i read a case"
-        ]
-      }
-    },
-    {
-      "id": "lr_noting_up",
-      "title": "Noting Up and Validating Authority",
-      "coreDefinition": "Noting up is the process of checking how a case or statute has been treated by subsequent decisions.",
-      "frameworkSteps": [
-        "Use citation tools (e.g., CanLII’s cited-by feature).",
-        "Check if the decision was overturned or distinguished.",
-        "Confirm the section of statute is still in force."
-      ],
-      "quickExamples": [
-        "Look for 'overruled' or 'reversed' in citing cases.",
-        "Verify statute consolidation date."
-      ],
-      "commonMistakes": [
-        "Failing to confirm current validity.",
-        "Ignoring appellate history."
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "noted up",
-          "overruled",
-          "cited by"
-        ],
-        "intentSignals": [
-          "is this still valid law"
-        ]
-      }
-    },
-    {
-      "id": "lr_secondary_sources",
-      "title": "Using Secondary Sources",
-      "coreDefinition": "Secondary sources include textbooks, law review articles, legal encyclopedias, and practice guides. They interpret but do not bind.",
-      "frameworkSteps": [
-        "Use encyclopedias (e.g., Canadian Encyclopedic Digest) for overviews.",
-        "Consult textbooks for doctrinal clarity.",
-        "Check law review articles for deeper analysis."
-      ],
-      "quickExamples": [
-        "Textbooks for structured frameworks.",
-        "Law journals for policy analysis."
-      ],
-      "commonMistakes": [
-        "Treating commentary as binding law.",
-        "Ignoring primary authority verification."
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "textbook",
-          "article",
-          "journal",
-          "encyclopedia"
-        ],
-        "intentSignals": [
-          "overview of",
-          "background on"
-        ]
-      }
-    },
-    {
-      "id": "lr_limitations_and_deadlines",
-      "title": "Researching Limitation Periods",
-      "coreDefinition": "Limitation periods restrict the time within which a legal action may be commenced. They vary by jurisdiction and cause of action.",
-      "frameworkSteps": [
-        "Identify jurisdiction.",
-        "Locate the relevant Limitations Act.",
-        "Determine discovery date and applicable exceptions.",
-        "Confirm tolling or extension rules."
-      ],
-      "quickExamples": [
-        "Ontario’s basic two-year limitation period (subject to exceptions)."
-      ],
-      "commonMistakes": [
-        "Confusing event date with discovery date.",
-        "Assuming federal rules apply provincially."
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "limitation",
-          "deadline",
-          "statute of limitations"
-        ],
-        "intentSignals": [
-          "am i too late to sue"
-        ]
-      }
-    }
-  ],
-  "meta": {
-    "stability": "high",
-    "notes": [
-      "This pack supports structured responses when users ask how to research or verify legal information.",
-      "Always require jurisdiction when discussing procedure or limitation periods.",
-      "Encourage consulting official sources and legal professionals for confirmation."
-    ]
-  },
-  "runtime": {
-    "normalizedAt": "2026-04-08",
-    "normalizedFor": [
-      "Marion",
-      "Nyx"
-    ],
-    "retrievalAliases": [
-      "law_research_methods",
-      "law_research_methods_v1",
-      "research_methods_v1"
-    ],
-    "sourceFile": "law_research_methods_v1.json",
-    "pipelineRole": "knowledge_pack",
-    "jurisdictionDefault": "CA",
-    "crossLinks": [
-      "law_foundations_v1",
-      "law_source_ladder_v2",
-      "law_safety_and_posture_v1"
-    ],
-    "sourceIntegrity": "moderate"
-  },
-  "packType": "methods",
-  "retrievalHints": {
-    "keywords": [
-      "act",
-      "case law",
-      "precedent",
-      "regulation",
-      "research",
-      "source",
-      "statute",
-      "supreme court",
-      "where do i find"
-    ],
-    "intentSignals": [
-      "how do i research",
-      "leading case",
-      "what case says",
-      "what does the law say",
-      "what section covers",
-      "where can i read the law"
-    ]
-  },
-  "runtimeDomainKey": "law",
-  "runtimePath": "Data/Domains/law/packs/law_research_methods_v1.json",
-  "manifestPackKey": "lawResearchMethods",
-  "safetyBoundary": {
-    "stance": "general_legal_information_only_not_legal_advice",
-    "jurisdiction": "Canada",
-    "requiresProvinceForProcedure": true,
-    "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
-  },
-  "retrievalIndex": {
-    "domain": "law",
-    "packId": "law_research_methods_v1",
-    "aliases": [],
-    "keywords": [
-      "where do i find",
-      "research",
-      "source",
-      "authority",
-      "canlii",
-      "statute",
-      "how do i research",
-      "where can i read the law",
-      "regulation",
-      "act",
-      "section",
-      "amended",
-      "what does the law say",
-      "what section covers",
-      "case law",
-      "precedent",
-      "supreme court",
-      "appeal",
-      "what case says",
-      "leading case",
-      "ratio",
-      "obiter",
-      "holding",
-      "reasoning",
-      "how do i read a case",
-      "noted up",
-      "overruled",
-      "cited by",
-      "is this still valid law",
-      "textbook",
-      "article",
-      "journal",
-      "encyclopedia",
-      "overview of",
-      "background on",
-      "limitation",
-      "deadline",
-      "statute of limitations",
-      "am i too late to sue"
-    ],
-    "primaryFields": [
-      "packId",
-      "version",
-      "domain",
-      "jurisdiction",
-      "description",
-      "topics",
-      "meta",
-      "runtime",
-      "packType",
-      "retrievalHints",
-      "runtimeDomainKey",
-      "runtimePath",
-      "manifestPackKey",
-      "safetyBoundary"
-    ]
-  },
-  "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
-    "conflictMarkersRemoved": true,
-    "validatedJson": true,
-    "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
-  }
-}
-{
-  "packId": "law_research_methods_v1",
-  "version": "1.0.0",
-  "domain": "law",
-  "jurisdiction": "CA",
-  "description": "High-level legal research framework for Canadian law. Covers how to find statutes, regulations, cases, and secondary sources; how to read a case; and how to validate authority using public tools.",
-  "topics": [
-    {
-      "id": "lr_hierarchy_of_sources",
-      "title": "Hierarchy of Legal Sources in Canada",
-      "coreDefinition": "Canadian legal authority generally flows from constitutional law, statutes (and regulations), and case law. Secondary sources interpret but do not create binding law.",
-      "frameworkSteps": [
-        "Identify the legal issue and relevant jurisdiction (federal vs province/territory).",
-        "Check for governing statute(s) and regulations first.",
-        "Review leading cases interpreting that statute.",
-        "Consult secondary sources for context and interpretation."
-      ],
-      "quickExamples": [
-        "Employment standards: Start with the provincial Employment Standards Act, then look at tribunal or court interpretations.",
-        "Criminal law: Refer to the Criminal Code (federal), then leading Supreme Court cases."
-      ],
-      "commonMistakes": [
-        "Relying solely on blog posts without checking statutes.",
-        "Ignoring jurisdiction (Ontario vs Alberta rules may differ).",
-        "Confusing persuasive authority with binding authority."
-      ],
-      "retrievalHints": {
-        "keywords": [
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_research_methods_v1",
+        "sourceId": "lr_hierarchy_of_sources",
+        "sourcePath": "topics[0]",
+        "term": "Hierarchy of Legal Sources in Canada",
+        "aliases": [
+          "Hierarchy of Legal Sources in Canada",
+          "lr hierarchy of sources",
           "where do i find",
           "research",
           "source",
           "authority",
           "canlii",
-          "statute"
-        ],
-        "intentSignals": [
+          "statute",
           "how do i research",
           "where can i read the law"
-        ]
+        ],
+        "definition": "Canadian legal authority generally flows from constitutional law, statutes (and regulations), and case law. Secondary sources interpret but do not create binding law.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is hierarchy of legal sources in canada?",
+          "what is lr hierarchy of sources?",
+          "what is where do i find?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "authority",
+              "domains": [
+                "law",
+                "social psychology",
+                "system architecture"
+              ]
+            },
+            {
+              "term": "source",
+              "domains": [
+                "law",
+                "research",
+                "data"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -416,12 +128,59 @@
           "regulation",
           "act",
           "section",
-          "amended"
+          "amended",
+          "finding statutes and regulations",
+          "lr statutes and regulations"
         ],
         "intentSignals": [
           "what does the law say",
           "what section covers"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_research_methods_v1",
+        "sourceId": "lr_statutes_and_regulations",
+        "sourcePath": "topics[1]",
+        "term": "Finding Statutes and Regulations",
+        "aliases": [
+          "Finding Statutes and Regulations",
+          "lr statutes and regulations",
+          "statute",
+          "regulation",
+          "act",
+          "section",
+          "amended",
+          "what does the law say",
+          "what section covers"
+        ],
+        "definition": "Statutes are enacted by legislatures (Parliament or provincial assemblies). Regulations are subordinate legislation made under statutory authority.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is finding statutes and regulations?",
+          "what is lr statutes and regulations?",
+          "what is statute?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -447,12 +206,66 @@
           "case law",
           "precedent",
           "supreme court",
-          "appeal"
+          "appeal",
+          "case law research",
+          "lr case law research"
         ],
         "intentSignals": [
           "what case says",
           "leading case"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_research_methods_v1",
+        "sourceId": "lr_case_law_research",
+        "sourcePath": "topics[2]",
+        "term": "Case Law Research",
+        "aliases": [
+          "Case Law Research",
+          "lr case law research",
+          "case law",
+          "precedent",
+          "supreme court",
+          "appeal",
+          "what case says",
+          "leading case"
+        ],
+        "definition": "Case law consists of judicial decisions interpreting statutes or developing common law principles.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is case law research?",
+          "what is lr case law research?",
+          "what is case law?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "appeal",
+              "domains": [
+                "law",
+                "marketing/appeal"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -479,11 +292,56 @@
           "ratio",
           "obiter",
           "holding",
-          "reasoning"
+          "reasoning",
+          "how to read a case",
+          "lr reading a case"
         ],
         "intentSignals": [
           "how do i read a case"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_research_methods_v1",
+        "sourceId": "lr_reading_a_case",
+        "sourcePath": "topics[3]",
+        "term": "How to Read a Case",
+        "aliases": [
+          "How to Read a Case",
+          "lr reading a case",
+          "ratio",
+          "obiter",
+          "holding",
+          "reasoning",
+          "how do i read a case"
+        ],
+        "definition": "Judicial decisions contain procedural history, facts, issues, reasoning, and a holding (ratio decidendi).",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is how to read a case?",
+          "what is lr reading a case?",
+          "what is ratio?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -507,11 +365,65 @@
         "keywords": [
           "noted up",
           "overruled",
-          "cited by"
+          "cited by",
+          "noting up and validating authority",
+          "lr noting up",
+          "is this still valid law"
         ],
         "intentSignals": [
           "is this still valid law"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_research_methods_v1",
+        "sourceId": "lr_noting_up",
+        "sourcePath": "topics[4]",
+        "term": "Noting Up and Validating Authority",
+        "aliases": [
+          "Noting Up and Validating Authority",
+          "lr noting up",
+          "noted up",
+          "overruled",
+          "cited by",
+          "is this still valid law"
+        ],
+        "definition": "Noting up is the process of checking how a case or statute has been treated by subsequent decisions.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is noting up and validating authority?",
+          "what is lr noting up?",
+          "what is noted up?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "authority",
+              "domains": [
+                "law",
+                "social psychology",
+                "system architecture"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -536,12 +448,58 @@
           "textbook",
           "article",
           "journal",
-          "encyclopedia"
+          "encyclopedia",
+          "using secondary sources",
+          "lr secondary sources"
         ],
         "intentSignals": [
           "overview of",
           "background on"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_research_methods_v1",
+        "sourceId": "lr_secondary_sources",
+        "sourcePath": "topics[5]",
+        "term": "Using Secondary Sources",
+        "aliases": [
+          "Using Secondary Sources",
+          "lr secondary sources",
+          "textbook",
+          "article",
+          "journal",
+          "encyclopedia",
+          "overview of",
+          "background on"
+        ],
+        "definition": "Secondary sources include textbooks, law review articles, legal encyclopedias, and practice guides. They interpret but do not bind.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is using secondary sources?",
+          "what is lr secondary sources?",
+          "what is textbook?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -565,11 +523,56 @@
         "keywords": [
           "limitation",
           "deadline",
-          "statute of limitations"
+          "statute of limitations",
+          "researching limitation periods",
+          "lr limitations and deadlines",
+          "am i too late to sue"
         ],
         "intentSignals": [
           "am i too late to sue"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_research_methods_v1",
+        "sourceId": "lr_limitations_and_deadlines",
+        "sourcePath": "topics[6]",
+        "term": "Researching Limitation Periods",
+        "aliases": [
+          "Researching Limitation Periods",
+          "lr limitations and deadlines",
+          "limitation",
+          "deadline",
+          "statute of limitations",
+          "am i too late to sue"
+        ],
+        "definition": "Limitation periods restrict the time within which a legal action may be commenced. They vary by jurisdiction and cause of action.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is researching limitation periods?",
+          "what is lr limitations and deadlines?",
+          "what is limitation?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     }
   ],
@@ -632,13 +635,18 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "privacyMinimization": true
   },
   "retrievalIndex": {
+    "version": "nyx.marion.lawRetrievalIndex/1.0",
     "domain": "law",
     "packId": "law_research_methods_v1",
-    "aliases": [],
+    "sourceFile": "law_research_methods_v1.json",
+    "definitionSurfaceCount": 7,
     "keywords": [
+      "hierarchy of legal sources in canada",
+      "lr hierarchy of sources",
       "where do i find",
       "research",
       "source",
@@ -647,60 +655,133 @@
       "statute",
       "how do i research",
       "where can i read the law",
+      "finding statutes and regulations",
+      "lr statutes and regulations",
       "regulation",
       "act",
       "section",
       "amended",
       "what does the law say",
       "what section covers",
+      "case law research",
+      "lr case law research",
       "case law",
       "precedent",
       "supreme court",
       "appeal",
       "what case says",
       "leading case",
+      "how to read a case",
+      "lr reading a case",
       "ratio",
       "obiter",
       "holding",
       "reasoning",
       "how do i read a case",
+      "noting up and validating authority",
+      "lr noting up",
       "noted up",
       "overruled",
       "cited by",
       "is this still valid law",
+      "using secondary sources",
+      "lr secondary sources",
       "textbook",
       "article",
       "journal",
       "encyclopedia",
       "overview of",
       "background on",
+      "researching limitation periods",
+      "lr limitations and deadlines",
       "limitation",
       "deadline",
       "statute of limitations",
       "am i too late to sue"
     ],
-    "primaryFields": [
-      "packId",
-      "version",
-      "domain",
-      "jurisdiction",
-      "description",
-      "topics",
-      "meta",
-      "runtime",
-      "packType",
-      "retrievalHints",
-      "runtimeDomainKey",
-      "runtimePath",
-      "manifestPackKey",
-      "safetyBoundary"
-    ]
+    "intentSignals": [
+      "how do i research",
+      "where can i read the law",
+      "what does the law say",
+      "what section covers",
+      "what case says",
+      "leading case",
+      "how do i read a case",
+      "is this still valid law",
+      "overview of",
+      "background on",
+      "am i too late to sue"
+    ],
+    "definitionTerms": [
+      "Hierarchy of Legal Sources in Canada",
+      "Finding Statutes and Regulations",
+      "Case Law Research",
+      "How to Read a Case",
+      "Noting Up and Validating Authority",
+      "Using Secondary Sources",
+      "Researching Limitation Periods"
+    ],
+    "noGenericFallback": true,
+    "definitionQueryWinsBeforeTechnicalFallback": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
-    "conflictMarkersRemoved": true,
+    "status": "hardened_for_six_domain_definition_inventory",
     "validatedJson": true,
-    "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
+    "criticalUpdatesApplied": [
+      "definition_surface_normalization",
+      "law_definition_routing_lock",
+      "safety_boundary_hardening",
+      "retrieval_index_expansion"
+    ],
+    "normalizedAt": "2026-05-13"
+  },
+  "retrievalAliases": [
+    "law_research_methods_v1",
+    "law_research_methods_v2"
+  ],
+  "definitionAnswerContract": {
+    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
+    "domain": "law",
+    "jurisdictionDefault": "Canada",
+    "answerMode": "direct_definition_plus_framework",
+    "mustInclude": [
+      "plain meaning",
+      "legal information posture when relevant",
+      "jurisdiction caveat when procedure/deadlines/court steps are involved"
+    ],
+    "mustNotInclude": [
+      "generic technical fallback",
+      "outcome guarantee",
+      "personalized legal advice",
+      "unsupported deadlines"
+    ],
+    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.definitionRoutingLock/1.0",
+    "intent": "domain_question",
+    "knowledgeDomain": "law",
+    "primaryLane": "law",
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "explain",
+      "meaning of"
+    ],
+    "blockTechnicalFallbackUnless": [
+      "autopsy",
+      "audit",
+      "patch",
+      "backend",
+      "script",
+      "route",
+      "debug",
+      "file",
+      "line-by-line"
+    ],
+    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
   }
 }
