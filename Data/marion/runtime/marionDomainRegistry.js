@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.7.0 MANIFEST-ALIGNED-DOMAIN-AUTHORITY + CONFIDENCE-LOCK + BOOTSTRAP-GUARD-HARDENED";
+const VERSION = "marionDomainRegistry v1.7.1 SIX-DOMAIN-RUNTIME-DEFINITION-COHESION + MANIFEST-ALIGNED-DOMAIN-AUTHORITY + CONFIDENCE-LOCK + BOOTSTRAP-GUARD-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -364,8 +364,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     safetyFirst: false,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/Domains/english",
-    manifestHint: "Data/Domains/english/manifest.json"
+    dataRootHint: "Data/Domains/English",
+    manifestHint: "Data/Domains/English/manifest.json"
   }),
   ai: Object.freeze({
     domain: "ai",
@@ -441,17 +441,17 @@ const DOMAIN_FILE_CANDIDATES = Object.freeze({
   english: Object.freeze({
     manifests: Object.freeze(["Data/Domains/english/manifest.json", "Data/Domains/English/manifest.json", "domains/english/manifest.json", "domains/english/english.manifest.json", "domains/english.json", "Data/english/manifest.json", "Data/English/manifest.json", "Data/marion/domains/english/manifest.json", "Data/marion/knowledge/english/manifest.json"]),
     roots: Object.freeze(["Data/Domains/english", "Data/Domains/English", "domains/english", "Data/english", "Data/English", "Data/marion/domains/english", "Data/marion/knowledge/english"]),
-    packs: Object.freeze(["Data/Domains/english/english.json", "Data/Domains/english/knowledge.json", "Data/Domains/english/domain.json", "Data/Domains/english/pack.json", "domains/english/knowledge.json", "domains/english/domain.json", "domains/english/pack.json", "Data/english/english.json", "Data/english/knowledge.json", "Data/marion/knowledge/english.json"])
+    packs: Object.freeze(["Data/Domains/english/english.json", "Data/Domains/english/knowledge.json", "Data/Domains/english/domain.json", "Data/Domains/english/pack.json", "domains/english/knowledge.json", "domains/english/domain.json", "domains/english/pack.json", "Data/english/english.json", "Data/english/knowledge.json", "Data/marion/knowledge/english.json", "Data/Domains/English/eng_academic_writing_clarity_v1.json", "Data/Domains/English/eng_curriculum_sequence_v1.json", "Data/Domains/English/eng_eap_canada_case_studies_v1.json", "Data/Domains/English/eng_foundations_language_science_v1.json", "Data/Domains/English/eng_morphology_word_formation_v1.json", "Data/Domains/English/eng_phonetics_phonology_v1.json", "Data/Domains/English/eng_register_corpus_usage_v1.json", "Data/Domains/English/eng_semantics_pragmatics_v1.json", "Data/Domains/English/eng_sources_index_v1.json", "Data/Domains/English/eng_syntax_grammar_core_v1.json"])
   }),
   ai: Object.freeze({
     manifests: Object.freeze(["Data/Domains/ai/manifest.json", "Data/Domains/AI/manifest.json", "domains/ai/manifest.json", "domains/AI/manifest.json", "domains/ai/ai.manifest.json", "Data/ai/manifest.json", "Data/AI/manifest.json", "Data/marion/domains/ai/manifest.json", "Data/marion/knowledge/ai/manifest.json"]),
     roots: Object.freeze(["Data/Domains/ai", "Data/Domains/AI", "Data/ai", "Data/AI", "domains/ai", "domains/AI", "Data/marion/domains/ai", "Data/marion/knowledge/ai"]),
-    packs: Object.freeze(["Data/Domains/ai/ai.json", "Data/Domains/ai/knowledge.json", "Data/Domains/ai/domain.json", "Data/Domains/AI/ai.json", "Data/Domains/AI/knowledge.json", "Data/ai/ai.json", "Data/ai/knowledge.json", "Data/ai/domain.json", "domains/ai/knowledge.json", "Data/marion/knowledge/ai.json"])
+    packs: Object.freeze(["Data/Domains/ai/ai.json", "Data/Domains/ai/knowledge.json", "Data/Domains/ai/domain.json", "Data/Domains/AI/ai.json", "Data/Domains/AI/knowledge.json", "Data/ai/ai.json", "Data/ai/knowledge.json", "Data/ai/domain.json", "domains/ai/knowledge.json", "Data/marion/knowledge/ai.json", "Data/Domains/ai/ai_agents_systems_v1.json", "Data/Domains/ai/ai_ai_cybersecurity_v1.json", "Data/Domains/ai/ai_ai_marketing_v1.json", "Data/Domains/ai/ai_ai_psychology_v1.json", "Data/Domains/ai/ai_case_studies_v1.json", "Data/Domains/ai/ai_ethics_law_v1.json", "Data/Domains/ai/ai_foundations_v1.json"])
   }),
   cyber: Object.freeze({
     manifests: Object.freeze(["Data/Domains/Cyber/manifest.json", "Data/Domains/cyber/manifest.json", "domains/Cyber/manifest.json", "domains/cyber/manifest.json", "domains/cyber/cyber.manifest.json", "domains/cybersecurity/manifest.json", "Data/Cyber/manifest.json", "Data/cyber/manifest.json", "Data/cybersecurity/manifest.json", "Data/marion/domains/cyber/manifest.json", "Data/marion/knowledge/cyber/manifest.json"]),
     roots: Object.freeze(["Data/Domains/Cyber", "Data/Domains/cyber", "Data/Cyber", "Data/cyber", "Data/cybersecurity", "domains/Cyber", "domains/cyber", "domains/cybersecurity", "Data/marion/domains/cyber", "Data/marion/knowledge/cyber"]),
-    packs: Object.freeze(["Data/Domains/Cyber/cyber.json", "Data/Domains/Cyber/knowledge.json", "Data/Domains/Cyber/domain.json", "Data/Domains/cyber/cyber.json", "Data/Domains/cyber/knowledge.json", "Data/cyber/cyber.json", "Data/cyber/knowledge.json", "Data/cyber/domain.json", "domains/cyber/knowledge.json", "Data/marion/knowledge/cyber.json"])
+    packs: Object.freeze(["Data/Domains/Cyber/cyber.json", "Data/Domains/Cyber/knowledge.json", "Data/Domains/Cyber/domain.json", "Data/Domains/cyber/cyber.json", "Data/Domains/cyber/knowledge.json", "Data/cyber/cyber.json", "Data/cyber/knowledge.json", "Data/cyber/domain.json", "domains/cyber/knowledge.json", "Data/marion/knowledge/cyber.json", "Data/Domains/Cyber/cyber_endpoint_cloud_v1.json", "Data/Domains/Cyber/cyber_endpoint_cloud_v2.json", "Data/Domains/Cyber/cyber_foundations_v2.json", "Data/Domains/Cyber/cyber_identity_access_v2.json", "Data/Domains/Cyber/cyber_incident_response_v2.json", "Data/Domains/Cyber/cyber_network_web_v2.json", "Data/Domains/Cyber/cyber_privacy_data_protection_v2.json", "Data/Domains/Cyber/cyber_safety_and_posture_v2.json", "Data/Domains/Cyber/cyber_security_culture_v2.json", "Data/Domains/Cyber/cyber_source_ladder_v2.json"])
   }),
   law: Object.freeze({
     manifests: Object.freeze(["Data/Domains/law/manifest.json", "Data/Domains/Law/manifest.json", "domains/law/manifest.json", "domains/legal/manifest.json", "Data/law/manifest.json", "Data/Law/manifest.json", "Data/legal/manifest.json", "Data/marion/domains/law/manifest.json", "Data/marion/knowledge/law/manifest.json"]),
