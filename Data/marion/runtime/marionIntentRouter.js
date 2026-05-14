@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.5 SIX-DOMAIN-RUNTIME-DEFINITION-COHESION-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
+const VERSION = "marionIntentRouter v3.4.6 SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1277,8 +1277,8 @@ function intentConfidenceProfile(intentPacket = {}, text = "") {
     routeLocked,
     reason: safeStr(p.reason || (top.reasons && top.reasons[0]) || "intent_domain_confidence"),
     primaryIntent: safeStr(p.intent || "simple_chat"),
-    primaryDomain: safeStr(top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning"),
-    selectedDomain: safeStr(top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning"),
+    primaryDomain: safeStr(knowledgeDomain && p.reason === "definition_query_domain_lock" ? knowledgeDomain : (top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning")),
+    selectedDomain: safeStr(knowledgeDomain && p.reason === "definition_query_domain_lock" ? knowledgeDomain : (top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning")),
     knowledgeDomain,
     candidates,
     failClosed: ambiguous && !routeLocked
@@ -1292,7 +1292,8 @@ function buildRouting(marionIntent) {
   const registryWiring = registryKnowledgeWiring(knowledgeDomain);
   const registryConfig = registryKnowledgeConfig(knowledgeDomain);
   const baseDomain = INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
-  const domain = knowledgeDomain ? safeStr((registryRoute && registryRoute.operationalDomain) || operationalDomainForKnowledge(knowledgeDomain, marionIntent.intent)) : baseDomain;
+  const definitionDomainLock = knowledgeDomain && safeStr(marionIntent.knowledgeDomainReason) === "definition_query_domain_lock";
+  const domain = definitionDomainLock ? knowledgeDomain : (knowledgeDomain ? safeStr((registryRoute && registryRoute.operationalDomain) || operationalDomainForKnowledge(knowledgeDomain, marionIntent.intent)) : baseDomain);
   const mode = (registryRoute && registryRoute.mode) || (knowledgeDomain && KNOWLEDGE_DOMAIN_MODE[knowledgeDomain]) || DOMAIN_MODE[domain] || "conversation";
   const depth = (registryRoute && registryRoute.depth) || (knowledgeDomain && KNOWLEDGE_DOMAIN_DEPTH[knowledgeDomain]) || DOMAIN_DEPTH[domain] || "normal";
   const preferredStyle = (registryRoute && registryRoute.preferredStyle) || (registryConfig && registryConfig.preferredStyle) || (knowledgeDomain && PREFERRED_STYLE[knowledgeDomain]) || PREFERRED_STYLE[domain] || "direct";
