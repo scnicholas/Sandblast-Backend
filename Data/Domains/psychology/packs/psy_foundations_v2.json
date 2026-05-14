@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Doctoral-level foundational psychology pack for theory, schools of thought, historical framing, and translation into safe assistant reasoning.",
-  "updatedAt": "2026-03-15",
+  "updatedAt": "2026-05-13",
   "scope": [
     "general",
     "education",
@@ -50,13 +50,39 @@
           "punishment",
           "reinforcement",
           "behavior",
-          "consistency"
+          "consistency",
+          "Operant Conditioning",
+          "Behavior is shaped and maintained by its consequences"
         ],
         "intentSignals": [
           "fix habit",
           "motivation system",
-          "can't stick to"
+          "can't stick to",
+          "what is operant conditioning",
+          "define operant conditioning",
+          "explain operant conditioning"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_foundations_v2",
+        "section": "theories",
+        "term": "Operant Conditioning",
+        "canonicalKey": "operant_conditioning",
+        "definition": "Behavior is shaped and maintained by its consequences.",
+        "acceptedPrompts": [
+          "What is Operant Conditioning?",
+          "Define Operant Conditioning.",
+          "Explain Operant Conditioning."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -91,12 +117,38 @@
           "trigger",
           "association",
           "automatic response",
-          "conditioning"
+          "conditioning",
+          "Classical Conditioning",
+          "Associations between stimuli create automatic emotional responses"
         ],
         "intentSignals": [
           "why do I react",
-          "why does this trigger me"
+          "why does this trigger me",
+          "what is classical conditioning",
+          "define classical conditioning",
+          "explain classical conditioning"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_foundations_v2",
+        "section": "theories",
+        "term": "Classical Conditioning",
+        "canonicalKey": "classical_conditioning",
+        "definition": "Associations between stimuli create automatic emotional responses.",
+        "acceptedPrompts": [
+          "What is Classical Conditioning?",
+          "Define Classical Conditioning.",
+          "Explain Classical Conditioning."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -132,11 +184,37 @@
           "rationalize",
           "justify",
           "identity",
-          "inconsistent"
+          "inconsistent",
+          "Cognitive Dissonance",
+          "Psychological discomfort arises when beliefs and actions conflict"
         ],
         "intentSignals": [
-          "why do I say one thing but do another"
+          "why do I say one thing but do another",
+          "what is cognitive dissonance",
+          "define cognitive dissonance",
+          "explain cognitive dissonance"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_foundations_v2",
+        "section": "theories",
+        "term": "Cognitive Dissonance",
+        "canonicalKey": "cognitive_dissonance",
+        "definition": "Psychological discomfort arises when beliefs and actions conflict.",
+        "acceptedPrompts": [
+          "What is Cognitive Dissonance?",
+          "Define Cognitive Dissonance.",
+          "Explain Cognitive Dissonance."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -172,11 +250,38 @@
           "needs",
           "burnout",
           "performance",
-          "belonging"
+          "belonging",
+          "Maslow's Hierarchy of Needs",
+          "maslow hierarchy",
+          "Basic needs must be sufficiently met before higher growth motives dominate"
         ],
         "intentSignals": [
-          "why am I not motivated"
+          "why am I not motivated",
+          "what is maslow's hierarchy of needs",
+          "define maslow's hierarchy of needs",
+          "explain maslow's hierarchy of needs"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_foundations_v2",
+        "section": "theories",
+        "term": "Maslow's Hierarchy of Needs",
+        "canonicalKey": "maslow_s_hierarchy_of_needs",
+        "definition": "Basic needs must be sufficiently met before higher growth motives dominate.",
+        "acceptedPrompts": [
+          "What is Maslow's Hierarchy of Needs?",
+          "Define Maslow's Hierarchy of Needs.",
+          "Explain Maslow's Hierarchy of Needs."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -211,11 +316,38 @@
           "intrinsic motivation",
           "autonomy",
           "competence",
-          "engagement"
+          "engagement",
+          "Self-Determination Theory",
+          "self determination theory",
+          "Autonomy, competence, and relatedness drive intrinsic motivation"
         ],
         "intentSignals": [
-          "how do I stay motivated"
+          "how do I stay motivated",
+          "what is self-determination theory",
+          "define self-determination theory",
+          "explain self-determination theory"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_foundations_v2",
+        "section": "theories",
+        "term": "Self-Determination Theory",
+        "canonicalKey": "self_determination_theory",
+        "definition": "Autonomy, competence, and relatedness drive intrinsic motivation.",
+        "acceptedPrompts": [
+          "What is Self-Determination Theory?",
+          "Define Self-Determination Theory.",
+          "Explain Self-Determination Theory."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -251,12 +383,38 @@
           "growth",
           "mindset",
           "learning",
-          "improve"
+          "improve",
+          "Growth vs Fixed Mindset",
+          "Beliefs about ability shape resilience and learning outcomes"
         ],
         "intentSignals": [
           "I’m bad at this",
-          "I can’t improve"
+          "I can’t improve",
+          "what is growth vs fixed mindset",
+          "define growth vs fixed mindset",
+          "explain growth vs fixed mindset"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_foundations_v2",
+        "section": "theories",
+        "term": "Growth vs Fixed Mindset",
+        "canonicalKey": "growth_vs_fixed_mindset",
+        "definition": "Beliefs about ability shape resilience and learning outcomes.",
+        "acceptedPrompts": [
+          "What is Growth vs Fixed Mindset?",
+          "Define Growth vs Fixed Mindset.",
+          "Explain Growth vs Fixed Mindset."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     }
   ],
@@ -524,19 +682,25 @@
     ]
   },
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI",
-    "normalizedFor": [
-      "Marion",
-      "Nyx"
-    ],
+    "normalizedBy": "OpenAI ChatGPT",
+    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
     "retrievalPriority": "high",
     "canonicalPackId": "psy_foundations_v2",
-    "sourceFilename": "psy_foundations_v2.json",
+    "sourceFilename": "psy_foundations_v2(2).json",
     "aliases": [
       "psy_foundations_v1",
-      "psy_foundations_v2"
+      "psy_foundations_v2",
+      "foundations",
+      "conditioning",
+      "motivation",
+      "cognitive dissonance",
+      "mindset"
     ],
-    "pathwayRole": "reasoning_core"
+    "pathwayRole": "reasoning_core",
+    "definitionInventoryReady": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
+    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
+    "commercialRegressionGuard": true
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2",
@@ -558,10 +722,10 @@
     ]
   },
   "runtimeDomainKey": "psychology",
-  "runtimePath": "Data/Domains/psychology/packs/psy_foundations_v2.json",
-  "manifestPackKey": "psyFoundations",
+  "runtimePath": "Data/Domains/psychology/psy_foundations_v2.json",
+  "manifestPackKey": "psy_foundations_v2",
   "safetyBoundary": {
-    "stance": "educational_nonclinical_support_only",
+    "stance": "educational_support_only",
     "noDiagnosis": true,
     "noTherapyOrMedicalDirective": true,
     "crisisEscalationRequired": true,
@@ -570,7 +734,15 @@
   "retrievalIndex": {
     "domain": "psychology",
     "packId": "psy_foundations_v2",
-    "aliases": [],
+    "aliases": [
+      "foundations",
+      "conditioning",
+      "motivation",
+      "cognitive dissonance",
+      "mindset",
+      "psy_foundations_v2",
+      "psy foundations v2"
+    ],
     "keywords": [
       "general",
       "education",
@@ -617,7 +789,20 @@
       "I’m bad at this",
       "I can’t improve",
       "psy_foundations_v1",
-      "psy_foundations_v2"
+      "psy_foundations_v2",
+      "foundations",
+      "cognitive dissonance",
+      "Operant Conditioning",
+      "operant_conditioning",
+      "Classical Conditioning",
+      "classical_conditioning",
+      "cognitive_dissonance",
+      "Maslow's Hierarchy of Needs",
+      "maslow_hierarchy",
+      "Self-Determination Theory",
+      "self_determination_theory",
+      "Growth vs Fixed Mindset",
+      "growth_vs_fixed_mindset"
     ],
     "primaryFields": [
       "packId",
@@ -646,14 +831,224 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "name",
+      "id",
+      "oneLiner",
+      "definitionSurface",
+      "retrievalHints",
+      "coreMechanism",
+      "coreClaims",
+      "keyPoints",
+      "actionablePrinciples",
+      "applicationRules"
+    ],
+    "definitionQueryPriority": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-05-13",
+    "definitionInventoryPatched": true,
+    "lineAuditCompleted": true,
+    "genericFallbackBlocked": true,
+    "overlapClarificationReady": true
+  },
+  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
+  "definitionAnswerContract": {
+    "version": "nyx.marion.definitionAnswerContract/1.0",
+    "active": true,
+    "acceptedQuestionForms": [
+      "what is {term}",
+      "what are {term}",
+      "define {term}",
+      "explain {term}",
+      "meaning of {term}"
+    ],
+    "requiredAnswerShape": [
+      "direct definition",
+      "psychology context",
+      "one practical/actionable note when appropriate"
+    ],
+    "blockedFallbacks": [
+      "I need one more concrete detail to route this cleanly.",
+      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
+      "The specific technical move is to name the active component."
+    ],
+    "domainLock": "psychology",
+    "allowAmbiguityClarification": true,
+    "ambiguityShape": [
+      "short neutral definition",
+      "possible domain interpretations",
+      "one targeted clarification question"
+    ],
+    "safetyBoundary": {
+      "educationalOnly": true,
+      "noDiagnosis": true,
+      "noTherapyReplacement": true,
+      "crisisEscalationRequired": true
+    }
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
+    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
+    "technicalOverrideRequiresExplicitBackendTerms": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "patch",
+      "file",
+      "script",
+      "backend",
+      "ChatEngine",
+      "MarionBridge",
+      "StateSpine",
+      "ComposeMarionResponse"
+    ],
+    "domain": "psychology",
+    "packId": "psy_foundations_v2",
+    "sourceFilename": "psy_foundations_v2(2).json",
+    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
+    "crossDomainOverlapMap": {
+      "cognitive intelligence": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
+        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
+      },
+      "reasoning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "law"
+        ],
+        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
+        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
+      },
+      "bias": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "research_methods"
+        ],
+        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
+        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
+      },
+      "validation": {
+        "overlapDomains": [
+          "psychology",
+          "research_methods",
+          "ai",
+          "cyber"
+        ],
+        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
+        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
+      },
+      "resilience": {
+        "overlapDomains": [
+          "psychology",
+          "business",
+          "finance"
+        ],
+        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
+        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
+      },
+      "identity": {
+        "overlapDomains": [
+          "psychology",
+          "social",
+          "development",
+          "identity_query"
+        ],
+        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
+        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
+      },
+      "attention": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
+        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
+      },
+      "learning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "education"
+        ],
+        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
+        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
+      },
+      "confidence": {
+        "overlapDomains": [
+          "psychology",
+          "statistics",
+          "ai",
+          "finance"
+        ],
+        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
+        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
+      },
+      "compliance": {
+        "overlapDomains": [
+          "psychology",
+          "law",
+          "cyber",
+          "business"
+        ],
+        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
+        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
+      }
+    }
+  },
+  "definitionInventory": {
+    "version": "nyx.marion.definitionInventory/1.0",
+    "domain": "psychology",
+    "packId": "psy_foundations_v2",
+    "termCount": 6,
+    "items": [
+      {
+        "term": "Operant Conditioning",
+        "canonicalKey": "operant_conditioning",
+        "definition": "Behavior is shaped and maintained by its consequences.",
+        "section": "theories"
+      },
+      {
+        "term": "Classical Conditioning",
+        "canonicalKey": "classical_conditioning",
+        "definition": "Associations between stimuli create automatic emotional responses.",
+        "section": "theories"
+      },
+      {
+        "term": "Cognitive Dissonance",
+        "canonicalKey": "cognitive_dissonance",
+        "definition": "Psychological discomfort arises when beliefs and actions conflict.",
+        "section": "theories"
+      },
+      {
+        "term": "Maslow's Hierarchy of Needs",
+        "canonicalKey": "maslow_s_hierarchy_of_needs",
+        "definition": "Basic needs must be sufficiently met before higher growth motives dominate.",
+        "section": "theories"
+      },
+      {
+        "term": "Self-Determination Theory",
+        "canonicalKey": "self_determination_theory",
+        "definition": "Autonomy, competence, and relatedness drive intrinsic motivation.",
+        "section": "theories"
+      },
+      {
+        "term": "Growth vs Fixed Mindset",
+        "canonicalKey": "growth_vs_fixed_mindset",
+        "definition": "Beliefs about ability shape resilience and learning outcomes.",
+        "section": "theories"
+      }
+    ]
   }
 }
