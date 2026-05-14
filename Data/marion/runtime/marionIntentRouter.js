@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.4 SIX-DOMAIN-DEFINITION-ROUTING-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
+const VERSION = "marionIntentRouter v3.4.5 SIX-DOMAIN-RUNTIME-DEFINITION-COHESION-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -624,24 +624,22 @@ function isDefinitionQuery(text = "") {
   return /\b(what\s+is|what\s+are|define|definition\s+of|meaning\s+of|explain|explain\s+the\s+term|explain\s+the\s+word|describe)\b/i.test(t) || /\?$/.test(t);
 }
 
-function definitionKnowledgeDomainFromText(text = "") {
+function definitionKnowledgeDomainFromText(text = ""){
   const t = lower(normalizeRouterVoiceTextParity(text));
   if (!isDefinitionQuery(t)) return "";
-  // Explicit Nyx/Marion module targets must remain technical. Domain terms only win for real concept-definition questions.
   if (canonicalTechnicalTargetFromText(t).targetPath) return "";
   if (/\b(full autopsy|line[-\s]?by[-\s]?line|audit|critical fix|critical fixes|patch|debug|backend|frontend|widget|script|file|api\/chat|render|deploy|syntax|node --check)\b/i.test(t)) return "";
-  const domainTerms = [
-    ["law", /\b(contract consideration|legal consideration|consideration in contract|consideration|contract|contract law|statute|jurisdiction|legal information|legal advice|liability|negligence|fiduciary|tort|case law|compliance)\b/i],
-    ["finance", /\b(cash[-\s]?flow|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience)\b/i],
-    ["psychology", /\b(cognitive distortion|emotional regulation|attachment|trauma|bias|cognition|cognitive|shutdown|emotional shutdown|anxiety|panic|behavior|behaviour)\b/i],
-    ["ai", /\b(tool routing|rag|retrieval augmented generation|llm|large language model|embedding|agent orchestration|ai agent|artificial intelligence|machine learning|model inference|prompt injection in ai)\b/i],
-    ["cyber", /\b(least privilege|mfa|multi[-\s]?factor|iam|identity access|zero trust|incident response|threat model|input validation|secrets rotation|phishing|ransomware|endpoint security|cloud security|network security|data protection|privacy minimization)\b/i],
-    ["english", /\b(sentence clarity|syntax|grammar|tone|wording|language flow|professional clarity|plain language|copyedit|proofread)\b/i]
+  const domainTerms=[
+    ["law",/\b(contract consideration|legal consideration|consideration in contract|consideration|contract|contract law|statute|jurisdiction|legal information|legal advice|liability|negligence|fiduciary|tort|case law|compliance|due process|algorithmic liability|privacy law|ai act)\b/i],
+    ["finance",/\b(cash[-\s]?flow|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience|roi|roas|attribution|incrementality|customer acquisition cost|lifetime value)\b/i],
+    ["psychology",/\b(cognitive distortion|emotional regulation|attachment|trauma|bias|cognition|cognitive|shutdown|emotional shutdown|anxiety|panic|behavior|behaviour|trust calibration|overreliance|mental model|cognitive load|affective computing)\b/i],
+    ["ai",/\b(artificial intelligence|intelligent agent|ai agent|agent architecture|tool routing|rag|retrieval augmented generation|llm|large language model|embedding|agent orchestration|machine learning|model inference|prompt injection in ai|recommendation system|algorithmic bias|model evaluation|neural network|reinforcement learning|human[-\s]?in[-\s]?the[-\s]?loop|ai governance|ai ethics|model security|cognitive intelligence)\b/i],
+    ["cyber",/\b(least privilege|cia triad|attack surface|defense in depth|assume breach|secure by default|mfa|multi[-\s]?factor|iam|identity access|rbac|jit access|zero trust|incident response|threat model|input validation|secrets rotation|phishing|ransomware|endpoint security|cloud security|shared responsibility|network security|web security|tls|data protection|privacy minimization|data minimization|security culture|source ladder)\b/i],
+    ["english",/\b(sentence clarity|actor[-\s]?action clarity|syntax|grammar|register|corpus|pragmatics|semantics|morphology|phonology|phonetics|eap|plain language|cohesion|stance|hedging|wording|language flow|professional clarity|copyedit|proofread)\b/i]
   ];
-  for (const [domain, rx] of domainTerms) if (rx.test(t)) return domain;
+  for(const [d,rx]of domainTerms){if(rx.test(t))return d;}
   return "";
 }
-
 function detectKnowledgeDomain(text) {
   const t = lower(text);
   if (!t) return { knowledgeDomain: "", explicit: false, reason: "none" };
