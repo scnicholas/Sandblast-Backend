@@ -151,12 +151,24 @@
       "phishing training",
       "governance",
       "leadership",
-      "insider threat"
+      "insider threat",
+      "shared responsibility",
+      "psychological safety in reporting",
+      "security awareness",
+      "shadow it",
+      "normalization of deviation",
+      "security is a shared responsibility",
+      "continuous training & awareness",
+      "executive buy-in & tone from the top",
+      "clear policy framework"
     ],
     "intentSignals": [
       "improve culture",
       "reduce human risk",
-      "organizational security"
+      "organizational security",
+      "definition",
+      "defensive explanation",
+      "risk reduction"
     ]
   },
   "programModules": [
@@ -435,12 +447,29 @@
   "schemaVersion": "2.0-hardened",
   "safetyBoundary": {
     "mode": "defensive_only",
-    "noExploitInstructions": true,
-    "noCredentialTheft": true,
-    "noBypassOrEvasionInstructions": true,
+    "noExploitGuidance": true,
+    "noBypassInstructions": true,
     "noMalwareAssistance": true,
-    "allow": "defensive education, architecture hardening, policy, monitoring, incident response, governance, recovery, and safe tabletop analysis",
-    "redirect": "Refuse harmful operational content and redirect to prevention, detection, containment, recovery, or authorized-lab framing."
+    "noCredentialProcessing": true,
+    "humanOversightRequired": true,
+    "allowedResponseModes": [
+      "definition",
+      "risk_explanation",
+      "secure_architecture",
+      "control_review",
+      "policy_guidance",
+      "incident_response",
+      "hardening_checklist",
+      "training_or_tabletop"
+    ],
+    "disallowedResponseModes": [
+      "intrusion_steps",
+      "exploit_chain",
+      "malware_creation",
+      "credential_abuse",
+      "evasion_or_persistence",
+      "live_targeting"
+    ]
   },
   "normalizationStatus": {
     "jsonValid": true,
@@ -450,5 +479,308 @@
     "safetyBoundaryConfirmed": true,
     "retrievalIndexAdded": true,
     "defensiveOnlyConfirmed": true
-  }
+  },
+  "runtimeSchema": "cyber_domain_runtime_v2_2",
+  "domainAliases": [
+    "cyber",
+    "cybersecurity",
+    "defensive cybersecurity",
+    "information security",
+    "security"
+  ],
+  "answerPolicy": {
+    "directDefinitionFirst": true,
+    "knownTermMustAnswer": true,
+    "answerThenClarifyWhenAmbiguous": true,
+    "avoidGenericFallbackForKnownCyberTerms": true,
+    "blockTechnicalDebugLanguageUnlessExplicitBackendRequest": true,
+    "shortDefinitionMaxSentences": 3,
+    "defaultTone": "defensive, clear, operationally safe",
+    "requiredShapeForDefinition": [
+      "one clear definition",
+      "defensive significance",
+      "one practical safe control or clarification if needed"
+    ]
+  },
+  "ambiguityPolicy": {
+    "enabled": true,
+    "strategy": "bridge_definition_plus_domain_options",
+    "knownOverlapBehavior": "Do not fail closed into generic fallback. Provide a brief neutral definition, name the possible domain angles, then ask one targeted clarification question.",
+    "crossDomainPairs": {
+      "cyber_law": "Ask whether the user means security controls/risk reduction or legal/compliance obligations.",
+      "cyber_finance": "Ask whether the user means security risk, fraud/financial exposure, or business impact.",
+      "cyber_ai": "Ask whether the user means security architecture, AI system safety, prompt injection, or model/tool behavior.",
+      "cyber_psychology": "Ask whether the user means human-risk/security culture or psychological behavior.",
+      "cyber_english": "Ask whether the user wants the cybersecurity definition or the plain-language wording/usage meaning."
+    }
+  },
+  "runtimeGuards": {
+    "definitionRoutingLock": true,
+    "blockGenericFallback": true,
+    "blockScheduleInterception": true,
+    "blockAutopsyTemplateUnlessTechnicalModuleNamed": true,
+    "suppressIfBackendReplyExists": true,
+    "defensiveOnly": true,
+    "neverProvideExploitSteps": true,
+    "redactSecretsAndAdviseRotation": true,
+    "knownCyberTermsRouteToCyber": true,
+    "v1CompatibilityMustNotOverrideV2": true
+  },
+  "definitionRouting": {
+    "lockName": "Cyber Definition Routing Lock",
+    "enabled": true,
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "meaning of",
+      "explain"
+    ],
+    "forceDomainWhenKnownTerm": "cyber",
+    "fallbackBehavior": "answer_then_clarify_not_generic_fallback",
+    "technicalDebugOverrideRequires": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "backend",
+      "script",
+      "file",
+      "patch",
+      "route",
+      "diagnostic"
+    ]
+  },
+  "runtimeDefinitionIndex": [
+    {
+      "term": "Security Culture",
+      "definition": "Security culture is the shared behavior, incentives, leadership signals, and reporting norms that determine whether people actually follow secure practices.",
+      "aliases": [
+        "human risk",
+        "security awareness",
+        "organizational security"
+      ],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "security culture",
+          "human risk",
+          "security awareness",
+          "organizational security"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Shared Responsibility",
+      "definition": "Shared responsibility means security is owned across leadership, engineering, operations, staff, vendors, and users rather than isolated to IT.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "shared responsibility"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Psychological Safety in Reporting",
+      "definition": "Psychological safety in reporting means employees can report mistakes or suspicious events without fear, improving early detection and reducing concealment.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "psychological safety in reporting"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Security Awareness",
+      "definition": "Security awareness is ongoing training and reinforcement that helps people recognize risks such as phishing, shadow IT, and unsafe shortcuts.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "security awareness"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Shadow IT",
+      "definition": "Shadow IT is the use of unapproved tools or services outside governance, creating visibility, data protection, and compliance gaps.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "shadow it"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Normalization of Deviation",
+      "definition": "Normalization of deviation is the gradual acceptance of insecure shortcuts until risky behavior feels normal.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "normalization of deviation"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Security Is a Shared Responsibility",
+      "definition": "Security is not only an IT function; it requires participation across leadership, engineering, operations, and staff.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "security is a shared responsibility"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Continuous Training & Awareness",
+      "definition": "Security awareness is an ongoing behavioral reinforcement process.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "continuous training & awareness"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Executive Buy-In & Tone from the Top",
+      "definition": "Leadership behavior signals organizational priorities.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "executive buy-in & tone from the top"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    },
+    {
+      "term": "Clear Policy Framework",
+      "definition": "Policies must be understandable, enforceable, and aligned with daily operations.",
+      "aliases": [],
+      "domain": "cyber",
+      "sourcePack": "cyber_security_culture_v2",
+      "answerMode": "direct_defensive_definition",
+      "safetyBoundary": "defensive_only_no_exploit_steps",
+      "retrievalHints": {
+        "keywords": [
+          "clear policy framework"
+        ],
+        "intentSignals": [
+          "what is",
+          "define",
+          "explain",
+          "meaning of"
+        ]
+      }
+    }
+  ],
+  "normalizationMeta": {
+    "normalizedAt": "2026-05-13",
+    "targetRuntime": "Marion/Nyx",
+    "schemaProfile": "cyber_domain_runtime_v2_2",
+    "preservedStructuralIntegrity": true,
+    "patchesApplied": [
+      "Cyber Definition Routing Lock",
+      "Defensive-Only Answer Policy",
+      "Generic Fallback Suppression for Known Cyber Terms",
+      "Endpoint Cloud V1/V2 Compatibility Guard",
+      "Runtime Definition Index Injection"
+    ]
+  },
+  "compatibilityPolicy": {
+    "role": "required_current_cyber_pack",
+    "loadByDefault": true,
+    "mustNotBeOverriddenByLegacyPack": true
+  },
+  "aliases": [
+    "cyber_security_culture_v2.json",
+    "cyber_security_culture_v2",
+    "cyber_security_culture"
+  ]
 }
