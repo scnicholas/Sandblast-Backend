@@ -27,11 +27,54 @@
         "keywords": [
           "constitutional supremacy",
           "section 52",
-          "invalid law"
+          "invalid law",
+          "lcc constitutional supremacy",
+          "is this law constitutional"
         ],
         "intentSignals": [
           "is this law constitutional"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_constitutional_charter_v1",
+        "sourceId": "lcc_constitutional_supremacy",
+        "sourcePath": "topics[0]",
+        "term": "Constitutional Supremacy",
+        "aliases": [
+          "Constitutional Supremacy",
+          "lcc constitutional supremacy",
+          "section 52",
+          "invalid law",
+          "is this law constitutional"
+        ],
+        "definition": "The Constitution is the supreme law of Canada. Any law inconsistent with it is of no force or effect to the extent of the inconsistency (Constitution Act, 1982, s.52).",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is constitutional supremacy?",
+          "what is lcc constitutional supremacy?",
+          "what is section 52?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -56,12 +99,75 @@
           "division of powers",
           "section 91",
           "section 92",
-          "federal jurisdiction"
+          "federal jurisdiction",
+          "division of powers (federal vs provincial)",
+          "lcc division of powers"
         ],
         "intentSignals": [
           "who has authority",
           "can province do this"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_constitutional_charter_v1",
+        "sourceId": "lcc_division_of_powers",
+        "sourcePath": "topics[1]",
+        "term": "Division of Powers (Federal vs Provincial)",
+        "aliases": [
+          "Division of Powers (Federal vs Provincial)",
+          "lcc division of powers",
+          "division of powers",
+          "section 91",
+          "section 92",
+          "federal jurisdiction",
+          "who has authority",
+          "can province do this"
+        ],
+        "definition": "Legislative powers are divided between federal and provincial governments under sections 91 and 92 of the Constitution Act, 1867.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is division of powers (federal vs provincial)?",
+          "what is lcc division of powers?",
+          "what is division of powers?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "jurisdiction",
+              "domains": [
+                "law",
+                "governance",
+                "platform"
+              ]
+            },
+            {
+              "term": "authority",
+              "domains": [
+                "law",
+                "social psychology",
+                "system architecture"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -87,11 +193,72 @@
           "charter rights",
           "section 2",
           "section 7",
-          "freedom of expression"
+          "freedom of expression",
+          "structure of the charter",
+          "lcc charter structure"
         ],
         "intentSignals": [
           "are my rights violated"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_constitutional_charter_v1",
+        "sourceId": "lcc_charter_structure",
+        "sourcePath": "topics[2]",
+        "term": "Structure of the Charter",
+        "aliases": [
+          "Structure of the Charter",
+          "lcc charter structure",
+          "charter rights",
+          "section 2",
+          "section 7",
+          "freedom of expression",
+          "are my rights violated"
+        ],
+        "definition": "The Charter protects fundamental freedoms, democratic rights, mobility rights, legal rights, equality rights, and language rights.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is structure of the charter?",
+          "what is lcc charter structure?",
+          "what is charter rights?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "charter",
+              "domains": [
+                "law",
+                "governance"
+              ]
+            },
+            {
+              "term": "rights",
+              "domains": [
+                "law",
+                "ethics",
+                "platform policy"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -116,11 +283,56 @@
           "section 1",
           "oakes test",
           "minimal impairment",
-          "proportionality"
+          "proportionality",
+          "section 1 and the oakes test",
+          "lcc section 1 oakes"
         ],
         "intentSignals": [
           "can government limit"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_constitutional_charter_v1",
+        "sourceId": "lcc_section_1_oakes",
+        "sourcePath": "topics[3]",
+        "term": "Section 1 and the Oakes Test",
+        "aliases": [
+          "Section 1 and the Oakes Test",
+          "lcc section 1 oakes",
+          "section 1",
+          "oakes test",
+          "minimal impairment",
+          "proportionality",
+          "can government limit"
+        ],
+        "definition": "Even if a Charter right is infringed, the government may justify the limitation under Section 1 if it is reasonable and demonstrably justified in a free and democratic society.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is section 1 and the oakes test?",
+          "what is lcc section 1 oakes?",
+          "what is section 1?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -143,11 +355,88 @@
         "keywords": [
           "section 24",
           "remedy",
-          "exclude evidence"
+          "exclude evidence",
+          "charter remedies (section 24)",
+          "lcc section 24 remedies",
+          "what happens if rights violated"
         ],
         "intentSignals": [
           "what happens if rights violated"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_constitutional_charter_v1",
+        "sourceId": "lcc_section_24_remedies",
+        "sourcePath": "topics[4]",
+        "term": "Charter Remedies (Section 24)",
+        "aliases": [
+          "Charter Remedies (Section 24)",
+          "lcc section 24 remedies",
+          "section 24",
+          "remedy",
+          "exclude evidence",
+          "what happens if rights violated"
+        ],
+        "definition": "Section 24(1) allows courts to grant appropriate and just remedies for Charter breaches. Section 24(2) may exclude evidence obtained in violation of rights.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is charter remedies (section 24)?",
+          "what is lcc section 24 remedies?",
+          "what is section 24?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [
+            {
+              "term": "remedy",
+              "domains": [
+                "law",
+                "psychology",
+                "business"
+              ]
+            },
+            {
+              "term": "evidence",
+              "domains": [
+                "law",
+                "research",
+                "business"
+              ]
+            },
+            {
+              "term": "charter",
+              "domains": [
+                "law",
+                "governance"
+              ]
+            },
+            {
+              "term": "rights",
+              "domains": [
+                "law",
+                "ethics",
+                "platform policy"
+              ]
+            }
+          ],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     },
     {
@@ -170,11 +459,56 @@
         "keywords": [
           "notwithstanding clause",
           "section 33",
-          "override"
+          "override",
+          "notwithstanding clause (section 33)",
+          "lcc notwithstanding clause",
+          "can government override"
         ],
         "intentSignals": [
           "can government override"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "law",
+        "jurisdiction": "CA",
+        "sourcePack": "law_constitutional_charter_v1",
+        "sourceId": "lcc_notwithstanding_clause",
+        "sourcePath": "topics[5]",
+        "term": "Notwithstanding Clause (Section 33)",
+        "aliases": [
+          "Notwithstanding Clause (Section 33)",
+          "lcc notwithstanding clause",
+          "notwithstanding clause",
+          "section 33",
+          "override",
+          "can government override"
+        ],
+        "definition": "Section 33 permits Parliament or provincial legislatures to override certain Charter rights temporarily.",
+        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
+        "promptPatterns": [
+          "what is notwithstanding clause (section 33)?",
+          "what is lcc notwithstanding clause?",
+          "what is notwithstanding clause?"
+        ],
+        "routingLock": {
+          "intent": "domain_question",
+          "knowledgeDomain": "law",
+          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
+          "definitionQueryWinsBeforeGenericFallback": true,
+          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
+        },
+        "clarificationPolicy": {
+          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
+          "overlapDomains": [],
+          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
+        },
+        "safetyBoundary": {
+          "stance": "general_legal_information_only_not_legal_advice",
+          "noOutcomeGuarantees": true,
+          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
+          "referProfessionalForHighStakesMatter": true
+        }
       }
     }
   ],
@@ -236,64 +570,134 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "privacyMinimization": true
   },
   "retrievalIndex": {
+    "version": "nyx.marion.lawRetrievalIndex/1.0",
     "domain": "law",
     "packId": "law_constitutional_charter_v1",
-    "aliases": [],
+    "sourceFile": "law_constitutional_charter_v1.json",
+    "definitionSurfaceCount": 6,
     "keywords": [
       "constitutional supremacy",
+      "lcc constitutional supremacy",
       "section 52",
       "invalid law",
       "is this law constitutional",
+      "division of powers (federal vs provincial)",
+      "lcc division of powers",
       "division of powers",
       "section 91",
       "section 92",
       "federal jurisdiction",
       "who has authority",
       "can province do this",
+      "structure of the charter",
+      "lcc charter structure",
       "charter rights",
       "section 2",
       "section 7",
       "freedom of expression",
       "are my rights violated",
+      "section 1 and the oakes test",
+      "lcc section 1 oakes",
       "section 1",
       "oakes test",
       "minimal impairment",
       "proportionality",
       "can government limit",
+      "charter remedies (section 24)",
+      "lcc section 24 remedies",
       "section 24",
       "remedy",
       "exclude evidence",
       "what happens if rights violated",
+      "notwithstanding clause (section 33)",
+      "lcc notwithstanding clause",
       "notwithstanding clause",
       "section 33",
       "override",
       "can government override"
     ],
-    "primaryFields": [
-      "packId",
-      "version",
-      "domain",
-      "jurisdiction",
-      "description",
-      "topics",
-      "meta",
-      "runtime",
-      "packType",
-      "retrievalHints",
-      "runtimeDomainKey",
-      "runtimePath",
-      "manifestPackKey",
-      "safetyBoundary"
-    ]
+    "intentSignals": [
+      "is this law constitutional",
+      "who has authority",
+      "can province do this",
+      "are my rights violated",
+      "can government limit",
+      "what happens if rights violated",
+      "can government override"
+    ],
+    "definitionTerms": [
+      "Constitutional Supremacy",
+      "Division of Powers (Federal vs Provincial)",
+      "Structure of the Charter",
+      "Section 1 and the Oakes Test",
+      "Charter Remedies (Section 24)",
+      "Notwithstanding Clause (Section 33)"
+    ],
+    "noGenericFallback": true,
+    "definitionQueryWinsBeforeTechnicalFallback": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
-    "conflictMarkersRemoved": true,
+    "status": "hardened_for_six_domain_definition_inventory",
     "validatedJson": true,
-    "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
+    "criticalUpdatesApplied": [
+      "definition_surface_normalization",
+      "law_definition_routing_lock",
+      "safety_boundary_hardening",
+      "retrieval_index_expansion"
+    ],
+    "normalizedAt": "2026-05-13"
+  },
+  "retrievalAliases": [
+    "law_constitutional_charter_v1",
+    "law_constitutional_charter_v2"
+  ],
+  "definitionAnswerContract": {
+    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
+    "domain": "law",
+    "jurisdictionDefault": "Canada",
+    "answerMode": "direct_definition_plus_framework",
+    "mustInclude": [
+      "plain meaning",
+      "legal information posture when relevant",
+      "jurisdiction caveat when procedure/deadlines/court steps are involved"
+    ],
+    "mustNotInclude": [
+      "generic technical fallback",
+      "outcome guarantee",
+      "personalized legal advice",
+      "unsupported deadlines"
+    ],
+    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.definitionRoutingLock/1.0",
+    "intent": "domain_question",
+    "knowledgeDomain": "law",
+    "primaryLane": "law",
+    "definitionTriggers": [
+      "what is",
+      "what are",
+      "define",
+      "definition of",
+      "explain",
+      "meaning of"
+    ],
+    "blockTechnicalFallbackUnless": [
+      "autopsy",
+      "audit",
+      "patch",
+      "backend",
+      "script",
+      "route",
+      "debug",
+      "file",
+      "line-by-line"
+    ],
+    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
   }
 }
