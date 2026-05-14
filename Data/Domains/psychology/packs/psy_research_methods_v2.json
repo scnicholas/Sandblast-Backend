@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Doctoral-level psychology research methods pack for design logic, measurement, inference, reproducibility, mixed methods, and evidence grading.",
-  "updatedAt": "2026-03-15",
+  "updatedAt": "2026-05-13",
   "scope": [
     "scientific-method",
     "research-design",
@@ -38,13 +38,40 @@
           "design",
           "causal",
           "correlational",
-          "experiment"
+          "experiment",
+          "From Research Question to Design",
+          "research question to design",
+          "Match the question type (describe, predict, explain) to the design that can actually answer it"
         ],
         "intentSignals": [
           "how would you study",
           "what design should I use",
-          "does this prove"
+          "does this prove",
+          "what is from research question to design",
+          "define from research question to design",
+          "explain from research question to design"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "coreConcepts",
+        "term": "From Research Question to Design",
+        "canonicalKey": "from_research_question_to_design",
+        "definition": "Match the question type (describe, predict, explain) to the design that can actually answer it.",
+        "acceptedPrompts": [
+          "What is From Research Question to Design?",
+          "Define From Research Question to Design.",
+          "Explain From Research Question to Design."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -65,13 +92,40 @@
           "operationalize",
           "construct",
           "measure",
-          "variable"
+          "variable",
+          "Variables and Operationalization",
+          "variables operationalization",
+          "A construct is an idea; an operational definition is how you measure it in the real world"
         ],
         "intentSignals": [
           "how do we measure",
           "define operationally",
-          "what counts as"
+          "what counts as",
+          "what is variables and operationalization",
+          "define variables and operationalization",
+          "explain variables and operationalization"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "coreConcepts",
+        "term": "Variables and Operationalization",
+        "canonicalKey": "variables_and_operationalization",
+        "definition": "A construct is an idea; an operational definition is how you measure it in the real world.",
+        "acceptedPrompts": [
+          "What is Variables and Operationalization?",
+          "Define Variables and Operationalization.",
+          "Explain Variables and Operationalization."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -92,12 +146,39 @@
           "reliability",
           "validity",
           "alpha",
-          "inter-rater"
+          "inter-rater",
+          "Reliability vs Validity",
+          "reliability validity",
+          "Reliability is consistency; validity is truthfulness to the construct"
         ],
         "intentSignals": [
           "is this measure good",
-          "how do we know it’s valid"
+          "how do we know it’s valid",
+          "what is reliability vs validity",
+          "define reliability vs validity",
+          "explain reliability vs validity"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "coreConcepts",
+        "term": "Reliability vs Validity",
+        "canonicalKey": "reliability_vs_validity",
+        "definition": "Reliability is consistency; validity is truthfulness to the construct. You need both.",
+        "acceptedPrompts": [
+          "What is Reliability vs Validity?",
+          "Define Reliability vs Validity.",
+          "Explain Reliability vs Validity."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -118,13 +199,40 @@
           "sampling",
           "generalize",
           "external validity",
-          "selection bias"
+          "selection bias",
+          "Sampling and Generalizability",
+          "sampling generalizability",
+          "What you can conclude depends on who you studied and how they were selected"
         ],
         "intentSignals": [
           "does this apply to",
           "can we generalize",
-          "sample bias"
+          "sample bias",
+          "what is sampling and generalizability",
+          "define sampling and generalizability",
+          "explain sampling and generalizability"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "coreConcepts",
+        "term": "Sampling and Generalizability",
+        "canonicalKey": "sampling_and_generalizability",
+        "definition": "What you can conclude depends on who you studied and how they were selected.",
+        "acceptedPrompts": [
+          "What is Sampling and Generalizability?",
+          "Define Sampling and Generalizability.",
+          "Explain Sampling and Generalizability."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -145,13 +253,40 @@
           "confound",
           "internal validity",
           "random assignment",
-          "control variable"
+          "control variable",
+          "Confounds, Controls, and Randomization",
+          "confounds controls randomization",
+          "A confound is an alternative explanation; good design anticipates and blocks it"
         ],
         "intentSignals": [
           "alternative explanation",
           "how do we rule out",
-          "what’s the confound"
+          "what’s the confound",
+          "what is confounds, controls, and randomization",
+          "define confounds, controls, and randomization",
+          "explain confounds, controls, and randomization"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "coreConcepts",
+        "term": "Confounds, Controls, and Randomization",
+        "canonicalKey": "confounds_controls_and_randomization",
+        "definition": "A confound is an alternative explanation; good design anticipates and blocks it.",
+        "acceptedPrompts": [
+          "What is Confounds, Controls, and Randomization?",
+          "Define Confounds, Controls, and Randomization.",
+          "Explain Confounds, Controls, and Randomization."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -174,13 +309,40 @@
           "informed consent",
           "debriefing",
           "IRB",
-          "REB"
+          "REB",
+          "Ethics in Psychological Research",
+          "ethics in psych research",
+          "Ethical research minimizes harm, uses informed consent, and protects privacy—especially with vulnerable groups"
         ],
         "intentSignals": [
           "is this ethical",
           "can we deceive participants",
-          "consent"
+          "consent",
+          "what is ethics in psychological research",
+          "define ethics in psychological research",
+          "explain ethics in psychological research"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "coreConcepts",
+        "term": "Ethics in Psychological Research",
+        "canonicalKey": "ethics_in_psychological_research",
+        "definition": "Ethical research minimizes harm, uses informed consent, and protects privacy—especially with vulnerable groups.",
+        "acceptedPrompts": [
+          "What is Ethics in Psychological Research?",
+          "Define Ethics in Psychological Research.",
+          "Explain Ethics in Psychological Research."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     },
     {
@@ -203,13 +365,40 @@
           "preregistration",
           "p-hacking",
           "HARKing",
-          "meta-analysis"
+          "meta-analysis",
+          "Replication and Open Science",
+          "replication open science",
+          "Reliable knowledge needs replication, transparency, and practices that reduce researcher degrees of freedom"
         ],
         "intentSignals": [
           "replication crisis",
           "why studies fail",
-          "can we trust this finding"
+          "can we trust this finding",
+          "what is replication and open science",
+          "define replication and open science",
+          "explain replication and open science"
         ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "coreConcepts",
+        "term": "Replication and Open Science",
+        "canonicalKey": "replication_and_open_science",
+        "definition": "Reliable knowledge needs replication, transparency, and practices that reduce researcher degrees of freedom.",
+        "acceptedPrompts": [
+          "What is Replication and Open Science?",
+          "Define Replication and Open Science.",
+          "Explain Replication and Open Science."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
       }
     }
   ],
@@ -232,7 +421,40 @@
         "Blinding where possible (participants/assessors).",
         "Pre-specified outcomes and analysis plan.",
         "Attrition handled transparently."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Experiment (Randomized Controlled)",
+          "experimental",
+          "Causal effects (with assumptions and good execution)"
+        ],
+        "intentSignals": [
+          "what is experiment (randomized controlled)",
+          "define experiment (randomized controlled)",
+          "explain experiment (randomized controlled)"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "designs",
+        "term": "Experiment (Randomized Controlled)",
+        "canonicalKey": "experiment_randomized_controlled",
+        "definition": "Causal effects (with assumptions and good execution).",
+        "acceptedPrompts": [
+          "What is Experiment (Randomized Controlled)?",
+          "Define Experiment (Randomized Controlled).",
+          "Explain Experiment (Randomized Controlled)."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "quasi_experimental",
@@ -251,7 +473,40 @@
         "Pre-trends or balance checks (when applicable).",
         "Sensitivity/robustness analyses.",
         "Transparent limitations and alternative explanations."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Quasi-Experiment",
+          "quasi experimental",
+          "Causal claims when random assignment isn’t feasible, using design-based identification"
+        ],
+        "intentSignals": [
+          "what is quasi-experiment",
+          "define quasi-experiment",
+          "explain quasi-experiment"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "designs",
+        "term": "Quasi-Experiment",
+        "canonicalKey": "quasi_experiment",
+        "definition": "Causal claims when random assignment isn’t feasible, using design-based identification.",
+        "acceptedPrompts": [
+          "What is Quasi-Experiment?",
+          "Define Quasi-Experiment.",
+          "Explain Quasi-Experiment."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "correlational",
@@ -269,7 +524,40 @@
         "Clear operational definitions and measurement quality.",
         "Confound discussion and plausible mechanisms.",
         "Avoid causal language unless design supports it."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Correlational / Observational",
+          "correlational",
+          "Associations and prediction; not definitive causality"
+        ],
+        "intentSignals": [
+          "what is correlational / observational",
+          "define correlational / observational",
+          "explain correlational / observational"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "designs",
+        "term": "Correlational / Observational",
+        "canonicalKey": "correlational_observational",
+        "definition": "Associations and prediction; not definitive causality.",
+        "acceptedPrompts": [
+          "What is Correlational / Observational?",
+          "Define Correlational / Observational.",
+          "Explain Correlational / Observational."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "survey",
@@ -288,7 +576,40 @@
         "Question wording tested (pilot/cognitive interviews).",
         "Scale reliability and validity addressed.",
         "Plan for missing data and nonresponse bias."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Survey Research",
+          "survey",
+          "Attitudes, self-report patterns, prevalence estimates (if sampling is appropriate)"
+        ],
+        "intentSignals": [
+          "what is survey research",
+          "define survey research",
+          "explain survey research"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "designs",
+        "term": "Survey Research",
+        "canonicalKey": "survey_research",
+        "definition": "Attitudes, self-report patterns, prevalence estimates (if sampling is appropriate).",
+        "acceptedPrompts": [
+          "What is Survey Research?",
+          "Define Survey Research.",
+          "Explain Survey Research."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "case_study",
@@ -307,7 +628,40 @@
         "Systematic measurement over time.",
         "Alternative explanations considered.",
         "Transparency about limits."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Case Study / Single-Case Design",
+          "case study",
+          "Rich understanding of processes; within-person change over time"
+        ],
+        "intentSignals": [
+          "what is case study / single-case design",
+          "define case study / single-case design",
+          "explain case study / single-case design"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "designs",
+        "term": "Case Study / Single-Case Design",
+        "canonicalKey": "case_study_single_case_design",
+        "definition": "Rich understanding of processes; within-person change over time.",
+        "acceptedPrompts": [
+          "What is Case Study / Single-Case Design?",
+          "Define Case Study / Single-Case Design.",
+          "Explain Case Study / Single-Case Design."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "measurementToolbox": [
@@ -323,7 +677,40 @@
       "commonPitfalls": [
         "Using a scale outside validated populations.",
         "Overinterpreting small differences without measurement invariance."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Scale Quality Quick Check",
+          "scale quality",
+          "Reliability evidence (test-retest, internal consistency, inter-rater)"
+        ],
+        "intentSignals": [
+          "what is scale quality quick check",
+          "define scale quality quick check",
+          "explain scale quality quick check"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "measurementToolbox",
+        "term": "Scale Quality Quick Check",
+        "canonicalKey": "scale_quality_quick_check",
+        "definition": "Reliability evidence (test-retest, internal consistency, inter-rater).",
+        "acceptedPrompts": [
+          "What is Scale Quality Quick Check?",
+          "Define Scale Quality Quick Check.",
+          "Explain Scale Quality Quick Check."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "observer_ratings",
@@ -336,7 +723,40 @@
       "commonPitfalls": [
         "Coder drift",
         "expectancy effects"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Observer Ratings and Coding",
+          "observer ratings",
+          "Clear codebook and training"
+        ],
+        "intentSignals": [
+          "what is observer ratings and coding",
+          "define observer ratings and coding",
+          "explain observer ratings and coding"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "measurementToolbox",
+        "term": "Observer Ratings and Coding",
+        "canonicalKey": "observer_ratings_and_coding",
+        "definition": "Clear codebook and training.",
+        "acceptedPrompts": [
+          "What is Observer Ratings and Coding?",
+          "Define Observer Ratings and Coding.",
+          "Explain Observer Ratings and Coding."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "statsLiteracy": [
@@ -353,7 +773,58 @@
         "p < .05 means the effect is big.",
         "p > .05 means there is no effect.",
         "Confidence intervals contain 95% of the data."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "p-values, Confidence Intervals, and Effect Sizes",
+          "p values ci effects",
+          "Statistical significance isn’t practical significance; effect size and uncertainty matter"
+        ],
+        "intentSignals": [
+          "what is p-values, confidence intervals, and effect sizes",
+          "define p-values, confidence intervals, and effect sizes",
+          "explain p-values, confidence intervals, and effect sizes"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "statsLiteracy",
+        "term": "p-values, Confidence Intervals, and Effect Sizes",
+        "canonicalKey": "p_values_confidence_intervals_and_effect_sizes",
+        "definition": "Statistical significance isn’t practical significance; effect size and uncertainty matter.",
+        "acceptedPrompts": [
+          "What is p-values, Confidence Intervals, and Effect Sizes?",
+          "Define p-values, Confidence Intervals, and Effect Sizes.",
+          "Explain p-values, Confidence Intervals, and Effect Sizes."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      },
+      "ambiguityClarification": {
+        "version": "nyx.marion.ambiguityClarification/1.0",
+        "overlapDetected": true,
+        "policy": "brief_answer_then_domain_choice",
+        "candidates": [
+          {
+            "term": "confidence",
+            "overlapDomains": [
+              "psychology",
+              "statistics",
+              "ai",
+              "finance"
+            ],
+            "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
+            "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
+          }
+        ]
+      }
     },
     {
       "id": "power_and_sample_size",
@@ -367,7 +838,40 @@
       "commonMisconceptions": [
         "If it’s significant, power doesn’t matter.",
         "Bigger N fixes bad design and confounding."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Power, Sample Size, and False Negatives",
+          "power and sample size",
+          "Low power increases false negatives and inflates published effect sizes via selection"
+        ],
+        "intentSignals": [
+          "what is power, sample size, and false negatives",
+          "define power, sample size, and false negatives",
+          "explain power, sample size, and false negatives"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "statsLiteracy",
+        "term": "Power, Sample Size, and False Negatives",
+        "canonicalKey": "power_sample_size_and_false_negatives",
+        "definition": "Low power increases false negatives and inflates published effect sizes via selection.",
+        "acceptedPrompts": [
+          "What is Power, Sample Size, and False Negatives?",
+          "Define Power, Sample Size, and False Negatives.",
+          "Explain Power, Sample Size, and False Negatives."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "multiple_comparisons",
@@ -377,7 +881,40 @@
         "Adjustments: Bonferroni/FDR; or pre-register primary outcomes.",
         "Exploratory analyses are fine—label them honestly.",
         "Avoid p-hacking and HARKing (hypothesizing after results known)."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Multiple Comparisons and Researcher Degrees of Freedom",
+          "multiple comparisons",
+          "Testing many hypotheses raises false positives unless corrected or pre-registered"
+        ],
+        "intentSignals": [
+          "what is multiple comparisons and researcher degrees of freedom",
+          "define multiple comparisons and researcher degrees of freedom",
+          "explain multiple comparisons and researcher degrees of freedom"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "statsLiteracy",
+        "term": "Multiple Comparisons and Researcher Degrees of Freedom",
+        "canonicalKey": "multiple_comparisons_and_researcher_degrees_of_freedom",
+        "definition": "Testing many hypotheses raises false positives unless corrected or pre-registered.",
+        "acceptedPrompts": [
+          "What is Multiple Comparisons and Researcher Degrees of Freedom?",
+          "Define Multiple Comparisons and Researcher Degrees of Freedom.",
+          "Explain Multiple Comparisons and Researcher Degrees of Freedom."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "causal_language",
@@ -387,7 +924,40 @@
         "Experiments support causal claims; observational studies usually support associations.",
         "Mechanisms require additional evidence beyond correlations.",
         "Confounding and reverse causality must be considered explicitly."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Causal Language Discipline",
+          "causal language",
+          "Use causal language only when design supports identification; otherwise describe associations"
+        ],
+        "intentSignals": [
+          "what is causal language discipline",
+          "define causal language discipline",
+          "explain causal language discipline"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "statsLiteracy",
+        "term": "Causal Language Discipline",
+        "canonicalKey": "causal_language_discipline",
+        "definition": "Use causal language only when design supports identification; otherwise describe associations.",
+        "acceptedPrompts": [
+          "What is Causal Language Discipline?",
+          "Define Causal Language Discipline.",
+          "Explain Causal Language Discipline."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "biasAndQuality": [
@@ -415,7 +985,39 @@
         "Low power",
         "Multiple comparisons",
         "Model overfitting"
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "Threats to Validity (Internal / External / Construct / Statistical)",
+          "threats to validity"
+        ],
+        "intentSignals": [
+          "what is threats to validity (internal / external / construct / statistical)",
+          "define threats to validity (internal / external / construct / statistical)",
+          "explain threats to validity (internal / external / construct / statistical)"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "biasAndQuality",
+        "term": "Threats to Validity (Internal / External / Construct / Statistical)",
+        "canonicalKey": "threats_to_validity_internal_external_construct_statistical",
+        "definition": "",
+        "acceptedPrompts": [
+          "What is Threats to Validity (Internal / External / Construct / Statistical)?",
+          "Define Threats to Validity (Internal / External / Construct / Statistical).",
+          "Explain Threats to Validity (Internal / External / Construct / Statistical)."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "id": "quality_checklist_general",
@@ -428,7 +1030,40 @@
         "Pre-specified primary outcomes and analysis plan.",
         "Transparent reporting (effect sizes, uncertainty, missing data).",
         "Limitations acknowledged; avoids overgeneralization."
-      ]
+      ],
+      "retrievalHints": {
+        "keywords": [
+          "General Study Quality Checklist",
+          "quality checklist general",
+          "Clear question and hypothesis (or clearly labeled exploratory)"
+        ],
+        "intentSignals": [
+          "what is general study quality checklist",
+          "define general study quality checklist",
+          "explain general study quality checklist"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "biasAndQuality",
+        "term": "General Study Quality Checklist",
+        "canonicalKey": "general_study_quality_checklist",
+        "definition": "Clear question and hypothesis (or clearly labeled exploratory).",
+        "acceptedPrompts": [
+          "What is General Study Quality Checklist?",
+          "Define General Study Quality Checklist.",
+          "Explain General Study Quality Checklist."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "applicationRules": [
@@ -739,7 +1374,40 @@
         "measurement audit",
         "effect-size interpretation"
       ],
-      "notes": "Suitable for doctoral seminar or qualifying-exam prep."
+      "notes": "Suitable for doctoral seminar or qualifying-exam prep.",
+      "retrievalHints": {
+        "keywords": [
+          "methods_competence",
+          "methods competence",
+          "Suitable for doctoral seminar or qualifying-exam prep"
+        ],
+        "intentSignals": [
+          "what is methods_competence",
+          "define methods_competence",
+          "explain methods_competence"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "assessmentFamilies",
+        "term": "methods_competence",
+        "canonicalKey": "methods_competence",
+        "definition": "Suitable for doctoral seminar or qualifying-exam prep.",
+        "acceptedPrompts": [
+          "What is methods_competence?",
+          "Define methods_competence.",
+          "Explain methods_competence."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     },
     {
       "name": "statistics_literacy",
@@ -749,7 +1417,40 @@
         "multiple-comparisons correction",
         "model criticism"
       ],
-      "notes": "Keep explanations conceptual and aligned to claim type."
+      "notes": "Keep explanations conceptual and aligned to claim type.",
+      "retrievalHints": {
+        "keywords": [
+          "statistics_literacy",
+          "statistics literacy",
+          "Keep explanations conceptual and aligned to claim type"
+        ],
+        "intentSignals": [
+          "what is statistics_literacy",
+          "define statistics_literacy",
+          "explain statistics_literacy"
+        ]
+      },
+      "definitionSurface": {
+        "version": "nyx.marion.definitionSurface/1.0",
+        "domain": "psychology",
+        "packId": "psy_research_methods_v2",
+        "section": "assessmentFamilies",
+        "term": "statistics_literacy",
+        "canonicalKey": "statistics_literacy",
+        "definition": "Keep explanations conceptual and aligned to claim type.",
+        "acceptedPrompts": [
+          "What is statistics_literacy?",
+          "Define statistics_literacy.",
+          "Explain statistics_literacy."
+        ],
+        "answerMode": "direct_definition_then_actionable_principle",
+        "safetyBoundary": {
+          "noDiagnosis": true,
+          "noTherapyReplacement": true,
+          "educationalOnly": true,
+          "crisisEscalationIfRiskSignal": true
+        }
+      }
     }
   ],
   "textReferenceMap": [
@@ -773,19 +1474,26 @@
     }
   ],
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI",
-    "normalizedFor": [
-      "Marion",
-      "Nyx"
-    ],
+    "normalizedBy": "OpenAI ChatGPT",
+    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
     "retrievalPriority": "high",
     "canonicalPackId": "psy_research_methods_v2",
-    "sourceFilename": "psy_research_methods_v2.json",
+    "sourceFilename": "psy_research_methods_v2(2).json",
     "aliases": [
       "psy_research_methods_v1",
-      "psy_research_methods_v2"
+      "psy_research_methods_v2",
+      "research methods",
+      "validity",
+      "reliability",
+      "sampling",
+      "evidence",
+      "measurement"
     ],
-    "pathwayRole": "methods_layer"
+    "pathwayRole": "methods_layer",
+    "definitionInventoryReady": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
+    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
+    "commercialRegressionGuard": true
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2",
@@ -809,10 +1517,10 @@
     ]
   },
   "runtimeDomainKey": "psychology",
-  "runtimePath": "Data/Domains/psychology/packs/psy_research_methods_v2.json",
-  "manifestPackKey": "psyResearchMethods",
+  "runtimePath": "Data/Domains/psychology/psy_research_methods_v2.json",
+  "manifestPackKey": "psy_research_methods_v2",
   "safetyBoundary": {
-    "stance": "educational_nonclinical_support_only",
+    "stance": "educational_support_only",
     "noDiagnosis": true,
     "noTherapyOrMedicalDirective": true,
     "crisisEscalationRequired": true,
@@ -821,7 +1529,16 @@
   "retrievalIndex": {
     "domain": "psychology",
     "packId": "psy_research_methods_v2",
-    "aliases": [],
+    "aliases": [
+      "research methods",
+      "validity",
+      "reliability",
+      "sampling",
+      "evidence",
+      "measurement",
+      "psy_research_methods_v2",
+      "psy research methods v2"
+    ],
     "keywords": [
       "scientific-method",
       "research-design",
@@ -884,7 +1601,50 @@
       "why studies fail",
       "can we trust this finding",
       "psy_research_methods_v1",
-      "psy_research_methods_v2"
+      "psy_research_methods_v2",
+      "research methods",
+      "evidence",
+      "Threats to Validity (Internal / External / Construct / Statistical)",
+      "threats_to_validity",
+      "General Study Quality Checklist",
+      "quality_checklist_general",
+      "p-values, Confidence Intervals, and Effect Sizes",
+      "p_values_ci_effects",
+      "Power, Sample Size, and False Negatives",
+      "power_and_sample_size",
+      "Multiple Comparisons and Researcher Degrees of Freedom",
+      "multiple_comparisons",
+      "Causal Language Discipline",
+      "causal_language",
+      "methods_competence",
+      "statistics_literacy",
+      "From Research Question to Design",
+      "research_question_to_design",
+      "Variables and Operationalization",
+      "variables_operationalization",
+      "Reliability vs Validity",
+      "reliability_validity",
+      "Sampling and Generalizability",
+      "sampling_generalizability",
+      "Confounds, Controls, and Randomization",
+      "confounds_controls_randomization",
+      "Ethics in Psychological Research",
+      "ethics_in_psych_research",
+      "Replication and Open Science",
+      "replication_open_science",
+      "Scale Quality Quick Check",
+      "scale_quality",
+      "Observer Ratings and Coding",
+      "observer_ratings",
+      "Experiment (Randomized Controlled)",
+      "experimental",
+      "Quasi-Experiment",
+      "quasi_experimental",
+      "Correlational / Observational",
+      "Survey Research",
+      "survey",
+      "Case Study / Single-Case Design",
+      "case_study"
     ],
     "primaryFields": [
       "packId",
@@ -916,14 +1676,319 @@
       "runtimeMetadata",
       "crossPackLinks",
       "marionPathway",
-      "runtimeDomainKey"
-    ]
+      "runtimeDomainKey",
+      "name",
+      "id",
+      "oneLiner",
+      "definitionSurface",
+      "retrievalHints",
+      "coreMechanism",
+      "coreClaims",
+      "keyPoints",
+      "actionablePrinciples"
+    ],
+    "definitionQueryPriority": true,
+    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-05-13",
+    "definitionInventoryPatched": true,
+    "lineAuditCompleted": true,
+    "genericFallbackBlocked": true,
+    "overlapClarificationReady": true
+  },
+  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
+  "definitionAnswerContract": {
+    "version": "nyx.marion.definitionAnswerContract/1.0",
+    "active": true,
+    "acceptedQuestionForms": [
+      "what is {term}",
+      "what are {term}",
+      "define {term}",
+      "explain {term}",
+      "meaning of {term}"
+    ],
+    "requiredAnswerShape": [
+      "direct definition",
+      "psychology context",
+      "one practical/actionable note when appropriate"
+    ],
+    "blockedFallbacks": [
+      "I need one more concrete detail to route this cleanly.",
+      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
+      "The specific technical move is to name the active component."
+    ],
+    "domainLock": "psychology",
+    "allowAmbiguityClarification": true,
+    "ambiguityShape": [
+      "short neutral definition",
+      "possible domain interpretations",
+      "one targeted clarification question"
+    ],
+    "safetyBoundary": {
+      "educationalOnly": true,
+      "noDiagnosis": true,
+      "noTherapyReplacement": true,
+      "crisisEscalationRequired": true
+    }
+  },
+  "runtimeDefinitionRouting": {
+    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
+    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
+    "technicalOverrideRequiresExplicitBackendTerms": [
+      "autopsy",
+      "audit",
+      "line-by-line",
+      "patch",
+      "file",
+      "script",
+      "backend",
+      "ChatEngine",
+      "MarionBridge",
+      "StateSpine",
+      "ComposeMarionResponse"
+    ],
+    "domain": "psychology",
+    "packId": "psy_research_methods_v2",
+    "sourceFilename": "psy_research_methods_v2(2).json",
+    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
+    "crossDomainOverlapMap": {
+      "cognitive intelligence": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
+        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
+      },
+      "reasoning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "law"
+        ],
+        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
+        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
+      },
+      "bias": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "research_methods"
+        ],
+        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
+        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
+      },
+      "validation": {
+        "overlapDomains": [
+          "psychology",
+          "research_methods",
+          "ai",
+          "cyber"
+        ],
+        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
+        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
+      },
+      "resilience": {
+        "overlapDomains": [
+          "psychology",
+          "business",
+          "finance"
+        ],
+        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
+        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
+      },
+      "identity": {
+        "overlapDomains": [
+          "psychology",
+          "social",
+          "development",
+          "identity_query"
+        ],
+        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
+        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
+      },
+      "attention": {
+        "overlapDomains": [
+          "psychology",
+          "ai"
+        ],
+        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
+        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
+      },
+      "learning": {
+        "overlapDomains": [
+          "psychology",
+          "ai",
+          "education"
+        ],
+        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
+        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
+      },
+      "confidence": {
+        "overlapDomains": [
+          "psychology",
+          "statistics",
+          "ai",
+          "finance"
+        ],
+        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
+        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
+      },
+      "compliance": {
+        "overlapDomains": [
+          "psychology",
+          "law",
+          "cyber",
+          "business"
+        ],
+        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
+        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
+      }
+    }
+  },
+  "definitionInventory": {
+    "version": "nyx.marion.definitionInventory/1.0",
+    "domain": "psychology",
+    "packId": "psy_research_methods_v2",
+    "termCount": 22,
+    "items": [
+      {
+        "term": "Threats to Validity (Internal / External / Construct / Statistical)",
+        "canonicalKey": "threats_to_validity_internal_external_construct_statistical",
+        "definition": "",
+        "section": "biasAndQuality"
+      },
+      {
+        "term": "General Study Quality Checklist",
+        "canonicalKey": "general_study_quality_checklist",
+        "definition": "Clear question and hypothesis (or clearly labeled exploratory).",
+        "section": "biasAndQuality"
+      },
+      {
+        "term": "p-values, Confidence Intervals, and Effect Sizes",
+        "canonicalKey": "p_values_confidence_intervals_and_effect_sizes",
+        "definition": "Statistical significance isn’t practical significance; effect size and uncertainty matter.",
+        "section": "statsLiteracy"
+      },
+      {
+        "term": "Power, Sample Size, and False Negatives",
+        "canonicalKey": "power_sample_size_and_false_negatives",
+        "definition": "Low power increases false negatives and inflates published effect sizes via selection.",
+        "section": "statsLiteracy"
+      },
+      {
+        "term": "Multiple Comparisons and Researcher Degrees of Freedom",
+        "canonicalKey": "multiple_comparisons_and_researcher_degrees_of_freedom",
+        "definition": "Testing many hypotheses raises false positives unless corrected or pre-registered.",
+        "section": "statsLiteracy"
+      },
+      {
+        "term": "Causal Language Discipline",
+        "canonicalKey": "causal_language_discipline",
+        "definition": "Use causal language only when design supports identification; otherwise describe associations.",
+        "section": "statsLiteracy"
+      },
+      {
+        "term": "methods_competence",
+        "canonicalKey": "methods_competence",
+        "definition": "Suitable for doctoral seminar or qualifying-exam prep.",
+        "section": "assessmentFamilies"
+      },
+      {
+        "term": "statistics_literacy",
+        "canonicalKey": "statistics_literacy",
+        "definition": "Keep explanations conceptual and aligned to claim type.",
+        "section": "assessmentFamilies"
+      },
+      {
+        "term": "From Research Question to Design",
+        "canonicalKey": "from_research_question_to_design",
+        "definition": "Match the question type (describe, predict, explain) to the design that can actually answer it.",
+        "section": "coreConcepts"
+      },
+      {
+        "term": "Variables and Operationalization",
+        "canonicalKey": "variables_and_operationalization",
+        "definition": "A construct is an idea; an operational definition is how you measure it in the real world.",
+        "section": "coreConcepts"
+      },
+      {
+        "term": "Reliability vs Validity",
+        "canonicalKey": "reliability_vs_validity",
+        "definition": "Reliability is consistency; validity is truthfulness to the construct. You need both.",
+        "section": "coreConcepts"
+      },
+      {
+        "term": "Sampling and Generalizability",
+        "canonicalKey": "sampling_and_generalizability",
+        "definition": "What you can conclude depends on who you studied and how they were selected.",
+        "section": "coreConcepts"
+      },
+      {
+        "term": "Confounds, Controls, and Randomization",
+        "canonicalKey": "confounds_controls_and_randomization",
+        "definition": "A confound is an alternative explanation; good design anticipates and blocks it.",
+        "section": "coreConcepts"
+      },
+      {
+        "term": "Ethics in Psychological Research",
+        "canonicalKey": "ethics_in_psychological_research",
+        "definition": "Ethical research minimizes harm, uses informed consent, and protects privacy—especially with vulnerable groups.",
+        "section": "coreConcepts"
+      },
+      {
+        "term": "Replication and Open Science",
+        "canonicalKey": "replication_and_open_science",
+        "definition": "Reliable knowledge needs replication, transparency, and practices that reduce researcher degrees of freedom.",
+        "section": "coreConcepts"
+      },
+      {
+        "term": "Scale Quality Quick Check",
+        "canonicalKey": "scale_quality_quick_check",
+        "definition": "Reliability evidence (test-retest, internal consistency, inter-rater).",
+        "section": "measurementToolbox"
+      },
+      {
+        "term": "Observer Ratings and Coding",
+        "canonicalKey": "observer_ratings_and_coding",
+        "definition": "Clear codebook and training.",
+        "section": "measurementToolbox"
+      },
+      {
+        "term": "Experiment (Randomized Controlled)",
+        "canonicalKey": "experiment_randomized_controlled",
+        "definition": "Causal effects (with assumptions and good execution).",
+        "section": "designs"
+      },
+      {
+        "term": "Quasi-Experiment",
+        "canonicalKey": "quasi_experiment",
+        "definition": "Causal claims when random assignment isn’t feasible, using design-based identification.",
+        "section": "designs"
+      },
+      {
+        "term": "Correlational / Observational",
+        "canonicalKey": "correlational_observational",
+        "definition": "Associations and prediction; not definitive causality.",
+        "section": "designs"
+      },
+      {
+        "term": "Survey Research",
+        "canonicalKey": "survey_research",
+        "definition": "Attitudes, self-report patterns, prevalence estimates (if sampling is appropriate).",
+        "section": "designs"
+      },
+      {
+        "term": "Case Study / Single-Case Design",
+        "canonicalKey": "case_study_single_case_design",
+        "definition": "Rich understanding of processes; within-person change over time.",
+        "section": "designs"
+      }
+    ]
   }
 }
