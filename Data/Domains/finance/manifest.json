@@ -29,21 +29,30 @@
       "english"
     ],
     "keywords": [
+      "micro",
+      "inflation",
       "finance",
-      "cash flow",
-      "profit",
+      "rates",
+      "revenue",
+      "macro",
+      "customer acquisition cost",
+      "lifetime value",
       "pricing",
-      "unit economics",
+      "margin",
+      "pricing tier",
+      "scenario analysis",
+      "profit",
+      "gross margin",
+      "cash flow",
       "ltv",
       "cac",
       "runway",
-      "margin",
       "capital markets",
       "risk",
-      "macro",
-      "micro",
-      "inflation",
-      "rates"
+      "unit economics",
+      "burn rate",
+      "working capital",
+      "financial resilience"
     ],
     "safetyFirst": true,
     "confidencePolicy": {
@@ -229,5 +238,31 @@
     "preserveFinalEnvelope": true,
     "domainIsolationRequired": true,
     "bootstrapGuardRequired": true
+  },
+  "definitionRoutingLock": {
+    "enabled": true,
+    "version": "nyx.marion.sixDomainDefinitionRoutingLock/1.0",
+    "rule": "definition_query_domain_lock_before_technical_debug",
+    "definitionTerms": [
+      "cash flow",
+      "unit economics",
+      "runway",
+      "margin",
+      "gross margin",
+      "profit",
+      "revenue",
+      "ltv",
+      "cac",
+      "working capital",
+      "burn rate",
+      "capital markets",
+      "pricing tier",
+      "scenario analysis",
+      "financial resilience",
+      "customer acquisition cost",
+      "lifetime value"
+    ],
+    "technicalOverrideRequiresExplicitDevLanguage": true,
+    "preserveFinalEnvelope": true
   }
 }
