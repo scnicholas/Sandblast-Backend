@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.6 SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
+const VERSION = "marionIntentRouter v3.4.7 CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -185,6 +185,9 @@ function isObj(v) {
 
 function safeObj(v) {
   return isObj(v) ? v : {};
+}
+function safeArray(v) {
+  return Array.isArray(v) ? v : [];
 }
 
 function clamp01(v, fallback = 0) {
@@ -640,10 +643,45 @@ function definitionKnowledgeDomainFromText(text = ""){
   for(const [d,rx]of domainTerms){if(rx.test(t))return d;}
   return "";
 }
+
+function crossDomainSecondaryLaneProfile(text = "") {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  if (!t || canonicalTechnicalTargetFromText(t).targetPath) return null;
+  if (/\b(full autopsy|line[-\s]?by[-\s]?line|audit|critical fix|critical fixes|patch|debug|backend|frontend|widget|script|file|api\/chat|render|deploy|syntax|node --check)\b/i.test(t)) return null;
+  const aiContext = /\b(ai product|ai system|ai agent|ai model|artificial intelligence product|artificial intelligence system|llm product|model product|recommendation system|machine learning system)\b/i.test(t);
+  if (aiContext && /\b(security|cyber|prompt injection|threat|vulnerability|attack|abuse|hardening|access control|secrets|input validation)\b/i.test(t)) {
+    return { primary:"ai", secondary:["cyber"], reason:"ai_product_security_secondary_cyber", answerMode:"direct_with_secondary_context", confidence:0.97 };
+  }
+  if (aiContext && /\b(business|finance|financial|cash[-\s]?flow|revenue|pricing|margin|cost|runway|market|commercial)\b/i.test(t)) {
+    return { primary:"ai", secondary:["finance"], reason:"ai_product_business_secondary_finance", answerMode:"direct_with_secondary_context", confidence:0.94 };
+  }
+  if (aiContext && /\b(compliance|regulatory|regulation|legal|law|governance|audit|liability|privacy|consent|data protection|risk)\b/i.test(t)) {
+    return { primary:"ai", secondary:["law"], reason:"ai_product_compliance_secondary_law", answerMode:"direct_with_secondary_context", confidence:0.97 };
+  }
+  if (/\bcash[-\s]?flow risk\b/i.test(t) && /\b(legal dispute|lawsuit|litigation|claim|settlement|court|legal)\b/i.test(t)) {
+    return { primary:"finance", secondary:["law"], reason:"finance_cashflow_legal_secondary", answerMode:"direct_with_secondary_context", confidence:0.95 };
+  }
+  if (/\b(rewrite|translate|make|put)\b/i.test(t) && /\blegal clause\b/i.test(t) && /\bplain english|plain language|clear english\b/i.test(t)) {
+    return { primary:"english", secondary:["law"], reason:"english_plain_language_legal_secondary", answerMode:"direct_with_secondary_context", confidence:0.94 };
+  }
+  if (/\b(cognitive bias|cognitive distortion|bias)\b/i.test(t) && /\b(ai|recommendation system|model|algorithm|machine learning)\b/i.test(t)) {
+    return { primary:"ai", secondary:["psychology"], reason:"ai_recommendation_psychology_secondary", answerMode:"direct_with_secondary_context", confidence:0.95 };
+  }
+  if (/\b(prompt injection)\b/i.test(t) && /\bplain english|plain language|non[-\s]?technical|business owner\b/i.test(t)) {
+    return { primary:"cyber", secondary:["ai","english"], reason:"cyber_prompt_injection_plain_english", answerMode:"direct_with_secondary_context", confidence:0.95 };
+  }
+  if (/\bleast privilege\b/i.test(t) && /\bnon[-\s]?technical|business owner|plain english|plain language\b/i.test(t)) {
+    return { primary:"cyber", secondary:["english"], reason:"cyber_least_privilege_plain_english", answerMode:"direct_with_secondary_context", confidence:0.95 };
+  }
+  return null;
+}
+
 function detectKnowledgeDomain(text) {
   const t = lower(text);
   if (!t) return { knowledgeDomain: "", explicit: false, reason: "none" };
   if (isContinuationCompressionInstruction(t)) return { knowledgeDomain: "", explicit: false, reason: "continuation_compression_precedence" };
+  const crossDomainProfile = crossDomainSecondaryLaneProfile(t);
+  if (crossDomainProfile && crossDomainProfile.primary) return { knowledgeDomain: crossDomainProfile.primary, explicit: true, reason: crossDomainProfile.reason, secondaryDomains: crossDomainProfile.secondary, answerMode: crossDomainProfile.answerMode, crossDomainProfile };
   const definitionDomain = definitionKnowledgeDomainFromText(t);
   if (definitionDomain) return { knowledgeDomain: definitionDomain, explicit: true, reason: "definition_query_domain_lock" };
   if (isInfrastructureContinuityPrompt(t)) return { knowledgeDomain: "", explicit: false, reason: "technical_infrastructure_precedence" };
@@ -754,7 +792,10 @@ function inferIntentFromText(text) {
       knowledgeDomain: knowledge.knowledgeDomain,
       knowledgeDomainExplicit: true,
       knowledgeDomainReason: knowledge.reason,
-      routeLock: true
+      routeLock: true,
+      secondaryDomains: safeArray(knowledge.secondaryDomains).map(normalizeKnowledgeDomainName).filter(Boolean),
+      answerMode: safeStr(knowledge.answerMode || ""),
+      crossDomainProfile: safeObj(knowledge.crossDomainProfile)
     };
   }
 
@@ -1200,6 +1241,9 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     knowledgeDomain,
     knowledgeDomainExplicit: !!(explicitKnowledge || inferred.knowledgeDomainExplicit || detectedKnowledge.explicit),
     knowledgeDomainReason: inferred.knowledgeDomainReason || detectedKnowledge.reason || "",
+    secondaryDomains: safeArray(src.secondaryDomains || inferred.secondaryDomains || detectedKnowledge.secondaryDomains).map(normalizeKnowledgeDomainName).filter(Boolean),
+    answerMode: safeStr(src.answerMode || inferred.answerMode || detectedKnowledge.answerMode || ""),
+    crossDomainProfile: safeObj(src.crossDomainProfile || inferred.crossDomainProfile || detectedKnowledge.crossDomainProfile),
     technicalTargetLock,
     technicalFollowUpLock: !!technicalFollowUpLock,
     blockScheduleInterception: !!(technicalTargetLock && technicalTargetLock.targetPath),
@@ -1293,7 +1337,8 @@ function buildRouting(marionIntent) {
   const registryConfig = registryKnowledgeConfig(knowledgeDomain);
   const baseDomain = INTENT_TO_DOMAIN[marionIntent.intent] || "general_reasoning";
   const definitionDomainLock = knowledgeDomain && safeStr(marionIntent.knowledgeDomainReason) === "definition_query_domain_lock";
-  const domain = definitionDomainLock ? knowledgeDomain : (knowledgeDomain ? safeStr((registryRoute && registryRoute.operationalDomain) || operationalDomainForKnowledge(knowledgeDomain, marionIntent.intent)) : baseDomain);
+  const crossDomainPrimaryLock = knowledgeDomain && safeStr(marionIntent.answerMode) === "direct_with_secondary_context";
+  const domain = (definitionDomainLock || crossDomainPrimaryLock) ? knowledgeDomain : (knowledgeDomain ? safeStr((registryRoute && registryRoute.operationalDomain) || operationalDomainForKnowledge(knowledgeDomain, marionIntent.intent)) : baseDomain);
   const mode = (registryRoute && registryRoute.mode) || (knowledgeDomain && KNOWLEDGE_DOMAIN_MODE[knowledgeDomain]) || DOMAIN_MODE[domain] || "conversation";
   const depth = (registryRoute && registryRoute.depth) || (knowledgeDomain && KNOWLEDGE_DOMAIN_DEPTH[knowledgeDomain]) || DOMAIN_DEPTH[domain] || "normal";
   const preferredStyle = (registryRoute && registryRoute.preferredStyle) || (registryConfig && registryConfig.preferredStyle) || (knowledgeDomain && PREFERRED_STYLE[knowledgeDomain]) || PREFERRED_STYLE[domain] || "direct";
@@ -1332,6 +1377,9 @@ function buildRouting(marionIntent) {
     knowledgeDomain,
     knowledgeDomainExplicit: !!marionIntent.knowledgeDomainExplicit,
     knowledgeDomainReason: safeStr(marionIntent.knowledgeDomainReason || ""),
+    secondaryDomains: safeArray(marionIntent.secondaryDomains).map(normalizeKnowledgeDomainName).filter(Boolean),
+    answerMode: safeStr(marionIntent.answerMode || ""),
+    crossDomainProfile: safeObj(marionIntent.crossDomainProfile),
     knowledgeDomainActivationRequest: !!marionIntent.knowledgeDomainActivationRequest,
     technicalTargetLock: safeObj(marionIntent.technicalTargetLock),
     technicalFollowUpLock: !!marionIntent.technicalFollowUpLock,
@@ -1500,6 +1548,7 @@ module.exports = {
     detectSubIntent,
     detectDirectiveIntent,
     detectKnowledgeDomain,
+    crossDomainSecondaryLaneProfile,
     confidenceBand,
     domainSignalCandidates,
     detectBackendTechnicalContext,
