@@ -1,0 +1,2258 @@
+{
+  "version": "nyx.marion.psychologyDefinitionRegressionMatrix/1.0",
+  "updatedAt": "2026-05-13",
+  "domain": "psychology",
+  "promptCount": 125,
+  "tests": [
+    {
+      "prompt": "What is Straw Man Fallacy?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is False Dichotomy?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Appeal to Authority (Misapplied)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is judgment_tasks?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is argument_analysis?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Confirmation Bias?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Availability Heuristic?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Anchoring Bias?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Sunk Cost Fallacy?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Dunning-Kruger Effect?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Loss Aversion?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_biases_and_fallacies_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is diagnosis_prohibition?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is treatment_prohibition?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is self_harm_methods_prohibition?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is minimal_questions_in_crisis?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is avoid_over_personalization?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is escalate_on_imminent?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is playbook_crisis?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is playbook_high_support?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is playbook_grounding?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_clinical_safety_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Working Memory Model?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Cognitive Load Theory?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Dual Process Theory?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Metacognition?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Spaced Repetition?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Attention Control Theory?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is working_memory_tasks?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is executive_control_tasks?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_cognitive_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Piaget: Cognitive Development Stages?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Vygotsky: Zone of Proximal Development & Scaffolding?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Erikson: Psychosocial Development?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Attachment Theory?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Temperament & Goodness-of-Fit?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Theory of Mind?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Executive Function Development?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Adolescent Development: Reward Sensitivity & Risk?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Kohlberg: Moral Development?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Language Development: Input, Interaction, and Practice?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Aging: Selective Optimization with Compensation?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is developmental_observation?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is executive_function_and_language?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_development_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Operant Conditioning?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_foundations_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Classical Conditioning?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_foundations_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Cognitive Dissonance?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_foundations_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Maslow's Hierarchy of Needs?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_foundations_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Self-Determination Theory?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_foundations_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Growth vs Fixed Mindset?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_foundations_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Implementation Intentions (If–Then Planning)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Habit Loop Design (Cue → Routine → Reward)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Motivational Interviewing Micro-Skills (OARS-lite)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Cognitive Reframing (CBT-style, Non-clinical)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Affect Labeling (Name It to Tame It)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Box Breathing (4-4-4-4)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is 5-4-3-2-1 Grounding?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Structured Problem Solving (Define → Options → Choose → Test)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Assertive Request Script (DEAR-lite)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Repair After Conflict (Impact → Ownership → Change)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Sleep Hygiene (Micro-Protocol)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is behavior_change_metrics?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is communication_quality?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is 2-Minute Start Protocol?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Conflict Pause → Reset?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_interventions_skills_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Threats to Validity (Internal / External / Construct / Statistical)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is General Study Quality Checklist?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is p-values, Confidence Intervals, and Effect Sizes?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Power, Sample Size, and False Negatives?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Multiple Comparisons and Researcher Degrees of Freedom?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Causal Language Discipline?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is methods_competence?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is statistics_literacy?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is From Research Question to Design?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Variables and Operationalization?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Reliability vs Validity?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Sampling and Generalizability?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Confounds, Controls, and Randomization?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Ethics in Psychological Research?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Replication and Open Science?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Scale Quality Quick Check?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Observer Ratings and Coding?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Experiment (Randomized Controlled)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Quasi-Experiment?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Correlational / Observational?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Survey Research?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Case Study / Single-Case Design?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_research_methods_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Bystander Effect in Real Life?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Dissonance and Doubling Down?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Norms Shape Behavior?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Attribution Matrix (Quick)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Persuasion Planner?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Group Decision Guardrails (Anti-Groupthink)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Social Cognition?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Fundamental Attribution Error?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Self-Concept and Identity?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Attitudes?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Cognitive Dissonance?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Persuasion?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Social Influence and Norms?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Obedience and Authority?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Group Processes and Roles?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Deindividuation?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Prejudice and Discrimination?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Stereotype Threat?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Aggression?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Prosocial Behavior?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Relationships and Attachment (Social Lens)?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is Culture and Social Behavior?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_social_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is APA Guidelines for the Undergraduate Psychology Major 3.0?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is APA Competency Benchmarks / Benchmarks Evaluation System?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is APA Standards of Accreditation for Health Service Psychology?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is NIH OBSSR mixed methods and behavioral/social sciences research resources?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is OpenStax Psychology 2e?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is NCBI Bookshelf behavioral and social sciences volumes?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is cognitive_tasks?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is self_report_scales?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is developmental_assessment?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is clinical_screening?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is foundations?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is cognitive?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is development?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is social?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is research_methods?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is biases_fallacies?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is interventions_skills?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    },
+    {
+      "prompt": "What is clinical_safety?",
+      "expectedDomain": "psychology",
+      "expectedPack": "psy_sources_index_v2",
+      "expectedShape": [
+        "direct definition",
+        "psychology context",
+        "no generic fallback"
+      ],
+      "forbidden": [
+        "technical move",
+        "failure mode",
+        "validation step",
+        "I need one more concrete detail",
+        "Schedule depends",
+        "Reply held"
+      ]
+    }
+  ]
+}
