@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.34.8 CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY";
+const VERSION = "composeMarionResponse v3.34.8 CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -79,6 +79,9 @@ function buildFinalRuntimeTelemetry({source="composeMarionResponse",intent="",do
   const dc=(()=>{try{return extractDomainConfidence(i,r);}catch(_){return null;}})();
   return {
     version: FINAL_RUNTIME_TELEMETRY_VERSION,
+    telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION,
+    failureSignature: classifyFailureSignature({source,error,reply,canEmit,stage:canEmit ? "final" : "awaiting_marion",intent,domain,knowledgeDomain,finalEnvelopeTrusted}),
+    failureSignatureAudit: buildFailureSignatureAudit({source,error,reply,canEmit,stage:canEmit ? "final" : "awaiting_marion",intent,domain,knowledgeDomain,primaryDomain:firstText(knowledgeDomain,domain),secondaryDomains:safeArray(routing.secondaryDomains||r.secondaryDomains),answerMode:firstText(routing.answerMode,r.answerMode),finalEnvelopeTrusted}),
     source,
     stage: canEmit ? "final" : "awaiting_marion",
     finalAuthority: "marionFinalEnvelope",
@@ -512,6 +515,84 @@ function normalizeInboundTextForPosture(text){
     .replace(/\s+/g," ")
     .trim();
 }
+
+
+const TELEMETRY_VISIBILITY_VERSION = "nyx.marion.telemetryVisibility/1.0";
+const FAILURE_SIGNATURE_AUDIT_VERSION = "nyx.marion.failureSignatureAudit/1.0";
+const KNOWN_FAILURE_SIGNATURES = Object.freeze([
+  "none",
+  "ROUTE_DOMAIN_MISMATCH",
+  "FINAL_ENVELOPE_MISSING",
+  "WEAK_FINAL_REJECTED",
+  "LOOP_GUARD_SUPPRESSED",
+  "PACKET_HIJACK_ATTEMPT",
+  "SCHEDULE_PRE_ROUTER_INTERCEPT",
+  "TECHNICAL_TARGET_STALE_CARRY",
+  "DOMAIN_CONFIDENCE_LOW",
+  "VOICE_TEXT_PARITY_DRIFT",
+  "COMPOSER_EMPTY_REPLY",
+  "BRIDGE_HANDOFF_INVALID",
+  "CHATENGINE_COORDINATOR_FAULT",
+  "DEBUG_LEAK_BLOCKED"
+]);
+function telemetryAuditText(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function telemetryAuditObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function classifyFailureSignature(fields={}){
+  const f=telemetryAuditObj(fields);
+  const text=telemetryAuditText([f.error,f.reply,f.message,f.reason,f.stage,f.source,Array.isArray(f.reasons)?f.reasons.join(" "):""].join(" ")).toLowerCase();
+  const loop=telemetryAuditObj(f.loopGuardResult||f.loopGuard);
+  if(loop.forceRecovery===true||loop.loopDetected===true||loop.allowReply===false)return"LOOP_GUARD_SUPPRESSED";
+  if(/\breply held\b/.test(text))return"LOOP_GUARD_SUPPRESSED";
+  if(/\bschedule depends on where you are|city\/timezone|which city\b/.test(text))return"SCHEDULE_PRE_ROUTER_INTERCEPT";
+  if(/\bfinal envelope missing|final_envelope_missing|non-final|nonfinal|marion did not return\b/.test(text))return"FINAL_ENVELOPE_MISSING";
+  if(/\bweak final|weak_final|rejected final|not trusted|trusted final.*false\b/.test(text))return"WEAK_FINAL_REJECTED";
+  if(/\bcomposer.*empty|empty reply|compose_reply_missing|reply missing\b/.test(text))return"COMPOSER_EMPTY_REPLY";
+  if(/\bbridge.*invalid|handoff invalid|bridge handoff|contract_invalid|packet_invalid\b/.test(text))return"BRIDGE_HANDOFF_INVALID";
+  if(/\bchat_engine_coordinator_fault|coordinator fault|runtimeTelemetry is not defined\b/.test(text))return"CHATENGINE_COORDINATOR_FAULT";
+  if(/\bdomain confidence low|low confidence|route ambiguous|ambiguous route\b/.test(text)||f.routeAmbiguous===true)return"DOMAIN_CONFIDENCE_LOW";
+  if(/\bvoice.*parity.*drift|mic.*text.*drift|inputsource.*mismatch\b/.test(text)||f.voiceTextParityDrift===true)return"VOICE_TEXT_PARITY_DRIFT";
+  if(/\bstale.*target|target.*stale|wrong target\b/.test(text))return"TECHNICAL_TARGET_STALE_CARRY";
+  if(/\bpacket hijack|pre-router intercept|packet.*intercept\b/.test(text))return"PACKET_HIJACK_ATTEMPT";
+  if(/\broutekind=|finalenvelope|sessionpatch|diagnostic packet|replyauthority=|speechhints=|presenceprofile=|nyxstatehint=\b/i.test(telemetryAuditText(f.reply||"")))return"DEBUG_LEAK_BLOCKED";
+  if(f.canEmit===false&&f.finalEnvelopeTrusted===false)return"FINAL_ENVELOPE_MISSING";
+  return"none";
+}
+function buildFailureSignatureAudit(fields={}){
+  const f=telemetryAuditObj(fields);
+  const signature=classifyFailureSignature(f);
+  const primary=telemetryAuditText(f.primaryDomain||f.domain||f.knowledgeDomain||"");
+  const secondary=Array.isArray(f.secondaryDomains)?f.secondaryDomains.map(telemetryAuditText).filter(Boolean).slice(0,4):[];
+  return {
+    version: FAILURE_SIGNATURE_AUDIT_VERSION,
+    telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION,
+    failureSignature: signature,
+    ok: signature==="none",
+    severity: signature==="none"?"none":(signature==="DEBUG_LEAK_BLOCKED"?"high":"medium"),
+    userVisible: false,
+    debugLeakBlocked: true,
+    visibleReplyMustRemainClean: true,
+    source: telemetryAuditText(f.source||""),
+    stage: telemetryAuditText(f.stage||""),
+    intent: telemetryAuditText(f.intent||""),
+    domain: primary,
+    knowledgeDomain: telemetryAuditText(f.knowledgeDomain||""),
+    primaryDomain: primary,
+    secondaryDomains: secondary,
+    answerMode: telemetryAuditText(f.answerMode||""),
+    canEmit: f.canEmit!==false,
+    finalEnvelopeTrusted: f.finalEnvelopeTrusted!==false && f.trustedFinalEnvelope!==false
+  };
+}
+function isTelemetryLeakText(value=""){
+  return /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final)\b/i.test(telemetryAuditText(value));
+}
+function stripTelemetryLeakFromReply(value=""){
+  const text=telemetryAuditText(value);
+  if(!text)return"";
+  if(isTelemetryLeakText(text))return text.replace(/\b(routeKind|speechHints|presenceProfile|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority|nyxStateHint)\s*=\s*[^.;,\n]+[.;,]?\s*/gi,"").replace(/\bdiagnostic packet\b/ig,"").replace(/\bfinal envelope missing\b/ig,"").replace(/\bnon-final\b/ig,"").replace(/\s+/g," ").trim();
+  return text;
+}
+
 function detectGreetingDistressSignal(text){
   const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
   const addressed=/\b(nyx|vera)\b/.test(t)||/^(hi|hey|hello|yo|please)\b/.test(t);
@@ -1757,4 +1838,4 @@ function applyPipelineForensicNormalization(reply="",intent="",domain="",knowled
 }
 
 function run(routed={},input={}){return composeMarionResponse(routed,input);}
-module.exports={VERSION,STATE_SPINE_SCHEMA,STATE_SPINE_SCHEMA_COMPAT,COGNITIVE_LAYER_VERSION,CREATIVE_SUGGESTION_VERSION,CREATIVE_SUGGESTION_TIMING_GOVERNOR_VERSION,INTENT_DEPTH_GOVERNOR_VERSION,CONVERSATION_FOLLOWUP_GOVERNOR_VERSION,ANSWER_SPECIFICITY_GOVERNOR_VERSION,DOMAIN_ANSWER_DEPTH_GOVERNOR_VERSION,DIRECTIVE_EXECUTION_CLARITY_GOVERNOR_VERSION,RESPONSE_COMPRESSION_GOVERNOR_VERSION,TECHNICAL_DIAGNOSIS_PRECISION_GOVERNOR_VERSION,DIAGNOSTIC_LOOP_DETECTION_LAYER_VERSION,MEMORY_CARRY_BOUNDARY_GOVERNOR_VERSION,EMOTIONAL_CONTINUITY_CALIBRATION_GOVERNOR_VERSION,VOICE_TEXT_PARITY_GOVERNOR_VERSION,REPLY_CONTRACT_MINIMALISM_GOVERNOR_VERSION,VOICE_EMOTIONAL_DEPTH_PARITY_GOVERNOR_VERSION,FINAL_REGRESSION_HARMONIZER_VERSION,PROGRESSION_SHAPING_GOVERNOR_VERSION,CONTEXTUAL_DIRECTIVE_HANDLER_VERSION,PIPELINE_FORENSIC_NORMALIZATION_VERSION,CONVERSATIONAL_PACK_CONSUMPTION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,AMBIGUOUS_DEFINITION_CLARIFICATION_VERSION,VALID_INTENTS,INTENT_TO_DOMAIN,composeMarionResponse,run,default:composeMarionResponse,ensureFinalReply,assertFinalEnvelope,_internal:{buildCognitiveIntelligenceLayer,applyCreativeSuggestionModule,shouldSurfaceCreativeSuggestion,creativeSuggestionForMode,isDirectExecutionTurn,isCreativeTimingSuppressed,creativeTimingIntent,cognitiveSignalScore,cognitiveLayerMode,normalizeResolvedEmotion,resolveEffectiveEmotion,hasEmotionalContinuityCue,previousEmotionalContinuity,emotionalProgressionProfile,emotionalProgressionReply,shouldEmotionInfluenceIntent,emotionalWorkShiftSuppression,isEmotionalContinuityCalibrationSuppressed,emotionalContinuityCalibrationProfile,calibrateResolvedEmotionForTurn,calibratedEmotionalContinuityReply,applyEmotionalContinuityCalibrationGovernor,voiceTextParitySource,isVoiceTextParityCandidate,normalizeVoiceTextParityText,voiceTextParityProfile,applyVoiceTextParityToInput,voiceEmotionalDepthParityProfile,voiceEmotionalDepthParityReply,applyVoiceEmotionalDepthParityGovernor,replyContractMinimalismKind,isReplyContractMinimalismSuppressed,replyContractMinimalismProfile,stripContractMachinery,compactOperationalReplyForContract,applyReplyContractMinimalismGovernor,finalRegressionPriorityProfile,finalRegressionHarmonizerProfile,applyFinalRegressionHarmonizer,progressionShapingProfile,naturalizeExecutionLanguage,progressionShapingReply,applyProgressionShapingGovernor,pipelineForensicNormalizationProfile,applyPipelineForensicNormalization,buildFinalRuntimeTelemetry,loadConversationalPacks,conversationPackProfile,applyConversationalPackConsumption,publicDiagnosticTranslationReply,developerDiagnosticReply,emotionalSpecificityPackReply,nextStepContextPackReply,repetitionEscapePackReply,backendEmptyGuardPackReply,extractTextRaw,extractText,detectIdentityIntent,detectDirectiveIntent,extractContextCarry,hasContextCarry,protectsContextFromOverride,resolveIntent,resolveDomain,isBlockedLoopReply,isGreetingOnly,isHowAreYouTurn,isWarmSocialTurn,isCapabilityQuestion,buildWarmSocialReply,isCasualGreetingTurn,isGreetingPostureTurn,normalizeInboundTextForPosture,detectGreetingDistressSignal,inferGreetingPostureFromText,extractGreetingPosture,applyGreetingPostureQuality,registryCapabilityIntro,registryDomainConfig,registryDomainManifest,registryDomainKnowledgePack,registryDomainWiringStatus,registryKnowledgeLoaded,registryKnowledgeEntries,registryKnowledgeAnswer,normalizeKnowledgeDomain,canonicalTechnicalTargetFromText,extractTechnicalTargetLock,technicalAutopsyTargetReply,applyTechnicalTargetLockToReply,isExplicitCybersecurityRequest,isNyxMarionBackendTechnicalContext,isExactTechnicalValidationTurn,isExplicitEnglishTransformRequest,isRouteIsolationExplanationTurn,routeIsolationExplanationReply,isTechnicalIntentBindingTurn,detectKnowledgeDomain,resolveKnowledgeDomain,extractDomainConfidence,shouldFailClosedForDomainConfidence,isDefinitionQuestion,normalizeDefinitionTerm,ambiguousDefinitionClarificationReply,domainConfidenceUserReply,knowledgeDomainReply,isRecoveryRequested,isUsableFinalReply,forceCognitionCompleteReply,identityReply,directiveReply,contextualDirectiveReply,domainQuestionReply,detectArchitectureReasoning,hotFallbackReply,buildReply,safeReply,buildMemoryPatch,ensureFinalReply,assertFinalEnvelope,applyConversationQuality,applyIntentSpecificDepthGovernor,applyAnswerSpecificityGovernor,applyDomainAnswerDepthGovernor,applyDirectiveExecutionClarityGovernor,applyResponseCompressionGovernor,applyTechnicalDiagnosisPrecisionGovernor,memoryCarryBoundaryProfile,applyMemoryCarryBoundaryToInput,isMemoryCarryBoundarySuppressed,isFreshPromptBoundaryReset,technicalDiagnosisKind,isTechnicalDiagnosisSuppressed,technicalDiagnosisProfile,technicalDiagnosisReply,diagnosticLoopDetectionProfile,diagnosticLoopDetectionSummary,extractDiagnosticStateSnapshot,responseCompressionKind,isResponseCompressionSuppressed,responseCompressionPlan,compressVerboseOperationalReply,directiveExecutionKind,isDirectiveExecutionClaritySuppressed,directiveExecutionPlan,directiveExecutionClarityReply,isDomainAnswerDepthSuppressed,domainAnswerNeedsDepth,englishDomainDepthReply,psychologyDomainDepthReply,aiDomainDepthReply,cyberDomainDepthReply,lawDomainDepthReply,financeDomainDepthReply,isAnswerSpecificitySuppressed,specificityNeedScore,technicalSpecificityReply,businessSpecificityReply,conversationQualitySpecificityReply,intentDepthExpansion,depthProfile,isDepthGovernorSuppressed,isThinForIntent,toneProfile,contextCarrySummary,hasNaturalDepth,isInternalContractLeak,sanitizeUserFacingReply,inputSourceKind,isVoiceInput,isSystemCheckTurn,isVoiceSystemCheckTurn,buildVoiceSystemCheckReply,continuationCue,isFollowUpGovernorSuppressed,continuityContext,buildCarryForwardSummary,followUpAnchor,continuationAwareReply,continuationAwareBusinessReply,deriveTopic,fiveTurnContractProfile,fiveTurnContractReply,isFiveTurnContractTurn,isMicTextParityPrompt,micTextParityDirectReply,isDomainIsolationPrompt,domainIsolationDirectReply,isPracticalNyxConsistencyPrompt,practicalNyxConsistencyReply,parityRegressionDirectReply,progressionShapingGuardReply,progressionShapingGuardProfile,continuationCompressionGuardReply,isContinuationCompressionInstruction,continuationCompressionLockedDomain,financeProgressionGuardReply,technicalProgressionGuardReply,englishProgressionGuardReply,highPriorityProgressionSurfaceReply}};
+module.exports={VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,STATE_SPINE_SCHEMA,STATE_SPINE_SCHEMA_COMPAT,COGNITIVE_LAYER_VERSION,CREATIVE_SUGGESTION_VERSION,CREATIVE_SUGGESTION_TIMING_GOVERNOR_VERSION,INTENT_DEPTH_GOVERNOR_VERSION,CONVERSATION_FOLLOWUP_GOVERNOR_VERSION,ANSWER_SPECIFICITY_GOVERNOR_VERSION,DOMAIN_ANSWER_DEPTH_GOVERNOR_VERSION,DIRECTIVE_EXECUTION_CLARITY_GOVERNOR_VERSION,RESPONSE_COMPRESSION_GOVERNOR_VERSION,TECHNICAL_DIAGNOSIS_PRECISION_GOVERNOR_VERSION,DIAGNOSTIC_LOOP_DETECTION_LAYER_VERSION,MEMORY_CARRY_BOUNDARY_GOVERNOR_VERSION,EMOTIONAL_CONTINUITY_CALIBRATION_GOVERNOR_VERSION,VOICE_TEXT_PARITY_GOVERNOR_VERSION,REPLY_CONTRACT_MINIMALISM_GOVERNOR_VERSION,VOICE_EMOTIONAL_DEPTH_PARITY_GOVERNOR_VERSION,FINAL_REGRESSION_HARMONIZER_VERSION,PROGRESSION_SHAPING_GOVERNOR_VERSION,CONTEXTUAL_DIRECTIVE_HANDLER_VERSION,PIPELINE_FORENSIC_NORMALIZATION_VERSION,CONVERSATIONAL_PACK_CONSUMPTION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,AMBIGUOUS_DEFINITION_CLARIFICATION_VERSION,VALID_INTENTS,INTENT_TO_DOMAIN,composeMarionResponse,run,default:composeMarionResponse,ensureFinalReply,assertFinalEnvelope,_internal:{buildCognitiveIntelligenceLayer,applyCreativeSuggestionModule,shouldSurfaceCreativeSuggestion,creativeSuggestionForMode,isDirectExecutionTurn,isCreativeTimingSuppressed,creativeTimingIntent,cognitiveSignalScore,cognitiveLayerMode,normalizeResolvedEmotion,resolveEffectiveEmotion,hasEmotionalContinuityCue,previousEmotionalContinuity,emotionalProgressionProfile,emotionalProgressionReply,shouldEmotionInfluenceIntent,emotionalWorkShiftSuppression,isEmotionalContinuityCalibrationSuppressed,emotionalContinuityCalibrationProfile,calibrateResolvedEmotionForTurn,calibratedEmotionalContinuityReply,applyEmotionalContinuityCalibrationGovernor,voiceTextParitySource,isVoiceTextParityCandidate,normalizeVoiceTextParityText,voiceTextParityProfile,applyVoiceTextParityToInput,voiceEmotionalDepthParityProfile,voiceEmotionalDepthParityReply,applyVoiceEmotionalDepthParityGovernor,replyContractMinimalismKind,isReplyContractMinimalismSuppressed,replyContractMinimalismProfile,stripContractMachinery,compactOperationalReplyForContract,applyReplyContractMinimalismGovernor,finalRegressionPriorityProfile,finalRegressionHarmonizerProfile,applyFinalRegressionHarmonizer,progressionShapingProfile,naturalizeExecutionLanguage,progressionShapingReply,applyProgressionShapingGovernor,pipelineForensicNormalizationProfile,applyPipelineForensicNormalization,buildFinalRuntimeTelemetry,loadConversationalPacks,conversationPackProfile,applyConversationalPackConsumption,publicDiagnosticTranslationReply,developerDiagnosticReply,emotionalSpecificityPackReply,nextStepContextPackReply,repetitionEscapePackReply,backendEmptyGuardPackReply,extractTextRaw,extractText,detectIdentityIntent,detectDirectiveIntent,extractContextCarry,hasContextCarry,protectsContextFromOverride,resolveIntent,resolveDomain,isBlockedLoopReply,isGreetingOnly,isHowAreYouTurn,isWarmSocialTurn,isCapabilityQuestion,buildWarmSocialReply,isCasualGreetingTurn,isGreetingPostureTurn,normalizeInboundTextForPosture,detectGreetingDistressSignal,inferGreetingPostureFromText,extractGreetingPosture,applyGreetingPostureQuality,registryCapabilityIntro,registryDomainConfig,registryDomainManifest,registryDomainKnowledgePack,registryDomainWiringStatus,registryKnowledgeLoaded,registryKnowledgeEntries,registryKnowledgeAnswer,normalizeKnowledgeDomain,canonicalTechnicalTargetFromText,extractTechnicalTargetLock,technicalAutopsyTargetReply,applyTechnicalTargetLockToReply,isExplicitCybersecurityRequest,isNyxMarionBackendTechnicalContext,isExactTechnicalValidationTurn,isExplicitEnglishTransformRequest,isRouteIsolationExplanationTurn,routeIsolationExplanationReply,isTechnicalIntentBindingTurn,detectKnowledgeDomain,resolveKnowledgeDomain,extractDomainConfidence,shouldFailClosedForDomainConfidence,isDefinitionQuestion,normalizeDefinitionTerm,ambiguousDefinitionClarificationReply,domainConfidenceUserReply,knowledgeDomainReply,isRecoveryRequested,isUsableFinalReply,forceCognitionCompleteReply,identityReply,directiveReply,contextualDirectiveReply,domainQuestionReply,detectArchitectureReasoning,hotFallbackReply,buildReply,safeReply,buildMemoryPatch,ensureFinalReply,assertFinalEnvelope,applyConversationQuality,applyIntentSpecificDepthGovernor,applyAnswerSpecificityGovernor,applyDomainAnswerDepthGovernor,applyDirectiveExecutionClarityGovernor,applyResponseCompressionGovernor,applyTechnicalDiagnosisPrecisionGovernor,memoryCarryBoundaryProfile,applyMemoryCarryBoundaryToInput,isMemoryCarryBoundarySuppressed,isFreshPromptBoundaryReset,technicalDiagnosisKind,isTechnicalDiagnosisSuppressed,technicalDiagnosisProfile,technicalDiagnosisReply,diagnosticLoopDetectionProfile,diagnosticLoopDetectionSummary,extractDiagnosticStateSnapshot,responseCompressionKind,isResponseCompressionSuppressed,responseCompressionPlan,compressVerboseOperationalReply,directiveExecutionKind,isDirectiveExecutionClaritySuppressed,directiveExecutionPlan,directiveExecutionClarityReply,isDomainAnswerDepthSuppressed,domainAnswerNeedsDepth,englishDomainDepthReply,psychologyDomainDepthReply,aiDomainDepthReply,cyberDomainDepthReply,lawDomainDepthReply,financeDomainDepthReply,isAnswerSpecificitySuppressed,specificityNeedScore,technicalSpecificityReply,businessSpecificityReply,conversationQualitySpecificityReply,intentDepthExpansion,depthProfile,isDepthGovernorSuppressed,isThinForIntent,toneProfile,contextCarrySummary,hasNaturalDepth,isInternalContractLeak,sanitizeUserFacingReply,inputSourceKind,isVoiceInput,isSystemCheckTurn,isVoiceSystemCheckTurn,buildVoiceSystemCheckReply,continuationCue,isFollowUpGovernorSuppressed,continuityContext,buildCarryForwardSummary,followUpAnchor,continuationAwareReply,continuationAwareBusinessReply,deriveTopic,fiveTurnContractProfile,fiveTurnContractReply,isFiveTurnContractTurn,isMicTextParityPrompt,micTextParityDirectReply,isDomainIsolationPrompt,domainIsolationDirectReply,isPracticalNyxConsistencyPrompt,practicalNyxConsistencyReply,parityRegressionDirectReply,progressionShapingGuardReply,progressionShapingGuardProfile,continuationCompressionGuardReply,isContinuationCompressionInstruction,continuationCompressionLockedDomain,financeProgressionGuardReply,technicalProgressionGuardReply,englishProgressionGuardReply,highPriorityProgressionSurfaceReply}};
