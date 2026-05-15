@@ -31,9 +31,120 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.9sb IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51";
+const INDEX_VERSION = "index.js v2.18.9sb INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
+
+const INDEX_FAILURE_SIGNATURES = Object.freeze({
+  NONE: "none",
+  ROUTE_DOMAIN_MISMATCH: "ROUTE_DOMAIN_MISMATCH",
+  FINAL_ENVELOPE_MISSING: "FINAL_ENVELOPE_MISSING",
+  WEAK_FINAL_REJECTED: "WEAK_FINAL_REJECTED",
+  LOOP_GUARD_SUPPRESSED: "LOOP_GUARD_SUPPRESSED",
+  PACKET_HIJACK_ATTEMPT: "PACKET_HIJACK_ATTEMPT",
+  SCHEDULE_PRE_ROUTER_INTERCEPT: "SCHEDULE_PRE_ROUTER_INTERCEPT",
+  TECHNICAL_TARGET_STALE_CARRY: "TECHNICAL_TARGET_STALE_CARRY",
+  DOMAIN_CONFIDENCE_LOW: "DOMAIN_CONFIDENCE_LOW",
+  VOICE_TEXT_PARITY_DRIFT: "VOICE_TEXT_PARITY_DRIFT",
+  COMPOSER_EMPTY_REPLY: "COMPOSER_EMPTY_REPLY",
+  BRIDGE_HANDOFF_INVALID: "BRIDGE_HANDOFF_INVALID",
+  CHATENGINE_COORDINATOR_FAULT: "CHATENGINE_COORDINATOR_FAULT",
+  DEBUG_LEAK_BLOCKED: "DEBUG_LEAK_BLOCKED"
+});
+
+const USER_VISIBLE_DEBUG_LEAK_PATTERNS = Object.freeze([
+  /\bfailureSignature\b/i,
+  /\bruntimeTelemetry\b/i,
+  /\breplyAuthority\b/i,
+  /\bfinalEnvelopeTrusted\b/i,
+  /\bcanEmit\b/i,
+  /\bsessionPatch\b/i,
+  /\brouteKind\b/i,
+  /\bdiagnostics?\b/i,
+  /\bfinalEnvelope\b/i,
+  /\bMARION::FINAL::/i,
+  /\bCHATENGINE_COORDINATOR_ONLY_ACTIVE_\d+/i,
+  /\bnyx\.marion\.final\//i,
+  /\bnyx\.marion\.stateSpine\//i
+]);
+
+function normalizeFailureSignature(value) {
+  const raw = String(value == null ? "" : value).trim();
+  if (!raw) return INDEX_FAILURE_SIGNATURES.NONE;
+  const key = raw.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toUpperCase();
+  for (const sig of Object.values(INDEX_FAILURE_SIGNATURES)) {
+    if (key === sig.toUpperCase()) return sig;
+  }
+  return INDEX_FAILURE_SIGNATURES.NONE;
+}
+
+function hasUserVisibleDebugLeak(value) {
+  const text = String(value == null ? "" : value);
+  if (!text) return false;
+  return USER_VISIBLE_DEBUG_LEAK_PATTERNS.some((rx) => rx.test(text));
+}
+
+function stripUserVisibleDebugLeak(value) {
+  let text = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (!hasUserVisibleDebugLeak(text)) return text;
+  text = text
+    .replace(/\b(?:failureSignature|runtimeTelemetry|replyAuthority|finalEnvelopeTrusted|canEmit|sessionPatch|routeKind|diagnostics?|finalEnvelope)\s*[:=]\s*[^.;,}\]]+/gi, "")
+    .replace(/MARION::FINAL::[^\s.;,]+/gi, "")
+    .replace(/CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2}/gi, "")
+    .replace(/nyx\.marion\.(?:final|stateSpine)\/[0-9.]+/gi, "")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return text;
+}
+
+function extractFailureSignatureFromPacket(value) {
+  const src = isObj(value) ? value : {};
+  const payload = isObj(src.payload) ? src.payload : {};
+  const meta = isObj(src.meta) ? src.meta : {};
+  const diagnostics = isObj(src.diagnostics) ? src.diagnostics : {};
+  const finalEnvelope = isObj(src.finalEnvelope) ? src.finalEnvelope : {};
+  const runtime = isObj(src.runtimeTelemetry) ? src.runtimeTelemetry : {};
+  const candidates = [
+    src.failureSignature,
+    payload.failureSignature,
+    meta.failureSignature,
+    diagnostics.failureSignature,
+    finalEnvelope.failureSignature,
+    runtime.failureSignature,
+    isObj(payload.runtimeTelemetry) ? payload.runtimeTelemetry.failureSignature : "",
+    isObj(meta.runtimeTelemetry) ? meta.runtimeTelemetry.failureSignature : "",
+    isObj(diagnostics.runtimeTelemetry) ? diagnostics.runtimeTelemetry.failureSignature : "",
+    isObj(finalEnvelope.runtimeTelemetry) ? finalEnvelope.runtimeTelemetry.failureSignature : ""
+  ];
+  for (const item of candidates) {
+    const sig = normalizeFailureSignature(item);
+    if (sig !== INDEX_FAILURE_SIGNATURES.NONE) return sig;
+  }
+  return INDEX_FAILURE_SIGNATURES.NONE;
+}
+
+function inferIndexFailureSignature({norm={}, selected={}, marion={}, reply="", canEmit=true, error=""}={}) {
+  const inherited = extractFailureSignatureFromPacket(selected) || extractFailureSignatureFromPacket(marion);
+  if (inherited && inherited !== INDEX_FAILURE_SIGNATURES.NONE) return inherited;
+  const err = String(error == null ? "" : error).toLowerCase();
+  const selectedObj = isObj(selected) ? selected : {};
+  const marionObj = isObj(marion) ? marion : {};
+  const text = String(reply == null ? "" : reply);
+  if (hasUserVisibleDebugLeak(text)) return INDEX_FAILURE_SIGNATURES.DEBUG_LEAK_BLOCKED;
+  if (isBlockedLoopingSupportReply(text) || selectedObj.loopReplyBlockedCandidate || marionObj.loopReplyBlockedCandidate) return INDEX_FAILURE_SIGNATURES.LOOP_GUARD_SUPPRESSED;
+  if (/schedule|timezone|city/.test(err)) return INDEX_FAILURE_SIGNATURES.SCHEDULE_PRE_ROUTER_INTERCEPT;
+  if (/domain.*mismatch|route.*mismatch/.test(err)) return INDEX_FAILURE_SIGNATURES.ROUTE_DOMAIN_MISMATCH;
+  if (/weak.*final|rejected/.test(err)) return INDEX_FAILURE_SIGNATURES.WEAK_FINAL_REJECTED;
+  if (/composer.*empty|compose.*missing/.test(err)) return INDEX_FAILURE_SIGNATURES.COMPOSER_EMPTY_REPLY;
+  if (/bridge|handoff|malformed|packet_invalid|contract_invalid/.test(err)) return INDEX_FAILURE_SIGNATURES.BRIDGE_HANDOFF_INVALID;
+  if (/chatengine|coordinator/.test(err)) return INDEX_FAILURE_SIGNATURES.CHATENGINE_COORDINATOR_FAULT;
+  if (/final.*missing|envelope.*missing|awaiting_marion|conversation_authority_empty/.test(err)) return INDEX_FAILURE_SIGNATURES.FINAL_ENVELOPE_MISSING;
+  if (!canEmit && !String(reply || "").trim()) return INDEX_FAILURE_SIGNATURES.FINAL_ENVELOPE_MISSING;
+  return INDEX_FAILURE_SIGNATURES.NONE;
+}
+
 
 function clampNumberEnv(name, fallback, min, max) {
   const n = Number(process.env[name]);
@@ -256,7 +367,7 @@ function avatarConfigPayload() {
     directVideo: routeUrl("/avatar/video"),
     statusUrl: routeUrl("/avatar/status"),
     scriptVersion: INDEX_VERSION,
-  FINAL_RUNTIME_TELEMETRY_VERSION,
+    finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
     searchedDirs: avatarStaticCandidateDirs()
   };
 }
@@ -319,12 +430,14 @@ function maskSecret(v) {
 function cleanReplyForUser(v) {
   let t = cleanText(v);
   if (!t) return "";
+  t = stripUserVisibleDebugLeak(t);
+  if (!t) return "";
   t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "I can continue from your next instruction.");
   t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "I can continue from your next instruction.");
   t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
   t = t.replace(/\bbackend\b/ig, "system");
-  t = t.replace(/\s+([,.!?])/g, "$1").trim();
-  return t;
+  t = t.replace(/\s+([,.!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+  return hasUserVisibleDebugLeak(t) ? "" : t;
 }
 
 function replyHash(v) {
@@ -565,7 +678,8 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
       recoveryInjected: false,
       requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE,
       hardlockVersion: "CHAT-LOOP-PHRASE-HARDLOCK/v2.18.5sb",
-      reason: "index_transport_only_refused_to_invent_recovery"
+      reason: "index_transport_only_refused_to_invent_recovery",
+      failureSignature: INDEX_FAILURE_SIGNATURES.LOOP_GUARD_SUPPRESSED
     }
   };
 }
@@ -688,8 +802,7 @@ function normalizeIncomingMarionIntent(raw, fallbackText) {
   }
   let inferred = intent;
   if (!inferred || inferred === "simple_chat") {
-    if (/(who are you|what are you|what(?:\'|’)s your name|what is your name|your name|what should i call you|are you nyx)/i.test(text)) inferred = "identity_query";
-    else if (/(autopsy|line.by.line|gap refinement|index\.js|packet normalizer|route|endpoint|diagnostic|debug|stack|error|fix)/i.test(text)) inferred = "technical_debug";
+    if (/(autopsy|line.by.line|gap refinement|index\.js|packet normalizer|route|endpoint|diagnostic|debug|stack|error|fix)/i.test(text)) inferred = "technical_debug";
     else if (/(sad|stressed|overwhelmed|depressed|anxious|hurt|alone|frustrated|panic|grief)/i.test(text)) inferred = "emotional_support";
     else if (/(pricing|sponsor|media kit|monetize|pitch|funding|investor|sales|proposal|revenue)/i.test(text)) inferred = "business_strategy";
     else if (/(top\s*10|song|artist|album|chart|music|radio|playlist)/i.test(text)) inferred = "music_query";
@@ -778,8 +891,10 @@ function isInternalMarionBlockerReply(value) {
 }
 
 function isConversationDiagnosticFallbackReply(value) {
-  const text = lower(cleanText(value || "")).replace(/\s+/g, " ").trim();
+  const raw = cleanText(value || "");
+  const text = lower(raw).replace(/\s+/g, " ").trim();
   if (!text) return false;
+  if (hasUserVisibleDebugLeak(raw)) return true;
   return !!(
     isInternalMarionBlockerReply(text) ||
     /response path was interrupted before marion completed the final reply/i.test(text) ||
@@ -825,6 +940,17 @@ function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
   const safeDetail = cleanText(detail || "Marion did not return a trusted final envelope.");
   const emergencyReply = isHighRiskSupportSignal(null, n.text || "") ? buildIndexSafeTransportReply(n, err, extra) : "";
   const canEmitEmergency = !!emergencyReply;
+  const failureSignature = inferIndexFailureSignature({norm:n, selected:{}, marion:{}, reply:emergencyReply, canEmit:canEmitEmergency, error:err});
+  const runtimeTelemetry = buildIndexRuntimeTelemetry({
+    norm: n,
+    selected: {},
+    marion: {},
+    reply: emergencyReply,
+    authority: canEmitEmergency ? "index_crisis_safety" : "none",
+    stage: canEmitEmergency ? "final" : "awaiting_marion",
+    canEmit: canEmitEmergency,
+    error: err
+  });
 
   return {
     ok: canEmitEmergency,
@@ -837,7 +963,9 @@ function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
     emit: canEmitEmergency,
     blocked: !canEmitEmergency,
     error: err,
+    failureSignature,
     detail: safeDetail,
+    runtimeTelemetry,
     reply: emergencyReply,
     text: emergencyReply,
     short: emergencyReply,
@@ -866,7 +994,9 @@ function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
       suppressUserFacingReply: !canEmitEmergency,
       emit: canEmitEmergency,
       blocked: !canEmitEmergency,
-      error: err
+      error: err,
+      failureSignature,
+      runtimeTelemetry
     },
     speech: {
       enabled: canEmitEmergency,
@@ -893,6 +1023,8 @@ function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
       noSupportDecision: !canEmitEmergency,
       noEmotionDecision: !canEmitEmergency,
       noHttp502: true,
+      failureSignature,
+      runtimeTelemetry,
       status: Number(status || 200),
       falseFinalPurged: true,
       replyAuthority: canEmitEmergency ? "index_crisis_safety" : "none",
@@ -4421,6 +4553,8 @@ function normalizeReplyEnvelope(shaped, reply, metaPatch) {
   const out = isObj(shaped) ? { ...shaped } : { ok: true };
   const finalReply = finalizeRenderableReply(reply || out.reply || out.payload?.reply || "", out, "normalizeReplyEnvelope", "final_render_guard");
   const canEmit = !!finalReply;
+  const failureSignature = inferIndexFailureSignature({norm:out, selected:out, marion:out, reply:finalReply, canEmit, error: canEmit ? "" : "final_render_guard_empty"});
+  const runtimeTelemetry = buildIndexRuntimeTelemetry({norm:out, selected:out, marion:out, reply:finalReply, authority: canEmit ? "normalizeReplyEnvelope" : "none", stage: canEmit ? "final" : "awaiting_marion", canEmit, error: canEmit ? "" : "final_render_guard_empty"});
   out.ok = canEmit && out.ok !== false;
   out.final = canEmit;
   out.finalized = canEmit;
@@ -4448,7 +4582,9 @@ function normalizeReplyEnvelope(shaped, reply, metaPatch) {
     awaitingMarion: !canEmit,
     suppressUserFacingReply: !canEmit,
     emit: canEmit,
-    blocked: !canEmit
+    blocked: !canEmit,
+    failureSignature,
+    runtimeTelemetry
   };
   out.finalEnvelope = {
     ...(isObj(out.finalEnvelope) ? out.finalEnvelope : {}),
@@ -4459,9 +4595,13 @@ function normalizeReplyEnvelope(shaped, reply, metaPatch) {
     final: canEmit,
     marionFinal: canEmit && out.marionFinal === true,
     handled: true,
-    authority: canEmit ? cleanText(out.finalEnvelope?.authority || out.meta?.replyAuthority || "marionFinalEnvelope") : "none"
+    authority: canEmit ? cleanText(out.finalEnvelope?.authority || out.meta?.replyAuthority || "marionFinalEnvelope") : "none",
+    failureSignature,
+    runtimeTelemetry
   };
-  out.meta = mergeMeta(out.meta, { ...(isObj(metaPatch) ? metaPatch : {}), finalized: canEmit, finalizationGuard: true, falseFinalPurged: !canEmit, indexSemanticAuthority: false, semanticAuthority: canEmit ? "chatEngine_or_marion" : "marion_required", indexRole: "transport_orchestrator", suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit });
+  out.meta = mergeMeta(out.meta, { ...(isObj(metaPatch) ? metaPatch : {}), finalized: canEmit, finalizationGuard: true, falseFinalPurged: !canEmit, indexSemanticAuthority: false, semanticAuthority: canEmit ? "chatEngine_or_marion" : "marion_required", indexRole: "transport_orchestrator", suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit, failureSignature, runtimeTelemetry });
+  out.failureSignature = failureSignature;
+  out.runtimeTelemetry = runtimeTelemetry;
   return out;
 }
 
@@ -5015,6 +5155,14 @@ function extractRuntimeTelemetryPacket(value) {
 function buildIndexRuntimeTelemetry({norm={},selected={},marion={},reply="",authority="",startedAt=0,stage="final",canEmit=true,error=""}={}) {
   const inherited = extractRuntimeTelemetryPacket(selected) || extractRuntimeTelemetryPacket(marion);
   const n = isObj(norm) ? norm : {};
+  const selectedObj = isObj(selected) ? selected : {};
+  const marionObj = isObj(marion) ? marion : {};
+  const selectedRouting = isObj(selectedObj.routing) ? selectedObj.routing : (isObj(selectedObj.marionRouting) ? selectedObj.marionRouting : {});
+  const marionRouting = isObj(marionObj.routing) ? marionObj.routing : (isObj(marionObj.marionRouting) ? marionObj.marionRouting : {});
+  const packet = isObj(selectedObj.packet) ? selectedObj.packet : {};
+  const packetRouting = isObj(packet.routing) ? packet.routing : {};
+  const finalEnvelopeTrusted = !!(hasFreshMarionFinalEnvelope(selectedObj) || hasFreshMarionFinalEnvelope(marionObj));
+  const failureSignature = inferIndexFailureSignature({norm:n, selected:selectedObj, marion:marionObj, reply, canEmit:!!canEmit, error: cleanText(error || inherited.error || "")});
   return {
     ...inherited,
     version: FINAL_RUNTIME_TELEMETRY_VERSION,
@@ -5023,15 +5171,23 @@ function buildIndexRuntimeTelemetry({norm={},selected={},marion={},reply="",auth
     finalAuthority: canEmit ? cleanText(authority || "marion_bridge") : "none",
     replyAuthority: canEmit ? cleanText(authority || "marion_bridge") : "none",
     canEmit: !!canEmit,
+    userVisible: false,
+    debugLeakBlocked: failureSignature === INDEX_FAILURE_SIGNATURES.DEBUG_LEAK_BLOCKED,
+    failureSignature,
     error: cleanText(error || inherited.error || ""),
-    turnId: cleanText(n.turnId || selected.turnId || ""),
-    traceId: cleanText(n.traceId || selected.traceId || ""),
-    requestId: cleanText(selected.requestId || ""),
-    sessionId: cleanText(n.sessionId || selected.sessionId || ""),
-    lane: cleanText(selected.lane || n.lane || "general") || "general",
+    intent: cleanText(inherited.intent || selectedRouting.intent || marionRouting.intent || packetRouting.intent || selectedObj.intent || marionObj.intent || n.intent || ""),
+    domain: cleanText(inherited.domain || selectedRouting.domain || marionRouting.domain || packetRouting.domain || selectedObj.domain || marionObj.domain || n.domainHint || ""),
+    primaryDomain: cleanText(inherited.primaryDomain || selectedRouting.primaryDomain || marionRouting.primaryDomain || packetRouting.primary || selectedObj.primaryDomain || marionObj.primaryDomain || ""),
+    secondaryDomains: Array.isArray(inherited.secondaryDomains) ? inherited.secondaryDomains : uniq([].concat(selectedRouting.secondaryDomains || selectedRouting.secondary || marionRouting.secondaryDomains || marionRouting.secondary || packetRouting.secondary || [])),
+    answerMode: cleanText(inherited.answerMode || selectedRouting.answerMode || marionRouting.answerMode || selectedObj.answerMode || marionObj.answerMode || (canEmit ? "direct" : "awaiting_marion")),
+    turnId: cleanText(n.turnId || selectedObj.turnId || ""),
+    traceId: cleanText(n.traceId || selectedObj.traceId || ""),
+    requestId: cleanText(selectedObj.requestId || ""),
+    sessionId: cleanText(n.sessionId || selectedObj.sessionId || ""),
+    lane: cleanText(selectedObj.lane || n.lane || inherited.lane || "general") || "general",
     inputSource: cleanText(n.inputSource || n.source || inherited.inputSource || "text") || "text",
-    marionFinal: !!(selected.marionFinal || marion.marionFinal),
-    finalEnvelopeTrusted: !!(hasFreshMarionFinalEnvelope(selected) || hasFreshMarionFinalEnvelope(marion)),
+    marionFinal: !!(selectedObj.marionFinal || marionObj.marionFinal),
+    finalEnvelopeTrusted,
     replySignature: reply ? replyHash(reply) : cleanText(inherited.replySignature || ""),
     latencyMs: startedAt ? now() - startedAt : 0,
     indexVersion: INDEX_VERSION,
