@@ -1,8 +1,8 @@
 {
   "domain": "ai",
-  "schemaVersion": "1.4.1-hardened",
-  "manifestVersion": "1.4.1-hardened",
-  "updatedAt": "2026-05-12",
+  "schemaVersion": "1.4.0-hardened",
+  "manifestVersion": "1.4.0-hardened",
+  "updatedAt": "2026-05-02",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "ai",
   "runtimeFolder": "Data/Domains/ai",
@@ -29,40 +29,25 @@
       "english"
     ],
     "keywords": [
-      "agent orchestration",
-      "governance",
-      "machine learning",
-      "intelligent agent",
-      "deep learning",
-      "explainability",
-      "alignment",
-      "agent",
-      "model inference",
-      "orchestration",
-      "ml",
-      "cognitive intelligence",
-      "tool routing",
-      "retrieval augmented generation",
-      "neural network",
-      "planning",
-      "large language model",
-      "llm",
-      "ai agent",
       "artificial intelligence",
-      "rag",
+      "ai",
+      "machine learning",
+      "ml",
+      "deep learning",
+      "neural network",
+      "agent",
       "multi-agent",
-      "model evaluation",
+      "planning",
+      "tool routing",
+      "orchestration",
+      "rag",
       "embedding",
-      "ai"
+      "llm",
+      "governance",
+      "alignment",
+      "explainability"
     ],
-    "safetyFirst": true,
-    "confidencePolicy": {
-      "confidenceFloor": 0.62,
-      "mixedIntentRequiresSecondaryLaneCheck": true,
-      "safetyLaneOverridesGeneralLane": true,
-      "lowConfidenceFallback": "general_with_domain_probe",
-      "preserveFinalEnvelope": true
-    }
+    "safetyFirst": true
   },
   "constraints": {
     "noInvestmentAdvice": true,
@@ -70,8 +55,7 @@
     "noMedicalAdvice": true,
     "defensiveCyberOnly": true,
     "privacyMinimization": true,
-    "humanOversightRecommended": true,
-    "sourceDisclosureWhenCurrentClaims": true
+    "humanOversightRecommended": true
   },
   "packs": [
     {
@@ -203,52 +187,10 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true,
-    "loadOrderReferencesDeclaredInventory": true,
-    "requiredPacksPresentInLoadOrder": true,
-    "duplicateDefaultLoadOrderEntries": false,
-    "uniquePackIds": true,
-    "uniqueExampleIds": true,
-    "routingPrimaryLaneMatchesDomain": true,
-    "runtimeDomainKeyMatchesDomain": true
+    "casingPreserved": true
   },
   "notes": [
     "Runtime domain normalized from artificial_intelligence to ai for router/registry cohesion.",
-    "All file references aligned to Data/Domains/ai actual inventory.",
-    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks."
-  ],
-  "runtimeGuards": {
-    "mode": "ai_education_and_systems_support",
-    "failClosedOnMissingRequiredPacks": true,
-    "humanOversightRecommended": true,
-    "privacyMinimization": true,
-    "defensiveCyberOnly": true,
-    "preserveFinalEnvelope": true,
-    "domainIsolationRequired": true,
-    "bootstrapGuardRequired": true
-  },
-  "definitionRoutingLock": {
-    "enabled": true,
-    "version": "nyx.marion.sixDomainDefinitionRoutingLock/1.0",
-    "rule": "definition_query_domain_lock_before_technical_debug",
-    "definitionTerms": [
-      "artificial intelligence",
-      "cognitive intelligence",
-      "intelligent agent",
-      "ai agent",
-      "tool routing",
-      "rag",
-      "retrieval augmented generation",
-      "llm",
-      "large language model",
-      "embedding",
-      "agent orchestration",
-      "machine learning",
-      "model inference",
-      "model evaluation",
-      "neural network"
-    ],
-    "technicalOverrideRequiresExplicitDevLanguage": true,
-    "preserveFinalEnvelope": true
-  }
+    "All file references aligned to Data/Domains/ai actual inventory."
+  ]
 }

@@ -50,76 +50,12 @@
           "acceptance",
           "binding",
           "agreement",
-          "consideration",
-          "formation: offer and acceptance",
-          "lc formation offer acceptance"
+          "consideration"
         ],
         "intentSignals": [
           "do we have a contract",
           "is this enforceable"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_formation_offer_acceptance",
-        "sourcePath": "topics[0]",
-        "term": "Formation: Offer and Acceptance",
-        "aliases": [
-          "Formation: Offer and Acceptance",
-          "lc formation offer acceptance",
-          "offer",
-          "acceptance",
-          "binding",
-          "agreement",
-          "consideration",
-          "do we have a contract",
-          "is this enforceable"
-        ],
-        "definition": "A legally binding contract requires a clear offer, an unequivocal acceptance, consideration, and intention to create legal relations.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is formation: offer and acceptance?",
-          "what is lc formation offer acceptance?",
-          "what is offer?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "consideration",
-              "domains": [
-                "law",
-                "business",
-                "finance",
-                "english"
-              ]
-            },
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -144,67 +80,12 @@
           "consideration",
           "exchange",
           "value",
-          "past consideration",
-          "lc consideration",
-          "is this valid"
+          "past consideration"
         ],
         "intentSignals": [
           "is this valid",
           "does this count"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_consideration",
-        "sourcePath": "topics[1]",
-        "term": "Consideration",
-        "aliases": [
-          "Consideration",
-          "lc consideration",
-          "exchange",
-          "value",
-          "past consideration",
-          "is this valid",
-          "does this count"
-        ],
-        "definition": "Consideration requires that each party provide something of value. Past consideration generally does not qualify.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is consideration?",
-          "what is lc consideration?",
-          "what is exchange?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "consideration",
-              "domains": [
-                "law",
-                "business",
-                "finance",
-                "english"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -228,80 +109,11 @@
         "keywords": [
           "capacity",
           "intent to create legal relations",
-          "minor contract",
-          "intention and capacity",
-          "lc intention and capacity",
-          "is this valid contract"
+          "minor contract"
         ],
         "intentSignals": [
           "is this valid contract"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_intention_and_capacity",
-        "sourcePath": "topics[2]",
-        "term": "Intention and Capacity",
-        "aliases": [
-          "Intention and Capacity",
-          "lc intention and capacity",
-          "capacity",
-          "intent to create legal relations",
-          "minor contract",
-          "is this valid contract"
-        ],
-        "definition": "Parties must intend legal consequences and possess legal capacity to contract.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is intention and capacity?",
-          "what is lc intention and capacity?",
-          "what is capacity?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "capacity",
-              "domains": [
-                "law",
-                "psychology",
-                "business"
-              ]
-            },
-            {
-              "term": "intent",
-              "domains": [
-                "law",
-                "psychology",
-                "ai"
-              ]
-            },
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -324,64 +136,11 @@
         "keywords": [
           "interpretation",
           "ambiguous clause",
-          "meaning of term",
-          "contract interpretation",
-          "lc interpretation",
-          "what does this clause mean"
+          "meaning of term"
         ],
         "intentSignals": [
           "what does this clause mean"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_interpretation",
-        "sourcePath": "topics[3]",
-        "term": "Contract Interpretation",
-        "aliases": [
-          "Contract Interpretation",
-          "lc interpretation",
-          "interpretation",
-          "ambiguous clause",
-          "meaning of term",
-          "what does this clause mean"
-        ],
-        "definition": "Contracts are interpreted contextually, giving words their ordinary meaning within the entire agreement and surrounding circumstances.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is contract interpretation?",
-          "what is lc interpretation?",
-          "what is interpretation?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -406,64 +165,11 @@
         "keywords": [
           "breach",
           "violation",
-          "non-performance",
-          "breach of contract",
-          "lc breach",
-          "what happens if they don't"
+          "non-performance"
         ],
         "intentSignals": [
           "what happens if they don't"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_breach",
-        "sourcePath": "topics[4]",
-        "term": "Breach of Contract",
-        "aliases": [
-          "Breach of Contract",
-          "lc breach",
-          "breach",
-          "violation",
-          "non-performance",
-          "what happens if they don't"
-        ],
-        "definition": "A breach occurs when a party fails to perform contractual obligations without lawful excuse.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is breach of contract?",
-          "what is lc breach?",
-          "what is breach?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -489,67 +195,12 @@
           "damages",
           "compensation",
           "loss",
-          "mitigation",
-          "damages and remedies",
-          "lc damages"
+          "mitigation"
         ],
         "intentSignals": [
           "what can I claim",
           "how much"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_damages",
-        "sourcePath": "topics[5]",
-        "term": "Damages and Remedies",
-        "aliases": [
-          "Damages and Remedies",
-          "lc damages",
-          "damages",
-          "compensation",
-          "loss",
-          "mitigation",
-          "what can I claim",
-          "how much"
-        ],
-        "definition": "Damages aim to place the injured party in the position they would have been in had the contract been performed.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is damages and remedies?",
-          "what is lc damages?",
-          "what is damages?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "damages",
-              "domains": [
-                "law",
-                "finance",
-                "insurance"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -574,64 +225,11 @@
           "misrepresentation",
           "duress",
           "mistake",
-          "voidable",
-          "common contract defences",
-          "lc defences contract"
+          "voidable"
         ],
         "intentSignals": [
           "can I get out of this contract"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_defences_contract",
-        "sourcePath": "topics[6]",
-        "term": "Common Contract Defences",
-        "aliases": [
-          "Common Contract Defences",
-          "lc defences contract",
-          "misrepresentation",
-          "duress",
-          "mistake",
-          "voidable",
-          "can I get out of this contract"
-        ],
-        "definition": "Certain circumstances may render contracts void, voidable, or unenforceable.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is common contract defences?",
-          "what is lc defences contract?",
-          "what is misrepresentation?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -657,9 +255,7 @@
           "good faith",
           "honest performance",
           "dishonest",
-          "contractual discretion",
-          "good faith and honest performance",
-          "lc good faith honest performance"
+          "contractual discretion"
         ],
         "intentSignals": [
           "did they act in bad faith",
@@ -682,59 +278,7 @@
           "citation": "2021 SCC 7",
           "principle": "Good-faith limits on contractual discretion."
         }
-      ],
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_good_faith_honest_performance",
-        "sourcePath": "topics[7]",
-        "term": "Good Faith and Honest Performance",
-        "aliases": [
-          "Good Faith and Honest Performance",
-          "lc good faith honest performance",
-          "good faith",
-          "honest performance",
-          "dishonest",
-          "contractual discretion",
-          "did they act in bad faith",
-          "can they do this even if contract says so"
-        ],
-        "definition": "Canadian contract law recognizes an organizing principle of good faith and a general duty of honest performance. Parties must not lie or knowingly mislead each other about contractual performance, and certain discretionary powers must be exercised in a manner consistent with the bargain.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is good faith and honest performance?",
-          "what is lc good faith honest performance?",
-          "what is good faith?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
-      }
+      ]
     },
     {
       "id": "lc_standard_form_unconscionability",
@@ -760,9 +304,7 @@
           "standard form",
           "clickwrap",
           "arbitration clause",
-          "consumer contract",
-          "standard form contracts, inequality of bargaining power, and unconscionability",
-          "lc standard form unconscionability"
+          "consumer contract"
         ],
         "intentSignals": [
           "can they force arbitration",
@@ -786,69 +328,7 @@
           "citation": "2010 SCC 4",
           "principle": "Enforceability of exclusion clauses."
         }
-      ],
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_standard_form_unconscionability",
-        "sourcePath": "topics[8]",
-        "term": "Standard Form Contracts, Inequality of Bargaining Power, and Unconscionability",
-        "aliases": [
-          "Standard Form Contracts, Inequality of Bargaining Power, and Unconscionability",
-          "lc standard form unconscionability",
-          "unconscionable",
-          "standard form",
-          "clickwrap",
-          "arbitration clause",
-          "consumer contract",
-          "can they force arbitration",
-          "is this clause unfair",
-          "do i have to accept this"
-        ],
-        "definition": "Standard-form and non-negotiated agreements may be enforceable, but courts scrutinize clauses affected by unfair surprise, grossly improvident bargains, inequality of bargaining power, or public-policy concerns.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is standard form contracts, inequality of bargaining power, and unconscionability?",
-          "what is lc standard form unconscionability?",
-          "what is unconscionable?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            },
-            {
-              "term": "standard",
-              "domains": [
-                "law",
-                "research",
-                "quality control"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
-      }
+      ]
     },
     {
       "id": "lc_privity_assignment_third_parties",
@@ -874,67 +354,12 @@
           "assign",
           "third party",
           "beneficiary",
-          "delegate",
-          "privity, assignment, and third-party effects",
-          "lc privity assignment third parties"
+          "delegate"
         ],
         "intentSignals": [
           "can a non-party enforce this",
           "can they transfer the contract"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_privity_assignment_third_parties",
-        "sourcePath": "topics[9]",
-        "term": "Privity, Assignment, and Third-Party Effects",
-        "aliases": [
-          "Privity, Assignment, and Third-Party Effects",
-          "lc privity assignment third parties",
-          "privity",
-          "assign",
-          "third party",
-          "beneficiary",
-          "delegate",
-          "can a non-party enforce this",
-          "can they transfer the contract"
-        ],
-        "definition": "Contracts generally bind the parties who made them, but rights may sometimes be assigned and third parties may benefit or be affected depending on doctrine, wording, and statute.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is privity, assignment, and third-party effects?",
-          "what is lc privity assignment third parties?",
-          "what is privity?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -961,67 +386,12 @@
           "repudiation",
           "fundamental breach",
           "condition",
-          "warranty",
-          "conditions, warranties, innominate terms, and termination",
-          "lc conditions warranties termination"
+          "warranty"
         ],
         "intentSignals": [
           "can i cancel the contract",
           "is this serious enough to terminate"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_conditions_warranties_termination",
-        "sourcePath": "topics[10]",
-        "term": "Conditions, Warranties, Innominate Terms, and Termination",
-        "aliases": [
-          "Conditions, Warranties, Innominate Terms, and Termination",
-          "lc conditions warranties termination",
-          "terminate",
-          "repudiation",
-          "fundamental breach",
-          "condition",
-          "warranty",
-          "can i cancel the contract",
-          "is this serious enough to terminate"
-        ],
-        "definition": "Not every breach permits termination. Courts distinguish between more fundamental obligations and less central promises, often asking whether the breach substantially deprives the innocent party of the expected benefit.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is conditions, warranties, innominate terms, and termination?",
-          "what is lc conditions warranties termination?",
-          "what is terminate?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -1047,66 +417,12 @@
           "specific performance",
           "rectification",
           "rescission",
-          "equity",
-          "equitable relief: specific performance, rectification, and rescission",
-          "lc equitable relief specific performance"
+          "equity"
         ],
         "intentSignals": [
           "can the court force them",
           "can the contract be corrected"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_equitable_relief_specific_performance",
-        "sourcePath": "topics[11]",
-        "term": "Equitable Relief: Specific Performance, Rectification, and Rescission",
-        "aliases": [
-          "Equitable Relief: Specific Performance, Rectification, and Rescission",
-          "lc equitable relief specific performance",
-          "specific performance",
-          "rectification",
-          "rescission",
-          "equity",
-          "can the court force them",
-          "can the contract be corrected"
-        ],
-        "definition": "Equitable remedies may be available where damages are inadequate or where the written instrument does not reflect the parties' true agreement, subject to fairness and evidentiary limits.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is equitable relief: specific performance, rectification, and rescission?",
-          "what is lc equitable relief specific performance?",
-          "what is specific performance?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -1134,76 +450,12 @@
           "sow",
           "nda",
           "limitation of liability",
-          "governing law",
-          "contract drafting architecture",
-          "lc contract drafting architecture"
+          "governing law"
         ],
         "intentSignals": [
           "what should be in this contract",
           "is this agreement missing anything"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_contracts_v2",
-        "sourceId": "lc_contract_drafting_architecture",
-        "sourcePath": "topics[12]",
-        "term": "Contract Drafting Architecture",
-        "aliases": [
-          "Contract Drafting Architecture",
-          "lc contract drafting architecture",
-          "drafting",
-          "msa",
-          "sow",
-          "nda",
-          "limitation of liability",
-          "governing law",
-          "what should be in this contract",
-          "is this agreement missing anything"
-        ],
-        "definition": "Transactional analysis depends on how the contract is built: parties, definitions, operative obligations, payment mechanics, risk allocation, change control, term/termination, dispute clauses, and schedules.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is contract drafting architecture?",
-          "what is lc contract drafting architecture?",
-          "what is drafting?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "liability",
-              "domains": [
-                "law",
-                "finance",
-                "cyber"
-              ]
-            },
-            {
-              "term": "contract",
-              "domains": [
-                "law",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     }
   ],
@@ -1717,18 +969,13 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true,
-    "privacyMinimization": true
+    "professionalReferralForHighStakes": true
   },
   "retrievalIndex": {
-    "version": "nyx.marion.lawRetrievalIndex/1.0",
     "domain": "law",
     "packId": "law_contracts_v2",
-    "sourceFile": "law_contracts_v1.json",
-    "definitionSurfaceCount": 13,
+    "aliases": [],
     "keywords": [
-      "formation: offer and acceptance",
-      "lc formation offer acceptance",
       "offer",
       "acceptance",
       "binding",
@@ -1736,55 +983,40 @@
       "consideration",
       "do we have a contract",
       "is this enforceable",
-      "lc consideration",
       "exchange",
       "value",
       "past consideration",
       "is this valid",
       "does this count",
-      "intention and capacity",
-      "lc intention and capacity",
       "capacity",
       "intent to create legal relations",
       "minor contract",
       "is this valid contract",
-      "contract interpretation",
-      "lc interpretation",
       "interpretation",
       "ambiguous clause",
       "meaning of term",
       "what does this clause mean",
-      "breach of contract",
-      "lc breach",
       "breach",
       "violation",
       "non-performance",
       "what happens if they don't",
-      "damages and remedies",
-      "lc damages",
       "damages",
       "compensation",
       "loss",
       "mitigation",
-      "what can i claim",
+      "what can I claim",
       "how much",
-      "common contract defences",
-      "lc defences contract",
       "misrepresentation",
       "duress",
       "mistake",
       "voidable",
-      "can i get out of this contract",
-      "good faith and honest performance",
-      "lc good faith honest performance",
+      "can I get out of this contract",
       "good faith",
       "honest performance",
       "dishonest",
       "contractual discretion",
       "did they act in bad faith",
       "can they do this even if contract says so",
-      "standard form contracts, inequality of bargaining power, and unconscionability",
-      "lc standard form unconscionability",
       "unconscionable",
       "standard form",
       "clickwrap",
@@ -1793,8 +1025,6 @@
       "can they force arbitration",
       "is this clause unfair",
       "do i have to accept this",
-      "privity, assignment, and third-party effects",
-      "lc privity assignment third parties",
       "privity",
       "assign",
       "third party",
@@ -1802,8 +1032,6 @@
       "delegate",
       "can a non-party enforce this",
       "can they transfer the contract",
-      "conditions, warranties, innominate terms, and termination",
-      "lc conditions warranties termination",
       "terminate",
       "repudiation",
       "fundamental breach",
@@ -1811,124 +1039,56 @@
       "warranty",
       "can i cancel the contract",
       "is this serious enough to terminate",
-      "equitable relief: specific performance, rectification, and rescission",
-      "lc equitable relief specific performance",
       "specific performance",
       "rectification",
       "rescission",
       "equity",
       "can the court force them",
       "can the contract be corrected",
-      "contract drafting architecture",
-      "lc contract drafting architecture",
       "drafting",
       "msa",
       "sow",
       "nda",
       "limitation of liability",
-      "governing law"
-    ],
-    "intentSignals": [
-      "do we have a contract",
-      "is this enforceable",
-      "is this valid",
-      "does this count",
-      "is this valid contract",
-      "what does this clause mean",
-      "what happens if they don't",
-      "what can i claim",
-      "how much",
-      "can i get out of this contract",
-      "did they act in bad faith",
-      "can they do this even if contract says so",
-      "can they force arbitration",
-      "is this clause unfair",
-      "do i have to accept this",
-      "can a non-party enforce this",
-      "can they transfer the contract",
-      "can i cancel the contract",
-      "is this serious enough to terminate",
-      "can the court force them",
-      "can the contract be corrected",
+      "governing law",
       "what should be in this contract",
-      "is this agreement missing anything"
+      "is this agreement missing anything",
+      "contract",
+      "unconscionability",
+      "can i get out of this",
+      "can they terminate"
     ],
-    "definitionTerms": [
-      "Formation: Offer and Acceptance",
-      "Consideration",
-      "Intention and Capacity",
-      "Contract Interpretation",
-      "Breach of Contract",
-      "Damages and Remedies",
-      "Common Contract Defences",
-      "Good Faith and Honest Performance",
-      "Standard Form Contracts, Inequality of Bargaining Power, and Unconscionability",
-      "Privity, Assignment, and Third-Party Effects",
-      "Conditions, Warranties, Innominate Terms, and Termination",
-      "Equitable Relief: Specific Performance, Rectification, and Rescission",
-      "Contract Drafting Architecture"
-    ],
-    "noGenericFallback": true,
-    "definitionQueryWinsBeforeTechnicalFallback": true
+    "primaryFields": [
+      "packId",
+      "version",
+      "domain",
+      "jurisdiction",
+      "packType",
+      "updatedAt",
+      "description",
+      "pedagogicalScope",
+      "topics",
+      "modules",
+      "caseStudies",
+      "courtCases",
+      "contractArchetypes",
+      "projects",
+      "assistantApplication",
+      "references",
+      "retrievalHints",
+      "meta",
+      "runtime",
+      "runtimeDomainKey",
+      "runtimePath",
+      "manifestPackKey",
+      "safetyBoundary"
+    ]
   },
   "normalizationStatus": {
-    "status": "hardened_for_six_domain_definition_inventory",
+    "status": "hardened_for_marion_registry_compose_ingestion",
+    "conflictMarkersRemoved": true,
     "validatedJson": true,
-    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
-    "criticalUpdatesApplied": [
-      "definition_surface_normalization",
-      "law_definition_routing_lock",
-      "safety_boundary_hardening",
-      "retrieval_index_expansion"
-    ],
-    "normalizedAt": "2026-05-13"
-  },
-  "retrievalAliases": [
-    "law_contracts_v1",
-    "law_contracts_v2"
-  ],
-  "definitionAnswerContract": {
-    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
-    "domain": "law",
-    "jurisdictionDefault": "Canada",
-    "answerMode": "direct_definition_plus_framework",
-    "mustInclude": [
-      "plain meaning",
-      "legal information posture when relevant",
-      "jurisdiction caveat when procedure/deadlines/court steps are involved"
-    ],
-    "mustNotInclude": [
-      "generic technical fallback",
-      "outcome guarantee",
-      "personalized legal advice",
-      "unsupported deadlines"
-    ],
-    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.definitionRoutingLock/1.0",
-    "intent": "domain_question",
-    "knowledgeDomain": "law",
-    "primaryLane": "law",
-    "definitionTriggers": [
-      "what is",
-      "what are",
-      "define",
-      "definition of",
-      "explain",
-      "meaning of"
-    ],
-    "blockTechnicalFallbackUnless": [
-      "autopsy",
-      "audit",
-      "patch",
-      "backend",
-      "script",
-      "route",
-      "debug",
-      "file",
-      "line-by-line"
-    ],
-    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
+    "preservedStructuralIntegrity": true,
+    "normalizedAt": "2026-05-03"
   }
 }

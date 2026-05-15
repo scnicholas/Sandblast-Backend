@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Doctoral-level nonclinical interventions and psychological skills pack emphasizing mechanism-aware, bounded, evidence-informed support for behavior change and communication.",
-  "updatedAt": "2026-05-13",
+  "updatedAt": "2026-03-15",
   "scope": [
     "behavior-change",
     "habit-building",
@@ -48,40 +48,13 @@
           "if then",
           "implementation intention",
           "plan",
-          "procrastination",
-          "Implementation Intentions (If–Then Planning)",
-          "if then planning",
-          "Pre-decide a trigger and a response so action happens automatically under real-world friction"
+          "procrastination"
         ],
         "intentSignals": [
           "I keep putting it off",
           "I need a plan",
-          "how do I make myself do it",
-          "what is implementation intentions (if–then planning)",
-          "define implementation intentions (if–then planning)",
-          "explain implementation intentions (if–then planning)"
+          "how do I make myself do it"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Implementation Intentions (If–Then Planning)",
-        "canonicalKey": "implementation_intentions_if_then_planning",
-        "definition": "Pre-decide a trigger and a response so action happens automatically under real-world friction.",
-        "acceptedPrompts": [
-          "What is Implementation Intentions (If–Then Planning)?",
-          "Define Implementation Intentions (If–Then Planning).",
-          "Explain Implementation Intentions (If–Then Planning)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -113,39 +86,12 @@
           "routine",
           "consistency",
           "cue reward",
-          "environment",
-          "Habit Loop Design (Cue → Routine → Reward)",
-          "habit loop design",
-          "Habits stick when the cue is consistent, the routine is easy, and the reward is immediate"
+          "environment"
         ],
         "intentSignals": [
           "I can’t stay consistent",
-          "how do I build a habit",
-          "what is habit loop design (cue → routine → reward)",
-          "define habit loop design (cue → routine → reward)",
-          "explain habit loop design (cue → routine → reward)"
+          "how do I build a habit"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Habit Loop Design (Cue → Routine → Reward)",
-        "canonicalKey": "habit_loop_design_cue_routine_reward",
-        "definition": "Habits stick when the cue is consistent, the routine is easy, and the reward is immediate.",
-        "acceptedPrompts": [
-          "What is Habit Loop Design (Cue → Routine → Reward)?",
-          "Define Habit Loop Design (Cue → Routine → Reward).",
-          "Explain Habit Loop Design (Cue → Routine → Reward)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -176,40 +122,13 @@
           "motivational interviewing",
           "resistance",
           "change talk",
-          "ambivalence",
-          "Motivational Interviewing Micro-Skills (OARS-lite)",
-          "motivation interviewing micro",
-          "Elicit a person’s own reasons for change with reflections and choice, not lectures"
+          "ambivalence"
         ],
         "intentSignals": [
           "I want to but I don’t",
           "I know I should",
-          "I’m not motivated",
-          "what is motivational interviewing micro-skills (oars-lite)",
-          "define motivational interviewing micro-skills (oars-lite)",
-          "explain motivational interviewing micro-skills (oars-lite)"
+          "I’m not motivated"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Motivational Interviewing Micro-Skills (OARS-lite)",
-        "canonicalKey": "motivational_interviewing_micro_skills_oars_lite",
-        "definition": "Elicit a person’s own reasons for change with reflections and choice, not lectures.",
-        "acceptedPrompts": [
-          "What is Motivational Interviewing Micro-Skills (OARS-lite)?",
-          "Define Motivational Interviewing Micro-Skills (OARS-lite).",
-          "Explain Motivational Interviewing Micro-Skills (OARS-lite)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -241,40 +160,13 @@
           "reframe",
           "thoughts",
           "catastrophize",
-          "cognitive distortion",
-          "Cognitive Reframing (CBT-style, Non-clinical)",
-          "cbt reframe light",
-          "Stressful feelings often follow interpretations; test the interpretation and generate a more useful one"
+          "cognitive distortion"
         ],
         "intentSignals": [
           "I can’t stop thinking",
           "my mind says",
-          "I’m spiraling",
-          "what is cognitive reframing (cbt-style, non-clinical)",
-          "define cognitive reframing (cbt-style, non-clinical)",
-          "explain cognitive reframing (cbt-style, non-clinical)"
+          "I’m spiraling"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Cognitive Reframing (CBT-style, Non-clinical)",
-        "canonicalKey": "cognitive_reframing_cbt_style_non_clinical",
-        "definition": "Stressful feelings often follow interpretations; test the interpretation and generate a more useful one.",
-        "acceptedPrompts": [
-          "What is Cognitive Reframing (CBT-style, Non-clinical)?",
-          "Define Cognitive Reframing (CBT-style, Non-clinical).",
-          "Explain Cognitive Reframing (CBT-style, Non-clinical)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -305,39 +197,13 @@
           "emotion labeling",
           "name it",
           "regulate",
-          "overwhelmed",
-          "Affect Labeling (Name It to Tame It)",
-          "Briefly naming the emotion reduces intensity and improves self-control"
+          "overwhelmed"
         ],
         "intentSignals": [
           "I’m losing it",
           "I’m so angry",
-          "I’m overwhelmed",
-          "what is affect labeling (name it to tame it)",
-          "define affect labeling (name it to tame it)",
-          "explain affect labeling (name it to tame it)"
+          "I’m overwhelmed"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Affect Labeling (Name It to Tame It)",
-        "canonicalKey": "affect_labeling_name_it_to_tame_it",
-        "definition": "Briefly naming the emotion reduces intensity and improves self-control.",
-        "acceptedPrompts": [
-          "What is Affect Labeling (Name It to Tame It)?",
-          "Define Affect Labeling (Name It to Tame It).",
-          "Explain Affect Labeling (Name It to Tame It)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -370,39 +236,13 @@
           "calm",
           "anxiety",
           "panic",
-          "box breathing",
-          "Box Breathing (4-4-4-4)",
-          "A simple breath pattern to reduce arousal and restore executive control"
+          "box breathing"
         ],
         "intentSignals": [
           "I need to calm down",
           "panic",
-          "my heart is racing",
-          "what is box breathing (4-4-4-4)",
-          "define box breathing (4-4-4-4)",
-          "explain box breathing (4-4-4-4)"
+          "my heart is racing"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Box Breathing (4-4-4-4)",
-        "canonicalKey": "box_breathing_4_4_4_4",
-        "definition": "A simple breath pattern to reduce arousal and restore executive control.",
-        "acceptedPrompts": [
-          "What is Box Breathing (4-4-4-4)?",
-          "Define Box Breathing (4-4-4-4).",
-          "Explain Box Breathing (4-4-4-4)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -434,40 +274,13 @@
           "grounding",
           "panic",
           "spiral",
-          "rumination",
-          "5-4-3-2-1 Grounding",
-          "grounding 5 4 3 2 1",
-          "Shift attention to immediate sensory data to interrupt spirals and rumination"
+          "rumination"
         ],
         "intentSignals": [
           "I’m spiraling",
           "I can’t stop thinking",
-          "I feel unreal",
-          "what is 5-4-3-2-1 grounding",
-          "define 5-4-3-2-1 grounding",
-          "explain 5-4-3-2-1 grounding"
+          "I feel unreal"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "5-4-3-2-1 Grounding",
-        "canonicalKey": "5_4_3_2_1_grounding",
-        "definition": "Shift attention to immediate sensory data to interrupt spirals and rumination.",
-        "acceptedPrompts": [
-          "What is 5-4-3-2-1 Grounding?",
-          "Define 5-4-3-2-1 Grounding.",
-          "Explain 5-4-3-2-1 Grounding."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -499,40 +312,13 @@
           "problem solving",
           "overwhelmed",
           "decision",
-          "next step",
-          "Structured Problem Solving (Define → Options → Choose → Test)",
-          "problem solving steps",
-          "Reduce overwhelm by converting vague stress into a defined problem and a testable plan"
+          "next step"
         ],
         "intentSignals": [
           "I don’t know what to do",
           "too many things",
-          "help me choose",
-          "what is structured problem solving (define → options → choose → test)",
-          "define structured problem solving (define → options → choose → test)",
-          "explain structured problem solving (define → options → choose → test)"
+          "help me choose"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Structured Problem Solving (Define → Options → Choose → Test)",
-        "canonicalKey": "structured_problem_solving_define_options_choose_test",
-        "definition": "Reduce overwhelm by converting vague stress into a defined problem and a testable plan.",
-        "acceptedPrompts": [
-          "What is Structured Problem Solving (Define → Options → Choose → Test)?",
-          "Define Structured Problem Solving (Define → Options → Choose → Test).",
-          "Explain Structured Problem Solving (Define → Options → Choose → Test)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -563,40 +349,13 @@
           "assertive",
           "boundaries",
           "request",
-          "communication script",
-          "Assertive Request Script (DEAR-lite)",
-          "assertive request script",
-          "Ask clearly without aggression: describe, express, ask, and reinforce"
+          "communication script"
         ],
         "intentSignals": [
           "how do I say",
           "set a boundary",
-          "ask without conflict",
-          "what is assertive request script (dear-lite)",
-          "define assertive request script (dear-lite)",
-          "explain assertive request script (dear-lite)"
+          "ask without conflict"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Assertive Request Script (DEAR-lite)",
-        "canonicalKey": "assertive_request_script_dear_lite",
-        "definition": "Ask clearly without aggression: describe, express, ask, and reinforce.",
-        "acceptedPrompts": [
-          "What is Assertive Request Script (DEAR-lite)?",
-          "Define Assertive Request Script (DEAR-lite).",
-          "Explain Assertive Request Script (DEAR-lite)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -627,40 +386,13 @@
           "repair",
           "apology",
           "conflict",
-          "relationship",
-          "Repair After Conflict (Impact → Ownership → Change)",
-          "repair after conflict",
-          "Repair works when you name impact, take responsibility, and propose a concrete behavioral change"
+          "relationship"
         ],
         "intentSignals": [
           "I messed up",
           "how do I apologize",
-          "how do I fix it",
-          "what is repair after conflict (impact → ownership → change)",
-          "define repair after conflict (impact → ownership → change)",
-          "explain repair after conflict (impact → ownership → change)"
+          "how do I fix it"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Repair After Conflict (Impact → Ownership → Change)",
-        "canonicalKey": "repair_after_conflict_impact_ownership_change",
-        "definition": "Repair works when you name impact, take responsibility, and propose a concrete behavioral change.",
-        "acceptedPrompts": [
-          "What is Repair After Conflict (Impact → Ownership → Change)?",
-          "Define Repair After Conflict (Impact → Ownership → Change).",
-          "Explain Repair After Conflict (Impact → Ownership → Change)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -692,40 +424,13 @@
           "sleep",
           "insomnia",
           "racing thoughts",
-          "hygiene",
-          "Sleep Hygiene (Micro-Protocol)",
-          "sleep hygiene micro",
-          "Better sleep improves mood and executive function; small changes beat perfect routines"
+          "hygiene"
         ],
         "intentSignals": [
           "can’t sleep",
           "mind won’t stop",
-          "always tired",
-          "what is sleep hygiene (micro-protocol)",
-          "define sleep hygiene (micro-protocol)",
-          "explain sleep hygiene (micro-protocol)"
+          "always tired"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "skills",
-        "term": "Sleep Hygiene (Micro-Protocol)",
-        "canonicalKey": "sleep_hygiene_micro_protocol",
-        "definition": "Better sleep improves mood and executive function; small changes beat perfect routines.",
-        "acceptedPrompts": [
-          "What is Sleep Hygiene (Micro-Protocol)?",
-          "Define Sleep Hygiene (Micro-Protocol).",
-          "Explain Sleep Hygiene (Micro-Protocol)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     }
   ],
@@ -746,40 +451,7 @@
         "low motivation",
         "task avoidance"
       ],
-      "safetyNotes": "Non-clinical. If user expresses self-harm intent, switch to safety/containment guidance.",
-      "retrievalHints": {
-        "keywords": [
-          "2-Minute Start Protocol",
-          "two minute start",
-          "Break inertia and build momentum"
-        ],
-        "intentSignals": [
-          "what is 2-minute start protocol",
-          "define 2-minute start protocol",
-          "explain 2-minute start protocol"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "microProtocols",
-        "term": "2-Minute Start Protocol",
-        "canonicalKey": "2_minute_start_protocol",
-        "definition": "Break inertia and build momentum.",
-        "acceptedPrompts": [
-          "What is 2-Minute Start Protocol?",
-          "Define 2-Minute Start Protocol.",
-          "Explain 2-Minute Start Protocol."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "safetyNotes": "Non-clinical. If user expresses self-harm intent, switch to safety/containment guidance."
     },
     {
       "id": "conflict_pause_reset",
@@ -796,40 +468,7 @@
         "snapping",
         "defensiveness"
       ],
-      "safetyNotes": "If violence risk is present, prioritize de-escalation and safe exit.",
-      "retrievalHints": {
-        "keywords": [
-          "Conflict Pause → Reset",
-          "conflict pause reset",
-          "Prevent escalation and preserve relationship repair"
-        ],
-        "intentSignals": [
-          "what is conflict pause → reset",
-          "define conflict pause → reset",
-          "explain conflict pause → reset"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "microProtocols",
-        "term": "Conflict Pause → Reset",
-        "canonicalKey": "conflict_pause_reset",
-        "definition": "Prevent escalation and preserve relationship repair.",
-        "acceptedPrompts": [
-          "What is Conflict Pause → Reset?",
-          "Define Conflict Pause → Reset.",
-          "Explain Conflict Pause → Reset."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "safetyNotes": "If violence risk is present, prioritize de-escalation and safe exit."
     }
   ],
   "applicationRules": [
@@ -1080,40 +719,7 @@
         "implementation-intention completion",
         "self-efficacy ratings"
       ],
-      "notes": "Track behavior and context, not just feelings.",
-      "retrievalHints": {
-        "keywords": [
-          "behavior_change_metrics",
-          "behavior change metrics",
-          "Track behavior and context, not just feelings"
-        ],
-        "intentSignals": [
-          "what is behavior_change_metrics",
-          "define behavior_change_metrics",
-          "explain behavior_change_metrics"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "assessmentFamilies",
-        "term": "behavior_change_metrics",
-        "canonicalKey": "behavior_change_metrics",
-        "definition": "Track behavior and context, not just feelings.",
-        "acceptedPrompts": [
-          "What is behavior_change_metrics?",
-          "Define behavior_change_metrics.",
-          "Explain behavior_change_metrics."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Track behavior and context, not just feelings."
     },
     {
       "name": "communication_quality",
@@ -1122,40 +728,7 @@
         "specific request clarity",
         "affect labeling frequency"
       ],
-      "notes": "Useful for reflective skill coaching, not diagnosis.",
-      "retrievalHints": {
-        "keywords": [
-          "communication_quality",
-          "communication quality",
-          "Useful for reflective skill coaching, not diagnosis"
-        ],
-        "intentSignals": [
-          "what is communication_quality",
-          "define communication_quality",
-          "explain communication_quality"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_interventions_skills_v2",
-        "section": "assessmentFamilies",
-        "term": "communication_quality",
-        "canonicalKey": "communication_quality",
-        "definition": "Useful for reflective skill coaching, not diagnosis.",
-        "acceptedPrompts": [
-          "What is communication_quality?",
-          "Define communication_quality.",
-          "Explain communication_quality."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Useful for reflective skill coaching, not diagnosis."
     }
   ],
   "textReferenceMap": [
@@ -1177,26 +750,19 @@
     }
   ],
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI ChatGPT",
-    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
+    "normalizedBy": "OpenAI",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
     "retrievalPriority": "standard",
     "canonicalPackId": "psy_interventions_skills_v2",
-    "sourceFilename": "psy_interventions_skills_v2(2).json",
+    "sourceFilename": "psy_interventions_skills_v2.json",
     "aliases": [
       "psy_interventions_skills_v1",
-      "psy_interventions_skills_v2",
-      "interventions",
-      "skills",
-      "emotion regulation",
-      "habits",
-      "reframing",
-      "grounding"
+      "psy_interventions_skills_v2"
     ],
-    "pathwayRole": "application_layer",
-    "definitionInventoryReady": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
-    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
-    "commercialRegressionGuard": true
+    "pathwayRole": "application_layer"
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2",
@@ -1224,10 +790,10 @@
     ]
   },
   "runtimeDomainKey": "psychology",
-  "runtimePath": "Data/Domains/psychology/psy_interventions_skills_v2.json",
-  "manifestPackKey": "psy_interventions_skills_v2",
+  "runtimePath": "Data/Domains/psychology/packs/psy_interventions_skills_v2.json",
+  "manifestPackKey": "psyInterventionsSkills",
   "safetyBoundary": {
-    "stance": "educational_support_only",
+    "stance": "educational_nonclinical_support_only",
     "noDiagnosis": true,
     "noTherapyOrMedicalDirective": true,
     "crisisEscalationRequired": true,
@@ -1236,16 +802,7 @@
   "retrievalIndex": {
     "domain": "psychology",
     "packId": "psy_interventions_skills_v2",
-    "aliases": [
-      "interventions",
-      "skills",
-      "emotion regulation",
-      "habits",
-      "reframing",
-      "grounding",
-      "psy_interventions_skills_v2",
-      "psy interventions skills v2"
-    ],
+    "aliases": [],
     "keywords": [
       "behavior-change",
       "habit-building",
@@ -1334,40 +891,7 @@
       "mind won’t stop",
       "always tired",
       "psy_interventions_skills_v1",
-      "psy_interventions_skills_v2",
-      "interventions",
-      "skills",
-      "emotion regulation",
-      "habits",
-      "reframing",
-      "Implementation Intentions (If–Then Planning)",
-      "if_then_planning",
-      "Habit Loop Design (Cue → Routine → Reward)",
-      "habit_loop_design",
-      "Motivational Interviewing Micro-Skills (OARS-lite)",
-      "motivation_interviewing_micro",
-      "Cognitive Reframing (CBT-style, Non-clinical)",
-      "cbt_reframe_light",
-      "Affect Labeling (Name It to Tame It)",
-      "emotion_labeling",
-      "Box Breathing (4-4-4-4)",
-      "box_breathing",
-      "5-4-3-2-1 Grounding",
-      "grounding_5_4_3_2_1",
-      "Structured Problem Solving (Define → Options → Choose → Test)",
-      "problem_solving_steps",
-      "Assertive Request Script (DEAR-lite)",
-      "assertive_request_script",
-      "Repair After Conflict (Impact → Ownership → Change)",
-      "repair_after_conflict",
-      "Sleep Hygiene (Micro-Protocol)",
-      "sleep_hygiene_micro",
-      "behavior_change_metrics",
-      "communication_quality",
-      "2-Minute Start Protocol",
-      "two_minute_start",
-      "Conflict Pause → Reset",
-      "conflict_pause_reset"
+      "psy_interventions_skills_v2"
     ],
     "primaryFields": [
       "packId",
@@ -1397,277 +921,14 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary",
-      "name",
-      "id",
-      "oneLiner",
-      "definitionSurface",
-      "retrievalHints",
-      "coreMechanism",
-      "coreClaims",
-      "keyPoints",
-      "actionablePrinciples"
-    ],
-    "definitionQueryPriority": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
+      "safetyBoundary"
+    ]
   },
   "normalizationStatus": {
-    "status": "hardened",
+    "status": "hardened_for_marion_registry_compose_ingestion",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-13",
-    "definitionInventoryPatched": true,
-    "lineAuditCompleted": true,
-    "genericFallbackBlocked": true,
-    "overlapClarificationReady": true
-  },
-  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
-  "definitionAnswerContract": {
-    "version": "nyx.marion.definitionAnswerContract/1.0",
-    "active": true,
-    "acceptedQuestionForms": [
-      "what is {term}",
-      "what are {term}",
-      "define {term}",
-      "explain {term}",
-      "meaning of {term}"
-    ],
-    "requiredAnswerShape": [
-      "direct definition",
-      "psychology context",
-      "one practical/actionable note when appropriate"
-    ],
-    "blockedFallbacks": [
-      "I need one more concrete detail to route this cleanly.",
-      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
-      "The specific technical move is to name the active component."
-    ],
-    "domainLock": "psychology",
-    "allowAmbiguityClarification": true,
-    "ambiguityShape": [
-      "short neutral definition",
-      "possible domain interpretations",
-      "one targeted clarification question"
-    ],
-    "safetyBoundary": {
-      "educationalOnly": true,
-      "noDiagnosis": true,
-      "noTherapyReplacement": true,
-      "crisisEscalationRequired": true
-    }
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
-    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
-    "technicalOverrideRequiresExplicitBackendTerms": [
-      "autopsy",
-      "audit",
-      "line-by-line",
-      "patch",
-      "file",
-      "script",
-      "backend",
-      "ChatEngine",
-      "MarionBridge",
-      "StateSpine",
-      "ComposeMarionResponse"
-    ],
-    "domain": "psychology",
-    "packId": "psy_interventions_skills_v2",
-    "sourceFilename": "psy_interventions_skills_v2(2).json",
-    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
-    "crossDomainOverlapMap": {
-      "cognitive intelligence": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
-        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
-      },
-      "reasoning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "law"
-        ],
-        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
-        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
-      },
-      "bias": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "research_methods"
-        ],
-        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
-        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
-      },
-      "validation": {
-        "overlapDomains": [
-          "psychology",
-          "research_methods",
-          "ai",
-          "cyber"
-        ],
-        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
-        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
-      },
-      "resilience": {
-        "overlapDomains": [
-          "psychology",
-          "business",
-          "finance"
-        ],
-        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
-        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
-      },
-      "identity": {
-        "overlapDomains": [
-          "psychology",
-          "social",
-          "development",
-          "identity_query"
-        ],
-        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
-        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
-      },
-      "attention": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
-        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
-      },
-      "learning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "education"
-        ],
-        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
-        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
-      },
-      "confidence": {
-        "overlapDomains": [
-          "psychology",
-          "statistics",
-          "ai",
-          "finance"
-        ],
-        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
-        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
-      },
-      "compliance": {
-        "overlapDomains": [
-          "psychology",
-          "law",
-          "cyber",
-          "business"
-        ],
-        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
-        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
-      }
-    }
-  },
-  "definitionInventory": {
-    "version": "nyx.marion.definitionInventory/1.0",
-    "domain": "psychology",
-    "packId": "psy_interventions_skills_v2",
-    "termCount": 15,
-    "items": [
-      {
-        "term": "Implementation Intentions (If–Then Planning)",
-        "canonicalKey": "implementation_intentions_if_then_planning",
-        "definition": "Pre-decide a trigger and a response so action happens automatically under real-world friction.",
-        "section": "skills"
-      },
-      {
-        "term": "Habit Loop Design (Cue → Routine → Reward)",
-        "canonicalKey": "habit_loop_design_cue_routine_reward",
-        "definition": "Habits stick when the cue is consistent, the routine is easy, and the reward is immediate.",
-        "section": "skills"
-      },
-      {
-        "term": "Motivational Interviewing Micro-Skills (OARS-lite)",
-        "canonicalKey": "motivational_interviewing_micro_skills_oars_lite",
-        "definition": "Elicit a person’s own reasons for change with reflections and choice, not lectures.",
-        "section": "skills"
-      },
-      {
-        "term": "Cognitive Reframing (CBT-style, Non-clinical)",
-        "canonicalKey": "cognitive_reframing_cbt_style_non_clinical",
-        "definition": "Stressful feelings often follow interpretations; test the interpretation and generate a more useful one.",
-        "section": "skills"
-      },
-      {
-        "term": "Affect Labeling (Name It to Tame It)",
-        "canonicalKey": "affect_labeling_name_it_to_tame_it",
-        "definition": "Briefly naming the emotion reduces intensity and improves self-control.",
-        "section": "skills"
-      },
-      {
-        "term": "Box Breathing (4-4-4-4)",
-        "canonicalKey": "box_breathing_4_4_4_4",
-        "definition": "A simple breath pattern to reduce arousal and restore executive control.",
-        "section": "skills"
-      },
-      {
-        "term": "5-4-3-2-1 Grounding",
-        "canonicalKey": "5_4_3_2_1_grounding",
-        "definition": "Shift attention to immediate sensory data to interrupt spirals and rumination.",
-        "section": "skills"
-      },
-      {
-        "term": "Structured Problem Solving (Define → Options → Choose → Test)",
-        "canonicalKey": "structured_problem_solving_define_options_choose_test",
-        "definition": "Reduce overwhelm by converting vague stress into a defined problem and a testable plan.",
-        "section": "skills"
-      },
-      {
-        "term": "Assertive Request Script (DEAR-lite)",
-        "canonicalKey": "assertive_request_script_dear_lite",
-        "definition": "Ask clearly without aggression: describe, express, ask, and reinforce.",
-        "section": "skills"
-      },
-      {
-        "term": "Repair After Conflict (Impact → Ownership → Change)",
-        "canonicalKey": "repair_after_conflict_impact_ownership_change",
-        "definition": "Repair works when you name impact, take responsibility, and propose a concrete behavioral change.",
-        "section": "skills"
-      },
-      {
-        "term": "Sleep Hygiene (Micro-Protocol)",
-        "canonicalKey": "sleep_hygiene_micro_protocol",
-        "definition": "Better sleep improves mood and executive function; small changes beat perfect routines.",
-        "section": "skills"
-      },
-      {
-        "term": "behavior_change_metrics",
-        "canonicalKey": "behavior_change_metrics",
-        "definition": "Track behavior and context, not just feelings.",
-        "section": "assessmentFamilies"
-      },
-      {
-        "term": "communication_quality",
-        "canonicalKey": "communication_quality",
-        "definition": "Useful for reflective skill coaching, not diagnosis.",
-        "section": "assessmentFamilies"
-      },
-      {
-        "term": "2-Minute Start Protocol",
-        "canonicalKey": "2_minute_start_protocol",
-        "definition": "Break inertia and build momentum.",
-        "section": "microProtocols"
-      },
-      {
-        "term": "Conflict Pause → Reset",
-        "canonicalKey": "conflict_pause_reset",
-        "definition": "Prevent escalation and preserve relationship repair.",
-        "section": "microProtocols"
-      }
-    ]
+    "normalizedAt": "2026-05-03"
   }
 }

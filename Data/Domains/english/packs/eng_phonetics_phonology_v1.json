@@ -1,6 +1,6 @@
 {
   "id": "eng_phonetics_phonology_v2",
-  "version": "2.1.0",
+  "version": "2.0.0",
   "title": "Phonetics and Phonology",
   "description": "Speech sound production and patterning for intelligibility, rhythm, contrast, and pronunciation-aware explanation.",
   "upgradePremise": "Expanded for Nyx and Marion with stronger grammatical reasoning, case-based analysis, modules, projects, and explicit source coverage.",
@@ -126,74 +126,35 @@
     "version": "2.0.0"
   },
   "normalizationMeta": {
-    "normalizedAt": "2026-05-13",
+    "normalizedAt": "2026-04-07",
     "targetRuntime": "Marion/Nyx",
-    "schemaProfile": "english_domain_runtime_v2_2",
-    "preservedStructuralIntegrity": true,
-    "lineAuditPass": "full-file structural and runtime retrieval audit",
-    "criticalPatch": "six_domain_definition_routing_lock_english_pack_hardening"
+    "schemaProfile": "english_domain_runtime_v2_1",
+    "preservedStructuralIntegrity": true
   },
   "aliases": [
-    "eng_phonetics_phonology_v1",
     "eng_phonetics_phonology_v1.json",
+    "phonetics_and_phonology",
     "eng_phonetics_phonology_v2",
-    "phonetics_and_phonology"
+    "eng_phonetics_phonology_v1"
   ],
   "pathwayHints": {
     "domain": "english",
     "primaryIntent": "phonetics_and_phonology",
     "keywords": [
-      "allophone",
-      "allophones",
-      "and intelligibility",
-      "and perceived fluency",
-      "and pronunciation-aware explanation",
-      "and rounding to describe vowels",
-      "and voicing to describe consonants",
-      "assimilation",
-      "backness",
-      "consonants and vowels",
       "contrast",
-      "eng",
-      "erceived fluency and clarity",
       "essentials",
       "explanation",
-      "find minimal pairs",
-      "h vs careful speech",
-      "identify contrastive phonemes",
-      "identify predictable variants in context",
       "intelligibility",
-      "manner",
-      "mark lexical stress",
-      "minimal pair",
-      "minimal pairs",
-      "nts and vowels are produced",
-      "pattern discovery",
       "patterning",
       "patterns",
-      "phonemic contrast and allophony",
       "phonetics",
-      "phonetics and phonology",
-      "phonetics essentials",
       "phonology",
-      "phonology patterns",
-      "place",
       "production",
       "pronunciation-aware",
-      "r intelligibility",
       "rhythm",
       "sound",
-      "speech",
-      "stress",
-      "stress and rhythm affect intelligibility",
-      "t calling them errors",
-      "ternations",
-      "use height",
-      "use place",
-      "voicing",
-      "without treating them as errors"
-    ],
-    "runtimeDomainKey": "english"
+      "speech"
+    ]
   },
   "sourceCoverage": {
     "anchorCount": 2,
@@ -206,8 +167,7 @@
     "modules": 3,
     "caseStudies": 1,
     "projects": 1,
-    "referenceTextsUsed": 2,
-    "definitionTerms": 5
+    "referenceTextsUsed": 2
   },
   "auditSummary": {
     "gradeBeforeNormalization": null,
@@ -275,147 +235,5 @@
     ],
     "normalizedFor": "Marion/Nyx domain registry and Compose ingestion",
     "normalizedAt": "2026-05-03"
-  },
-  "runtimeSchema": "english_domain_runtime_v2_2",
-  "updated": "2026-05-13",
-  "runtimeDefinitionIndex": {
-    "version": "english.runtimeDefinitionIndex/1.0",
-    "domain": "english",
-    "answerStyle": "direct_definition_then_optional_example",
-    "definitionTerms": [
-      {
-        "term": "phonetics",
-        "aliases": [
-          "phonetics"
-        ],
-        "definition": "Phonetics is the study of how speech sounds are physically produced, transmitted, and perceived.",
-        "routeDomain": "english",
-        "knowledgeDomain": "english",
-        "sourcePack": "eng_phonetics_phonology_v2"
-      },
-      {
-        "term": "phonology",
-        "aliases": [
-          "phonology"
-        ],
-        "definition": "Phonology is the study of how sounds pattern in a language and how they create contrasts in meaning.",
-        "routeDomain": "english",
-        "knowledgeDomain": "english",
-        "sourcePack": "eng_phonetics_phonology_v2"
-      },
-      {
-        "term": "minimal pair",
-        "aliases": [
-          "minimal pair",
-          "minimal_pair"
-        ],
-        "definition": "A minimal pair is two words that differ by one sound and show that the sound difference matters in the language.",
-        "routeDomain": "english",
-        "knowledgeDomain": "english",
-        "sourcePack": "eng_phonetics_phonology_v2"
-      },
-      {
-        "term": "allophone",
-        "aliases": [
-          "allophone"
-        ],
-        "definition": "An allophone is a predictable pronunciation variant of a phoneme that does not change word meaning.",
-        "routeDomain": "english",
-        "knowledgeDomain": "english",
-        "sourcePack": "eng_phonetics_phonology_v2"
-      },
-      {
-        "term": "stress",
-        "aliases": [
-          "stress"
-        ],
-        "definition": "Stress is the relative emphasis placed on a syllable or word, affecting rhythm, intelligibility, and meaning.",
-        "routeDomain": "english",
-        "knowledgeDomain": "english",
-        "sourcePack": "eng_phonetics_phonology_v2"
-      }
-    ],
-    "fallbackRule": "If term appears here, answer directly. Do not ask for more detail unless the user requests a specific register, example, or comparison."
-  },
-  "answerPolicy": {
-    "version": "english.definitionRoutingLock/1.0",
-    "domain": "english",
-    "priority": "definition_queries_before_generic_fallback",
-    "rules": [
-      "If the user asks 'what is', 'define', 'meaning of', or 'explain' plus a known English term, answer directly from this domain before generic fallback.",
-      "Do not route English definition questions into technical_debug unless the user explicitly asks for backend, code, file, audit, autopsy, patch, route, script, endpoint, deployment, or validation.",
-      "If a term overlaps with another domain, give a brief neutral definition, name the possible English interpretation, and ask one targeted clarification question.",
-      "Preserve meaning first; revise form second; never over-correct when the user asks for explanation rather than rewriting.",
-      "No user-facing generic fallback such as 'I need one more concrete detail' when the term is present in this pack. Use answer + clarification instead."
-    ],
-    "blockedFallbacks": [
-      "I need one more concrete detail to route this cleanly.",
-      "I’ll keep this broad and practical",
-      "Reply held.",
-      "Backend reply unavailable."
-    ]
-  },
-  "ambiguityPolicy": {
-    "version": "english.ambiguityPolicy/1.0",
-    "method": "answer_plus_targeted_clarification",
-    "overlapTerms": [
-      {
-        "term": "clarity",
-        "interpretations": [
-          "English: sentence-level and reader-centered clarity",
-          "business/UX: product or message clarity"
-        ],
-        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
-      },
-      {
-        "term": "syntax",
-        "interpretations": [
-          "English: grammar and sentence structure",
-          "technical: programming syntax"
-        ],
-        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
-      },
-      {
-        "term": "semantics",
-        "interpretations": [
-          "English/linguistics: meaning in language",
-          "technical/AI: meaning representation or data semantics"
-        ],
-        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
-      },
-      {
-        "term": "register",
-        "interpretations": [
-          "English: style variation by context",
-          "technical: stored value/state register"
-        ],
-        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
-      },
-      {
-        "term": "agency",
-        "interpretations": [
-          "English/pragmatics: who is acting or responsible",
-          "psychology/AI: autonomy or decision capacity"
-        ],
-        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
-      },
-      {
-        "term": "validation",
-        "interpretations": [
-          "English: checking wording/usage against context",
-          "technical/cyber: checking data or system behavior"
-        ],
-        "responseRule": "Give a one-sentence neutral definition, identify the English interpretation, then ask which angle the user wants."
-      }
-    ],
-    "neverDeadEnd": true
-  },
-  "runtimeGuards": {
-    "definitionBeforeTechnicalFallback": true,
-    "blockGenericFallbackForKnownTerms": true,
-    "preserveMeaningBeforeCorrection": true,
-    "noMenuDumping": true,
-    "noTechLeak": true,
-    "commercialRuntimeSafe": true
   }
 }

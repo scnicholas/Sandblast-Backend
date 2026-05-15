@@ -1,7 +1,7 @@
 {
-  "version": "packets_v1.4-F-identity-reset-anchor-generic-fallback-loop-lock",
-  "updated": "2026-05-13",
-  "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3 + outer scheduler bypass technical target lock patch + identity reset re-anchor + generic fallback loop lock",
+  "version": "packets_v1.4-D-commercial-hardened-greeting-bridge-anti-loop-scoped",
+  "updated": "2026-05-03",
+  "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3",
   "voice": {
     "persona": "Nyx",
     "style": [
@@ -21,81 +21,6 @@
     ]
   },
   "packets": [
-    {
-      "id": "identity.reset_name_anchor",
-      "type": "identity",
-      "lane": "identity",
-      "trigger": [
-        "what is your name",
-        "what's your name",
-        "who are you",
-        "what should i call you",
-        "are you nyx",
-        "your name"
-      ],
-      "intent": "identity_query",
-      "tone": "clear_identity",
-      "energy": "low",
-      "templates": [
-        "My name is Nyx. I’m the Sandblast interface, with Marion supporting the deeper reasoning path behind me."
-      ],
-      "stateTemplates": {
-        "cold": [
-          "My name is Nyx. I’m the Sandblast interface, with Marion supporting the deeper reasoning path behind me."
-        ],
-        "warm": [
-          "My name is Nyx. I’m the Sandblast interface, with Marion supporting the deeper reasoning path behind me."
-        ],
-        "engaged": [
-          "My name is Nyx. I’m the Sandblast interface, with Marion supporting the deeper reasoning path behind me."
-        ]
-      },
-      "chips": [],
-      "sessionPatch": {
-        "lane": "identity",
-        "lastIntent": "identity_query",
-        "lastIdentityAnchor": "nyx",
-        "stateStage": "final"
-      },
-      "marionIntent": {
-        "activate": true,
-        "intent": "identity_query",
-        "route": "identity_anchor",
-        "source": "packets_v1_4.identity_reset_anchor"
-      },
-      "marionAuthority": {
-        "backendFirst": true,
-        "allowPacketReplaceBackend": false,
-        "packetRole": "assistive_identity_anchor",
-        "allowWhenBackendReplyExists": false
-      },
-      "constraints": {
-        "honorMarionFirst": true,
-        "doNotLoop": true,
-        "requireTriggerForReply": true,
-        "maxUsesPerSession": 3,
-        "requiresStateAdvance": true,
-        "suppressIfBackendReplyExists": true,
-        "bypassGenericFallback": true,
-        "bypassSchedule": true,
-        "bypassDomainConfidenceFailClosed": true,
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
-      },
-      "priority": 99,
-      "notes": [
-        "Identity/name questions must never fall into the broad generic fallback after reset."
-      ],
-      "antiLoop": {
-        "stateAdvanceRequired": true,
-        "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "identityAnchor": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
-      }
-    },
     {
       "id": "general.greeting_40d_basic_hi",
       "type": "greeting",
@@ -133,7 +58,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -170,10 +95,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -183,9 +105,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -225,7 +145,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -262,10 +182,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -275,9 +192,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -317,7 +232,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -354,10 +269,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -367,9 +279,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -408,7 +318,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -445,10 +355,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -458,9 +365,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -499,7 +404,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -536,10 +441,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -549,9 +451,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -593,7 +493,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -630,10 +530,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -643,9 +540,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -685,7 +580,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -722,10 +617,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -735,9 +627,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -777,7 +667,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -814,10 +704,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -827,9 +714,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -902,10 +787,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
@@ -915,9 +797,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -990,10 +870,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
@@ -1003,9 +880,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1047,7 +922,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -1084,10 +959,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -1097,9 +969,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1141,7 +1011,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -1178,10 +1048,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -1191,9 +1058,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1233,7 +1098,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -1270,10 +1135,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -1283,9 +1145,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1325,7 +1185,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -1362,10 +1222,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -1375,9 +1232,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1452,10 +1307,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
@@ -1465,9 +1317,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1544,10 +1394,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -1557,9 +1404,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1638,10 +1483,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
@@ -1651,9 +1493,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1730,10 +1570,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
@@ -1743,9 +1580,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1822,10 +1657,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -1835,9 +1667,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -1912,10 +1742,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
@@ -1925,9 +1752,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2002,10 +1827,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
@@ -2015,9 +1837,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2096,10 +1916,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 42,
       "notes": [
@@ -2109,9 +1926,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2157,7 +1972,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -2194,10 +2009,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2207,9 +2019,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2253,7 +2063,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -2290,10 +2100,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2303,9 +2110,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2380,10 +2185,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2393,9 +2195,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2472,10 +2272,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2485,9 +2282,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2562,10 +2357,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 38,
       "notes": [
@@ -2575,9 +2367,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2652,10 +2442,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2665,9 +2452,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2742,10 +2527,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2755,9 +2537,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2797,7 +2577,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -2834,10 +2614,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2847,9 +2624,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2891,7 +2666,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -2928,10 +2703,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -2941,9 +2713,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -2983,7 +2753,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -3020,10 +2790,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3033,9 +2800,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3079,7 +2844,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -3116,10 +2881,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3129,9 +2891,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3171,7 +2931,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -3208,10 +2968,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3221,9 +2978,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3265,7 +3020,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -3302,10 +3057,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3315,9 +3067,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3357,7 +3107,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -3394,10 +3144,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3407,9 +3154,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3455,7 +3200,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -3492,10 +3237,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3505,9 +3247,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3576,10 +3316,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3589,9 +3326,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3664,10 +3399,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3677,9 +3409,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3748,10 +3478,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 34,
       "notes": [
@@ -3761,9 +3488,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3813,7 +3538,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -3829,10 +3554,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "sessionPatch": {
         "lane": "general"
@@ -3851,9 +3573,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3898,7 +3618,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Something to watch",
@@ -3914,10 +3634,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "sessionPatch": {
         "lane": "general"
@@ -3935,9 +3652,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -3993,18 +3708,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4039,7 +3749,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         }
       ],
       "sessionPatch": {
@@ -4059,18 +3769,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4081,8 +3786,8 @@
         "__fallback__"
       ],
       "templates": [
-        "I need one concrete cue to move cleanly.",
-        "Give me the specific target, and I’ll route it directly."
+        "Give me a year—1950 to now—and I’ll steer.",
+        "Start with one year. We can pivot fast."
       ],
       "stateTemplates": {
         "cold": [
@@ -4105,7 +3810,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -4140,14 +3845,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true,
-        "neverAnswerIdentity": true,
-        "neverAnswerTechnicalTarget": true,
-        "suppressIfIdentityQuery": true,
-        "suppressIfTechnicalIntent": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": -100,
       "notes": [
@@ -4158,9 +3856,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4171,8 +3867,8 @@
         "__error__"
       ],
       "templates": [
-        "I need one concrete cue to move cleanly.",
-        "Give me the specific target, and I’ll route it directly."
+        "Tiny snag.\nTry again—give me a year.",
+        "That didn’t land cleanly.\nRepeat it once, clean and simple."
       ],
       "stateTemplates": {
         "cold": [
@@ -4199,7 +3895,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Watch something",
@@ -4228,14 +3924,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true,
-        "neverAnswerIdentity": true,
-        "neverAnswerTechnicalTarget": true,
-        "suppressIfIdentityQuery": true,
-        "suppressIfTechnicalIntent": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": -90,
       "notes": [
@@ -4245,9 +3934,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4314,10 +4001,7 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "sessionPatch": {
         "lane": "music"
@@ -4332,9 +4016,7 @@
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4384,18 +4066,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4433,18 +4110,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4491,18 +4163,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4561,18 +4228,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4622,18 +4284,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4679,18 +4336,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4699,25 +4351,24 @@
       "lane": "schedule",
       "trigger": [
         "schedule",
-        "show schedule",
-        "check schedule",
-        "open schedule",
+        "what's playing",
+        "whats playing",
         "playing now",
         "what's on",
         "whats on",
-        "what's on now",
-        "whats on now",
-        "current schedule",
-        "today's schedule",
-        "todays schedule",
-        "tonight's schedule",
-        "tonights schedule",
-        "what time is it",
+        "now",
+        "today",
+        "tonight",
         "what time",
-        "time in"
+        "time in",
+        "in london",
+        "in toronto",
+        "in new york",
+        "in los angeles"
       ],
       "templates": [
-        "For schedule, tell me the city or timezone after you ask for schedule."
+        "Schedule depends on where you are.\nWhich city?",
+        "Tell me the city/timezone.\nThen: Now / Next / Later."
       ],
       "chips": [
         {
@@ -4754,39 +4405,14 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "requireExplicitScheduleTrigger": true,
-        "blockIfTechnicalTarget": true,
-        "suppressIfTechnicalIntent": true,
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "forbiddenStandaloneTriggers": [
-          "now",
-          "today",
-          "tonight",
-          "in london",
-          "in toronto",
-          "in new york",
-          "in los angeles"
-        ],
-        "minimumTriggerStrength": "explicit_schedule_or_time_query",
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true,
-        "blockIfIdentityQuery": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "technicalTargetBypassRequired": true,
-        "noStandaloneNowCapture": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
-      },
-      "notes": [
-        "Patched: removed broad standalone triggers that captured technical follow-ups such as 'Now give me a full autopsy on MarionBridge.'",
-        "Schedule packet must only fire on explicit schedule/time wording and must yield to Marion technical target lock."
-      ]
+        "noPresenceOnlyFallback": true
+      }
     },
     {
       "id": "schedule.need_city",
@@ -4796,7 +4422,8 @@
         "__schedule_need_city__"
       ],
       "templates": [
-        "For schedule, tell me the city or timezone after you ask for schedule."
+        "City sets the clock.\nName it.",
+        "One location is enough.\nWhich city?"
       ],
       "chips": [
         {
@@ -4834,23 +4461,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "blockIfTechnicalTarget": true,
-        "suppressIfTechnicalIntent": true,
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true,
-        "requireExplicitScheduleTrigger": true,
-        "blockIfIdentityQuery": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "technicalTargetBypassRequired": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4861,7 +4478,7 @@
         "__schedule_need_show__"
       ],
       "templates": [
-        "For schedule, tell me the city or timezone after you ask for schedule."
+        "Do you want what’s on now—or a specific title?"
       ],
       "chips": [
         {
@@ -4891,21 +4508,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true,
-        "requireExplicitScheduleTrigger": true,
-        "blockIfTechnicalTarget": true,
-        "blockIfIdentityQuery": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -4975,18 +4584,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -5035,18 +4639,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -5077,7 +4676,7 @@
         },
         {
           "label": "Schedule",
-          "send": "open schedule"
+          "send": "schedule"
         },
         {
           "label": "Sponsors",
@@ -5107,18 +4706,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": 0,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -5129,8 +4723,16 @@
         "__fallback_anchor__"
       ],
       "templates": [
-        "I need one concrete cue to move cleanly.",
-        "Give me the specific target, and I’ll route it directly."
+        "I need one clean cue to move this forward.",
+        "Give me the anchor: year, city, title, or goal.",
+        "That didn’t choose a lane yet. One cue fixes it.",
+        "We can recover cleanly. Start with the strongest detail.",
+        "I won’t overbuild it. Give me the first signal.",
+        "One direction is enough: music, schedule, sponsors, or movies.",
+        "The thread needs an anchor before it can deepen.",
+        "We’re close. Give me one concrete detail.",
+        "No problem. One cue and I’ll steer.",
+        "Let’s reduce the noise: year, city, title, or goal."
       ],
       "chips": [
         {
@@ -5172,22 +4774,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true,
-        "neverAnswerIdentity": true,
-        "neverAnswerTechnicalTarget": true,
-        "suppressIfIdentityQuery": true,
-        "suppressIfTechnicalIntent": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": -110,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     },
     {
@@ -5198,8 +4791,16 @@
         "__replay_detected__"
       ],
       "templates": [
-        "I need one concrete cue to move cleanly.",
-        "Give me the specific target, and I’ll route it directly."
+        "That did not advance the signal. We redirect cleanly.",
+        "Same loop, different skin. Let’s break the pattern.",
+        "The reply repeated. The next move has to change state.",
+        "A fallback should recover motion, not become the conversation.",
+        "We have enough to continue without recycling the same line.",
+        "That response lost traction. We restore direction.",
+        "The system needs a new handoff, not another echo.",
+        "We’re not staying in the loop. We move one layer forward.",
+        "That was a guardrail hit. The next line should carry progress.",
+        "No stall. We recover with a single clean cue."
       ],
       "chips": [
         {
@@ -5232,22 +4833,13 @@
         "requiresStateAdvance": true,
         "suppressIfBackendReplyExists": true,
         "suppressIfLastAssistantSigMatches": true,
-        "ifRepeatedUse": "advance_bridge_or_hold",
-        "suppressIfCurrentTextNamesKnownModule": true,
-        "technicalTargetChangeBypassesHold": true,
-        "identityQueryBypassesFallback": true,
-        "neverAnswerIdentity": true,
-        "neverAnswerTechnicalTarget": true,
-        "suppressIfIdentityQuery": true,
-        "suppressIfTechnicalIntent": true
+        "ifRepeatedUse": "advance_bridge_or_hold"
       },
       "priority": -105,
       "antiLoop": {
         "stateAdvanceRequired": true,
         "publicFacingOnly": true,
-        "noPresenceOnlyFallback": true,
-        "noGenericFallbackForIdentity": true,
-        "technicalTargetChangeBypassesHold": true
+        "noPresenceOnlyFallback": true
       }
     }
   ],
@@ -5281,24 +4873,17 @@
       "nicks": "nyx",
       "nix": "nyx",
       "mix": "nyx",
-      "mike": "nyx"
+      "mike": "nyx",
+      "next": "nyx"
     },
-    "inputRule": "Normalize assistant-name voice/text aliases before packet matching, but never normalize command words such as now/next/later into assistant names. Mic and text must share the same submit path before Marion routing.",
-    "technicalTargetPrecedenceRule": "Explicit Marion/Nyx module targets with autopsy/audit/check/review/patch/fix language must bypass schedule/date/time packet prompts and route to Marion technical_debug."
+    "inputRule": "Normalize assistant-name voice/text aliases before packet matching. Mic and text must share the same submit path before Marion routing."
   },
   "hardening": "COMMERCIAL-HARDENED-PACKET-BRIDGE: backend-first, trigger-gated replies, sanitized state patches, duplicate-trigger pruning, replay-safe fallback contract",
   "auditSummary": {
     "packetCount": 61,
     "duplicateIds": [],
     "duplicateUserTriggersAfterPrune": [],
-    "emptyTemplatePackets": [],
-    "criticalFixesApplied": [
-      "Removed standalone schedule triggers: now, today, tonight, in london, in toronto, in new york, in los angeles.",
-      "Added schedule packet suppression when current text names a known Marion/Nyx technical module.",
-      "Removed unsafe assistant alias mapping: next -> nyx.",
-      "Added root technicalTargetBypassGuard for explicit technical autopsy/audit requests.",
-      "Reworded schedule city prompts so they cannot appear as generic follow-up replies."
-    ]
+    "emptyTemplatePackets": []
   },
   "audit": {
     "audit_date": "2026-05-06",
@@ -5311,10 +4896,7 @@
       "added emotional specificity and next-step operational bridges",
       "added guarded backend-empty behavior"
     ],
-    "status": "patched",
-    "latestAutopsy": "Full JSON autopsy found the active schedule packet could capture standalone 'now' before Marion technical routing. This caused 'Now give me a full autopsy on MarionBridge' to trigger a city/timezone prompt.",
-    "lineByLineAuditMethod": "Validated JSON parse, scanned all packets for schedule/city/timezone reply strings, inspected matching packet objects, corrected broad triggers and authority constraints, then revalidated JSON serialization.",
-    "criticalRisk": "schedule.open used bare trigger 'now' and city-only triggers, allowing non-schedule follow-up requests to be intercepted."
+    "status": "normalized_and_runtime_ready"
   },
   "antiLoopRuntimeContract": {
     "backendFirst": true,
@@ -5370,99 +4952,5 @@
         "requiresStateAdvance": true
       }
     }
-  ],
-  "technicalTargetBypassGuard": {
-    "version": "nyx.packets.technicalTargetBypass/1.0",
-    "active": true,
-    "purpose": "Prevent schedule/date/time prompt packets from intercepting explicit Marion/Nyx technical autopsy/audit follow-ups.",
-    "knownTargets": {
-      "chatEngine": "Utils/chatEngine.js",
-      "marionBridge": "Data/marion/runtime/marionBridge.js",
-      "composeMarionResponse": "Data/marion/runtime/composeMarionResponse.js",
-      "stateSpine": "Utils/stateSpine.js",
-      "marionIntentRouter": "Data/marion/runtime/marionIntentRouter.js",
-      "domainRouter": "Utils/domainRouter.js",
-      "marionDomainRegistry": "Data/marion/runtime/marionDomainRegistry.js",
-      "index": "index.js",
-      "apiChat": "index.js"
-    },
-    "targetTerms": [
-      "ChatEngine",
-      "chat engine",
-      "MarionBridge",
-      "marion bridge",
-      "ComposeMarionResponse",
-      "compose marion response",
-      "StateSpine",
-      "state spine",
-      "marionIntentRouter",
-      "intent router",
-      "domainRouter",
-      "domain router",
-      "marionDomainRegistry",
-      "domain registry",
-      "index.js",
-      "api/chat",
-      "/api/chat"
-    ],
-    "technicalActionTerms": [
-      "full autopsy",
-      "autopsy",
-      "audit",
-      "line-by-line",
-      "line by line",
-      "critical fix",
-      "critical fixes",
-      "check",
-      "inspect",
-      "review",
-      "patch",
-      "harden",
-      "fix"
-    ],
-    "bypassLanes": [
-      "schedule",
-      "calendar",
-      "time",
-      "reminder"
-    ],
-    "rule": "If current text contains a known technical target and a technical action term, suppress schedule/time packets and preserve Marion technical_debug routing.",
-    "currentUserTargetBeats": [
-      "previousMemory",
-      "previousTopic",
-      "schedulePacket",
-      "genericNextNowLaterPrompt",
-      "assistantAliasMap",
-      "stateCarry"
-    ]
-  },
-  "runtimeGuards": {
-    "identityResetReAnchor": {
-      "active": true,
-      "match": [
-        "what is your name",
-        "what's your name",
-        "who are you",
-        "what should i call you",
-        "are you nyx"
-      ],
-      "forceIntent": "identity_query",
-      "forceLane": "identity",
-      "bypassGenericFallback": true,
-      "bypassSchedule": true,
-      "bypassLoopHold": true
-    },
-    "genericFallbackLoopLock": {
-      "active": true,
-      "neverUseAsIdentityAnswer": true,
-      "neverUseAsTechnicalTargetAnswer": true,
-      "suppressYearCityMenuFallbacksWhenBackendReplyExists": true,
-      "technicalTargetChangeBypassesHold": true
-    },
-    "technicalTargetBypassGuard": {
-      "active": true,
-      "blockScheduleInterception": true,
-      "blockIfCurrentTextNamesKnownModule": true
-    }
-  }
+  ]
 }

@@ -1,8 +1,8 @@
 {
   "domain": "law",
-  "schemaVersion": "1.1.1-hardened",
-  "manifestVersion": "1.1.1-hardened",
-  "updatedAt": "2026-05-12",
+  "schemaVersion": "1.1.0-hardened",
+  "manifestVersion": "1.1.0-hardened",
+  "updatedAt": "2026-05-02",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "law",
   "runtimeFolder": "Data/Domains/law",
@@ -30,45 +30,28 @@
       "english"
     ],
     "keywords": [
-      "consideration in contract",
-      "liability",
-      "case law",
-      "legal consideration",
-      "contract law",
-      "statute",
-      "constitutional",
-      "charter",
-      "canadian law",
-      "jurisdiction",
-      "contract",
-      "criminal",
-      "tort",
-      "source ladder",
-      "negligence",
-      "fiduciary",
-      "compliance",
-      "legal advice",
-      "due process",
+      "law",
       "legal",
       "legal information",
-      "law",
-      "contract consideration"
+      "legal advice",
+      "canadian law",
+      "contract",
+      "tort",
+      "criminal",
+      "charter",
+      "constitutional",
+      "case law",
+      "statute",
+      "jurisdiction",
+      "source ladder"
     ],
-    "safetyFirst": true,
-    "confidencePolicy": {
-      "confidenceFloor": 0.62,
-      "mixedIntentRequiresSecondaryLaneCheck": true,
-      "safetyLaneOverridesGeneralLane": true,
-      "lowConfidenceFallback": "general_with_domain_probe",
-      "preserveFinalEnvelope": true
-    }
+    "safetyFirst": true
   },
   "constraints": {
     "noLegalAdvice": true,
     "educationalOnly": true,
     "jurisdictionDisclosureRequired": true,
-    "sourceLadderRequired": true,
-    "noClientRelationship": true
+    "sourceLadderRequired": true
   },
   "packs": [
     {
@@ -207,53 +190,10 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true,
-    "loadOrderReferencesDeclaredInventory": true,
-    "requiredPacksPresentInLoadOrder": true,
-    "duplicateDefaultLoadOrderEntries": false,
-    "uniquePackIds": true,
-    "uniqueExampleIds": true,
-    "routingPrimaryLaneMatchesDomain": true,
-    "runtimeDomainKeyMatchesDomain": true
+    "casingPreserved": true
   },
   "notes": [
-    "Compatibility aliases retained for packs whose internal lineage may be v2 while actual filenames remain v1.",
-    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks."
+    "Compatibility aliases retained for packs whose internal lineage may be v2 while actual filenames remain v1."
   ],
-  "jurisdiction": "Canada",
-  "runtimeGuards": {
-    "mode": "legal_information_only",
-    "failClosedOnMissingRequiredPacks": true,
-    "jurisdictionDisclosureRequired": true,
-    "sourceLadderRequired": true,
-    "finalAnswerMustAvoidLegalAdvice": true,
-    "preserveFinalEnvelope": true,
-    "domainIsolationRequired": true,
-    "bootstrapGuardRequired": true
-  },
-  "definitionRoutingLock": {
-    "enabled": true,
-    "version": "nyx.marion.sixDomainDefinitionRoutingLock/1.0",
-    "rule": "definition_query_domain_lock_before_technical_debug",
-    "definitionTerms": [
-      "contract consideration",
-      "legal consideration",
-      "consideration in contract",
-      "contract",
-      "contract law",
-      "statute",
-      "jurisdiction",
-      "legal information",
-      "legal advice",
-      "liability",
-      "negligence",
-      "fiduciary",
-      "tort",
-      "case law",
-      "compliance",
-      "due process"
-    ],
-    "technicalOverrideRequiresExplicitDevLanguage": true,
-    "preserveFinalEnvelope": true
-  }
+  "jurisdiction": "Canada"
 }

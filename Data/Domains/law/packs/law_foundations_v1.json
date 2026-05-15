@@ -28,75 +28,12 @@
           "jurisdiction",
           "federal or provincial",
           "which court",
-          "authority",
-          "jurisdiction (federal vs provincial authority)",
-          "lf jurisdiction"
+          "authority"
         ],
         "intentSignals": [
           "who has authority",
           "which law applies"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_foundations_v1",
-        "sourceId": "lf_jurisdiction",
-        "sourcePath": "topics[0]",
-        "term": "Jurisdiction (Federal vs Provincial Authority)",
-        "aliases": [
-          "Jurisdiction (Federal vs Provincial Authority)",
-          "lf jurisdiction",
-          "jurisdiction",
-          "federal or provincial",
-          "which court",
-          "authority",
-          "who has authority",
-          "which law applies"
-        ],
-        "definition": "Jurisdiction determines which level of government or court has authority over a legal matter. In Canada, powers are divided between federal and provincial governments under the Constitution Act, 1867.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is jurisdiction (federal vs provincial authority)?",
-          "what is lf jurisdiction?",
-          "what is jurisdiction?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "jurisdiction",
-              "domains": [
-                "law",
-                "governance",
-                "platform"
-              ]
-            },
-            {
-              "term": "authority",
-              "domains": [
-                "law",
-                "social psychology",
-                "system architecture"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -122,73 +59,11 @@
           "source of law",
           "primary authority",
           "statute",
-          "precedent",
-          "sources of law in canada",
-          "lf sources of law"
+          "precedent"
         ],
         "intentSignals": [
           "where does this law come from"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_foundations_v1",
-        "sourceId": "lf_sources_of_law",
-        "sourcePath": "topics[1]",
-        "term": "Sources of Law in Canada",
-        "aliases": [
-          "Sources of Law in Canada",
-          "lf sources of law",
-          "source of law",
-          "primary authority",
-          "statute",
-          "precedent",
-          "where does this law come from"
-        ],
-        "definition": "Canadian law derives from constitutional law, statutes and regulations, and case law. Secondary sources interpret but do not bind.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is sources of law in canada?",
-          "what is lf sources of law?",
-          "what is source of law?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "authority",
-              "domains": [
-                "law",
-                "social psychology",
-                "system architecture"
-              ]
-            },
-            {
-              "term": "source",
-              "domains": [
-                "law",
-                "research",
-                "data"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -213,83 +88,12 @@
           "burden of proof",
           "standard of proof",
           "reasonable doubt",
-          "balance of probabilities",
-          "burden and standard of proof",
-          "lf burden and standard of proof"
+          "balance of probabilities"
         ],
         "intentSignals": [
           "how much proof",
           "what do they need to prove"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_foundations_v1",
-        "sourceId": "lf_burden_and_standard_of_proof",
-        "sourcePath": "topics[2]",
-        "term": "Burden and Standard of Proof",
-        "aliases": [
-          "Burden and Standard of Proof",
-          "lf burden and standard of proof",
-          "burden of proof",
-          "standard of proof",
-          "reasonable doubt",
-          "balance of probabilities",
-          "how much proof",
-          "what do they need to prove"
-        ],
-        "definition": "The burden of proof determines who must prove a claim. The standard of proof determines how convincing that proof must be.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is burden and standard of proof?",
-          "what is lf burden and standard of proof?",
-          "what is burden of proof?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "standard",
-              "domains": [
-                "law",
-                "research",
-                "quality control"
-              ]
-            },
-            {
-              "term": "proof",
-              "domains": [
-                "law",
-                "research",
-                "logic"
-              ]
-            },
-            {
-              "term": "burden",
-              "domains": [
-                "law",
-                "psychology",
-                "business"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -315,65 +119,11 @@
           "interpretation",
           "meaning of section",
           "legislative intent",
-          "modern principle",
-          "statutory interpretation (modern principle)",
-          "lf statutory interpretation"
+          "modern principle"
         ],
         "intentSignals": [
           "what does this section mean"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_foundations_v1",
-        "sourceId": "lf_statutory_interpretation",
-        "sourcePath": "topics[3]",
-        "term": "Statutory Interpretation (Modern Principle)",
-        "aliases": [
-          "Statutory Interpretation (Modern Principle)",
-          "lf statutory interpretation",
-          "interpretation",
-          "meaning of section",
-          "legislative intent",
-          "modern principle",
-          "what does this section mean"
-        ],
-        "definition": "Statutes are interpreted according to the modern principle: words are read in their entire context and in their grammatical and ordinary sense harmoniously with the scheme and object of the Act.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is statutory interpretation (modern principle)?",
-          "what is lf statutory interpretation?",
-          "what is interpretation?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "intent",
-              "domains": [
-                "law",
-                "psychology",
-                "ai"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -398,75 +148,12 @@
           "remedy",
           "damages",
           "injunction",
-          "compensation",
-          "legal remedies",
-          "lf remedies"
+          "compensation"
         ],
         "intentSignals": [
           "what can I get",
           "what happens if"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_foundations_v1",
-        "sourceId": "lf_remedies",
-        "sourcePath": "topics[4]",
-        "term": "Legal Remedies",
-        "aliases": [
-          "Legal Remedies",
-          "lf remedies",
-          "remedy",
-          "damages",
-          "injunction",
-          "compensation",
-          "what can I get",
-          "what happens if"
-        ],
-        "definition": "Remedies are legal responses to wrongdoing. They may be monetary (damages) or equitable (injunctions, specific performance).",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is legal remedies?",
-          "what is lf remedies?",
-          "what is remedy?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "remedy",
-              "domains": [
-                "law",
-                "psychology",
-                "business"
-              ]
-            },
-            {
-              "term": "damages",
-              "domains": [
-                "law",
-                "finance",
-                "insurance"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -491,66 +178,12 @@
           "appeal",
           "motion",
           "trial stage",
-          "procedure",
-          "procedural posture",
-          "lf procedural posture"
+          "procedure"
         ],
         "intentSignals": [
           "can I appeal",
           "what happens next"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_foundations_v1",
-        "sourceId": "lf_procedural_posture",
-        "sourcePath": "topics[5]",
-        "term": "Procedural Posture",
-        "aliases": [
-          "Procedural Posture",
-          "lf procedural posture",
-          "appeal",
-          "motion",
-          "trial stage",
-          "procedure",
-          "can I appeal",
-          "what happens next"
-        ],
-        "definition": "Procedural posture refers to the stage and procedural context of a case (trial, appeal, motion).",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is procedural posture?",
-          "what is lf procedural posture?",
-          "what is appeal?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "appeal",
-              "domains": [
-                "law",
-                "marketing/appeal"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     }
   ],
@@ -612,140 +245,17 @@
   "runtimeDomainKey": "law",
   "safetyBoundary": "general_legal_information_only_not_legal_advice",
   "retrievalIndex": {
-    "version": "nyx.marion.lawRetrievalIndex/1.0",
-    "domain": "law",
-    "packId": "law_foundations_v1",
-    "sourceFile": "law_foundations_v1.json",
-    "definitionSurfaceCount": 6,
-    "keywords": [
-      "jurisdiction (federal vs provincial authority)",
-      "lf jurisdiction",
-      "jurisdiction",
-      "federal or provincial",
-      "which court",
-      "authority",
-      "who has authority",
-      "which law applies",
-      "sources of law in canada",
-      "lf sources of law",
-      "source of law",
-      "primary authority",
-      "statute",
-      "precedent",
-      "where does this law come from",
-      "burden and standard of proof",
-      "lf burden and standard of proof",
-      "burden of proof",
-      "standard of proof",
-      "reasonable doubt",
-      "balance of probabilities",
-      "how much proof",
-      "what do they need to prove",
-      "statutory interpretation (modern principle)",
-      "lf statutory interpretation",
-      "interpretation",
-      "meaning of section",
-      "legislative intent",
-      "modern principle",
-      "what does this section mean",
-      "legal remedies",
-      "lf remedies",
-      "remedy",
-      "damages",
-      "injunction",
-      "compensation",
-      "what can i get",
-      "what happens if",
-      "procedural posture",
-      "lf procedural posture",
-      "appeal",
-      "motion",
-      "trial stage",
-      "procedure",
-      "can i appeal",
-      "what happens next"
+    "aliases": [
+      "law_foundations_v1",
+      "law",
+      "framework"
     ],
-    "intentSignals": [
-      "who has authority",
-      "which law applies",
-      "where does this law come from",
-      "how much proof",
-      "what do they need to prove",
-      "what does this section mean",
-      "what can i get",
-      "what happens if",
-      "can i appeal",
-      "what happens next"
-    ],
-    "definitionTerms": [
-      "Jurisdiction (Federal vs Provincial Authority)",
-      "Sources of Law in Canada",
-      "Burden and Standard of Proof",
-      "Statutory Interpretation (Modern Principle)",
-      "Legal Remedies",
-      "Procedural Posture"
-    ],
-    "noGenericFallback": true,
-    "definitionQueryWinsBeforeTechnicalFallback": true
+    "source": "batch2_hardening_v1_1"
   },
   "normalizationStatus": {
-    "status": "hardened_for_six_domain_definition_inventory",
-    "validatedJson": true,
-    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
-    "criticalUpdatesApplied": [
-      "definition_surface_normalization",
-      "law_definition_routing_lock",
-      "safety_boundary_hardening",
-      "retrieval_index_expansion"
-    ],
-    "normalizedAt": "2026-05-13"
-  },
-  "retrievalAliases": [
-    "law_foundations_v1",
-    "law_foundations_v2"
-  ],
-  "definitionAnswerContract": {
-    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
-    "domain": "law",
-    "jurisdictionDefault": "Canada",
-    "answerMode": "direct_definition_plus_framework",
-    "mustInclude": [
-      "plain meaning",
-      "legal information posture when relevant",
-      "jurisdiction caveat when procedure/deadlines/court steps are involved"
-    ],
-    "mustNotInclude": [
-      "generic technical fallback",
-      "outcome guarantee",
-      "personalized legal advice",
-      "unsupported deadlines"
-    ],
-    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.definitionRoutingLock/1.0",
-    "intent": "domain_question",
-    "knowledgeDomain": "law",
-    "primaryLane": "law",
-    "definitionTriggers": [
-      "what is",
-      "what are",
-      "define",
-      "definition of",
-      "explain",
-      "meaning of"
-    ],
-    "blockTechnicalFallbackUnless": [
-      "autopsy",
-      "audit",
-      "patch",
-      "backend",
-      "script",
-      "route",
-      "debug",
-      "file",
-      "line-by-line"
-    ],
-    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
+    "jsonValid": true,
+    "conflictMarkersRemoved": 0,
+    "runtimePathConfirmed": true,
+    "batch2Hardened": true
   }
 }

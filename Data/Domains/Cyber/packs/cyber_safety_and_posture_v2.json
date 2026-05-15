@@ -163,15 +163,7 @@
       "credential theft",
       "evade edr",
       "break into account",
-      "illegal access",
-      "defensive-only cybersecurity",
-      "exploit guidance",
-      "credential processing",
-      "dual-use cyber topic",
-      "control and architecture reviews",
-      "detection engineering",
-      "authorized learning labs",
-      "containment and recovery guidance"
+      "illegal access"
     ],
     "intentSignals": [
       "get into account",
@@ -179,10 +171,7 @@
       "steal password",
       "write exploit",
       "disable detection",
-      "deploy ransomware",
-      "definition",
-      "defensive explanation",
-      "risk reduction"
+      "deploy ransomware"
     ]
   },
   "governanceAlignment": {
@@ -450,29 +439,12 @@
   "schemaVersion": "2.0-hardened",
   "safetyBoundary": {
     "mode": "defensive_only",
-    "noExploitGuidance": true,
-    "noBypassInstructions": true,
+    "noExploitInstructions": true,
+    "noCredentialTheft": true,
+    "noBypassOrEvasionInstructions": true,
     "noMalwareAssistance": true,
-    "noCredentialProcessing": true,
-    "humanOversightRequired": true,
-    "allowedResponseModes": [
-      "definition",
-      "risk_explanation",
-      "secure_architecture",
-      "control_review",
-      "policy_guidance",
-      "incident_response",
-      "hardening_checklist",
-      "training_or_tabletop"
-    ],
-    "disallowedResponseModes": [
-      "intrusion_steps",
-      "exploit_chain",
-      "malware_creation",
-      "credential_abuse",
-      "evasion_or_persistence",
-      "live_targeting"
-    ]
+    "allow": "defensive education, architecture hardening, policy, monitoring, incident response, governance, recovery, and safe tabletop analysis",
+    "redirect": "Refuse harmful operational content and redirect to prevention, detection, containment, recovery, or authorized-lab framing."
   },
   "normalizationStatus": {
     "jsonValid": true,
@@ -482,261 +454,5 @@
     "safetyBoundaryConfirmed": true,
     "retrievalIndexAdded": true,
     "defensiveOnlyConfirmed": true
-  },
-  "runtimeSchema": "cyber_domain_runtime_v2_2",
-  "domainAliases": [
-    "cyber",
-    "cybersecurity",
-    "defensive cybersecurity",
-    "information security",
-    "security"
-  ],
-  "answerPolicy": {
-    "directDefinitionFirst": true,
-    "knownTermMustAnswer": true,
-    "answerThenClarifyWhenAmbiguous": true,
-    "avoidGenericFallbackForKnownCyberTerms": true,
-    "blockTechnicalDebugLanguageUnlessExplicitBackendRequest": true,
-    "shortDefinitionMaxSentences": 3,
-    "defaultTone": "defensive, clear, operationally safe",
-    "requiredShapeForDefinition": [
-      "one clear definition",
-      "defensive significance",
-      "one practical safe control or clarification if needed"
-    ]
-  },
-  "ambiguityPolicy": {
-    "enabled": true,
-    "strategy": "bridge_definition_plus_domain_options",
-    "knownOverlapBehavior": "Do not fail closed into generic fallback. Provide a brief neutral definition, name the possible domain angles, then ask one targeted clarification question.",
-    "crossDomainPairs": {
-      "cyber_law": "Ask whether the user means security controls/risk reduction or legal/compliance obligations.",
-      "cyber_finance": "Ask whether the user means security risk, fraud/financial exposure, or business impact.",
-      "cyber_ai": "Ask whether the user means security architecture, AI system safety, prompt injection, or model/tool behavior.",
-      "cyber_psychology": "Ask whether the user means human-risk/security culture or psychological behavior.",
-      "cyber_english": "Ask whether the user wants the cybersecurity definition or the plain-language wording/usage meaning."
-    }
-  },
-  "runtimeGuards": {
-    "definitionRoutingLock": true,
-    "blockGenericFallback": true,
-    "blockScheduleInterception": true,
-    "blockAutopsyTemplateUnlessTechnicalModuleNamed": true,
-    "suppressIfBackendReplyExists": true,
-    "defensiveOnly": true,
-    "neverProvideExploitSteps": true,
-    "redactSecretsAndAdviseRotation": true,
-    "knownCyberTermsRouteToCyber": true,
-    "v1CompatibilityMustNotOverrideV2": true
-  },
-  "definitionRouting": {
-    "lockName": "Cyber Definition Routing Lock",
-    "enabled": true,
-    "definitionTriggers": [
-      "what is",
-      "what are",
-      "define",
-      "definition of",
-      "meaning of",
-      "explain"
-    ],
-    "forceDomainWhenKnownTerm": "cyber",
-    "fallbackBehavior": "answer_then_clarify_not_generic_fallback",
-    "technicalDebugOverrideRequires": [
-      "autopsy",
-      "audit",
-      "line-by-line",
-      "backend",
-      "script",
-      "file",
-      "patch",
-      "route",
-      "diagnostic"
-    ]
-  },
-  "runtimeDefinitionIndex": [
-    {
-      "term": "Defensive-Only Cybersecurity",
-      "definition": "Defensive-only cybersecurity focuses on prevention, detection, mitigation, governance, recovery, and education without enabling unauthorized access or abuse.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "defensive-only cybersecurity"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    },
-    {
-      "term": "Exploit Guidance",
-      "definition": "Exploit guidance is procedural help for abusing a vulnerability; Nyx/Marion should avoid it and redirect to mitigation, detection, or safe lab framing.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "exploit guidance"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    },
-    {
-      "term": "Credential Processing",
-      "definition": "Credential processing means handling real passwords, tokens, keys, or access artifacts; live secrets should be redacted, rotated, and replaced rather than analyzed in chat.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "credential processing"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    },
-    {
-      "term": "Dual-Use Cyber Topic",
-      "definition": "A dual-use cyber topic can help defenders but could also enable harm, so the answer should stay conceptual, defensive, and non-operational.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "dual-use cyber topic"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    },
-    {
-      "term": "Control and Architecture Reviews",
-      "definition": "Review identity, logging, segmentation, backup, patching, and vendor-access controls to reduce exposure.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "control and architecture reviews"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    },
-    {
-      "term": "Detection Engineering",
-      "definition": "Discuss logging requirements, alert logic, tuning concepts, and validation approaches without teaching evasion.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "detection engineering"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    },
-    {
-      "term": "Authorized Learning Labs",
-      "definition": "Recommend isolated, lawful lab environments and benign sample data for education rather than live or production targets.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "authorized learning labs"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    },
-    {
-      "term": "Containment and Recovery Guidance",
-      "definition": "Focus on account resets, host isolation, key rotation, backups, forensic preservation, and notification workflows.",
-      "aliases": [],
-      "domain": "cyber",
-      "sourcePack": "cyber_safety_and_posture_v2",
-      "answerMode": "direct_defensive_definition",
-      "safetyBoundary": "defensive_only_no_exploit_steps",
-      "retrievalHints": {
-        "keywords": [
-          "containment and recovery guidance"
-        ],
-        "intentSignals": [
-          "what is",
-          "define",
-          "explain",
-          "meaning of"
-        ]
-      }
-    }
-  ],
-  "normalizationMeta": {
-    "normalizedAt": "2026-05-13",
-    "targetRuntime": "Marion/Nyx",
-    "schemaProfile": "cyber_domain_runtime_v2_2",
-    "preservedStructuralIntegrity": true,
-    "patchesApplied": [
-      "Cyber Definition Routing Lock",
-      "Defensive-Only Answer Policy",
-      "Generic Fallback Suppression for Known Cyber Terms",
-      "Endpoint Cloud V1/V2 Compatibility Guard",
-      "Runtime Definition Index Injection"
-    ]
-  },
-  "compatibilityPolicy": {
-    "role": "required_current_cyber_pack",
-    "loadByDefault": true,
-    "mustNotBeOverriddenByLegacyPack": true
-  },
-  "aliases": [
-    "cyber_safety_and_posture_v2.json",
-    "cyber_safety_and_posture_v2",
-    "cyber_safety_and_posture"
-  ]
+  }
 }

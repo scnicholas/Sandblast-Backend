@@ -1,8 +1,8 @@
 {
   "domain": "english",
-  "schemaVersion": "2.2.1-hardened",
-  "manifestVersion": "2.2.1-hardened",
-  "updatedAt": "2026-05-12",
+  "schemaVersion": "2.2.0-hardened",
+  "manifestVersion": "2.2.0-hardened",
+  "updatedAt": "2026-05-02",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "english",
   "runtimeFolder": "Data/Domains/english",
@@ -30,46 +30,28 @@
       "law"
     ],
     "keywords": [
-      "proofread",
-      "actor action clarity",
+      "english",
+      "grammar",
+      "syntax",
       "rewrite",
-      "academic writing",
+      "polish",
       "tone",
-      "sentence clarity",
-      "wording",
-      "corpus",
       "register",
-      "professional writing",
       "clarity",
+      "wording",
+      "copyedit",
+      "proofread",
       "semantics",
       "pragmatics",
-      "grammar",
-      "copyedit",
-      "english",
-      "professional clarity",
-      "polish",
-      "morphology",
-      "language flow",
-      "phonetics",
-      "plain language",
-      "phonology",
-      "syntax",
-      "cohesion"
+      "academic writing",
+      "professional writing"
     ],
-    "safetyFirst": false,
-    "confidencePolicy": {
-      "confidenceFloor": 0.62,
-      "mixedIntentRequiresSecondaryLaneCheck": true,
-      "safetyLaneOverridesGeneralLane": true,
-      "lowConfidenceFallback": "general_with_domain_probe",
-      "preserveFinalEnvelope": true
-    }
+    "safetyFirst": false
   },
   "constraints": {
     "preserveUserMeaning": true,
     "doNotInventFacts": true,
-    "styleDisclosureWhenTransforming": true,
-    "preserveVoiceWhenRequested": true
+    "styleDisclosureWhenTransforming": true
   },
   "packs": [
     {
@@ -219,54 +201,9 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true,
-    "loadOrderReferencesDeclaredInventory": true,
-    "requiredPacksPresentInLoadOrder": true,
-    "duplicateDefaultLoadOrderEntries": false,
-    "uniquePackIds": true,
-    "uniqueExampleIds": true,
-    "routingPrimaryLaneMatchesDomain": true,
-    "runtimeDomainKeyMatchesDomain": true
+    "casingPreserved": true
   },
   "notes": [
-    "Manifest pack filenames corrected from _normalized/v2 references to actual v1 inventory files.",
-    "2026-05-12 autopsy patch: added routing confidence policy, runtime guards, and expanded integrity checks."
-  ],
-  "runtimeGuards": {
-    "mode": "language_transformation_support",
-    "failClosedOnMissingRequiredPacks": true,
-    "preserveUserMeaning": true,
-    "doNotInventFacts": true,
-    "styleDisclosureWhenTransforming": true,
-    "preserveFinalEnvelope": true,
-    "domainIsolationRequired": true,
-    "bootstrapGuardRequired": true
-  },
-  "definitionRoutingLock": {
-    "enabled": true,
-    "version": "nyx.marion.sixDomainDefinitionRoutingLock/1.0",
-    "rule": "definition_query_domain_lock_before_technical_debug",
-    "definitionTerms": [
-      "sentence clarity",
-      "actor action clarity",
-      "syntax",
-      "grammar",
-      "register",
-      "corpus",
-      "pragmatics",
-      "semantics",
-      "morphology",
-      "phonology",
-      "phonetics",
-      "plain language",
-      "cohesion",
-      "wording",
-      "language flow",
-      "professional clarity",
-      "copyedit",
-      "proofread"
-    ],
-    "technicalOverrideRequiresExplicitDevLanguage": true,
-    "preserveFinalEnvelope": true
-  }
+    "Manifest pack filenames corrected from _normalized/v2 references to actual v1 inventory files."
+  ]
 }

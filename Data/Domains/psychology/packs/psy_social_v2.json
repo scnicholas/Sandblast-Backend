@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Social psychology foundations: how people think, feel, and act in social contexts—attitudes, influence, groups, identity, prejudice, relationships, and prosocial/antisocial behavior. Built for Marion to answer 'why people do that' questions with clean caveats and practical, non-clinical insights.",
-  "updatedAt": "2026-05-13",
+  "updatedAt": "2026-02-13",
   "scope": [
     "social-cognition",
     "self-identity",
@@ -35,38 +35,13 @@
           "heuristic",
           "attribution",
           "social cognition",
-          "interpretation",
-          "We use mental shortcuts to interpret people and situations—fast, useful, and sometimes wrong"
+          "interpretation"
         ],
         "intentSignals": [
           "why did they",
           "what were they thinking",
-          "how do people judge",
-          "what is social cognition",
-          "define social cognition",
-          "explain social cognition"
+          "how do people judge"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Social Cognition",
-        "canonicalKey": "social_cognition",
-        "definition": "We use mental shortcuts to interpret people and situations—fast, useful, and sometimes wrong.",
-        "acceptedPrompts": [
-          "What is Social Cognition?",
-          "Define Social Cognition.",
-          "Explain Social Cognition."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -87,38 +62,13 @@
           "fundamental attribution error",
           "actor observer",
           "disposition",
-          "situation",
-          "We over-attribute others’ behavior to personality and underweight the situation"
+          "situation"
         ],
         "intentSignals": [
           "they're just like that",
           "they must be",
-          "why are people so",
-          "what is fundamental attribution error",
-          "define fundamental attribution error",
-          "explain fundamental attribution error"
+          "why are people so"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Fundamental Attribution Error",
-        "canonicalKey": "fundamental_attribution_error",
-        "definition": "We over-attribute others’ behavior to personality and underweight the situation.",
-        "acceptedPrompts": [
-          "What is Fundamental Attribution Error?",
-          "Define Fundamental Attribution Error.",
-          "Explain Fundamental Attribution Error."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -139,57 +89,12 @@
           "self concept",
           "social identity",
           "self-esteem",
-          "belonging",
-          "Self-Concept and Identity",
-          "self concept identity",
-          "The self is both personal (traits) and social (group memberships) and shifts by context"
+          "belonging"
         ],
         "intentSignals": [
           "who am I",
           "why do groups matter",
-          "identity",
-          "what is self-concept and identity",
-          "define self-concept and identity",
-          "explain self-concept and identity"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Self-Concept and Identity",
-        "canonicalKey": "self_concept_and_identity",
-        "definition": "The self is both personal (traits) and social (group memberships) and shifts by context.",
-        "acceptedPrompts": [
-          "What is Self-Concept and Identity?",
-          "Define Self-Concept and Identity.",
-          "Explain Self-Concept and Identity."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      },
-      "ambiguityClarification": {
-        "version": "nyx.marion.ambiguityClarification/1.0",
-        "overlapDetected": true,
-        "policy": "brief_answer_then_domain_choice",
-        "candidates": [
-          {
-            "term": "identity",
-            "overlapDomains": [
-              "psychology",
-              "social",
-              "development",
-              "identity_query"
-            ],
-            "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
-            "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
-          }
+          "identity"
         ]
       }
     },
@@ -211,37 +116,12 @@
           "attitudes",
           "implicit",
           "explicit",
-          "ABC model",
-          "Attitudes are evaluations—shaped by beliefs, feelings, and past behavior—and they predict behavior best when specific and accessible"
+          "ABC model"
         ],
         "intentSignals": [
           "why did they change their mind",
-          "do attitudes predict",
-          "what is attitudes",
-          "define attitudes",
-          "explain attitudes"
+          "do attitudes predict"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Attitudes",
-        "canonicalKey": "attitudes",
-        "definition": "Attitudes are evaluations—shaped by beliefs, feelings, and past behavior—and they predict behavior best when specific and accessible.",
-        "acceptedPrompts": [
-          "What is Attitudes?",
-          "Define Attitudes.",
-          "Explain Attitudes."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -262,38 +142,12 @@
           "dissonance",
           "rationalize",
           "justify",
-          "escalation of commitment",
-          "Cognitive Dissonance",
-          "When behavior and beliefs conflict, people reduce discomfort by changing beliefs, justifying behavior, or shifting attention"
+          "escalation of commitment"
         ],
         "intentSignals": [
           "why do people double down",
-          "why won't they admit they're wrong",
-          "what is cognitive dissonance",
-          "define cognitive dissonance",
-          "explain cognitive dissonance"
+          "why won't they admit they're wrong"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Cognitive Dissonance",
-        "canonicalKey": "cognitive_dissonance",
-        "definition": "When behavior and beliefs conflict, people reduce discomfort by changing beliefs, justifying behavior, or shifting attention.",
-        "acceptedPrompts": [
-          "What is Cognitive Dissonance?",
-          "Define Cognitive Dissonance.",
-          "Explain Cognitive Dissonance."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -315,38 +169,13 @@
           "central route",
           "peripheral route",
           "credibility",
-          "social proof",
-          "Persuasion works through message content and mental route: thoughtful processing vs shortcuts"
+          "social proof"
         ],
         "intentSignals": [
           "how do I convince",
           "why didn't evidence work",
-          "persuasive messaging",
-          "what is persuasion",
-          "define persuasion",
-          "explain persuasion"
+          "persuasive messaging"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Persuasion",
-        "canonicalKey": "persuasion",
-        "definition": "Persuasion works through message content and mental route: thoughtful processing vs shortcuts.",
-        "acceptedPrompts": [
-          "What is Persuasion?",
-          "Define Persuasion.",
-          "Explain Persuasion."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -369,40 +198,13 @@
           "normative",
           "informational",
           "descriptive",
-          "injunctive",
-          "Social Influence and Norms",
-          "social influence norms",
-          "People conform to fit in (normative) and to be right (informational)"
+          "injunctive"
         ],
         "intentSignals": [
           "peer pressure",
           "everyone is doing it",
-          "why did I go along",
-          "what is social influence and norms",
-          "define social influence and norms",
-          "explain social influence and norms"
+          "why did I go along"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Social Influence and Norms",
-        "canonicalKey": "social_influence_and_norms",
-        "definition": "People conform to fit in (normative) and to be right (informational).",
-        "acceptedPrompts": [
-          "What is Social Influence and Norms?",
-          "Define Social Influence and Norms.",
-          "Explain Social Influence and Norms."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -424,40 +226,13 @@
           "authority",
           "compliance",
           "foot in the door",
-          "accountability",
-          "Obedience and Authority",
-          "obedience authority",
-          "Authority structures can amplify compliance—especially under ambiguity, diffusion of responsibility, and gradual escalation"
+          "accountability"
         ],
         "intentSignals": [
           "why would someone follow",
           "how did this happen",
-          "authority pressure",
-          "what is obedience and authority",
-          "define obedience and authority",
-          "explain obedience and authority"
+          "authority pressure"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Obedience and Authority",
-        "canonicalKey": "obedience_and_authority",
-        "definition": "Authority structures can amplify compliance—especially under ambiguity, diffusion of responsibility, and gradual escalation.",
-        "acceptedPrompts": [
-          "What is Obedience and Authority?",
-          "Define Obedience and Authority.",
-          "Explain Obedience and Authority."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -479,40 +254,13 @@
           "polarization",
           "roles",
           "norms",
-          "cohesion",
-          "Group Processes and Roles",
-          "groups roles",
-          "Groups shape identity, behavior, and decision quality through norms, roles, and dynamics"
+          "cohesion"
         ],
         "intentSignals": [
           "why did the group decide",
           "mob mentality",
-          "team dynamics",
-          "what is group processes and roles",
-          "define group processes and roles",
-          "explain group processes and roles"
+          "team dynamics"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Group Processes and Roles",
-        "canonicalKey": "group_processes_and_roles",
-        "definition": "Groups shape identity, behavior, and decision quality through norms, roles, and dynamics.",
-        "acceptedPrompts": [
-          "What is Group Processes and Roles?",
-          "Define Group Processes and Roles.",
-          "Explain Group Processes and Roles."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -533,38 +281,13 @@
           "deindividuation",
           "anonymity",
           "disinhibition",
-          "crowds",
-          "Anonymity + arousal + group immersion can reduce self-monitoring and increase norm-following (good or bad)"
+          "crowds"
         ],
         "intentSignals": [
           "online behavior",
           "crowd behavior",
-          "why people act different in groups",
-          "what is deindividuation",
-          "define deindividuation",
-          "explain deindividuation"
+          "why people act different in groups"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Deindividuation",
-        "canonicalKey": "deindividuation",
-        "definition": "Anonymity + arousal + group immersion can reduce self-monitoring and increase norm-following (good or bad).",
-        "acceptedPrompts": [
-          "What is Deindividuation?",
-          "Define Deindividuation.",
-          "Explain Deindividuation."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -587,41 +310,14 @@
           "stereotype",
           "ingroup",
           "outgroup",
-          "implicit bias",
-          "Prejudice and Discrimination",
-          "prejudice discrimination",
-          "Bias can be explicit or implicit, individual or structural; discrimination is behavior, prejudice is attitude"
+          "implicit bias"
         ],
         "intentSignals": [
           "why are people racist",
           "bias",
           "stereotypes",
-          "discrimination",
-          "what is prejudice and discrimination",
-          "define prejudice and discrimination",
-          "explain prejudice and discrimination"
+          "discrimination"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Prejudice and Discrimination",
-        "canonicalKey": "prejudice_and_discrimination",
-        "definition": "Bias can be explicit or implicit, individual or structural; discrimination is behavior, prejudice is attitude.",
-        "acceptedPrompts": [
-          "What is Prejudice and Discrimination?",
-          "Define Prejudice and Discrimination.",
-          "Explain Prejudice and Discrimination."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -641,38 +337,13 @@
         "keywords": [
           "stereotype threat",
           "identity salience",
-          "belonging cues",
-          "Performance can drop when people fear confirming a negative stereotype about their group"
+          "belonging cues"
         ],
         "intentSignals": [
           "why do I blank out",
           "test anxiety because of identity",
-          "pressure to represent",
-          "what is stereotype threat",
-          "define stereotype threat",
-          "explain stereotype threat"
+          "pressure to represent"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Stereotype Threat",
-        "canonicalKey": "stereotype_threat",
-        "definition": "Performance can drop when people fear confirming a negative stereotype about their group.",
-        "acceptedPrompts": [
-          "What is Stereotype Threat?",
-          "Define Stereotype Threat.",
-          "Explain Stereotype Threat."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -693,38 +364,13 @@
           "aggression",
           "provocation",
           "social learning",
-          "self-control",
-          "Aggression emerges from person × situation: provocation, norms, modeling, and self-control resources"
+          "self-control"
         ],
         "intentSignals": [
           "why do I get angry",
           "why do people lash out",
-          "rage",
-          "what is aggression",
-          "define aggression",
-          "explain aggression"
+          "rage"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Aggression",
-        "canonicalKey": "aggression",
-        "definition": "Aggression emerges from person × situation: provocation, norms, modeling, and self-control resources.",
-        "acceptedPrompts": [
-          "What is Aggression?",
-          "Define Aggression.",
-          "Explain Aggression."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -745,39 +391,13 @@
           "bystander effect",
           "helping",
           "empathy",
-          "diffusion of responsibility",
-          "Prosocial Behavior",
-          "Helping depends on attention, interpretation, responsibility, and perceived cost—plus empathy and norms"
+          "diffusion of responsibility"
         ],
         "intentSignals": [
           "why didn't anyone help",
           "why did I freeze",
-          "how to encourage helping",
-          "what is prosocial behavior",
-          "define prosocial behavior",
-          "explain prosocial behavior"
+          "how to encourage helping"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Prosocial Behavior",
-        "canonicalKey": "prosocial_behavior",
-        "definition": "Helping depends on attention, interpretation, responsibility, and perceived cost—plus empathy and norms.",
-        "acceptedPrompts": [
-          "What is Prosocial Behavior?",
-          "Define Prosocial Behavior.",
-          "Explain Prosocial Behavior."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -799,40 +419,13 @@
           "trust",
           "responsiveness",
           "attachment",
-          "conflict patterns",
-          "Relationships and Attachment (Social Lens)",
-          "relationships attachment social",
-          "Closeness grows from repeated positive exchanges, trust, and responsiveness; attachment patterns shape expectations under stress"
+          "conflict patterns"
         ],
         "intentSignals": [
           "why do relationships fail",
           "trust issues",
-          "communication",
-          "what is relationships and attachment (social lens)",
-          "define relationships and attachment (social lens)",
-          "explain relationships and attachment (social lens)"
+          "communication"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Relationships and Attachment (Social Lens)",
-        "canonicalKey": "relationships_and_attachment_social_lens",
-        "definition": "Closeness grows from repeated positive exchanges, trust, and responsiveness; attachment patterns shape expectations under stress.",
-        "acceptedPrompts": [
-          "What is Relationships and Attachment (Social Lens)?",
-          "Define Relationships and Attachment (Social Lens).",
-          "Explain Relationships and Attachment (Social Lens)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -854,39 +447,13 @@
           "collectivist",
           "individualist",
           "norms",
-          "tightness",
-          "Culture and Social Behavior",
-          "Culture tunes norms, self-construal (independent/interdependent), and what counts as 'appropriate' behavior"
+          "tightness"
         ],
         "intentSignals": [
           "is this cultural",
           "why is it different there",
-          "cross-cultural",
-          "what is culture and social behavior",
-          "define culture and social behavior",
-          "explain culture and social behavior"
+          "cross-cultural"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "coreConcepts",
-        "term": "Culture and Social Behavior",
-        "canonicalKey": "culture_and_social_behavior",
-        "definition": "Culture tunes norms, self-construal (independent/interdependent), and what counts as 'appropriate' behavior.",
-        "acceptedPrompts": [
-          "What is Culture and Social Behavior?",
-          "Define Culture and Social Behavior.",
-          "Explain Culture and Social Behavior."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     }
   ],
@@ -905,40 +472,7 @@
         "conflict interpretation",
         "team behavior",
         "customer reactions"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Attribution Matrix (Quick)",
-          "attribution matrix",
-          "Describe the behavior (what happened, observable)"
-        ],
-        "intentSignals": [
-          "what is attribution matrix (quick)",
-          "define attribution matrix (quick)",
-          "explain attribution matrix (quick)"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "frameworks",
-        "term": "Attribution Matrix (Quick)",
-        "canonicalKey": "attribution_matrix_quick",
-        "definition": "Describe the behavior (what happened, observable).",
-        "acceptedPrompts": [
-          "What is Attribution Matrix (Quick)?",
-          "Define Attribution Matrix (Quick).",
-          "Explain Attribution Matrix (Quick)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     },
     {
       "id": "persuasion_planner",
@@ -954,39 +488,7 @@
         "marketing copy",
         "negotiation",
         "internal comms"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Persuasion Planner",
-          "Audience: motivation + ability to process"
-        ],
-        "intentSignals": [
-          "what is persuasion planner",
-          "define persuasion planner",
-          "explain persuasion planner"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "frameworks",
-        "term": "Persuasion Planner",
-        "canonicalKey": "persuasion_planner",
-        "definition": "Audience: motivation + ability to process.",
-        "acceptedPrompts": [
-          "What is Persuasion Planner?",
-          "Define Persuasion Planner.",
-          "Explain Persuasion Planner."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     },
     {
       "id": "group_decision_guardrails",
@@ -1002,40 +504,7 @@
         "strategy decisions",
         "launch readiness",
         "risk planning"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Group Decision Guardrails (Anti-Groupthink)",
-          "group decision guardrails",
-          "Assign a rotating devil’s advocate"
-        ],
-        "intentSignals": [
-          "what is group decision guardrails (anti-groupthink)",
-          "define group decision guardrails (anti-groupthink)",
-          "explain group decision guardrails (anti-groupthink)"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "frameworks",
-        "term": "Group Decision Guardrails (Anti-Groupthink)",
-        "canonicalKey": "group_decision_guardrails_anti_groupthink",
-        "definition": "Assign a rotating devil’s advocate.",
-        "acceptedPrompts": [
-          "What is Group Decision Guardrails (Anti-Groupthink)?",
-          "Define Group Decision Guardrails (Anti-Groupthink).",
-          "Explain Group Decision Guardrails (Anti-Groupthink)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     }
   ],
   "examples": [
@@ -1053,39 +522,7 @@
         "Direct assignment: 'You in the blue jacket—call 911.'",
         "Clear emergency cues",
         "Role clarity"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Bystander Effect in Real Life",
-          "bystander example"
-        ],
-        "intentSignals": [
-          "what is bystander effect in real life",
-          "define bystander effect in real life",
-          "explain bystander effect in real life"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "examples",
-        "term": "Bystander Effect in Real Life",
-        "canonicalKey": "bystander_effect_in_real_life",
-        "definition": "",
-        "acceptedPrompts": [
-          "What is Bystander Effect in Real Life?",
-          "Define Bystander Effect in Real Life.",
-          "Explain Bystander Effect in Real Life."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     },
     {
       "id": "dissonance_example",
@@ -1100,39 +537,7 @@
         "Predefined stop-loss criteria",
         "External review",
         "Separate identity from decision"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Dissonance and Doubling Down",
-          "dissonance example"
-        ],
-        "intentSignals": [
-          "what is dissonance and doubling down",
-          "define dissonance and doubling down",
-          "explain dissonance and doubling down"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "examples",
-        "term": "Dissonance and Doubling Down",
-        "canonicalKey": "dissonance_and_doubling_down",
-        "definition": "",
-        "acceptedPrompts": [
-          "What is Dissonance and Doubling Down?",
-          "Define Dissonance and Doubling Down.",
-          "Explain Dissonance and Doubling Down."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     },
     {
       "id": "norms_example",
@@ -1147,39 +552,7 @@
         "Explicit norms",
         "Onboarding clarity",
         "Modeling desired behavior"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Norms Shape Behavior",
-          "norms example"
-        ],
-        "intentSignals": [
-          "what is norms shape behavior",
-          "define norms shape behavior",
-          "explain norms shape behavior"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_social_v2",
-        "section": "examples",
-        "term": "Norms Shape Behavior",
-        "canonicalKey": "norms_shape_behavior",
-        "definition": "",
-        "acceptedPrompts": [
-          "What is Norms Shape Behavior?",
-          "Define Norms Shape Behavior.",
-          "Explain Norms Shape Behavior."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     }
   ],
   "applicationRules": [
@@ -1244,29 +617,22 @@
     "confidenceLevel": "foundational_social_psych"
   },
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI ChatGPT",
-    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
+    "normalizedBy": "OpenAI",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
     "retrievalPriority": "standard",
     "canonicalPackId": "psy_social_v2",
-    "sourceFilename": "psy_social_v2(2).json",
+    "sourceFilename": "psy_social_v2.json",
     "aliases": [
       "psy_social",
       "psy_social_v1",
       "psy_social_v2",
       "social",
-      "social_psychology",
-      "social psychology",
-      "identity",
-      "persuasion",
-      "groups",
-      "norms",
-      "relationships"
+      "social_psychology"
     ],
-    "pathwayRole": "reasoning_core",
-    "definitionInventoryReady": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
-    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
-    "commercialRegressionGuard": true
+    "pathwayRole": "reasoning_core"
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2",
@@ -1296,10 +662,10 @@
     ]
   },
   "runtimeDomainKey": "psychology",
-  "runtimePath": "Data/Domains/psychology/psy_social_v2.json",
-  "manifestPackKey": "psy_social_v2",
+  "runtimePath": "Data/Domains/psychology/packs/psy_social_v2.json",
+  "manifestPackKey": "psySocial",
   "safetyBoundary": {
-    "stance": "educational_support_only",
+    "stance": "educational_nonclinical_support_only",
     "noDiagnosis": true,
     "noTherapyOrMedicalDirective": true,
     "crisisEscalationRequired": true,
@@ -1308,16 +674,7 @@
   "retrievalIndex": {
     "domain": "psychology",
     "packId": "psy_social_v2",
-    "aliases": [
-      "social psychology",
-      "identity",
-      "persuasion",
-      "groups",
-      "norms",
-      "relationships",
-      "psy_social_v2",
-      "psy social v2"
-    ],
+    "aliases": [],
     "keywords": [
       "social-cognition",
       "self-identity",
@@ -1438,41 +795,7 @@
       "trust issues",
       "communication",
       "collectivist",
-      "individualist",
-      "social psychology",
-      "groups",
-      "Bystander Effect in Real Life",
-      "bystander_example",
-      "Dissonance and Doubling Down",
-      "dissonance_example",
-      "Norms Shape Behavior",
-      "norms_example",
-      "Attribution Matrix (Quick)",
-      "attribution_matrix",
-      "Persuasion Planner",
-      "persuasion_planner",
-      "Group Decision Guardrails (Anti-Groupthink)",
-      "group_decision_guardrails",
-      "social_cognition",
-      "fundamental_attribution_error",
-      "Self-Concept and Identity",
-      "self_concept_identity",
-      "Cognitive Dissonance",
-      "cognitive_dissonance",
-      "Social Influence and Norms",
-      "social_influence_norms",
-      "Obedience and Authority",
-      "obedience_authority",
-      "Group Processes and Roles",
-      "groups_roles",
-      "Prejudice and Discrimination",
-      "prejudice_discrimination",
-      "stereotype_threat",
-      "Prosocial Behavior",
-      "prosocial_behavior",
-      "Relationships and Attachment (Social Lens)",
-      "relationships_attachment_social",
-      "Culture and Social Behavior"
+      "individualist"
     ],
     "primaryFields": [
       "packId",
@@ -1493,319 +816,14 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary",
-      "name",
-      "id",
-      "oneLiner",
-      "definitionSurface",
-      "retrievalHints",
-      "coreMechanism",
-      "coreClaims",
-      "keyPoints",
-      "actionablePrinciples"
-    ],
-    "definitionQueryPriority": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
+      "safetyBoundary"
+    ]
   },
   "normalizationStatus": {
-    "status": "hardened",
+    "status": "hardened_for_marion_registry_compose_ingestion",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-13",
-    "definitionInventoryPatched": true,
-    "lineAuditCompleted": true,
-    "genericFallbackBlocked": true,
-    "overlapClarificationReady": true
-  },
-  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
-  "definitionAnswerContract": {
-    "version": "nyx.marion.definitionAnswerContract/1.0",
-    "active": true,
-    "acceptedQuestionForms": [
-      "what is {term}",
-      "what are {term}",
-      "define {term}",
-      "explain {term}",
-      "meaning of {term}"
-    ],
-    "requiredAnswerShape": [
-      "direct definition",
-      "psychology context",
-      "one practical/actionable note when appropriate"
-    ],
-    "blockedFallbacks": [
-      "I need one more concrete detail to route this cleanly.",
-      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
-      "The specific technical move is to name the active component."
-    ],
-    "domainLock": "psychology",
-    "allowAmbiguityClarification": true,
-    "ambiguityShape": [
-      "short neutral definition",
-      "possible domain interpretations",
-      "one targeted clarification question"
-    ],
-    "safetyBoundary": {
-      "educationalOnly": true,
-      "noDiagnosis": true,
-      "noTherapyReplacement": true,
-      "crisisEscalationRequired": true
-    }
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
-    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
-    "technicalOverrideRequiresExplicitBackendTerms": [
-      "autopsy",
-      "audit",
-      "line-by-line",
-      "patch",
-      "file",
-      "script",
-      "backend",
-      "ChatEngine",
-      "MarionBridge",
-      "StateSpine",
-      "ComposeMarionResponse"
-    ],
-    "domain": "psychology",
-    "packId": "psy_social_v2",
-    "sourceFilename": "psy_social_v2(2).json",
-    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
-    "crossDomainOverlapMap": {
-      "cognitive intelligence": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
-        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
-      },
-      "reasoning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "law"
-        ],
-        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
-        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
-      },
-      "bias": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "research_methods"
-        ],
-        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
-        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
-      },
-      "validation": {
-        "overlapDomains": [
-          "psychology",
-          "research_methods",
-          "ai",
-          "cyber"
-        ],
-        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
-        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
-      },
-      "resilience": {
-        "overlapDomains": [
-          "psychology",
-          "business",
-          "finance"
-        ],
-        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
-        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
-      },
-      "identity": {
-        "overlapDomains": [
-          "psychology",
-          "social",
-          "development",
-          "identity_query"
-        ],
-        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
-        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
-      },
-      "attention": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
-        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
-      },
-      "learning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "education"
-        ],
-        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
-        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
-      },
-      "confidence": {
-        "overlapDomains": [
-          "psychology",
-          "statistics",
-          "ai",
-          "finance"
-        ],
-        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
-        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
-      },
-      "compliance": {
-        "overlapDomains": [
-          "psychology",
-          "law",
-          "cyber",
-          "business"
-        ],
-        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
-        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
-      }
-    }
-  },
-  "definitionInventory": {
-    "version": "nyx.marion.definitionInventory/1.0",
-    "domain": "psychology",
-    "packId": "psy_social_v2",
-    "termCount": 22,
-    "items": [
-      {
-        "term": "Bystander Effect in Real Life",
-        "canonicalKey": "bystander_effect_in_real_life",
-        "definition": "",
-        "section": "examples"
-      },
-      {
-        "term": "Dissonance and Doubling Down",
-        "canonicalKey": "dissonance_and_doubling_down",
-        "definition": "",
-        "section": "examples"
-      },
-      {
-        "term": "Norms Shape Behavior",
-        "canonicalKey": "norms_shape_behavior",
-        "definition": "",
-        "section": "examples"
-      },
-      {
-        "term": "Attribution Matrix (Quick)",
-        "canonicalKey": "attribution_matrix_quick",
-        "definition": "Describe the behavior (what happened, observable).",
-        "section": "frameworks"
-      },
-      {
-        "term": "Persuasion Planner",
-        "canonicalKey": "persuasion_planner",
-        "definition": "Audience: motivation + ability to process.",
-        "section": "frameworks"
-      },
-      {
-        "term": "Group Decision Guardrails (Anti-Groupthink)",
-        "canonicalKey": "group_decision_guardrails_anti_groupthink",
-        "definition": "Assign a rotating devil’s advocate.",
-        "section": "frameworks"
-      },
-      {
-        "term": "Social Cognition",
-        "canonicalKey": "social_cognition",
-        "definition": "We use mental shortcuts to interpret people and situations—fast, useful, and sometimes wrong.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Fundamental Attribution Error",
-        "canonicalKey": "fundamental_attribution_error",
-        "definition": "We over-attribute others’ behavior to personality and underweight the situation.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Self-Concept and Identity",
-        "canonicalKey": "self_concept_and_identity",
-        "definition": "The self is both personal (traits) and social (group memberships) and shifts by context.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Attitudes",
-        "canonicalKey": "attitudes",
-        "definition": "Attitudes are evaluations—shaped by beliefs, feelings, and past behavior—and they predict behavior best when specific and accessible.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Cognitive Dissonance",
-        "canonicalKey": "cognitive_dissonance",
-        "definition": "When behavior and beliefs conflict, people reduce discomfort by changing beliefs, justifying behavior, or shifting attention.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Persuasion",
-        "canonicalKey": "persuasion",
-        "definition": "Persuasion works through message content and mental route: thoughtful processing vs shortcuts.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Social Influence and Norms",
-        "canonicalKey": "social_influence_and_norms",
-        "definition": "People conform to fit in (normative) and to be right (informational).",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Obedience and Authority",
-        "canonicalKey": "obedience_and_authority",
-        "definition": "Authority structures can amplify compliance—especially under ambiguity, diffusion of responsibility, and gradual escalation.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Group Processes and Roles",
-        "canonicalKey": "group_processes_and_roles",
-        "definition": "Groups shape identity, behavior, and decision quality through norms, roles, and dynamics.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Deindividuation",
-        "canonicalKey": "deindividuation",
-        "definition": "Anonymity + arousal + group immersion can reduce self-monitoring and increase norm-following (good or bad).",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Prejudice and Discrimination",
-        "canonicalKey": "prejudice_and_discrimination",
-        "definition": "Bias can be explicit or implicit, individual or structural; discrimination is behavior, prejudice is attitude.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Stereotype Threat",
-        "canonicalKey": "stereotype_threat",
-        "definition": "Performance can drop when people fear confirming a negative stereotype about their group.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Aggression",
-        "canonicalKey": "aggression",
-        "definition": "Aggression emerges from person × situation: provocation, norms, modeling, and self-control resources.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Prosocial Behavior",
-        "canonicalKey": "prosocial_behavior",
-        "definition": "Helping depends on attention, interpretation, responsibility, and perceived cost—plus empathy and norms.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Relationships and Attachment (Social Lens)",
-        "canonicalKey": "relationships_and_attachment_social_lens",
-        "definition": "Closeness grows from repeated positive exchanges, trust, and responsiveness; attachment patterns shape expectations under stress.",
-        "section": "coreConcepts"
-      },
-      {
-        "term": "Culture and Social Behavior",
-        "canonicalKey": "culture_and_social_behavior",
-        "definition": "Culture tunes norms, self-construal (independent/interdependent), and what counts as 'appropriate' behavior.",
-        "section": "coreConcepts"
-      }
-    ]
+    "normalizedAt": "2026-05-03"
   }
 }

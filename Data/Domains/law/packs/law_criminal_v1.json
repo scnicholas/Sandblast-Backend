@@ -29,68 +29,12 @@
           "mens rea",
           "intent",
           "criminal element",
-          "beyond reasonable doubt",
-          "elements of a criminal offence (actus reus + mens rea)",
-          "lc elements of offence"
+          "beyond reasonable doubt"
         ],
         "intentSignals": [
           "what do they have to prove",
           "what are the elements"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_criminal_v1",
-        "sourceId": "lc_elements_of_offence",
-        "sourcePath": "topics[0]",
-        "term": "Elements of a Criminal Offence (Actus Reus + Mens Rea)",
-        "aliases": [
-          "Elements of a Criminal Offence (Actus Reus + Mens Rea)",
-          "lc elements of offence",
-          "actus reus",
-          "mens rea",
-          "intent",
-          "criminal element",
-          "beyond reasonable doubt",
-          "what do they have to prove",
-          "what are the elements"
-        ],
-        "definition": "Most criminal offences require proof of both a prohibited act (actus reus) and a guilty mind (mens rea). The Crown must prove both elements beyond a reasonable doubt.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is elements of a criminal offence (actus reus + mens rea)?",
-          "what is lc elements of offence?",
-          "what is actus reus?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "intent",
-              "domains": [
-                "law",
-                "psychology",
-                "ai"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -114,73 +58,11 @@
         "keywords": [
           "strict liability",
           "absolute liability",
-          "due diligence",
-          "strict and absolute liability offences",
-          "lc strict and absolute liability",
-          "do they need intent"
+          "due diligence"
         ],
         "intentSignals": [
           "do they need intent"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_criminal_v1",
-        "sourceId": "lc_strict_and_absolute_liability",
-        "sourcePath": "topics[1]",
-        "term": "Strict and Absolute Liability Offences",
-        "aliases": [
-          "Strict and Absolute Liability Offences",
-          "lc strict and absolute liability",
-          "strict liability",
-          "absolute liability",
-          "due diligence",
-          "do they need intent"
-        ],
-        "definition": "Some regulatory offences do not require traditional mens rea. Strict liability allows a due diligence defence; absolute liability does not.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is strict and absolute liability offences?",
-          "what is lc strict and absolute liability?",
-          "what is strict liability?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "intent",
-              "domains": [
-                "law",
-                "psychology",
-                "ai"
-              ]
-            },
-            {
-              "term": "liability",
-              "domains": [
-                "law",
-                "finance",
-                "cyber"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -205,58 +87,12 @@
           "defence",
           "self defence",
           "duress",
-          "necessity",
-          "general criminal defences",
-          "lc defences general"
+          "necessity"
         ],
         "intentSignals": [
           "can I claim",
           "is there a defence"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_criminal_v1",
-        "sourceId": "lc_defences_general",
-        "sourcePath": "topics[2]",
-        "term": "General Criminal Defences",
-        "aliases": [
-          "General Criminal Defences",
-          "lc defences general",
-          "defence",
-          "self defence",
-          "duress",
-          "necessity",
-          "can I claim",
-          "is there a defence"
-        ],
-        "definition": "Defences may negate elements of the offence or justify/excuse conduct. The burden may shift depending on the defence raised.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is general criminal defences?",
-          "what is lc defences general?",
-          "what is defence?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -281,72 +117,11 @@
           "charter breach",
           "section 8",
           "section 10",
-          "search and seizure",
-          "charter rights in criminal proceedings",
-          "lc charter in criminal"
+          "search and seizure"
         ],
         "intentSignals": [
           "were my rights violated"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_criminal_v1",
-        "sourceId": "lc_charter_in_criminal",
-        "sourcePath": "topics[3]",
-        "term": "Charter Rights in Criminal Proceedings",
-        "aliases": [
-          "Charter Rights in Criminal Proceedings",
-          "lc charter in criminal",
-          "charter breach",
-          "section 8",
-          "section 10",
-          "search and seizure",
-          "were my rights violated"
-        ],
-        "definition": "The Canadian Charter of Rights and Freedoms protects individuals during investigation and prosecution, including rights to counsel, protection against unreasonable search, and trial within a reasonable time.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is charter rights in criminal proceedings?",
-          "what is lc charter in criminal?",
-          "what is charter breach?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [
-            {
-              "term": "charter",
-              "domains": [
-                "law",
-                "governance"
-              ]
-            },
-            {
-              "term": "rights",
-              "domains": [
-                "law",
-                "ethics",
-                "platform policy"
-              ]
-            }
-          ],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -374,59 +149,12 @@
           "trial",
           "jury",
           "indictable",
-          "summary conviction",
-          "criminal procedure overview",
-          "lc procedure overview"
+          "summary conviction"
         ],
         "intentSignals": [
           "what happens next",
           "what is the process"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_criminal_v1",
-        "sourceId": "lc_procedure_overview",
-        "sourcePath": "topics[4]",
-        "term": "Criminal Procedure Overview",
-        "aliases": [
-          "Criminal Procedure Overview",
-          "lc procedure overview",
-          "bail",
-          "trial",
-          "jury",
-          "indictable",
-          "summary conviction",
-          "what happens next",
-          "what is the process"
-        ],
-        "definition": "Criminal proceedings follow structured stages: investigation, charge, bail, disclosure, trial, sentencing, and appeal.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is criminal procedure overview?",
-          "what is lc procedure overview?",
-          "what is bail?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     },
     {
@@ -452,58 +180,12 @@
           "sentence",
           "penalty",
           "probation",
-          "jail time",
-          "sentencing principles",
-          "lc sentencing principles"
+          "jail time"
         ],
         "intentSignals": [
           "what sentence could",
           "how much time"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "law",
-        "jurisdiction": "CA",
-        "sourcePack": "law_criminal_v1",
-        "sourceId": "lc_sentencing_principles",
-        "sourcePath": "topics[5]",
-        "term": "Sentencing Principles",
-        "aliases": [
-          "Sentencing Principles",
-          "lc sentencing principles",
-          "sentence",
-          "penalty",
-          "probation",
-          "jail time",
-          "what sentence could",
-          "how much time"
-        ],
-        "definition": "Sentencing balances objectives such as denunciation, deterrence, rehabilitation, and proportionality.",
-        "answerShape": "legal_information_definition_then_framework_not_legal_advice",
-        "promptPatterns": [
-          "what is sentencing principles?",
-          "what is lc sentencing principles?",
-          "what is sentence?"
-        ],
-        "routingLock": {
-          "intent": "domain_question",
-          "knowledgeDomain": "law",
-          "blockTechnicalFallbackUnlessExplicitTechnicalTarget": true,
-          "definitionQueryWinsBeforeGenericFallback": true,
-          "requiresJurisdictionClarifierForProcedureOrDeadlines": true
-        },
-        "clarificationPolicy": {
-          "ifOverlapsMultipleDomains": "answer_legal_meaning_first_then_offer_domain_clarification",
-          "overlapDomains": [],
-          "clarifierTemplate": "Do you mean the legal meaning, the business/finance meaning, or another domain-specific meaning?"
-        },
-        "safetyBoundary": {
-          "stance": "general_legal_information_only_not_legal_advice",
-          "noOutcomeGuarantees": true,
-          "askProvinceForProcedureDeadlinesOrCourtSteps": true,
-          "referProfessionalForHighStakesMatter": true
-        }
       }
     }
   ],
@@ -566,18 +248,13 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true,
-    "privacyMinimization": true
+    "professionalReferralForHighStakes": true
   },
   "retrievalIndex": {
-    "version": "nyx.marion.lawRetrievalIndex/1.0",
     "domain": "law",
     "packId": "law_criminal_v1",
-    "sourceFile": "law_criminal_v1.json",
-    "definitionSurfaceCount": 6,
+    "aliases": [],
     "keywords": [
-      "elements of a criminal offence (actus reus + mens rea)",
-      "lc elements of offence",
       "actus reus",
       "mens rea",
       "intent",
@@ -585,29 +262,21 @@
       "beyond reasonable doubt",
       "what do they have to prove",
       "what are the elements",
-      "strict and absolute liability offences",
-      "lc strict and absolute liability",
       "strict liability",
       "absolute liability",
       "due diligence",
       "do they need intent",
-      "general criminal defences",
-      "lc defences general",
       "defence",
       "self defence",
       "duress",
       "necessity",
-      "can i claim",
+      "can I claim",
       "is there a defence",
-      "charter rights in criminal proceedings",
-      "lc charter in criminal",
       "charter breach",
       "section 8",
       "section 10",
       "search and seizure",
       "were my rights violated",
-      "criminal procedure overview",
-      "lc procedure overview",
       "bail",
       "trial",
       "jury",
@@ -615,8 +284,6 @@
       "summary conviction",
       "what happens next",
       "what is the process",
-      "sentencing principles",
-      "lc sentencing principles",
       "sentence",
       "penalty",
       "probation",
@@ -624,87 +291,28 @@
       "what sentence could",
       "how much time"
     ],
-    "intentSignals": [
-      "what do they have to prove",
-      "what are the elements",
-      "do they need intent",
-      "can i claim",
-      "is there a defence",
-      "were my rights violated",
-      "what happens next",
-      "what is the process",
-      "what sentence could",
-      "how much time"
-    ],
-    "definitionTerms": [
-      "Elements of a Criminal Offence (Actus Reus + Mens Rea)",
-      "Strict and Absolute Liability Offences",
-      "General Criminal Defences",
-      "Charter Rights in Criminal Proceedings",
-      "Criminal Procedure Overview",
-      "Sentencing Principles"
-    ],
-    "noGenericFallback": true,
-    "definitionQueryWinsBeforeTechnicalFallback": true
+    "primaryFields": [
+      "packId",
+      "version",
+      "domain",
+      "jurisdiction",
+      "description",
+      "topics",
+      "meta",
+      "runtime",
+      "packType",
+      "retrievalHints",
+      "runtimeDomainKey",
+      "runtimePath",
+      "manifestPackKey",
+      "safetyBoundary"
+    ]
   },
   "normalizationStatus": {
-    "status": "hardened_for_six_domain_definition_inventory",
+    "status": "hardened_for_marion_registry_compose_ingestion",
+    "conflictMarkersRemoved": true,
     "validatedJson": true,
-    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
-    "criticalUpdatesApplied": [
-      "definition_surface_normalization",
-      "law_definition_routing_lock",
-      "safety_boundary_hardening",
-      "retrieval_index_expansion"
-    ],
-    "normalizedAt": "2026-05-13"
-  },
-  "retrievalAliases": [
-    "law_criminal_v1",
-    "law_criminal_v2"
-  ],
-  "definitionAnswerContract": {
-    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
-    "domain": "law",
-    "jurisdictionDefault": "Canada",
-    "answerMode": "direct_definition_plus_framework",
-    "mustInclude": [
-      "plain meaning",
-      "legal information posture when relevant",
-      "jurisdiction caveat when procedure/deadlines/court steps are involved"
-    ],
-    "mustNotInclude": [
-      "generic technical fallback",
-      "outcome guarantee",
-      "personalized legal advice",
-      "unsupported deadlines"
-    ],
-    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.definitionRoutingLock/1.0",
-    "intent": "domain_question",
-    "knowledgeDomain": "law",
-    "primaryLane": "law",
-    "definitionTriggers": [
-      "what is",
-      "what are",
-      "define",
-      "definition of",
-      "explain",
-      "meaning of"
-    ],
-    "blockTechnicalFallbackUnless": [
-      "autopsy",
-      "audit",
-      "patch",
-      "backend",
-      "script",
-      "route",
-      "debug",
-      "file",
-      "line-by-line"
-    ],
-    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
+    "preservedStructuralIntegrity": true,
+    "normalizedAt": "2026-05-03"
   }
 }

@@ -318,79 +318,17 @@
   "runtimeDomainKey": "law",
   "safetyBoundary": "general_legal_information_only_not_legal_advice",
   "retrievalIndex": {
-    "version": "nyx.marion.lawRetrievalIndex/1.0",
-    "domain": "law",
-    "packId": "law_safety_and_posture_v1",
-    "sourceFile": "law_safety_and_posture_v1.json",
-    "definitionSurfaceCount": 0,
-    "keywords": [
-      "rule stop escalation language",
-      "rule require jurisdiction for process",
-      "rule evidence preservation"
+    "aliases": [
+      "law_safety_and_posture_v1",
+      "law",
+      "policy"
     ],
-    "intentSignals": [],
-    "definitionTerms": [],
-    "noGenericFallback": true,
-    "definitionQueryWinsBeforeTechnicalFallback": true
+    "source": "batch2_hardening_v1_1"
   },
   "normalizationStatus": {
-    "status": "hardened_for_six_domain_definition_inventory",
-    "validatedJson": true,
-    "lineByLineAuditPass": "completed_structural_key_and_definition_surface_pass",
-    "criticalUpdatesApplied": [
-      "definition_surface_normalization",
-      "law_definition_routing_lock",
-      "safety_boundary_hardening",
-      "retrieval_index_expansion"
-    ],
-    "normalizedAt": "2026-05-13"
-  },
-  "retrievalAliases": [
-    "law_safety_and_posture_v1",
-    "law_safety_and_posture_v2"
-  ],
-  "definitionAnswerContract": {
-    "version": "nyx.marion.lawDefinitionAnswerContract/1.0",
-    "domain": "law",
-    "jurisdictionDefault": "Canada",
-    "answerMode": "direct_definition_plus_framework",
-    "mustInclude": [
-      "plain meaning",
-      "legal information posture when relevant",
-      "jurisdiction caveat when procedure/deadlines/court steps are involved"
-    ],
-    "mustNotInclude": [
-      "generic technical fallback",
-      "outcome guarantee",
-      "personalized legal advice",
-      "unsupported deadlines"
-    ],
-    "definitionQueryRouting": "definition_question_routes_to_law_before_technical_or_general_fallback"
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.definitionRoutingLock/1.0",
-    "intent": "domain_question",
-    "knowledgeDomain": "law",
-    "primaryLane": "law",
-    "definitionTriggers": [
-      "what is",
-      "what are",
-      "define",
-      "definition of",
-      "explain",
-      "meaning of"
-    ],
-    "blockTechnicalFallbackUnless": [
-      "autopsy",
-      "audit",
-      "patch",
-      "backend",
-      "script",
-      "route",
-      "debug",
-      "file",
-      "line-by-line"
-    ],
-    "fallbackPolicy": "if_exact_term_not_found_answer_nearest_law_framework_or_ask_one_targeted_legal_clarifier"
+    "jsonValid": true,
+    "conflictMarkersRemoved": 0,
+    "runtimePathConfirmed": true,
+    "batch2Hardened": true
   }
 }

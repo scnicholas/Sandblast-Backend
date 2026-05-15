@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Doctoral-level developmental psychology pack spanning lifespan development, attachment, executive function, language, socialization, and contextual-developmental reasoning.",
-  "updatedAt": "2026-05-13",
+  "updatedAt": "2026-03-15",
   "scope": [
     "lifespan-development",
     "infancy",
@@ -46,39 +46,12 @@
           "stages",
           "child thinking",
           "concrete",
-          "abstract",
-          "Piaget: Cognitive Development Stages",
-          "piaget cognitive development",
-          "Children’s thinking changes qualitatively through stages as they build mental models of the world"
+          "abstract"
         ],
         "intentSignals": [
           "how do kids understand",
-          "how to explain to a child",
-          "what is piaget: cognitive development stages",
-          "define piaget: cognitive development stages",
-          "explain piaget: cognitive development stages"
+          "how to explain to a child"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Piaget: Cognitive Development Stages",
-        "canonicalKey": "piaget_cognitive_development_stages",
-        "definition": "Children’s thinking changes qualitatively through stages as they build mental models of the world.",
-        "acceptedPrompts": [
-          "What is Piaget: Cognitive Development Stages?",
-          "Define Piaget: Cognitive Development Stages.",
-          "Explain Piaget: Cognitive Development Stages."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -108,40 +81,13 @@
           "scaffold",
           "zpd",
           "zone of proximal development",
-          "coach",
-          "Vygotsky: Zone of Proximal Development & Scaffolding",
-          "vygotsky zpd scaffolding",
-          "Learning accelerates when support is calibrated to what someone can almost do independently"
+          "coach"
         ],
         "intentSignals": [
           "teach me this",
           "help me learn",
-          "how to train someone",
-          "what is vygotsky: zone of proximal development & scaffolding",
-          "define vygotsky: zone of proximal development & scaffolding",
-          "explain vygotsky: zone of proximal development & scaffolding"
+          "how to train someone"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Vygotsky: Zone of Proximal Development & Scaffolding",
-        "canonicalKey": "vygotsky_zone_of_proximal_development_scaffolding",
-        "definition": "Learning accelerates when support is calibrated to what someone can almost do independently.",
-        "acceptedPrompts": [
-          "What is Vygotsky: Zone of Proximal Development & Scaffolding?",
-          "Define Vygotsky: Zone of Proximal Development & Scaffolding.",
-          "Explain Vygotsky: Zone of Proximal Development & Scaffolding."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -172,40 +118,13 @@
           "role",
           "intimacy",
           "erikson",
-          "life stage",
-          "Erikson: Psychosocial Development",
-          "erikson psychosocial",
-          "Across life stages, people face identity and relationship tasks that shape well-being and behavior"
+          "life stage"
         ],
         "intentSignals": [
           "who am I now",
           "why does this feel threatening",
-          "life transition",
-          "what is erikson: psychosocial development",
-          "define erikson: psychosocial development",
-          "explain erikson: psychosocial development"
+          "life transition"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Erikson: Psychosocial Development",
-        "canonicalKey": "erikson_psychosocial_development",
-        "definition": "Across life stages, people face identity and relationship tasks that shape well-being and behavior.",
-        "acceptedPrompts": [
-          "What is Erikson: Psychosocial Development?",
-          "Define Erikson: Psychosocial Development.",
-          "Explain Erikson: Psychosocial Development."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -236,39 +155,13 @@
           "clingy",
           "avoidant",
           "secure",
-          "relationship anxiety",
-          "Attachment Theory",
-          "Early relationship patterns shape expectations of support, closeness, and safety—especially under stress"
+          "relationship anxiety"
         ],
         "intentSignals": [
           "why do I react like this",
           "relationship pattern",
-          "trust issues",
-          "what is attachment theory",
-          "define attachment theory",
-          "explain attachment theory"
+          "trust issues"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Attachment Theory",
-        "canonicalKey": "attachment_theory",
-        "definition": "Early relationship patterns shape expectations of support, closeness, and safety—especially under stress.",
-        "acceptedPrompts": [
-          "What is Attachment Theory?",
-          "Define Attachment Theory.",
-          "Explain Attachment Theory."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -299,39 +192,12 @@
           "sensitive",
           "high energy",
           "meltdown",
-          "routine",
-          "Temperament & Goodness-of-Fit",
-          "temperament goodness of fit",
-          "People differ in baseline reactivity and self-regulation; outcomes improve when environments fit temperament"
+          "routine"
         ],
         "intentSignals": [
           "why is this person like this",
-          "how do I handle this pattern",
-          "what is temperament & goodness-of-fit",
-          "define temperament & goodness-of-fit",
-          "explain temperament & goodness-of-fit"
+          "how do I handle this pattern"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Temperament & Goodness-of-Fit",
-        "canonicalKey": "temperament_goodness_of_fit",
-        "definition": "People differ in baseline reactivity and self-regulation; outcomes improve when environments fit temperament.",
-        "acceptedPrompts": [
-          "What is Temperament & Goodness-of-Fit?",
-          "Define Temperament & Goodness-of-Fit.",
-          "Explain Temperament & Goodness-of-Fit."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -361,39 +227,12 @@
           "parenting style",
           "discipline",
           "boundaries",
-          "authoritative",
-          "Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)",
-          "parenting styles",
-          "Balanced warmth + structure (authoritative) tends to support competence and self-regulation"
+          "authoritative"
         ],
         "intentSignals": [
           "how do I set rules",
-          "stop the power struggle",
-          "what is parenting styles (authoritative, authoritarian, permissive, neglectful)",
-          "define parenting styles (authoritative, authoritarian, permissive, neglectful)",
-          "explain parenting styles (authoritative, authoritarian, permissive, neglectful)"
+          "stop the power struggle"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)",
-        "canonicalKey": "parenting_styles_authoritative_authoritarian_permissive_neglectful",
-        "definition": "Balanced warmth + structure (authoritative) tends to support competence and self-regulation.",
-        "acceptedPrompts": [
-          "What is Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)?",
-          "Define Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful).",
-          "Explain Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -423,38 +262,12 @@
           "miscommunication",
           "they don't get it",
           "perspective",
-          "assumptions",
-          "Theory of Mind",
-          "Social understanding grows as people learn others have different beliefs, intentions, and perspectives"
+          "assumptions"
         ],
         "intentSignals": [
           "how do I explain",
-          "why do we keep misunderstanding",
-          "what is theory of mind",
-          "define theory of mind",
-          "explain theory of mind"
+          "why do we keep misunderstanding"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Theory of Mind",
-        "canonicalKey": "theory_of_mind",
-        "definition": "Social understanding grows as people learn others have different beliefs, intentions, and perspectives.",
-        "acceptedPrompts": [
-          "What is Theory of Mind?",
-          "Define Theory of Mind.",
-          "Explain Theory of Mind."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -484,38 +297,12 @@
           "procrastination",
           "self control",
           "impulse",
-          "can't plan",
-          "Executive Function Development",
-          "Planning, inhibition, and working memory mature over time and are vulnerable under stress and sleep loss"
+          "can't plan"
         ],
         "intentSignals": [
           "why can't I do it",
-          "how do I stop procrastinating",
-          "what is executive function development",
-          "define executive function development",
-          "explain executive function development"
+          "how do I stop procrastinating"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Executive Function Development",
-        "canonicalKey": "executive_function_development",
-        "definition": "Planning, inhibition, and working memory mature over time and are vulnerable under stress and sleep loss.",
-        "acceptedPrompts": [
-          "What is Executive Function Development?",
-          "Define Executive Function Development.",
-          "Explain Executive Function Development."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -546,39 +333,12 @@
           "adolescent",
           "risk",
           "peer pressure",
-          "impulsive",
-          "Adolescent Development: Reward Sensitivity & Risk",
-          "adolescent brain risk",
-          "During adolescence, reward systems can outpace control systems, increasing novelty seeking and sensitivity to peers"
+          "impulsive"
         ],
         "intentSignals": [
           "why does my teen",
-          "how do I handle risky behavior",
-          "what is adolescent development: reward sensitivity & risk",
-          "define adolescent development: reward sensitivity & risk",
-          "explain adolescent development: reward sensitivity & risk"
+          "how do I handle risky behavior"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Adolescent Development: Reward Sensitivity & Risk",
-        "canonicalKey": "adolescent_development_reward_sensitivity_risk",
-        "definition": "During adolescence, reward systems can outpace control systems, increasing novelty seeking and sensitivity to peers.",
-        "acceptedPrompts": [
-          "What is Adolescent Development: Reward Sensitivity & Risk?",
-          "Define Adolescent Development: Reward Sensitivity & Risk.",
-          "Explain Adolescent Development: Reward Sensitivity & Risk."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -608,39 +368,12 @@
           "moral",
           "right thing",
           "ethics",
-          "values conflict",
-          "Kohlberg: Moral Development",
-          "kohlberg moral development",
-          "Moral reasoning can progress from rule-avoidance to principled ethics, often shaped by discussion and perspective-taking"
+          "values conflict"
         ],
         "intentSignals": [
           "what should I do",
-          "what's ethical here",
-          "what is kohlberg: moral development",
-          "define kohlberg: moral development",
-          "explain kohlberg: moral development"
+          "what's ethical here"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Kohlberg: Moral Development",
-        "canonicalKey": "kohlberg_moral_development",
-        "definition": "Moral reasoning can progress from rule-avoidance to principled ethics, often shaped by discussion and perspective-taking.",
-        "acceptedPrompts": [
-          "What is Kohlberg: Moral Development?",
-          "Define Kohlberg: Moral Development.",
-          "Explain Kohlberg: Moral Development."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -670,39 +403,12 @@
           "language delay",
           "speech",
           "vocabulary",
-          "talking",
-          "Language Development: Input, Interaction, and Practice",
-          "language development overview",
-          "Language grows through exposure, social interaction, and feedback; comprehension usually precedes production"
+          "talking"
         ],
         "intentSignals": [
           "how to support language",
-          "help with communication",
-          "what is language development: input, interaction, and practice",
-          "define language development: input, interaction, and practice",
-          "explain language development: input, interaction, and practice"
+          "help with communication"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Language Development: Input, Interaction, and Practice",
-        "canonicalKey": "language_development_input_interaction_and_practice",
-        "definition": "Language grows through exposure, social interaction, and feedback; comprehension usually precedes production.",
-        "acceptedPrompts": [
-          "What is Language Development: Input, Interaction, and Practice?",
-          "Define Language Development: Input, Interaction, and Practice.",
-          "Explain Language Development: Input, Interaction, and Practice."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -732,39 +438,12 @@
           "aging",
           "memory changes",
           "long-term sustainability",
-          "burnout",
-          "Aging: Selective Optimization with Compensation",
-          "lifespan aging selective optimization",
-          "With aging, people adapt by focusing on key goals, optimizing strengths, and compensating for losses"
+          "burnout"
         ],
         "intentSignals": [
           "how do I keep going long term",
-          "how to sustain performance",
-          "what is aging: selective optimization with compensation",
-          "define aging: selective optimization with compensation",
-          "explain aging: selective optimization with compensation"
+          "how to sustain performance"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "theories",
-        "term": "Aging: Selective Optimization with Compensation",
-        "canonicalKey": "aging_selective_optimization_with_compensation",
-        "definition": "With aging, people adapt by focusing on key goals, optimizing strengths, and compensating for losses.",
-        "acceptedPrompts": [
-          "What is Aging: Selective Optimization with Compensation?",
-          "Define Aging: Selective Optimization with Compensation.",
-          "Explain Aging: Selective Optimization with Compensation."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     }
   ],
@@ -1008,40 +687,7 @@
         "teacher/parent reports",
         "longitudinal milestones"
       ],
-      "notes": "Use converging evidence; avoid single-observer overreach.",
-      "retrievalHints": {
-        "keywords": [
-          "developmental_observation",
-          "developmental observation",
-          "Use converging evidence; avoid single-observer overreach"
-        ],
-        "intentSignals": [
-          "what is developmental_observation",
-          "define developmental_observation",
-          "explain developmental_observation"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "assessmentFamilies",
-        "term": "developmental_observation",
-        "canonicalKey": "developmental_observation",
-        "definition": "Use converging evidence; avoid single-observer overreach.",
-        "acceptedPrompts": [
-          "What is developmental_observation?",
-          "Define developmental_observation.",
-          "Explain developmental_observation."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Use converging evidence; avoid single-observer overreach."
     },
     {
       "name": "executive_function_and_language",
@@ -1050,40 +696,7 @@
         "delay tasks",
         "narrative sampling"
       ],
-      "notes": "Describe purpose and limits; do not imply formal diagnosis.",
-      "retrievalHints": {
-        "keywords": [
-          "executive_function_and_language",
-          "executive function and language",
-          "Describe purpose and limits; do not imply formal diagnosis"
-        ],
-        "intentSignals": [
-          "what is executive_function_and_language",
-          "define executive_function_and_language",
-          "explain executive_function_and_language"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_development_v2",
-        "section": "assessmentFamilies",
-        "term": "executive_function_and_language",
-        "canonicalKey": "executive_function_and_language",
-        "definition": "Describe purpose and limits; do not imply formal diagnosis.",
-        "acceptedPrompts": [
-          "What is executive_function_and_language?",
-          "Define executive_function_and_language.",
-          "Explain executive_function_and_language."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Describe purpose and limits; do not imply formal diagnosis."
     }
   ],
   "textReferenceMap": [
@@ -1105,26 +718,19 @@
     }
   ],
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI ChatGPT",
-    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
+    "normalizedBy": "OpenAI",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
     "retrievalPriority": "standard",
     "canonicalPackId": "psy_development_v2",
-    "sourceFilename": "psy_development_v2(2).json",
+    "sourceFilename": "psy_development_v2.json",
     "aliases": [
       "psy_development_v1",
-      "psy_development_v2",
-      "development",
-      "attachment",
-      "lifespan",
-      "executive function",
-      "parenting",
-      "theory of mind"
+      "psy_development_v2"
     ],
-    "pathwayRole": "reasoning_core",
-    "definitionInventoryReady": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
-    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
-    "commercialRegressionGuard": true
+    "pathwayRole": "reasoning_core"
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2",
@@ -1150,10 +756,10 @@
     ]
   },
   "runtimeDomainKey": "psychology",
-  "runtimePath": "Data/Domains/psychology/psy_development_v2.json",
-  "manifestPackKey": "psy_development_v2",
+  "runtimePath": "Data/Domains/psychology/packs/psy_development_v2.json",
+  "manifestPackKey": "psyDevelopment",
   "safetyBoundary": {
-    "stance": "educational_support_only",
+    "stance": "educational_nonclinical_support_only",
     "noDiagnosis": true,
     "noTherapyOrMedicalDirective": true,
     "crisisEscalationRequired": true,
@@ -1162,16 +768,7 @@
   "retrievalIndex": {
     "domain": "psychology",
     "packId": "psy_development_v2",
-    "aliases": [
-      "development",
-      "attachment",
-      "lifespan",
-      "executive function",
-      "parenting",
-      "theory of mind",
-      "psy_development_v2",
-      "psy development v2"
-    ],
+    "aliases": [],
     "keywords": [
       "lifespan-development",
       "infancy",
@@ -1263,36 +860,7 @@
       "how do I keep going long term",
       "how to sustain performance",
       "psy_development_v1",
-      "psy_development_v2",
-      "development",
-      "lifespan",
-      "executive function",
-      "theory of mind",
-      "Piaget: Cognitive Development Stages",
-      "piaget_cognitive_development",
-      "Vygotsky: Zone of Proximal Development & Scaffolding",
-      "vygotsky_zpd_scaffolding",
-      "Erikson: Psychosocial Development",
-      "erikson_psychosocial",
-      "Attachment Theory",
-      "attachment_theory",
-      "Temperament & Goodness-of-Fit",
-      "temperament_goodness_of_fit",
-      "Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)",
-      "parenting_styles",
-      "theory_of_mind",
-      "Executive Function Development",
-      "executive_function_development",
-      "Adolescent Development: Reward Sensitivity & Risk",
-      "adolescent_brain_risk",
-      "Kohlberg: Moral Development",
-      "kohlberg_moral_development",
-      "Language Development: Input, Interaction, and Practice",
-      "language_development_overview",
-      "Aging: Selective Optimization with Compensation",
-      "lifespan_aging_selective_optimization",
-      "developmental_observation",
-      "executive_function_and_language"
+      "psy_development_v2"
     ],
     "primaryFields": [
       "packId",
@@ -1321,271 +889,14 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary",
-      "name",
-      "id",
-      "oneLiner",
-      "definitionSurface",
-      "retrievalHints",
-      "coreMechanism",
-      "coreClaims",
-      "keyPoints",
-      "actionablePrinciples"
-    ],
-    "definitionQueryPriority": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
+      "safetyBoundary"
+    ]
   },
   "normalizationStatus": {
-    "status": "hardened",
+    "status": "hardened_for_marion_registry_compose_ingestion",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-13",
-    "definitionInventoryPatched": true,
-    "lineAuditCompleted": true,
-    "genericFallbackBlocked": true,
-    "overlapClarificationReady": true
-  },
-  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
-  "definitionAnswerContract": {
-    "version": "nyx.marion.definitionAnswerContract/1.0",
-    "active": true,
-    "acceptedQuestionForms": [
-      "what is {term}",
-      "what are {term}",
-      "define {term}",
-      "explain {term}",
-      "meaning of {term}"
-    ],
-    "requiredAnswerShape": [
-      "direct definition",
-      "psychology context",
-      "one practical/actionable note when appropriate"
-    ],
-    "blockedFallbacks": [
-      "I need one more concrete detail to route this cleanly.",
-      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
-      "The specific technical move is to name the active component."
-    ],
-    "domainLock": "psychology",
-    "allowAmbiguityClarification": true,
-    "ambiguityShape": [
-      "short neutral definition",
-      "possible domain interpretations",
-      "one targeted clarification question"
-    ],
-    "safetyBoundary": {
-      "educationalOnly": true,
-      "noDiagnosis": true,
-      "noTherapyReplacement": true,
-      "crisisEscalationRequired": true
-    }
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
-    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
-    "technicalOverrideRequiresExplicitBackendTerms": [
-      "autopsy",
-      "audit",
-      "line-by-line",
-      "patch",
-      "file",
-      "script",
-      "backend",
-      "ChatEngine",
-      "MarionBridge",
-      "StateSpine",
-      "ComposeMarionResponse"
-    ],
-    "domain": "psychology",
-    "packId": "psy_development_v2",
-    "sourceFilename": "psy_development_v2(2).json",
-    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
-    "crossDomainOverlapMap": {
-      "cognitive intelligence": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
-        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
-      },
-      "reasoning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "law"
-        ],
-        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
-        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
-      },
-      "bias": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "research_methods"
-        ],
-        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
-        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
-      },
-      "validation": {
-        "overlapDomains": [
-          "psychology",
-          "research_methods",
-          "ai",
-          "cyber"
-        ],
-        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
-        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
-      },
-      "resilience": {
-        "overlapDomains": [
-          "psychology",
-          "business",
-          "finance"
-        ],
-        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
-        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
-      },
-      "identity": {
-        "overlapDomains": [
-          "psychology",
-          "social",
-          "development",
-          "identity_query"
-        ],
-        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
-        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
-      },
-      "attention": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
-        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
-      },
-      "learning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "education"
-        ],
-        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
-        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
-      },
-      "confidence": {
-        "overlapDomains": [
-          "psychology",
-          "statistics",
-          "ai",
-          "finance"
-        ],
-        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
-        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
-      },
-      "compliance": {
-        "overlapDomains": [
-          "psychology",
-          "law",
-          "cyber",
-          "business"
-        ],
-        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
-        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
-      }
-    }
-  },
-  "definitionInventory": {
-    "version": "nyx.marion.definitionInventory/1.0",
-    "domain": "psychology",
-    "packId": "psy_development_v2",
-    "termCount": 14,
-    "items": [
-      {
-        "term": "Piaget: Cognitive Development Stages",
-        "canonicalKey": "piaget_cognitive_development_stages",
-        "definition": "Children’s thinking changes qualitatively through stages as they build mental models of the world.",
-        "section": "theories"
-      },
-      {
-        "term": "Vygotsky: Zone of Proximal Development & Scaffolding",
-        "canonicalKey": "vygotsky_zone_of_proximal_development_scaffolding",
-        "definition": "Learning accelerates when support is calibrated to what someone can almost do independently.",
-        "section": "theories"
-      },
-      {
-        "term": "Erikson: Psychosocial Development",
-        "canonicalKey": "erikson_psychosocial_development",
-        "definition": "Across life stages, people face identity and relationship tasks that shape well-being and behavior.",
-        "section": "theories"
-      },
-      {
-        "term": "Attachment Theory",
-        "canonicalKey": "attachment_theory",
-        "definition": "Early relationship patterns shape expectations of support, closeness, and safety—especially under stress.",
-        "section": "theories"
-      },
-      {
-        "term": "Temperament & Goodness-of-Fit",
-        "canonicalKey": "temperament_goodness_of_fit",
-        "definition": "People differ in baseline reactivity and self-regulation; outcomes improve when environments fit temperament.",
-        "section": "theories"
-      },
-      {
-        "term": "Parenting Styles (Authoritative, Authoritarian, Permissive, Neglectful)",
-        "canonicalKey": "parenting_styles_authoritative_authoritarian_permissive_neglectful",
-        "definition": "Balanced warmth + structure (authoritative) tends to support competence and self-regulation.",
-        "section": "theories"
-      },
-      {
-        "term": "Theory of Mind",
-        "canonicalKey": "theory_of_mind",
-        "definition": "Social understanding grows as people learn others have different beliefs, intentions, and perspectives.",
-        "section": "theories"
-      },
-      {
-        "term": "Executive Function Development",
-        "canonicalKey": "executive_function_development",
-        "definition": "Planning, inhibition, and working memory mature over time and are vulnerable under stress and sleep loss.",
-        "section": "theories"
-      },
-      {
-        "term": "Adolescent Development: Reward Sensitivity & Risk",
-        "canonicalKey": "adolescent_development_reward_sensitivity_risk",
-        "definition": "During adolescence, reward systems can outpace control systems, increasing novelty seeking and sensitivity to peers.",
-        "section": "theories"
-      },
-      {
-        "term": "Kohlberg: Moral Development",
-        "canonicalKey": "kohlberg_moral_development",
-        "definition": "Moral reasoning can progress from rule-avoidance to principled ethics, often shaped by discussion and perspective-taking.",
-        "section": "theories"
-      },
-      {
-        "term": "Language Development: Input, Interaction, and Practice",
-        "canonicalKey": "language_development_input_interaction_and_practice",
-        "definition": "Language grows through exposure, social interaction, and feedback; comprehension usually precedes production.",
-        "section": "theories"
-      },
-      {
-        "term": "Aging: Selective Optimization with Compensation",
-        "canonicalKey": "aging_selective_optimization_with_compensation",
-        "definition": "With aging, people adapt by focusing on key goals, optimizing strengths, and compensating for losses.",
-        "section": "theories"
-      },
-      {
-        "term": "developmental_observation",
-        "canonicalKey": "developmental_observation",
-        "definition": "Use converging evidence; avoid single-observer overreach.",
-        "section": "assessmentFamilies"
-      },
-      {
-        "term": "executive_function_and_language",
-        "canonicalKey": "executive_function_and_language",
-        "definition": "Describe purpose and limits; do not imply formal diagnosis.",
-        "section": "assessmentFamilies"
-      }
-    ]
+    "normalizedAt": "2026-05-03"
   }
 }

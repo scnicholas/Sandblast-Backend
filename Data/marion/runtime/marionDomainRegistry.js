@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "marionDomainRegistry v1.7.3 CROSS-DOMAIN-SECONDARY-LANE-SCORING + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY + MANIFEST-ALIGNED-DOMAIN-AUTHORITY + CONFIDENCE-LOCK + BOOTSTRAP-GUARD-HARDENED";
+const VERSION = "marionDomainRegistry v1.6.0 DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -349,8 +349,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     safetyFirst: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/Domains/psychology",
-    manifestHint: "Data/Domains/psychology/manifest.json"
+    dataRootHint: "Data/psychology",
+    manifestHint: "domains/psychology/manifest.json"
   }),
   english: Object.freeze({
     domain: "english",
@@ -364,8 +364,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     safetyFirst: false,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/Domains/English",
-    manifestHint: "Data/Domains/English/manifest.json"
+    dataRootHint: "Data/english",
+    manifestHint: "domains/english/manifest.json"
   }),
   ai: Object.freeze({
     domain: "ai",
@@ -379,8 +379,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     safetyFirst: false,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/Domains/ai",
-    manifestHint: "Data/Domains/ai/manifest.json"
+    dataRootHint: "Data/ai",
+    manifestHint: "domains/ai/manifest.json"
   }),
   cyber: Object.freeze({
     domain: "cyber",
@@ -395,8 +395,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     defensiveOnly: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/Domains/Cyber",
-    manifestHint: "Data/Domains/Cyber/manifest.json"
+    dataRootHint: "Data/cyber",
+    manifestHint: "domains/cyber/manifest.json"
   }),
   law: Object.freeze({
     domain: "law",
@@ -411,8 +411,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     noLegalAdvice: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/Domains/law",
-    manifestHint: "Data/Domains/law/manifest.json"
+    dataRootHint: "Data/law",
+    manifestHint: "domains/law/manifest.json"
   }),
   finance: Object.freeze({
     domain: "finance",
@@ -427,8 +427,8 @@ const KNOWLEDGE_DOMAINS = Object.freeze({
     noInvestmentAdvice: true,
     useDomainKnowledge: true,
     requiresFinalEnvelope: true,
-    dataRootHint: "Data/Domains/finance",
-    manifestHint: "Data/Domains/finance/manifest.json"
+    dataRootHint: "Data/finance",
+    manifestHint: "domains/finance/manifest.json"
   })
 });
 
@@ -441,17 +441,17 @@ const DOMAIN_FILE_CANDIDATES = Object.freeze({
   english: Object.freeze({
     manifests: Object.freeze(["Data/Domains/english/manifest.json", "Data/Domains/English/manifest.json", "domains/english/manifest.json", "domains/english/english.manifest.json", "domains/english.json", "Data/english/manifest.json", "Data/English/manifest.json", "Data/marion/domains/english/manifest.json", "Data/marion/knowledge/english/manifest.json"]),
     roots: Object.freeze(["Data/Domains/english", "Data/Domains/English", "domains/english", "Data/english", "Data/English", "Data/marion/domains/english", "Data/marion/knowledge/english"]),
-    packs: Object.freeze(["Data/Domains/english/english.json", "Data/Domains/english/knowledge.json", "Data/Domains/english/domain.json", "Data/Domains/english/pack.json", "domains/english/knowledge.json", "domains/english/domain.json", "domains/english/pack.json", "Data/english/english.json", "Data/english/knowledge.json", "Data/marion/knowledge/english.json", "Data/Domains/English/eng_academic_writing_clarity_v1.json", "Data/Domains/English/eng_curriculum_sequence_v1.json", "Data/Domains/English/eng_eap_canada_case_studies_v1.json", "Data/Domains/English/eng_foundations_language_science_v1.json", "Data/Domains/English/eng_morphology_word_formation_v1.json", "Data/Domains/English/eng_phonetics_phonology_v1.json", "Data/Domains/English/eng_register_corpus_usage_v1.json", "Data/Domains/English/eng_semantics_pragmatics_v1.json", "Data/Domains/English/eng_sources_index_v1.json", "Data/Domains/English/eng_syntax_grammar_core_v1.json"])
+    packs: Object.freeze(["Data/Domains/english/english.json", "Data/Domains/english/knowledge.json", "Data/Domains/english/domain.json", "Data/Domains/english/pack.json", "domains/english/knowledge.json", "domains/english/domain.json", "domains/english/pack.json", "Data/english/english.json", "Data/english/knowledge.json", "Data/marion/knowledge/english.json"])
   }),
   ai: Object.freeze({
     manifests: Object.freeze(["Data/Domains/ai/manifest.json", "Data/Domains/AI/manifest.json", "domains/ai/manifest.json", "domains/AI/manifest.json", "domains/ai/ai.manifest.json", "Data/ai/manifest.json", "Data/AI/manifest.json", "Data/marion/domains/ai/manifest.json", "Data/marion/knowledge/ai/manifest.json"]),
     roots: Object.freeze(["Data/Domains/ai", "Data/Domains/AI", "Data/ai", "Data/AI", "domains/ai", "domains/AI", "Data/marion/domains/ai", "Data/marion/knowledge/ai"]),
-    packs: Object.freeze(["Data/Domains/ai/ai.json", "Data/Domains/ai/knowledge.json", "Data/Domains/ai/domain.json", "Data/Domains/AI/ai.json", "Data/Domains/AI/knowledge.json", "Data/ai/ai.json", "Data/ai/knowledge.json", "Data/ai/domain.json", "domains/ai/knowledge.json", "Data/marion/knowledge/ai.json", "Data/Domains/ai/ai_agents_systems_v1.json", "Data/Domains/ai/ai_ai_cybersecurity_v1.json", "Data/Domains/ai/ai_ai_marketing_v1.json", "Data/Domains/ai/ai_ai_psychology_v1.json", "Data/Domains/ai/ai_case_studies_v1.json", "Data/Domains/ai/ai_ethics_law_v1.json", "Data/Domains/ai/ai_foundations_v1.json"])
+    packs: Object.freeze(["Data/Domains/ai/ai.json", "Data/Domains/ai/knowledge.json", "Data/Domains/ai/domain.json", "Data/Domains/AI/ai.json", "Data/Domains/AI/knowledge.json", "Data/ai/ai.json", "Data/ai/knowledge.json", "Data/ai/domain.json", "domains/ai/knowledge.json", "Data/marion/knowledge/ai.json"])
   }),
   cyber: Object.freeze({
     manifests: Object.freeze(["Data/Domains/Cyber/manifest.json", "Data/Domains/cyber/manifest.json", "domains/Cyber/manifest.json", "domains/cyber/manifest.json", "domains/cyber/cyber.manifest.json", "domains/cybersecurity/manifest.json", "Data/Cyber/manifest.json", "Data/cyber/manifest.json", "Data/cybersecurity/manifest.json", "Data/marion/domains/cyber/manifest.json", "Data/marion/knowledge/cyber/manifest.json"]),
     roots: Object.freeze(["Data/Domains/Cyber", "Data/Domains/cyber", "Data/Cyber", "Data/cyber", "Data/cybersecurity", "domains/Cyber", "domains/cyber", "domains/cybersecurity", "Data/marion/domains/cyber", "Data/marion/knowledge/cyber"]),
-    packs: Object.freeze(["Data/Domains/Cyber/cyber.json", "Data/Domains/Cyber/knowledge.json", "Data/Domains/Cyber/domain.json", "Data/Domains/cyber/cyber.json", "Data/Domains/cyber/knowledge.json", "Data/cyber/cyber.json", "Data/cyber/knowledge.json", "Data/cyber/domain.json", "domains/cyber/knowledge.json", "Data/marion/knowledge/cyber.json", "Data/Domains/Cyber/cyber_endpoint_cloud_v1.json", "Data/Domains/Cyber/cyber_endpoint_cloud_v2.json", "Data/Domains/Cyber/cyber_foundations_v2.json", "Data/Domains/Cyber/cyber_identity_access_v2.json", "Data/Domains/Cyber/cyber_incident_response_v2.json", "Data/Domains/Cyber/cyber_network_web_v2.json", "Data/Domains/Cyber/cyber_privacy_data_protection_v2.json", "Data/Domains/Cyber/cyber_safety_and_posture_v2.json", "Data/Domains/Cyber/cyber_security_culture_v2.json", "Data/Domains/Cyber/cyber_source_ladder_v2.json"])
+    packs: Object.freeze(["Data/Domains/Cyber/cyber.json", "Data/Domains/Cyber/knowledge.json", "Data/Domains/Cyber/domain.json", "Data/Domains/cyber/cyber.json", "Data/Domains/cyber/knowledge.json", "Data/cyber/cyber.json", "Data/cyber/knowledge.json", "Data/cyber/domain.json", "domains/cyber/knowledge.json", "Data/marion/knowledge/cyber.json"])
   }),
   law: Object.freeze({
     manifests: Object.freeze(["Data/Domains/law/manifest.json", "Data/Domains/Law/manifest.json", "domains/law/manifest.json", "domains/legal/manifest.json", "Data/law/manifest.json", "Data/Law/manifest.json", "Data/legal/manifest.json", "Data/marion/domains/law/manifest.json", "Data/marion/knowledge/law/manifest.json"]),
@@ -1101,17 +1101,6 @@ function getPipelineForensicNormalizationStatus(){
   };
 }
 
-
-const CROSS_DOMAIN_SECONDARY_LANE_MATRIX = Object.freeze({
-  ai_compliance: Object.freeze({ primary:"ai", secondary:Object.freeze(["law"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain compliance risk for an AI product.","Explain privacy risk for an AI product.","Explain legal risk for an AI product."]) }),
-  ai_security: Object.freeze({ primary:"ai", secondary:Object.freeze(["cyber"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain security risk for an AI product.","Explain prompt injection risk in an AI system."]) }),
-  ai_business: Object.freeze({ primary:"ai", secondary:Object.freeze(["finance"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain business risk for an AI product."]) }),
-  finance_law: Object.freeze({ primary:"finance", secondary:Object.freeze(["law"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain cash-flow risk in a legal dispute."]) }),
-  english_law: Object.freeze({ primary:"english", secondary:Object.freeze(["law"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Rewrite this legal clause in plain English."]) }),
-  ai_psychology: Object.freeze({ primary:"ai", secondary:Object.freeze(["psychology"]), answerMode:"direct_with_secondary_context", examples:Object.freeze(["Explain cognitive bias in an AI recommendation system."]) })
-});
-function getCrossDomainSecondaryLaneMatrix(){return CROSS_DOMAIN_SECONDARY_LANE_MATRIX;}
-
 module.exports = {
   VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
@@ -1147,8 +1136,6 @@ module.exports = {
   confidenceBand,
   normalizeDomainConfidenceProfile,
   getDomainConfidenceDefaults,
-  CROSS_DOMAIN_SECONDARY_LANE_MATRIX,
-  getCrossDomainSecondaryLaneMatrix,
   _internal: {
     safeStr,
     normalizeKey,

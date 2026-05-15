@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Doctoral-level pack on biases, heuristics, rationality, and reasoning fallacies for advanced judgment critique and assistant explanation.",
-  "updatedAt": "2026-05-13",
+  "updatedAt": "2026-03-15",
   "scope": [
     "decision-making",
     "critical-thinking",
@@ -45,54 +45,11 @@
         "keywords": [
           "only seeing what I want",
           "echo chamber",
-          "biased research",
-          "Confirmation Bias",
-          "We seek and interpret information that confirms our existing beliefs"
+          "biased research"
         ],
         "intentSignals": [
           "am I being biased",
-          "why do I ignore criticism",
-          "what is confirmation bias",
-          "define confirmation bias",
-          "explain confirmation bias"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "biases",
-        "term": "Confirmation Bias",
-        "canonicalKey": "confirmation_bias",
-        "definition": "We seek and interpret information that confirms our existing beliefs.",
-        "acceptedPrompts": [
-          "What is Confirmation Bias?",
-          "Define Confirmation Bias.",
-          "Explain Confirmation Bias."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      },
-      "ambiguityClarification": {
-        "version": "nyx.marion.ambiguityClarification/1.0",
-        "overlapDetected": true,
-        "policy": "brief_answer_then_domain_choice",
-        "candidates": [
-          {
-            "term": "bias",
-            "overlapDomains": [
-              "psychology",
-              "ai",
-              "research_methods"
-            ],
-            "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
-            "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
-          }
+          "why do I ignore criticism"
         ]
       }
     },
@@ -126,37 +83,11 @@
         "keywords": [
           "it feels common",
           "everyone is doing it",
-          "news makes it seem",
-          "Availability Heuristic",
-          "We estimate likelihood based on how easily examples come to mind"
+          "news makes it seem"
         ],
         "intentSignals": [
-          "why does this feel bigger than it is",
-          "what is availability heuristic",
-          "define availability heuristic",
-          "explain availability heuristic"
+          "why does this feel bigger than it is"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "biases",
-        "term": "Availability Heuristic",
-        "canonicalKey": "availability_heuristic",
-        "definition": "We estimate likelihood based on how easily examples come to mind.",
-        "acceptedPrompts": [
-          "What is Availability Heuristic?",
-          "Define Availability Heuristic.",
-          "Explain Availability Heuristic."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -189,53 +120,10 @@
         "keywords": [
           "first number",
           "initial offer",
-          "price expectation",
-          "Anchoring Bias",
-          "Initial information disproportionately influences later judgments"
+          "price expectation"
         ],
         "intentSignals": [
-          "did that first number affect me",
-          "what is anchoring bias",
-          "define anchoring bias",
-          "explain anchoring bias"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "biases",
-        "term": "Anchoring Bias",
-        "canonicalKey": "anchoring_bias",
-        "definition": "Initial information disproportionately influences later judgments.",
-        "acceptedPrompts": [
-          "What is Anchoring Bias?",
-          "Define Anchoring Bias.",
-          "Explain Anchoring Bias."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      },
-      "ambiguityClarification": {
-        "version": "nyx.marion.ambiguityClarification/1.0",
-        "overlapDetected": true,
-        "policy": "brief_answer_then_domain_choice",
-        "candidates": [
-          {
-            "term": "bias",
-            "overlapDomains": [
-              "psychology",
-              "ai",
-              "research_methods"
-            ],
-            "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
-            "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
-          }
+          "did that first number affect me"
         ]
       }
     },
@@ -270,37 +158,11 @@
         "keywords": [
           "already invested",
           "too much time spent",
-          "can’t quit now",
-          "Sunk Cost Fallacy",
-          "We continue investing because of past costs rather than future value"
+          "can’t quit now"
         ],
         "intentSignals": [
-          "should I let this go",
-          "what is sunk cost fallacy",
-          "define sunk cost fallacy",
-          "explain sunk cost fallacy"
+          "should I let this go"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "biases",
-        "term": "Sunk Cost Fallacy",
-        "canonicalKey": "sunk_cost_fallacy",
-        "definition": "We continue investing because of past costs rather than future value.",
-        "acceptedPrompts": [
-          "What is Sunk Cost Fallacy?",
-          "Define Sunk Cost Fallacy.",
-          "Explain Sunk Cost Fallacy."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -333,38 +195,11 @@
         "keywords": [
           "overconfident",
           "I know enough",
-          "they don’t see their flaws",
-          "Dunning-Kruger Effect",
-          "dunning kruger effect",
-          "Low competence can reduce awareness of one’s own limitations"
+          "they don’t see their flaws"
         ],
         "intentSignals": [
-          "why are beginners so confident",
-          "what is dunning-kruger effect",
-          "define dunning-kruger effect",
-          "explain dunning-kruger effect"
+          "why are beginners so confident"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "biases",
-        "term": "Dunning-Kruger Effect",
-        "canonicalKey": "dunning_kruger_effect",
-        "definition": "Low competence can reduce awareness of one’s own limitations.",
-        "acceptedPrompts": [
-          "What is Dunning-Kruger Effect?",
-          "Define Dunning-Kruger Effect.",
-          "Explain Dunning-Kruger Effect."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -397,37 +232,11 @@
         "keywords": [
           "fear of losing",
           "risk avoidance",
-          "can’t afford to fail",
-          "Loss Aversion",
-          "Losses psychologically weigh more than equivalent gains"
+          "can’t afford to fail"
         ],
         "intentSignals": [
-          "why am I so afraid of small losses",
-          "what is loss aversion",
-          "define loss aversion",
-          "explain loss aversion"
+          "why am I so afraid of small losses"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "biases",
-        "term": "Loss Aversion",
-        "canonicalKey": "loss_aversion",
-        "definition": "Losses psychologically weigh more than equivalent gains.",
-        "acceptedPrompts": [
-          "What is Loss Aversion?",
-          "Define Loss Aversion.",
-          "Explain Loss Aversion."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     }
   ],
@@ -439,40 +248,7 @@
       "correctionStrategy": [
         "Restate opponent’s position fairly before critique.",
         "Ask: 'Is that what you’re actually arguing?'"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Straw Man Fallacy",
-          "straw man",
-          "Misrepresenting an opponent’s position to make it easier to attack"
-        ],
-        "intentSignals": [
-          "what is straw man fallacy",
-          "define straw man fallacy",
-          "explain straw man fallacy"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "reasoningFallacies",
-        "term": "Straw Man Fallacy",
-        "canonicalKey": "straw_man_fallacy",
-        "definition": "Misrepresenting an opponent’s position to make it easier to attack.",
-        "acceptedPrompts": [
-          "What is Straw Man Fallacy?",
-          "Define Straw Man Fallacy.",
-          "Explain Straw Man Fallacy."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     },
     {
       "id": "false_dichotomy",
@@ -481,39 +257,7 @@
       "correctionStrategy": [
         "Generate at least one third option.",
         "Ask: 'What’s between these extremes?'"
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "False Dichotomy",
-          "Presenting two options as the only possibilities when more exist"
-        ],
-        "intentSignals": [
-          "what is false dichotomy",
-          "define false dichotomy",
-          "explain false dichotomy"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "reasoningFallacies",
-        "term": "False Dichotomy",
-        "canonicalKey": "false_dichotomy",
-        "definition": "Presenting two options as the only possibilities when more exist.",
-        "acceptedPrompts": [
-          "What is False Dichotomy?",
-          "Define False Dichotomy.",
-          "Explain False Dichotomy."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     },
     {
       "id": "appeal_to_authority",
@@ -522,40 +266,7 @@
       "correctionStrategy": [
         "Check evidence quality.",
         "Verify domain-specific expertise."
-      ],
-      "retrievalHints": {
-        "keywords": [
-          "Appeal to Authority (Misapplied)",
-          "appeal to authority",
-          "Assuming a claim is true solely because an authority figure says it"
-        ],
-        "intentSignals": [
-          "what is appeal to authority (misapplied)",
-          "define appeal to authority (misapplied)",
-          "explain appeal to authority (misapplied)"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "reasoningFallacies",
-        "term": "Appeal to Authority (Misapplied)",
-        "canonicalKey": "appeal_to_authority_misapplied",
-        "definition": "Assuming a claim is true solely because an authority figure says it.",
-        "acceptedPrompts": [
-          "What is Appeal to Authority (Misapplied)?",
-          "Define Appeal to Authority (Misapplied).",
-          "Explain Appeal to Authority (Misapplied)."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      ]
     }
   ],
   "applicationRules": [
@@ -794,40 +505,7 @@
         "probability calibration",
         "forecasting exercises"
       ],
-      "notes": "Use to show how rationality constructs are operationalized.",
-      "retrievalHints": {
-        "keywords": [
-          "judgment_tasks",
-          "judgment tasks",
-          "Use to show how rationality constructs are operationalized"
-        ],
-        "intentSignals": [
-          "what is judgment_tasks",
-          "define judgment_tasks",
-          "explain judgment_tasks"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "assessmentFamilies",
-        "term": "judgment_tasks",
-        "canonicalKey": "judgment_tasks",
-        "definition": "Use to show how rationality constructs are operationalized.",
-        "acceptedPrompts": [
-          "What is judgment_tasks?",
-          "Define judgment_tasks.",
-          "Explain judgment_tasks."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Use to show how rationality constructs are operationalized."
     },
     {
       "name": "argument_analysis",
@@ -836,40 +514,7 @@
         "bias audit",
         "counterfactual challenge prompts"
       ],
-      "notes": "Useful for Nyx/Marion discourse quality control.",
-      "retrievalHints": {
-        "keywords": [
-          "argument_analysis",
-          "argument analysis",
-          "Useful for Nyx/Marion discourse quality control"
-        ],
-        "intentSignals": [
-          "what is argument_analysis",
-          "define argument_analysis",
-          "explain argument_analysis"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_biases_and_fallacies_v2",
-        "section": "assessmentFamilies",
-        "term": "argument_analysis",
-        "canonicalKey": "argument_analysis",
-        "definition": "Useful for Nyx/Marion discourse quality control.",
-        "acceptedPrompts": [
-          "What is argument_analysis?",
-          "Define argument_analysis.",
-          "Explain argument_analysis."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Useful for Nyx/Marion discourse quality control."
     }
   ],
   "textReferenceMap": [
@@ -891,26 +536,19 @@
     }
   ],
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI ChatGPT",
-    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
+    "normalizedBy": "OpenAI",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
     "retrievalPriority": "standard",
     "canonicalPackId": "psy_biases_and_fallacies_v2",
-    "sourceFilename": "psy_biases_and_fallacies_v2(2).json",
+    "sourceFilename": "psy_biases_and_fallacies_v2.json",
     "aliases": [
       "psy_biases_and_fallacies_v1",
-      "psy_biases_and_fallacies_v2",
-      "biases",
-      "fallacies",
-      "heuristics",
-      "critical thinking",
-      "judgment",
-      "rationality"
+      "psy_biases_and_fallacies_v2"
     ],
-    "pathwayRole": "reasoning_core",
-    "definitionInventoryReady": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
-    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
-    "commercialRegressionGuard": true
+    "pathwayRole": "reasoning_core"
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2",
@@ -936,10 +574,10 @@
     ]
   },
   "runtimeDomainKey": "psychology",
-  "runtimePath": "Data/Domains/psychology/psy_biases_and_fallacies_v2.json",
-  "manifestPackKey": "psy_biases_and_fallacies_v2",
+  "runtimePath": "Data/Domains/psychology/packs/psy_biases_and_fallacies_v2.json",
+  "manifestPackKey": "psyBiasesAndFallacies",
   "safetyBoundary": {
-    "stance": "educational_support_only",
+    "stance": "educational_nonclinical_support_only",
     "noDiagnosis": true,
     "noTherapyOrMedicalDirective": true,
     "crisisEscalationRequired": true,
@@ -948,16 +586,7 @@
   "retrievalIndex": {
     "domain": "psychology",
     "packId": "psy_biases_and_fallacies_v2",
-    "aliases": [
-      "biases",
-      "fallacies",
-      "heuristics",
-      "critical thinking",
-      "judgment",
-      "rationality",
-      "psy_biases_and_fallacies_v2",
-      "psy biases and fallacies v2"
-    ],
+    "aliases": [],
     "keywords": [
       "decision-making",
       "critical-thinking",
@@ -991,33 +620,7 @@
       "can’t afford to fail",
       "why am I so afraid of small losses",
       "psy_biases_and_fallacies_v1",
-      "psy_biases_and_fallacies_v2",
-      "biases",
-      "fallacies",
-      "heuristics",
-      "critical thinking",
-      "judgment",
-      "rationality",
-      "Straw Man Fallacy",
-      "straw_man",
-      "False Dichotomy",
-      "false_dichotomy",
-      "Appeal to Authority (Misapplied)",
-      "appeal_to_authority",
-      "judgment_tasks",
-      "argument_analysis",
-      "Confirmation Bias",
-      "confirmation_bias",
-      "Availability Heuristic",
-      "availability_heuristic",
-      "Anchoring Bias",
-      "anchoring_bias",
-      "Sunk Cost Fallacy",
-      "sunk_cost_fallacy",
-      "Dunning-Kruger Effect",
-      "dunning_kruger_effect",
-      "Loss Aversion",
-      "loss_aversion"
+      "psy_biases_and_fallacies_v2"
     ],
     "primaryFields": [
       "packId",
@@ -1047,253 +650,14 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary",
-      "name",
-      "id",
-      "oneLiner",
-      "definitionSurface",
-      "retrievalHints",
-      "coreMechanism",
-      "coreClaims",
-      "keyPoints",
-      "actionablePrinciples"
-    ],
-    "definitionQueryPriority": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
+      "safetyBoundary"
+    ]
   },
   "normalizationStatus": {
-    "status": "hardened",
+    "status": "hardened_for_marion_registry_compose_ingestion",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-13",
-    "definitionInventoryPatched": true,
-    "lineAuditCompleted": true,
-    "genericFallbackBlocked": true,
-    "overlapClarificationReady": true
-  },
-  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
-  "definitionAnswerContract": {
-    "version": "nyx.marion.definitionAnswerContract/1.0",
-    "active": true,
-    "acceptedQuestionForms": [
-      "what is {term}",
-      "what are {term}",
-      "define {term}",
-      "explain {term}",
-      "meaning of {term}"
-    ],
-    "requiredAnswerShape": [
-      "direct definition",
-      "psychology context",
-      "one practical/actionable note when appropriate"
-    ],
-    "blockedFallbacks": [
-      "I need one more concrete detail to route this cleanly.",
-      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
-      "The specific technical move is to name the active component."
-    ],
-    "domainLock": "psychology",
-    "allowAmbiguityClarification": true,
-    "ambiguityShape": [
-      "short neutral definition",
-      "possible domain interpretations",
-      "one targeted clarification question"
-    ],
-    "safetyBoundary": {
-      "educationalOnly": true,
-      "noDiagnosis": true,
-      "noTherapyReplacement": true,
-      "crisisEscalationRequired": true
-    }
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
-    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
-    "technicalOverrideRequiresExplicitBackendTerms": [
-      "autopsy",
-      "audit",
-      "line-by-line",
-      "patch",
-      "file",
-      "script",
-      "backend",
-      "ChatEngine",
-      "MarionBridge",
-      "StateSpine",
-      "ComposeMarionResponse"
-    ],
-    "domain": "psychology",
-    "packId": "psy_biases_and_fallacies_v2",
-    "sourceFilename": "psy_biases_and_fallacies_v2(2).json",
-    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
-    "crossDomainOverlapMap": {
-      "cognitive intelligence": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
-        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
-      },
-      "reasoning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "law"
-        ],
-        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
-        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
-      },
-      "bias": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "research_methods"
-        ],
-        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
-        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
-      },
-      "validation": {
-        "overlapDomains": [
-          "psychology",
-          "research_methods",
-          "ai",
-          "cyber"
-        ],
-        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
-        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
-      },
-      "resilience": {
-        "overlapDomains": [
-          "psychology",
-          "business",
-          "finance"
-        ],
-        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
-        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
-      },
-      "identity": {
-        "overlapDomains": [
-          "psychology",
-          "social",
-          "development",
-          "identity_query"
-        ],
-        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
-        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
-      },
-      "attention": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
-        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
-      },
-      "learning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "education"
-        ],
-        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
-        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
-      },
-      "confidence": {
-        "overlapDomains": [
-          "psychology",
-          "statistics",
-          "ai",
-          "finance"
-        ],
-        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
-        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
-      },
-      "compliance": {
-        "overlapDomains": [
-          "psychology",
-          "law",
-          "cyber",
-          "business"
-        ],
-        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
-        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
-      }
-    }
-  },
-  "definitionInventory": {
-    "version": "nyx.marion.definitionInventory/1.0",
-    "domain": "psychology",
-    "packId": "psy_biases_and_fallacies_v2",
-    "termCount": 11,
-    "items": [
-      {
-        "term": "Straw Man Fallacy",
-        "canonicalKey": "straw_man_fallacy",
-        "definition": "Misrepresenting an opponent’s position to make it easier to attack.",
-        "section": "reasoningFallacies"
-      },
-      {
-        "term": "False Dichotomy",
-        "canonicalKey": "false_dichotomy",
-        "definition": "Presenting two options as the only possibilities when more exist.",
-        "section": "reasoningFallacies"
-      },
-      {
-        "term": "Appeal to Authority (Misapplied)",
-        "canonicalKey": "appeal_to_authority_misapplied",
-        "definition": "Assuming a claim is true solely because an authority figure says it.",
-        "section": "reasoningFallacies"
-      },
-      {
-        "term": "judgment_tasks",
-        "canonicalKey": "judgment_tasks",
-        "definition": "Use to show how rationality constructs are operationalized.",
-        "section": "assessmentFamilies"
-      },
-      {
-        "term": "argument_analysis",
-        "canonicalKey": "argument_analysis",
-        "definition": "Useful for Nyx/Marion discourse quality control.",
-        "section": "assessmentFamilies"
-      },
-      {
-        "term": "Confirmation Bias",
-        "canonicalKey": "confirmation_bias",
-        "definition": "We seek and interpret information that confirms our existing beliefs.",
-        "section": "biases"
-      },
-      {
-        "term": "Availability Heuristic",
-        "canonicalKey": "availability_heuristic",
-        "definition": "We estimate likelihood based on how easily examples come to mind.",
-        "section": "biases"
-      },
-      {
-        "term": "Anchoring Bias",
-        "canonicalKey": "anchoring_bias",
-        "definition": "Initial information disproportionately influences later judgments.",
-        "section": "biases"
-      },
-      {
-        "term": "Sunk Cost Fallacy",
-        "canonicalKey": "sunk_cost_fallacy",
-        "definition": "We continue investing because of past costs rather than future value.",
-        "section": "biases"
-      },
-      {
-        "term": "Dunning-Kruger Effect",
-        "canonicalKey": "dunning_kruger_effect",
-        "definition": "Low competence can reduce awareness of one’s own limitations.",
-        "section": "biases"
-      },
-      {
-        "term": "Loss Aversion",
-        "canonicalKey": "loss_aversion",
-        "definition": "Losses psychologically weigh more than equivalent gains.",
-        "section": "biases"
-      }
-    ]
+    "normalizedAt": "2026-05-03"
   }
 }

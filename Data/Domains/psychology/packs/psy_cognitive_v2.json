@@ -3,7 +3,7 @@
   "domain": "psychology",
   "version": 2,
   "description": "Doctoral-level cognitive psychology pack covering attention, memory, learning, reasoning, executive control, metacognition, and evidence-based explanation.",
-  "updatedAt": "2026-05-13",
+  "updatedAt": "2026-03-15",
   "scope": [
     "memory",
     "attention",
@@ -40,38 +40,12 @@
           "overloaded",
           "too much information",
           "can't hold it all",
-          "brain full",
-          "Working Memory Model",
-          "Working memory has limited capacity and is responsible for short-term information manipulation"
+          "brain full"
         ],
         "intentSignals": [
           "simplify this",
-          "break this down",
-          "what is working memory model",
-          "define working memory model",
-          "explain working memory model"
+          "break this down"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "theories",
-        "term": "Working Memory Model",
-        "canonicalKey": "working_memory_model",
-        "definition": "Working memory has limited capacity and is responsible for short-term information manipulation.",
-        "acceptedPrompts": [
-          "What is Working Memory Model?",
-          "Define Working Memory Model.",
-          "Explain Working Memory Model."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -100,37 +74,11 @@
         "keywords": [
           "too complex",
           "hard to understand",
-          "overwhelming",
-          "Cognitive Load Theory",
-          "Learning efficiency declines when intrinsic and extraneous load exceed processing capacity"
+          "overwhelming"
         ],
         "intentSignals": [
-          "why is this hard to learn",
-          "what is cognitive load theory",
-          "define cognitive load theory",
-          "explain cognitive load theory"
+          "why is this hard to learn"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "theories",
-        "term": "Cognitive Load Theory",
-        "canonicalKey": "cognitive_load_theory",
-        "definition": "Learning efficiency declines when intrinsic and extraneous load exceed processing capacity.",
-        "acceptedPrompts": [
-          "What is Cognitive Load Theory?",
-          "Define Cognitive Load Theory.",
-          "Explain Cognitive Load Theory."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -158,37 +106,11 @@
         "keywords": [
           "gut feeling",
           "instinct",
-          "reacting",
-          "Dual Process Theory",
-          "Human reasoning operates through fast intuitive (System 1) and slow analytical (System 2) processes"
+          "reacting"
         ],
         "intentSignals": [
-          "am I thinking clearly",
-          "what is dual process theory",
-          "define dual process theory",
-          "explain dual process theory"
+          "am I thinking clearly"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "theories",
-        "term": "Dual Process Theory",
-        "canonicalKey": "dual_process_theory",
-        "definition": "Human reasoning operates through fast intuitive (System 1) and slow analytical (System 2) processes.",
-        "acceptedPrompts": [
-          "What is Dual Process Theory?",
-          "Define Dual Process Theory.",
-          "Explain Dual Process Theory."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -217,37 +139,11 @@
         "keywords": [
           "how do I know",
           "am I missing something",
-          "blind spot",
-          "Metacognition",
-          "Thinking about one's own thinking improves strategy and learning efficiency"
+          "blind spot"
         ],
         "intentSignals": [
-          "evaluate my thinking",
-          "what is metacognition",
-          "define metacognition",
-          "explain metacognition"
+          "evaluate my thinking"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "theories",
-        "term": "Metacognition",
-        "canonicalKey": "metacognition",
-        "definition": "Thinking about one's own thinking improves strategy and learning efficiency.",
-        "acceptedPrompts": [
-          "What is Metacognition?",
-          "Define Metacognition.",
-          "Explain Metacognition."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -275,37 +171,11 @@
         "keywords": [
           "forget quickly",
           "can't retain",
-          "memory fading",
-          "Spaced Repetition",
-          "Information retained better when exposure is spaced over time"
+          "memory fading"
         ],
         "intentSignals": [
-          "how do I remember this",
-          "what is spaced repetition",
-          "define spaced repetition",
-          "explain spaced repetition"
+          "how do I remember this"
         ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "theories",
-        "term": "Spaced Repetition",
-        "canonicalKey": "spaced_repetition",
-        "definition": "Information retained better when exposure is spaced over time.",
-        "acceptedPrompts": [
-          "What is Spaced Repetition?",
-          "Define Spaced Repetition.",
-          "Explain Spaced Repetition."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
       }
     },
     {
@@ -333,52 +203,10 @@
         "keywords": [
           "can't focus",
           "distracted",
-          "stress",
-          "Attention Control Theory",
-          "Anxiety and stress reduce attentional control and working memory efficiency"
+          "stress"
         ],
         "intentSignals": [
-          "why can't I concentrate",
-          "what is attention control theory",
-          "define attention control theory",
-          "explain attention control theory"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "theories",
-        "term": "Attention Control Theory",
-        "canonicalKey": "attention_control_theory",
-        "definition": "Anxiety and stress reduce attentional control and working memory efficiency.",
-        "acceptedPrompts": [
-          "What is Attention Control Theory?",
-          "Define Attention Control Theory.",
-          "Explain Attention Control Theory."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      },
-      "ambiguityClarification": {
-        "version": "nyx.marion.ambiguityClarification/1.0",
-        "overlapDetected": true,
-        "policy": "brief_answer_then_domain_choice",
-        "candidates": [
-          {
-            "term": "attention",
-            "overlapDomains": [
-              "psychology",
-              "ai"
-            ],
-            "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
-            "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
-          }
+          "why can't I concentrate"
         ]
       }
     }
@@ -620,40 +448,7 @@
         "operation span",
         "n-back (with caveats)"
       ],
-      "notes": "Describe tasks conceptually; do not oversell any single task as complete measurement.",
-      "retrievalHints": {
-        "keywords": [
-          "working_memory_tasks",
-          "working memory tasks",
-          "Describe tasks conceptually; do not oversell any single task as complete measurement"
-        ],
-        "intentSignals": [
-          "what is working_memory_tasks",
-          "define working_memory_tasks",
-          "explain working_memory_tasks"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "assessmentFamilies",
-        "term": "working_memory_tasks",
-        "canonicalKey": "working_memory_tasks",
-        "definition": "Describe tasks conceptually; do not oversell any single task as complete measurement.",
-        "acceptedPrompts": [
-          "What is working_memory_tasks?",
-          "Define working_memory_tasks.",
-          "Explain working_memory_tasks."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Describe tasks conceptually; do not oversell any single task as complete measurement."
     },
     {
       "name": "executive_control_tasks",
@@ -663,40 +458,7 @@
         "task switching",
         "go/no-go"
       ],
-      "notes": "Useful for operationalization examples and doctoral methods discussions.",
-      "retrievalHints": {
-        "keywords": [
-          "executive_control_tasks",
-          "executive control tasks",
-          "Useful for operationalization examples and doctoral methods discussions"
-        ],
-        "intentSignals": [
-          "what is executive_control_tasks",
-          "define executive_control_tasks",
-          "explain executive_control_tasks"
-        ]
-      },
-      "definitionSurface": {
-        "version": "nyx.marion.definitionSurface/1.0",
-        "domain": "psychology",
-        "packId": "psy_cognitive_v2",
-        "section": "assessmentFamilies",
-        "term": "executive_control_tasks",
-        "canonicalKey": "executive_control_tasks",
-        "definition": "Useful for operationalization examples and doctoral methods discussions.",
-        "acceptedPrompts": [
-          "What is executive_control_tasks?",
-          "Define executive_control_tasks.",
-          "Explain executive_control_tasks."
-        ],
-        "answerMode": "direct_definition_then_actionable_principle",
-        "safetyBoundary": {
-          "noDiagnosis": true,
-          "noTherapyReplacement": true,
-          "educationalOnly": true,
-          "crisisEscalationIfRiskSignal": true
-        }
-      }
+      "notes": "Useful for operationalization examples and doctoral methods discussions."
     }
   ],
   "textReferenceMap": [
@@ -718,27 +480,19 @@
     }
   ],
   "runtimeMetadata": {
-    "normalizedBy": "OpenAI ChatGPT",
-    "normalizedFor": "Nyx/Marion psychology domain definition inventory sweep",
+    "normalizedBy": "OpenAI",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
     "retrievalPriority": "high",
     "canonicalPackId": "psy_cognitive_v2",
-    "sourceFilename": "psy_cognitive_v2(3).json",
+    "sourceFilename": "psy_cognitive_v2.json",
     "aliases": [
       "psy_cognitive_v1",
-      "psy_cognitive_v2",
-      "cognition",
-      "memory",
-      "attention",
-      "learning",
-      "reasoning",
-      "metacognition",
-      "cognitive load"
+      "psy_cognitive_v2"
     ],
-    "pathwayRole": "reasoning_core",
-    "definitionInventoryReady": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0",
-    "ambiguityClarificationVersion": "nyx.marion.ambiguityClarification/1.0",
-    "commercialRegressionGuard": true
+    "pathwayRole": "reasoning_core"
   },
   "crossPackLinks": [
     "psy_clinical_safety_v2",
@@ -761,288 +515,20 @@
       "Use source index for trust weighting and bibliographic routing."
     ]
   },
-  "runtimePath": "Data/Domains/psychology/psy_cognitive_v2.json",
+  "runtimePath": "Data/Domains/psychology/packs/psy_cognitive_v2.json",
   "runtimeDomainKey": "psychology",
-  "safetyBoundary": {
-    "stance": "educational_support_only",
-    "noDiagnosis": true,
-    "noTherapyOrMedicalDirective": true,
-    "crisisEscalationRequired": true,
-    "minimizeSensitivePersonalData": true
-  },
+  "safetyBoundary": "educational_support_only_no_diagnosis_or_therapy",
   "retrievalIndex": {
     "aliases": [
       "psy_cognitive_v2",
-      "psychology",
-      "cognition",
-      "memory",
-      "attention",
-      "learning",
-      "reasoning",
-      "metacognition",
-      "cognitive load",
-      "psy cognitive v2"
+      "psychology"
     ],
-    "source": "batch2_hardening_v1_1",
-    "domain": "psychology",
-    "packId": "psy_cognitive_v2",
-    "keywords": [
-      "cognition",
-      "memory",
-      "attention",
-      "learning",
-      "reasoning",
-      "metacognition",
-      "cognitive load",
-      "decision-making",
-      "problem-solving",
-      "cognitive-load",
-      "Working Memory Model",
-      "working_memory_model",
-      "Cognitive Load Theory",
-      "cognitive_load_theory",
-      "Dual Process Theory",
-      "dual_process_theory",
-      "Spaced Repetition",
-      "spaced_repetition",
-      "Attention Control Theory",
-      "attention_control_theory",
-      "working_memory_tasks",
-      "executive_control_tasks"
-    ],
-    "primaryFields": [
-      "name",
-      "id",
-      "oneLiner",
-      "definitionSurface",
-      "retrievalHints",
-      "coreMechanism",
-      "coreClaims",
-      "keyPoints",
-      "actionablePrinciples",
-      "applicationRules"
-    ],
-    "definitionQueryPriority": true,
-    "definitionSurfaceVersion": "nyx.marion.definitionSurface/1.0"
+    "source": "batch2_hardening_v1_1"
   },
   "normalizationStatus": {
     "jsonValid": true,
     "conflictMarkersRemoved": 1,
     "runtimePathConfirmed": true,
-    "batch2Hardened": true,
-    "status": "hardened",
-    "validatedJson": true,
-    "definitionInventoryPatched": true,
-    "lineAuditCompleted": true,
-    "genericFallbackBlocked": true,
-    "overlapClarificationReady": true,
-    "normalizedAt": "2026-05-13"
-  },
-  "patchVersion": "psychology_definition_inventory_lock/2026-05-13",
-  "definitionAnswerContract": {
-    "version": "nyx.marion.definitionAnswerContract/1.0",
-    "active": true,
-    "acceptedQuestionForms": [
-      "what is {term}",
-      "what are {term}",
-      "define {term}",
-      "explain {term}",
-      "meaning of {term}"
-    ],
-    "requiredAnswerShape": [
-      "direct definition",
-      "psychology context",
-      "one practical/actionable note when appropriate"
-    ],
-    "blockedFallbacks": [
-      "I need one more concrete detail to route this cleanly.",
-      "I’ll keep this broad and practical instead of forcing the wrong specialist angle too early.",
-      "The specific technical move is to name the active component."
-    ],
-    "domainLock": "psychology",
-    "allowAmbiguityClarification": true,
-    "ambiguityShape": [
-      "short neutral definition",
-      "possible domain interpretations",
-      "one targeted clarification question"
-    ],
-    "safetyBoundary": {
-      "educationalOnly": true,
-      "noDiagnosis": true,
-      "noTherapyReplacement": true,
-      "crisisEscalationRequired": true
-    }
-  },
-  "runtimeDefinitionRouting": {
-    "version": "nyx.marion.psychologyDefinitionRouting/1.0",
-    "definitionQueriesMustRouteBeforeTechnicalDebug": true,
-    "technicalOverrideRequiresExplicitBackendTerms": [
-      "autopsy",
-      "audit",
-      "line-by-line",
-      "patch",
-      "file",
-      "script",
-      "backend",
-      "ChatEngine",
-      "MarionBridge",
-      "StateSpine",
-      "ComposeMarionResponse"
-    ],
-    "domain": "psychology",
-    "packId": "psy_cognitive_v2",
-    "sourceFilename": "psy_cognitive_v2(3).json",
-    "knownOverlapPolicy": "answer_then_clarify_not_generic_fallback",
-    "crossDomainOverlapMap": {
-      "cognitive intelligence": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Cognitive intelligence generally means the capacity to understand information, reason through problems, learn from patterns, adapt to context, and make useful decisions.",
-        "clarificationQuestion": "Do you mean human cognition in psychology, or AI/system intelligence in machine reasoning?"
-      },
-      "reasoning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "law"
-        ],
-        "neutralDefinition": "Reasoning is the process of using information, evidence, and rules to reach a conclusion or choose an action.",
-        "clarificationQuestion": "Do you mean human cognitive reasoning, AI reasoning behavior, or legal reasoning?"
-      },
-      "bias": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "research_methods"
-        ],
-        "neutralDefinition": "Bias is a systematic tilt in attention, judgment, measurement, or interpretation that can distort conclusions.",
-        "clarificationQuestion": "Do you mean cognitive bias in people, model/data bias in AI, or research/measurement bias?"
-      },
-      "validation": {
-        "overlapDomains": [
-          "psychology",
-          "research_methods",
-          "ai",
-          "cyber"
-        ],
-        "neutralDefinition": "Validation means checking whether something is accurate, reliable, appropriate, or fit for its intended purpose.",
-        "clarificationQuestion": "Do you mean research-measurement validity, AI output validation, cybersecurity input validation, or emotional validation?"
-      },
-      "resilience": {
-        "overlapDomains": [
-          "psychology",
-          "business",
-          "finance"
-        ],
-        "neutralDefinition": "Resilience is the ability to recover, adapt, and keep functioning under stress, setback, or disruption.",
-        "clarificationQuestion": "Do you mean psychological resilience, business resilience, or financial resilience?"
-      },
-      "identity": {
-        "overlapDomains": [
-          "psychology",
-          "social",
-          "development",
-          "identity_query"
-        ],
-        "neutralDefinition": "Identity is the pattern of self-understanding, roles, values, memories, and group memberships that helps a person answer who they are.",
-        "clarificationQuestion": "Do you mean personal identity, social identity, developmental identity, or Nyx/Marion system identity?"
-      },
-      "attention": {
-        "overlapDomains": [
-          "psychology",
-          "ai"
-        ],
-        "neutralDefinition": "Attention is selective focus: the process of prioritizing some information while filtering or down-weighting other information.",
-        "clarificationQuestion": "Do you mean human attention in cognition, or attention mechanisms in AI models?"
-      },
-      "learning": {
-        "overlapDomains": [
-          "psychology",
-          "ai",
-          "education"
-        ],
-        "neutralDefinition": "Learning is a change in knowledge, behavior, skill, or predictive capacity through experience, feedback, or practice.",
-        "clarificationQuestion": "Do you mean human learning, machine learning, or instructional learning design?"
-      },
-      "confidence": {
-        "overlapDomains": [
-          "psychology",
-          "statistics",
-          "ai",
-          "finance"
-        ],
-        "neutralDefinition": "Confidence can mean subjective certainty, statistical precision, model certainty, or decision conviction depending on the domain.",
-        "clarificationQuestion": "Do you mean personal confidence, statistical confidence, AI confidence, or financial confidence/risk?"
-      },
-      "compliance": {
-        "overlapDomains": [
-          "psychology",
-          "law",
-          "cyber",
-          "business"
-        ],
-        "neutralDefinition": "Compliance means conforming to a request, rule, authority, standard, or required behavior.",
-        "clarificationQuestion": "Do you mean social compliance in psychology, legal/regulatory compliance, cybersecurity compliance, or business process compliance?"
-      }
-    }
-  },
-  "manifestPackKey": "psy_cognitive_v2",
-  "definitionInventory": {
-    "version": "nyx.marion.definitionInventory/1.0",
-    "domain": "psychology",
-    "packId": "psy_cognitive_v2",
-    "termCount": 8,
-    "items": [
-      {
-        "term": "Working Memory Model",
-        "canonicalKey": "working_memory_model",
-        "definition": "Working memory has limited capacity and is responsible for short-term information manipulation.",
-        "section": "theories"
-      },
-      {
-        "term": "Cognitive Load Theory",
-        "canonicalKey": "cognitive_load_theory",
-        "definition": "Learning efficiency declines when intrinsic and extraneous load exceed processing capacity.",
-        "section": "theories"
-      },
-      {
-        "term": "Dual Process Theory",
-        "canonicalKey": "dual_process_theory",
-        "definition": "Human reasoning operates through fast intuitive (System 1) and slow analytical (System 2) processes.",
-        "section": "theories"
-      },
-      {
-        "term": "Metacognition",
-        "canonicalKey": "metacognition",
-        "definition": "Thinking about one's own thinking improves strategy and learning efficiency.",
-        "section": "theories"
-      },
-      {
-        "term": "Spaced Repetition",
-        "canonicalKey": "spaced_repetition",
-        "definition": "Information retained better when exposure is spaced over time.",
-        "section": "theories"
-      },
-      {
-        "term": "Attention Control Theory",
-        "canonicalKey": "attention_control_theory",
-        "definition": "Anxiety and stress reduce attentional control and working memory efficiency.",
-        "section": "theories"
-      },
-      {
-        "term": "working_memory_tasks",
-        "canonicalKey": "working_memory_tasks",
-        "definition": "Describe tasks conceptually; do not oversell any single task as complete measurement.",
-        "section": "assessmentFamilies"
-      },
-      {
-        "term": "executive_control_tasks",
-        "canonicalKey": "executive_control_tasks",
-        "definition": "Useful for operationalization examples and doctoral methods discussions.",
-        "section": "assessmentFamilies"
-      }
-    ]
+    "batch2Hardened": true
   }
 }
