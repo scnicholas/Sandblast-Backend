@@ -215,6 +215,84 @@ function nowMs() {
   return Date.now();
 }
 
+
+const TELEMETRY_VISIBILITY_VERSION = "nyx.marion.telemetryVisibility/1.0";
+const FAILURE_SIGNATURE_AUDIT_VERSION = "nyx.marion.failureSignatureAudit/1.0";
+const KNOWN_FAILURE_SIGNATURES = Object.freeze([
+  "none",
+  "ROUTE_DOMAIN_MISMATCH",
+  "FINAL_ENVELOPE_MISSING",
+  "WEAK_FINAL_REJECTED",
+  "LOOP_GUARD_SUPPRESSED",
+  "PACKET_HIJACK_ATTEMPT",
+  "SCHEDULE_PRE_ROUTER_INTERCEPT",
+  "TECHNICAL_TARGET_STALE_CARRY",
+  "DOMAIN_CONFIDENCE_LOW",
+  "VOICE_TEXT_PARITY_DRIFT",
+  "COMPOSER_EMPTY_REPLY",
+  "BRIDGE_HANDOFF_INVALID",
+  "CHATENGINE_COORDINATOR_FAULT",
+  "DEBUG_LEAK_BLOCKED"
+]);
+function telemetryAuditText(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function telemetryAuditObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function classifyFailureSignature(fields={}){
+  const f=telemetryAuditObj(fields);
+  const text=telemetryAuditText([f.error,f.reply,f.message,f.reason,f.stage,f.source,Array.isArray(f.reasons)?f.reasons.join(" "):""].join(" ")).toLowerCase();
+  const loop=telemetryAuditObj(f.loopGuardResult||f.loopGuard);
+  if(loop.forceRecovery===true||loop.loopDetected===true||loop.allowReply===false)return"LOOP_GUARD_SUPPRESSED";
+  if(/\breply held\b/.test(text))return"LOOP_GUARD_SUPPRESSED";
+  if(/\bschedule depends on where you are|city\/timezone|which city\b/.test(text))return"SCHEDULE_PRE_ROUTER_INTERCEPT";
+  if(/\bfinal envelope missing|final_envelope_missing|non-final|nonfinal|marion did not return\b/.test(text))return"FINAL_ENVELOPE_MISSING";
+  if(/\bweak final|weak_final|rejected final|not trusted|trusted final.*false\b/.test(text))return"WEAK_FINAL_REJECTED";
+  if(/\bcomposer.*empty|empty reply|compose_reply_missing|reply missing\b/.test(text))return"COMPOSER_EMPTY_REPLY";
+  if(/\bbridge.*invalid|handoff invalid|bridge handoff|contract_invalid|packet_invalid\b/.test(text))return"BRIDGE_HANDOFF_INVALID";
+  if(/\bchat_engine_coordinator_fault|coordinator fault|runtimeTelemetry is not defined\b/.test(text))return"CHATENGINE_COORDINATOR_FAULT";
+  if(/\bdomain confidence low|low confidence|route ambiguous|ambiguous route\b/.test(text)||f.routeAmbiguous===true)return"DOMAIN_CONFIDENCE_LOW";
+  if(/\bvoice.*parity.*drift|mic.*text.*drift|inputsource.*mismatch\b/.test(text)||f.voiceTextParityDrift===true)return"VOICE_TEXT_PARITY_DRIFT";
+  if(/\bstale.*target|target.*stale|wrong target\b/.test(text))return"TECHNICAL_TARGET_STALE_CARRY";
+  if(/\bpacket hijack|pre-router intercept|packet.*intercept\b/.test(text))return"PACKET_HIJACK_ATTEMPT";
+  if(/\broutekind=|finalenvelope|sessionpatch|diagnostic packet|replyauthority=|speechhints=|presenceprofile=|nyxstatehint=\b/i.test(telemetryAuditText(f.reply||"")))return"DEBUG_LEAK_BLOCKED";
+  if(f.canEmit===false&&f.finalEnvelopeTrusted===false)return"FINAL_ENVELOPE_MISSING";
+  return"none";
+}
+function buildFailureSignatureAudit(fields={}){
+  const f=telemetryAuditObj(fields);
+  const signature=classifyFailureSignature(f);
+  const primary=telemetryAuditText(f.primaryDomain||f.domain||f.knowledgeDomain||"");
+  const secondary=Array.isArray(f.secondaryDomains)?f.secondaryDomains.map(telemetryAuditText).filter(Boolean).slice(0,4):[];
+  return {
+    version: FAILURE_SIGNATURE_AUDIT_VERSION,
+    telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION,
+    failureSignature: signature,
+    ok: signature==="none",
+    severity: signature==="none"?"none":(signature==="DEBUG_LEAK_BLOCKED"?"high":"medium"),
+    userVisible: false,
+    debugLeakBlocked: true,
+    visibleReplyMustRemainClean: true,
+    source: telemetryAuditText(f.source||""),
+    stage: telemetryAuditText(f.stage||""),
+    intent: telemetryAuditText(f.intent||""),
+    domain: primary,
+    knowledgeDomain: telemetryAuditText(f.knowledgeDomain||""),
+    primaryDomain: primary,
+    secondaryDomains: secondary,
+    answerMode: telemetryAuditText(f.answerMode||""),
+    canEmit: f.canEmit!==false,
+    finalEnvelopeTrusted: f.finalEnvelopeTrusted!==false && f.trustedFinalEnvelope!==false
+  };
+}
+function isTelemetryLeakText(value=""){
+  return /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final)\b/i.test(telemetryAuditText(value));
+}
+function stripTelemetryLeakFromReply(value=""){
+  const text=telemetryAuditText(value);
+  if(!text)return"";
+  if(isTelemetryLeakText(text))return text.replace(/\b(routeKind|speechHints|presenceProfile|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority|nyxStateHint)\s*=\s*[^.;,\n]+[.;,]?\s*/gi,"").replace(/\bdiagnostic packet\b/ig,"").replace(/\bfinal envelope missing\b/ig,"").replace(/\bnon-final\b/ig,"").replace(/\s+/g," ").trim();
+  return text;
+}
+
+
 function extractRuntimeTelemetryFromTurn(params = {}, inbound = {}) {
   const p=isPlainObject(params)?params:{}, src=isPlainObject(inbound)?inbound:{}, marion=extractMarionObject(p), memoryPatch=extractComposerMemoryPatch(p);
   const candidates=[p.runtimeTelemetry,src.runtimeTelemetry,safeObj(src.meta).runtimeTelemetry,safeObj(src.diagnostics).runtimeTelemetry,safeObj(src.finalEnvelope).runtimeTelemetry,safeObj(marion.finalEnvelope).runtimeTelemetry,marion.runtimeTelemetry,memoryPatch.runtimeTelemetry,safeObj(memoryPatch.stateBridge).runtimeTelemetry];
@@ -226,6 +304,9 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
   return {
     ...inherited,
     version: FINAL_RUNTIME_TELEMETRY_VERSION,
+    telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION,
+    failureSignature: classifyFailureSignature({source:"stateSpine.finalizeTurn",reply,canEmit:trustedFinalCompletion,stage:normalizeStateStage(stage || (trustedFinalCompletion ? "final" : "open"), "open"),intent,domain,finalEnvelopeTrusted:trustedFinalCompletion}),
+    failureSignatureAudit: buildFailureSignatureAudit({source:"stateSpine.finalizeTurn",reply,canEmit:trustedFinalCompletion,stage:normalizeStateStage(stage || (trustedFinalCompletion ? "final" : "open"), "open"),intent,domain,finalEnvelopeTrusted:trustedFinalCompletion}),
     source: "stateSpine.finalizeTurn",
     stage: normalizeStateStage(stage || (trustedFinalCompletion ? "final" : "open"), "open"),
     finalAuthority: trustedFinalCompletion ? "marionFinalEnvelope" : "pending",
@@ -2277,6 +2358,12 @@ module.exports = {
   normalizeStateForPipelineCohesion,
   CONVERSATIONAL_PACK_COHESION_VERSION,
   FINAL_RUNTIME_TELEMETRY_VERSION,
+  TELEMETRY_VISIBILITY_VERSION,
+  FAILURE_SIGNATURE_AUDIT_VERSION,
+  classifyFailureSignature,
+  buildFailureSignatureAudit,
+  isTelemetryLeakText,
+  stripTelemetryLeakFromReply,
   detectConversationalPackTrack,
   deriveConversationalPackRuntimeSelector,
   extractRuntimeTelemetryFromTurn,
