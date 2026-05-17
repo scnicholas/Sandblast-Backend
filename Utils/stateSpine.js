@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.14.3 TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.14.4 SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -325,6 +325,20 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
   };
 }
 
+
+
+function normalizeKnowledgeDomainCarry(value=""){
+  const raw=safeStr(value).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+  const map={psychology:"psychology",psych:"psychology",emotional:"psychology",emotion:"psychology",english:"english",language:"english",grammar:"english",writing:"english",ai:"ai",artificial_intelligence:"ai",cyber:"cyber",cybersecurity:"cyber",security:"cyber",law:"law",legal:"law",finance:"finance",financial:"finance",economics:"finance"};
+  return map[raw]||"";
+}
+function extractActiveKnowledgeDomainCarry(prev={},memoryPatch={},params={},inbound={}){
+  const p=isPlainObject(params)?params:{},src=isPlainObject(inbound)?inbound:{},mp=isPlainObject(memoryPatch)?memoryPatch:{},pr=isPlainObject(prev)?prev:{};
+  const sb=safeObj(mp.stateBridge),psb=safeObj(pr.stateBridge),mc=safeObj(pr.marionCohesion),cv=safeObj(mp.conversationVector||pr.conversationVector);
+  const candidates=[mp.activeKnowledgeDomain,mp.lastActivatedKnowledgeDomain,mp.lastKnowledgeDomain,sb.activeKnowledgeDomain,sb.lastActivatedKnowledgeDomain,p.activeKnowledgeDomain,p.knowledgeDomain,src.activeKnowledgeDomain,src.knowledgeDomain,pr.activeKnowledgeDomain,pr.lastActivatedKnowledgeDomain,pr.lastKnowledgeDomain,psb.activeKnowledgeDomain,psb.lastActivatedKnowledgeDomain,mc.activeKnowledgeDomain,mc.lastKnowledgeDomain,cv.activeKnowledgeDomain,cv.knowledgeDomain];
+  for(const c of candidates){const k=normalizeKnowledgeDomainCarry(c);if(k)return k;}
+  return "";
+}
 
 function canonicalIntent(value, fallback) {
   const raw = safeStr(value || fallback || "ADVANCE").trim();
@@ -2090,7 +2104,7 @@ function finalizeTurn(params = {}) {
     depthLevel: Math.max(1, Math.max(clampInt(memoryPatch.turnDepth, 0, 0, 999999), repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
     threadContinuation: (loopBreakTrustedFinal || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? true : !!((sameLane || sameIntent || sameUser) && !sameAssistant || support.lockActive || repetition.noProgressCount > 0),
     unresolvedSignals: boundedArray([safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(greeting.intent || ""), safeStr(greeting.tone || ""), safeStr(decision.rationale || ""), safeStr(creativeCognitive.lastIntent || "")], 6, 160),
-    lastTopics: boundedArray([safeStr(memoryPatch.lastTopic || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || ""), safeStr(creativeCognitive.lastMode || "")], 6, 160),
+    lastTopics: boundedArray([safeStr(memoryPatch.lastTopic || ""), safeStr(activeKnowledgeDomainCarry || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || ""), safeStr(creativeCognitive.lastMode || "")], 6, 160),
     responseMode: safeStr(emo.supportMode || (greeting.matched ? "greeting_intent" : "") || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
@@ -2109,6 +2123,7 @@ function finalizeTurn(params = {}) {
   const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
   const domainConfidenceCarry = extractDomainConfidenceCarry(params, inbound, memoryPatch);
   const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
+  const activeKnowledgeDomainCarry = extractActiveKnowledgeDomainCarry(prev, memoryPatch, params, inbound);
 
   const nextState = {
     ...prev,
@@ -2117,7 +2132,9 @@ function finalizeTurn(params = {}) {
     domain: safeStr(composerDomain || lane) || lane,
     lastUserText: boundedOneLine(inboundText || memoryPatch.lastUserText || prev.lastUserText, MAX_STATE_TEXT),
     lastAssistantReply: trustedFinalCompletion ? boundedOneLine(speak, MAX_STATE_TEXT) : prev.lastAssistantReply,
-    lastKnowledgeDomain: composerKnowledgeDomain || prev.lastKnowledgeDomain || "",
+    lastKnowledgeDomain: composerKnowledgeDomain || activeKnowledgeDomainCarry || prev.lastKnowledgeDomain || "",
+    activeKnowledgeDomain: activeKnowledgeDomainCarry || prev.activeKnowledgeDomain || "",
+    lastActivatedKnowledgeDomain: activeKnowledgeDomainCarry || prev.lastActivatedKnowledgeDomain || prev.lastKnowledgeDomain || "",
     lastTopic: boundedOneLine(nextTopic, 320),
     conversationSummary: boundedOneLine(nextConversationSummary, MAX_STATE_SUMMARY),
     carryForwardSummary: boundedOneLine(nextCarryForwardSummary, MAX_STATE_SUMMARY),
@@ -2211,6 +2228,8 @@ function finalizeTurn(params = {}) {
       runtimeTelemetry,
       domainConfidence: domainConfidenceCarry,
       domainConfidenceFailClosed: !!domainConfidenceCarry.failClosed,
+      activeKnowledgeDomain: activeKnowledgeDomainCarry || "",
+      lastKnowledgeDomain: composerKnowledgeDomain || activeKnowledgeDomainCarry || prev.lastKnowledgeDomain || "",
       progressionShapingGuard,
       progressionShapingGuardActive: !!progressionShapingGuard.active,
       marionFinalObserved: marionFinalSignal,
