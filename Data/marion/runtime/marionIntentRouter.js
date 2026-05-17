@@ -690,6 +690,20 @@ function isKnowledgeDomainActivationRequest(text) {
   return /\b(use|route|activate|load|switch to|run|engage)\s+(the\s+)?(english language|english|psychology|psych|emotion|emotional|ai|artificial intelligence|cybersecurity|cyber|law|legal|finance|financial)\s+(domain|lane|knowledge|pack|setup)\b/i.test(lower(text));
 }
 
+
+function bareKnowledgeDomainActivationDomain(text="") {
+  const t = lower(text).replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  const map = Object.freeze({
+    "psychology":"psychology","psych":"psychology","emotional":"psychology","emotion":"psychology",
+    "english":"english","language":"english","grammar":"english","writing":"english",
+    "ai":"ai","artificial intelligence":"ai",
+    "cyber":"cyber","cybersecurity":"cyber","security":"cyber",
+    "law":"law","legal":"law",
+    "finance":"finance","financial":"finance","economics":"finance"
+  });
+  return map[t] || "";
+}
+
 function domainTestPhrase(text) {
   const t = lower(text);
   const pairs = [
@@ -764,6 +778,7 @@ function detectKnowledgeDomain(text) {
   const t = lower(text);
   if (!t) return { knowledgeDomain: "", explicit: false, reason: "none" };
   if (isContinuationCompressionInstruction(t)) return { knowledgeDomain: "", explicit: false, reason: "continuation_compression_precedence" };
+  const bareDomain = bareKnowledgeDomainActivationDomain(text);if(bareDomain)return { knowledgeDomain: bareDomain, explicit: true, reason: "bare_domain_activation" };
   const crossDomainProfile = crossDomainSecondaryLaneProfile(t);
   if (crossDomainProfile && crossDomainProfile.primary) return { knowledgeDomain: crossDomainProfile.primary, explicit: true, reason: crossDomainProfile.reason, secondaryDomains: crossDomainProfile.secondary, answerMode: crossDomainProfile.answerMode, crossDomainProfile };
   const definitionDomain = definitionKnowledgeDomainFromText(t);
