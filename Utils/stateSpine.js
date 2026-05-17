@@ -888,6 +888,7 @@ function hasTrustedMarionFinalEnvelope(params = {}) {
 function isLoopPhrase(text) {
   const s = oneLine(text).toLowerCase();
   if (!s) return false;
+  if (/give me the specific target or outcome/i.test(s) || /specific target.*answer directly/i.test(s)) return true;
   return /^(i['’]?m here with you|i am here with you|i['’]?m right here with you|i understand|i hear you|i['’]?ve got you|i got you|we can take this one step at a time)[.!?]*$/.test(s) ||
     /i caught the repeated response/i.test(s) ||
     /not going to recycle/i.test(s) ||
