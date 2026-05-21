@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.8 QUESTION-SHAPE-NORMALIZATION-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.4.9 QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
 
@@ -42,6 +42,17 @@ function tryRequireOptional(paths) {
 }
 
 const domainRegistryMod = tryRequireOptional(DOMAIN_REGISTRY_REQUIRE_CANDIDATES);
+
+const QUESTION_SHAPE_NORMALIZER_REQUIRE_CANDIDATES = Object.freeze([
+  "./QuestionShapeNormalizer.js",
+  "./QuestionShapeNormalizer",
+  "./Data/marion/runtime/QuestionShapeNormalizer.js",
+  "./Data/marion/runtime/QuestionShapeNormalizer",
+  "../runtime/QuestionShapeNormalizer.js",
+  "../runtime/QuestionShapeNormalizer"
+]);
+
+const questionShapeNormalizerMod = tryRequireOptional(QUESTION_SHAPE_NORMALIZER_REQUIRE_CANDIDATES);
 
 const VALID_INTENTS = Object.freeze([
   "simple_chat",
@@ -301,7 +312,7 @@ function normalizeRouterVoiceTextParity(text="") {
     .trim();
 }
 
-function normalizeQuestionShape(text = "") {
+function fallbackNormalizeQuestionShape(text = "") {
   const raw = normalizeRouterVoiceTextParity(compactWhitespace(text));
   const cleaned = raw
     .replace(/[\u2018\u2019]/g, "'")
@@ -316,7 +327,8 @@ function normalizeQuestionShape(text = "") {
     normalizedUserIntent: cleaned || raw,
     questionShape: "direct_or_unknown",
     changed: false,
-    reason
+    reason,
+    source: "marionIntentRouter.fallbackQuestionShapeNormalizer"
   });
 
   if (!cleaned) return passthrough("empty_input");
@@ -324,7 +336,7 @@ function normalizeQuestionShape(text = "") {
     detectBackendTechnicalContext(cleaned) ||
     detectDirectiveIntent(cleaned) ||
     isInfrastructureContinuityPrompt(cleaned) ||
-    /\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate|node --check)\b/i.test(lowerCleaned)
+    /\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate|node --check|backend|frontend|widget|script|code|html|css|javascript|js|api\/chat|runtime|router|composer|state spine|statespine|marion|nyx|nix|nixon|marionbridge|chatengine|composemarionresponse|intent router|domain registry|question shape normalizer|question-shape normalizer)\b/i.test(lowerCleaned)
   ) {
     return passthrough("execution_or_technical_guard");
   }
@@ -341,11 +353,13 @@ function normalizeQuestionShape(text = "") {
 
   for (const { rx, reason } of patterns) {
     const match = cleaned.match(rx);
-    const candidate = match && match[1] ? safeStr(match[1]).replace(/^(a|an|the)\s+/i, "").trim() : "";
+    const candidate = match && match[1]
+      ? safeStr(match[1]).replace(/^(a|an|the)\s+/i, "").replace(/[?!.,]+$/g, "").trim()
+      : "";
     if (
       candidate &&
       candidate.length >= 2 &&
-      !/\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate)\b/i.test(candidate)
+      !/\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate|backend|frontend|widget|script|code|api\/chat|runtime|router|composer|state spine|statespine|marion|nyx|nix|nixon)\b/i.test(candidate)
     ) {
       return {
         version: QUESTION_SHAPE_NORMALIZATION_VERSION,
@@ -354,7 +368,8 @@ function normalizeQuestionShape(text = "") {
         normalizedUserIntent: candidate,
         questionShape: "topic_request",
         changed: candidate !== cleaned,
-        reason
+        reason,
+        source: "marionIntentRouter.fallbackQuestionShapeNormalizer"
       };
     }
   }
@@ -362,7 +377,32 @@ function normalizeQuestionShape(text = "") {
   return passthrough("no_topic_prefix_match");
 }
 
-
+function normalizeQuestionShape(text = "") {
+  if (questionShapeNormalizerMod && typeof questionShapeNormalizerMod.normalizeQuestionShape === "function") {
+    try {
+      const normalized = questionShapeNormalizerMod.normalizeQuestionShape(text, {
+        isExecutionOrTechnicalRequest(value) {
+          return detectBackendTechnicalContext(value) ||
+            detectDirectiveIntent(value) ||
+            isInfrastructureContinuityPrompt(value);
+        }
+      });
+      if (normalized && typeof normalized === "object") {
+        return {
+          version: safeStr(normalized.version || QUESTION_SHAPE_NORMALIZATION_VERSION),
+          rawText: safeStr(normalized.rawText || normalizeRouterVoiceTextParity(compactWhitespace(text))),
+          normalizedText: safeStr(normalized.normalizedText || normalized.normalizedUserIntent || text),
+          normalizedUserIntent: safeStr(normalized.normalizedUserIntent || normalized.normalizedText || text),
+          questionShape: safeStr(normalized.questionShape || "direct_or_unknown"),
+          changed: !!normalized.changed,
+          reason: safeStr(normalized.reason || "external_question_shape_normalizer"),
+          source: safeStr(normalized.source || "QuestionShapeNormalizer")
+        };
+      }
+    } catch (_) {}
+  }
+  return fallbackNormalizeQuestionShape(text);
+}
 
 function normalizeInputSource(value) {
   const raw = lower(value);
@@ -1717,6 +1757,7 @@ module.exports = {
   isNewsMediaPositioningRequest,
   normalizeInputSource,
   normalizeQuestionShape,
+  fallbackNormalizeQuestionShape,
   canonicalTechnicalTargetFromText,
   isTechnicalFollowUpIntent,
   isInfrastructureContinuityPrompt,
@@ -1754,6 +1795,7 @@ module.exports = {
     normalizeRouterVoiceTextParity,
     normalizeInputSource,
     normalizeQuestionShape,
+    fallbackNormalizeQuestionShape,
     canonicalTechnicalTargetFromText,
     isTechnicalFollowUpIntent,
     isInfrastructureContinuityPrompt,
