@@ -96,7 +96,8 @@ function buildPassthrough(raw, cleaned, reason = "passthrough") {
     normalizedUserIntent: normalized,
     questionShape: "direct_or_unknown",
     changed: false,
-    reason
+    reason,
+    source: "QuestionShapeNormalizer"
   };
 }
 
@@ -138,7 +139,8 @@ function normalizeQuestionShape(text = "", options = {}) {
       normalizedUserIntent: candidate,
       questionShape: "topic_request",
       changed: candidate !== cleaned,
-      reason
+      reason,
+      source: "QuestionShapeNormalizer"
     };
   }
 
