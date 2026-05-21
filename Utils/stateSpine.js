@@ -14,9 +14,10 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.14.4 SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.14.5 QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
+const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -181,6 +182,64 @@ function clampInt(v, def, min, max) {
 function oneLine(s) {
   return safeStr(s).replace(/\s+/g, " ").trim();
 }
+function normalizeQuestionShapeCarry(value = {}) {
+  const src = isPlainObject(value) ? value : {};
+  const raw = oneLine(src.rawText || src.rawUserText || src.userText || "");
+  const normalized = oneLine(src.normalizedText || src.normalizedUserIntent || raw);
+  const shape = oneLine(src.questionShape || (src.changed ? "topic_request" : "direct_or_unknown")) || "direct_or_unknown";
+  return {
+    version: oneLine(src.version || QUESTION_SHAPE_NORMALIZATION_VERSION),
+    rawText: raw,
+    normalizedText: normalized,
+    normalizedUserIntent: normalized,
+    questionShape: shape,
+    changed: !!src.changed,
+    reason: oneLine(src.reason || "")
+  };
+}
+
+function extractQuestionShapeCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const meta = isPlainObject(src.meta) ? src.meta : {};
+  const payload = isPlainObject(src.payload) ? src.payload : {};
+  const candidates = [
+    p.questionShape,
+    mp.questionShape,
+    isPlainObject(mp.stateBridge) ? mp.stateBridge.questionShape : null,
+    src.questionShape,
+    meta.questionShape,
+    payload.questionShape,
+    isPlainObject(p.routing) ? p.routing.questionShape : null,
+    isPlainObject(src.routing) ? src.routing.questionShape : null,
+    isPlainObject(p.domainConfidence) ? p.domainConfidence.questionShape : null
+  ];
+  for (const item of candidates) {
+    if (isPlainObject(item) && oneLine(item.normalizedText || item.normalizedUserIntent || item.rawText)) {
+      return normalizeQuestionShapeCarry(item);
+    }
+  }
+  const raw = firstNonEmpty(
+    p.rawUserText,
+    mp.rawUserText,
+    src.rawUserText,
+    meta.rawUserText,
+    payload.rawUserText,
+    extractInboundText(src)
+  );
+  const normalized = firstNonEmpty(
+    p.normalizedUserIntent,
+    mp.normalizedUserIntent,
+    isPlainObject(mp.stateBridge) ? mp.stateBridge.normalizedUserIntent : "",
+    src.normalizedUserIntent,
+    meta.normalizedUserIntent,
+    payload.normalizedUserIntent,
+    raw
+  );
+  return normalizeQuestionShapeCarry({ rawText: raw, normalizedText: normalized, normalizedUserIntent: normalized, questionShape: normalized && raw && normalized !== raw ? "topic_request" : "direct_or_unknown" });
+}
+
 
 function boundedOneLine(value, max = MAX_STATE_TEXT) {
   const text = oneLine(value);
@@ -1055,6 +1114,9 @@ function createState(seed = {}) {
     phase: inferPhaseFromStage(stage, false),
     domain: lane,
     lastUserText: "",
+    rawUserText: "",
+    normalizedUserIntent: "",
+    questionShape: normalizeQuestionShapeCarry({}),
     lastAssistantReply: "",
     lastKnowledgeDomain: "",
     lastTopic: "",
@@ -1194,6 +1256,9 @@ function coerceState(input) {
     phase: safeStr(src.phase || inferPhaseFromStage(src.stage || base.stage, !!src.progressionLock)) || "active",
     domain: safeStr(src.domain || src.lane || base.domain) || "general",
     lastUserText: boundedOneLine(src.lastUserText || base.lastUserText || "", MAX_STATE_TEXT),
+    rawUserText: boundedOneLine(src.rawUserText || base.rawUserText || "", MAX_STATE_TEXT),
+    normalizedUserIntent: boundedOneLine(src.normalizedUserIntent || base.normalizedUserIntent || "", MAX_STATE_TEXT),
+    questionShape: normalizeQuestionShapeCarry(src.questionShape || base.questionShape || {}),
     lastAssistantReply: boundedOneLine(src.lastAssistantReply || base.lastAssistantReply || "", MAX_STATE_TEXT),
     lastKnowledgeDomain: safeStr(src.lastKnowledgeDomain || base.lastKnowledgeDomain || ""),
     lastTopic: boundedOneLine(src.lastTopic || base.lastTopic || "", 320),
@@ -1963,7 +2028,11 @@ function finalizeTurn(params = {}) {
   const speak = oneLine(safeStr(decision.speak || marionReply || params.assistantSummary || params.assistantText || params.reply || ""));
   const conversationalPack = deriveConversationalPackRuntimeSelector({ prevState: prev, inbound, decision, params, speak });
   const inboundText = extractInboundText(inbound);
-  const userHash = firstNonEmpty(memoryPatch.userSignature, memoryPatch.lastUserSignature, hashUserTextForComposer(inboundText));
+  const questionShape = extractQuestionShapeCarry(params, inbound, memoryPatch);
+  const normalizedUserIntent = firstNonEmpty(questionShape.normalizedUserIntent, questionShape.normalizedText, inboundText);
+  const rawUserText = firstNonEmpty(questionShape.rawText, inboundText);
+  const stateUserText = normalizedUserIntent || inboundText;
+  const userHash = firstNonEmpty(memoryPatch.userSignature, memoryPatch.lastUserSignature, hashUserTextForComposer(stateUserText));
   const assistantHash = speak ? hashText(speak.toLowerCase()) : "";
   const sameLane = lane === prev.lane;
   const sameStage = stage === prev.stage;
@@ -2100,11 +2169,13 @@ function finalizeTurn(params = {}) {
     listenerMode: safeStr(engineSignals.listenerMode || prev.emotionalEngine?.listenerMode || "attuned") || "attuned"
   };
 
+  const activeKnowledgeDomainCarry = extractActiveKnowledgeDomainCarry(prev, memoryPatch, params, inbound);
+
   const continuityThread = {
     depthLevel: Math.max(1, Math.max(clampInt(memoryPatch.turnDepth, 0, 0, 999999), repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
     threadContinuation: (loopBreakTrustedFinal || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? true : !!((sameLane || sameIntent || sameUser) && !sameAssistant || support.lockActive || repetition.noProgressCount > 0),
     unresolvedSignals: boundedArray([safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(greeting.intent || ""), safeStr(greeting.tone || ""), safeStr(decision.rationale || ""), safeStr(creativeCognitive.lastIntent || "")], 6, 160),
-    lastTopics: boundedArray([safeStr(memoryPatch.lastTopic || ""), safeStr(activeKnowledgeDomainCarry || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || ""), safeStr(creativeCognitive.lastMode || "")], 6, 160),
+    lastTopics: boundedArray([safeStr(memoryPatch.lastTopic || ""), safeStr(normalizedUserIntent || ""), safeStr(activeKnowledgeDomainCarry || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || ""), safeStr(creativeCognitive.lastMode || "")], 6, 160),
     responseMode: safeStr(emo.supportMode || (greeting.matched ? "greeting_intent" : "") || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
@@ -2114,7 +2185,7 @@ function finalizeTurn(params = {}) {
   };
 
   const nextTurnDepth = trustedFinalCompletion ? Math.max(1, clampInt(memoryPatch.turnDepth, 0, 0, 999999) || (deepeningInbound ? clampInt(prev.turnDepth, 0, 0, 999999) + 1 : 1)) : clampInt(prev.turnDepth, 0, 0, 999999);
-  const nextTopic = firstNonEmpty(memoryPatch.lastTopic, deriveStateTopic(inbound, memoryPatch, lane), prev.lastTopic);
+  const nextTopic = firstNonEmpty(memoryPatch.lastTopic, normalizedUserIntent, deriveStateTopic(inbound, memoryPatch, lane), prev.lastTopic);
   const nextCarryForwardSummary = trustedFinalCompletion ? buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain: composerDomain, lane }) : prev.carryForwardSummary;
   const nextConversationSummary = trustedFinalCompletion ? compactStateSummary(nextCarryForwardSummary, 760) : prev.conversationSummary;
   const inputSource = canonicalTurnInputSource(inbound, { ...params, inputSource: memoryPatch.inputSource });
@@ -2123,14 +2194,15 @@ function finalizeTurn(params = {}) {
   const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
   const domainConfidenceCarry = extractDomainConfidenceCarry(params, inbound, memoryPatch);
   const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
-  const activeKnowledgeDomainCarry = extractActiveKnowledgeDomainCarry(prev, memoryPatch, params, inbound);
-
   const nextState = {
     ...prev,
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
     lane,
     domain: safeStr(composerDomain || lane) || lane,
-    lastUserText: boundedOneLine(inboundText || memoryPatch.lastUserText || prev.lastUserText, MAX_STATE_TEXT),
+    lastUserText: boundedOneLine(stateUserText || memoryPatch.lastUserText || prev.lastUserText, MAX_STATE_TEXT),
+    rawUserText: boundedOneLine(rawUserText || prev.rawUserText, MAX_STATE_TEXT),
+    normalizedUserIntent: boundedOneLine(normalizedUserIntent || prev.normalizedUserIntent, MAX_STATE_TEXT),
+    questionShape,
     lastAssistantReply: trustedFinalCompletion ? boundedOneLine(speak, MAX_STATE_TEXT) : prev.lastAssistantReply,
     lastKnowledgeDomain: composerKnowledgeDomain || activeKnowledgeDomainCarry || prev.lastKnowledgeDomain || "",
     activeKnowledgeDomain: activeKnowledgeDomainCarry || prev.activeKnowledgeDomain || "",
@@ -2237,6 +2309,9 @@ function finalizeTurn(params = {}) {
       lastComposerDomain: boundedOneLine(memoryPatch.lastDomain || marion.domain || "", 160),
       lastComposerUserSignature: boundedSignature(memoryPatch.userSignature || memoryPatch.lastUserSignature || ""),
       lastComposerReplySignature: boundedSignature(memoryPatch.replySignature || memoryPatch.lastReplySignature || ""),
+      rawUserText: boundedOneLine(rawUserText || "", MAX_STATE_TEXT),
+      normalizedUserIntent: boundedOneLine(normalizedUserIntent || "", MAX_STATE_TEXT),
+      questionShape,
       lastMarionFinalSignature: boundedSignature(firstNonEmpty(marionFinalSignature, memoryPatch.marionFinalSignature, marion.marionFinalSignature, marion.signature, params.marionFinalSignature)),
       finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
       loopPhraseRejected: trustedFinalBreaksRecovery ? false : loopPhraseRejected,
@@ -2378,6 +2453,7 @@ module.exports = {
   normalizeStateForPipelineCohesion,
   CONVERSATIONAL_PACK_COHESION_VERSION,
   FINAL_RUNTIME_TELEMETRY_VERSION,
+  QUESTION_SHAPE_NORMALIZATION_VERSION,
   TELEMETRY_VISIBILITY_VERSION,
   FAILURE_SIGNATURE_AUDIT_VERSION,
   classifyFailureSignature,
@@ -2387,6 +2463,8 @@ module.exports = {
   detectConversationalPackTrack,
   deriveConversationalPackRuntimeSelector,
   extractRuntimeTelemetryFromTurn,
-  buildStateRuntimeTelemetry
+  buildStateRuntimeTelemetry,
+  normalizeQuestionShapeCarry,
+  extractQuestionShapeCarry
 };
 module.exports.default = module.exports;
