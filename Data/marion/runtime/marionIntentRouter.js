@@ -12,8 +12,9 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.7 CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.4.8 QUESTION-SHAPE-NORMALIZATION-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
+const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -299,6 +300,68 @@ function normalizeRouterVoiceTextParity(text="") {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+function normalizeQuestionShape(text = "") {
+  const raw = normalizeRouterVoiceTextParity(compactWhitespace(text));
+  const cleaned = raw
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[?!.,]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const lowerCleaned = lower(cleaned);
+  const passthrough = (reason = "passthrough") => ({
+    version: QUESTION_SHAPE_NORMALIZATION_VERSION,
+    rawText: raw,
+    normalizedText: cleaned || raw,
+    normalizedUserIntent: cleaned || raw,
+    questionShape: "direct_or_unknown",
+    changed: false,
+    reason
+  });
+
+  if (!cleaned) return passthrough("empty_input");
+  if (
+    detectBackendTechnicalContext(cleaned) ||
+    detectDirectiveIntent(cleaned) ||
+    isInfrastructureContinuityPrompt(cleaned) ||
+    /\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate|node --check)\b/i.test(lowerCleaned)
+  ) {
+    return passthrough("execution_or_technical_guard");
+  }
+
+  const patterns = [
+    { rx: /^(?:please\s+)?(?:can you\s+|could you\s+|would you\s+)?tell me(?:\s+something)?\s+about\s+(.+)$/i, reason: "tell_me_about" },
+    { rx: /^(?:please\s+)?(?:can you\s+|could you\s+|would you\s+)?give me\s+(?:something|some info|information|a quick overview|an overview)\s+(?:about|on|regarding|for)\s+(.+)$/i, reason: "give_me_about" },
+    { rx: /^(?:please\s+)?(?:can you\s+|could you\s+|would you\s+)?(?:explain|describe|define|break down)\s+(.+)$/i, reason: "explain_or_define" },
+    { rx: /^(?:please\s+)?(?:i want to know|i wanna know|i need to understand|i'd like to know|i would like to know)\s+(?:about|what|how)?\s*(.+)$/i, reason: "want_to_know" },
+    { rx: /^(?:please\s+)?what\s+(?:is|are)\s+(.+)$/i, reason: "what_is" },
+    { rx: /^(?:please\s+)?what\s+does\s+(.+?)\s+mean$/i, reason: "what_does_mean" },
+    { rx: /^(?:please\s+)?how\s+does\s+(.+?)\s+work$/i, reason: "how_does_work" }
+  ];
+
+  for (const { rx, reason } of patterns) {
+    const match = cleaned.match(rx);
+    const candidate = match && match[1] ? safeStr(match[1]).replace(/^(a|an|the)\s+/i, "").trim() : "";
+    if (
+      candidate &&
+      candidate.length >= 2 &&
+      !/\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate)\b/i.test(candidate)
+    ) {
+      return {
+        version: QUESTION_SHAPE_NORMALIZATION_VERSION,
+        rawText: raw,
+        normalizedText: candidate,
+        normalizedUserIntent: candidate,
+        questionShape: "topic_request",
+        changed: candidate !== cleaned,
+        reason
+      };
+    }
+  }
+
+  return passthrough("no_topic_prefix_match");
+}
+
 
 
 function normalizeInputSource(value) {
@@ -732,8 +795,8 @@ function definitionKnowledgeDomainFromText(text = ""){
   if (/\b(full autopsy|line[-\s]?by[-\s]?line|audit|critical fix|critical fixes|patch|debug|backend|frontend|widget|script|file|api\/chat|render|deploy|syntax|node --check)\b/i.test(t)) return "";
   const domainTerms=[
     ["law",/\b(contract consideration|legal consideration|consideration in contract|consideration|contract|contract law|statute|jurisdiction|legal information|legal advice|liability|negligence|fiduciary|tort|case law|compliance|due process|algorithmic liability|privacy law|ai act)\b/i],
-    ["finance",/\b(cash[-\s]?flow|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience|roi|roas|attribution|incrementality|customer acquisition cost|lifetime value)\b/i],
-    ["psychology",/\b(cognitive distortion|emotional regulation|attachment|trauma|bias|cognition|cognitive|shutdown|emotional shutdown|anxiety|panic|behavior|behaviour|trust calibration|overreliance|mental model|cognitive load|affective computing)\b/i],
+    ["finance",/\b(cash[-\s]?flow|compound interest|interest rate|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience|roi|roas|attribution|incrementality|customer acquisition cost|lifetime value)\b/i],
+    ["psychology",/\b(emotional intelligence|cognitive distortion|emotional regulation|attachment|trauma|bias|cognition|shutdown|emotional shutdown|anxiety|panic|behavior|behaviour|trust calibration|overreliance|mental model|cognitive load|affective computing)\b/i],
     ["ai",/\b(artificial intelligence|intelligent agent|ai agent|agent architecture|tool routing|rag|retrieval augmented generation|llm|large language model|embedding|agent orchestration|machine learning|model inference|prompt injection in ai|recommendation system|algorithmic bias|model evaluation|neural network|reinforcement learning|human[-\s]?in[-\s]?the[-\s]?loop|ai governance|ai ethics|model security|cognitive intelligence)\b/i],
     ["cyber",/\b(least privilege|cia triad|attack surface|defense in depth|assume breach|secure by default|mfa|multi[-\s]?factor|iam|identity access|rbac|jit access|zero trust|incident response|threat model|input validation|secrets rotation|phishing|ransomware|endpoint security|cloud security|shared responsibility|network security|web security|tls|data protection|privacy minimization|data minimization|security culture|source ladder)\b/i],
     ["english",/\b(sentence clarity|actor[-\s]?action clarity|syntax|grammar|register|corpus|pragmatics|semantics|morphology|phonology|phonetics|eap|plain language|cohesion|stance|hedging|wording|language flow|professional clarity|copyedit|proofread)\b/i]
@@ -803,10 +866,10 @@ function detectKnowledgeDomain(text) {
   if (!isContinuationCompressionInstruction(t) && /\b(rewrite|polish|grammar|syntax|tone|professional clarity|business english|make this paragraph|make this sentence|language flow|wording|copyedit|proofread)\b/i.test(t)) {
     return { knowledgeDomain: "english", explicit: false, reason: "english_language_terms" };
   }
-  if (/\b(overwhelmed|spiraling|panic|numb|shutdown|attachment|shame|trauma|stabilize first|cognitive distortion|support strategy)\b/i.test(t)) {
+  if (/\b(overwhelmed|spiraling|panic|numb|shutdown|attachment|shame|trauma|stabilize first|cognitive distortion|emotional intelligence|support strategy)\b/i.test(t)) {
     return { knowledgeDomain: "psychology", explicit: false, reason: "psychology_support_terms" };
   }
-  if (/\b(ai agent|artificial intelligence|llm|rag|embedding|tool routing|agent orchestration|machine learning|prompt injection defense for ai)\b/i.test(t)) {
+  if (/\b(ai agent|artificial intelligence|cognitive intelligence|llm|rag|embedding|tool routing|agent orchestration|machine learning|prompt injection defense for ai)\b/i.test(t)) {
     return { knowledgeDomain: "ai", explicit: false, reason: "ai_terms" };
   }
   if (/\b(cyber|cybersecurity|prompt injection|phishing|malware|ransomware|mfa|least privilege|identity access|iam|incident response|threat model|defensive security|endpoint security|cloud security|network security|web security|privacy minimization|data protection|hardening)\b/i.test(t)) {
@@ -818,7 +881,7 @@ function detectKnowledgeDomain(text) {
   if (/\b(legal advice|legal information|law in canada|canadian law|contract law|tort|criminal law|charter|case law|statute|jurisdiction)\b/i.test(t)) {
     return { knowledgeDomain: "law", explicit: false, reason: "law_terms" };
   }
-  if (/\b(cash[-\s]?flow risk|cash[-\s]?flow impact|cash[-\s]?flow pressure|cash[-\s]?flow runway|business runway|financial resilience|working capital|burn rate|unit economics|ltv|cac|pricing tiers|capital markets|cash[-\s]?flow|runway|margin|gross margin|finance|financial|investment advice|scenario analysis)\b/i.test(t)) {
+  if (/\b(cash[-\s]?flow risk|cash[-\s]?flow impact|cash[-\s]?flow pressure|cash[-\s]?flow runway|business runway|financial resilience|working capital|burn rate|unit economics|compound interest|interest rate|ltv|cac|pricing tiers|capital markets|cash[-\s]?flow|runway|margin|gross margin|finance|financial|investment advice|scenario analysis)\b/i.test(t)) {
     return { knowledgeDomain: "finance", explicit: false, reason: "finance_confidence_terms" };
   }
   return { knowledgeDomain: "", explicit: false, reason: "none" };
@@ -1386,13 +1449,13 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
   addDomainCandidate(map, baseDomain, knowledgeDomain ? Math.max(0.45, clamp01(p.confidence, 0.48) - 0.06) : clamp01(p.confidence, 0.48), `intent:${intent}`);
   if (knowledgeDomain) addDomainCandidate(map, knowledgeDomain, p.knowledgeDomainExplicit ? 0.99 : Math.max(clamp01(p.confidence, 0.72), 0.84), p.knowledgeDomainReason || "knowledge_domain", knowledgeDomain);
   if (/\b(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)\b/i.test(t) && !(knowledgeDomain && !detectBackendTechnicalContext(t))) addDomainCandidate(map, "technical", 0.96, "technical_terms");
-  if (/\b(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|trauma|attachment|distress|support strategy)\b/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
+  if (/\b(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|emotional intelligence|trauma|attachment|distress|support strategy)\b/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
   if (isContinuationCompressionInstruction(t)) addDomainCandidate(map, "memory", 0.91, "continuation_compression_terms");
   else if (/\b(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)\b/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
-  if (/\b(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence|confidence scoring)\b/i.test(t)) addDomainCandidate(map, "ai", 0.94, "ai_terms", "ai");
+  if (/\b(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence|cognitive intelligence|confidence scoring)\b/i.test(t)) addDomainCandidate(map, "ai", 0.94, "ai_terms", "ai");
   if (/\b(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|identity access|iam|incident response|threat model|defensive security|endpoint security|cloud security|network security|web security|privacy minimization|data protection|hardening)\b/i.test(t)) addDomainCandidate(map, "cyber", 0.92, "cyber_terms", "cyber");
   if (/\b(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)\b/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
-  if (/\b(finance|financial|cash[-\s]?flow|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)\b/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
+  if (/\b(finance|financial|cash[-\s]?flow|compound interest|interest rate|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)\b/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
   if (/\b(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience)\b/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
   if (isNewsMediaPositioningRequest(t)) addDomainCandidate(map, "news", 0.95, "news_media_positioning_signal");
   if (/\b(news canada|rss|feed|story|headline|wp rest|editorial)\b/i.test(t)) addDomainCandidate(map, "news", isNewsMediaPositioningRequest(t) ? 0.95 : 0.84, isNewsMediaPositioningRequest(t) ? "news_media_positioning_terms" : "news_terms");
@@ -1533,12 +1596,20 @@ function routeMarionIntent(packet = {}) {
   if (isIdentityNameQuestion(__identityText)) {
     return { ok:true, marionIntent:{ activate:true, intent:"identity_query", confidence:0.96, reason:"identity_reset_name_anchor", source:"marionIntentRouter", identityAnchorRequired:true }, routing:{ domain:"identity", intent:"identity_query", mode:"identity", depth:"identity_baseline", endpoint:CANONICAL_ENDPOINT, domainConfidence:{ version:DOMAIN_CONFIDENCE_VERSION, confidence:0.96, band:"high", routeLocked:true, primaryDomain:"identity", reason:"identity_reset_name_anchor" } }, meta:{ routerVersion:VERSION, identityResetAnchor:true } };
   }
-  const text = extractText(packet);
+  const rawText = extractText(packet);
+  const questionShape = normalizeQuestionShape(rawText);
+  const text = questionShape.normalizedText || rawText;
   const src = safeObj(packet);
   const existingIntent = extractExistingIntent(src);
 
-  const marionIntent = normalizeIntent(existingIntent, text);
+  const marionIntent = normalizeIntent({...existingIntent, questionShape}, text);
+  marionIntent.rawTurnText = rawText;
+  marionIntent.normalizedUserIntent = questionShape.normalizedUserIntent || text;
+  marionIntent.questionShape = questionShape;
   const routing = buildRouting(marionIntent);
+  routing.questionShape = questionShape;
+  routing.rawTurnText = rawText;
+  routing.normalizedUserIntent = questionShape.normalizedUserIntent || text;
   const inputSource = normalizeInputSource(src.inputSource || safeObj(src.session).inputSource || marionIntent.inputSource || "text");
   const turnHash = turnContinuityHash(text);
 
@@ -1552,6 +1623,9 @@ function routeMarionIntent(packet = {}) {
     marionIntent,
     routing,
     domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
+    questionShape,
+    rawUserText: rawText,
+    normalizedUserIntent: questionShape.normalizedUserIntent || text,
     stateSpinePatch: {
       source: "marionIntentRouter",
       schema: STATE_SPINE_SCHEMA,
@@ -1561,6 +1635,9 @@ function routeMarionIntent(packet = {}) {
       subIntent: marionIntent.subIntent,
       inputSource,
       turnHash,
+      rawUserText: rawText,
+      normalizedUserIntent: questionShape.normalizedUserIntent || text,
+      questionShape,
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
@@ -1589,6 +1666,9 @@ function routeMarionIntent(packet = {}) {
       noUserFacingDiagnostics: true,
       inputSource,
       turnHash,
+      rawUserText: rawText,
+      normalizedUserIntent: questionShape.normalizedUserIntent || text,
+      questionShape,
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
@@ -1616,6 +1696,7 @@ module.exports = {
   VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
   DOMAIN_CONFIDENCE_VERSION,
+  QUESTION_SHAPE_NORMALIZATION_VERSION,
   routerForensicNormalizationStatus,
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
@@ -1635,6 +1716,7 @@ module.exports = {
   isContinuationCompressionInstruction,
   isNewsMediaPositioningRequest,
   normalizeInputSource,
+  normalizeQuestionShape,
   canonicalTechnicalTargetFromText,
   isTechnicalFollowUpIntent,
   isInfrastructureContinuityPrompt,
@@ -1671,6 +1753,7 @@ module.exports = {
     buildRouting,
     normalizeRouterVoiceTextParity,
     normalizeInputSource,
+    normalizeQuestionShape,
     canonicalTechnicalTargetFromText,
     isTechnicalFollowUpIntent,
     isInfrastructureContinuityPrompt,
