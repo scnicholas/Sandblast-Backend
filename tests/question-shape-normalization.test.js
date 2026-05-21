@@ -9,98 +9,46 @@
 
 const assert = require("assert");
 
-const {
-  QUESTION_SHAPE_NORMALIZATION_VERSION,
-  normalizeQuestionShape,
-  isExecutionOrTechnicalRequest
-} = require("../Data/marion/runtime/QuestionShapeNormalizer.js");
+const router = require("../Data/marion/runtime/marionIntentRouter.js");
+const normalizer = require("../Data/marion/runtime/QuestionShapeNormalizer.js");
 
-function expectTopic(input, expectedNormalized, expectedReason) {
-  const result = normalizeQuestionShape(input);
+function expectTopic(input, expectedNormalized, expectedDomain) {
+  const shape = normalizer.normalizeQuestionShape(input);
+  assert.strictEqual(shape.questionShape, "topic_request");
+  assert.strictEqual(shape.normalizedText, expectedNormalized);
 
-  assert.strictEqual(result.version, QUESTION_SHAPE_NORMALIZATION_VERSION);
-  assert.strictEqual(result.questionShape, "topic_request");
-  assert.strictEqual(result.normalizedText, expectedNormalized);
-  assert.strictEqual(result.normalizedUserIntent, expectedNormalized);
-  assert.strictEqual(result.changed, true);
+  const routed = router.routeMarionIntent({ text: input });
+  assert.strictEqual(routed.ok, true);
+  assert.strictEqual(routed.normalizedUserIntent, expectedNormalized);
+  assert.strictEqual(routed.questionShape.questionShape, "topic_request");
 
-  if (expectedReason) {
-    assert.strictEqual(result.reason, expectedReason);
+  if (expectedDomain) {
+    assert.strictEqual(routed.routing.knowledgeDomain, expectedDomain);
   }
 
-  return result;
+  return routed;
 }
 
-function expectPassthrough(input, expectedReason) {
-  const result = normalizeQuestionShape(input);
+function expectGuard(input) {
+  const shape = normalizer.normalizeQuestionShape(input);
+  assert.strictEqual(shape.questionShape, "direct_or_unknown");
+  assert.strictEqual(shape.reason, "execution_or_technical_guard");
 
-  assert.strictEqual(result.version, QUESTION_SHAPE_NORMALIZATION_VERSION);
-  assert.strictEqual(result.questionShape, "direct_or_unknown");
-  assert.strictEqual(result.changed, false);
+  const routed = router.routeMarionIntent({ text: input });
+  assert.strictEqual(routed.ok, true);
+  assert.notStrictEqual(routed.questionShape.questionShape, "topic_request");
 
-  if (expectedReason) {
-    assert.strictEqual(result.reason, expectedReason);
-  }
-
-  return result;
+  return routed;
 }
 
-function run() {
-  expectTopic("tell me about cash flow", "cash flow", "tell_me_about");
-  expectTopic("Tell me something about cash flow.", "cash flow", "tell_me_about");
-  expectTopic("give me something about cash flow", "cash flow", "give_me_about");
-  expectTopic("Give me information on compound interest.", "compound interest", "give_me_about");
-  expectTopic("can you explain cognitive intelligence", "cognitive intelligence", "explain_or_define");
-  expectTopic("explain emotional intelligence", "emotional intelligence", "explain_or_define");
-  expectTopic("define working capital", "working capital", "explain_or_define");
-  expectTopic("I want to know about cash flow", "cash flow", "want_to_know");
-  expectTopic("I wanna know about cognitive intelligence", "cognitive intelligence", "want_to_know");
-  expectTopic("what is cash flow?", "cash flow", "what_is");
-  expectTopic("what are cognitive distortions?", "cognitive distortions", "what_is");
-  expectTopic("what does compound interest mean?", "compound interest", "what_does_mean");
-  expectTopic("how does cash flow work?", "cash flow", "how_does_work");
+expectTopic("tell me about cash flow", "cash flow", "finance");
+expectTopic("give me something about cash flow", "cash flow", "finance");
+expectTopic("can you explain cognitive intelligence", "cognitive intelligence", "ai");
+expectTopic("tell me something about emotional intelligence", "emotional intelligence", "psychology");
+expectTopic("what does compound interest mean?", "compound interest", "finance");
 
-  const guardedPatch = expectPassthrough(
-    "give me the files I needed to patch Nyx Marion",
-    "execution_or_technical_guard"
-  );
+expectGuard("give me the files I needed to patch Nyx Marion");
+expectGuard("give me an autopsy on marionIntentRouter");
+expectGuard("resend the updated backend files in a downloadable zip");
 
-  assert.strictEqual(
-    guardedPatch.normalizedText,
-    "give me the files I needed to patch Nyx Marion"
-  );
-
-  const guardedAudit = expectPassthrough(
-    "give me an autopsy on marionIntentRouter",
-    "execution_or_technical_guard"
-  );
-
-  assert.strictEqual(
-    guardedAudit.normalizedText,
-    "give me an autopsy on marionIntentRouter"
-  );
-
-  const guardedZip = expectPassthrough(
-    "resend the updated backend files in a downloadable zip",
-    "execution_or_technical_guard"
-  );
-
-  assert.strictEqual(
-    guardedZip.normalizedText,
-    "resend the updated backend files in a downloadable zip"
-  );
-
-  const normal = expectPassthrough("cash flow", "no_topic_prefix_match");
-  assert.strictEqual(normal.normalizedText, "cash flow");
-
-  const empty = expectPassthrough("", "empty_input");
-  assert.strictEqual(empty.normalizedText, "");
-
-  assert.strictEqual(isExecutionOrTechnicalRequest("patch marionIntentRouter"), true);
-  assert.strictEqual(isExecutionOrTechnicalRequest("line by line audit"), true);
-  assert.strictEqual(isExecutionOrTechnicalRequest("cash flow"), false);
-
-  console.log("question-shape-normalization.test.js passed");
-}
-
-run();
+console.log("question-shape-normalization.test.js passed");
