@@ -28,6 +28,7 @@ const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
+const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 
 const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
   FINAL_ENVELOPE_CONTRACT,
@@ -64,6 +65,28 @@ function safeObj(value) {
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function extractDomainConcierge(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const routing = safeObj(src.routing);
+  const sessionPatch = safeObj(src.sessionPatch);
+  const candidates = [
+    src.domainConcierge,
+    src.domainConciergeSeed,
+    routing.domainConcierge,
+    routing.domainConciergeSeed,
+    payload.domainConcierge,
+    meta.domainConcierge,
+    sessionPatch.domainConcierge
+  ];
+  for (const item of candidates) {
+    const o = safeObj(item);
+    if (Object.keys(o).length) return { ...o, noUserFacingDiagnostics: o.noUserFacingDiagnostics !== false };
+  }
+  return {};
 }
 
 function firstText() {
@@ -1175,6 +1198,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
   const userQuery = extractUserText(input);
   const followUpsStrings = extractFollowUps(input);
   const sessionPatch = compactSessionPatchForTransport(extractSessionPatch(input));
+  const domainConcierge = extractDomainConcierge(input);
   const creativeCognitiveCarry = extractCreativeCognitiveCarryFromPatch(sessionPatch);
   const contract = extractMarionContract(input);
   const packet = extractPacket(input);
@@ -1247,7 +1271,8 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       awaitingMarion: false,
       suppressUserFacingReply: false,
       emit: true,
-      blocked: false
+      blocked: false,
+      domainConcierge: Object.keys(domainConcierge).length ? domainConcierge : undefined
     },
 
     bridge: Object.keys(safeObj(input.marion)).length ? safeObj(input.marion) : null,
@@ -1262,6 +1287,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     followUps: followUpsStrings.map((text) => ({ label: text, text })),
     followUpsStrings,
     sessionPatch,
+    domainConcierge: Object.keys(domainConcierge).length ? domainConcierge : null,
     creativeCognitiveCarry: Object.keys(creativeCognitiveCarry).length ? creativeCognitiveCarry : null,
     finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
     runtimeTelemetry,
@@ -1295,7 +1321,9 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       trustedFinalEnvelope,
       finalEnvelope,
       stateSpineCompatible: true,
-      creativeCognitiveCarryCompatible: true
+      creativeCognitiveCarryCompatible: true,
+      domainConciergeCompatible: true,
+      domainConciergeCoreVersion: DOMAIN_CONCIERGE_CORE_VERSION
     },
 
     diagnostics: {
@@ -1311,6 +1339,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       stateSpineCompatible: true,
       creativeCognitiveCarryCompatible: true,
       creativeCognitiveCarryObserved: !!Object.keys(creativeCognitiveCarry).length,
+      domainConciergeObserved: !!Object.keys(domainConcierge).length,
       replyPreview: clipText(reply, 160)
     },
 
@@ -1714,6 +1743,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     VERSION,
     FINAL_RUNTIME_TELEMETRY_VERSION,
+    DOMAIN_CONCIERGE_CORE_VERSION,
     TELEMETRY_VISIBILITY_VERSION,
     FAILURE_SIGNATURE_AUDIT_VERSION,
     CHAT_ENGINE_SIGNATURE,
@@ -1740,6 +1770,7 @@ if (typeof module !== "undefined") {
     stripTelemetryLeakFromReply,
     CONVERSATIONAL_PACK_COHESION_VERSION,
     extractConversationalPackBridge,
+    extractDomainConcierge,
     normalizeConversationalPackBridge,
     conversationPackCohesionProfile,
     _internal: {
@@ -1774,7 +1805,8 @@ if (typeof module !== "undefined") {
       finalPipelineCohesionProfile,
       normalizeCoordinatorOutputForPipeline,
       extractConversationalPackBridge,
-      normalizeConversationalPackBridge,
+      extractDomainConcierge,
+    normalizeConversationalPackBridge,
       conversationPackCohesionProfile
     }
   };
