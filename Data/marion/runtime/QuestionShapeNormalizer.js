@@ -11,8 +11,9 @@
  */
 
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
+const DOMAIN_CONCIERGE_READINESS_VERSION = "nyx.marion.domainConciergeReadiness/1.0";
 
-const EXECUTION_OR_TECHNICAL_GUARD = /\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate|node --check|backend|frontend|widget|script|code|html|css|javascript|js|api\/chat|runtime|router|composer|state spine|statespine|marion|nyx|nix|nixon|marionbridge|chatengine|composemarionresponse|intent router|domain registry|question shape normalizer|question-shape normalizer)\b/i;
+const EXECUTION_OR_TECHNICAL_GUARD = /\b(file|files|zip|download|resend|update|patch|fix|replace|audit|autopsy|line[-\s]?by[-\s]?line|structural integrity|architecture|deploy|validate|node --check|backend|frontend|widget|script|code|html|css|javascript|js|api\/chat|runtime|router|composer|state spine|statespine|marion|nyx|nix|nixon|marionbridge|chatengine|composemarionresponse|intent router|domain registry|question shape normalizer|question-shape normalizer|domain concierge|domainconcierge|concierge core|route confidence|domain confidence)\b/i;
 
 const TOPIC_PREFIX_PATTERNS = Object.freeze([
   {
@@ -34,6 +35,10 @@ const TOPIC_PREFIX_PATTERNS = Object.freeze([
   {
     rx: /^(?:please\s+)?what\s+(?:is|are)\s+(.+)$/i,
     reason: "what_is"
+  },
+  {
+    rx: /^(?:please\s+)?what['’]?s\s+(.+)$/i,
+    reason: "whats_is"
   },
   {
     rx: /^(?:please\s+)?what\s+does\s+(.+?)\s+mean$/i,
@@ -97,7 +102,9 @@ function buildPassthrough(raw, cleaned, reason = "passthrough") {
     questionShape: "direct_or_unknown",
     changed: false,
     reason,
-    source: "QuestionShapeNormalizer"
+    source: "QuestionShapeNormalizer",
+    domainConciergeReady: true,
+    domainConciergeReadinessVersion: DOMAIN_CONCIERGE_READINESS_VERSION
   };
 }
 
@@ -140,7 +147,9 @@ function normalizeQuestionShape(text = "", options = {}) {
       questionShape: "topic_request",
       changed: candidate !== cleaned,
       reason,
-      source: "QuestionShapeNormalizer"
+      source: "QuestionShapeNormalizer",
+      domainConciergeReady: true,
+      domainConciergeReadinessVersion: DOMAIN_CONCIERGE_READINESS_VERSION
     };
   }
 
@@ -149,6 +158,7 @@ function normalizeQuestionShape(text = "", options = {}) {
 
 module.exports = {
   QUESTION_SHAPE_NORMALIZATION_VERSION,
+  DOMAIN_CONCIERGE_READINESS_VERSION,
   normalizeQuestionShape,
   normalizeRouterVoiceTextParity,
   isExecutionOrTechnicalRequest,
