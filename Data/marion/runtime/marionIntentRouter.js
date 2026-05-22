@@ -14,6 +14,7 @@
 
 const VERSION = "marionIntentRouter v3.4.9 QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
+const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1531,6 +1532,34 @@ function intentConfidenceProfile(intentPacket = {}, text = "") {
   };
 }
 
+function buildDomainConciergeSeed(routing = {}, marionIntent = {}, questionShape = {}) {
+  const rt = safeObj(routing);
+  const mi = safeObj(marionIntent);
+  const dc = safeObj(rt.domainConfidence || mi.domainConfidence);
+  const confidence = clamp01(dc.confidence || rt.routeConfidence || mi.confidence, 0);
+  const route = safeStr(rt.domain || dc.selectedDomain || dc.primaryDomain || INTENT_TO_DOMAIN[mi.intent] || "general");
+  const intent = normalizeIntentName(mi.intent || rt.intent || "simple_chat");
+  const ambiguous = !!(rt.routeAmbiguous || dc.ambiguous || rt.routeFailClosed || dc.failClosed);
+  const routeLocked = !!(rt.routeLock || dc.routeLocked || confidence >= 0.82);
+  const action = ambiguous && !routeLocked ? "clarify" : "route";
+  return {
+    version: DOMAIN_CONCIERGE_CORE_VERSION,
+    source: "marionIntentRouter",
+    action,
+    route,
+    intent,
+    confidence,
+    confidenceBand: safeStr(rt.routeConfidenceBand || dc.band || confidenceBand(confidence)),
+    needsClarifier: action === "clarify",
+    clarifier: action === "clarify" ? "Are you asking about the interface, the backend, media/Roku, business strategy, or a support issue?" : "",
+    routeLocked,
+    routeFailClosed: !!(rt.routeFailClosed || dc.failClosed),
+    questionShape: safeObj(questionShape),
+    candidates: safeArray(rt.candidateDomains || dc.candidates).slice(0, 6),
+    noUserFacingDiagnostics: true
+  };
+}
+
 function buildRouting(marionIntent) {
   const knowledgeDomain = normalizeKnowledgeDomainName(marionIntent.knowledgeDomain || "");
   const confidenceProfile = intentConfidenceProfile(marionIntent, marionIntent.turnText || "");
@@ -1647,6 +1676,8 @@ function routeMarionIntent(packet = {}) {
   marionIntent.normalizedUserIntent = questionShape.normalizedUserIntent || text;
   marionIntent.questionShape = questionShape;
   const routing = buildRouting(marionIntent);
+  const domainConciergeSeed = buildDomainConciergeSeed(routing, marionIntent, questionShape);
+  routing.domainConciergeSeed = domainConciergeSeed;
   routing.questionShape = questionShape;
   routing.rawTurnText = rawText;
   routing.normalizedUserIntent = questionShape.normalizedUserIntent || text;
@@ -1663,6 +1694,7 @@ function routeMarionIntent(packet = {}) {
     marionIntent,
     routing,
     domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
+    domainConciergeSeed,
     questionShape,
     rawUserText: rawText,
     normalizedUserIntent: questionShape.normalizedUserIntent || text,
@@ -1682,12 +1714,14 @@ function routeMarionIntent(packet = {}) {
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
       routeFailClosed: !!safeObj(routing.domainConfidence).failClosed,
-      domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text)
+      domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
+      domainConcierge: domainConciergeSeed
     },
     meta: {
       routedAt: new Date().toISOString(),
       confidence: marionIntent.confidence,
       domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
+      domainConcierge: domainConciergeSeed,
       triggerSource: marionIntent.source,
       textPresent: Boolean(text),
       singleIntentAuthority: true,
@@ -1736,6 +1770,7 @@ module.exports = {
   VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
   DOMAIN_CONFIDENCE_VERSION,
+  DOMAIN_CONCIERGE_CORE_VERSION,
   QUESTION_SHAPE_NORMALIZATION_VERSION,
   routerForensicNormalizationStatus,
   STATE_SPINE_SCHEMA,
@@ -1765,6 +1800,7 @@ module.exports = {
   confidenceBand,
   domainSignalCandidates,
   intentConfidenceProfile,
+  buildDomainConciergeSeed,
   classifyFailureSignature,
   buildFailureSignatureAudit,
   isTelemetryLeakText,
@@ -1792,6 +1828,7 @@ module.exports = {
     isKnowledgeDomainActivationRequest,
     domainTestPhrase,
     buildRouting,
+    buildDomainConciergeSeed,
     normalizeRouterVoiceTextParity,
     normalizeInputSource,
     normalizeQuestionShape,
