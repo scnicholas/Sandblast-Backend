@@ -28,7 +28,8 @@ const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
-const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
+const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/1.0-transport";
+const DOMAIN_CONCIERGE_CONTRACT_VERSION = "nyx.marion.domainConcierge/1.0";
 
 const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
   FINAL_ENVELOPE_CONTRACT,
@@ -67,25 +68,118 @@ function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function compactDomainConciergeForTransport(value = {}) {
+  const src = safeObj(value);
+  if (!Object.keys(src).length) return {};
+  const domainConfidence = safeObj(src.domainConfidence);
+  const questionShape = safeObj(src.questionShape);
+  const composerContext = safeObj(src.composerContext);
+  const stateSpinePatch = safeObj(src.stateSpinePatch);
+
+  const out = {
+    version: cleanText(src.version || src.contract || DOMAIN_CONCIERGE_CONTRACT_VERSION),
+    source: cleanText(src.source || "DomainConcierge"),
+    action: cleanText(src.action || ""),
+    route: cleanText(src.route || src.domain || ""),
+    intent: cleanText(src.intent || ""),
+    confidence: clampNumber(src.confidence ?? domainConfidence.confidence, 0, 0, 1),
+    needsClarifier: !!src.needsClarifier,
+    clarifier: src.needsClarifier ? clipText(src.clarifier, 420) : "",
+    reason: clipText(src.reason, 180),
+    noUserFacingDiagnostics: src.noUserFacingDiagnostics !== false,
+    finalEnvelopeRequired: src.finalEnvelopeRequired !== false,
+    bridgeCompatible: src.bridgeCompatible !== false,
+    composerCompatible: src.composerCompatible !== false,
+    stateSpineCompatible: src.stateSpineCompatible !== false
+  };
+
+  if (Object.keys(domainConfidence).length) {
+    out.domainConfidence = {
+      version: cleanText(domainConfidence.version || ""),
+      confidence: clampNumber(domainConfidence.confidence, out.confidence, 0, 1),
+      band: cleanText(domainConfidence.band || ""),
+      ambiguous: !!domainConfidence.ambiguous,
+      routeLocked: !!domainConfidence.routeLocked,
+      failClosed: !!domainConfidence.failClosed,
+      primaryDomain: cleanText(domainConfidence.primaryDomain || out.route),
+      knowledgeDomain: cleanText(domainConfidence.knowledgeDomain || ""),
+      reason: clipText(domainConfidence.reason, 180)
+    };
+  }
+
+  if (Object.keys(questionShape).length) {
+    out.questionShape = {
+      version: cleanText(questionShape.version || ""),
+      questionShape: cleanText(questionShape.questionShape || ""),
+      changed: !!questionShape.changed,
+      reason: clipText(questionShape.reason, 140),
+      normalizedText: clipText(questionShape.normalizedText || questionShape.normalizedUserIntent, 260)
+    };
+  }
+
+  if (Object.keys(stateSpinePatch).length) {
+    out.stateSpinePatch = {
+      source: cleanText(stateSpinePatch.source || "DomainConcierge"),
+      schema: cleanText(stateSpinePatch.schema || STATE_SPINE_SCHEMA),
+      shouldAdvanceState: !!stateSpinePatch.shouldAdvanceState,
+      stateStage: cleanText(stateSpinePatch.stateStage || ""),
+      lastConciergeAction: cleanText(stateSpinePatch.lastConciergeAction || out.action),
+      lastRoute: cleanText(stateSpinePatch.lastRoute || out.route),
+      lastIntent: cleanText(stateSpinePatch.lastIntent || out.intent),
+      lastRouteConfidence: clampNumber(stateSpinePatch.lastRouteConfidence, out.confidence, 0, 1),
+      routeLock: !!stateSpinePatch.routeLock,
+      routeFailClosed: !!stateSpinePatch.routeFailClosed,
+      updatedAt: Number(stateSpinePatch.updatedAt || 0) || 0
+    };
+  }
+
+  if (Object.keys(composerContext).length) {
+    out.composerContext = {
+      concierge: compactDomainConciergeForTransport(composerContext.concierge || {}),
+      normalizedUserIntent: clipText(composerContext.normalizedUserIntent, 260),
+      rawUserText: clipText(composerContext.rawUserText, 260)
+    };
+  }
+
+  return out;
+}
+
 function extractDomainConcierge(input = {}) {
   const src = safeObj(input);
   const payload = safeObj(src.payload);
   const meta = safeObj(src.meta);
+  const diagnostics = safeObj(src.diagnostics);
   const routing = safeObj(src.routing);
-  const sessionPatch = safeObj(src.sessionPatch);
+  const sessionPatch = safeObj(src.sessionPatch || src.memoryPatch);
+  const payloadPatch = safeObj(payload.sessionPatch || payload.memoryPatch);
+  const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || meta.finalEnvelope);
+  const contract = safeObj(src.marionContract || src.contract || payload.marionContract || payload.contract || meta.marionContract);
+  const packet = safeObj(src.packet || payload.packet || meta.packet);
+  const packetMeta = safeObj(packet.meta);
   const candidates = [
     src.domainConcierge,
     src.domainConciergeSeed,
     routing.domainConcierge,
     routing.domainConciergeSeed,
     payload.domainConcierge,
+    payload.domainConciergeSeed,
     meta.domainConcierge,
-    sessionPatch.domainConcierge
+    diagnostics.domainConcierge,
+    sessionPatch.domainConcierge,
+    sessionPatch.domainConciergeSeed,
+    payloadPatch.domainConcierge,
+    payloadPatch.domainConciergeSeed,
+    finalEnvelope.domainConcierge,
+    contract.domainConcierge,
+    packet.domainConcierge,
+    packetMeta.domainConcierge
   ];
+
   for (const item of candidates) {
-    const o = safeObj(item);
-    if (Object.keys(o).length) return { ...o, noUserFacingDiagnostics: o.noUserFacingDiagnostics !== false };
+    const compact = compactDomainConciergeForTransport(item);
+    if (Object.keys(compact).length) return compact;
   }
+
   return {};
 }
 
@@ -198,7 +292,7 @@ function extractRuntimeTelemetry(source = {}) {
   return {};
 }
 function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",trustedFinalEnvelope=false,finalEnvelope=false,canEmit=false,error=""}={}){
-  const src=safeObj(input), inherited=extractRuntimeTelemetry(src), packet=extractPacket(src), packetMeta=safeObj(packet.meta);
+  const src=safeObj(input), inherited=extractRuntimeTelemetry(src), packet=extractPacket(src), packetMeta=safeObj(packet.meta), domainConcierge=extractDomainConcierge(src);
   return {
     ...inherited,
     version: FINAL_RUNTIME_TELEMETRY_VERSION,
@@ -218,6 +312,9 @@ function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",truste
     turnId: extractTurnId(src),
     inputSource: firstText(src.inputSource,src.source,safeObj(src.session).inputSource,inherited.inputSource,"text"),
     technicalTargetLock: safeObj(src.technicalTargetLock || safeObj(src.sessionPatch).technicalTargetLock || safeObj(packetMeta).technicalTargetLock || inherited.technicalTargetLock),
+    domainConcierge: Object.keys(domainConcierge).length ? domainConcierge : undefined,
+    domainConciergeObserved: !!Object.keys(domainConcierge).length,
+    domainConciergeCoreVersion: DOMAIN_CONCIERGE_CORE_VERSION,
     replySignature: reply ? hashText(reply) : firstText(inherited.replySignature,packetMeta.replySignature,""),
     trustedFinalEnvelope: !!trustedFinalEnvelope,
     finalEnvelope: !!finalEnvelope,
@@ -377,6 +474,12 @@ function compactSessionPatchForTransport(value = {}) {
     patch.cognitiveCarry = carry;
   }
 
+  const domainConcierge = extractDomainConcierge(patch);
+  if (Object.keys(domainConcierge).length) {
+    patch.domainConcierge = domainConcierge;
+    patch.domainConciergeSeed = domainConcierge;
+  }
+
   if (isPlainObject(patch.stateBridge) && Object.keys(patch.stateBridge).length) {
     patch.stateBridge = compactStateBridgeForTransport(patch.stateBridge);
   }
@@ -441,8 +544,13 @@ function finalTransportPacket(packet = {}) {
     if (out.sessionPatch) out.sessionPatch = compactSessionPatchForTransport(out.sessionPatch);
     if (out.memoryPatch) out.memoryPatch = compactSessionPatchForTransport(out.memoryPatch);
     if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactSessionPatchForTransport(out.payload.sessionPatch);
-    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", trustedFinalEnvelope, finalEnvelope, suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit, inputSource: continuityTransport.inputSource, continuityTransport };
-    out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, trustedFinalEnvelope, finalEnvelope, suppressedUserFacingReply: !canEmit, continuityTransport };
+    const domainConcierge = extractDomainConcierge(out);
+    if (Object.keys(domainConcierge).length) {
+      out.domainConcierge = domainConcierge;
+      out.payload = { ...safeObj(out.payload), domainConcierge };
+    }
+    out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", trustedFinalEnvelope, finalEnvelope, suppressUserFacingReply: !canEmit, emit: canEmit, blocked: !canEmit, inputSource: continuityTransport.inputSource, continuityTransport, domainConciergeCompatible: true, domainConciergeCoreVersion: DOMAIN_CONCIERGE_CORE_VERSION, domainConciergeObserved: !!Object.keys(domainConcierge).length };
+    out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, trustedFinalEnvelope, finalEnvelope, suppressedUserFacingReply: !canEmit, continuityTransport, domainConciergeObserved: !!Object.keys(domainConcierge).length };
   }
   return out;
 }
@@ -1087,6 +1195,7 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
   const domain = extractDomain(input);
   const turnId = extractTurnId(input);
   const userQuery = extractUserText(input);
+  const domainConcierge = compactDomainConciergeForTransport(extractDomainConcierge(input));
   const terminal = options && options.terminal === true;
   const awaitingMarion = !terminal;
   const runtimeTelemetry = buildChatRuntimeTelemetry({source:"chatEngine.buildMissingFinalResult",input,reply:"",trustedFinalEnvelope:false,finalEnvelope:false,canEmit:false,error:reason});
@@ -1131,7 +1240,8 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
       awaitingMarion,
       suppressUserFacingReply: true,
       emit: false,
-      blocked: true
+      blocked: true,
+      domainConcierge: Object.keys(domainConcierge).length ? domainConcierge : undefined
     },
 
     followUps: [],
@@ -1155,6 +1265,9 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
       coordinatorOnly: true,
       finalReplyAuthority: "marion",
       replyAuthority: "none",
+      domainConciergeCompatible: true,
+      domainConciergeCoreVersion: DOMAIN_CONCIERGE_CORE_VERSION,
+      domainConciergeObserved: !!Object.keys(domainConcierge).length,
       awaitingMarion,
       suppressUserFacingReply: true,
       emit: false,
@@ -1174,6 +1287,9 @@ function buildBlankErrorContract(reason, detail = {}, input = {}, options = {}) 
       stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
       coordinatorOnly: true,
       error: true,
+      domainConciergeCompatible: true,
+      domainConciergeCoreVersion: DOMAIN_CONCIERGE_CORE_VERSION,
+      domainConciergeObserved: !!Object.keys(domainConcierge).length,
       awaitingMarion,
       suppressUserFacingReply: true,
       emit: false,
@@ -1198,7 +1314,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
   const userQuery = extractUserText(input);
   const followUpsStrings = extractFollowUps(input);
   const sessionPatch = compactSessionPatchForTransport(extractSessionPatch(input));
-  const domainConcierge = extractDomainConcierge(input);
+  const domainConcierge = compactDomainConciergeForTransport(extractDomainConcierge(input));
   const creativeCognitiveCarry = extractCreativeCognitiveCarryFromPatch(sessionPatch);
   const contract = extractMarionContract(input);
   const packet = extractPacket(input);
@@ -1489,6 +1605,13 @@ function normalizeCoordinatorOutputForPipeline(packet = {}) {
       out.finalEnvelope.reply = reply; out.finalEnvelope.text = reply; out.finalEnvelope.displayReply = reply;
     }
   }
+  const domainConcierge = extractDomainConcierge(out);
+  if (Object.keys(domainConcierge).length) {
+    out.domainConcierge = domainConcierge;
+    if (isPlainObject(out.payload)) out.payload.domainConcierge = domainConcierge;
+    out.meta = { ...safeObj(out.meta), domainConciergeCompatible: true, domainConciergeCoreVersion: DOMAIN_CONCIERGE_CORE_VERSION, domainConciergeObserved: true };
+    out.diagnostics = { ...safeObj(out.diagnostics), domainConciergeObserved: true };
+  }
   return out;
 }
 
@@ -1638,6 +1761,10 @@ class ChatEngine {
       reply: cleanText(result.reply || ""),
       replySignature: cleanText(result.meta && result.meta.replySignature || hashText(result.reply || "")),
       creativeCognitiveCarryObserved: !!result.creativeCognitiveCarry,
+      domainConciergeObserved: !!result.domainConcierge,
+      domainConciergeAction: cleanText(safeObj(result.domainConcierge).action || ""),
+      domainConciergeRoute: cleanText(safeObj(result.domainConcierge).route || ""),
+      domainConciergeConfidence: clampNumber(safeObj(result.domainConcierge).confidence, 0, 0, 1),
       timestamp: Date.now()
     };
 
@@ -1744,6 +1871,7 @@ if (typeof module !== "undefined") {
     VERSION,
     FINAL_RUNTIME_TELEMETRY_VERSION,
     DOMAIN_CONCIERGE_CORE_VERSION,
+    DOMAIN_CONCIERGE_CONTRACT_VERSION,
     TELEMETRY_VISIBILITY_VERSION,
     FAILURE_SIGNATURE_AUDIT_VERSION,
     CHAT_ENGINE_SIGNATURE,
@@ -1771,6 +1899,7 @@ if (typeof module !== "undefined") {
     CONVERSATIONAL_PACK_COHESION_VERSION,
     extractConversationalPackBridge,
     extractDomainConcierge,
+    compactDomainConciergeForTransport,
     normalizeConversationalPackBridge,
     conversationPackCohesionProfile,
     _internal: {
@@ -1806,7 +1935,8 @@ if (typeof module !== "undefined") {
       normalizeCoordinatorOutputForPipeline,
       extractConversationalPackBridge,
       extractDomainConcierge,
-    normalizeConversationalPackBridge,
+      compactDomainConciergeForTransport,
+      normalizeConversationalPackBridge,
       conversationPackCohesionProfile
     }
   };
