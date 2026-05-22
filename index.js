@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.9sb INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
+const INDEX_VERSION = "index.js v2.18.10sb DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 
@@ -179,6 +179,25 @@ function tryRequireMany(paths) {
     } catch (_) {}
   }
   return null;
+}
+
+function tryRequireManyWithStatus(paths) {
+  for (const p of Array.isArray(paths) ? paths : []) {
+    try {
+      const resolved = require.resolve(p);
+      const mod = require(resolved);
+      if (mod) {
+        return {
+          ok: true,
+          mod,
+          requested: p,
+          resolvedPath: resolved,
+          version: cleanText(mod.VERSION || "")
+        };
+      }
+    } catch (err) {}
+  }
+  return { ok: false, mod: null, requested: "", resolvedPath: "", version: "" };
 }
 
 function moduleAvailable(name) {
@@ -1366,12 +1385,17 @@ const marionDomainRegistryMod = tryRequireMany([
   "./Data/marion/runtime/marionDomainRegistry.js"
 ]);
 
-const marionDomainRetrieverMod = tryRequireMany([
-  "./Data/marion/runtime/domainRetriever",
+const DOMAIN_RETRIEVER_REQUIRE_CANDIDATES = Object.freeze([
   "./Data/marion/runtime/domainRetriever.js",
+  "./Data/marion/runtime/domainRetriever",
+  "./Data/marion/domainRetriever.js",
   "./Data/marion/domainRetriever",
-  "./Data/marion/domainRetriever.js"
+  "./domainRetriever.js",
+  "./domainRetriever"
 ]);
+
+const marionDomainRetrieverLoaded = tryRequireManyWithStatus(DOMAIN_RETRIEVER_REQUIRE_CANDIDATES);
+const marionDomainRetrieverMod = marionDomainRetrieverLoaded.mod;
 
 const marionDomainRouterMod = tryRequireMany([
   "./Utils/domainRouter",
@@ -2100,8 +2124,14 @@ function getMarionRuntimeDiagnostics() {
     marionDomainRegistryHasHealth: !!(marionDomainRegistryMod && typeof marionDomainRegistryMod.getHealth === "function"),
     marionDomainRegistryHealth: (() => { try { return marionDomainRegistryMod && typeof marionDomainRegistryMod.getHealth === "function" ? marionDomainRegistryMod.getHealth() : null; } catch (err) { return { ok: false, error: cleanText(err && (err.message || err) || "domain_registry_health_failed") }; } })(),
     marionDomainRetrieverLoaded: !!marionDomainRetrieverMod,
+    marionDomainRetrieverRequested: marionDomainRetrieverLoaded.requested || "",
+    marionDomainRetrieverResolvedPath: marionDomainRetrieverLoaded.resolvedPath || "",
+    marionDomainRetrieverVersion: marionDomainRetrieverLoaded.version || "",
+    marionDomainRetrieverExpectedVersionPrefix: "domainRetriever v1.4",
+    marionDomainRetrieverPathAligned: /^domainRetriever v1\.4\./.test(marionDomainRetrieverLoaded.version || ""),
     marionDomainRetrieverHasHealth: !!(marionDomainRetrieverMod && typeof marionDomainRetrieverMod.getHealth === "function"),
-    marionDomainRetrieverHealth: (() => { try { return marionDomainRetrieverMod && typeof marionDomainRetrieverMod.getHealth === "function" ? marionDomainRetrieverMod.getHealth() : null; } catch (err) { return { ok: false, error: cleanText(err && (err.message || err) || "domain_retriever_health_failed") }; } })(),
+    marionDomainRetrieverHealth: (() => { try { return marionDomainRetrieverMod && typeof marionDomainRetrieverMod.getHealth === "function" ? marionDomainRetrieverMod.getHealth({ includeOptionalDomains: false }) : null; } catch (err) { return { ok: false, error: cleanText(err && (err.message || err) || "domain_retriever_health_failed") }; } })(),
+    marionDomainRetrieverOptionalHealth: (() => { try { return marionDomainRetrieverMod && typeof marionDomainRetrieverMod.getHealth === "function" ? marionDomainRetrieverMod.getHealth({ includeOptionalDomains: true }) : null; } catch (err) { return { ok: false, error: cleanText(err && (err.message || err) || "domain_retriever_optional_health_failed") }; } })(),
     marionDomainRouterLoaded: !!marionDomainRouterMod,
     marionDomainRouterHasRoute: !!(marionDomainRouterMod && typeof marionDomainRouterMod.routeDomain === "function"),
     domainIsolationDiagnostics: { bootstrapGuardExpected: true, pathVerificationExpected: true, failClosedExpected: true, noCrossDomainBleedExpected: true },
