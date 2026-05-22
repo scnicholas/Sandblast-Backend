@@ -18,6 +18,7 @@ const SPINE_VERSION = "stateSpine v2.14.5 QUESTION-SHAPE-NORMALIZATION-CARRY-LOC
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
+const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -471,6 +472,54 @@ function extractDomainConfidenceCarry(params = {}, inbound = {}, memoryPatch = {
   ];
   for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return normalizeDomainConfidenceCarry(item);
   return normalizeDomainConfidenceCarry({ confidence: 0, reason: "domain_confidence_absent" });
+}
+
+
+function normalizeDomainConciergeCarry(value = {}) {
+  const v = isPlainObject(value) ? value : {};
+  const confidence = Number(v.confidence);
+  const c = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
+  const action = boundedOneLine(v.action || (v.needsClarifier ? "clarify" : "route"), 32) || "route";
+  return {
+    version: boundedOneLine(v.version || DOMAIN_CONCIERGE_CORE_VERSION, 80),
+    source: boundedOneLine(v.source || "domain_concierge_carry", 80),
+    action,
+    route: boundedOneLine(v.route || v.domain || v.selectedDomain || "", 64),
+    intent: boundedOneLine(v.intent || "", 64),
+    confidence: c,
+    confidenceBand: boundedOneLine(v.confidenceBand || v.band || (c >= 0.82 ? "high" : c >= 0.62 ? "medium" : c > 0 ? "low" : "absent"), 32),
+    needsClarifier: !!(v.needsClarifier || action === "clarify"),
+    clarifier: boundedOneLine(v.clarifier || "", 220),
+    routeLocked: !!v.routeLocked,
+    routeFailClosed: !!v.routeFailClosed,
+    noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
+    updatedAt: nowMs()
+  };
+}
+
+function extractDomainConciergeCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const candidates = [
+    mp.domainConcierge,
+    mp.domainConciergeSeed,
+    isPlainObject(mp.stateBridge) ? mp.stateBridge.domainConcierge : null,
+    p.domainConcierge,
+    p.domainConciergeSeed,
+    isPlainObject(p.routing) ? p.routing.domainConcierge : null,
+    isPlainObject(p.routing) ? p.routing.domainConciergeSeed : null,
+    isPlainObject(p.marionIntent) ? p.marionIntent.domainConcierge : null,
+    src.domainConcierge,
+    src.domainConciergeSeed,
+    isPlainObject(src.routing) ? src.routing.domainConcierge : null,
+    isPlainObject(src.routing) ? src.routing.domainConciergeSeed : null,
+    isPlainObject(src.sessionPatch) ? src.sessionPatch.domainConcierge : null
+  ];
+  for (const item of candidates) {
+    if (isPlainObject(item) && Object.keys(item).length) return normalizeDomainConciergeCarry(item);
+  }
+  return normalizeDomainConciergeCarry({ action: "absent", source: "domain_concierge_absent" });
 }
 
 
@@ -2193,6 +2242,7 @@ function finalizeTurn(params = {}) {
   const fiveTurnContract = continuityRegression.fiveTurnContract || extractFiveTurnContractState(prev,memoryPatch,inbound);
   const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
   const domainConfidenceCarry = extractDomainConfidenceCarry(params, inbound, memoryPatch);
+  const domainConciergeCarry = extractDomainConciergeCarry(params, inbound, memoryPatch);
   const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
   const nextState = {
     ...prev,
@@ -2226,6 +2276,7 @@ function finalizeTurn(params = {}) {
     fiveTurnContract,
     runtimeTelemetry,
     domainConfidence: domainConfidenceCarry,
+    domainConcierge: domainConciergeCarry,
     progressionLock,
     progressionShapingGuard,
     volatility,
@@ -2300,6 +2351,11 @@ function finalizeTurn(params = {}) {
       runtimeTelemetry,
       domainConfidence: domainConfidenceCarry,
       domainConfidenceFailClosed: !!domainConfidenceCarry.failClosed,
+      domainConcierge: domainConciergeCarry,
+      lastConciergeAction: domainConciergeCarry.action,
+      lastConciergeRoute: domainConciergeCarry.route,
+      lastConciergeIntent: domainConciergeCarry.intent,
+      lastConciergeConfidence: domainConciergeCarry.confidence,
       activeKnowledgeDomain: activeKnowledgeDomainCarry || "",
       lastKnowledgeDomain: composerKnowledgeDomain || activeKnowledgeDomainCarry || prev.lastKnowledgeDomain || "",
       progressionShapingGuard,
@@ -2454,6 +2510,7 @@ module.exports = {
   CONVERSATIONAL_PACK_COHESION_VERSION,
   FINAL_RUNTIME_TELEMETRY_VERSION,
   QUESTION_SHAPE_NORMALIZATION_VERSION,
+  DOMAIN_CONCIERGE_CORE_VERSION,
   TELEMETRY_VISIBILITY_VERSION,
   FAILURE_SIGNATURE_AUDIT_VERSION,
   classifyFailureSignature,
@@ -2465,6 +2522,8 @@ module.exports = {
   extractRuntimeTelemetryFromTurn,
   buildStateRuntimeTelemetry,
   normalizeQuestionShapeCarry,
-  extractQuestionShapeCarry
+  extractQuestionShapeCarry,
+  normalizeDomainConciergeCarry,
+  extractDomainConciergeCarry
 };
 module.exports.default = module.exports;
