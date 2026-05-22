@@ -22,7 +22,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "domainRetriever v1.4.0 REGISTRY-PATH-ALIGNMENT + DATA-DOMAINS-ROOT-LOCK + DOMAIN-ISOLATION-GUARD";
+const VERSION = "domainRetriever v1.4.1 INDEX-COHESION + REGISTRY-PATH-ALIGNMENT + DATA-DOMAINS-ROOT-LOCK + DOMAIN-ISOLATION-GUARD";
 const RUNTIME_ROOT = __dirname;
 const MARION_ROOT = path.resolve(RUNTIME_ROOT, "..");
 const DATA_ROOT = path.resolve(MARION_ROOT, "..");
@@ -79,6 +79,21 @@ const CANONICAL_DOMAINS = Object.freeze([
   "english",
   "cyber",
   "ai",
+  "marketing",
+  "strategy",
+  "general"
+]);
+
+const REQUIRED_HEALTH_DOMAINS = Object.freeze([
+  "psychology",
+  "finance",
+  "law",
+  "english",
+  "cyber",
+  "ai"
+]);
+
+const OPTIONAL_HEALTH_DOMAINS = Object.freeze([
   "marketing",
   "strategy",
   "general"
@@ -835,15 +850,28 @@ function getDomainHealth(domain = "general", options = {}) {
 }
 
 function getHealth(options = {}) {
-  const domains = CANONICAL_DOMAINS.slice();
+  const includeOptionalDomains = options.includeOptionalDomains === true;
+  const domains = includeOptionalDomains
+    ? REQUIRED_HEALTH_DOMAINS.concat(OPTIONAL_HEALTH_DOMAINS)
+    : REQUIRED_HEALTH_DOMAINS.slice();
+
   const statuses = {};
   for (const domain of domains) statuses[domain] = getDomainHealth(domain, options);
+
   const failed = domains.filter((domain) => !statuses[domain].ok);
+  const optionalStatuses = {};
+  if (!includeOptionalDomains) {
+    for (const domain of OPTIONAL_HEALTH_DOMAINS) optionalStatuses[domain] = getDomainHealth(domain, options);
+  }
+
   return {
     ok: failed.length === 0,
     version: VERSION,
     failed,
     statuses,
+    requiredDomains: REQUIRED_HEALTH_DOMAINS.slice(),
+    optionalDomains: OPTIONAL_HEALTH_DOMAINS.slice(),
+    optionalStatuses,
     aliases: {
       cybersecurity: "cyber",
       security: "cyber"
@@ -870,6 +898,9 @@ module.exports = {
   retrieve: retrieveDomain,
   getDomainHealth,
   getHealth,
+  REQUIRED_HEALTH_DOMAINS,
+  OPTIONAL_HEALTH_DOMAINS,
+  CANONICAL_DOMAINS,
   _internal: {
     _canonicalDomain,
     _domainConfig,
