@@ -1,6 +1,4 @@
-from pathlib import Path
-
-code = r'''"use strict";
+"use strict";
 
 /**
  * DomainConcierge.js
@@ -20,9 +18,10 @@ code = r'''"use strict";
  * - Fails closed into one clarifier only when routing confidence is genuinely weak/ambiguous.
  */
 
-const VERSION = "DomainConcierge v1.0.0 CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
+const VERSION = "DomainConcierge v1.1.0 CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
 const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
+const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
 
@@ -642,11 +641,44 @@ function buildStateSpinePatch(decision, packet, routeResult) {
     routeLock: !!safeObj(d.domainConfidence).routeLocked,
     routeFailClosed: !!safeObj(d.domainConfidence).failClosed,
     domainConfidence: d.domainConfidence,
+    confidenceAwareResponseShaping: Object.keys(safeObj(d.confidenceAwareResponseShaping)).length ? safeObj(d.confidenceAwareResponseShaping) : buildConfidenceAwareResponseShapingSeed(d),
     questionShape: d.questionShape,
     normalizedUserIntent: firstText(d.normalizedUserIntent, text),
     rawUserText: text,
     turnHash: firstText(d.turnHash, hashText(text)),
     endpoint: firstText(routing.endpoint, ""),
+    updatedAt: Date.now()
+  };
+}
+
+
+function buildConfidenceAwareResponseShapingSeed(decision) {
+  const d = safeObj(decision);
+  const dc = safeObj(d.domainConfidence);
+  const confidence = clamp01(firstText(d.confidence, dc.confidence), 0);
+  const action = firstText(d.action, d.needsClarifier ? "clarify" : "route");
+  const route = compactKey(firstText(d.route, dc.primaryDomain, "general"));
+  const intent = compactKey(firstText(d.intent, "simple_chat"));
+  const knowledgeDomain = compactKey(firstText(d.knowledgeDomain, dc.knowledgeDomain));
+  const highStakes = ["law", "finance", "cyber"].includes(knowledgeDomain || route);
+  const technical = route === "technical" || intent === "technical_debug" || intent === "directive_response" || intent === "contextual_directive";
+  const needsClarifier = !!(d.needsClarifier || action === "clarify");
+  return {
+    version: CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,
+    source: "DomainConcierge",
+    active: true,
+    action,
+    mode: needsClarifier ? "clarify" : (confidence >= 0.82 ? "direct" : (confidence >= 0.62 ? "grounded" : "cautious")),
+    route,
+    intent,
+    knowledgeDomain,
+    confidence,
+    confidenceBand: firstText(dc.band, confidenceBand(confidence)),
+    highStakes,
+    technical,
+    needsClarifier,
+    clarifier: needsClarifier ? safeStr(d.clarifier) : "",
+    noUserFacingDiagnostics: true,
     updatedAt: Date.now()
   };
 }
@@ -670,6 +702,7 @@ function buildComposerContext(decision, routeResult) {
       routeLocked: !!safeObj(d.domainConfidence).routeLocked,
       noUserFacingDiagnostics: true
     },
+    confidenceAwareResponseShaping: buildConfidenceAwareResponseShapingSeed(d),
     routing: safeObj(r.routing),
     marionIntent: safeObj(r.marionIntent),
     domainConfidence: safeObj(d.domainConfidence),
@@ -713,6 +746,7 @@ function normalizeConciergeDecision(fields) {
     composerCompatible: true,
     stateSpineCompatible: true,
     finalEnvelopeRequired: true,
+    confidenceAwareResponseShaping: buildConfidenceAwareResponseShapingSeed({ ...f, action, route, intent, domainConfidence }),
     routeOnly: action === "route",
     clarifyOnly: action === "clarify",
     fallbackOnly: action === "fallback"
@@ -801,6 +835,7 @@ module.exports = {
   VERSION,
   DOMAIN_CONCIERGE_VERSION,
   DOMAIN_CONFIDENCE_VERSION,
+  CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,
   STATE_SPINE_SCHEMA,
   QUESTION_SHAPE_NORMALIZATION_VERSION,
   DEFAULT_CONFIG,
@@ -818,6 +853,7 @@ module.exports = {
   buildClarifier,
   buildStateSpinePatch,
   buildComposerContext,
+  buildConfidenceAwareResponseShapingSeed,
   domainExists,
   domainLabel,
   domainConciergeStatus,
@@ -841,8 +877,3 @@ module.exports = {
 };
 
 module.exports.default = module.exports;
-'''
-
-path = Path("/mnt/data/DomainConcierge.js")
-path.write_text(code, encoding="utf-8")
-path
