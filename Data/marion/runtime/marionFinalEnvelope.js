@@ -6,7 +6,7 @@
  * Single-source final envelope builder + validator + JSON-safe transport normalizer.
  */
 
-const VERSION = "marionFinalEnvelope v2.2.0 FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionFinalEnvelope v2.3.0 ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -15,6 +15,8 @@ const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
+const ADAPTIVE_TRUST_VERIFICATION_VERSION = "nyx.marion.adaptiveTrustVerification/1.0";
+const HIGH_STAKES_DOMAINS = Object.freeze(["law", "finance", "cyber"]);
 const MAX_STRING_LENGTH = 12000;
 const MAX_DEPTH = 7;
 const MAX_ARRAY = 80;
@@ -25,7 +27,8 @@ const FINAL_MARKERS = Object.freeze([
   CONTRACT_VERSION,
   FINAL_SIGNATURE,
   STATE_SPINE_SCHEMA,
-  STATE_SPINE_SCHEMA_COMPAT
+  STATE_SPINE_SCHEMA_COMPAT,
+  ADAPTIVE_TRUST_VERIFICATION_VERSION
 ]);
 
 function safeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
@@ -82,7 +85,8 @@ const KNOWN_FAILURE_SIGNATURES = Object.freeze([
   "COMPOSER_EMPTY_REPLY",
   "BRIDGE_HANDOFF_INVALID",
   "CHATENGINE_COORDINATOR_FAULT",
-  "DEBUG_LEAK_BLOCKED"
+  "DEBUG_LEAK_BLOCKED",
+  "ADAPTIVE_TRUST_BLOCKED"
 ]);
 function telemetryAuditText(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
 function telemetryAuditObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
@@ -102,7 +106,8 @@ function classifyFailureSignature(fields={}){
   if(/\bvoice.*parity.*drift|mic.*text.*drift|inputsource.*mismatch\b/.test(text)||f.voiceTextParityDrift===true)return"VOICE_TEXT_PARITY_DRIFT";
   if(/\bstale.*target|target.*stale|wrong target\b/.test(text))return"TECHNICAL_TARGET_STALE_CARRY";
   if(/\bpacket hijack|pre-router intercept|packet.*intercept\b/.test(text))return"PACKET_HIJACK_ATTEMPT";
-  if(/\broutekind=|finalenvelope|sessionpatch|diagnostic packet|replyauthority=|speechhints=|presenceprofile=|nyxstatehint=\b/i.test(telemetryAuditText(f.reply||"")))return"DEBUG_LEAK_BLOCKED";
+  if(/\broutekind=|finalenvelope|sessionpatch|diagnostic packet|replyauthority=|speechhints=|presenceprofile|nyxstatehint=\b/i.test(telemetryAuditText(f.reply||"")))return"DEBUG_LEAK_BLOCKED";
+  if(f.trustVerificationBlocked===true)return"ADAPTIVE_TRUST_BLOCKED";
   if(f.canEmit===false&&f.finalEnvelopeTrusted===false)return"FINAL_ENVELOPE_MISSING";
   return"none";
 }
@@ -142,7 +147,93 @@ function stripTelemetryLeakFromReply(value=""){
   return text;
 }
 
-
+function compactKey(value) { return lower(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
+function isHighStakesDomain(value) { return HIGH_STAKES_DOMAINS.includes(compactKey(value)); }
+function extractDomainConfidence(input = {}) {
+  const src = safeObj(input), routing = safeObj(src.routing), meta = safeObj(src.meta), memoryPatch = safeObj(src.memoryPatch), sessionPatch = safeObj(src.sessionPatch);
+  const candidates = [src.domainConfidence, routing.domainConfidence, meta.domainConfidence, memoryPatch.domainConfidence, sessionPatch.domainConfidence, safeObj(src.domainConcierge).domainConfidence, safeObj(routing.domainConcierge).domainConfidence, safeObj(memoryPatch.domainConcierge).domainConfidence];
+  for (const item of candidates) {
+    const o = safeObj(item);
+    if (Object.keys(o).length) {
+      const confidence = clamp01(o.confidence, Number.isFinite(Number(o.score)) ? Number(o.score) : 0);
+      return { ...compactObject(o, 4, 60), confidence, band: firstText(o.band, confidence >= 0.82 ? "high" : confidence >= 0.62 ? "medium" : confidence >= 0.42 ? "low" : "weak"), primaryDomain: firstText(o.primaryDomain, o.domain, routing.knowledgeDomain, routing.domain, src.domain) };
+    }
+  }
+  return {};
+}
+function extractDomainConcierge(input = {}) {
+  const src = safeObj(input), routing = safeObj(src.routing), meta = safeObj(src.meta), memoryPatch = safeObj(src.memoryPatch), sessionPatch = safeObj(src.sessionPatch);
+  const candidates = [src.domainConcierge, routing.domainConcierge, meta.domainConcierge, memoryPatch.domainConcierge, sessionPatch.domainConcierge];
+  for (const item of candidates) {
+    const o = safeObj(item);
+    if (Object.keys(o).length) {
+      return {
+        version: firstText(o.contract, o.version, "nyx.marion.domainConcierge/1.0"),
+        action: firstText(o.action, "route"),
+        route: firstText(o.route, o.domain, safeObj(o.domainConfidence).primaryDomain, "general"),
+        intent: firstText(o.intent, "simple_chat"),
+        confidence: clamp01(o.confidence, safeObj(o.domainConfidence).confidence || 0),
+        needsClarifier: !!o.needsClarifier,
+        clarifier: o.needsClarifier ? safeStr(o.clarifier) : "",
+        failClosed: !!(o.failClosed || safeObj(o.domainConfidence).failClosed),
+        routeLocked: !!(o.routeLocked || safeObj(o.domainConfidence).routeLocked),
+        noUserFacingDiagnostics: o.noUserFacingDiagnostics !== false
+      };
+    }
+  }
+  return {};
+}
+function extractResponseShaping(input = {}) {
+  const src = safeObj(input), routing = safeObj(src.routing), meta = safeObj(src.meta), memoryPatch = safeObj(src.memoryPatch), sessionPatch = safeObj(src.sessionPatch);
+  const candidates = [src.responseShaping, src.confidenceAwareResponseShaping, routing.responseShaping, meta.responseShaping, memoryPatch.responseShaping, sessionPatch.responseShaping, safeObj(src.domainConcierge).responseShaping];
+  for (const item of candidates) {
+    const o = safeObj(item);
+    if (Object.keys(o).length) return compactObject(o, 4, 60);
+  }
+  return {};
+}
+function buildAdaptiveTrustVerification({ reply = "", routing = {}, domainConfidence = {}, domainConcierge = {}, responseShaping = {}, diagnostics = {}, meta = {}, completionValidation = {} } = {}) {
+  const domain = compactKey(firstText(routing.knowledgeDomain, routing.domain, domainConfidence.primaryDomain, "general"));
+  const confidence = clamp01(domainConfidence.confidence, domainConcierge.confidence || safeObj(responseShaping).confidence || 0.76);
+  const highStakes = isHighStakesDomain(domain);
+  const reasons = [];
+  const replyText = safeStr(reply);
+  const diagnosticLeak = isTelemetryLeakText(replyText) || isDiagnosticReply(replyText);
+  const softRecovery = isSoftRecoveryReply(replyText);
+  const hardFailure = hasHardFailure(diagnostics, meta);
+  if (!replyText) reasons.push("reply_missing");
+  if (diagnosticLeak) reasons.push("diagnostic_or_telemetry_leak");
+  if (softRecovery) reasons.push("soft_recovery_reply");
+  if (hardFailure) reasons.push("hard_failure_marker_present");
+  if (safeObj(completionValidation).ok === false) reasons.push("final_reply_validation_failed");
+  if (safeObj(domainConcierge).needsClarifier === true) reasons.push("clarifier_required_upstream");
+  if (safeObj(domainConcierge).failClosed === true && confidence < 0.62) reasons.push("domain_concierge_fail_closed");
+  if (confidence < 0.38) reasons.push("confidence_below_emit_floor");
+  const cautionSuggested = highStakes || confidence < 0.62;
+  const allowEmit = reasons.length === 0;
+  return {
+    version: ADAPTIVE_TRUST_VERIFICATION_VERSION,
+    ok: allowEmit,
+    allowEmit,
+    userVisible: false,
+    noUserFacingDiagnostics: true,
+    domain,
+    highStakes,
+    confidence,
+    confidenceBand: confidence >= 0.82 ? "high" : confidence >= 0.62 ? "medium" : confidence >= 0.42 ? "low" : "weak",
+    cautionSuggested,
+    professionalReferralSuggested: highStakes && ["law", "finance"].includes(domain),
+    sourceReliabilityRequired: highStakes,
+    clarificationRequired: safeObj(domainConcierge).needsClarifier === true || confidence < 0.38,
+    diagnosticLeakBlocked: diagnosticLeak,
+    softRecoveryBlocked: softRecovery,
+    hardFailureBlocked: hardFailure,
+    reasons,
+    action: allowEmit ? (cautionSuggested ? "emit_with_caution_profile" : "emit") : "block_or_retry",
+    finalAuthorityPreserved: true,
+    checkedAt: nowIso()
+  };
+}
 
 function compactObject(value, maxDepth = 4, keyLimit = 80) {
   const obj = safeObj(jsonSafeClone(value, maxDepth));
@@ -190,11 +281,14 @@ function hasHardFailure(diagnostics = {}, meta = {}) {
 function validateFinalReply(reply, context = {}) {
   const text = safeStr(reply);
   const reasons = [];
+  const trustVerification = safeObj(context.adaptiveTrustVerification || context.trustVerification);
   if (!text) reasons.push("reply_missing");
   if (text && text.length < 8) reasons.push("reply_too_short");
   if (isSoftRecoveryReply(text)) reasons.push("soft_recovery_reply_rejected");
   if (isDiagnosticReply(text)) reasons.push("diagnostic_reply_rejected");
+  if (isTelemetryLeakText(text)) reasons.push("telemetry_leak_reply_rejected");
   if (hasHardFailure(context.diagnostics, context.meta)) reasons.push("hard_failure_marker_present");
+  if (trustVerification.allowEmit === false) reasons.push("adaptive_trust_verification_blocked");
   return { ok: reasons.length === 0, reply: text, reasons, actionable: reasons.length === 0 };
 }
 
@@ -204,16 +298,16 @@ function makeId(prefix = "marion_final") { return `${prefix}_${Date.now().toStri
 function buildFinalSignature({ reply = "", turnId = "", replySignature = "", bridgeVersion = "", composerVersion = "" } = {}) { const seed = cleanToken(replySignature || hashText(reply || turnId || Date.now()), "reply"); const turn = cleanToken(turnId || "turn", "turn"); const bridge = cleanToken(bridgeVersion || "marionBridge", "marionBridge"); const composer = cleanToken(composerVersion || "composeMarionResponse", "composeMarionResponse"); return `${MARION_FINAL_SIGNATURE_PREFIX}${REQUIRED_CHAT_ENGINE_SIGNATURE}::${bridge}::${composer}::${VERSION}::${STATE_SPINE_SCHEMA}::${FINAL_SIGNATURE}::${turn}::${seed}`; }
 
 function normalizeStateStage(value, fallback = "final") { const raw = lower(value || fallback || "final").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); if (!raw) return "final"; if (["recover", "recovery", "loop_recovery", "stabilize", "blocked", "fallback", "deliver", "advance", "complete", "completed", "composed"].includes(raw)) return "final"; if (["final", "compose", "routed", "classified", "intake", "open", "error"].includes(raw)) return raw; return fallback || "final"; }
-function normalizeRouting(input = {}) { const routing = safeObj(input.routing); return { intent: firstText(input.intent, safeObj(input.marionIntent).intent, routing.intent, "simple_chat"), domain: firstText(input.domain, routing.domain, "general"), mode: safeStr(routing.mode || input.mode || ""), depth: safeStr(routing.depth || input.depth || ""), endpoint: safeStr(routing.endpoint || input.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT }; }
+function normalizeRouting(input = {}) { const routing = safeObj(input.routing); const dc = extractDomainConfidence(input); const concierge = extractDomainConcierge(input); const responseShaping = extractResponseShaping(input); return { intent: firstText(input.intent, safeObj(input.marionIntent).intent, routing.intent, concierge.intent, "simple_chat"), domain: firstText(input.domain, routing.domain, concierge.route, dc.primaryDomain, "general"), knowledgeDomain: firstText(input.knowledgeDomain, routing.knowledgeDomain, dc.knowledgeDomain, dc.primaryDomain, ""), secondaryDomains: safeArray(routing.secondaryDomains || input.secondaryDomains).slice(0, 4), answerMode: safeStr(routing.answerMode || input.answerMode || responseShaping.answerMode || ""), mode: safeStr(routing.mode || input.mode || ""), depth: safeStr(routing.depth || input.depth || responseShaping.depth || ""), endpoint: safeStr(routing.endpoint || input.endpoint || CANONICAL_ENDPOINT) || CANONICAL_ENDPOINT, domainConfidence: dc, domainConcierge: concierge, responseShaping }; }
 
 function extractReply(input = {}) { const src = safeObj(input), payload = safeObj(src.payload), synthesis = safeObj(src.synthesis), packet = safeObj(src.packet), packetSynthesis = safeObj(packet.synthesis), packetPayload = safeObj(packet.payload), finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || packet.finalEnvelope || packetPayload.finalEnvelope); return firstText(finalEnvelope.reply, finalEnvelope.text, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.message, finalEnvelope.spokenText, src.reply, src.text, src.answer, src.output, src.response, src.message, src.spokenText, payload.reply, payload.text, payload.answer, payload.output, payload.response, payload.message, payload.spokenText, synthesis.reply, synthesis.text, synthesis.answer, synthesis.output, synthesis.spokenText, packetSynthesis.reply, packetSynthesis.text, packetSynthesis.answer, packetSynthesis.output, packetSynthesis.spokenText); }
 function extractResolvedEmotion(input = {}) { const src = safeObj(input), memoryPatch = safeObj(src.memoryPatch), sessionPatch = safeObj(src.sessionPatch), packet = safeObj(src.packet); return safeObj(src.resolvedEmotion || src.emotionState || src.lastEmotionState || src.emotionalState || (src.emotionRuntime && safeObj(src.emotionRuntime).state) || memoryPatch.resolvedEmotion || memoryPatch.emotionState || memoryPatch.lastEmotionState || sessionPatch.resolvedEmotion || sessionPatch.emotionState || safeObj(packet.memoryPatch).resolvedEmotion || {}); }
 function normalizePatch(value = {}) { return compactObject(value, 5, 100); }
 function normalizeEmotionSummary(value = {}) { const s = safeObj(jsonSafeClone(value, 4)); return { ok: s.ok !== false, mode: safeStr(s.mode || "resolved_state_only"), primary: safeStr(s.primary || "neutral"), secondary: safeStr(s.secondary || "unclear"), confidence: clamp01(s.confidence, 0), intensity: clamp01(s.intensity, 0), action_mode: safeStr(s.action_mode || "supportive_monitoring"), care_mode: safeStr(s.care_mode || ""), source: safeStr(s.source || "marionFinalEnvelope") }; }
 
-function buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostics, meta }) { const validation = validateFinalReply(reply, { diagnostics, meta }); const hasEmotion = !!Object.keys(safeObj(resolvedEmotion)).length; const hasMemory = !!Object.keys(safeObj(memoryPatch)).length; const hardFailure = hasHardFailure(diagnostics, meta); const actionable = validation.ok; const softRecovery = isSoftRecoveryReply(reply); const confidence = actionable ? (hasEmotion ? 0.99 : 0.96) : (softRecovery ? 0.18 : 0.35); return { complete: actionable && !hardFailure, stabilized: actionable && !softRecovery && !hardFailure, actionableReply: actionable, emotionallyCoherentFinal: actionable && hasEmotion, memoryPatchPresent: hasMemory, completionConfidence: confidence, requiresRetry: !actionable || hardFailure, recoverySuggested: !actionable || hardFailure, softRecoveryDetected: softRecovery, validationReasons: validation.reasons, reason: actionable && !hardFailure ? "trusted_final_reply_complete" : (validation.reasons[0] || "reply_not_actionable") }; }
+function buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostics, meta, adaptiveTrustVerification }) { const trust = safeObj(adaptiveTrustVerification); const validation = validateFinalReply(reply, { diagnostics, meta, adaptiveTrustVerification: trust }); const hasEmotion = !!Object.keys(safeObj(resolvedEmotion)).length; const hasMemory = !!Object.keys(safeObj(memoryPatch)).length; const hardFailure = hasHardFailure(diagnostics, meta) || trust.hardFailureBlocked === true; const actionable = validation.ok && trust.allowEmit !== false; const softRecovery = isSoftRecoveryReply(reply) || trust.softRecoveryBlocked === true; const baseConfidence = actionable ? (hasEmotion ? 0.99 : 0.96) : (softRecovery ? 0.18 : 0.35); const confidence = trust.allowEmit === false ? Math.min(baseConfidence, clamp01(trust.confidence, 0.25)) : baseConfidence; return { complete: actionable && !hardFailure, stabilized: actionable && !softRecovery && !hardFailure, actionableReply: actionable, emotionallyCoherentFinal: actionable && hasEmotion, memoryPatchPresent: hasMemory, adaptiveTrustVerified: trust.allowEmit !== false, adaptiveTrustVerification: trust, completionConfidence: confidence, requiresRetry: !actionable || hardFailure, recoverySuggested: !actionable || hardFailure, softRecoveryDetected: softRecovery, validationReasons: validation.reasons, reason: actionable && !hardFailure ? "trusted_final_reply_complete" : (validation.reasons[0] || safeArray(trust.reasons)[0] || "reply_not_actionable") }; }
 
-function buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage }) { return { ok: !!reply, final: true, marionFinal: true, handled: true, source: SOURCE, signature: FINAL_SIGNATURE, marionFinalSignature, finalSignature: marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, envelopeId, createdAt, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText, intent: routing.intent, domain: routing.domain, stateStage, replySignature }; }
+function buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage }) { return { ok: !!reply, final: true, marionFinal: true, handled: true, source: SOURCE, signature: FINAL_SIGNATURE, marionFinalSignature, finalSignature: marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, envelopeId, createdAt, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText, intent: routing.intent, domain: routing.domain, knowledgeDomain: routing.knowledgeDomain, stateStage, replySignature }; }
 function validateReplyContract(envelope = {}) { const e = safeObj(envelope), reasons = []; if (e.final !== true) reasons.push("final_flag_missing"); if (e.marionFinal !== true) reasons.push("marion_final_flag_missing"); if (e.handled !== true) reasons.push("handled_flag_missing"); if (e.source !== SOURCE) reasons.push("source_not_marion"); if (e.signature !== FINAL_SIGNATURE) reasons.push("signature_missing"); if (e.contractVersion !== CONTRACT_VERSION) reasons.push("contract_version_mismatch"); if (!safeStr(e.reply)) reasons.push("reply_missing"); if (!safeStr(e.replySignature)) reasons.push("reply_signature_missing"); if (!safeStr(e.marionFinalSignature || e.finalSignature)) reasons.push("marion_final_signature_missing"); if (e.requiresRetry === true || e.recoverySuggested === true) reasons.push("retry_marker_present"); if (!isActionableFinalReply(e.reply)) reasons.push("reply_not_actionable"); return { ok: reasons.length === 0, reasons }; }
 function normalizeFinalTransport(envelope = {}) { const e = safeObj(envelope); const renderReady = e.final === true && e.marionFinal === true && isActionableFinalReply(e.reply) && e.requiresRetry !== true; return { transport: { jsonSafe: true, socketSafe: true, renderReady, emitOrder: "finalEnvelope:first,sessionPatch:afterFinal,diagnostics:last", reconnectSafe: true, shouldReconnect: false, deliveryTiming: "single_final_packet" }, ui: { renderReady, shouldReconnect: false, connectionState: "ready", awaitMore: false } }; }
 function sanitizeFinalEnvelope(envelope = {}) { return jsonSafeClone(envelope, MAX_DEPTH); }
@@ -222,7 +316,9 @@ function createMarionFinalEnvelope(input = {}) {
   const src = safeObj(input);
   const metaInput = compactObject(src.meta, 4, 80);
   const diagnostics = compactObject(src.diagnostics || metaInput.diagnostics || {}, 4, 80);
-  const reply = extractReply(src);
+  const rawReply = extractReply(src);
+  const strippedReply = stripTelemetryLeakFromReply(rawReply);
+  const reply = isTelemetryLeakText(rawReply) ? strippedReply : rawReply;
   const routing = normalizeRouting(src);
   const memoryPatch = normalizePatch(src.memoryPatch);
   const sessionPatch = normalizePatch(src.sessionPatch || src.memoryPatch);
@@ -235,21 +331,23 @@ function createMarionFinalEnvelope(input = {}) {
   const envelopeId = makeId("marion_final");
   const createdAt = nowIso();
   const marionFinalSignature = buildFinalSignature({ reply, turnId, replySignature, bridgeVersion: metaInput.bridgeVersion || src.bridgeVersion, composerVersion: metaInput.composerVersion || src.composerVersion });
-  const completionStatus = buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostics, meta: metaInput });
+  const initialValidation = validateFinalReply(reply, { diagnostics, meta: metaInput });
+  const adaptiveTrustVerification = buildAdaptiveTrustVerification({ reply, routing, domainConfidence: routing.domainConfidence, domainConcierge: routing.domainConcierge, responseShaping: routing.responseShaping, diagnostics, meta: metaInput, completionValidation: initialValidation });
+  const completionStatus = buildCompletionStatus({ reply, resolvedEmotion, memoryPatch, diagnostics, meta: metaInput, adaptiveTrustVerification });
   const core = buildEnvelopeCore({ reply, spokenText, routing, turnId, replySignature, marionFinalSignature, envelopeId, createdAt, stateStage });
   const completionConfidence = completionStatus.completionConfidence;
   const requiresRetry = completionStatus.requiresRetry;
   const recoverySuggested = completionStatus.recoverySuggested;
   const stabilized = completionStatus.stabilized;
   const transportMeta = normalizeFinalTransport({ ...core, requiresRetry, recoverySuggested });
-  const failureSignatureAudit = buildFailureSignatureAudit({source:"marionFinalEnvelope",stage:stateStage,intent:firstText(routing.intent,""),domain:firstText(routing.domain,routing.knowledgeDomain,""),knowledgeDomain:firstText(routing.knowledgeDomain,""),primaryDomain:firstText(routing.knowledgeDomain,routing.domain,""),secondaryDomains:safeArray(routing.secondaryDomains),answerMode:firstText(routing.answerMode,""),reply,canEmit:!requiresRetry,finalEnvelopeTrusted:!requiresRetry,error:firstText(diagnostics.error,metaInput.error,"")});
+  const failureSignatureAudit = buildFailureSignatureAudit({source:"marionFinalEnvelope",stage:stateStage,intent:firstText(routing.intent,""),domain:firstText(routing.domain,routing.knowledgeDomain,""),knowledgeDomain:firstText(routing.knowledgeDomain,""),primaryDomain:firstText(routing.knowledgeDomain,routing.domain,""),secondaryDomains:safeArray(routing.secondaryDomains),answerMode:firstText(routing.answerMode,""),reply,canEmit:!requiresRetry,finalEnvelopeTrusted:!requiresRetry,error:firstText(diagnostics.error,metaInput.error,""),trustVerificationBlocked:adaptiveTrustVerification.allowEmit===false});
 
-  const finalEnvelope = { ...core, memoryPatch, sessionPatch, resolvedEmotion, emotionSummary, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit, validation: { finalReply: validateFinalReply(reply, { diagnostics, meta: metaInput }), replyContract: null }, meta: { freshMarionFinal: true, singleFinalAuthority: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, source: SOURCE, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: FINAL_MARKERS.slice(), turnId, replySignature, stateSpineSchema: STATE_SPINE_SCHEMA, stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit } };
+  const finalEnvelope = { ...core, memoryPatch, sessionPatch, resolvedEmotion, emotionSummary, adaptiveTrustVerification, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit, validation: { finalReply: validateFinalReply(reply, { diagnostics, meta: metaInput, adaptiveTrustVerification }), replyContract: null }, meta: { freshMarionFinal: true, singleFinalAuthority: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, source: SOURCE, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: FINAL_MARKERS.slice(), turnId, replySignature, stateSpineSchema: STATE_SPINE_SCHEMA, stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit, adaptiveTrustVerificationVersion: ADAPTIVE_TRUST_VERIFICATION_VERSION } };
   finalEnvelope.validation.replyContract = validateReplyContract(finalEnvelope);
 
   const finalEnvelopeCopy = jsonSafeClone(finalEnvelope, 6);
   const transportCopy = jsonSafeClone(transportMeta.transport, 3);
-  const response = { ...core, routing, memoryPatch, sessionPatch, resolvedEmotion, emotionSummary, finalEnvelope: finalEnvelopeCopy, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, payload: { reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, final: true, marionFinal: true, handled: true, contractVersion: CONTRACT_VERSION, signature: FINAL_SIGNATURE, marionFinalSignature, finalSignature: marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalEnvelope: finalEnvelopeCopy, memoryPatch, sessionPatch, resolvedEmotion, emotionSummary, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, transport: transportCopy }, packet: { final: true, marionFinal: true, handled: true, routing, synthesis: { reply, text: reply, answer: reply, output: reply, spokenText, final: true, marionFinal: true, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE }, memoryPatch, sessionPatch, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, meta: { final: true, marionFinal: true, handled: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: FINAL_MARKERS.slice(), freshMarionFinal: true, singleFinalAuthority: true, replySignature, turnId, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, transport: transportCopy } }, speech: { enabled: !(src.speech && src.speech.enabled === false), silent: !!(src.speech && src.speech.silent), silentAudio: !!(src.speech && src.speech.silentAudio), textDisplay: reply, textSpeak: spokenText, presenceProfile: safeStr(safeObj(src.speech).presenceProfile || src.presenceProfile || "receptive"), nyxStateHint: safeStr(safeObj(src.speech).nyxStateHint || src.nyxStateHint || "receptive"), timingProfile: compactObject(safeObj(src.speech).timingProfile || safeObj(safeObj(resolvedEmotion).support).timing_profile || {}, 3, 20) }, ui: jsonSafeClone(transportMeta.ui, 3), transport: transportCopy, meta: { ...metaInput, freshMarionFinal: true, singleFinalAuthority: true, bridgeCompatible: true, widgetCompatible: true, ttsCompatible: true, stateSpineCompatible: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, finalMarkers: FINAL_MARKERS.slice(), source: SOURCE, replySignature, turnId, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, signature: marionFinalSignature, marionFinalSignature, finalEnvelopeAuthority: VERSION, resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, diagnostics, transport: transportCopy }, diagnostics: { ...diagnostics, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit, finalEnvelopeVersion: VERSION, contractVersion: CONTRACT_VERSION, freshMarionFinal: true, singleFinalAuthority: true, replyPresent: !!reply, nestedFinalEnvelopePresent: true, memoryPatchPresent: !!Object.keys(memoryPatch).length, sessionPatchPresent: !!Object.keys(sessionPatch).length, resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, softRecoveryDetected: completionStatus.softRecoveryDetected, validation: finalEnvelope.validation.finalReply, replyContract: finalEnvelope.validation.replyContract, jsonSafe: true, transportSafe: true } };
+  const response = { ...core, routing, memoryPatch, sessionPatch, resolvedEmotion, emotionSummary, adaptiveTrustVerification, finalEnvelope: finalEnvelopeCopy, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, payload: { reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, final: true, marionFinal: true, handled: true, contractVersion: CONTRACT_VERSION, signature: FINAL_SIGNATURE, marionFinalSignature, finalSignature: marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalEnvelope: finalEnvelopeCopy, memoryPatch, sessionPatch, resolvedEmotion, emotionSummary, adaptiveTrustVerification, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, transport: transportCopy }, packet: { final: true, marionFinal: true, handled: true, routing, synthesis: { reply, text: reply, answer: reply, output: reply, spokenText, final: true, marionFinal: true, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE }, memoryPatch, sessionPatch, adaptiveTrustVerification, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, meta: { final: true, marionFinal: true, handled: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: FINAL_MARKERS.slice(), freshMarionFinal: true, singleFinalAuthority: true, replySignature, turnId, adaptiveTrustVerification, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, transport: transportCopy } }, speech: { enabled: !(src.speech && src.speech.enabled === false), silent: !!(src.speech && src.speech.silent), silentAudio: !!(src.speech && src.speech.silentAudio), textDisplay: reply, textSpeak: spokenText, presenceProfile: safeStr(safeObj(src.speech).presenceProfile || src.presenceProfile || "receptive"), nyxStateHint: safeStr(safeObj(src.speech).nyxStateHint || src.nyxStateHint || "receptive"), timingProfile: compactObject(safeObj(src.speech).timingProfile || safeObj(safeObj(resolvedEmotion).support).timing_profile || {}, 3, 20) }, ui: jsonSafeClone(transportMeta.ui, 3), transport: transportCopy, meta: { ...metaInput, freshMarionFinal: true, singleFinalAuthority: true, bridgeCompatible: true, widgetCompatible: true, ttsCompatible: true, stateSpineCompatible: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, finalMarkers: FINAL_MARKERS.slice(), source: SOURCE, replySignature, turnId, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, signature: marionFinalSignature, marionFinalSignature, finalEnvelopeAuthority: VERSION, resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length, adaptiveTrustVerification, adaptiveTrustVerified: adaptiveTrustVerification.allowEmit !== false, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, diagnostics, transport: transportCopy }, diagnostics: { ...diagnostics, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit, finalEnvelopeVersion: VERSION, contractVersion: CONTRACT_VERSION, freshMarionFinal: true, singleFinalAuthority: true, replyPresent: !!reply, nestedFinalEnvelopePresent: true, memoryPatchPresent: !!Object.keys(memoryPatch).length, sessionPatchPresent: !!Object.keys(sessionPatch).length, resolvedEmotionPresent: !!Object.keys(resolvedEmotion).length, adaptiveTrustVerification, adaptiveTrustVerified: adaptiveTrustVerification.allowEmit !== false, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, softRecoveryDetected: completionStatus.softRecoveryDetected, validation: finalEnvelope.validation.finalReply, replyContract: finalEnvelope.validation.replyContract, jsonSafe: true, transportSafe: true } };
   return sanitizeFinalEnvelope(response);
 }
 
@@ -257,4 +355,4 @@ function createMarionErrorEnvelope(input = {}) { const reply = safeStr(input.rep
 function isMarionFinalEnvelope(value) { const v = safeObj(value); const target = Object.keys(safeObj(v.finalEnvelope)).length ? safeObj(v.finalEnvelope) : v; const validation = validateReplyContract(target); return !!(validation.ok && safeObj(target.completionStatus).complete !== false); }
 function unwrapReply(value) { const v = safeObj(value); if (isMarionFinalEnvelope(v)) return safeStr(safeObj(v.finalEnvelope).reply || v.reply); return extractReply(value); }
 
-module.exports = { VERSION, TELEMETRY_VISIBILITY_VERSION, FAILURE_SIGNATURE_AUDIT_VERSION, CONTRACT_VERSION, FINAL_SIGNATURE, SOURCE, REQUIRED_CHAT_ENGINE_SIGNATURE, MARION_FINAL_SIGNATURE_PREFIX, STATE_SPINE_SCHEMA, STATE_SPINE_SCHEMA_COMPAT, CANONICAL_ENDPOINT, FINAL_MARKERS, buildFinalSignature, createMarionFinalEnvelope, createMarionErrorEnvelope, isMarionFinalEnvelope, unwrapReply, validateFinalReply, validateReplyContract, normalizeFinalTransport, sanitizeFinalEnvelope, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply, _internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray, jsonSafeClone, normalizePatch, isSoftRecoveryReply, isDiagnosticReply, isActionableFinalReply, buildCompletionStatus, hasHardFailure, normalizeStateStage, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply } };
+module.exports = { VERSION, ADAPTIVE_TRUST_VERIFICATION_VERSION, TELEMETRY_VISIBILITY_VERSION, FAILURE_SIGNATURE_AUDIT_VERSION, CONTRACT_VERSION, FINAL_SIGNATURE, SOURCE, REQUIRED_CHAT_ENGINE_SIGNATURE, MARION_FINAL_SIGNATURE_PREFIX, STATE_SPINE_SCHEMA, STATE_SPINE_SCHEMA_COMPAT, CANONICAL_ENDPOINT, FINAL_MARKERS, buildFinalSignature, createMarionFinalEnvelope, createMarionErrorEnvelope, isMarionFinalEnvelope, unwrapReply, validateFinalReply, validateReplyContract, normalizeFinalTransport, sanitizeFinalEnvelope, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply, buildAdaptiveTrustVerification, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, _internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray, jsonSafeClone, normalizePatch, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, buildAdaptiveTrustVerification, isSoftRecoveryReply, isDiagnosticReply, isActionableFinalReply, buildCompletionStatus, hasHardFailure, normalizeStateStage, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply } };
