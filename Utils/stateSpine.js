@@ -14,11 +14,12 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.14.5 QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.15.0 CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
-const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
+const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/1.0";
+const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
@@ -520,6 +521,55 @@ function extractDomainConciergeCarry(params = {}, inbound = {}, memoryPatch = {}
     if (isPlainObject(item) && Object.keys(item).length) return normalizeDomainConciergeCarry(item);
   }
   return normalizeDomainConciergeCarry({ action: "absent", source: "domain_concierge_absent" });
+}
+
+
+
+function normalizeConfidenceAwareResponseShapingCarry(value = {}) {
+  const v = isPlainObject(value) ? value : {};
+  const confidence = Number(v.confidence);
+  const c = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
+  const mode = boundedOneLine(v.mode || (v.needsClarifier ? "clarify" : (c >= 0.82 ? "direct" : c >= 0.62 ? "grounded" : c > 0 ? "cautious" : "absent")), 32);
+  return {
+    version: boundedOneLine(v.version || CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION, 96),
+    source: boundedOneLine(v.source || "confidence_aware_response_shaping_carry", 96),
+    active: v.active !== false && mode !== "absent",
+    mode,
+    action: boundedOneLine(v.action || "", 48),
+    route: boundedOneLine(v.route || v.domain || "", 64),
+    intent: boundedOneLine(v.intent || "", 64),
+    knowledgeDomain: boundedOneLine(v.knowledgeDomain || "", 64),
+    confidence: c,
+    confidenceBand: boundedOneLine(v.confidenceBand || v.band || (c >= 0.82 ? "high" : c >= 0.62 ? "medium" : c > 0 ? "low" : "absent"), 32),
+    highStakes: !!v.highStakes,
+    technical: !!v.technical,
+    needsClarifier: !!v.needsClarifier || mode === "clarify",
+    clarifier: boundedOneLine(v.clarifier || "", 220),
+    noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
+    updatedAt: nowMs()
+  };
+}
+
+function extractConfidenceAwareResponseShapingCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const candidates = [
+    mp.confidenceAwareResponseShaping,
+    isPlainObject(mp.stateBridge) ? mp.stateBridge.confidenceAwareResponseShaping : null,
+    p.confidenceAwareResponseShaping,
+    isPlainObject(p.domainConcierge) ? p.domainConcierge.confidenceAwareResponseShaping : null,
+    isPlainObject(p.routing) ? p.routing.confidenceAwareResponseShaping : null,
+    isPlainObject(p.routing) && isPlainObject(p.routing.domainConcierge) ? p.routing.domainConcierge.confidenceAwareResponseShaping : null,
+    src.confidenceAwareResponseShaping,
+    isPlainObject(src.domainConcierge) ? src.domainConcierge.confidenceAwareResponseShaping : null,
+    isPlainObject(src.sessionPatch) ? src.sessionPatch.confidenceAwareResponseShaping : null,
+    isPlainObject(src.sessionPatch) && isPlainObject(src.sessionPatch.stateBridge) ? src.sessionPatch.stateBridge.confidenceAwareResponseShaping : null
+  ];
+  for (const item of candidates) {
+    if (isPlainObject(item) && Object.keys(item).length) return normalizeConfidenceAwareResponseShapingCarry(item);
+  }
+  return normalizeConfidenceAwareResponseShapingCarry({ mode: "absent", source: "confidence_aware_response_shaping_absent" });
 }
 
 
@@ -2243,6 +2293,7 @@ function finalizeTurn(params = {}) {
   const runtimeTelemetry = buildStateRuntimeTelemetry({params,inbound,reply:speak,trustedFinalCompletion,stage,intent,domain:composerDomain,lane});
   const domainConfidenceCarry = extractDomainConfidenceCarry(params, inbound, memoryPatch);
   const domainConciergeCarry = extractDomainConciergeCarry(params, inbound, memoryPatch);
+  const confidenceAwareResponseShapingCarry = extractConfidenceAwareResponseShapingCarry(params, inbound, memoryPatch);
   const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
   const nextState = {
     ...prev,
@@ -2277,6 +2328,7 @@ function finalizeTurn(params = {}) {
     runtimeTelemetry,
     domainConfidence: domainConfidenceCarry,
     domainConcierge: domainConciergeCarry,
+    confidenceAwareResponseShaping: confidenceAwareResponseShapingCarry,
     progressionLock,
     progressionShapingGuard,
     volatility,
@@ -2352,6 +2404,9 @@ function finalizeTurn(params = {}) {
       domainConfidence: domainConfidenceCarry,
       domainConfidenceFailClosed: !!domainConfidenceCarry.failClosed,
       domainConcierge: domainConciergeCarry,
+      confidenceAwareResponseShaping: confidenceAwareResponseShapingCarry,
+      confidenceAwareResponseShapingActive: !!confidenceAwareResponseShapingCarry.active,
+      confidenceAwareResponseShapingMode: confidenceAwareResponseShapingCarry.mode,
       lastConciergeAction: domainConciergeCarry.action,
       lastConciergeRoute: domainConciergeCarry.route,
       lastConciergeIntent: domainConciergeCarry.intent,
@@ -2524,6 +2579,9 @@ module.exports = {
   normalizeQuestionShapeCarry,
   extractQuestionShapeCarry,
   normalizeDomainConciergeCarry,
-  extractDomainConciergeCarry
+  extractDomainConciergeCarry,
+  CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,
+  normalizeConfidenceAwareResponseShapingCarry,
+  extractConfidenceAwareResponseShapingCarry
 };
 module.exports.default = module.exports;
