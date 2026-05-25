@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "enabled": true,
   "defaultSourceLanguage": "auto",
   "defaultTargetLanguage": "en",
@@ -10,12 +10,22 @@
     "es": "Spanish"
   },
   "provider": {
-    "active": "none",
+    "active": "manualDictionary",
     "fallback": "identity",
     "allowRemoteProviders": false,
     "allowSelfHostedProviders": true,
+    "endpoint": null,
     "timeoutMs": 8000,
-    "maxCharactersPerRequest": 4500
+    "maxCharactersPerRequest": 4500,
+    "maxResponseBytes": 524288,
+    "localLibreTranslate": {
+      "endpoint": "http://localhost:5000/translate",
+      "timeoutMs": 8000
+    },
+    "localNmt": {
+      "endpoint": "http://localhost:7010/translate",
+      "timeoutMs": 8000
+    }
   },
   "behavior": {
     "preserveFinalEnvelope": true,
@@ -36,14 +46,7 @@
   },
   "datasets": {
     "preferredOrder": ["opus", "huggingface", "tatoeba"],
-    "phaseOnePairs": [
-      "en-fr",
-      "fr-en",
-      "en-es",
-      "es-en",
-      "fr-es",
-      "es-fr"
-    ],
+    "phaseOnePairs": ["en-fr", "fr-en", "en-es", "es-en", "fr-es", "es-fr"],
     "minimumValidationSegmentsPerPair": 15000,
     "storageRoot": "Data/translation/datasets"
   },
@@ -53,7 +56,7 @@
     "domainGlossaryRoot": "Data/translation/glossaries"
   },
   "translationMemory": {
-    "enabled": true,
+    "enabled": false,
     "storageFile": "Data/translation/memory/translation_memory.json",
     "maxEntries": 25000,
     "reuseExactMatches": true,
@@ -65,7 +68,8 @@
     "logLanguagePair": true,
     "logCharacterCount": true,
     "logFailures": true,
-    "logProtectedTermsCount": true
+    "logProtectedTermsCount": true,
+    "logEndpointType": true
   },
   "protectedTerms": [
     "Sandblast",
