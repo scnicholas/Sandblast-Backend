@@ -4,18 +4,22 @@
  * UniversalTranslatorAdapter.js
  * Marion/Nyx Universal Translator Adapter
  *
- * Hardened Phase-1 adapter.
+ * Hardened Phase-1/Phase-2 boundary adapter.
  *
  * Design rules:
  * - Non-invasive: does not alter Marion routing/final authority unless called explicitly.
  * - Fail-closed: returns original text/envelope on provider failure.
  * - Final-envelope safe: clones before writing translated final text or metadata.
- * - Provider-neutral: paid/cloud providers are not required; local/self-hosted providers can be added behind one boundary.
+ * - Provider-neutral: paid/cloud providers are not required; local/self-hosted providers sit behind one boundary.
  * - English/French/Spanish first.
+ *
+ * Critical compatibility note:
+ * - Works with LocalTranslationProvider.js provider names such as:
+ *   none, identity, manualDictionary, localLibreTranslate, argos, localNmt, huggingFaceLocal.
  */
 
 const DEFAULT_SUPPORTED_LANGUAGES = ["en", "fr", "es"];
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 let CONFIG = null;
 let GLOSSARY = null;
@@ -36,6 +40,7 @@ function isPlainObject(value) {
 }
 
 function deepMerge(base, override) {
+  if (!isPlainObject(base)) return isPlainObject(override) ? { ...override } : override;
   if (!isPlainObject(override)) return { ...base };
 
   const output = { ...base };
@@ -43,6 +48,8 @@ function deepMerge(base, override) {
   for (const [key, value] of Object.entries(override)) {
     if (isPlainObject(value) && isPlainObject(output[key])) {
       output[key] = deepMerge(output[key], value);
+    } else if (Array.isArray(value)) {
+      output[key] = value.slice();
     } else {
       output[key] = value;
     }
@@ -107,8 +114,12 @@ function loadConfig(forceReload = false) {
   CONFIG = deepMerge(getDefaultConfig(), loaded);
 
   if (!Array.isArray(CONFIG.supportedLanguages) || CONFIG.supportedLanguages.length === 0) {
-    CONFIG.supportedLanguages = DEFAULT_SUPPORTED_LANGUAGES;
+    CONFIG.supportedLanguages = DEFAULT_SUPPORTED_LANGUAGES.slice();
   }
+
+  if (!isPlainObject(CONFIG.provider)) CONFIG.provider = getDefaultConfig().provider;
+  if (!isPlainObject(CONFIG.behavior)) CONFIG.behavior = getDefaultConfig().behavior;
+  if (!isPlainObject(CONFIG.routing)) CONFIG.routing = getDefaultConfig().routing;
 
   return CONFIG;
 }
@@ -127,21 +138,18 @@ function loadGlossary(forceReload = false) {
 
 function loadLanguageDetect(forceReload = false) {
   if (LANGUAGE_DETECT && !forceReload) return LANGUAGE_DETECT;
-
   LANGUAGE_DETECT = safeRequire("./LanguageDetect.js", null);
   return LANGUAGE_DETECT;
 }
 
 function loadMemoryModule(forceReload = false) {
   if (MEMORY_MODULE && !forceReload) return MEMORY_MODULE;
-
   MEMORY_MODULE = safeRequire("./TranslationMemoryStore.js", null);
   return MEMORY_MODULE;
 }
 
 function loadLocalProvider(forceReload = false) {
   if (LOCAL_PROVIDER && !forceReload) return LOCAL_PROVIDER;
-
   LOCAL_PROVIDER = safeRequire("./LocalTranslationProvider.js", null);
   return LOCAL_PROVIDER;
 }
@@ -159,6 +167,11 @@ function normalizeLanguageCode(lang) {
   if (value.startsWith("es")) return "es";
 
   return "unknown";
+}
+
+function normalizeProviderName(providerName) {
+  if (!providerName || typeof providerName !== "string") return "none";
+  return providerName.trim() || "none";
 }
 
 function isSupportedLanguage(lang) {
@@ -282,6 +295,8 @@ function createMeta(seed = {}) {
     protectedTermsApplied: 0,
     memoryHit: false,
     characterCount: 0,
+    providerCharacterCount: null,
+    durationMs: null,
     warning: null,
     error: null,
     createdAt: now,
@@ -327,18 +342,82 @@ function memorySet(params) {
 }
 
 async function withTimeout(promise, timeoutMs, label) {
+  const safeTimeout = Number(timeoutMs) > 0 ? Number(timeoutMs) : 8000;
   let timer = null;
 
   const timeoutPromise = new Promise((_, reject) => {
     timer = setTimeout(() => {
-      reject(new Error(`${label || "operation"}-timeout-${timeoutMs}ms`));
-    }, timeoutMs);
+      reject(new Error(`${label || "operation"}-timeout-${safeTimeout}ms`));
+    }, safeTimeout);
   });
 
   try {
     return await Promise.race([promise, timeoutPromise]);
   } finally {
     if (timer) clearTimeout(timer);
+  }
+}
+
+function normalizeProviderResult(result, fallbackText, providerName) {
+  if (typeof result === "string") {
+    return {
+      text: result,
+      translated: result !== fallbackText,
+      warning: null,
+      providerMeta: null
+    };
+  }
+
+  if (result && typeof result === "object") {
+    const text = typeof result.text === "string"
+      ? result.text
+      : typeof result.translatedText === "string"
+        ? result.translatedText
+        : typeof result.translation === "string"
+          ? result.translation
+          : fallbackText;
+
+    const resultMeta = isPlainObject(result.meta) ? result.meta : null;
+    const explicitTranslated = typeof result.translated === "boolean"
+      ? result.translated
+      : resultMeta && typeof resultMeta.translated === "boolean"
+        ? resultMeta.translated
+        : text !== fallbackText;
+
+    return {
+      text,
+      translated: Boolean(explicitTranslated && text !== fallbackText),
+      warning: result.warning || (resultMeta && resultMeta.warning) || null,
+      providerMeta: resultMeta
+    };
+  }
+
+  return {
+    text: fallbackText,
+    translated: false,
+    warning: `provider-returned-invalid-result:${providerName}`,
+    providerMeta: null
+  };
+}
+
+function isLocalhostOrPrivateEndpoint(endpoint) {
+  try {
+    const url = new URL(endpoint);
+    const hostname = url.hostname.toLowerCase();
+
+    if (["localhost", "127.0.0.1", "::1"].includes(hostname)) return true;
+    if (hostname.startsWith("127.")) return true;
+    if (hostname.startsWith("10.")) return true;
+    if (hostname.startsWith("192.168.")) return true;
+
+    const parts = hostname.split(".").map((part) => Number(part));
+    if (parts.length === 4 && parts.every((part) => Number.isInteger(part))) {
+      if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    }
+
+    return false;
+  } catch (_) {
+    return false;
   }
 }
 
@@ -349,18 +428,25 @@ async function callLocalModuleProvider(text, options, meta) {
     throw new Error("local-provider-module-not-found");
   }
 
+  const providerOptions = {
+    ...options,
+    provider: normalizeProviderName(options.provider || options.providerName || meta.provider),
+    active: normalizeProviderName(options.provider || options.providerName || meta.provider),
+    providerConfig: options.providerConfig || loadConfig().provider || {}
+  };
+
   if (typeof provider.translateText === "function") {
-    return provider.translateText(text, options, meta);
+    return provider.translateText(text, providerOptions, meta);
   }
 
   if (typeof provider.translate === "function") {
-    return provider.translate(text, options, meta);
+    return provider.translate(text, providerOptions, meta);
   }
 
   throw new Error("local-provider-missing-translate-function");
 }
 
-async function callLocalHttpProvider(text, options, meta) {
+async function callLocalHttpProvider(text, options) {
   const config = loadConfig();
   const endpoint = config.provider && config.provider.endpoint;
 
@@ -368,42 +454,80 @@ async function callLocalHttpProvider(text, options, meta) {
     throw new Error("local-http-provider-endpoint-missing");
   }
 
+  if (config.provider.allowRemoteProviders !== true && !isLocalhostOrPrivateEndpoint(endpoint)) {
+    throw new Error("remote-provider-disabled");
+  }
+
   if (typeof fetch !== "function") {
     throw new Error("fetch-unavailable-in-current-node-runtime");
   }
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      q: text,
-      source: options.sourceLanguage,
-      target: options.targetLanguage,
-      format: "text",
-      context: options.context || null,
-      domain: options.domain || null,
-      emotion: options.emotion || null
-    })
-  });
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutMs = Number(config.provider && config.provider.timeoutMs) || 8000;
+  let timer = null;
 
-  if (!response.ok) {
-    throw new Error(`local-http-provider-${response.status}`);
+  if (controller) {
+    timer = setTimeout(() => controller.abort(), timeoutMs);
   }
 
-  const payload = await response.json();
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      signal: controller ? controller.signal : undefined,
+      body: JSON.stringify({
+        q: text,
+        text,
+        source: options.sourceLanguage,
+        target: options.targetLanguage,
+        sourceLanguage: options.sourceLanguage,
+        targetLanguage: options.targetLanguage,
+        format: "text",
+        context: options.context || null,
+        domain: options.domain || null,
+        emotion: options.emotion || null
+      })
+    });
 
-  if (typeof payload.translatedText === "string") return payload.translatedText;
-  if (typeof payload.translation === "string") return payload.translation;
-  if (typeof payload.text === "string") return payload.text;
+    if (!response.ok) {
+      throw new Error(`local-http-provider-${response.status}`);
+    }
 
-  throw new Error("local-http-provider-invalid-response");
+    const payload = await response.json();
+
+    if (typeof payload.translatedText === "string") return payload.translatedText;
+    if (typeof payload.translation === "string") return payload.translation;
+    if (typeof payload.output === "string") return payload.output;
+    if (typeof payload.text === "string") return payload.text;
+
+    throw new Error("local-http-provider-invalid-response");
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      throw new Error(`local-http-translation-timeout-${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function canUseLocalModuleProvider(providerName) {
+  const localProvider = loadLocalProvider();
+  if (!localProvider) return false;
+
+  if (providerName === "none") return false;
+  if (providerName === "localHttp") return false;
+
+  return typeof localProvider.translate === "function" || typeof localProvider.translateText === "function";
 }
 
 async function callProvider(text, options, meta) {
   const config = loadConfig();
-  const providerName = config.provider && config.provider.active ? config.provider.active : "none";
+  const providerName = normalizeProviderName(
+    (config.provider && config.provider.active) || options.provider || "none"
+  );
   const timeoutMs = Number(config.provider && config.provider.timeoutMs) || 8000;
 
   meta.provider = providerName;
@@ -412,46 +536,55 @@ async function callProvider(text, options, meta) {
     return {
       text,
       translated: false,
-      warning: providerName === "none" ? "no-provider-configured" : "identity-provider-active"
+      warning: providerName === "none" ? "no-provider-configured" : "identity-provider-active",
+      providerMeta: null
     };
   }
 
-  if (providerName === "localModule" || providerName === "localProvider") {
-    const translated = await withTimeout(
-      callLocalModuleProvider(text, options, meta),
+  if (canUseLocalModuleProvider(providerName)) {
+    const moduleResult = await withTimeout(
+      callLocalModuleProvider(
+        text,
+        {
+          ...options,
+          provider: providerName,
+          providerName,
+          providerConfig: config.provider || {}
+        },
+        meta
+      ),
       timeoutMs,
       "local-module-translation"
     );
 
-    return {
-      text: typeof translated === "string" ? translated : translated && translated.text,
-      translated: true,
-      warning: null
-    };
+    return normalizeProviderResult(moduleResult, text, providerName);
   }
 
   if (providerName === "localHttp" || providerName === "localLibreTranslate") {
     const translated = await withTimeout(
-      callLocalHttpProvider(text, options, meta),
+      callLocalHttpProvider(text, options),
       timeoutMs,
       "local-http-translation"
     );
 
     return {
       text: translated,
-      translated: true,
-      warning: null
+      translated: translated !== text,
+      warning: null,
+      providerMeta: null
     };
   }
 
   return {
     text,
     translated: false,
-    warning: `provider-not-implemented:${providerName}`
+    warning: `provider-not-implemented:${providerName}`,
+    providerMeta: null
   };
 }
 
 async function translateText(text, options = {}) {
+  const startedAt = Date.now();
   const config = loadConfig();
   const glossary = loadGlossary();
 
@@ -484,6 +617,7 @@ async function translateText(text, options = {}) {
       text,
       meta: {
         ...meta,
+        durationMs: Date.now() - startedAt,
         warning: "empty-or-invalid-text"
       }
     };
@@ -495,6 +629,7 @@ async function translateText(text, options = {}) {
       text,
       meta: {
         ...meta,
+        durationMs: Date.now() - startedAt,
         warning: `max-characters-exceeded:${meta.characterCount}/${maxChars}`
       }
     };
@@ -505,6 +640,7 @@ async function translateText(text, options = {}) {
       text,
       meta: {
         ...meta,
+        durationMs: Date.now() - startedAt,
         warning: sourceLanguage === targetLanguage ? "same-language" : "translation-not-required-or-unsupported"
       }
     };
@@ -525,6 +661,7 @@ async function translateText(text, options = {}) {
         translated: true,
         provider: memoryEntry.provider || "translation-memory",
         memoryHit: true,
+        durationMs: Date.now() - startedAt,
         warning: null
       }
     };
@@ -548,6 +685,7 @@ async function translateText(text, options = {}) {
     : [];
 
   meta.protectedTermsApplied = tokens.length;
+  meta.providerCharacterCount = countCharacters(protectedText);
 
   try {
     const providerResult = await callProvider(
@@ -570,6 +708,7 @@ async function translateText(text, options = {}) {
         : rawProviderText;
 
     const translated = Boolean(providerResult && providerResult.translated && restoredText !== text);
+    const providerMeta = providerResult && providerResult.providerMeta ? providerResult.providerMeta : null;
 
     if (translated) {
       memorySet({
@@ -578,7 +717,7 @@ async function translateText(text, options = {}) {
         sourceText: text,
         translatedText: restoredText,
         domain: options.domain || "general",
-        provider: meta.provider,
+        provider: (providerMeta && providerMeta.provider) || meta.provider,
         confidence: 1,
         emotion: options.emotion || null
       });
@@ -588,7 +727,15 @@ async function translateText(text, options = {}) {
       text: restoredText,
       meta: {
         ...meta,
+        ...(providerMeta || {}),
+        adapterVersion: VERSION,
+        sourceLanguage,
+        targetLanguage,
+        languagePair: `${sourceLanguage}-${targetLanguage}`,
+        protectedTermsApplied: tokens.length,
         translated,
+        memoryHit: false,
+        durationMs: Date.now() - startedAt,
         warning: providerResult ? providerResult.warning : null
       }
     };
@@ -601,6 +748,7 @@ async function translateText(text, options = {}) {
         meta: {
           ...meta,
           translated: false,
+          durationMs: Date.now() - startedAt,
           error: errorMessage,
           warning: `translation-failed:${errorMessage}`
         }
@@ -630,6 +778,7 @@ function extractFinalText(envelopeOrText) {
     "final",
     "trustedFinal",
     "finalText",
+    "finalAnswer",
     "reply",
     "answer",
     "message",
@@ -646,7 +795,7 @@ function extractFinalText(envelopeOrText) {
     }
   }
 
-  const nestedCandidates = ["finalEnvelope", "envelope", "payload"];
+  const nestedCandidates = ["finalEnvelope", "envelope", "payload", "data"];
 
   for (const parentKey of nestedCandidates) {
     const child = envelopeOrText[parentKey];
@@ -809,6 +958,7 @@ module.exports = {
   VERSION,
   detectLanguage,
   normalizeLanguageCode,
+  normalizeProviderName,
   isSupportedLanguage,
   shouldTranslate,
   translateText,
@@ -816,7 +966,11 @@ module.exports = {
   normalizeInputForMarion,
   extractFinalText,
   writeFinalText,
+  callProvider,
   loadConfig,
   loadGlossary,
+  loadLanguageDetect,
+  loadMemoryModule,
+  loadLocalProvider,
   resetUniversalTranslatorCaches
 };
