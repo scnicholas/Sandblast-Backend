@@ -1,0 +1,87 @@
+{
+  "version": "0.1.0",
+  "enabled": true,
+  "defaultSourceLanguage": "auto",
+  "defaultTargetLanguage": "en",
+  "supportedLanguages": ["en", "fr", "es"],
+  "languageLabels": {
+    "en": "English",
+    "fr": "French",
+    "es": "Spanish"
+  },
+  "provider": {
+    "active": "none",
+    "fallback": "identity",
+    "allowRemoteProviders": false,
+    "allowSelfHostedProviders": true,
+    "timeoutMs": 8000,
+    "maxCharactersPerRequest": 4500
+  },
+  "behavior": {
+    "preserveFinalEnvelope": true,
+    "translateFinalOnly": true,
+    "allowInputNormalization": true,
+    "attachTranslationMeta": true,
+    "failClosedToOriginal": true,
+    "protectBrandTerms": true,
+    "protectDomainTerms": true,
+    "preserveEmotionTone": true,
+    "preserveUserIntent": true
+  },
+  "routing": {
+    "inputNormalizationTarget": "en",
+    "finalAnswerTranslation": true,
+    "domainAwareTranslation": true,
+    "emotionAwareTranslation": true
+  },
+  "datasets": {
+    "preferredOrder": ["opus", "huggingface", "tatoeba"],
+    "phaseOnePairs": [
+      "en-fr",
+      "fr-en",
+      "en-es",
+      "es-en",
+      "fr-es",
+      "es-fr"
+    ],
+    "minimumValidationSegmentsPerPair": 15000,
+    "storageRoot": "Data/translation/datasets"
+  },
+  "glossary": {
+    "enabled": true,
+    "protectedTermsFile": "Data/translation/glossaries/sandblast_protected_terms.json",
+    "domainGlossaryRoot": "Data/translation/glossaries"
+  },
+  "translationMemory": {
+    "enabled": true,
+    "storageFile": "Data/translation/memory/translation_memory.json",
+    "maxEntries": 25000,
+    "reuseExactMatches": true,
+    "reuseNormalizedMatches": true
+  },
+  "telemetry": {
+    "enabled": true,
+    "logProvider": true,
+    "logLanguagePair": true,
+    "logCharacterCount": true,
+    "logFailures": true,
+    "logProtectedTermsCount": true
+  },
+  "protectedTerms": [
+    "Sandblast",
+    "Sandblast Channel",
+    "Sandblast.channel",
+    "sandblast.channel",
+    "Sandblast Radio",
+    "Sandblast TV",
+    "Synapse",
+    "Nyx",
+    "Marion",
+    "Nexus",
+    "Concierge",
+    "Universal Translator",
+    "Canada Feed",
+    "Sports Feed",
+    "Finance & Economics"
+  ]
+}
