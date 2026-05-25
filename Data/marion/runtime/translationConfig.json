@@ -1,13 +1,19 @@
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "enabled": true,
   "defaultSourceLanguage": "auto",
   "defaultTargetLanguage": "en",
-  "supportedLanguages": ["en", "fr", "es"],
+  "supportedLanguages": [
+    "en",
+    "fr",
+    "es"
+  ],
   "languageLabels": {
     "en": "English",
     "fr": "French",
-    "es": "Spanish"
+    "es": "Spanish",
+    "auto": "Auto-detect",
+    "unknown": "Unknown"
   },
   "provider": {
     "active": "manualDictionary",
@@ -18,11 +24,44 @@
     "timeoutMs": 8000,
     "maxCharactersPerRequest": 4500,
     "maxResponseBytes": 524288,
+    "retry": {
+      "enabled": false,
+      "maxAttempts": 1,
+      "backoffMs": 250
+    },
+    "manualDictionary": {
+      "enabled": true,
+      "failClosedOnMiss": true,
+      "caseInsensitiveLookup": true,
+      "punctuationTolerantLookup": true
+    },
+    "identity": {
+      "enabled": true,
+      "warning": "identity-provider-active"
+    },
     "localLibreTranslate": {
+      "enabled": false,
       "endpoint": "http://localhost:5000/translate",
-      "timeoutMs": 8000
+      "timeoutMs": 8000,
+      "maxResponseBytes": 524288,
+      "allowRemoteProviders": false,
+      "allowSelfHostedProviders": true
     },
     "localNmt": {
+      "enabled": false,
+      "endpoint": "http://localhost:7010/translate",
+      "timeoutMs": 8000,
+      "maxResponseBytes": 524288,
+      "allowRemoteProviders": false,
+      "allowSelfHostedProviders": true
+    },
+    "argos": {
+      "enabled": false,
+      "endpoint": "http://localhost:7010/translate",
+      "timeoutMs": 8000
+    },
+    "huggingFaceLocal": {
+      "enabled": false,
       "endpoint": "http://localhost:7010/translate",
       "timeoutMs": 8000
     }
@@ -36,31 +75,75 @@
     "protectBrandTerms": true,
     "protectDomainTerms": true,
     "preserveEmotionTone": true,
-    "preserveUserIntent": true
+    "preserveUserIntent": true,
+    "returnOriginalOnDetectionFailure": true,
+    "blockUnsupportedLanguages": true,
+    "cloneEnvelopeBeforeMutation": true,
+    "neverTranslateAuthorityFields": true
   },
   "routing": {
     "inputNormalizationTarget": "en",
     "finalAnswerTranslation": true,
     "domainAwareTranslation": true,
-    "emotionAwareTranslation": true
+    "emotionAwareTranslation": true,
+    "supportedInputLanguages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "supportedOutputLanguages": [
+      "en",
+      "fr",
+      "es"
+    ],
+    "minimumDetectionConfidence": 0.55,
+    "lowConfidenceBehavior": "default-to-original",
+    "unsupportedLanguageBehavior": "return-original"
   },
   "datasets": {
-    "preferredOrder": ["opus", "huggingface", "tatoeba"],
-    "phaseOnePairs": ["en-fr", "fr-en", "en-es", "es-en", "fr-es", "es-fr"],
+    "preferredOrder": [
+      "opus",
+      "huggingface",
+      "tatoeba"
+    ],
+    "phaseOnePairs": [
+      "en-fr",
+      "fr-en",
+      "en-es",
+      "es-en",
+      "fr-es",
+      "es-fr"
+    ],
     "minimumValidationSegmentsPerPair": 15000,
-    "storageRoot": "Data/translation/datasets"
+    "storageRoot": "Data/translation/datasets",
+    "enabled": false,
+    "notes": "Dataset training/evaluation is reserved for later phases; Phase 1 uses manualDictionary and local/self-hosted provider boundaries."
   },
   "glossary": {
     "enabled": true,
     "protectedTermsFile": "Data/translation/glossaries/sandblast_protected_terms.json",
-    "domainGlossaryRoot": "Data/translation/glossaries"
+    "domainGlossaryRoot": "Data/translation/glossaries",
+    "restoreTokensAfterProvider": true,
+    "caseInsensitiveProtection": true,
+    "protectUrls": true,
+    "protectStandaloneAcronyms": true,
+    "maxProtectedTermsPerRequest": 250
   },
   "translationMemory": {
     "enabled": false,
     "storageFile": "Data/translation/memory/translation_memory.json",
     "maxEntries": 25000,
+    "maxTextCharacters": 4500,
+    "ttlMs": 2592000000,
+    "minConfidence": 0.5,
     "reuseExactMatches": true,
-    "reuseNormalizedMatches": true
+    "reuseNormalizedMatches": false,
+    "contextAwareKeys": true,
+    "includeProtectedTermsInKey": true,
+    "includeGlossaryVersionInKey": true,
+    "quarantineInvalidEntries": true,
+    "atomicWrites": true,
+    "notes": "Keep disabled until the full translator regression passes. Enable only after confirming no stale/wrong-language reuse."
   },
   "telemetry": {
     "enabled": true,
@@ -69,23 +152,69 @@
     "logCharacterCount": true,
     "logFailures": true,
     "logProtectedTermsCount": true,
-    "logEndpointType": true
+    "logEndpointType": true,
+    "logMemoryHit": true,
+    "logDetectionConfidence": true,
+    "logFinalTextSlot": true,
+    "logWarnings": true,
+    "redactSourceText": true,
+    "redactTranslatedText": true
+  },
+  "security": {
+    "allowCredentialsInProviderUrl": false,
+    "allowFileProtocolProvider": false,
+    "allowRemoteProvidersByDefault": false,
+    "allowedRemoteHosts": [],
+    "allowedLocalHosts": [
+      "localhost",
+      "127.0.0.1",
+      "::1",
+      "0.0.0.0"
+    ],
+    "blockPrivateNetworkBypass": true
   },
   "protectedTerms": [
     "Sandblast",
     "Sandblast Channel",
     "Sandblast.channel",
     "sandblast.channel",
+    "sandblastchannel.com",
     "Sandblast Radio",
     "Sandblast TV",
+    "Sandblast one",
     "Synapse",
     "Nyx",
     "Marion",
+    "Nyx/Marion",
+    "Marion/Nyx",
     "Nexus",
     "Concierge",
     "Universal Translator",
+    "LanguageSphere",
     "Canada Feed",
     "Sports Feed",
-    "Finance & Economics"
-  ]
+    "Finance & Economics",
+    "Roku",
+    "OIDMTC",
+    "Ontario Creates",
+    "AI",
+    "Cyber",
+    "Finance",
+    "Law",
+    "Psychology",
+    "English"
+  ],
+  "regression": {
+    "requiredRuntimeFiles": [
+      "Data/marion/runtime/UniversalTranslatorAdapter.js",
+      "Data/marion/runtime/LocalTranslationProvider.js",
+      "Data/marion/runtime/TranslationGlossary.js",
+      "Data/marion/runtime/LanguageDetect.js",
+      "Data/marion/runtime/TranslationMemoryStore.js"
+    ],
+    "requiredTests": [
+      "tests/universal-translator-integration.test.js"
+    ],
+    "expectedProviderForPhaseOne": "manualDictionary"
+  }
 }
