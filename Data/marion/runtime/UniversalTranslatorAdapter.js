@@ -18,6 +18,9 @@
  *   none, identity, manualDictionary, localLibreTranslate, argos, localNmt, huggingFaceLocal.
  */
 
+const fs = require("fs");
+const path = require("path");
+
 const DEFAULT_SUPPORTED_LANGUAGES = ["en", "fr", "es"];
 const VERSION = "0.3.0";
 
@@ -26,6 +29,9 @@ let GLOSSARY = null;
 let LANGUAGE_DETECT = null;
 let MEMORY_MODULE = null;
 let LOCAL_PROVIDER = null;
+let MEMORY_STORE = null;
+
+const CONFIG_PATH = path.join(__dirname, "translationConfig.json");
 
 function safeRequire(relativePath, fallback) {
   try {
@@ -34,6 +40,20 @@ function safeRequire(relativePath, fallback) {
     return fallback;
   }
 }
+
+function readConfigFile(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return {};
+    const raw = fs.readFileSync(filePath, "utf8");
+    if (!raw || !raw.trim()) return {};
+    return JSON.parse(raw);
+  } catch (error) {
+    return {
+      __configLoadError: error && error.message ? error.message : "invalid-config-json"
+    };
+  }
+}
+
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -110,16 +130,36 @@ function getDefaultConfig() {
 function loadConfig(forceReload = false) {
   if (CONFIG && !forceReload) return CONFIG;
 
-  const loaded = safeRequire("./translationConfig.json", {});
-  CONFIG = deepMerge(getDefaultConfig(), loaded);
+  const defaults = getDefaultConfig();
+  const loaded = readConfigFile(CONFIG_PATH);
+  const configLoadError = loaded && loaded.__configLoadError ? loaded.__configLoadError : null;
+  const cleanLoaded = configLoadError ? {} : loaded;
+
+  CONFIG = deepMerge(defaults, cleanLoaded);
+
+  if (configLoadError) {
+    CONFIG.__configLoadError = configLoadError;
+  }
 
   if (!Array.isArray(CONFIG.supportedLanguages) || CONFIG.supportedLanguages.length === 0) {
     CONFIG.supportedLanguages = DEFAULT_SUPPORTED_LANGUAGES.slice();
   }
 
-  if (!isPlainObject(CONFIG.provider)) CONFIG.provider = getDefaultConfig().provider;
-  if (!isPlainObject(CONFIG.behavior)) CONFIG.behavior = getDefaultConfig().behavior;
-  if (!isPlainObject(CONFIG.routing)) CONFIG.routing = getDefaultConfig().routing;
+  CONFIG.supportedLanguages = CONFIG.supportedLanguages
+    .map((lang) => normalizeLanguageCode(lang))
+    .filter((lang) => lang !== "auto" && lang !== "unknown");
+
+  if (CONFIG.supportedLanguages.length === 0) {
+    CONFIG.supportedLanguages = DEFAULT_SUPPORTED_LANGUAGES.slice();
+  }
+
+  if (!isPlainObject(CONFIG.provider)) CONFIG.provider = { ...defaults.provider };
+  if (!isPlainObject(CONFIG.behavior)) CONFIG.behavior = { ...defaults.behavior };
+  if (!isPlainObject(CONFIG.routing)) CONFIG.routing = { ...defaults.routing };
+  if (!isPlainObject(CONFIG.translationMemory)) {
+    CONFIG.translationMemory = { ...defaults.translationMemory };
+  }
+  if (!isPlainObject(CONFIG.telemetry)) CONFIG.telemetry = { ...defaults.telemetry };
 
   return CONFIG;
 }
@@ -312,11 +352,12 @@ function getMemoryStore() {
   if (!memoryModule) return null;
 
   if (memoryModule.defaultStore) return memoryModule.defaultStore;
-  if (typeof memoryModule.createTranslationMemoryStore === "function") {
-    return memoryModule.createTranslationMemoryStore();
+
+  if (!MEMORY_STORE && typeof memoryModule.createTranslationMemoryStore === "function") {
+    MEMORY_STORE = memoryModule.createTranslationMemoryStore();
   }
 
-  return null;
+  return MEMORY_STORE;
 }
 
 function memoryGet(params) {
@@ -583,6 +624,57 @@ async function callProvider(text, options, meta) {
   };
 }
 
+
+function safeProtectText(glossary, text, options, meta) {
+  try {
+    if (!glossary || typeof glossary.protectText !== "function") {
+      return { text, tokens: [], warning: null };
+    }
+
+    const payload = glossary.protectText(text, options);
+    const protectedText = payload && typeof payload.text === "string" ? payload.text : text;
+    const tokens = Array.isArray(payload && payload.tokens) ? payload.tokens : [];
+
+    return {
+      text: protectedText,
+      tokens,
+      warning: null
+    };
+  } catch (error) {
+    if (meta) {
+      meta.error = error && error.message ? error.message : "glossary-protect-failed";
+    }
+
+    return {
+      text,
+      tokens: [],
+      warning: `glossary-protect-failed:${error && error.message ? error.message : "unknown"}`
+    };
+  }
+}
+
+function safeRestoreText(glossary, text, tokens, originalText, meta) {
+  try {
+    if (!glossary || typeof glossary.restoreText !== "function") {
+      return { text, warning: null };
+    }
+
+    return {
+      text: glossary.restoreText(text, tokens),
+      warning: null
+    };
+  } catch (error) {
+    if (meta) {
+      meta.error = error && error.message ? error.message : "glossary-restore-failed";
+    }
+
+    return {
+      text: originalText,
+      warning: `glossary-restore-failed:${error && error.message ? error.message : "unknown"}`
+    };
+  }
+}
+
 async function translateText(text, options = {}) {
   const startedAt = Date.now();
   const config = loadConfig();
@@ -667,22 +759,19 @@ async function translateText(text, options = {}) {
     };
   }
 
-  const protectedPayload =
-    glossary && typeof glossary.protectText === "function"
-      ? glossary.protectText(text, {
-          domain: options.domain || null,
-          domains: options.domains || null,
-          extraTerms: options.protectedTerms || null
-        })
-      : { text, tokens: [] };
+  const protectedPayload = safeProtectText(
+    glossary,
+    text,
+    {
+      domain: options.domain || null,
+      domains: options.domains || null,
+      extraTerms: options.protectedTerms || null
+    },
+    meta
+  );
 
-  const protectedText = protectedPayload && typeof protectedPayload.text === "string"
-    ? protectedPayload.text
-    : text;
-
-  const tokens = Array.isArray(protectedPayload && protectedPayload.tokens)
-    ? protectedPayload.tokens
-    : [];
+  const protectedText = protectedPayload.text;
+  const tokens = protectedPayload.tokens;
 
   meta.protectedTermsApplied = tokens.length;
   meta.providerCharacterCount = countCharacters(protectedText);
@@ -702,10 +791,8 @@ async function translateText(text, options = {}) {
       ? providerResult.text
       : protectedText;
 
-    const restoredText =
-      glossary && typeof glossary.restoreText === "function"
-        ? glossary.restoreText(rawProviderText, tokens)
-        : rawProviderText;
+    const restoredPayload = safeRestoreText(glossary, rawProviderText, tokens, text, meta);
+    const restoredText = restoredPayload.text;
 
     const translated = Boolean(providerResult && providerResult.translated && restoredText !== text);
     const providerMeta = providerResult && providerResult.providerMeta ? providerResult.providerMeta : null;
@@ -736,7 +823,11 @@ async function translateText(text, options = {}) {
         translated,
         memoryHit: false,
         durationMs: Date.now() - startedAt,
-        warning: providerResult ? providerResult.warning : null
+        warning:
+          restoredPayload.warning ||
+          (providerResult ? providerResult.warning : null) ||
+          protectedPayload.warning ||
+          null
       }
     };
   } catch (error) {
@@ -950,6 +1041,7 @@ function resetUniversalTranslatorCaches() {
   LANGUAGE_DETECT = null;
   MEMORY_MODULE = null;
   LOCAL_PROVIDER = null;
+  MEMORY_STORE = null;
 
   return true;
 }
@@ -972,5 +1064,6 @@ module.exports = {
   loadLanguageDetect,
   loadMemoryModule,
   loadLocalProvider,
+  getMemoryStore,
   resetUniversalTranslatorCaches
 };
