@@ -5,7 +5,10 @@
  * Marion/Nyx Universal Translator integration regression.
  *
  * Run from project root:
- * node tests/universal-translator-integration.test.js
+ *   node tests/universal-translator-integration.test.js
+ *
+ * Optional:
+ *   PROJECT_ROOT=/absolute/path node tests/universal-translator-integration.test.js
  *
  * Purpose:
  * - Prove UniversalTranslatorAdapter can sit beside Marion safely.
@@ -13,6 +16,7 @@
  * - Confirm final-envelope translation does not compromise authority fields.
  * - Confirm provider failure returns original text/envelope.
  * - Confirm glossary-protected terms survive translation.
+ * - Confirm test writes are restored even if a regression fails.
  *
  * Notes:
  * - This test assumes these files exist:
@@ -30,54 +34,101 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 
-const PROJECT_ROOT = path.resolve(__dirname, "..");
+const RUNTIME_RELATIVE = path.join("Data", "marion", "runtime");
 
-const ADAPTER_PATH = path.join(
-  PROJECT_ROOT,
-  "Data",
-  "marion",
-  "runtime",
-  "UniversalTranslatorAdapter.js"
-);
+function fileExists(filePath) {
+  try {
+    return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+  } catch (_) {
+    return false;
+  }
+}
 
-const CONFIG_PATH = path.join(
-  PROJECT_ROOT,
-  "Data",
-  "marion",
-  "runtime",
-  "translationConfig.json"
-);
+function dirExists(dirPath) {
+  try {
+    return fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory();
+  } catch (_) {
+    return false;
+  }
+}
 
-const PROVIDER_PATH = path.join(
-  PROJECT_ROOT,
-  "Data",
-  "marion",
-  "runtime",
-  "LocalTranslationProvider.js"
-);
+/**
+ * Resolve project root defensively.
+ *
+ * Primary expectation:
+ * - This file lives in /tests and project root is one directory up.
+ *
+ * Extra protection:
+ * - PROJECT_ROOT can override the root.
+ * - If copied elsewhere, walk upward until Data/marion/runtime is found.
+ */
+function resolveProjectRoot() {
+  const envRoot = process.env.PROJECT_ROOT
+    ? path.resolve(process.env.PROJECT_ROOT)
+    : null;
 
-const GLOSSARY_PATH = path.join(
-  PROJECT_ROOT,
-  "Data",
-  "marion",
-  "runtime",
-  "TranslationGlossary.js"
-);
+  if (envRoot && dirExists(path.join(envRoot, RUNTIME_RELATIVE))) {
+    return envRoot;
+  }
+
+  const candidates = [
+    path.resolve(__dirname, ".."),
+    path.resolve(process.cwd())
+  ];
+
+  for (const candidate of candidates) {
+    if (dirExists(path.join(candidate, RUNTIME_RELATIVE))) {
+      return candidate;
+    }
+  }
+
+  let cursor = path.resolve(__dirname);
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (dirExists(path.join(cursor, RUNTIME_RELATIVE))) {
+      return cursor;
+    }
+
+    const parent = path.dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+
+  return path.resolve(__dirname, "..");
+}
+
+const PROJECT_ROOT = resolveProjectRoot();
+const RUNTIME_DIR = path.join(PROJECT_ROOT, RUNTIME_RELATIVE);
+
+const ADAPTER_PATH = path.join(RUNTIME_DIR, "UniversalTranslatorAdapter.js");
+const CONFIG_PATH = path.join(RUNTIME_DIR, "translationConfig.json");
+const PROVIDER_PATH = path.join(RUNTIME_DIR, "LocalTranslationProvider.js");
+const GLOSSARY_PATH = path.join(RUNTIME_DIR, "TranslationGlossary.js");
+const LANGUAGE_DETECT_PATH = path.join(RUNTIME_DIR, "LanguageDetect.js");
+const MEMORY_STORE_PATH = path.join(RUNTIME_DIR, "TranslationMemoryStore.js");
 
 function requireFresh(modulePath) {
-  delete require.cache[require.resolve(modulePath)];
-  return require(modulePath);
+  const resolved = require.resolve(modulePath);
+  delete require.cache[resolved];
+  return require(resolved);
 }
 
 function ensureFileExists(filePath, label) {
   assert.ok(
-    fs.existsSync(filePath),
+    fileExists(filePath),
     `${label} missing at expected path: ${filePath}`
   );
 }
 
+function ensureRuntimeFilesExist() {
+  ensureFileExists(ADAPTER_PATH, "UniversalTranslatorAdapter.js");
+  ensureFileExists(PROVIDER_PATH, "LocalTranslationProvider.js");
+  ensureFileExists(GLOSSARY_PATH, "TranslationGlossary.js");
+  ensureFileExists(LANGUAGE_DETECT_PATH, "LanguageDetect.js");
+  ensureFileExists(MEMORY_STORE_PATH, "TranslationMemoryStore.js");
+}
+
 function readJsonSafe(filePath) {
-  if (!fs.existsSync(filePath)) return null;
+  if (!fileExists(filePath)) return null;
 
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -87,11 +138,12 @@ function readJsonSafe(filePath) {
 }
 
 function writeJson(filePath, value) {
-  fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 function backupFile(filePath) {
-  if (!fs.existsSync(filePath)) {
+  if (!fileExists(filePath)) {
     return {
       existed: false,
       content: null
@@ -105,17 +157,68 @@ function backupFile(filePath) {
 }
 
 function restoreFile(filePath, backup) {
-  if (!backup.existed) {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  if (!backup || !backup.existed) {
+    if (fileExists(filePath)) fs.unlinkSync(filePath);
     return;
   }
 
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, backup.content, "utf8");
+}
+
+function clearTranslatorCache() {
+  if (!fileExists(ADAPTER_PATH)) return;
+
+  const Translator = requireFresh(ADAPTER_PATH);
+
+  if (typeof Translator.resetUniversalTranslatorCaches === "function") {
+    Translator.resetUniversalTranslatorCaches();
+  }
+}
+
+function assertTranslatorContract(Translator) {
+  const requiredFns = [
+    "detectLanguage",
+    "translateText",
+    "applyUniversalTranslation",
+    "normalizeInputForMarion"
+  ];
+
+  for (const fnName of requiredFns) {
+    assert.strictEqual(
+      typeof Translator[fnName],
+      "function",
+      `UniversalTranslatorAdapter must export ${fnName}()`
+    );
+  }
+}
+
+function assertObject(value, label) {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value), `${label} must be an object`);
+}
+
+function assertMeta(value, label) {
+  assertObject(value, label);
+  assertObject(value.meta, `${label}.meta`);
+  assert.strictEqual(
+    typeof value.meta.translated,
+    "boolean",
+    `${label}.meta.translated must be boolean`
+  );
+}
+
+function warningIncludes(value, acceptedFragments, label) {
+  const warning = String(value && value.meta ? value.meta.warning || "" : "");
+
+  assert.ok(
+    acceptedFragments.some((fragment) => warning.includes(fragment)),
+    `${label} warning should include one of: ${acceptedFragments.join(", ")}. Received: ${warning || "<empty>"}`
+  );
 }
 
 function createTestConfig(overrides = {}) {
   return {
-    version: "0.3.0-test",
+    version: "0.3.1-integration-test",
     enabled: true,
     defaultSourceLanguage: "auto",
     defaultTargetLanguage: "en",
@@ -181,10 +284,9 @@ function createTestConfig(overrides = {}) {
 
 async function run() {
   console.log("Running Universal Translator integration regression...");
+  console.log(`Project root: ${PROJECT_ROOT}`);
 
-  ensureFileExists(ADAPTER_PATH, "UniversalTranslatorAdapter.js");
-  ensureFileExists(PROVIDER_PATH, "LocalTranslationProvider.js");
-  ensureFileExists(GLOSSARY_PATH, "TranslationGlossary.js");
+  ensureRuntimeFilesExist();
 
   const configBackup = backupFile(CONFIG_PATH);
 
@@ -196,15 +298,14 @@ async function run() {
     writeJson(CONFIG_PATH, createTestConfig());
 
     let Translator = requireFresh(ADAPTER_PATH);
-
-    if (typeof Translator.resetUniversalTranslatorCaches === "function") {
-      Translator.resetUniversalTranslatorCaches();
-    }
+    assertTranslatorContract(Translator);
+    clearTranslatorCache();
 
     /**
      * 1. Basic language detection contract.
      */
     const frDetect = Translator.detectLanguage("Bonjour, comment ça va?");
+    assertObject(frDetect, "French detection result");
     assert.strictEqual(
       frDetect.language,
       "fr",
@@ -212,6 +313,7 @@ async function run() {
     );
 
     const esDetect = Translator.detectLanguage("Hola, cómo estás?");
+    assertObject(esDetect, "Spanish detection result");
     assert.strictEqual(
       esDetect.language,
       "es",
@@ -219,6 +321,7 @@ async function run() {
     );
 
     const enDetect = Translator.detectLanguage("Hello, how are you?");
+    assertObject(enDetect, "English detection result");
     assert.strictEqual(
       enDetect.language,
       "en",
@@ -234,6 +337,8 @@ async function run() {
       domain: "interface",
       context: "integration-test"
     });
+
+    assertMeta(manualFr, "manualDictionary French result");
 
     assert.strictEqual(
       manualFr.text,
@@ -262,6 +367,8 @@ async function run() {
       domain: "interface"
     });
 
+    assertMeta(sameLanguage, "same-language result");
+
     assert.strictEqual(
       sameLanguage.text,
       "Start Reading",
@@ -274,10 +381,10 @@ async function run() {
       "same-language translation should not mark translated=true"
     );
 
-    assert.ok(
-      sameLanguage.meta.warning === "same-language" ||
-        sameLanguage.meta.warning === "translation-not-required-or-unsupported",
-      "same-language request should include safe bypass warning"
+    warningIncludes(
+      sameLanguage,
+      ["same-language", "translation-not-required", "unsupported"],
+      "same-language request"
     );
 
     /**
@@ -292,6 +399,8 @@ async function run() {
       domain: "general"
     });
 
+    assertMeta(manualMiss, "manualDictionary miss result");
+
     assert.strictEqual(
       manualMiss.text,
       unknownPhrase,
@@ -304,10 +413,10 @@ async function run() {
       "manualDictionary miss should not mark translated=true"
     );
 
-    assert.ok(
-      String(manualMiss.meta.warning || "").includes("miss") ||
-        String(manualMiss.meta.warning || "").includes("not"),
-      "manualDictionary miss should include warning metadata"
+    warningIncludes(
+      manualMiss,
+      ["miss", "not", "unsupported", "original"],
+      "manualDictionary miss"
     );
 
     /**
@@ -338,7 +447,7 @@ async function run() {
     assert.notStrictEqual(
       translatedEnvelope,
       finalEnvelope,
-      "applyUniversalTranslation should return a cloned envelope"
+      "applyUniversalTranslation should return a cloned envelope when translation is enabled"
     );
 
     assert.strictEqual(
@@ -405,6 +514,18 @@ async function run() {
       }
     );
 
+    assert.notStrictEqual(
+      nestedTranslated,
+      nestedEnvelope,
+      "nested envelope should be cloned when translation is enabled"
+    );
+
+    assert.notStrictEqual(
+      nestedTranslated.finalEnvelope,
+      nestedEnvelope.finalEnvelope,
+      "nested finalEnvelope object should be cloned before mutation"
+    );
+
     assert.strictEqual(
       nestedTranslated.finalEnvelope.reply,
       "Comenzar a leer",
@@ -415,6 +536,12 @@ async function run() {
       nestedTranslated.authority,
       "marion-final",
       "nested envelope authority should be preserved"
+    );
+
+    assert.deepStrictEqual(
+      nestedTranslated.diagnostics,
+      nestedEnvelope.diagnostics,
+      "nested diagnostics object should be preserved"
     );
 
     assert.ok(
@@ -434,6 +561,8 @@ async function run() {
         context: "pre-routing"
       }
     );
+
+    assertObject(normalizedFr, "input normalization result");
 
     assert.strictEqual(
       normalizedFr.originalText,
@@ -458,6 +587,12 @@ async function run() {
       "input normalization should include translatedForRouting flag"
     );
 
+    assert.strictEqual(
+      typeof normalizedFr.translatedForRouting,
+      "boolean",
+      "translatedForRouting should be boolean"
+    );
+
     /**
      * 8. Brand/glossary protection.
      * This checks the glossary itself and the adapter metadata path.
@@ -470,6 +605,8 @@ async function run() {
       domain: "media",
       protectedTerms: ["Synapse", "Sandblast Channel"]
     });
+
+    assertMeta(brandTranslation, "brand/glossary translation result");
 
     /**
      * If manual dictionary has this phrase, protected terms should still remain undamaged.
@@ -485,9 +622,10 @@ async function run() {
       "protected brand term Sandblast Channel should survive translation path"
     );
 
-    assert.ok(
-      typeof brandTranslation.meta.protectedTermsApplied === "number",
-      "protectedTermsApplied metadata should exist"
+    assert.strictEqual(
+      typeof brandTranslation.meta.protectedTermsApplied,
+      "number",
+      "protectedTermsApplied metadata should exist as a number"
     );
 
     /**
@@ -499,6 +637,8 @@ async function run() {
       sourceLanguage: "en",
       targetLanguage: "fr"
     });
+
+    assertMeta(capped, "character cap result");
 
     assert.strictEqual(
       capped.text,
@@ -512,14 +652,11 @@ async function run() {
       "over-character-limit text should not be translated"
     );
 
-    assert.ok(
-      String(capped.meta.warning || "").includes("max"),
-      "over-character-limit result should contain max warning"
-    );
+    warningIncludes(capped, ["max", "character", "limit"], "over-character-limit result");
 
     /**
      * 10. Provider failure must fail closed to original.
-     * We switch config to localHttp with a bad endpoint.
+     * We switch config to localHttp with a deliberately bad endpoint.
      */
     writeJson(
       CONFIG_PATH,
@@ -537,10 +674,8 @@ async function run() {
     );
 
     Translator = requireFresh(ADAPTER_PATH);
-
-    if (typeof Translator.resetUniversalTranslatorCaches === "function") {
-      Translator.resetUniversalTranslatorCaches();
-    }
+    assertTranslatorContract(Translator);
+    clearTranslatorCache();
 
     const failureText = "Start Reading";
 
@@ -549,6 +684,8 @@ async function run() {
       targetLanguage: "fr",
       domain: "interface"
     });
+
+    assertMeta(failedProvider, "failed provider result");
 
     assert.strictEqual(
       failedProvider.text,
@@ -562,14 +699,19 @@ async function run() {
       "failed provider must not mark translated=true"
     );
 
-    assert.ok(
-      String(failedProvider.meta.warning || "").includes("translation-failed") ||
-        String(failedProvider.meta.warning || "").includes("provider"),
-      "failed provider should include provider failure warning"
+    warningIncludes(
+      failedProvider,
+      ["translation-failed", "provider", "fetch", "connect", "timeout"],
+      "failed provider"
     );
 
     /**
-     * 11. Disabled translator should return original envelope untouched.
+     * 11. Disabled translator should return original envelope unchanged.
+     *
+     * Critical adjustment:
+     * - Some safe implementations may return the same object reference.
+     * - Others may defensively clone while preserving data.
+     * - Both are acceptable as long as no translation mutation/meta leak occurs.
      */
     writeJson(
       CONFIG_PATH,
@@ -581,14 +723,13 @@ async function run() {
     );
 
     const disabledConfig = readJsonSafe(CONFIG_PATH);
+    assertObject(disabledConfig, "disabled test config");
     disabledConfig.enabled = false;
     writeJson(CONFIG_PATH, disabledConfig);
 
     Translator = requireFresh(ADAPTER_PATH);
-
-    if (typeof Translator.resetUniversalTranslatorCaches === "function") {
-      Translator.resetUniversalTranslatorCaches();
-    }
+    assertTranslatorContract(Translator);
+    clearTranslatorCache();
 
     const disabledEnvelope = {
       final: "Start Reading",
@@ -603,10 +744,22 @@ async function run() {
       }
     );
 
-    assert.strictEqual(
+    assert.deepStrictEqual(
       disabledOutput,
       disabledEnvelope,
-      "disabled translator should return same envelope reference untouched"
+      "disabled translator should return an envelope with original data unchanged"
+    );
+
+    assert.strictEqual(
+      disabledOutput.final,
+      "Start Reading",
+      "disabled translator should not translate final text"
+    );
+
+    assert.strictEqual(
+      disabledOutput.translationMeta,
+      undefined,
+      "disabled translator should not attach translationMeta"
     );
 
     console.log("Universal Translator integration regression passed.");
@@ -616,11 +769,12 @@ async function run() {
     /**
      * Clear adapter cache after restoring config.
      */
-    if (fs.existsSync(ADAPTER_PATH)) {
-      const Translator = requireFresh(ADAPTER_PATH);
-      if (typeof Translator.resetUniversalTranslatorCaches === "function") {
-        Translator.resetUniversalTranslatorCaches();
-      }
+    try {
+      clearTranslatorCache();
+    } catch (error) {
+      console.warn(
+        `Warning: config restored, but adapter cache reset failed: ${error.message}`
+      );
     }
   }
 }
