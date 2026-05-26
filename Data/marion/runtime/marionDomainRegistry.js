@@ -66,6 +66,10 @@ const DOMAIN_ALIASES = Object.freeze({
   monetization: "business",
   sponsorship: "business",
   advertising: "business",
+  auditing: "business",
+  audit: "business",
+  digital_transformation: "business",
+  organizational_intelligence: "business",
 
   radio: "music",
   music_query: "music",
