@@ -19,7 +19,7 @@ const http = require("http");
 const https = require("https");
 const net = require("net");
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_CHARACTERS = 4500;
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 512;
