@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.11sb LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
+const INDEX_VERSION = "index.js v2.18.12sb LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
@@ -4463,6 +4463,329 @@ function extractLanguageSphereRequestFromRequest(req, body = {}, payload = {}) {
   };
 }
 
+function isTruthyRequestFlag(value) {
+  if (value === true) return true;
+  if (value === 1) return true;
+  const raw = lower(value);
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on" || raw === "reset" || raw === "clear";
+}
+
+function shouldResetConversationFromRequest(req, body = {}, payload = {}) {
+  const headers = isObj(req && req.headers) ? req.headers : {};
+  const src = isObj(body) ? body : {};
+  const pay = isObj(payload) ? payload : {};
+  const nested = isObj(src.languageSphere) ? src.languageSphere :
+    (isObj(pay.languageSphere) ? pay.languageSphere : {});
+  return !!(
+    isTruthyRequestFlag(src.reset) ||
+    isTruthyRequestFlag(src.clearSession) ||
+    isTruthyRequestFlag(src.resetSession) ||
+    isTruthyRequestFlag(src.newSession) ||
+    isTruthyRequestFlag(src.freshSession) ||
+    isTruthyRequestFlag(pay.reset) ||
+    isTruthyRequestFlag(pay.clearSession) ||
+    isTruthyRequestFlag(pay.resetSession) ||
+    isTruthyRequestFlag(pay.newSession) ||
+    isTruthyRequestFlag(pay.freshSession) ||
+    isTruthyRequestFlag(nested.reset) ||
+    isTruthyRequestFlag(nested.clearSession) ||
+    isTruthyRequestFlag(headers["x-sb-reset-session"]) ||
+    isTruthyRequestFlag(headers["x-reset-session"]) ||
+    isTruthyRequestFlag(headers["x-clear-session"])
+  );
+}
+
+function clearSessionRuntimeState(sessionId) {
+  const id = cleanText(sessionId || "");
+  if (!id) return false;
+  try { memory.lastBySession.delete(id); } catch (_) {}
+  try { memory.supportBySession.delete(id); } catch (_) {}
+  try { memory.transportBySession.delete(id); } catch (_) {}
+  try { memory.spineBySession.delete(id); } catch (_) {}
+  return true;
+}
+
+function isLanguageSphereRequested(norm = {}) {
+  const n = isObj(norm) ? norm : {};
+  const ls = isObj(n.languageSphere) ? n.languageSphere : {};
+  const target = normalizeIndexLanguageCode(n.targetLanguage || n.outputLanguage || n.responseLanguage || n.translateTo || ls.targetLanguage, "");
+  if (!target || target === "auto" || target === "unknown") return false;
+  return ["en", "fr", "es"].includes(target);
+}
+
+function normalizedInterfaceUtilityText(value) {
+  return lower(value).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isInterfaceUtilityTranslationText(value) {
+  const key = normalizedInterfaceUtilityText(value);
+  if (!key) return false;
+  return new Set([
+    "start reading",
+    "open feed",
+    "canada feed",
+    "sports feed",
+    "finance economics",
+    "finance and economics",
+    "play",
+    "pause",
+    "listen live",
+    "watch now",
+    "open player",
+    "open radio",
+    "open tv"
+  ]).has(key);
+}
+
+function shouldBypassPriorMemoryForCurrentTurn(norm = {}, req = null) {
+  const n = isObj(norm) ? norm : {};
+  const text = cleanText(n.originalText || n.text || "");
+  if (n.resetConversation === true || n.clearSession === true) return true;
+  if (shouldResetConversationFromRequest(req || {}, n.body || {}, n.payload || {})) return true;
+
+  /**
+   * LanguageSphere test/utility turns must not inherit stale Marion continuity.
+   * The live failure showed a fresh "Start Reading" translation request being
+   * answered with a prior marketing clarification. When a target language is
+   * explicit and the text is a short interface phrase, current-turn text wins.
+   */
+  if (isLanguageSphereRequested(n) && isInterfaceUtilityTranslationText(text)) return true;
+  if (isLanguageSphereRequested(n) && /^languagesphere[-_]/i.test(cleanText(n.lane || ""))) return true;
+  return false;
+}
+
+function shouldUseLanguageSphereDirectTranslation(norm = {}) {
+  const n = isObj(norm) ? norm : {};
+  const text = cleanText(n.originalText || n.text || "");
+  if (!text || text.length > 160) return false;
+  if (!isLanguageSphereRequested(n)) return false;
+  const ls = isObj(n.languageSphere) ? n.languageSphere : {};
+  const source = normalizeIndexLanguageCode(n.sourceLanguage || ls.sourceLanguage, "auto") || "auto";
+  const target = normalizeIndexLanguageCode(n.targetLanguage || n.outputLanguage || ls.targetLanguage, "");
+  if (!target || target === "auto" || target === "unknown") return false;
+  if (source && source !== "auto" && source !== "unknown" && source === target) return false;
+  const domain = lower(n.domainHint || (n.marionRouting && n.marionRouting.domain) || ls.domain || "");
+  return domain === "interface" || isInterfaceUtilityTranslationText(text) || /^languagesphere[-_]/i.test(cleanText(n.lane || ""));
+}
+
+function getDirectLanguageSphereAdapter() {
+  if (universalTranslatorAdapterMod && typeof universalTranslatorAdapterMod === "object") {
+    return { mod: universalTranslatorAdapterMod, source: "UniversalTranslatorAdapter" };
+  }
+  return getLanguageSphereAdapter();
+}
+
+async function buildLanguageSphereDirectTranslationResponse(norm = {}, sessionId = "", startedAt = now()) {
+  const n = isObj(norm) ? norm : {};
+  if (!shouldUseLanguageSphereDirectTranslation(n)) return null;
+
+  const originalText = cleanText(n.originalText || n.text || "");
+  const ls = isObj(n.languageSphere) ? n.languageSphere : {};
+  const sourceLanguage = normalizeIndexLanguageCode(n.sourceLanguage || ls.sourceLanguage, "auto") || "auto";
+  const targetLanguage = normalizeIndexLanguageCode(n.targetLanguage || n.outputLanguage || ls.targetLanguage, "");
+  const domain = cleanText(n.domainHint || (n.marionRouting && n.marionRouting.domain) || ls.domain || "interface") || "interface";
+  const adapter = getDirectLanguageSphereAdapter();
+
+  const languageSphereMeta = {
+    version: LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION,
+    indexBridge: true,
+    directUtilityTranslation: true,
+    staleCarryBypass: true,
+    attempted: false,
+    applied: false,
+    failClosed: true,
+    source: adapter.source,
+    sourceLanguage,
+    targetLanguage,
+    domain,
+    originalReplyHash: replyHash(originalText)
+  };
+
+  if (!adapter.mod || !originalText) return null;
+
+  try {
+    let out = null;
+
+    if (typeof adapter.mod.translateText === "function") {
+      out = await Promise.resolve(adapter.mod.translateText(originalText, {
+        sourceLanguage,
+        targetLanguage,
+        domain,
+        context: "index-direct-interface-translation",
+        protectedTerms: Array.isArray(ls.protectedTerms) ? ls.protectedTerms : []
+      }));
+    } else if (typeof adapter.mod.applyUniversalTranslation === "function") {
+      out = await Promise.resolve(adapter.mod.applyUniversalTranslation({
+        final: originalText,
+        reply: originalText,
+        text: originalText,
+        finalEnvelope: {
+          reply: originalText,
+          text: originalText,
+          displayReply: originalText,
+          final: true,
+          marionFinal: false,
+          handled: true,
+          authority: "languageSphereIndexBridge",
+          contractVersion: "nyx.languagesphere.final/1.0"
+        }
+      }, {
+        sourceLanguage,
+        targetLanguage,
+        domain,
+        context: "index-direct-interface-translation",
+        protectedTerms: Array.isArray(ls.protectedTerms) ? ls.protectedTerms : []
+      }));
+    }
+
+    const finalEnvelope = isObj(out && out.finalEnvelope) ? out.finalEnvelope : {};
+    const translatedText = cleanReplyForUser(
+      (out && (out.text || out.reply || out.final || out.translatedText)) ||
+      finalEnvelope.reply ||
+      finalEnvelope.text ||
+      originalText
+    ) || originalText;
+
+    const applied = !!translatedText && translatedText !== originalText;
+    const finalLanguageSphere = {
+      ...languageSphereMeta,
+      attempted: true,
+      applied,
+      translatedReplyHash: replyHash(translatedText),
+      adapterMeta: isObj(out && out.meta) ? out.meta :
+        (isObj(out && out.translationMeta) ? out.translationMeta : {})
+    };
+
+    const runtimeTelemetry = buildIndexRuntimeTelemetry({
+      norm: n,
+      selected: { reply: translatedText, meta: { languageSphere: finalLanguageSphere } },
+      marion: {},
+      reply: translatedText,
+      authority: "languageSphere_index_direct",
+      startedAt,
+      stage: "final",
+      canEmit: true
+    });
+
+    const basePacket = {
+      ok: true,
+      final: true,
+      finalized: true,
+      handled: true,
+      marionFinal: false,
+      awaitingMarion: false,
+      suppressUserFacingReply: false,
+      emit: true,
+      blocked: false,
+      reply: translatedText,
+      text: translatedText,
+      short: translatedText,
+      answer: translatedText,
+      output: translatedText,
+      response: translatedText,
+      displayReply: translatedText,
+      spokenText: translatedText,
+      textSpeak: translatedText,
+      textDisplay: translatedText,
+      languageSphere: finalLanguageSphere,
+      finalEnvelope: {
+        reply: translatedText,
+        text: translatedText,
+        displayReply: translatedText,
+        spokenText: translatedText,
+        final: true,
+        marionFinal: false,
+        handled: true,
+        authority: "languageSphereIndexBridge",
+        contractVersion: "nyx.languagesphere.final/1.0",
+        languageSphere: finalLanguageSphere,
+        finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+        runtimeTelemetry
+      },
+      payload: {
+        reply: translatedText,
+        text: translatedText,
+        message: translatedText,
+        answer: translatedText,
+        output: translatedText,
+        response: translatedText,
+        displayReply: translatedText,
+        spokenText: translatedText,
+        textSpeak: translatedText,
+        textDisplay: translatedText,
+        final: true,
+        finalized: true,
+        marionFinal: false,
+        handled: true,
+        awaitingMarion: false,
+        emit: true,
+        blocked: false,
+        suppressUserFacingReply: false,
+        languageSphere: finalLanguageSphere,
+        finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+        runtimeTelemetry
+      },
+      lane: n.lane || "general",
+      laneId: n.lane || "general",
+      sessionLane: n.lane || "general",
+      inputSource: n.inputSource,
+      source: n.source,
+      marionIntent: n.marionIntent,
+      marionRouting: n.marionRouting,
+      requestId: makeTraceId("req"),
+      traceId: n.traceId,
+      finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
+      runtimeTelemetry,
+      meta: {
+        v: INDEX_VERSION,
+        t: now(),
+        indexRole: "transport_only",
+        transportOnly: true,
+        noSupportDecision: true,
+        noEmotionDecision: true,
+        replyAuthority: "languageSphere_index_direct",
+        semanticAuthority: "languageSphere",
+        staleCarryBypass: true,
+        sessionId: cleanText(sessionId || ""),
+        languageSphere: finalLanguageSphere,
+        latencyMs: now() - startedAt
+      },
+      diagnostics: {
+        languageSphere: finalLanguageSphere,
+        staleCarryBypass: true,
+        directUtilityTranslation: true
+      }
+    };
+
+    try {
+      const speech = buildSpeechContract(basePacket, n);
+      const withAudio = ensureAudioContractFromSpeech(attachVoiceRoute(basePacket), speech);
+      withAudio.speech = speech;
+      withAudio.tts = {
+        ready: !!cleanText(speech && speech.textSpeak || translatedText || ""),
+        textSpeak: cleanText(speech && speech.textSpeak || translatedText || ""),
+        provider: cleanText(withAudio.audio && withAudio.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
+      };
+      withAudio.playback = {
+        ready: !!cleanText(withAudio.audio && withAudio.audio.textToSynth || speech && speech.textSpeak || translatedText || ""),
+        autoPlay: !!(withAudio.audio && withAudio.audio.autoPlay !== false),
+        route: routeUrl("/api/tts"),
+        compatibilityRoute: routeUrl("/tts"),
+        health: routeUrl("/api/tts/health"),
+        compatibilityHealth: routeUrl("/tts/health"),
+        textSpeak: cleanText(withAudio.audio && withAudio.audio.textToSynth || speech && speech.textSpeak || translatedText || ""),
+        provider: cleanText(withAudio.audio && withAudio.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
+      };
+      return withAudio;
+    } catch (_) {
+      return basePacket;
+    }
+  } catch (err) {
+    return null;
+  }
+}
+
+
 function shouldAttemptFinalLanguageSphere(norm = {}) {
   const ls = isObj(norm.languageSphere) ? norm.languageSphere : {};
   if (ls.enabled === false) return false;
@@ -4771,6 +5094,10 @@ function normalizePayload(req) {
     requestedLanguage: languageSphereRequest.targetLanguage,
     languageSphere: languageSphereRequest,
     translation: languageSphereRequest,
+    resetConversation: shouldResetConversationFromRequest(req, body, payload),
+    clearSession: shouldResetConversationFromRequest(req, body, payload),
+    staleCarryBypass: false,
+    languageSphereDirectTranslation: false,
     client: isObj(body.client) ? body.client : {}
   };
 }
@@ -7774,7 +8101,13 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   const startedAt = now();
   const norm = normalizePayload(req);
   const sessionId = getSessionId(req);
-  const priorTurn = getLastTurn(sessionId);
+  const resetConversation = shouldResetConversationFromRequest(req, norm.body, norm.payload) || norm.resetConversation === true || norm.clearSession === true;
+  if (resetConversation) clearSessionRuntimeState(sessionId);
+  norm.resetConversation = !!resetConversation;
+  norm.clearSession = !!resetConversation;
+  norm.staleCarryBypass = shouldBypassPriorMemoryForCurrentTurn(norm, req);
+  norm.languageSphereDirectTranslation = shouldUseLanguageSphereDirectTranslation(norm);
+  const priorTurn = (resetConversation || norm.staleCarryBypass) ? null : getLastTurn(sessionId);
   const trace = {
     traceId: norm.traceId,
     sessionId,
@@ -7800,7 +8133,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     transportState.key === transportKey &&
     cleanText(transportState.turnId || "") === cleanText(norm.turnId || "") &&
     (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
-  if (priorTransportReplay) {
+  if (priorTransportReplay && !norm.resetConversation && !norm.staleCarryBypass) {
     const cachedReply = finalizeRenderableReply(transportState.reply || priorTurn && priorTurn.reply || "", norm, "transport_replay_cache", "cached_reply_guard");
     if (isBlockedLoopingSupportReply(cachedReply)) {
       setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", loopReplyBlocked: true });
@@ -7852,7 +8185,40 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     norm.inputNormalizedForMarion = true;
   }
 
-  const prePacketBridge = resolveNyxPacketBridge(norm, null, null, priorTurn);
+  if (norm.languageSphereDirectTranslation === true) {
+    const directLanguageSphereResponse = await buildLanguageSphereDirectTranslationResponse(norm, sessionId, startedAt);
+    if (directLanguageSphereResponse && cleanText(directLanguageSphereResponse.reply || directLanguageSphereResponse.text || "")) {
+      const directReply = cleanText(directLanguageSphereResponse.reply || directLanguageSphereResponse.text || "");
+      setTransportState(sessionId, {
+        key: "",
+        turnId: norm.turnId,
+        reply: directReply,
+        replyHash: replyHash(directReply),
+        userHash: replyHash(norm.text),
+        finalized: true,
+        route: norm.lane || "general",
+        authority: "languageSphere_index_direct",
+        count: 1
+      });
+      setLastTurn(sessionId, {
+        replyHash: replyHash(directReply),
+        userHash: replyHash(norm.text),
+        lane: norm.lane || "general",
+        replyAuthority: "languageSphere_index_direct",
+        turnId: norm.turnId,
+        route: norm.lane || "general",
+        loopStatus: "languageSphere_direct_translation",
+        finalized: true,
+        userText: cleanText(norm.originalText || norm.text),
+        reply: directReply,
+        sessionPatch: {},
+        memoryPatch: {}
+      });
+      return res.status(200).json(directLanguageSphereResponse);
+    }
+  }
+
+  const prePacketBridge = norm.staleCarryBypass ? {} : resolveNyxPacketBridge(norm, null, null, priorTurn);
   const prePacketIntent = applyPacketBridgePreclassification(norm, prePacketBridge);
 
   const marionCommandPacket = marionCommandNormalizerMod && typeof marionCommandNormalizerMod.normalizeCommand === "function"
@@ -7868,7 +8234,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         technicalFollowUpLock: norm.technicalFollowUpLock,
         blockScheduleInterception: norm.blockScheduleInterception,
         outerSchedulerBypass: norm.outerSchedulerBypass,
-        previousMemory: isObj(priorTurn) ? priorTurn : {},
+        previousMemory: norm.staleCarryBypass ? {} : (isObj(priorTurn) ? priorTurn : {}),
         source: "index_transport_only"
       })
     : null;
@@ -7900,7 +8266,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     outputLanguage: norm.outputLanguage || norm.targetLanguage || "",
     languageSphere: isObj(norm.languageSphere) ? norm.languageSphere : {},
     languageSphereInput: isObj(norm.languageSphereInput) ? norm.languageSphereInput : {},
-    previousMemory: isObj(priorTurn) ? priorTurn : {},
+    previousMemory: norm.staleCarryBypass ? {} : (isObj(priorTurn) ? priorTurn : {}),
     commandPacket: isObj(marionCommandPacket) ? marionCommandPacket : {},
     state: isObj(marionCommandPacket && marionCommandPacket.state) ? marionCommandPacket.state : {},
     session: isObj(norm.body && norm.body.session) ? norm.body.session : {},
@@ -7924,7 +8290,10 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       sourceLanguage: norm.sourceLanguage || "auto",
       targetLanguage: norm.targetLanguage || "",
       languageSphere: isObj(norm.languageSphere) ? norm.languageSphere : {},
-      languageSphereInput: isObj(norm.languageSphereInput) ? norm.languageSphereInput : {}
+      languageSphereInput: isObj(norm.languageSphereInput) ? norm.languageSphereInput : {},
+      resetConversation: !!norm.resetConversation,
+      staleCarryBypass: !!norm.staleCarryBypass,
+      languageSphereDirectTranslation: !!norm.languageSphereDirectTranslation
     }
   };
 
@@ -8110,7 +8479,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
 
   const packetBridge = (isObj(prePacketBridge) && prePacketBridge.ok !== false && cleanText(prePacketBridge.matchedPacketId || prePacketBridge.packetId || prePacketBridge.packet || ""))
     ? prePacketBridge
-    : resolveNyxPacketBridge(norm, selected, marion, priorTurn);
+    : (norm.staleCarryBypass ? {} : resolveNyxPacketBridge(norm, selected, marion, priorTurn));
   selected = applyPacketBridgeToSelected(selected, packetBridge, norm);
 
   const languageSphereFinal = await applyIndexLanguageSphereToTrustedFinal(selected, norm, reply);
@@ -8741,5 +9110,9 @@ module.exports = {
   normalizeIndexInputForMarion,
   applyIndexLanguageSphereToTrustedFinal,
   extractLanguageSphereRequestFromRequest,
+  shouldResetConversationFromRequest,
+  shouldBypassPriorMemoryForCurrentTurn,
+  shouldUseLanguageSphereDirectTranslation,
+  buildLanguageSphereDirectTranslationResponse,
   buildIndexRuntimeTelemetry
 };
