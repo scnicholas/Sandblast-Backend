@@ -31,9 +31,10 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.10sb DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
+const INDEX_VERSION = "index.js v2.18.11sb LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
+const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -1251,6 +1252,17 @@ const chatEngineMod = tryRequireMany([
   "./utils/chatEngine.js",
   "./Utils/chatEngine",
   "./Utils/chatEngine.js"
+]);
+
+const universalTranslatorAdapterMod = tryRequireMany([
+  "./Data/marion/runtime/UniversalTranslatorAdapter",
+  "./Data/marion/runtime/UniversalTranslatorAdapter.js",
+  "./UniversalTranslatorAdapter",
+  "./UniversalTranslatorAdapter.js",
+  "./utils/UniversalTranslatorAdapter",
+  "./utils/UniversalTranslatorAdapter.js",
+  "./Utils/UniversalTranslatorAdapter",
+  "./Utils/UniversalTranslatorAdapter.js"
 ]);
 
 const supportResponseMod = tryRequireMany([
@@ -4369,6 +4381,349 @@ function finalizeStateSpineForTurn(sessionId, prevState, norm, emotion, marion, 
   }
 }
 
+
+function normalizeIndexLanguageCode(value, fallback = "") {
+  const raw = cleanText(value || "").toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "auto") return "auto";
+  if (raw === "none" || raw === "off" || raw === "false" || raw === "disabled") return "";
+  if (raw.startsWith("en")) return "en";
+  if (raw.startsWith("fr")) return "fr";
+  if (raw.startsWith("es")) return "es";
+  return fallback;
+}
+
+function extractLanguageSphereRequestFromRequest(req, body = {}, payload = {}) {
+  const headers = isObj(req && req.headers) ? req.headers : {};
+  const src = isObj(body) ? body : {};
+  const pay = isObj(payload) ? payload : {};
+  const nested = isObj(src.languageSphere) ? src.languageSphere :
+    (isObj(pay.languageSphere) ? pay.languageSphere :
+      (isObj(src.translation) ? src.translation : (isObj(pay.translation) ? pay.translation : {})));
+
+  const sourceLanguage = normalizeIndexLanguageCode(
+    firstString([
+      nested.sourceLanguage,
+      nested.source,
+      src.sourceLanguage,
+      pay.sourceLanguage,
+      src.inputLanguage,
+      pay.inputLanguage,
+      src.detectedLanguage,
+      pay.detectedLanguage,
+      headers["x-sb-source-language"],
+      headers["x-nyx-source-language"],
+      headers["x-source-language"],
+      "auto"
+    ]),
+    "auto"
+  ) || "auto";
+
+  const targetLanguage = normalizeIndexLanguageCode(
+    firstString([
+      nested.targetLanguage,
+      nested.target,
+      nested.outputLanguage,
+      nested.responseLanguage,
+      src.targetLanguage,
+      pay.targetLanguage,
+      src.outputLanguage,
+      pay.outputLanguage,
+      src.responseLanguage,
+      pay.responseLanguage,
+      src.translateTo,
+      pay.translateTo,
+      src.languageTarget,
+      pay.languageTarget,
+      headers["x-sb-target-language"],
+      headers["x-nyx-target-language"],
+      headers["x-target-language"],
+      headers["x-response-language"]
+    ]),
+    ""
+  );
+
+  const domain = cleanText(
+    nested.domain ||
+    src.domain ||
+    pay.domain ||
+    src.domainHint ||
+    pay.domainHint ||
+    ""
+  );
+
+  return {
+    version: LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION,
+    enabled: nested.enabled !== false && src.translationDisabled !== true && pay.translationDisabled !== true,
+    sourceLanguage,
+    targetLanguage,
+    domain,
+    context: cleanText(nested.context || "index-chat-route"),
+    requestedAt: now()
+  };
+}
+
+function shouldAttemptFinalLanguageSphere(norm = {}) {
+  const ls = isObj(norm.languageSphere) ? norm.languageSphere : {};
+  if (ls.enabled === false) return false;
+  const target = normalizeIndexLanguageCode(norm.targetLanguage || norm.outputLanguage || ls.targetLanguage, "");
+  if (!target || target === "auto" || target === "unknown") return false;
+  const source = normalizeIndexLanguageCode(norm.sourceLanguage || ls.sourceLanguage, "auto");
+  if (source && source !== "auto" && source !== "unknown" && source === target) return false;
+  return ["en", "fr", "es"].includes(target);
+}
+
+function getLanguageSphereAdapter() {
+  if (chatEngineMod && typeof chatEngineMod === "object") {
+    if (typeof chatEngineMod.normalizeInputForMarion === "function" || typeof chatEngineMod.applyLanguageSphereToTrustedFinal === "function") {
+      return { mod: chatEngineMod, source: "chatEngine" };
+    }
+  }
+  if (universalTranslatorAdapterMod && typeof universalTranslatorAdapterMod === "object") {
+    if (typeof universalTranslatorAdapterMod.normalizeInputForMarion === "function" || typeof universalTranslatorAdapterMod.applyUniversalTranslation === "function") {
+      return { mod: universalTranslatorAdapterMod, source: "UniversalTranslatorAdapter" };
+    }
+  }
+  return { mod: null, source: "unavailable" };
+}
+
+async function normalizeIndexInputForMarion(norm = {}) {
+  const n = isObj(norm) ? norm : {};
+  const originalText = cleanText(n.text || "");
+  const adapter = getLanguageSphereAdapter();
+  const ls = isObj(n.languageSphere) ? n.languageSphere : {};
+  const sourceLanguage = normalizeIndexLanguageCode(n.sourceLanguage || ls.sourceLanguage, "auto") || "auto";
+  const domain = cleanText(n.domainHint || ls.domain || (n.marionRouting && n.marionRouting.domain) || "general") || "general";
+  const base = {
+    version: LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION,
+    source: adapter.source,
+    enabled: !!adapter.mod,
+    originalText,
+    normalizedText: originalText,
+    detectedLanguage: sourceLanguage,
+    detectionConfidence: null,
+    translatedForRouting: false,
+    failClosed: true,
+    warning: adapter.mod ? null : "language-sphere-adapter-unavailable"
+  };
+
+  if (!originalText || !adapter.mod) return base;
+
+  try {
+    if (typeof adapter.mod.normalizeInputForMarion === "function") {
+      const out = await Promise.resolve(adapter.mod.normalizeInputForMarion(originalText, {
+        sourceLanguage,
+        domain,
+        context: "index-pre-routing",
+        protectedTerms: Array.isArray(ls.protectedTerms) ? ls.protectedTerms : []
+      }));
+      if (isObj(out)) {
+        return {
+          ...base,
+          ...out,
+          source: adapter.source,
+          originalText,
+          normalizedText: cleanText(out.normalizedText || originalText) || originalText,
+          detectedLanguage: normalizeIndexLanguageCode(out.detectedLanguage || out.sourceLanguage || sourceLanguage, sourceLanguage) || sourceLanguage,
+          translatedForRouting: out.translatedForRouting === true,
+          failClosed: true
+        };
+      }
+    }
+  } catch (err) {
+    return {
+      ...base,
+      warning: "language-sphere-input-normalization-failed",
+      error: cleanText(err && (err.message || err) || "normalization_failed")
+    };
+  }
+
+  return base;
+}
+
+function mergeLanguageSphereMeta(target, languageSphere) {
+  const out = isObj(target) ? { ...target } : {};
+  const ls = isObj(languageSphere) ? languageSphere : {};
+  out.languageSphere = {
+    ...(isObj(out.languageSphere) ? out.languageSphere : {}),
+    ...ls,
+    version: LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION,
+    indexBridge: true
+  };
+  return out;
+}
+
+async function applyIndexLanguageSphereToTrustedFinal(selected = {}, norm = {}, currentReply = "") {
+  const sourcePacket = isObj(selected) ? selected : {};
+  const n = isObj(norm) ? norm : {};
+  const originalReply = cleanText(currentReply || sourcePacket.reply || sourcePacket.text || (sourcePacket.finalEnvelope && sourcePacket.finalEnvelope.reply) || "");
+  const targetLanguage = normalizeIndexLanguageCode(n.targetLanguage || n.outputLanguage || (n.languageSphere && n.languageSphere.targetLanguage), "");
+  const sourceLanguage = normalizeIndexLanguageCode(n.sourceLanguage || (n.languageSphere && n.languageSphere.sourceLanguage), "auto") || "auto";
+  const domain = cleanText(n.domainHint || (n.marionRouting && n.marionRouting.domain) || (n.languageSphere && n.languageSphere.domain) || "general") || "general";
+  const adapter = getLanguageSphereAdapter();
+
+  const baseMeta = {
+    version: LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION,
+    source: adapter.source,
+    indexBridge: true,
+    stage: "post-marion-final",
+    attempted: false,
+    applied: false,
+    failClosed: true,
+    sourceLanguage,
+    targetLanguage,
+    domain,
+    originalReplyHash: replyHash(originalReply)
+  };
+
+  if (!originalReply || !shouldAttemptFinalLanguageSphere(n) || !adapter.mod) {
+    return {
+      packet: sourcePacket,
+      reply: originalReply,
+      languageSphere: {
+        ...baseMeta,
+        warning: !adapter.mod ? "language-sphere-adapter-unavailable" : "translation-not-requested"
+      }
+    };
+  }
+
+  const translationInput = {
+    ...sourcePacket,
+    sourceLanguage,
+    targetLanguage,
+    domain,
+    finalEnvelope: {
+      ...(isObj(sourcePacket.finalEnvelope) ? sourcePacket.finalEnvelope : {}),
+      reply: originalReply,
+      text: originalReply,
+      displayReply: originalReply,
+      final: true,
+      marionFinal: sourcePacket.marionFinal !== false,
+      handled: true,
+      authority: cleanText(sourcePacket.finalEnvelope && sourcePacket.finalEnvelope.authority || "marionFinalEnvelope") || "marionFinalEnvelope",
+      contractVersion: cleanText(sourcePacket.finalEnvelope && sourcePacket.finalEnvelope.contractVersion || "nyx.marion.final/1.0") || "nyx.marion.final/1.0"
+    },
+    meta: {
+      ...(isObj(sourcePacket.meta) ? sourcePacket.meta : {}),
+      languageSphere: baseMeta
+    }
+  };
+
+  try {
+    let translated = null;
+
+    if (typeof adapter.mod.applyLanguageSphereToTrustedFinal === "function") {
+      translated = await Promise.resolve(adapter.mod.applyLanguageSphereToTrustedFinal(translationInput, {
+        sourceLanguage,
+        targetLanguage,
+        domain,
+        context: "index-post-final"
+      }));
+    } else if (typeof adapter.mod.applyUniversalTranslation === "function") {
+      translated = await Promise.resolve(adapter.mod.applyUniversalTranslation(translationInput, {
+        sourceLanguage,
+        targetLanguage,
+        domain,
+        context: "index-post-final"
+      }));
+    }
+
+    const out = isObj(translated) ? translated : translationInput;
+    const finalEnvelope = isObj(out.finalEnvelope) ? out.finalEnvelope : {};
+    const translatedReply = cleanReplyForUser(
+      finalEnvelope.reply ||
+      finalEnvelope.text ||
+      out.reply ||
+      out.text ||
+      originalReply
+    ) || originalReply;
+
+    if (!translatedReply || isConversationDiagnosticFallbackReply(translatedReply) || isBlockedLoopingSupportReply(translatedReply)) {
+      return {
+        packet: sourcePacket,
+        reply: originalReply,
+        languageSphere: {
+          ...baseMeta,
+          attempted: true,
+          warning: "translated-reply-rejected-by-index-sanitizer"
+        }
+      };
+    }
+
+    const languageSphereMeta = {
+      ...baseMeta,
+      attempted: true,
+      applied: translatedReply !== originalReply,
+      translatedReplyHash: replyHash(translatedReply),
+      adapterMeta: isObj(out.translationMeta) ? out.translationMeta :
+        (isObj(finalEnvelope.translationMeta) ? finalEnvelope.translationMeta :
+          (isObj(out.meta && out.meta.languageSphere) ? out.meta.languageSphere : {}))
+    };
+
+    const next = {
+      ...sourcePacket,
+      ...out,
+      reply: translatedReply,
+      text: translatedReply,
+      answer: translatedReply,
+      output: translatedReply,
+      response: translatedReply,
+      spokenText: translatedReply,
+      finalEnvelope: {
+        ...(isObj(sourcePacket.finalEnvelope) ? sourcePacket.finalEnvelope : {}),
+        ...finalEnvelope,
+        reply: translatedReply,
+        text: translatedReply,
+        displayReply: translatedReply,
+        spokenText: translatedReply,
+        final: true,
+        marionFinal: sourcePacket.marionFinal !== false,
+        handled: true,
+        authority: cleanText((finalEnvelope && finalEnvelope.authority) || (sourcePacket.finalEnvelope && sourcePacket.finalEnvelope.authority) || "marionFinalEnvelope") || "marionFinalEnvelope",
+        contractVersion: cleanText((finalEnvelope && finalEnvelope.contractVersion) || (sourcePacket.finalEnvelope && sourcePacket.finalEnvelope.contractVersion) || "nyx.marion.final/1.0") || "nyx.marion.final/1.0",
+        languageSphere: languageSphereMeta
+      },
+      payload: {
+        ...(isObj(sourcePacket.payload) ? sourcePacket.payload : {}),
+        ...(isObj(out.payload) ? out.payload : {}),
+        reply: translatedReply,
+        text: translatedReply,
+        message: translatedReply,
+        displayReply: translatedReply,
+        spokenText: translatedReply,
+        languageSphere: languageSphereMeta
+      },
+      meta: mergeLanguageSphereMeta({
+        ...(isObj(sourcePacket.meta) ? sourcePacket.meta : {}),
+        ...(isObj(out.meta) ? out.meta : {})
+      }, languageSphereMeta),
+      diagnostics: mergeLanguageSphereMeta({
+        ...(isObj(sourcePacket.diagnostics) ? sourcePacket.diagnostics : {}),
+        ...(isObj(out.diagnostics) ? out.diagnostics : {})
+      }, languageSphereMeta)
+    };
+
+    return {
+      packet: next,
+      reply: translatedReply,
+      languageSphere: languageSphereMeta
+    };
+  } catch (err) {
+    return {
+      packet: sourcePacket,
+      reply: originalReply,
+      languageSphere: {
+        ...baseMeta,
+        attempted: true,
+        applied: false,
+        warning: "language-sphere-final-translation-failed",
+        error: cleanText(err && (err.message || err) || "translation_failed")
+      }
+    };
+  }
+}
+
+
 function normalizePayload(req) {
   const body = isObj(req.body) ? req.body : {};
   const payload = isObj(body.payload) ? body.payload : {};
@@ -4386,8 +4741,10 @@ function normalizePayload(req) {
   const routedMarionIntent = routeMarionIntentThroughRuntime(normalizeIncomingMarionIntent(lockedMarionIntent, text), lane, text);
   const marionIntent = routedMarionIntent.marionIntent;
   const marionRouting = routedMarionIntent.routing;
+  const languageSphereRequest = extractLanguageSphereRequestFromRequest(req, body, payload);
   return {
     text,
+    originalText: text,
     guidedPrompt,
     domainHint: cleanText(body.domainHint || payload.domainHint || marionRouting.domain || (guidedPrompt && guidedPrompt.domainHint) || ""),
     intentHint: cleanText(body.intentHint || payload.intentHint || marionIntent.intent || (guidedPrompt && guidedPrompt.intentHint) || ""),
@@ -4408,6 +4765,12 @@ function normalizePayload(req) {
     traceId: cleanText(req.headers["x-sb-trace-id"] || payload.traceId || body.traceId || makeTraceId("req")),
     source: cleanText(body.source || payload.source || body.inputSource || payload.inputSource || req.headers["x-sb-input-source"] || "text").toLowerCase() || "text",
     inputSource: cleanText(body.inputSource || payload.inputSource || body.source || payload.source || req.headers["x-sb-input-source"] || "text").toLowerCase() || "text",
+    sourceLanguage: languageSphereRequest.sourceLanguage,
+    targetLanguage: languageSphereRequest.targetLanguage,
+    outputLanguage: languageSphereRequest.targetLanguage,
+    requestedLanguage: languageSphereRequest.targetLanguage,
+    languageSphere: languageSphereRequest,
+    translation: languageSphereRequest,
     client: isObj(body.client) ? body.client : {}
   };
 }
@@ -7469,6 +7832,26 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
   setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
 
+  const languageSphereInput = await normalizeIndexInputForMarion(norm);
+  norm.languageSphereInput = languageSphereInput;
+  norm.languageSphere = {
+    ...(isObj(norm.languageSphere) ? norm.languageSphere : {}),
+    input: languageSphereInput,
+    indexBridgeVersion: LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION
+  };
+  if (
+    languageSphereInput &&
+    languageSphereInput.translatedForRouting === true &&
+    cleanText(languageSphereInput.normalizedText) &&
+    cleanText(languageSphereInput.normalizedText) !== cleanText(norm.text)
+  ) {
+    norm.originalText = cleanText(norm.originalText || languageSphereInput.originalText || norm.text);
+    norm.text = cleanText(languageSphereInput.normalizedText);
+    norm.query = norm.text;
+    norm.userQuery = norm.text;
+    norm.inputNormalizedForMarion = true;
+  }
+
   const prePacketBridge = resolveNyxPacketBridge(norm, null, null, priorTurn);
   const prePacketIntent = applyPacketBridgePreclassification(norm, prePacketBridge);
 
@@ -7511,6 +7894,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     outerSchedulerBypass: norm.outerSchedulerBypass,
     requestedDomain: norm.domainHint || (norm.marionRouting && norm.marionRouting.domain) || "general",
     intent: (norm.marionIntent && norm.marionIntent.intent) || norm.intentHint || "simple_chat",
+    originalText: cleanText(norm.originalText || norm.text),
+    sourceLanguage: norm.sourceLanguage || "auto",
+    targetLanguage: norm.targetLanguage || "",
+    outputLanguage: norm.outputLanguage || norm.targetLanguage || "",
+    languageSphere: isObj(norm.languageSphere) ? norm.languageSphere : {},
+    languageSphereInput: isObj(norm.languageSphereInput) ? norm.languageSphereInput : {},
     previousMemory: isObj(priorTurn) ? priorTurn : {},
     commandPacket: isObj(marionCommandPacket) ? marionCommandPacket : {},
     state: isObj(marionCommandPacket && marionCommandPacket.state) ? marionCommandPacket.state : {},
@@ -7530,7 +7919,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       loopGuardVersion: cleanText(marionLoopGuardMod && marionLoopGuardMod.VERSION || ""),
       finalEnvelopeVersion: cleanText(marionFinalEnvelopeMod && marionFinalEnvelopeMod.VERSION || ""),
       traceId: norm.traceId,
-      turnId: norm.turnId
+      turnId: norm.turnId,
+      originalText: cleanText(norm.originalText || norm.text),
+      sourceLanguage: norm.sourceLanguage || "auto",
+      targetLanguage: norm.targetLanguage || "",
+      languageSphere: isObj(norm.languageSphere) ? norm.languageSphere : {},
+      languageSphereInput: isObj(norm.languageSphereInput) ? norm.languageSphereInput : {}
     }
   };
 
@@ -7719,6 +8113,40 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     : resolveNyxPacketBridge(norm, selected, marion, priorTurn);
   selected = applyPacketBridgeToSelected(selected, packetBridge, norm);
 
+  const languageSphereFinal = await applyIndexLanguageSphereToTrustedFinal(selected, norm, reply);
+  if (languageSphereFinal && isObj(languageSphereFinal.packet)) {
+    selected = languageSphereFinal.packet;
+    reply = finalizeRenderableReply(languageSphereFinal.reply || selected.reply || selected.text || reply, norm, authority, "language_sphere_final_route_guard");
+    selected.reply = reply;
+    selected.text = reply;
+    selected.answer = reply;
+    selected.output = reply;
+    selected.response = reply;
+    selected.spokenText = cleanText(selected.spokenText || reply);
+    selected.finalEnvelope = {
+      ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}),
+      reply,
+      text: reply,
+      displayReply: reply,
+      spokenText: cleanText(selected.spokenText || reply),
+      final: true,
+      marionFinal: !!selected.marionFinal,
+      handled: true,
+      languageSphere: isObj(languageSphereFinal.languageSphere) ? languageSphereFinal.languageSphere : undefined
+    };
+    selected.payload = {
+      ...(isObj(selected.payload) ? selected.payload : {}),
+      reply,
+      text: reply,
+      message: reply,
+      displayReply: reply,
+      spokenText: cleanText(selected.spokenText || reply),
+      languageSphere: isObj(languageSphereFinal.languageSphere) ? languageSphereFinal.languageSphere : undefined
+    };
+    selected.meta = mergeLanguageSphereMeta(selected.meta, isObj(languageSphereFinal.languageSphere) ? languageSphereFinal.languageSphere : {});
+    selected.diagnostics = mergeLanguageSphereMeta(selected.diagnostics, isObj(languageSphereFinal.languageSphere) ? languageSphereFinal.languageSphere : {});
+  }
+
   const speech = buildSpeechContract(selected, norm);
   selected = ensureAudioContractFromSpeech(attachVoiceRoute(selected), speech);
   selected.speech = speech;
@@ -7836,6 +8264,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     },
     finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
     runtimeTelemetry,
+    languageSphere: isObj(selected.meta && selected.meta.languageSphere) ? selected.meta.languageSphere : (isObj(norm.languageSphere) ? norm.languageSphere : undefined),
     lane: selected.lane || norm.lane || "general",
     laneId: selected.laneId || selected.lane || norm.lane || "general",
     sessionLane: selected.sessionLane || selected.lane || norm.lane || "general",
@@ -8309,5 +8738,8 @@ module.exports = {
   applyContinuityStitch,
   buildLoggingSpine,
   extractRuntimeTelemetryPacket,
+  normalizeIndexInputForMarion,
+  applyIndexLanguageSphereToTrustedFinal,
+  extractLanguageSphereRequestFromRequest,
   buildIndexRuntimeTelemetry
 };
