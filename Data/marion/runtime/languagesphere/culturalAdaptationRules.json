@@ -1,0 +1,84 @@
+{
+  "version": "1.0.0",
+  "module": "LanguageSphereCulturalAdaptationRules",
+  "authority": {
+    "finalAuthority": false,
+    "finalAuthorityOwner": "Marion",
+    "mayBypassMarion": false
+  },
+  "rules": {
+    "global": {
+      "preserveIntent": true,
+      "preserveTechnicalTerms": true,
+      "preserveBrandNames": true,
+      "preserveSystemNames": true,
+      "avoidLiteralIdiomTransfer": true,
+      "doNotInventCulturalContext": true,
+      "doNotOverrideMarionFinal": true
+    },
+    "en": {
+      "adaptationBias": "clarity",
+      "directnessAdjustment": "maintain",
+      "warmthAdjustment": "light",
+      "formalityAdjustment": "neutral",
+      "notes": [
+        "Prefer clear structure.",
+        "Keep technical language precise.",
+        "Avoid unnecessary ceremony."
+      ]
+    },
+    "es": {
+      "adaptationBias": "warmth-and-respect",
+      "directnessAdjustment": "soften-slightly",
+      "warmthAdjustment": "increase",
+      "formalityAdjustment": "preserve-context",
+      "notes": [
+        "Avoid overly literal English structure.",
+        "Preserve respectful tone.",
+        "Keep technical terms stable when locked."
+      ]
+    },
+    "fr": {
+      "adaptationBias": "polish-and-nuance",
+      "directnessAdjustment": "soften",
+      "warmthAdjustment": "moderate",
+      "formalityAdjustment": "increase-slightly",
+      "notes": [
+        "Preserve nuance and register.",
+        "Avoid casual phrasing unless user tone is clearly casual.",
+        "Keep technical terms stable when locked."
+      ]
+    }
+  },
+  "lockedTerms": [
+    "Marion",
+    "Nyx",
+    "LanguageSphere",
+    "Sandblast",
+    "StateSpine",
+    "final authority",
+    "final authority gate",
+    "final envelope",
+    "loop hardlock",
+    "domain confidence scoring",
+    "MarionBridge",
+    "ComposeMarionResponse"
+  ],
+  "idiomRiskMarkers": {
+    "en": [
+      "hit the ground running",
+      "ballpark",
+      "on the same page",
+      "move the needle",
+      "under the hood"
+    ],
+    "es": [],
+    "fr": []
+  },
+  "safety": {
+    "debugLeakageBlocked": true,
+    "culturalOverreachBlocked": true,
+    "authorityBypassBlocked": true,
+    "unsupportedLocaleFallback": true
+  }
+}
