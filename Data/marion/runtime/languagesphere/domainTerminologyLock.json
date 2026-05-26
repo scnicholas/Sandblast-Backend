@@ -1,0 +1,136 @@
+{
+  "version": "1.0.0",
+  "module": "LanguageSphereDomainTerminologyLock",
+  "authority": {
+    "finalAuthority": false,
+    "finalAuthorityOwner": "Marion",
+    "mayBypassMarion": false
+  },
+  "lockPolicies": {
+    "preserve-exact": {
+      "description": "Term must remain exactly as written.",
+      "allowTranslation": false,
+      "allowRewrite": false
+    },
+    "preserve-concept": {
+      "description": "Term meaning must remain stable; translation may be allowed only through approved map.",
+      "allowTranslation": true,
+      "allowRewrite": false
+    },
+    "translate-carefully": {
+      "description": "Translation is allowed, but domain meaning must be preserved.",
+      "allowTranslation": true,
+      "allowRewrite": true
+    },
+    "translate-normal": {
+      "description": "Normal translation behavior is allowed.",
+      "allowTranslation": true,
+      "allowRewrite": true
+    }
+  },
+  "lockedTerms": [
+    {
+      "term": "Marion",
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "reason": "Core AI reasoning authority name."
+    },
+    {
+      "term": "Nyx",
+      "domain": "interface",
+      "policy": "preserve-exact",
+      "reason": "Front-end identity and interface name."
+    },
+    {
+      "term": "LanguageSphere",
+      "domain": "translation",
+      "policy": "preserve-exact",
+      "reason": "Named translation and cultural adaptation layer."
+    },
+    {
+      "term": "Sandblast",
+      "domain": "brand",
+      "policy": "preserve-exact",
+      "reason": "Brand name."
+    },
+    {
+      "term": "StateSpine",
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "reason": "Internal continuity architecture module."
+    },
+    {
+      "term": "MarionBridge",
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "reason": "Internal bridge module and file concept."
+    },
+    {
+      "term": "ComposeMarionResponse",
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "reason": "Internal response composition module."
+    },
+    {
+      "term": "final authority",
+      "domain": "architecture",
+      "policy": "preserve-concept",
+      "reason": "Critical Marion ownership concept."
+    },
+    {
+      "term": "final authority gate",
+      "domain": "architecture",
+      "policy": "preserve-concept",
+      "reason": "Critical response ownership gate."
+    },
+    {
+      "term": "final envelope",
+      "domain": "architecture",
+      "policy": "preserve-concept",
+      "reason": "Critical output contract."
+    },
+    {
+      "term": "loop hardlock",
+      "domain": "safety",
+      "policy": "preserve-concept",
+      "reason": "Anti-loop safety concept."
+    },
+    {
+      "term": "domain confidence scoring",
+      "domain": "routing",
+      "policy": "preserve-concept",
+      "reason": "Domain routing confidence mechanism."
+    },
+    {
+      "term": "intellectual property",
+      "domain": "legal",
+      "policy": "translate-carefully",
+      "reason": "Legal and business term requiring stable meaning."
+    },
+    {
+      "term": "licensing",
+      "domain": "business",
+      "policy": "translate-carefully",
+      "reason": "Commercialization model term."
+    },
+    {
+      "term": "revenue projection",
+      "domain": "finance",
+      "policy": "translate-carefully",
+      "reason": "Financial planning terminology."
+    },
+    {
+      "term": "regression test",
+      "domain": "engineering",
+      "policy": "translate-carefully",
+      "reason": "Software validation term."
+    }
+  ],
+  "safety": {
+    "debugLeakageBlocked": true,
+    "finalAnswerBlocked": true,
+    "authorityBypassBlocked": true,
+    "unsupportedTermFallback": true,
+    "domainMeaningProtectionEnabled": true
+  }
+}
