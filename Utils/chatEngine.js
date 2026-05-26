@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.2 TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "ChatEngine v3.9.3 LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -30,6 +30,9 @@ const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/1.0-transport";
 const DOMAIN_CONCIERGE_CONTRACT_VERSION = "nyx.marion.domainConcierge/1.0";
+
+const LANGUAGE_SPHERE_BRIDGE_VERSION = "nyx.languageSphere.chatEngineBridge/1.0";
+const UNIVERSAL_TRANSLATOR_ADAPTER_PATH = "./UniversalTranslatorAdapter.js";
 
 const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
   FINAL_ENVELOPE_CONTRACT,
@@ -535,7 +538,7 @@ function finalTransportPacket(packet = {}) {
         contractVersion: firstText(safeObj(out.finalEnvelope).contractVersion, FINAL_ENVELOPE_CONTRACT),
         authority: firstText(safeObj(out.finalEnvelope).authority, "marionFinalEnvelope")
       };
-      out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, finalEnvelope: out.finalEnvelope, final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
+      out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, finalEnvelope: jsonSafe(out.finalEnvelope), final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
     } else {
       out.ok = false; out.final = false; out.marionFinal = false; out.terminal = false;
       out.reply = ""; out.text = ""; out.answer = ""; out.output = ""; out.response = ""; out.message = "";
@@ -1631,6 +1634,414 @@ function stableTurnKey(input = {}) {
 }
 
 
+
+function loadUniversalTranslatorAdapter() {
+  try {
+    return require(UNIVERSAL_TRANSLATOR_ADAPTER_PATH);
+  } catch (_err) {
+    return null;
+  }
+}
+
+function extractLanguageSphereBlock(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const diagnostics = safeObj(src.diagnostics);
+  const finalEnvelope = extractFinalEnvelope(src);
+
+  return safeObj(
+    src.languageSphere ||
+    src.universalTranslator ||
+    payload.languageSphere ||
+    payload.universalTranslator ||
+    meta.languageSphere ||
+    meta.universalTranslator ||
+    diagnostics.languageSphere ||
+    finalEnvelope.languageSphere ||
+    {}
+  );
+}
+
+function extractTranslationBlock(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const finalEnvelope = extractFinalEnvelope(src);
+  const languageSphere = extractLanguageSphereBlock(src);
+
+  return safeObj(
+    src.translation ||
+    src.translationOptions ||
+    payload.translation ||
+    payload.translationOptions ||
+    meta.translation ||
+    meta.translationOptions ||
+    finalEnvelope.translation ||
+    languageSphere.translation ||
+    languageSphere.options ||
+    {}
+  );
+}
+
+function normalizeChatEngineLanguageCode(value) {
+  const text = lower(value);
+  if (!text) return "";
+  if (text === "auto") return "auto";
+  if (text === "unknown") return "unknown";
+  if (text.indexOf("english") === 0 || text.indexOf("en") === 0) return "en";
+  if (text.indexOf("french") === 0 || text.indexOf("fr") === 0) return "fr";
+  if (text.indexOf("spanish") === 0 || text.indexOf("es") === 0) return "es";
+  return "";
+}
+
+function compactTranslationMeta(value = {}) {
+  const meta = safeObj(value);
+  if (!Object.keys(meta).length) return {};
+  return {
+    adapterVersion: cleanText(meta.adapterVersion || ""),
+    translated: meta.translated === true,
+    provider: cleanText(meta.provider || ""),
+    sourceLanguage: cleanText(meta.sourceLanguage || ""),
+    targetLanguage: cleanText(meta.targetLanguage || ""),
+    languagePair: cleanText(meta.languagePair || ""),
+    protectedTermsApplied: Number(meta.protectedTermsApplied || 0) || 0,
+    memoryHit: meta.memoryHit === true,
+    characterCount: Number(meta.characterCount || 0) || 0,
+    durationMs: meta.durationMs == null ? null : Number(meta.durationMs) || 0,
+    warning: cleanText(meta.warning || ""),
+    error: cleanText(meta.error || ""),
+    finalTextSlot: cleanText(meta.finalTextSlot || "")
+  };
+}
+
+function extractProtectedTermsForTranslation(input = {}) {
+  const block = extractTranslationBlock(input);
+  const sphere = extractLanguageSphereBlock(input);
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+
+  const combined = [
+    ...safeArray(block.protectedTerms),
+    ...safeArray(block.extraTerms),
+    ...safeArray(sphere.protectedTerms),
+    ...safeArray(payload.protectedTerms),
+    ...safeArray(meta.protectedTerms)
+  ];
+
+  return combined.map(cleanText).filter(Boolean).slice(0, 250);
+}
+
+function extractFinalTranslationOptions(input = {}, reply = "") {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const finalEnvelope = extractFinalEnvelope(src);
+  const block = extractTranslationBlock(src);
+  const sphere = extractLanguageSphereBlock(src);
+
+  const enabled = block.enabled !== false &&
+    sphere.enabled !== false &&
+    src.translationEnabled !== false &&
+    payload.translationEnabled !== false &&
+    meta.translationEnabled !== false;
+
+  const targetLanguage = normalizeChatEngineLanguageCode(firstText(
+    block.targetLanguage,
+    block.target,
+    block.replyLanguage,
+    sphere.targetLanguage,
+    sphere.target,
+    sphere.replyLanguage,
+    src.targetLanguage,
+    src.replyLanguage,
+    payload.targetLanguage,
+    payload.replyLanguage,
+    meta.targetLanguage,
+    meta.replyLanguage,
+    finalEnvelope.targetLanguage,
+    finalEnvelope.replyLanguage
+  ));
+
+  const sourceLanguage = normalizeChatEngineLanguageCode(firstText(
+    block.sourceLanguage,
+    block.source,
+    sphere.sourceLanguage,
+    sphere.source,
+    src.sourceLanguage,
+    payload.sourceLanguage,
+    meta.sourceLanguage,
+    finalEnvelope.sourceLanguage,
+    "auto"
+  )) || "auto";
+
+  return {
+    enabled: !!enabled && !!targetLanguage && targetLanguage !== "auto" && targetLanguage !== "unknown",
+    sourceLanguage,
+    targetLanguage,
+    domain: firstText(block.domain, sphere.domain, extractDomain(src), "general"),
+    domains: safeArray(block.domains || sphere.domains).map(cleanText).filter(Boolean),
+    emotion: firstText(block.emotion, sphere.emotion, safeObj(src.resolvedEmotion).emotion, ""),
+    context: firstText(block.context, sphere.context, "chat-engine-post-final"),
+    protectedTerms: extractProtectedTermsForTranslation(src),
+    requested: !!targetLanguage,
+    replyPreview: clipText(reply, 120)
+  };
+}
+
+function mirrorTranslatedReplyAcrossTransport(result = {}, translatedReply = "", translationMeta = {}) {
+  if (!isPlainObject(result) || !translatedReply) return result;
+
+  const reply = sanitizeFinalUserFacingReplyForCohesion(translatedReply);
+  if (!reply) return result;
+
+  const spokenText = reply.replace(/\n+/g, " ");
+  const meta = compactTranslationMeta(translationMeta);
+  const languageSphere = {
+    version: LANGUAGE_SPHERE_BRIDGE_VERSION,
+    stage: "post-final-output",
+    authorityPreserved: true,
+    coordinatorOnly: true,
+    translated: meta.translated === true,
+    targetLanguage: meta.targetLanguage,
+    sourceLanguage: meta.sourceLanguage,
+    provider: meta.provider,
+    translationMeta: meta
+  };
+
+  const cloneLanguageSphere = () => ({
+    ...languageSphere,
+    translationMeta: { ...meta }
+  });
+
+  result.reply = reply;
+  result.text = reply;
+  result.answer = reply;
+  result.output = reply;
+  result.response = reply;
+  result.message = reply;
+  result.spokenText = spokenText;
+
+  if (isPlainObject(result.payload)) {
+    result.payload.reply = reply;
+    result.payload.text = reply;
+    result.payload.message = reply;
+    result.payload.answer = reply;
+    result.payload.output = reply;
+    result.payload.response = reply;
+    result.payload.authoritativeReply = reply;
+    result.payload.spokenText = spokenText;
+    result.payload.languageSphere = cloneLanguageSphere();
+  }
+
+  if (isPlainObject(result.finalEnvelope)) {
+    result.finalEnvelope = {
+      ...result.finalEnvelope,
+      reply,
+      text: reply,
+      displayReply: reply,
+      spokenText,
+      languageSphere: cloneLanguageSphere(),
+      translationMeta: { ...meta }
+    };
+  }
+
+  result.meta = {
+    ...safeObj(result.meta),
+    languageSphere: cloneLanguageSphere(),
+    translationMeta: { ...meta },
+    languageSphereBridgeVersion: LANGUAGE_SPHERE_BRIDGE_VERSION
+  };
+
+  result.diagnostics = {
+    ...safeObj(result.diagnostics),
+    languageSphere: {
+      version: LANGUAGE_SPHERE_BRIDGE_VERSION,
+      stage: "post-final-output",
+      translated: meta.translated === true,
+      authorityPreserved: true,
+      finalEnvelopePreserved: true,
+      targetLanguage: meta.targetLanguage,
+      provider: meta.provider,
+      warning: meta.warning,
+      error: meta.error
+    }
+  };
+
+  return result;
+}
+
+async function applyLanguageSphereToTrustedFinal(result = {}, originalInput = {}) {
+  if (!isPlainObject(result) || !result.reply) return result;
+
+  const adapter = loadUniversalTranslatorAdapter();
+  if (!adapter || typeof adapter.applyUniversalTranslation !== "function") {
+    return result;
+  }
+
+  const options = extractFinalTranslationOptions(originalInput, result.reply);
+  if (!options.enabled) {
+    return result;
+  }
+
+  try {
+    const sourceEnvelope = isPlainObject(result.finalEnvelope) && Object.keys(result.finalEnvelope).length
+      ? result.finalEnvelope
+      : {
+          reply: result.reply,
+          final: true,
+          marionFinal: true,
+          handled: true,
+          authority: "marionFinalEnvelope",
+          contractVersion: FINAL_ENVELOPE_CONTRACT
+        };
+
+    const translatedEnvelope = await adapter.applyUniversalTranslation(sourceEnvelope, {
+      sourceLanguage: options.sourceLanguage,
+      targetLanguage: options.targetLanguage,
+      domain: options.domain,
+      domains: options.domains,
+      emotion: options.emotion,
+      context: options.context,
+      protectedTerms: options.protectedTerms
+    });
+
+    const translatedReply = firstText(
+      safeObj(translatedEnvelope).reply,
+      safeObj(translatedEnvelope).text,
+      safeObj(translatedEnvelope).displayReply,
+      result.reply
+    );
+
+    const translationMeta = safeObj(
+      safeObj(translatedEnvelope).translationMeta ||
+      safeObj(translatedEnvelope).languageSphere ||
+      {}
+    );
+
+    if (!translatedReply || translatedReply === result.reply) {
+      result.meta = {
+        ...safeObj(result.meta),
+        languageSphere: {
+          version: LANGUAGE_SPHERE_BRIDGE_VERSION,
+          stage: "post-final-output",
+          requested: true,
+          translated: false,
+          authorityPreserved: true,
+          targetLanguage: options.targetLanguage,
+          reason: "translation-not-required-or-unchanged",
+          translationMeta: compactTranslationMeta(translationMeta)
+        }
+      };
+      return result;
+    }
+
+    return mirrorTranslatedReplyAcrossTransport(result, translatedReply, translationMeta);
+  } catch (error) {
+    const message = cleanText(error && error.message || error || "language-sphere-translation-failed");
+    result.meta = {
+      ...safeObj(result.meta),
+      languageSphere: {
+        version: LANGUAGE_SPHERE_BRIDGE_VERSION,
+        stage: "post-final-output",
+        requested: true,
+        translated: false,
+        authorityPreserved: true,
+        failClosedToOriginal: true,
+        targetLanguage: options.targetLanguage,
+        error: message
+      }
+    };
+    result.diagnostics = {
+      ...safeObj(result.diagnostics),
+      languageSphere: {
+        version: LANGUAGE_SPHERE_BRIDGE_VERSION,
+        translated: false,
+        failClosedToOriginal: true,
+        error: message
+      }
+    };
+    return result;
+  }
+}
+
+async function normalizeInputForMarion(input = {}, options = {}) {
+  const adapter = loadUniversalTranslatorAdapter();
+  const src = typeof input === "string" ? { text: input } : jsonSafe(safeObj(input));
+
+  if (!adapter || typeof adapter.normalizeInputForMarion !== "function") {
+    return src;
+  }
+
+  const userText = extractUserText(src);
+  if (!userText) return src;
+
+  const block = extractTranslationBlock(src);
+  const sphere = extractLanguageSphereBlock(src);
+  const protectedTerms = [
+    ...extractProtectedTermsForTranslation(src),
+    ...safeArray(options.protectedTerms).map(cleanText).filter(Boolean)
+  ].slice(0, 250);
+
+  const normalized = await adapter.normalizeInputForMarion(userText, {
+    domain: firstText(options.domain, block.domain, sphere.domain, extractDomain(src), "general"),
+    domains: safeArray(options.domains || block.domains || sphere.domains),
+    context: firstText(options.context, block.context, sphere.context, "chat-engine-pre-routing"),
+    emotion: firstText(options.emotion, block.emotion, sphere.emotion, ""),
+    protectedTerms
+  });
+
+  const normalizedText = cleanText(normalized && normalized.normalizedText || userText);
+  const languageSphere = {
+    version: LANGUAGE_SPHERE_BRIDGE_VERSION,
+    stage: "pre-routing-input-normalization",
+    originalText: userText,
+    normalizedText,
+    detectedLanguage: cleanText(normalized && normalized.detectedLanguage || ""),
+    detectionConfidence: normalized && typeof normalized.detectionConfidence === "number" ? normalized.detectionConfidence : null,
+    detectionMethod: cleanText(normalized && normalized.detectionMethod || ""),
+    translatedForRouting: !!(normalized && normalized.translatedForRouting),
+    translationMeta: compactTranslationMeta(safeObj(normalized && normalized.translationMeta))
+  };
+
+  const out = {
+    ...src,
+    originalUserText: firstText(src.originalUserText, userText),
+    normalizedUserText: normalizedText,
+    languageSphere,
+    universalTranslator: languageSphere,
+    meta: {
+      ...safeObj(src.meta),
+      languageSphere,
+      universalTranslator: languageSphere
+    }
+  };
+
+  /**
+   * Only replace routing-facing text when the adapter actually translated.
+   * Otherwise preserve caller fields exactly to avoid unnecessary turn drift.
+   */
+  if (languageSphere.translatedForRouting && normalizedText) {
+    out.text = normalizedText;
+    out.query = normalizedText;
+    out.message = normalizedText;
+    out.userQuery = normalizedText;
+    out.payload = {
+      ...safeObj(src.payload),
+      text: normalizedText,
+      query: normalizedText,
+      message: normalizedText,
+      userQuery: normalizedText,
+      originalUserText: userText,
+      normalizedUserText: normalizedText,
+      languageSphere
+    };
+  }
+
+  return out;
+}
+
 class ChatEngine {
   constructor(options = {}) {
     this.state = {
@@ -1649,7 +2060,7 @@ class ChatEngine {
     };
   }
 
-  processInput(input = {}) {
+  async processInput(input = {}) {
     const trace = {
       at: Date.now(),
       rawInputType: typeof input,
@@ -1708,11 +2119,19 @@ class ChatEngine {
 
       this.clearRejection(turnId);
 
-      const result = buildStructuredFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
+      let result = buildStructuredFinalReply(src, { finalEnvelope, trustedFinalEnvelope });
+      result = await applyLanguageSphereToTrustedFinal(result, src);
       this.updateState(src, result);
 
       trace.accepted = true;
       trace.responsePreview = clipText(result.reply, 160);
+      trace.stages.push({
+        stage: "languageSpherePostFinal",
+        ok: true,
+        requested: !!safeObj(result.meta).languageSphere,
+        translated: safeObj(safeObj(result.meta).languageSphere).translated === true,
+        targetLanguage: cleanText(safeObj(safeObj(result.meta).languageSphere).targetLanguage || "")
+      });
       this.pushPipelineTrace(trace);
 
       return normalizeCoordinatorOutputForPipeline(finalTransportPacket(result));
@@ -1831,7 +2250,7 @@ function getRuntime() {
 
 async function handleChat(input = {}) {
   const runtimeInstance = getRuntime();
-  return runtimeInstance.processInput(input);
+  return await runtimeInstance.processInput(input);
 }
 
 async function run(input = {}) {
@@ -1872,6 +2291,7 @@ if (typeof module !== "undefined") {
     FINAL_RUNTIME_TELEMETRY_VERSION,
     DOMAIN_CONCIERGE_CORE_VERSION,
     DOMAIN_CONCIERGE_CONTRACT_VERSION,
+    LANGUAGE_SPHERE_BRIDGE_VERSION,
     TELEMETRY_VISIBILITY_VERSION,
     FAILURE_SIGNATURE_AUDIT_VERSION,
     CHAT_ENGINE_SIGNATURE,
@@ -1886,6 +2306,9 @@ if (typeof module !== "undefined") {
     chat,
     handle,
     reply,
+    normalizeInputForMarion,
+    applyLanguageSphereToTrustedFinal,
+    extractFinalTranslationOptions,
     extractMarionFields,
     shouldLockMarionAuthority,
     finalPipelineCohesionProfile,
@@ -1937,7 +2360,11 @@ if (typeof module !== "undefined") {
       extractDomainConcierge,
       compactDomainConciergeForTransport,
       normalizeConversationalPackBridge,
-      conversationPackCohesionProfile
+      conversationPackCohesionProfile,
+      normalizeInputForMarion,
+      applyLanguageSphereToTrustedFinal,
+      extractFinalTranslationOptions,
+      loadUniversalTranslatorAdapter
     }
   };
 }
