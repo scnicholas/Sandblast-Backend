@@ -11,6 +11,10 @@
  * - Attach safe telemetry.
  * - Preserve request/session/inputSource metadata.
  * - Never bypass Marion or generate final visible output.
+ *
+ * Critical rule:
+ * This middleware prepares Marion-safe payloads only.
+ * It does not create final visible answers and it cannot bypass Marion.
  */
 
 const {
@@ -44,6 +48,10 @@ function sanitizeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function sanitizeBoolean(value, fallback = false) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 function createMiddlewareTraceId(prefix = 'lsm') {
   return `${prefix}_${Date.now().toString(36)}_${Math.random()
     .toString(36)
@@ -56,10 +64,30 @@ function normalizeInputSource(value = 'text') {
   if (raw === 'voice') return 'mic';
   if (raw === 'microphone') return 'mic';
   if (raw === 'audio') return 'mic';
+  if (raw === 'speech') return 'mic';
+  if (raw === 'stt') return 'mic';
   if (raw === 'mic') return 'mic';
   if (raw === 'text') return 'text';
 
   return raw || 'text';
+}
+
+function normalizeTargetLanguage(payload = {}) {
+  const safePayload = sanitizeObject(payload);
+
+  const direct =
+    sanitizeString(safePayload.targetLanguage) ||
+    sanitizeString(safePayload.targetLang);
+
+  if (direct.trim()) return direct.trim().split(/[-_]/)[0].toLowerCase();
+
+  const locale =
+    sanitizeString(safePayload.locale) ||
+    sanitizeString(safePayload.targetLocale);
+
+  if (locale.trim()) return locale.trim().split(/[-_]/)[0].toLowerCase();
+
+  return 'en';
 }
 
 function extractRequestMetadata(payload = {}) {
@@ -80,11 +108,7 @@ function extractRequestMetadata(payload = {}) {
       safePayload.mode ||
       'text'
     ),
-    targetLanguage:
-      sanitizeString(safePayload.targetLanguage) ||
-      sanitizeString(safePayload.targetLang) ||
-      sanitizeString(safePayload.locale).split('-')[0] ||
-      'en',
+    targetLanguage: normalizeTargetLanguage(safePayload),
     locale:
       sanitizeString(safePayload.locale) ||
       sanitizeString(safePayload.targetLocale) ||
@@ -92,12 +116,34 @@ function extractRequestMetadata(payload = {}) {
   };
 }
 
+function createAuthorityLock() {
+  return {
+    finalAuthority: false,
+    finalAuthorityOwner: 'Marion',
+    mayBypassMarion: false,
+    marionBypassBlocked: true
+  };
+}
+
+function createLanguageContext(envelope = {}, fallbackDecision = {}, targetLanguage = 'en') {
+  const safeEnvelope = sanitizeObject(envelope);
+  const language = sanitizeObject(safeEnvelope.language);
+
+  return {
+    sourceLanguage: sanitizeString(language.sourceLanguage, 'unknown'),
+    targetLanguage: sanitizeString(language.targetLanguage, targetLanguage),
+    confidence: typeof language.confidence === 'number' ? language.confidence : 0,
+    translationRequired: Boolean(language.translationRequired),
+    translationApplied: Boolean(language.translationApplied),
+    fallbackApplied: Boolean(language.fallbackApplied || fallbackDecision.fallbackApplied)
+  };
+}
+
 function createPreparedMarionPayload(originalPayload = {}, envelope = {}, fallbackDecision = {}, telemetry = {}) {
   const safeOriginal = sanitizeObject(originalPayload);
   const metadata = extractRequestMetadata(safeOriginal);
   const selectedText = sanitizeString(fallbackDecision.selectedText);
-
-  const language = sanitizeObject(envelope.language);
+  const text = sanitizeObject(envelope.text);
 
   return {
     ...safeOriginal,
@@ -107,8 +153,8 @@ function createPreparedMarionPayload(originalPayload = {}, envelope = {}, fallba
     message: selectedText,
 
     originalText: extractTextCandidate(safeOriginal),
-    normalizedText: sanitizeString(envelope.text?.normalizedText),
-    translatedText: sanitizeString(envelope.text?.translatedText),
+    normalizedText: sanitizeString(text.normalizedText),
+    translatedText: sanitizeString(text.translatedText),
 
     requestId: metadata.requestId,
     sessionId: metadata.sessionId,
@@ -120,26 +166,80 @@ function createPreparedMarionPayload(originalPayload = {}, envelope = {}, fallba
     languageSphereFailedSafe: Boolean(fallbackDecision.fallbackApplied),
     languageSphereBlocked: Boolean(fallbackDecision.blocked),
 
-    languageContext: {
-      sourceLanguage: sanitizeString(language.sourceLanguage, 'unknown'),
-      targetLanguage: sanitizeString(language.targetLanguage, metadata.targetLanguage),
-      confidence: typeof language.confidence === 'number' ? language.confidence : 0,
-      translationRequired: Boolean(language.translationRequired),
-      translationApplied: Boolean(language.translationApplied),
-      fallbackApplied: Boolean(language.fallbackApplied || fallbackDecision.fallbackApplied)
-    },
+    languageContext: createLanguageContext(envelope, fallbackDecision, metadata.targetLanguage),
 
     languageSphere: envelope,
     languageSphereFallback: fallbackDecision,
     languageSphereTelemetry: telemetry,
     languageSphereTelemetrySummary: summarizeTelemetry(telemetry),
 
+    authority: createAuthorityLock()
+  };
+}
+
+function createBlockedMarionPayload(originalPayload = {}, reason = 'blocked-by-languagesphere-api-middleware', extra = {}) {
+  const safeOriginal = sanitizeObject(originalPayload);
+  const safeExtra = sanitizeObject(extra);
+  const metadata = extractRequestMetadata(safeOriginal);
+  const originalText = extractTextCandidate(safeOriginal);
+
+  const fallbackDecision = safeExtra.fallbackDecision || {
+    blocked: true,
+    reason,
+    selectedText: '',
+    selectedSource: 'none',
+    fallbackApplied: true,
+    safeForMarion: false,
+    warnings: sanitizeArray(safeExtra.warnings),
+    errors: sanitizeArray(safeExtra.errors),
     authority: {
       finalAuthority: false,
       finalAuthorityOwner: 'Marion',
-      mayBypassMarion: false,
-      marionBypassBlocked: true
+      mayBypassMarion: false
     }
+  };
+
+  const telemetry =
+    safeExtra.telemetry ||
+    createLanguageSphereTelemetry({
+      requestPayload: {
+        ...safeOriginal,
+        ...metadata
+      },
+      envelope: safeExtra.envelope || {},
+      fallbackDecision
+    });
+
+  return {
+    ...safeOriginal,
+
+    text: '',
+    userText: '',
+    message: '',
+    originalText,
+
+    requestId: metadata.requestId,
+    sessionId: metadata.sessionId,
+    inputSource: metadata.inputSource,
+    targetLanguage: metadata.targetLanguage,
+    locale: metadata.locale,
+
+    languageSphereApplied: false,
+    languageSphereFailedSafe: true,
+    languageSphereBlocked: true,
+
+    languageContext: createLanguageContext(
+      safeExtra.envelope || {},
+      fallbackDecision,
+      metadata.targetLanguage
+    ),
+
+    languageSphere: safeExtra.envelope || null,
+    languageSphereFallback: fallbackDecision,
+    languageSphereTelemetry: telemetry,
+    languageSphereTelemetrySummary: summarizeTelemetry(telemetry),
+
+    authority: createAuthorityLock()
   };
 }
 
@@ -170,7 +270,6 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
   const safePayload = sanitizeObject(payload);
   const safeOptions = sanitizeObject(options);
   const metadata = extractRequestMetadata(safePayload);
-
   const originalText = extractTextCandidate(safePayload);
 
   if (!normalizeWhitespace(originalText)) {
@@ -178,37 +277,65 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
       warnings: ['API chat payload did not contain usable text.']
     });
 
+    const fallbackDecision = {
+      blocked: true,
+      reason: 'empty-api-chat-input-blocked',
+      selectedText: '',
+      selectedSource: 'none',
+      fallbackApplied: true,
+      safeForMarion: false,
+      warnings: sanitizeArray(blockedPayload.diagnostics && blockedPayload.diagnostics.warnings),
+      errors: sanitizeArray(blockedPayload.diagnostics && blockedPayload.diagnostics.errors),
+      safety: {
+        debugLeakageBlocked: true,
+        finalAnswerBlocked: true,
+        authorityBypassBlocked: true,
+        emptyInputBlocked: true,
+        providerFailureGuardActive: true
+      },
+      authority: {
+        finalAuthority: false,
+        finalAuthorityOwner: 'Marion',
+        mayBypassMarion: false
+      }
+    };
+
     const telemetry = createLanguageSphereTelemetry({
       requestPayload: {
         ...safePayload,
         ...metadata
       },
       envelope: {},
-      fallbackDecision: {
-        blocked: true,
-        reason: 'empty-api-chat-input-blocked',
-        selectedSource: 'none',
-        fallbackApplied: true,
-        safeForMarion: false
-      }
+      fallbackDecision
     });
+
+    const marionPayload = createBlockedMarionPayload(
+      {
+        ...safePayload,
+        requestId: metadata.requestId,
+        sessionId: metadata.sessionId,
+        inputSource: metadata.inputSource,
+        targetLanguage: metadata.targetLanguage,
+        locale: metadata.locale
+      },
+      'empty-api-chat-input-blocked',
+      {
+        fallbackDecision,
+        telemetry,
+        warnings: fallbackDecision.warnings,
+        errors: fallbackDecision.errors
+      }
+    );
 
     return createMiddlewareResult({
       ok: false,
       blocked: true,
       reason: 'empty-api-chat-input-blocked',
-      marionPayload: {
-        ...safePayload,
-        ...blockedPayload,
-        requestId: metadata.requestId,
-        sessionId: metadata.sessionId,
-        inputSource: metadata.inputSource,
-        targetLanguage: metadata.targetLanguage,
-        languageSphereTelemetry: telemetry,
-        languageSphereTelemetrySummary: summarizeTelemetry(telemetry)
-      },
+      marionPayload,
+      fallbackDecision,
       telemetry,
-      warnings: blockedPayload.diagnostics.warnings
+      warnings: fallbackDecision.warnings,
+      errors: fallbackDecision.errors
     });
   }
 
@@ -239,33 +366,30 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
     });
 
     if (shouldBlockRequest(fallbackDecision)) {
-      return createMiddlewareResult({
-        ok: false,
-        blocked: true,
-        reason: fallbackDecision.reason,
-        marionPayload: {
+      const marionPayload = createBlockedMarionPayload(
+        {
           ...safePayload,
-          text: '',
-          userText: '',
-          originalText,
           requestId: metadata.requestId,
           sessionId: metadata.sessionId,
           inputSource: metadata.inputSource,
           targetLanguage: metadata.targetLanguage,
-          languageSphereApplied: false,
-          languageSphereFailedSafe: true,
-          languageSphereBlocked: true,
-          languageSphere: envelope,
-          languageSphereFallback: fallbackDecision,
-          languageSphereTelemetry: telemetry,
-          languageSphereTelemetrySummary: summarizeTelemetry(telemetry),
-          authority: {
-            finalAuthority: false,
-            finalAuthorityOwner: 'Marion',
-            mayBypassMarion: false,
-            marionBypassBlocked: true
-          }
+          locale: metadata.locale
         },
+        fallbackDecision.reason,
+        {
+          envelope,
+          fallbackDecision,
+          telemetry,
+          warnings: fallbackDecision.warnings,
+          errors: fallbackDecision.errors
+        }
+      );
+
+      return createMiddlewareResult({
+        ok: false,
+        blocked: true,
+        reason: fallbackDecision.reason,
+        marionPayload,
         languageSphere: envelope,
         fallbackDecision,
         telemetry,
@@ -312,32 +436,29 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
     });
 
     if (shouldBlockRequest(fallbackDecision)) {
-      return createMiddlewareResult({
-        ok: false,
-        blocked: true,
-        reason: fallbackDecision.reason,
-        marionPayload: {
+      const marionPayload = createBlockedMarionPayload(
+        {
           ...safePayload,
-          text: '',
-          userText: '',
-          originalText,
           requestId: metadata.requestId,
           sessionId: metadata.sessionId,
           inputSource: metadata.inputSource,
           targetLanguage: metadata.targetLanguage,
-          languageSphereApplied: false,
-          languageSphereFailedSafe: true,
-          languageSphereBlocked: true,
-          languageSphereFallback: fallbackDecision,
-          languageSphereTelemetry: telemetry,
-          languageSphereTelemetrySummary: summarizeTelemetry(telemetry),
-          authority: {
-            finalAuthority: false,
-            finalAuthorityOwner: 'Marion',
-            mayBypassMarion: false,
-            marionBypassBlocked: true
-          }
+          locale: metadata.locale
         },
+        fallbackDecision.reason,
+        {
+          fallbackDecision,
+          telemetry,
+          warnings: fallbackDecision.warnings,
+          errors: fallbackDecision.errors
+        }
+      );
+
+      return createMiddlewareResult({
+        ok: false,
+        blocked: true,
+        reason: fallbackDecision.reason,
+        marionPayload,
         fallbackDecision,
         telemetry,
         warnings: fallbackDecision.warnings,
@@ -359,18 +480,15 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
         sessionId: metadata.sessionId,
         inputSource: metadata.inputSource,
         targetLanguage: metadata.targetLanguage,
+        locale: metadata.locale,
         languageSphereApplied: false,
         languageSphereFailedSafe: true,
         languageSphereBlocked: false,
+        languageContext: createLanguageContext({}, fallbackDecision, metadata.targetLanguage),
         languageSphereFallback: fallbackDecision,
         languageSphereTelemetry: telemetry,
         languageSphereTelemetrySummary: summarizeTelemetry(telemetry),
-        authority: {
-          finalAuthority: false,
-          finalAuthorityOwner: 'Marion',
-          mayBypassMarion: false,
-          marionBypassBlocked: true
-        }
+        authority: createAuthorityLock()
       },
       fallbackDecision,
       telemetry,
@@ -380,10 +498,40 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
   }
 }
 
+function assertMiddlewareAuthority(result = {}) {
+  const safeResult = sanitizeObject(result);
+  const marionPayload = sanitizeObject(safeResult.marionPayload);
+  const authority = sanitizeObject(marionPayload.authority);
+
+  return Boolean(
+    authority.finalAuthority === false &&
+    authority.finalAuthorityOwner === 'Marion' &&
+    authority.mayBypassMarion === false
+  );
+}
+
+function isPreparedForMarion(result = {}) {
+  const safeResult = sanitizeObject(result);
+  const marionPayload = sanitizeObject(safeResult.marionPayload);
+
+  return Boolean(
+    safeResult.ok === true &&
+    safeResult.blocked === false &&
+    normalizeWhitespace(marionPayload.text) &&
+    assertMiddlewareAuthority(safeResult)
+  );
+}
+
 module.exports = {
   prepareLanguageSphereForApiChat,
   createPreparedMarionPayload,
+  createBlockedMarionPayload,
   createMiddlewareResult,
   extractRequestMetadata,
-  normalizeInputSource
+  normalizeInputSource,
+  normalizeTargetLanguage,
+  createAuthorityLock,
+  createLanguageContext,
+  assertMiddlewareAuthority,
+  isPreparedForMarion
 };
