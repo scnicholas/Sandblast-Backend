@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.4.9 QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.5.0 ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -829,6 +829,21 @@ function isDefinitionQuery(text = "") {
   return /\b(what\s+is|what\s+are|define|definition\s+of|meaning\s+of|explain|explain\s+the\s+term|explain\s+the\s+word|describe)\b/i.test(t) || /\?$/.test(t);
 }
 
+
+function isAnswerableTopicRequest(text = "", questionShape = {}) {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  const qs = safeObj(questionShape);
+  const shape = safeStr(qs.questionShape || "");
+  const normalized = lower(qs.normalizedUserIntent || qs.normalizedText || text);
+  if (!t && !normalized) return false;
+  if (canonicalTechnicalTargetFromText(t).targetPath) return false;
+  if (detectDirectiveIntent(t) || detectContextualDirectiveIntent(t) || isInfrastructureContinuityPrompt(t)) return false;
+  if (/\b(file|files|zip|download|resend|update|patch|fix|replace|line[-\s]?by[-\s]?line|structural integrity|deploy|validate|node --check|api\/chat|runtime|router|composer|state spine|statespine|marionbridge|chatengine|composemarionresponse)\b/i.test(t)) return false;
+  if (shape === "topic_request" && normalized.length >= 2) return true;
+  if (/^(tell me|explain|describe|define|break down|what is|what are|what does|how does)\b/i.test(t) && t.length <= 180) return true;
+  return false;
+}
+
 function definitionKnowledgeDomainFromText(text = ""){
   const t = lower(normalizeRouterVoiceTextParity(text));
   if (!isDefinitionQuery(t)) return "";
@@ -836,7 +851,7 @@ function definitionKnowledgeDomainFromText(text = ""){
   if (/\b(full autopsy|line[-\s]?by[-\s]?line|audit|critical fix|critical fixes|patch|debug|backend|frontend|widget|script|file|api\/chat|render|deploy|syntax|node --check)\b/i.test(t)) return "";
   const domainTerms=[
     ["law",/\b(contract consideration|legal consideration|consideration in contract|consideration|contract|contract law|statute|jurisdiction|legal information|legal advice|liability|negligence|fiduciary|tort|case law|compliance|due process|algorithmic liability|privacy law|ai act)\b/i],
-    ["finance",/\b(cash[-\s]?flow|compound interest|interest rate|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience|roi|roas|attribution|incrementality|customer acquisition cost|lifetime value)\b/i],
+    ["finance",/\b(cash[-\s]?flow|compound interest|interest rate|unit economics|runway|margin|gross margin|profit|revenue|ltv|cac|working capital|burn rate|capital markets|pricing tier|scenario analysis|financial resilience|roi|roas|attribution|incrementality|customer acquisition cost|lifetime value|audit|auditing|financial audit|internal audit)\b/i],
     ["psychology",/\b(emotional intelligence|cognitive distortion|emotional regulation|attachment|trauma|bias|cognition|shutdown|emotional shutdown|anxiety|panic|behavior|behaviour|trust calibration|overreliance|mental model|cognitive load|affective computing)\b/i],
     ["ai",/\b(artificial intelligence|intelligent agent|ai agent|agent architecture|tool routing|rag|retrieval augmented generation|llm|large language model|embedding|agent orchestration|machine learning|model inference|prompt injection in ai|recommendation system|algorithmic bias|model evaluation|neural network|reinforcement learning|human[-\s]?in[-\s]?the[-\s]?loop|ai governance|ai ethics|model security|cognitive intelligence)\b/i],
     ["cyber",/\b(least privilege|cia triad|attack surface|defense in depth|assume breach|secure by default|mfa|multi[-\s]?factor|iam|identity access|rbac|jit access|zero trust|incident response|threat model|input validation|secrets rotation|phishing|ransomware|endpoint security|cloud security|shared responsibility|network security|web security|tls|data protection|privacy minimization|data minimization|security culture|source ladder)\b/i],
@@ -1262,7 +1277,7 @@ function inferIntentFromText(text) {
     };
   }
 
-  if (has(/\b(price|pricing|sponsor|sponsorship|media kit|monetize|monetization|pitch|funding|investor|sales|proposal|revenue|business|startup|advertising|ad template|audience|brand awareness|commercial positioning)\b/i, t)) {
+  if (has(/\b(price|pricing|sponsor|sponsorship|media kit|monetize|monetization|pitch|funding|investor|sales|proposal|revenue|business|startup|advertising|ad template|audience|brand awareness|commercial positioning|digital transformation|business model|operations strategy|operational efficiency|process improvement|audit|auditing)\b/i, t)) {
     return {
       intent: "business_strategy",
       confidence: 0.84,
@@ -1376,6 +1391,15 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     confidence = Math.max(confidence, inferred.confidence);
     reason = inferred.reason;
     stateStageHint = "deliver";
+    recoveryRequired = false;
+  }
+
+  /* Broad answerable topic requests must answer directly instead of falling into a domain clarifier loop. */
+  if (intent === "simple_chat" && isAnswerableTopicRequest(fallbackText, src.questionShape || {})) {
+    intent = "domain_question";
+    confidence = Math.max(confidence, 0.74);
+    reason = "answerable_topic_request";
+    stateStageHint = "reason";
     recoveryRequired = false;
   }
 
@@ -1496,8 +1520,8 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
   if (/\b(ai agent|llm|rag|embedding|tool routing|agent orchestration|machine learning|artificial intelligence|cognitive intelligence|confidence scoring)\b/i.test(t)) addDomainCandidate(map, "ai", 0.94, "ai_terms", "ai");
   if (/\b(cyber|cybersecurity|phishing|ransomware|mfa|least privilege|identity access|iam|incident response|threat model|defensive security|endpoint security|cloud security|network security|web security|privacy minimization|data protection|hardening)\b/i.test(t)) addDomainCandidate(map, "cyber", 0.92, "cyber_terms", "cyber");
   if (/\b(legal advice|legal information|canadian law|contract law|case law|statute|jurisdiction|tort)\b/i.test(t)) addDomainCandidate(map, "law", 0.86, "law_terms", "law");
-  if (/\b(finance|financial|cash[-\s]?flow|compound interest|interest rate|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis)\b/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
-  if (/\b(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience)\b/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
+  if (/\b(finance|financial|cash[-\s]?flow|compound interest|interest rate|runway|margin|unit economics|ltv|cac|pricing tiers|capital markets|investment|scenario analysis|audit|auditing|financial audit|internal audit)\b/i.test(t)) addDomainCandidate(map, "finance", 0.88, "finance_terms", "finance");
+  if (/\b(sponsor|sponsorship|media kit|monetize|monetization|sales|revenue|business strategy|advertising|brand awareness|audience|digital transformation|business model|operations strategy|operational efficiency|process improvement|audit|auditing)\b/i.test(t)) addDomainCandidate(map, "business", 0.84, "business_terms");
   if (isNewsMediaPositioningRequest(t)) addDomainCandidate(map, "news", 0.95, "news_media_positioning_signal");
   if (/\b(news canada|rss|feed|story|headline|wp rest|editorial)\b/i.test(t)) addDomainCandidate(map, "news", isNewsMediaPositioningRequest(t) ? 0.95 : 0.84, isNewsMediaPositioningRequest(t) ? "news_media_positioning_terms" : "news_terms");
   if (/\b(roku|ott|linear tv|streaming app|channel app)\b/i.test(t)) addDomainCandidate(map, "roku", 0.84, "roku_terms");
@@ -1507,12 +1531,14 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
 
 function intentConfidenceProfile(intentPacket = {}, text = "") {
   const p = safeObj(intentPacket);
+  const questionShape = safeObj(p.questionShape);
+  const answerableTopic = isAnswerableTopicRequest(text, questionShape);
   const candidates = domainSignalCandidates(text, p);
   const top = candidates[0] || { domain: INTENT_TO_DOMAIN[p.intent] || "general_reasoning", confidence: clamp01(p.confidence, 0), reasons: ["intent_confidence"] };
   const second = candidates[1] || null;
   const c = Math.max(clamp01(p.confidence, 0), clamp01(top.confidence, 0));
   const margin = second ? Math.max(0, c - clamp01(second.confidence, 0)) : c;
-  const routeLocked = !!(p.routeLock || isInfrastructureContinuityPrompt(text) || isNewsMediaPositioningRequest(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
+  const routeLocked = !!(p.routeLock || answerableTopic || isInfrastructureContinuityPrompt(text) || isNewsMediaPositioningRequest(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
   const ambiguous = !routeLocked && (c < 0.62 || (second && margin < 0.08));
   const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || top.knowledgeDomain || "");
   return {
@@ -1522,7 +1548,7 @@ function intentConfidenceProfile(intentPacket = {}, text = "") {
     margin,
     ambiguous,
     routeLocked,
-    reason: safeStr(p.reason || (top.reasons && top.reasons[0]) || "intent_domain_confidence"),
+    reason: safeStr(answerableTopic ? "answerable_topic_request_route_lock" : (p.reason || (top.reasons && top.reasons[0]) || "intent_domain_confidence")),
     primaryIntent: safeStr(p.intent || "simple_chat"),
     primaryDomain: safeStr(knowledgeDomain && p.reason === "definition_query_domain_lock" ? knowledgeDomain : (top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning")),
     selectedDomain: safeStr(knowledgeDomain && p.reason === "definition_query_domain_lock" ? knowledgeDomain : (top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning")),
@@ -1539,9 +1565,10 @@ function buildDomainConciergeSeed(routing = {}, marionIntent = {}, questionShape
   const confidence = clamp01(dc.confidence || rt.routeConfidence || mi.confidence, 0);
   const route = safeStr(rt.domain || dc.selectedDomain || dc.primaryDomain || INTENT_TO_DOMAIN[mi.intent] || "general");
   const intent = normalizeIntentName(mi.intent || rt.intent || "simple_chat");
+  const answerableTopic = isAnswerableTopicRequest(safeStr(rt.rawTurnText || rt.normalizedUserIntent || mi.rawTurnText || mi.normalizedUserIntent || mi.turnText || ""), questionShape || mi.questionShape || rt.questionShape || {});
   const ambiguous = !!(rt.routeAmbiguous || dc.ambiguous || rt.routeFailClosed || dc.failClosed);
-  const routeLocked = !!(rt.routeLock || dc.routeLocked || confidence >= 0.82);
-  const action = ambiguous && !routeLocked ? "clarify" : "route";
+  const routeLocked = !!(rt.routeLock || dc.routeLocked || answerableTopic || confidence >= 0.82);
+  const action = ambiguous && !routeLocked && !answerableTopic ? "clarify" : "route";
   return {
     version: DOMAIN_CONCIERGE_CORE_VERSION,
     source: "marionIntentRouter",
@@ -1551,7 +1578,7 @@ function buildDomainConciergeSeed(routing = {}, marionIntent = {}, questionShape
     confidence,
     confidenceBand: safeStr(rt.routeConfidenceBand || dc.band || confidenceBand(confidence)),
     needsClarifier: action === "clarify",
-    clarifier: action === "clarify" ? "Are you asking about the interface, the backend, media/Roku, business strategy, or a support issue?" : "",
+    clarifier: action === "clarify" ? "Which area should I route this to: interface, backend, media/Roku, business strategy, or support?" : "",
     routeLocked,
     routeFailClosed: !!(rt.routeFailClosed || dc.failClosed),
     questionShape: safeObj(questionShape),
@@ -1676,7 +1703,7 @@ function routeMarionIntent(packet = {}) {
   marionIntent.normalizedUserIntent = questionShape.normalizedUserIntent || text;
   marionIntent.questionShape = questionShape;
   const routing = buildRouting(marionIntent);
-  const domainConciergeSeed = buildDomainConciergeSeed(routing, marionIntent, questionShape);
+  const domainConciergeSeed = buildDomainConciergeSeed({ ...routing, rawTurnText: rawText, normalizedUserIntent: questionShape.normalizedUserIntent || text, questionShape }, marionIntent, questionShape);
   routing.domainConciergeSeed = domainConciergeSeed;
   routing.questionShape = questionShape;
   routing.rawTurnText = rawText;
@@ -1796,6 +1823,7 @@ module.exports = {
   canonicalTechnicalTargetFromText,
   isTechnicalFollowUpIntent,
   isInfrastructureContinuityPrompt,
+  isAnswerableTopicRequest,
   turnContinuityHash,
   confidenceBand,
   domainSignalCandidates,
@@ -1836,6 +1864,7 @@ module.exports = {
     canonicalTechnicalTargetFromText,
     isTechnicalFollowUpIntent,
     isInfrastructureContinuityPrompt,
+    isAnswerableTopicRequest,
     turnContinuityHash,
     routerForensicNormalizationStatus,
     classifyFailureSignature,
