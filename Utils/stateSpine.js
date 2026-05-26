@@ -490,7 +490,7 @@ function normalizeDomainConciergeCarry(value = {}) {
     confidence: c,
     confidenceBand: boundedOneLine(v.confidenceBand || v.band || (c >= 0.82 ? "high" : c >= 0.62 ? "medium" : c > 0 ? "low" : "absent"), 32),
     needsClarifier: !!(v.needsClarifier || action === "clarify"),
-    clarifier: boundedOneLine(v.clarifier || "", 220),
+    clarifier: /interface,? radio\/media,? Roku,? business strategy,? or backend technical work/i.test(boundedOneLine(v.clarifier || "", 220)) ? "" : boundedOneLine(v.clarifier || "", 220),
     routeLocked: !!v.routeLocked,
     routeFailClosed: !!v.routeFailClosed,
     noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
@@ -544,7 +544,7 @@ function normalizeConfidenceAwareResponseShapingCarry(value = {}) {
     highStakes: !!v.highStakes,
     technical: !!v.technical,
     needsClarifier: !!v.needsClarifier || mode === "clarify",
-    clarifier: boundedOneLine(v.clarifier || "", 220),
+    clarifier: /interface,? radio\/media,? Roku,? business strategy,? or backend technical work/i.test(boundedOneLine(v.clarifier || "", 220)) ? "" : boundedOneLine(v.clarifier || "", 220),
     noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
     updatedAt: nowMs()
   };
