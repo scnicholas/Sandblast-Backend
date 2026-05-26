@@ -1,0 +1,58 @@
+{
+  "version": "1.0.0",
+  "module": "LanguageSphereRuntime",
+  "enabled": true,
+  "authority": {
+    "finalAuthority": false,
+    "finalAuthorityOwner": "Marion",
+    "mayPrepareInput": true,
+    "mayAdaptOutput": false,
+    "mayBypassMarion": false
+  },
+  "languages": {
+    "defaultSourceLanguage": "auto",
+    "defaultTargetLanguage": "en",
+    "supportedLanguages": ["en", "es", "fr"],
+    "allowUnsupportedPassthrough": true,
+    "minimumDetectionConfidence": 0.55
+  },
+  "normalization": {
+    "trimWhitespace": true,
+    "collapseRepeatedWhitespace": true,
+    "normalizeSmartQuotes": true,
+    "preserveLineBreaks": false,
+    "maxInputCharacters": 12000
+  },
+  "translation": {
+    "enabled": true,
+    "providerMode": "local",
+    "providerName": "LocalTranslationProvider",
+    "skipTranslationWhenSourceMatchesTarget": true,
+    "fallbackToOriginalOnFailure": true,
+    "timeoutMs": 4500
+  },
+  "glossary": {
+    "enabled": true,
+    "lockTechnicalTerms": true,
+    "preserveBrandTerms": true,
+    "preserveMarionTerms": true
+  },
+  "memory": {
+    "enabled": true,
+    "readThroughCache": true,
+    "writeSuccessfulTranslations": false
+  },
+  "guards": {
+    "emptyInputGuard": true,
+    "loopGuard": true,
+    "debugLeakageGuard": true,
+    "providerFailureGuard": true,
+    "unsupportedLanguageGuard": true
+  },
+  "diagnostics": {
+    "enabled": true,
+    "includeTraceId": true,
+    "includeLatencyMs": true,
+    "exposeInternalErrors": false
+  }
+}
