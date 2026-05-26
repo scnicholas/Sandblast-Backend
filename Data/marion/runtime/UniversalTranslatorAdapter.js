@@ -22,7 +22,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_SUPPORTED_LANGUAGES = ["en", "fr", "es"];
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 
 let CONFIG = null;
 let GLOSSARY = null;
@@ -351,13 +351,34 @@ function getMemoryStore() {
   if (!config.translationMemory || config.translationMemory.enabled !== true) return null;
   if (!memoryModule) return null;
 
-  if (memoryModule.defaultStore) return memoryModule.defaultStore;
+  const memoryConfig = config.translationMemory || {};
+  const requestedFile = memoryConfig.storageFile || memoryConfig.filePath || null;
+  const requestedPath = requestedFile
+    ? path.resolve(process.cwd(), requestedFile)
+    : null;
 
-  if (!MEMORY_STORE && typeof memoryModule.createTranslationMemoryStore === "function") {
-    MEMORY_STORE = memoryModule.createTranslationMemoryStore();
+  /**
+   * Do not blindly return memoryModule.defaultStore here.
+   * The default store ignores translationConfig.storageFile, which makes regression
+   * tests and runtime isolation vulnerable to stale global memory.
+   */
+  if (typeof memoryModule.createTranslationMemoryStore === "function") {
+    const currentPath = MEMORY_STORE && MEMORY_STORE.filePath ? path.resolve(MEMORY_STORE.filePath) : null;
+
+    if (!MEMORY_STORE || (requestedPath && currentPath !== requestedPath)) {
+      MEMORY_STORE = memoryModule.createTranslationMemoryStore({
+        filePath: requestedPath || undefined,
+        maxEntries: Number.isFinite(memoryConfig.maxEntries) ? memoryConfig.maxEntries : undefined,
+        maxTextCharacters: Number.isFinite(memoryConfig.maxTextCharacters) ? memoryConfig.maxTextCharacters : undefined,
+        ttlMs: Number.isFinite(memoryConfig.ttlMs) ? memoryConfig.ttlMs : undefined,
+        minConfidence: Number.isFinite(memoryConfig.minConfidence) ? memoryConfig.minConfidence : undefined
+      });
+    }
+
+    return MEMORY_STORE;
   }
 
-  return MEMORY_STORE;
+  return memoryModule.defaultStore || null;
 }
 
 function memoryGet(params) {
@@ -742,7 +763,8 @@ async function translateText(text, options = {}) {
     sourceLanguage,
     targetLanguage,
     sourceText: text,
-    domain: options.domain || "general"
+    domain: options.domain || "general",
+    protectedTerms: options.protectedTerms || options.extraTerms || []
   });
 
   if (memoryEntry && typeof memoryEntry.translatedText === "string") {
@@ -765,7 +787,8 @@ async function translateText(text, options = {}) {
     {
       domain: options.domain || null,
       domains: options.domains || null,
-      extraTerms: options.protectedTerms || null
+      protectedTerms: options.protectedTerms || null,
+      extraTerms: options.extraTerms || null
     },
     meta
   );
@@ -806,7 +829,8 @@ async function translateText(text, options = {}) {
         domain: options.domain || "general",
         provider: (providerMeta && providerMeta.provider) || meta.provider,
         confidence: 1,
-        emotion: options.emotion || null
+        emotion: options.emotion || null,
+        protectedTerms: options.protectedTerms || options.extraTerms || []
       });
     }
 
