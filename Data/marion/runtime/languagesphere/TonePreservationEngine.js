@@ -5,20 +5,18 @@
  * ------------------------------------------------------------
  * Preserves and classifies tone metadata for LanguageSphere.
  *
- * Purpose:
- * - Detect user tone from source text.
- * - Recommend safe tone preservation metadata.
- * - Avoid flattening emotional/contextual intent during translation.
+ * Critical updates:
+ * - Module-load safe dependency handling.
+ * - Hardened JSON/profile fallback.
+ * - Stable locale profile resolution even when config files are missing,
+ *   malformed, or saved with the wrong extension.
+ * - Marion authority lock is preserved on every public result.
  *
  * Rule:
  * This engine does not produce Marion's final answer.
  */
 
 const path = require('path');
-
-const {
-  resolveLocaleContext
-} = require('./LocaleContextResolver');
 
 function safeRequire(modulePath, fallback = null) {
   try {
@@ -27,14 +25,6 @@ function safeRequire(modulePath, fallback = null) {
     return fallback;
   }
 }
-
-const toneProfiles = safeRequire(
-  path.join(__dirname, 'localeToneProfiles.json'),
-  {
-    profiles: {},
-    fallbackProfile: {}
-  }
-);
 
 function sanitizeString(value, fallback = '') {
   return typeof value === 'string' ? value : fallback;
@@ -49,6 +39,254 @@ function sanitizeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function normalizeLanguageCode(value, fallback = 'en') {
+  const raw = sanitizeString(value, fallback).trim().toLowerCase();
+  if (!raw) return fallback;
+
+  const base = raw.split('-')[0].split('_')[0];
+
+  if (base === 'eng') return 'en';
+  if (base === 'spa' || base === 'esp') return 'es';
+  if (base === 'fre' || base === 'fra') return 'fr';
+  if (base === 'en' || base === 'es' || base === 'fr') return base;
+
+  return fallback;
+}
+
+function normalizeRegionFromLocale(value) {
+  const raw = sanitizeString(value).trim();
+  if (!raw) return 'neutral';
+
+  const parts = raw.split(/[-_]/);
+  if (parts.length >= 2 && parts[1]) return parts[1].toUpperCase();
+
+  return 'neutral';
+}
+
+const localeResolverModule = safeRequire('./LocaleContextResolver', {});
+
+const resolveLocaleContext =
+  typeof localeResolverModule.resolveLocaleContext === 'function'
+    ? localeResolverModule.resolveLocaleContext
+    : function fallbackResolveLocaleContext(input = {}, options = {}) {
+        const safeInput = sanitizeObject(input);
+        const safeOptions = sanitizeObject(options);
+
+        const sourceLanguage = normalizeLanguageCode(
+          safeInput.sourceLanguage ||
+            safeInput.language?.sourceLanguage ||
+            safeInput.languageContext?.sourceLanguage ||
+            safeInput.language ||
+            safeInput.lang ||
+            'unknown',
+          'unknown'
+        );
+
+        const targetLanguage = normalizeLanguageCode(
+          safeInput.targetLanguage ||
+            safeInput.language?.targetLanguage ||
+            safeInput.languageContext?.targetLanguage ||
+            safeInput.targetLang ||
+            safeOptions.targetLanguage ||
+            'en',
+          'en'
+        );
+
+        const requestedLocale =
+          safeInput.locale ||
+          safeInput.targetLocale ||
+          safeOptions.locale ||
+          safeOptions.targetLocale ||
+          targetLanguage;
+
+        const region = normalizeRegionFromLocale(requestedLocale);
+        const locale = region === 'neutral' ? targetLanguage : `${targetLanguage}-${region}`;
+        const toneProfileKey = locale;
+
+        return {
+          sourceLanguage,
+          targetLanguage,
+          region,
+          locale,
+          languageName:
+            targetLanguage === 'es'
+              ? 'Spanish'
+              : targetLanguage === 'fr'
+                ? 'French'
+                : 'English',
+          toneProfileKey,
+          explicitLocale: Boolean(requestedLocale),
+          supported: ['en', 'es', 'fr'].includes(targetLanguage),
+          authority: {
+            finalAuthority: false,
+            finalAuthorityOwner: 'Marion',
+            mayBypassMarion: false
+          }
+        };
+      };
+
+const DEFAULT_TONE_PROFILES = {
+  version: '1.0.0-fallback',
+  module: 'LanguageSphereLocaleToneProfilesFallback',
+  authority: {
+    finalAuthority: false,
+    finalAuthorityOwner: 'Marion',
+    mayBypassMarion: false
+  },
+  profiles: {
+    en: {
+      language: 'en',
+      label: 'English Neutral',
+      defaultFormality: 'neutral',
+      directness: 'medium-high',
+      warmth: 'medium',
+      politeness: 'medium',
+      compression: 'medium',
+      preferredGreetingStyle: 'clear',
+      avoid: [
+        'overly ceremonial phrasing',
+        'excessive apology',
+        'unnecessary honorifics'
+      ],
+      preserve: [
+        'technical clarity',
+        'direct request intent',
+        'business terms',
+        'Marion/Nyx internal architecture terms'
+      ]
+    },
+    'en-CA': {
+      language: 'en',
+      region: 'CA',
+      label: 'Canadian English',
+      defaultFormality: 'neutral',
+      directness: 'medium',
+      warmth: 'medium-high',
+      politeness: 'medium-high',
+      compression: 'medium',
+      preferredGreetingStyle: 'clear-warm',
+      avoid: [
+        'aggressive sales phrasing',
+        'overly blunt rejection language'
+      ],
+      preserve: [
+        'grant terminology',
+        'Canadian spelling when requested',
+        'business compliance wording'
+      ]
+    },
+    es: {
+      language: 'es',
+      label: 'Spanish Neutral',
+      defaultFormality: 'neutral-warm',
+      directness: 'medium',
+      warmth: 'high',
+      politeness: 'medium-high',
+      compression: 'medium',
+      preferredGreetingStyle: 'warm',
+      avoid: [
+        'literal English idioms',
+        'overly cold phrasing',
+        'loss of respectful address'
+      ],
+      preserve: [
+        'technical terminology',
+        'brand names',
+        'AI system names',
+        'legal and finance terms when locked'
+      ]
+    },
+    fr: {
+      language: 'fr',
+      label: 'French Neutral',
+      defaultFormality: 'neutral-formal',
+      directness: 'medium-low',
+      warmth: 'medium',
+      politeness: 'high',
+      compression: 'medium-low',
+      preferredGreetingStyle: 'polished',
+      avoid: [
+        'word-for-word English structure',
+        'excessive informality',
+        'flattened nuance'
+      ],
+      preserve: [
+        'formal register',
+        'technical terminology',
+        'brand names',
+        'legal and finance terms when locked'
+      ]
+    },
+    'fr-CA': {
+      language: 'fr',
+      region: 'CA',
+      label: 'Canadian French',
+      defaultFormality: 'neutral-formal',
+      directness: 'medium',
+      warmth: 'medium-high',
+      politeness: 'high',
+      compression: 'medium',
+      preferredGreetingStyle: 'polished-warm',
+      avoid: [
+        'European-only phrasing when Canadian context is clear',
+        'overly rigid formalism'
+      ],
+      preserve: [
+        'Canadian institutional terms',
+        'business compliance wording',
+        'domain terminology'
+      ]
+    }
+  },
+  fallbackProfile: {
+    language: 'unknown',
+    label: 'Neutral Fallback',
+    defaultFormality: 'neutral',
+    directness: 'medium',
+    warmth: 'medium',
+    politeness: 'medium',
+    compression: 'medium',
+    preferredGreetingStyle: 'clear',
+    avoid: [
+      'unsupported cultural assumptions'
+    ],
+    preserve: [
+      'user intent',
+      'technical terminology',
+      'brand names'
+    ]
+  }
+};
+
+function mergeToneProfiles(loadedProfiles) {
+  const safeLoaded = sanitizeObject(loadedProfiles);
+  const loadedProfileMap = sanitizeObject(safeLoaded.profiles);
+
+  return {
+    ...DEFAULT_TONE_PROFILES,
+    ...safeLoaded,
+    authority: {
+      ...DEFAULT_TONE_PROFILES.authority,
+      ...sanitizeObject(safeLoaded.authority),
+      finalAuthority: false,
+      finalAuthorityOwner: 'Marion',
+      mayBypassMarion: false
+    },
+    profiles: {
+      ...DEFAULT_TONE_PROFILES.profiles,
+      ...loadedProfileMap
+    },
+    fallbackProfile: {
+      ...DEFAULT_TONE_PROFILES.fallbackProfile,
+      ...sanitizeObject(safeLoaded.fallbackProfile)
+    }
+  };
+}
+
+const toneProfiles = mergeToneProfiles(
+  safeRequire(path.join(__dirname, 'localeToneProfiles.json'), DEFAULT_TONE_PROFILES)
+);
+
 function normalizeWhitespace(text) {
   return sanitizeString(text).replace(/\s+/g, ' ').trim();
 }
@@ -57,11 +295,16 @@ function getToneProfile(localeContext = {}) {
   const safeContext = sanitizeObject(localeContext);
   const profiles = sanitizeObject(toneProfiles.profiles);
 
+  const preferredKey = sanitizeString(safeContext.toneProfileKey);
+  const localeKey = sanitizeString(safeContext.locale);
+  const languageKey = sanitizeString(safeContext.targetLanguage);
+
   return (
-    profiles[safeContext.toneProfileKey] ||
-    profiles[safeContext.targetLanguage] ||
+    profiles[preferredKey] ||
+    profiles[localeKey] ||
+    profiles[languageKey] ||
     toneProfiles.fallbackProfile ||
-    {}
+    DEFAULT_TONE_PROFILES.fallbackProfile
   );
 }
 
@@ -97,11 +340,11 @@ function detectToneSignals(text = '') {
     signals.uncertainty = true;
   }
 
-  if (/\b(api|runtime|bridge|router|payload|json|config|regression|test|domain|latency|provider)\b/i.test(lower)) {
+  if (/\b(api|runtime|bridge|router|payload|json|config|regression|test|domain|latency|provider|state spine|statespine)\b/i.test(lower)) {
     signals.technical = true;
   }
 
-  if (/\b(application|fund|licensing|revenue|client|meeting|financial|portal|business)\b/i.test(lower)) {
+  if (/\b(application|fund|licensing|revenue|client|meeting|financial|portal|business|proposal|grant)\b/i.test(lower)) {
     signals.business = true;
   }
 
@@ -147,6 +390,18 @@ function classifyTone(text = '') {
     primaryTone,
     signals,
     confidence: primaryTone === 'neutral' ? 0.55 : 0.78
+  };
+}
+
+function buildAuthorityMetadata() {
+  return {
+    finalAuthority: false,
+    finalAuthorityOwner: 'Marion',
+    mayBypassMarion: false,
+    mayPrepareInput: true,
+    mayAdaptOutput: false,
+    finalAnswerBlocked: true,
+    marionBypassBlocked: true
   };
 }
 
@@ -204,18 +459,15 @@ function recommendTonePreservation(text = '', localeInput = {}, options = {}) {
     tone,
     localeContext,
     toneProfile,
-    preserve,
-    avoid,
-    recommendations,
-    authority: {
-      finalAuthority: false,
-      finalAuthorityOwner: 'Marion',
-      mayBypassMarion: false
-    },
+    preserve: Array.from(new Set(preserve)),
+    avoid: Array.from(new Set(avoid)),
+    recommendations: Array.from(new Set(recommendations)),
+    authority: buildAuthorityMetadata(),
     safety: {
       debugLeakageBlocked: true,
       toneOverreachBlocked: true,
-      finalAnswerBlocked: true
+      finalAnswerBlocked: true,
+      authorityBypassBlocked: true
     }
   };
 }
