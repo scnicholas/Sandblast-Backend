@@ -14,7 +14,7 @@
  * - No external dependencies.
  */
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 const DEFAULT_PROTECTED_TERMS = Object.freeze([
   "Sandblast",
@@ -127,20 +127,31 @@ const DOMAIN_TERMS = Object.freeze({
     "MP4"
   ]),
   interface: Object.freeze([
-    "Start Reading",
-    "Open Feed",
-    "Canada Feed",
-    "Sports Feed",
-    "Finance & Economics",
+    /**
+     * Do not protect translatable UI labels such as:
+     * - Start Reading
+     * - Open Feed
+     * - Canada Feed
+     * - Sports Feed
+     *
+     * Those belong in LocalTranslationProvider.MANUAL_DICTIONARY.
+     * Protecting them before provider lookup prevents exact dictionary hits.
+     */
     "Synapse",
     "Nyx",
-    "Marion"
+    "Marion",
+    "Sandblast",
+    "Sandblast Channel"
   ])
 });
 
 const TOKEN_PREFIX = "__SB_TRANSLATION_PROTECTED_";
 const TOKEN_SUFFIX = "__";
 const TOKEN_PATTERN = /__SB_TRANSLATION_PROTECTED_[0-9]+__/g;
+
+function isProtectedTokenText(text) {
+  return typeof text === "string" && /^__SB_TRANSLATION_PROTECTED_[0-9]+__$/.test(text.trim());
+}
 
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -460,6 +471,7 @@ module.exports = {
   getDomainTerms,
   getProtectedTerms,
   makeToken,
+  isProtectedTokenText,
   protectText,
   restoreText,
   findUnrestoredTokens,
