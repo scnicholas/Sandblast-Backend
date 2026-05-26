@@ -1,0 +1,150 @@
+{
+  "version": "1.0.0",
+  "module": "LanguageSphereDomainTranslationMap",
+  "authority": {
+    "finalAuthority": false,
+    "finalAuthorityOwner": "Marion",
+    "mayBypassMarion": false
+  },
+  "terms": {
+    "Marion": {
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "translations": {
+        "es": "Marion",
+        "fr": "Marion"
+      }
+    },
+    "Nyx": {
+      "domain": "interface",
+      "policy": "preserve-exact",
+      "translations": {
+        "es": "Nyx",
+        "fr": "Nyx"
+      }
+    },
+    "LanguageSphere": {
+      "domain": "translation",
+      "policy": "preserve-exact",
+      "translations": {
+        "es": "LanguageSphere",
+        "fr": "LanguageSphere"
+      }
+    },
+    "Sandblast": {
+      "domain": "brand",
+      "policy": "preserve-exact",
+      "translations": {
+        "es": "Sandblast",
+        "fr": "Sandblast"
+      }
+    },
+    "StateSpine": {
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "translations": {
+        "es": "StateSpine",
+        "fr": "StateSpine"
+      }
+    },
+    "MarionBridge": {
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "translations": {
+        "es": "MarionBridge",
+        "fr": "MarionBridge"
+      }
+    },
+    "ComposeMarionResponse": {
+      "domain": "architecture",
+      "policy": "preserve-exact",
+      "translations": {
+        "es": "ComposeMarionResponse",
+        "fr": "ComposeMarionResponse"
+      }
+    },
+    "final authority": {
+      "domain": "architecture",
+      "policy": "preserve-concept",
+      "translations": {
+        "es": "autoridad final",
+        "fr": "autorité finale"
+      }
+    },
+    "final authority gate": {
+      "domain": "architecture",
+      "policy": "preserve-concept",
+      "translations": {
+        "es": "puerta de autoridad final",
+        "fr": "porte d'autorité finale"
+      }
+    },
+    "final envelope": {
+      "domain": "architecture",
+      "policy": "preserve-concept",
+      "translations": {
+        "es": "envoltura final",
+        "fr": "enveloppe finale"
+      }
+    },
+    "loop hardlock": {
+      "domain": "safety",
+      "policy": "preserve-concept",
+      "translations": {
+        "es": "bloqueo duro de bucle",
+        "fr": "verrouillage dur de boucle"
+      }
+    },
+    "domain confidence scoring": {
+      "domain": "routing",
+      "policy": "preserve-concept",
+      "translations": {
+        "es": "puntuación de confianza de dominio",
+        "fr": "notation de confiance du domaine"
+      }
+    },
+    "intellectual property": {
+      "domain": "legal",
+      "policy": "translate-carefully",
+      "translations": {
+        "es": "propiedad intelectual",
+        "fr": "propriété intellectuelle"
+      }
+    },
+    "licensing": {
+      "domain": "business",
+      "policy": "translate-carefully",
+      "translations": {
+        "es": "licenciamiento",
+        "fr": "licence"
+      }
+    },
+    "revenue projection": {
+      "domain": "finance",
+      "policy": "translate-carefully",
+      "translations": {
+        "es": "proyección de ingresos",
+        "fr": "projection de revenus"
+      }
+    },
+    "regression test": {
+      "domain": "engineering",
+      "policy": "translate-carefully",
+      "translations": {
+        "es": "prueba de regresión",
+        "fr": "test de régression"
+      }
+    }
+  },
+  "fallback": {
+    "policy": "translate-normal",
+    "domain": "general"
+  },
+  "safety": {
+    "debugLeakageBlocked": true,
+    "finalAnswerBlocked": true,
+    "authorityBypassBlocked": true,
+    "preserveExactTermsEnabled": true,
+    "conceptPreservationEnabled": true
+  }
+}
