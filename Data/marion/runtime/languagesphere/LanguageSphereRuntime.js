@@ -3,11 +3,13 @@
 /**
  * LanguageSphereRuntime
  * ------------------------------------------------------------
- * Phase 1 runtime orchestrator for the LanguageSphere layer.
+ * Runtime orchestrator for the LanguageSphere layer.
  *
  * Flow:
  * input → normalize → detect → glossary/memory placeholders
- * → translate if required → return canonical envelope
+ * → translate if required → canonical envelope
+ * → optional Phase 3 metadata attachment
+ * → optional Phase 4 domain terminology/policy metadata attachment
  *
  * Critical architectural rule:
  * This runtime does NOT generate Marion's final answer.
@@ -23,26 +25,77 @@ const {
 
 let runtimeConfig = null;
 
-function safeRequire(modulePath) {
+function safeRequire(modulePath, fallback = null) {
   try {
     return require(modulePath);
   } catch (_) {
-    return null;
+    return fallback;
   }
 }
 
-function loadRuntimeConfig() {
-  if (runtimeConfig) return runtimeConfig;
+function sanitizeObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
+}
 
-  const configPath = path.join(__dirname, 'languagesphereRuntimeConfig.json');
-  const loaded = safeRequire(configPath);
+function sanitizeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
 
-  runtimeConfig = loaded || {
+function sanitizeBoolean(value, fallback = false) {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function sanitizeString(value, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function mergeDefaults(base = {}, defaults = {}) {
+  const safeBase = sanitizeObject(base);
+  const safeDefaults = sanitizeObject(defaults);
+
+  return {
+    ...safeDefaults,
+    ...safeBase,
+    languages: {
+      ...sanitizeObject(safeDefaults.languages),
+      ...sanitizeObject(safeBase.languages)
+    },
+    normalization: {
+      ...sanitizeObject(safeDefaults.normalization),
+      ...sanitizeObject(safeBase.normalization)
+    },
+    translation: {
+      ...sanitizeObject(safeDefaults.translation),
+      ...sanitizeObject(safeBase.translation)
+    },
+    guards: {
+      ...sanitizeObject(safeDefaults.guards),
+      ...sanitizeObject(safeBase.guards)
+    },
+    diagnostics: {
+      ...sanitizeObject(safeDefaults.diagnostics),
+      ...sanitizeObject(safeBase.diagnostics)
+    },
+    phase3: {
+      ...sanitizeObject(safeDefaults.phase3),
+      ...sanitizeObject(safeBase.phase3)
+    },
+    phase4: {
+      ...sanitizeObject(safeDefaults.phase4),
+      ...sanitizeObject(safeBase.phase4)
+    }
+  };
+}
+
+function getDefaultRuntimeConfig() {
+  return {
     enabled: true,
     languages: {
       defaultSourceLanguage: 'auto',
       defaultTargetLanguage: 'en',
       supportedLanguages: ['en', 'es', 'fr'],
+      allowUnsupportedPassthrough: true,
       minimumDetectionConfidence: 0.55
     },
     normalization: {
@@ -72,8 +125,29 @@ function loadRuntimeConfig() {
       includeTraceId: true,
       includeLatencyMs: true,
       exposeInternalErrors: false
+    },
+    phase3: {
+      tonePreservationEnabled: true,
+      culturalAdaptationEnabled: true,
+      metadataOnly: true,
+      allowTextRewrite: false
+    },
+    phase4: {
+      domainTerminologyEnabled: true,
+      domainTranslationPolicyEnabled: true,
+      metadataOnly: true,
+      allowDomainRewrite: false,
+      blockLooseTranslationForLockedTerms: true
     }
   };
+}
+
+function loadRuntimeConfig(options = {}) {
+  if (runtimeConfig && !options.forceReload) return runtimeConfig;
+
+  const configPath = path.join(__dirname, 'languagesphereRuntimeConfig.json');
+  const loaded = safeRequire(configPath, {});
+  runtimeConfig = mergeDefaults(loaded, getDefaultRuntimeConfig());
 
   return runtimeConfig;
 }
@@ -101,7 +175,11 @@ function normalizeText(rawText, config = loadRuntimeConfig()) {
   const normalization = config.normalization || {};
   let text = sanitizeInputText(rawText);
 
-  if (normalization.maxInputCharacters && text.length > normalization.maxInputCharacters) {
+  if (
+    normalization.maxInputCharacters &&
+    Number.isFinite(normalization.maxInputCharacters) &&
+    text.length > normalization.maxInputCharacters
+  ) {
     text = text.slice(0, normalization.maxInputCharacters);
   }
 
@@ -386,6 +464,150 @@ function extractMemoryPlaceholder() {
   };
 }
 
+function appendEnvelopeWarning(envelope = {}, warning = '') {
+  const safeEnvelope = sanitizeObject(envelope);
+  const diagnostics = sanitizeObject(safeEnvelope.diagnostics);
+  const warnings = sanitizeArray(diagnostics.warnings);
+
+  return {
+    ...safeEnvelope,
+    diagnostics: {
+      ...diagnostics,
+      warnings: warning ? [...warnings, warning] : warnings
+    }
+  };
+}
+
+function runtimeFeatureEnabled(config = {}, sectionName = '', keyName = '') {
+  const section = sanitizeObject(config[sectionName]);
+
+  if (!keyName) return true;
+  return section[keyName] !== false;
+}
+
+function phaseMetadataContext(input = {}, envelope = {}, options = {}) {
+  const language = sanitizeObject(envelope.language);
+
+  return {
+    ...sanitizeObject(options),
+    locale:
+      sanitizeString(options.locale) ||
+      sanitizeString(input && input.locale) ||
+      sanitizeString(language.targetLanguage, 'en'),
+    sourceLanguage: sanitizeString(language.sourceLanguage, 'unknown'),
+    targetLanguage: sanitizeString(language.targetLanguage, 'en'),
+    metadataOnly: true,
+    allowTextRewrite: false,
+    allowDomainRewrite: false
+  };
+}
+
+function attachPhase3Metadata(envelope = {}, input = {}, options = {}, config = loadRuntimeConfig()) {
+  let nextEnvelope = envelope;
+
+  if (runtimeFeatureEnabled(config, 'phase3', 'tonePreservationEnabled')) {
+    const toneModule = safeRequire(path.join(__dirname, 'TonePreservationEngine.js'), null);
+
+    if (toneModule && typeof toneModule.attachToneMetadataToEnvelope === 'function') {
+      try {
+        nextEnvelope = toneModule.attachToneMetadataToEnvelope(
+          nextEnvelope,
+          phaseMetadataContext(input, nextEnvelope, options)
+        );
+      } catch (_) {
+        nextEnvelope = appendEnvelopeWarning(
+          nextEnvelope,
+          'Tone preservation metadata attachment failed safely.'
+        );
+      }
+    }
+  }
+
+  if (runtimeFeatureEnabled(config, 'phase3', 'culturalAdaptationEnabled')) {
+    const culturalModule = safeRequire(path.join(__dirname, 'CulturalAdaptationEngine.js'), null);
+
+    if (culturalModule && typeof culturalModule.attachCulturalAdaptationToEnvelope === 'function') {
+      try {
+        nextEnvelope = culturalModule.attachCulturalAdaptationToEnvelope(
+          nextEnvelope,
+          phaseMetadataContext(input, nextEnvelope, options)
+        );
+      } catch (_) {
+        nextEnvelope = appendEnvelopeWarning(
+          nextEnvelope,
+          'Cultural adaptation metadata attachment failed safely.'
+        );
+      }
+    }
+  }
+
+  return nextEnvelope;
+}
+
+function attachPhase4Metadata(envelope = {}, input = {}, options = {}, config = loadRuntimeConfig()) {
+  let nextEnvelope = envelope;
+
+  if (runtimeFeatureEnabled(config, 'phase4', 'domainTerminologyEnabled')) {
+    const terminologyModule = safeRequire(path.join(__dirname, 'DomainTerminologyResolver.js'), null);
+
+    if (terminologyModule && typeof terminologyModule.attachDomainTerminologyToEnvelope === 'function') {
+      try {
+        nextEnvelope = terminologyModule.attachDomainTerminologyToEnvelope(
+          nextEnvelope,
+          phaseMetadataContext(input, nextEnvelope, options)
+        );
+      } catch (_) {
+        nextEnvelope = appendEnvelopeWarning(
+          nextEnvelope,
+          'Domain terminology metadata attachment failed safely.'
+        );
+      }
+    }
+  }
+
+  if (runtimeFeatureEnabled(config, 'phase4', 'domainTranslationPolicyEnabled')) {
+    const policyModule = safeRequire(path.join(__dirname, 'DomainTranslationPolicy.js'), null);
+
+    if (policyModule && typeof policyModule.attachDomainPolicyToEnvelope === 'function') {
+      try {
+        nextEnvelope = policyModule.attachDomainPolicyToEnvelope(
+          nextEnvelope,
+          phaseMetadataContext(input, nextEnvelope, options)
+        );
+      } catch (_) {
+        nextEnvelope = appendEnvelopeWarning(
+          nextEnvelope,
+          'Domain translation policy metadata attachment failed safely.'
+        );
+      }
+    }
+  }
+
+  return nextEnvelope;
+}
+
+function attachRuntimeMetadata(envelope = {}, input = {}, options = {}, config = loadRuntimeConfig()) {
+  let nextEnvelope = envelope;
+
+  const phase3 = sanitizeObject(config.phase3);
+  const phase4 = sanitizeObject(config.phase4);
+
+  if (phase3.metadataOnly !== false) {
+    nextEnvelope = attachPhase3Metadata(nextEnvelope, input, options, config);
+  }
+
+  if (phase4.metadataOnly !== false) {
+    nextEnvelope = attachPhase4Metadata(nextEnvelope, input, options, config);
+  }
+
+  return nextEnvelope;
+}
+
+function createRuntimeEnvelope(payload = {}, input = {}, options = {}, config = loadRuntimeConfig()) {
+  const envelope = createLanguageSphereEnvelope(payload);
+  return attachRuntimeMetadata(envelope, input, options, config);
+}
+
 async function runLanguageSphere(input, options = {}) {
   const config = loadRuntimeConfig();
   const traceId = createTraceId();
@@ -401,7 +623,7 @@ async function runLanguageSphere(input, options = {}) {
 
       warnings.push('LanguageSphere runtime disabled; passthrough envelope returned.');
 
-      return createLanguageSphereEnvelope({
+      return createRuntimeEnvelope({
         status: 'disabled',
         sourceText,
         normalizedText,
@@ -418,7 +640,7 @@ async function runLanguageSphere(input, options = {}) {
         latencyMs: Date.now() - startedAt,
         providerName: 'none',
         providerMode: 'disabled'
-      });
+      }, input, options, config);
     }
 
     const sourceText = sanitizeInputText(input);
@@ -428,7 +650,7 @@ async function runLanguageSphere(input, options = {}) {
     if (!normalizedText) {
       warnings.push('Empty input received; returning guarded empty envelope.');
 
-      return createLanguageSphereEnvelope({
+      return createRuntimeEnvelope({
         status: 'empty',
         sourceText,
         normalizedText,
@@ -445,7 +667,7 @@ async function runLanguageSphere(input, options = {}) {
         latencyMs: Date.now() - startedAt,
         providerName: 'none',
         providerMode: 'guarded-empty'
-      });
+      }, input, options, config);
     }
 
     const detection = await detectLanguage(normalizedText, options, config);
@@ -457,7 +679,7 @@ async function runLanguageSphere(input, options = {}) {
       warnings.push(`Unsupported source language "${sourceLanguage}" detected.`);
 
       if (!config.languages || !config.languages.allowUnsupportedPassthrough) {
-        return createLanguageSphereEnvelope({
+        return createRuntimeEnvelope({
           status: 'unsupported-language',
           sourceText,
           normalizedText,
@@ -474,7 +696,7 @@ async function runLanguageSphere(input, options = {}) {
           latencyMs: Date.now() - startedAt,
           providerName: 'none',
           providerMode: 'unsupported-language'
-        });
+        }, input, options, config);
       }
     }
 
@@ -547,7 +769,7 @@ async function runLanguageSphere(input, options = {}) {
       }
     }
 
-    return createLanguageSphereEnvelope({
+    return createRuntimeEnvelope({
       status: 'ok',
       sourceText,
       normalizedText,
@@ -566,9 +788,9 @@ async function runLanguageSphere(input, options = {}) {
       traceId,
       ...glossaryState,
       ...memoryState
-    });
+    }, input, options, config);
   } catch (error) {
-    return createLanguageSphereErrorEnvelope({
+    const fallbackEnvelope = createLanguageSphereErrorEnvelope({
       sourceText: sanitizeInputText(input),
       normalizedText: normalizeText(input, config),
       translatedText: normalizeText(input, config),
@@ -589,6 +811,8 @@ async function runLanguageSphere(input, options = {}) {
           : 'LanguageSphere runtime failed safely.'
       ]
     });
+
+    return attachRuntimeMetadata(fallbackEnvelope, input, options, config);
   }
 }
 
@@ -599,5 +823,9 @@ module.exports = {
   localDetectLanguage,
   shouldTranslate,
   isSupportedLanguage,
-  loadRuntimeConfig
+  loadRuntimeConfig,
+  attachRuntimeMetadata,
+  attachPhase3Metadata,
+  attachPhase4Metadata,
+  createRuntimeEnvelope
 };
