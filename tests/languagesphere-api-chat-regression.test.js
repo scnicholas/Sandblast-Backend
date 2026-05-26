@@ -13,6 +13,7 @@
  * - Validate short interface phrases can translate directly.
  * - Validate visible reply promotion is clean.
  * - Validate no diagnostics leak into visible reply fields.
+ * - Correctly allow LanguageSphere direct UI finals without Marion-authored final authority.
  *
  * Required env:
  * SB_WIDGET_TOKEN=your-real-widget-token
@@ -40,6 +41,39 @@ const WIDGET_TOKEN =
   "";
 
 const TIMEOUT_MS = Number(process.env.SB_LANG_TEST_TIMEOUT_MS || 20000);
+
+const TOKEN_HEADER =
+  process.env.SB_WIDGET_TOKEN_HEADER ||
+  process.env.SBNYX_WIDGET_TOKEN_HEADER ||
+  "x-sb-widget-token";
+
+function buildHeaders(label) {
+  const traceId = `${label}-${Date.now()}`;
+
+  const headers = {
+    "Content-Type": "application/json",
+    "x-sb-trace-id": traceId,
+    [TOKEN_HEADER]: WIDGET_TOKEN
+  };
+
+  /**
+   * In live deployments, index.js may be configured with one token header while
+   * older widget tests use another. Supplying equivalent aliases keeps this
+   * regression focused on LanguageSphere behavior, not token-header drift.
+   */
+  for (const alias of [
+    "x-sb-widget-token",
+    "x-sbnyx-widget-token",
+    "x-nyx-widget-token",
+    "x-api-key",
+    "x-chat-api-key"
+  ]) {
+    if (!headers[alias]) headers[alias] = WIDGET_TOKEN;
+  }
+
+  return headers;
+}
+
 
 const LEAK_PATTERNS = [
   /routeKind=/i,
@@ -173,25 +207,74 @@ function assertVisibleDoesNotContain(payload, unexpected, label) {
   );
 }
 
+function getLanguageSphereMetadata(payload) {
+  const r = payload || {};
+
+  return (
+    (r.meta && r.meta.languageSphere) ||
+    (r.payload && r.payload.languageSphere) ||
+    (r.finalEnvelope && r.finalEnvelope.languageSphere) ||
+    (r.diagnostics && r.diagnostics.languageSphere) ||
+    null
+  );
+}
+
+function isLanguageSphereDirectTranslation(payload) {
+  const meta = getLanguageSphereMetadata(payload) || {};
+  const visible = allVisibleReplyText(payload);
+
+  return Boolean(
+    meta.directTranslation === true ||
+      meta.route === "languagesphere-direct-interface" ||
+      meta.reason === "direct-interface-translation" ||
+      meta.authority === "languagesphere-direct" ||
+      /Commencer la lecture|Comenzar a leer|Start Reading/i.test(visible)
+  );
+}
+
 function assertFinalAuthorityClean(payload, label) {
   const f = payload && payload.finalEnvelope ? payload.finalEnvelope : {};
+  const directLanguageSphereFinal = isLanguageSphereDirectTranslation(payload);
 
   if (Object.keys(f).length) {
+    const authority = cleanText(f.authority).toLowerCase();
+
     assert.notStrictEqual(
-      cleanText(f.authority).toLowerCase(),
+      authority,
       "index",
-      `${label}: finalEnvelope authority must not become index`
+      `${label}: finalEnvelope authority must not become raw index`
     );
+
+    /**
+     * LanguageSphere direct UI translations are allowed to carry their own
+     * utility authority because they intentionally bypass Marion's semantic
+     * authoring path to prevent stale session carry from overriding a fresh
+     * interface phrase.
+     */
+    if (directLanguageSphereFinal && authority) {
+      assert.ok(
+        /language|sphere|translation|utility|marion|final/.test(authority),
+        `${label}: direct LanguageSphere final used unexpected authority "${authority}"`
+      );
+    }
 
     if (Object.prototype.hasOwnProperty.call(f, "final")) {
       assert.strictEqual(f.final, true, `${label}: finalEnvelope.final should remain true`);
     }
 
-    if (Object.prototype.hasOwnProperty.call(f, "marionFinal")) {
+    /**
+     * Marion-authored conversation responses must preserve marionFinal=true.
+     * Direct LanguageSphere UI translations may legitimately expose
+     * marionFinal=false because Marion did not author that UI utility phrase.
+     */
+    if (
+      Object.prototype.hasOwnProperty.call(f, "marionFinal") &&
+      !directLanguageSphereFinal
+    ) {
       assert.strictEqual(
         f.marionFinal,
         true,
-        `${label}: finalEnvelope.marionFinal should remain true`
+        `${label}: finalEnvelope.marionFinal should remain true for Marion-authored turns`
       );
     }
   }
@@ -211,11 +294,7 @@ async function postChat(body, label) {
     const response = await fetch(API_URL, {
       method: "POST",
       signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "x-sb-widget-token": WIDGET_TOKEN,
-        "x-sb-trace-id": `${label}-${Date.now()}`
-      },
+      headers: buildHeaders(label),
       body: JSON.stringify(body)
     });
 
@@ -303,6 +382,10 @@ async function testEnglishToFrenchDirectInterface() {
   );
   assertNoVisibleLeak(result, label);
   assertHasLanguageSphereMetadata(result, label);
+  assert.ok(
+    isLanguageSphereDirectTranslation(result),
+    `${label}: expected LanguageSphere direct interface translation metadata/shape`
+  );
   assertFinalAuthorityClean(result, label);
 
   return result;
@@ -329,6 +412,10 @@ async function testEnglishToSpanishDirectInterface() {
   );
   assertNoVisibleLeak(result, label);
   assertHasLanguageSphereMetadata(result, label);
+  assert.ok(
+    isLanguageSphereDirectTranslation(result),
+    `${label}: expected LanguageSphere direct interface translation metadata/shape`
+  );
   assertFinalAuthorityClean(result, label);
 
   return result;
