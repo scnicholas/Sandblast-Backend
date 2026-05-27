@@ -82,6 +82,8 @@ function sanitizeTelemetry(value) {
 
 function buildTelemetryRecord(payload = {}, options = {}) {
   try {
+    payload = payload && typeof payload === "object" ? payload : {};
+    options = options && typeof options === "object" ? options : {};
     const config = {
       ...DEFAULT_CONFIG,
       ...(options.config || payload.config || {}),
@@ -152,6 +154,7 @@ function buildTelemetryRecord(payload = {}, options = {}) {
 }
 
 function validateTelemetryRecord(record = {}) {
+  record = record && typeof record === "object" ? record : {};
   const serialized = JSON.stringify(record || {});
 
   return {
@@ -159,7 +162,7 @@ function validateTelemetryRecord(record = {}) {
       record.authority === "marion" &&
       record.signals &&
       record.signals.final_authority === "marion" &&
-      !/bearer\s+|token|secret|password|stack trace|typeerror|referenceerror/i.test(serialized),
+      !/bearer\s+|secret-token|password\s*[:=]|stack trace|typeerror|referenceerror/i.test(serialized),
     hasMetrics: Boolean(record.metrics),
     hasSignals: Boolean(record.signals),
     noDebugLeak: !/stack trace|typeerror|referenceerror|syntaxerror/i.test(serialized),
