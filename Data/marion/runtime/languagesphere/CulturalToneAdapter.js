@@ -12,9 +12,16 @@
  * - Does not invent final answers.
  * - Produces tone metadata only.
  * - Keeps Marion as final authority.
+ *
+ * Critical fixes:
+ * - Null-safe payload/options handling.
+ * - Commercial/business intent outranks target-language politeness defaults.
+ * - Supportive/emotional intent outranks target-language defaults when present.
+ * - Explicit targetTone is respected unless forceIntentPriority is enabled.
+ * - Config arrays/maps are normalized defensively.
  */
 
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG = Object.freeze({
   defaultTone: "clear_direct",
   supportedLanguages: ["en", "es", "fr"],
   supportedToneModes: [
@@ -29,7 +36,55 @@ const DEFAULT_CONFIG = {
     es: "warm_direct",
     fr: "formal_polite",
   },
-};
+  intentPriority: {
+    commercial: true,
+    supportive: true,
+  },
+  forceIntentPriority: false,
+});
+
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
+}
+
+function buildConfig(payload = {}, options = {}) {
+  const safePayload = asObject(payload);
+  const safeOptions = asObject(options);
+  const optionConfig = asObject(safeOptions.config);
+  const payloadConfig = asObject(safePayload.config);
+
+  const merged = {
+    ...DEFAULT_CONFIG,
+    ...payloadConfig,
+    ...optionConfig,
+    languageToneDefaults: {
+      ...DEFAULT_CONFIG.languageToneDefaults,
+      ...asObject(payloadConfig.languageToneDefaults),
+      ...asObject(optionConfig.languageToneDefaults),
+    },
+    intentPriority: {
+      ...DEFAULT_CONFIG.intentPriority,
+      ...asObject(payloadConfig.intentPriority),
+      ...asObject(optionConfig.intentPriority),
+    },
+  };
+
+  if (!Array.isArray(merged.supportedLanguages)) {
+    merged.supportedLanguages = DEFAULT_CONFIG.supportedLanguages.slice();
+  }
+
+  if (!Array.isArray(merged.supportedToneModes)) {
+    merged.supportedToneModes = DEFAULT_CONFIG.supportedToneModes.slice();
+  }
+
+  if (!merged.defaultTone || !merged.supportedToneModes.includes(merged.defaultTone)) {
+    merged.defaultTone = DEFAULT_CONFIG.defaultTone;
+  }
+
+  return merged;
+}
 
 function normalizeLanguage(value) {
   const language = String(value || "").trim().toLowerCase();
@@ -44,100 +99,147 @@ function normalizeLanguage(value) {
 }
 
 function normalizeTone(value, config = DEFAULT_CONFIG) {
+  const safeConfig = buildConfig({ config });
   const tone = String(value || "").trim().toLowerCase();
 
-  if (!tone) return config.defaultTone;
+  if (!tone) return safeConfig.defaultTone;
 
   const aliases = {
     warm: "warm_direct",
     friendly: "warm_direct",
+    conversational: "warm_direct",
     direct: "clear_direct",
+    clear: "clear_direct",
     precise: "commercial_precise",
+    commercial: "commercial_precise",
+    business: "commercial_precise",
     formal: "formal_polite",
     polite: "formal_polite",
+    professional: "formal_polite",
     calm: "calm_supportive",
     supportive: "calm_supportive",
+    empathetic: "calm_supportive",
   };
 
   const normalized = aliases[tone] || tone;
 
-  return config.supportedToneModes.includes(normalized)
+  return safeConfig.supportedToneModes.includes(normalized)
     ? normalized
-    : config.defaultTone;
+    : safeConfig.defaultTone;
+}
+
+function hasCommercialSignal(text) {
+  return /\b(revenue|commercial|contract|contracts|benchmark|benchmarks|metric|metrics|market|licensing|license|pilot|readiness|customer|customers|sales|business|enterprise|monetize|monetization|valuation|cash\s*flow|roi)\b/i.test(
+    String(text || "")
+  );
+}
+
+function hasSupportiveSignal(text) {
+  return /\b(worried|concerned|afraid|anxious|anxiety|help me|stuck|overwhelmed|confused|frustrated|stress|stressed|uncertain|lost)\b/i.test(
+    String(text || "")
+  );
+}
+
+function hasPoliteSignal(text) {
+  return /\b(please|thank you|thanks|merci|gracias|por favor|s'il vous plaît|svp)\b/i.test(
+    String(text || "")
+  );
 }
 
 function inferSourceTone(text) {
-  const input = String(text || "").toLowerCase();
+  const input = String(text || "");
 
-  if (/\bplease|thank you|thanks|merci|gracias|por favor|s'il vous plaît\b/i.test(input)) {
-    return "formal_polite";
+  // Intent-bearing signals must be checked before general politeness.
+  if (hasCommercialSignal(input)) {
+    return "commercial_precise";
   }
 
-  if (/\bworried|concerned|afraid|anxious|help me|stuck\b/i.test(input)) {
+  if (hasSupportiveSignal(input)) {
     return "calm_supportive";
   }
 
-  if (/\brevenue|commercial|contract|benchmark|metrics|market\b/i.test(input)) {
-    return "commercial_precise";
+  if (hasPoliteSignal(input)) {
+    return "formal_polite";
   }
 
   return "clear_direct";
 }
 
+function shouldApplyIntentPriority(payload, config) {
+  const safePayload = asObject(payload);
+
+  // If targetTone is explicit, respect it by default. The caller can opt into
+  // intent priority with forceIntentPriority when Marion needs strict intent lock.
+  if (safePayload.targetTone && !safePayload.forceIntentPriority) {
+    return Boolean(config.forceIntentPriority);
+  }
+
+  return true;
+}
+
 function adaptTone(payload = {}, options = {}) {
   try {
-    const config = {
-      ...DEFAULT_CONFIG,
-      ...(options.config || payload.config || {}),
-    };
+    const safePayload = asObject(payload);
+    const config = buildConfig(safePayload, options);
 
     const text = String(
-      payload.text ||
-        payload.normalizedText ||
-        payload.originalText ||
+      safePayload.text ||
+        safePayload.normalizedText ||
+        safePayload.originalText ||
+        safePayload.inputText ||
         ""
     );
 
     const sourceLanguage = normalizeLanguage(
-      payload.sourceLanguage ||
-        payload.detectedLanguage ||
-        payload.language ||
+      safePayload.sourceLanguage ||
+        safePayload.detectedLanguage ||
+        safePayload.language ||
         "en"
     );
 
     const targetLanguage = normalizeLanguage(
-      payload.targetLanguage ||
-        payload.responseLanguage ||
+      safePayload.targetLanguage ||
+        safePayload.responseLanguage ||
         sourceLanguage ||
         "en"
     );
 
     const sourceTone = normalizeTone(
-      payload.sourceTone ||
-        payload.tone ||
+      safePayload.sourceTone ||
+        safePayload.tone ||
         inferSourceTone(text),
       config
     );
 
     const preferredTargetTone =
-      payload.targetTone ||
+      safePayload.targetTone ||
       config.languageToneDefaults[targetLanguage] ||
       config.defaultTone;
 
     let targetTone = normalizeTone(preferredTargetTone, config);
 
-    if (sourceTone === "commercial_precise") {
-      targetTone = "commercial_precise";
-    }
+    const commercialSignal = hasCommercialSignal(text);
+    const supportiveSignal = hasSupportiveSignal(text);
+    const applyIntentPriority = shouldApplyIntentPriority(safePayload, config);
 
-    if (sourceTone === "calm_supportive") {
+    if (
+      applyIntentPriority &&
+      config.intentPriority.commercial !== false &&
+      (commercialSignal || sourceTone === "commercial_precise")
+    ) {
+      targetTone = "commercial_precise";
+    } else if (
+      applyIntentPriority &&
+      config.intentPriority.supportive !== false &&
+      (supportiveSignal || sourceTone === "calm_supportive")
+    ) {
       targetTone = "calm_supportive";
     }
 
     const adaptationApplied =
       sourceTone !== targetTone ||
       sourceLanguage !== targetLanguage ||
-      Boolean(payload.forceAdaptation);
+      Boolean(safePayload.forceAdaptation);
 
     return {
       ok: true,
@@ -149,6 +251,11 @@ function adaptTone(payload = {}, options = {}) {
       adaptationApplied,
       toneMode: targetTone,
       text,
+      signals: {
+        commercial: commercialSignal,
+        supportive: supportiveSignal,
+        polite: hasPoliteSignal(text),
+      },
       reason: adaptationApplied
         ? "cultural_tone_adapted"
         : "cultural_tone_preserved",
@@ -164,6 +271,11 @@ function adaptTone(payload = {}, options = {}) {
       toneMode: DEFAULT_CONFIG.defaultTone,
       adaptationApplied: false,
       text: "",
+      signals: {
+        commercial: false,
+        supportive: false,
+        polite: false,
+      },
       reason: "cultural_tone_exception_fallback",
     };
   }
@@ -179,8 +291,12 @@ function apply(payload = {}, options = {}) {
 
 module.exports = {
   DEFAULT_CONFIG,
+  buildConfig,
   normalizeLanguage,
   normalizeTone,
+  hasCommercialSignal,
+  hasSupportiveSignal,
+  hasPoliteSignal,
   inferSourceTone,
   adaptTone,
   process,
