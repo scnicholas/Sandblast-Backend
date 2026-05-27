@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "name": "LanguageSphere Domain Language Matrix",
+    "version": "1.0.0",
+    "authority": "marion"
+  },
+  "languages": ["en", "es", "fr"],
+  "domains": [
+    "general",
+    "ai",
+    "psychology",
+    "english",
+    "finance",
+    "law",
+    "cyber",
+    "business"
+  ],
+  "requiredPairs": [
+    { "sourceLanguage": "en", "targetLanguage": "en", "domain": "ai" },
+    { "sourceLanguage": "en", "targetLanguage": "es", "domain": "business" },
+    { "sourceLanguage": "en", "targetLanguage": "fr", "domain": "law" },
+    { "sourceLanguage": "es", "targetLanguage": "en", "domain": "business" },
+    { "sourceLanguage": "es", "targetLanguage": "fr", "domain": "finance" },
+    { "sourceLanguage": "fr", "targetLanguage": "en", "domain": "ai" },
+    { "sourceLanguage": "fr", "targetLanguage": "es", "domain": "psychology" }
+  ],
+  "passRules": {
+    "authorityMustBeMarion": true,
+    "noDebugLeakage": true,
+    "noDuplicateFinalReplies": true,
+    "fallbackMustBeExplicit": true,
+    "contextPassportRequired": true,
+    "finalEnvelopeRequired": true,
+    "telemetryRequired": true
+  }
+}
