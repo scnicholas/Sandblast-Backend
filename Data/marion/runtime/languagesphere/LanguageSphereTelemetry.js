@@ -1,203 +1,187 @@
-'use strict';
+"use strict";
 
 /**
  * LanguageSphereTelemetry
- * ------------------------------------------------------------
- * Safe telemetry collector for LanguageSphere Phase 5.
  *
  * Purpose:
- * - Track runtime/middleware behavior.
- * - Avoid leaking secrets or raw internal stack traces.
- * - Provide compact operational diagnostics.
+ * Records safe commercial-readiness metrics for LanguageSphere.
  *
- * Rule:
- * Telemetry is diagnostic metadata only.
- * Marion remains final authority.
+ * Contract:
+ * - Never blocks final answer.
+ * - Never exposes secrets, tokens, stack traces, or raw debug.
+ * - Keeps Marion as final authority.
  */
 
-function sanitizeString(value, fallback = '') {
-  return typeof value === 'string' ? value : fallback;
+const DEFAULT_CONFIG = {
+  authority: "marion",
+  enabled: true,
+  maxMetricValueMs: 30000,
+  defaultConfidenceBand: "unknown",
+  allowedMetricKeys: [
+    "language_detect_ms",
+    "translation_ms",
+    "domain_route_ms",
+    "tone_adaptation_ms",
+    "final_envelope_ms",
+    "total_pipeline_ms",
+  ],
+};
+
+function clampMs(value, max = DEFAULT_CONFIG.maxMetricValueMs) {
+  const n = Number(value);
+
+  if (!Number.isFinite(n) || n < 0) return 0;
+  if (n > max) return max;
+
+  return Math.round(n);
 }
 
-function sanitizeNumber(value, fallback = 0) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+function normalizeBoolean(value) {
+  return Boolean(value);
 }
 
-function sanitizeBoolean(value, fallback = false) {
-  return typeof value === 'boolean' ? value : fallback;
+function normalizeString(value, fallback = null) {
+  const text = String(value || "").trim();
+  return text || fallback;
 }
 
-function sanitizeObject(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  return value;
-}
+function sanitizeTelemetry(value) {
+  if (!value || typeof value !== "object") return value;
 
-function sanitizeArray(value) {
-  return Array.isArray(value) ? value : [];
-}
+  const output = Array.isArray(value) ? [] : {};
 
-function redactSecretLikeValue(value = '') {
-  const text = sanitizeString(value);
+  for (const [key, item] of Object.entries(value)) {
+    const lowered = key.toLowerCase();
 
-  if (!text) return '';
-
-  return text
-    .replace(/sk-[A-Za-z0-9_-]{12,}/g, '[REDACTED_OPENAI_KEY]')
-    .replace(/sbx_[A-Za-z0-9_-]{12,}/g, '[REDACTED_WIDGET_TOKEN]')
-    .replace(/Bearer\s+[A-Za-z0-9._-]{12,}/gi, 'Bearer [REDACTED]')
-    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[REDACTED_EMAIL]');
-}
-
-function createTelemetryId(prefix = 'lst') {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
-}
-
-function countDomainTerms(envelope = {}) {
-  const safeEnvelope = sanitizeObject(envelope);
-  const domainTerminology = sanitizeObject(safeEnvelope.domainTerminology);
-  const domainPolicy = sanitizeObject(safeEnvelope.domainTranslationPolicy);
-
-  const detectedTerms = sanitizeArray(domainTerminology.detectedTerms);
-  const decisions = sanitizeArray(domainPolicy.decisions);
-
-  return {
-    domainTermsDetected: detectedTerms.length,
-    lockedTermsDetected: detectedTerms.filter((item) => item && item.preserveExact).length,
-    conceptTermsDetected: detectedTerms.filter((item) => item && item.preserveConcept).length,
-    carefulTermsDetected: detectedTerms.filter((item) => item && item.translateCarefully).length,
-    policyDecisions: decisions.length,
-    policyRiskLevel: sanitizeString(domainPolicy.riskLevel, 'none')
-  };
-}
-
-function extractTonePrimary(envelope = {}) {
-  const safeEnvelope = sanitizeObject(envelope);
-
-  return (
-    sanitizeString(safeEnvelope.tonePreservation?.tone?.primaryTone) ||
-    sanitizeString(safeEnvelope.culturalAdaptation?.tonePreservation?.tone?.primaryTone) ||
-    'unknown'
-  );
-}
-
-function createLanguageSphereTelemetry(payload = {}) {
-  const safePayload = sanitizeObject(payload);
-  const envelope = sanitizeObject(safePayload.envelope);
-  const fallbackDecision = sanitizeObject(safePayload.fallbackDecision);
-  const requestPayload = sanitizeObject(safePayload.requestPayload);
-
-  const language = sanitizeObject(envelope.language);
-  const provider = sanitizeObject(envelope.provider);
-  const diagnostics = sanitizeObject(envelope.diagnostics);
-
-  const termCounts = countDomainTerms(envelope);
-
-  const requestId =
-    sanitizeString(requestPayload.requestId) ||
-    sanitizeString(requestPayload.reqId) ||
-    sanitizeString(safePayload.requestId) ||
-    createTelemetryId('req');
-
-  const sessionId =
-    sanitizeString(requestPayload.sessionId) ||
-    sanitizeString(requestPayload.session_id) ||
-    sanitizeString(safePayload.sessionId) ||
-    '';
-
-  const inputSource =
-    sanitizeString(requestPayload.inputSource) ||
-    sanitizeString(requestPayload.source) ||
-    sanitizeString(safePayload.inputSource, 'text');
-
-  return {
-    module: 'LanguageSphereTelemetry',
-    status: 'ok',
-    telemetryId: createTelemetryId(),
-    requestId: redactSecretLikeValue(requestId),
-    sessionId: redactSecretLikeValue(sessionId),
-    inputSource: redactSecretLikeValue(inputSource),
-
-    language: {
-      sourceLanguage: sanitizeString(language.sourceLanguage, 'unknown'),
-      targetLanguage: sanitizeString(language.targetLanguage, 'en'),
-      confidence: sanitizeNumber(language.confidence, 0),
-      translationRequired: sanitizeBoolean(language.translationRequired, false),
-      translationApplied: sanitizeBoolean(language.translationApplied, false),
-      fallbackApplied: sanitizeBoolean(language.fallbackApplied, false)
-    },
-
-    provider: {
-      name: redactSecretLikeValue(sanitizeString(provider.name, 'none')),
-      mode: redactSecretLikeValue(sanitizeString(provider.mode, 'none')),
-      latencyMs: sanitizeNumber(provider.latencyMs, 0)
-    },
-
-    phase3: {
-      tonePrimary: extractTonePrimary(envelope),
-      toneAttached: Boolean(envelope.tonePreservation),
-      culturalAdaptationAttached: Boolean(envelope.culturalAdaptation)
-    },
-
-    phase4: {
-      domainTerminologyAttached: Boolean(envelope.domainTerminology),
-      domainTranslationPolicyAttached: Boolean(envelope.domainTranslationPolicy),
-      ...termCounts
-    },
-
-    fallback: {
-      blocked: sanitizeBoolean(fallbackDecision.blocked, false),
-      reason: sanitizeString(fallbackDecision.reason, ''),
-      selectedSource: sanitizeString(fallbackDecision.selectedSource, ''),
-      fallbackApplied: sanitizeBoolean(fallbackDecision.fallbackApplied, false),
-      safeForMarion: sanitizeBoolean(fallbackDecision.safeForMarion, true)
-    },
-
-    diagnostics: {
-      traceId: redactSecretLikeValue(sanitizeString(diagnostics.traceId, '')),
-      warningsCount: sanitizeArray(diagnostics.warnings).length,
-      errorsCount: sanitizeArray(diagnostics.errors).length,
-      createdAt: new Date().toISOString()
-    },
-
-    safety: {
-      debugLeakageBlocked: true,
-      secretsRedacted: true,
-      finalAnswerBlocked: true,
-      authorityBypassBlocked: true
-    },
-
-    authority: {
-      finalAuthority: false,
-      finalAuthorityOwner: 'Marion',
-      mayBypassMarion: false
+    if (
+      lowered.includes("token") ||
+      lowered.includes("secret") ||
+      lowered.includes("password") ||
+      lowered.includes("authorization") ||
+      lowered.includes("apikey") ||
+      lowered.includes("api_key")
+    ) {
+      output[key] = "[redacted]";
+      continue;
     }
+
+    if (typeof item === "string" && /bearer\s+|stack trace|typeerror|referenceerror|syntaxerror/i.test(item)) {
+      output[key] = "[redacted]";
+      continue;
+    }
+
+    if (item && typeof item === "object") {
+      output[key] = sanitizeTelemetry(item);
+    } else {
+      output[key] = item;
+    }
+  }
+
+  return output;
+}
+
+function buildTelemetryRecord(payload = {}, options = {}) {
+  try {
+    const config = {
+      ...DEFAULT_CONFIG,
+      ...(options.config || payload.config || {}),
+    };
+
+    const metrics = {
+      language_detect_ms: clampMs(payload.language_detect_ms || payload.languageDetectMs),
+      translation_ms: clampMs(payload.translation_ms || payload.translationMs),
+      domain_route_ms: clampMs(payload.domain_route_ms || payload.domainRouteMs),
+      tone_adaptation_ms: clampMs(payload.tone_adaptation_ms || payload.toneAdaptationMs),
+      final_envelope_ms: clampMs(payload.final_envelope_ms || payload.finalEnvelopeMs),
+      total_pipeline_ms: clampMs(payload.total_pipeline_ms || payload.totalPipelineMs),
+    };
+
+    return {
+      ok: true,
+      authority: "marion",
+      telemetryEnabled: Boolean(config.enabled),
+      requestId: normalizeString(payload.requestId, "languagesphere-telemetry"),
+      timestamp: new Date().toISOString(),
+      metrics,
+      signals: {
+        fallback_used: normalizeBoolean(payload.fallbackUsed || payload.fallback_used),
+        confidence_band: normalizeString(
+          payload.confidenceBand ||
+            payload.confidence_band,
+          config.defaultConfidenceBand
+        ),
+        source_language: normalizeString(payload.sourceLanguage || payload.source_language, "en"),
+        target_language: normalizeString(payload.targetLanguage || payload.target_language, "en"),
+        active_domain: normalizeString(payload.activeDomain || payload.active_domain || payload.domain, "general"),
+        route_family: normalizeString(payload.routeFamily || payload.route_family, null),
+        tone_mode: normalizeString(payload.toneMode || payload.tone_mode, null),
+        handoff_status: normalizeString(payload.handoffStatus || payload.handoff_status, "available"),
+        final_authority: "marion",
+      },
+      safeMetadata: sanitizeTelemetry(payload.metadata || {}),
+    };
+  } catch (_) {
+    return {
+      ok: false,
+      authority: "marion",
+      telemetryEnabled: false,
+      requestId: "languagesphere-telemetry-fallback",
+      timestamp: new Date().toISOString(),
+      metrics: {
+        language_detect_ms: 0,
+        translation_ms: 0,
+        domain_route_ms: 0,
+        tone_adaptation_ms: 0,
+        final_envelope_ms: 0,
+        total_pipeline_ms: 0,
+      },
+      signals: {
+        fallback_used: true,
+        confidence_band: "low",
+        source_language: "en",
+        target_language: "en",
+        active_domain: "general",
+        route_family: null,
+        tone_mode: null,
+        handoff_status: "fallback",
+        final_authority: "marion",
+      },
+      safeMetadata: {},
+    };
+  }
+}
+
+function validateTelemetryRecord(record = {}) {
+  const serialized = JSON.stringify(record || {});
+
+  return {
+    valid:
+      record.authority === "marion" &&
+      record.signals &&
+      record.signals.final_authority === "marion" &&
+      !/bearer\s+|token|secret|password|stack trace|typeerror|referenceerror/i.test(serialized),
+    hasMetrics: Boolean(record.metrics),
+    hasSignals: Boolean(record.signals),
+    noDebugLeak: !/stack trace|typeerror|referenceerror|syntaxerror/i.test(serialized),
   };
 }
 
-function summarizeTelemetry(telemetry = {}) {
-  const safeTelemetry = sanitizeObject(telemetry);
+function process(payload = {}, options = {}) {
+  return buildTelemetryRecord(payload, options);
+}
 
-  return {
-    requestId: sanitizeString(safeTelemetry.requestId),
-    inputSource: sanitizeString(safeTelemetry.inputSource),
-    sourceLanguage: sanitizeString(safeTelemetry.language?.sourceLanguage, 'unknown'),
-    targetLanguage: sanitizeString(safeTelemetry.language?.targetLanguage, 'en'),
-    translationApplied: sanitizeBoolean(safeTelemetry.language?.translationApplied, false),
-    fallbackApplied: sanitizeBoolean(safeTelemetry.fallback?.fallbackApplied, false),
-    blocked: sanitizeBoolean(safeTelemetry.fallback?.blocked, false),
-    policyRiskLevel: sanitizeString(safeTelemetry.phase4?.policyRiskLevel, 'none'),
-    tonePrimary: sanitizeString(safeTelemetry.phase3?.tonePrimary, 'unknown'),
-    finalAuthorityOwner: 'Marion'
-  };
+function record(payload = {}, options = {}) {
+  return buildTelemetryRecord(payload, options);
 }
 
 module.exports = {
-  createLanguageSphereTelemetry,
-  summarizeTelemetry,
-  redactSecretLikeValue,
-  createTelemetryId,
-  countDomainTerms,
-  extractTonePrimary
+  DEFAULT_CONFIG,
+  clampMs,
+  normalizeBoolean,
+  normalizeString,
+  sanitizeTelemetry,
+  buildTelemetryRecord,
+  validateTelemetryRecord,
+  process,
+  record,
 };
