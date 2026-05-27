@@ -1,0 +1,23 @@
+{
+  "defaultLanguage": "en",
+  "supportedLanguages": ["en", "es", "fr"],
+  "confidenceBands": {
+    "high": 0.85,
+    "medium": 0.65,
+    "low": 0
+  },
+  "mixedLanguagePenalty": 0.2,
+  "unsupportedLanguagePenalty": 0.35,
+  "emptyInputPenalty": 0.5,
+  "fallbackRules": {
+    "emptyInput": true,
+    "unsupportedLanguage": true,
+    "lowConfidence": true,
+    "mixedLanguageBelowHighConfidence": true
+  },
+  "authority": {
+    "owner": "marion",
+    "languageLayerMayAdvise": true,
+    "languageLayerMayOverrideFinal": false
+  }
+}
