@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.8.0 CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.8.1 LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -223,16 +223,23 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
     events:safeArray(passport.events),
     telemetry:safeObj(telemetry)
   };
-  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere,contextPassport:languageSphere.contextPassport,languageSphereEvents:languageSphere.events,languageSphereTelemetry:languageSphere.telemetry};
+  const contextPassport=languageSphere.contextPassport;
+  const languageSphereEvents=languageSphere.events;
+  const languageSphereTelemetry=languageSphere.telemetry;
+  const multilingualFinalEnvelope=safeObj(multilingual.finalEnvelope);
+  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere,contextPassport,languageSphereEvents,languageSphereTelemetry,multilingualFinalEnvelope};
   return {
     ...out,
     languageSphere,
-    contextPassport:languageSphere.contextPassport,
-    languageSphereEvents:languageSphere.events,
-    languageSphereTelemetry:languageSphere.telemetry,
-    multilingualFinalEnvelope:safeObj(multilingual.finalEnvelope),
+    contextPassport,
+    languageSphereEvents,
+    events:languageSphereEvents,
+    languageSphereTelemetry,
+    telemetry:languageSphereTelemetry,
+    multilingualFinalEnvelope,
     finalEnvelope,
-    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,languageSphere},
+    payload:{...safeObj(out.payload),languageSphere,contextPassport,languageSphereEvents,events:languageSphereEvents,languageSphereTelemetry,telemetry:languageSphereTelemetry,multilingualFinalEnvelope},
+    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,languageSphere,contextPassport,languageSphereEvents,languageSphereTelemetry,multilingualFinalEnvelope},
     diagnostics:{...safeObj(out.diagnostics),languageSphereBridge:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,universalTranslator:!!universalTranslatorMod,multilingualFinalEnvelope:!!multilingualFinalEnvelopeMod,contextPassportEvents:!!contextPassportEventsMod,telemetry:!!languageSphereTelemetryMod}}
   };
 }
