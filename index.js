@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.14sb LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
+const INDEX_VERSION = "index.js v2.18.15sb LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
@@ -5045,6 +5045,159 @@ function mergeLanguageSphereMeta(target, languageSphere) {
   return out;
 }
 
+function firstObjValue() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const item = arguments[i];
+    if (isObj(item) && Object.keys(item).length) return item;
+  }
+  return {};
+}
+
+function firstArrayValue() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    const item = arguments[i];
+    if (Array.isArray(item) && item.length) return item;
+  }
+  return [];
+}
+
+function buildIndexLanguageSphereSurface(selected = {}, norm = {}, languageSphereFinal = {}) {
+  const s = isObj(selected) ? selected : {};
+  const n = isObj(norm) ? norm : {};
+  const fe = isObj(s.finalEnvelope) ? s.finalEnvelope : {};
+  const payload = isObj(s.payload) ? s.payload : {};
+  const meta = isObj(s.meta) ? s.meta : {};
+  const diag = isObj(s.diagnostics) ? s.diagnostics : {};
+  const finalObj = isObj(languageSphereFinal) ? languageSphereFinal : {};
+
+  const baseLanguageSphere = {
+    ...(isObj(n.languageSphere) ? n.languageSphere : {}),
+    ...(isObj(fe.languageSphere) ? fe.languageSphere : {}),
+    ...(isObj(payload.languageSphere) ? payload.languageSphere : {}),
+    ...(isObj(meta.languageSphere) ? meta.languageSphere : {}),
+    ...(isObj(diag.languageSphere) ? diag.languageSphere : {}),
+    ...(isObj(s.languageSphere) ? s.languageSphere : {}),
+    ...(isObj(finalObj.languageSphere) ? finalObj.languageSphere : {})
+  };
+
+  if (!Object.keys(baseLanguageSphere).length) {
+    baseLanguageSphere.version = LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION;
+    baseLanguageSphere.indexBridge = true;
+    baseLanguageSphere.stage = "final-surface";
+    baseLanguageSphere.authority = "marion";
+  }
+
+  const contextPassport = firstObjValue(
+    s.contextPassport,
+    fe.contextPassport,
+    payload.contextPassport,
+    meta.contextPassport,
+    diag.contextPassport,
+    baseLanguageSphere.contextPassport,
+    finalObj.contextPassport
+  );
+
+  const languageSphereEvents = firstArrayValue(
+    s.languageSphereEvents,
+    s.events,
+    fe.languageSphereEvents,
+    fe.events,
+    payload.languageSphereEvents,
+    payload.events,
+    meta.languageSphereEvents,
+    meta.events,
+    baseLanguageSphere.events,
+    finalObj.languageSphereEvents,
+    finalObj.events
+  );
+
+  const languageSphereTelemetry = firstObjValue(
+    s.languageSphereTelemetry,
+    s.telemetry,
+    fe.languageSphereTelemetry,
+    fe.telemetry,
+    payload.languageSphereTelemetry,
+    payload.telemetry,
+    meta.languageSphereTelemetry,
+    meta.telemetry,
+    baseLanguageSphere.telemetry,
+    finalObj.languageSphereTelemetry,
+    finalObj.telemetry
+  );
+
+  const multilingualFinalEnvelope = firstObjValue(
+    s.multilingualFinalEnvelope,
+    fe.multilingualFinalEnvelope,
+    payload.multilingualFinalEnvelope,
+    meta.multilingualFinalEnvelope,
+    finalObj.multilingualFinalEnvelope
+  );
+
+  const languageSphere = {
+    ...baseLanguageSphere,
+    version: cleanText(baseLanguageSphere.version || LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION),
+    indexBridge: true,
+    authority: cleanText(baseLanguageSphere.authority || "marion") || "marion",
+    visibleToUser: baseLanguageSphere.visibleToUser !== false,
+    ...(Object.keys(contextPassport).length ? { contextPassport } : {}),
+    ...(languageSphereEvents.length ? { events: languageSphereEvents } : {}),
+    ...(Object.keys(languageSphereTelemetry).length ? { telemetry: languageSphereTelemetry } : {})
+  };
+
+  return {
+    languageSphere,
+    contextPassport,
+    languageSphereEvents,
+    languageSphereTelemetry,
+    multilingualFinalEnvelope
+  };
+}
+
+function applyIndexLanguageSphereSurface(selected = {}, norm = {}, languageSphereFinal = {}) {
+  const out = isObj(selected) ? { ...selected } : {};
+  const surface = buildIndexLanguageSphereSurface(out, norm, languageSphereFinal);
+
+  out.languageSphere = surface.languageSphere;
+  out.contextPassport = surface.contextPassport;
+  out.languageSphereEvents = surface.languageSphereEvents;
+  out.events = surface.languageSphereEvents;
+  out.languageSphereTelemetry = surface.languageSphereTelemetry;
+  out.telemetry = surface.languageSphereTelemetry;
+  out.multilingualFinalEnvelope = surface.multilingualFinalEnvelope;
+
+  out.finalEnvelope = {
+    ...(isObj(out.finalEnvelope) ? out.finalEnvelope : {}),
+    languageSphere: surface.languageSphere,
+    contextPassport: surface.contextPassport,
+    languageSphereEvents: surface.languageSphereEvents,
+    events: surface.languageSphereEvents,
+    languageSphereTelemetry: surface.languageSphereTelemetry,
+    telemetry: surface.languageSphereTelemetry,
+    multilingualFinalEnvelope: surface.multilingualFinalEnvelope
+  };
+
+  out.payload = {
+    ...(isObj(out.payload) ? out.payload : {}),
+    languageSphere: surface.languageSphere,
+    contextPassport: surface.contextPassport,
+    languageSphereEvents: surface.languageSphereEvents,
+    events: surface.languageSphereEvents,
+    languageSphereTelemetry: surface.languageSphereTelemetry,
+    telemetry: surface.languageSphereTelemetry,
+    multilingualFinalEnvelope: surface.multilingualFinalEnvelope
+  };
+
+  out.meta = mergeLanguageSphereMeta({
+    ...(isObj(out.meta) ? out.meta : {}),
+    contextPassport: surface.contextPassport,
+    languageSphereEvents: surface.languageSphereEvents,
+    languageSphereTelemetry: surface.languageSphereTelemetry,
+    multilingualFinalEnvelope: surface.multilingualFinalEnvelope
+  }, surface.languageSphere);
+
+  return out;
+}
+
 async function applyIndexLanguageSphereToTrustedFinal(selected = {}, norm = {}, currentReply = "") {
   const sourcePacket = isObj(selected) ? selected : {};
   const n = isObj(norm) ? norm : {};
@@ -8727,6 +8880,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     selected.diagnostics = mergeLanguageSphereMeta(selected.diagnostics, isObj(languageSphereFinal.languageSphere) ? languageSphereFinal.languageSphere : {});
   }
 
+  selected = applyIndexLanguageSphereSurface(selected, norm, languageSphereFinal || {});
+
   const speech = buildSpeechContract(selected, norm);
   selected = ensureAudioContractFromSpeech(attachVoiceRoute(selected), speech);
   selected.speech = speech;
@@ -8844,7 +8999,13 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     },
     finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
     runtimeTelemetry,
-    languageSphere: isObj(selected.meta && selected.meta.languageSphere) ? selected.meta.languageSphere : (isObj(norm.languageSphere) ? norm.languageSphere : undefined),
+    languageSphere: isObj(selected.languageSphere) ? selected.languageSphere : (isObj(selected.meta && selected.meta.languageSphere) ? selected.meta.languageSphere : (isObj(norm.languageSphere) ? norm.languageSphere : undefined)),
+    contextPassport: isObj(selected.contextPassport) ? selected.contextPassport : undefined,
+    languageSphereEvents: Array.isArray(selected.languageSphereEvents) ? selected.languageSphereEvents : [],
+    events: Array.isArray(selected.languageSphereEvents) ? selected.languageSphereEvents : [],
+    languageSphereTelemetry: isObj(selected.languageSphereTelemetry) ? selected.languageSphereTelemetry : undefined,
+    telemetry: isObj(selected.languageSphereTelemetry) ? selected.languageSphereTelemetry : undefined,
+    multilingualFinalEnvelope: isObj(selected.multilingualFinalEnvelope) ? selected.multilingualFinalEnvelope : undefined,
     lane: selected.lane || norm.lane || "general",
     laneId: selected.laneId || selected.lane || norm.lane || "general",
     sessionLane: selected.sessionLane || selected.lane || norm.lane || "general",
