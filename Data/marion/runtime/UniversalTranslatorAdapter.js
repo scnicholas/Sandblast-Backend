@@ -585,7 +585,9 @@ function canUseLocalModuleProvider(providerName) {
   return typeof localProvider.translate === "function" || typeof localProvider.translateText === "function";
 }
 
-async function callProvider(text, options, meta) {
+async function callProvider(text, options = {}, meta = {}) {
+  options = isPlainObject(options) ? options : {};
+  meta = isPlainObject(meta) ? meta : createMeta({ warning: "meta-fallback-created" });
   const config = loadConfig();
   const providerName = normalizeProviderName(
     (config.provider && config.provider.active) || options.provider || "none"
@@ -697,6 +699,7 @@ function safeRestoreText(glossary, text, tokens, originalText, meta) {
 }
 
 async function translateText(text, options = {}) {
+  options = isPlainObject(options) ? options : {};
   const startedAt = Date.now();
   const config = loadConfig();
   const glossary = loadGlossary();
@@ -966,6 +969,7 @@ function writeFinalText(envelopeOrText, translatedText, mode) {
 }
 
 async function applyUniversalTranslation(envelopeOrText, options = {}) {
+  options = isPlainObject(options) ? options : {};
   const config = loadConfig();
 
   if (!config.enabled) {
@@ -1014,6 +1018,7 @@ async function applyUniversalTranslation(envelopeOrText, options = {}) {
 }
 
 async function normalizeInputForMarion(userText, options = {}) {
+  options = isPlainObject(options) ? options : {};
   const config = loadConfig();
   const detected = detectLanguage(userText, options);
   const detectedLanguage = normalizeLanguageCode(detected.language);
@@ -1059,6 +1064,85 @@ async function normalizeInputForMarion(userText, options = {}) {
   return payload;
 }
 
+
+function textFromPayload(payload) {
+  if (typeof payload === "string") return payload;
+  if (!isPlainObject(payload)) return "";
+  return (
+    payload.text ||
+    payload.inputText ||
+    payload.userText ||
+    payload.userQuery ||
+    payload.query ||
+    payload.originalText ||
+    payload.finalAnswer ||
+    payload.final ||
+    payload.reply ||
+    ""
+  );
+}
+
+function adapterResultFromTranslation(sourceText, translationResult, payload = {}) {
+  const meta = isPlainObject(translationResult && translationResult.meta)
+    ? translationResult.meta
+    : createMeta({ warning: "translation-meta-missing" });
+
+  const translatedText =
+    translationResult && typeof translationResult.text === "string"
+      ? translationResult.text
+      : sourceText;
+
+  return {
+    ok: true,
+    authority: "marion",
+    text: translatedText,
+    translatedText,
+    normalizedText: translatedText,
+    originalText: sourceText,
+    sourceLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.sourceLanguage || payload.detectedLanguage || payload.language),
+    targetLanguage: meta.targetLanguage || normalizeLanguageCode(payload.targetLanguage || payload.responseLanguage || "en"),
+    detectedLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.detectedLanguage || payload.sourceLanguage || "auto"),
+    confidence: typeof meta.sourceConfidence === "number" ? meta.sourceConfidence : null,
+    translationAvailable: meta.translated === true,
+    fallbackUsed: meta.translated !== true,
+    provider: meta.provider || "none",
+    translationMeta: meta,
+    languageSphere: {
+      sourceLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.sourceLanguage || payload.detectedLanguage || payload.language),
+      targetLanguage: meta.targetLanguage || normalizeLanguageCode(payload.targetLanguage || payload.responseLanguage || "en"),
+      translated: meta.translated === true,
+      fallbackUsed: meta.translated !== true,
+      provider: meta.provider || "none",
+      confidence: typeof meta.sourceConfidence === "number" ? meta.sourceConfidence : null
+    }
+  };
+}
+
+async function translate(payloadOrText, options = {}) {
+  const payload = isPlainObject(payloadOrText) ? payloadOrText : {};
+  const text = textFromPayload(payloadOrText);
+  const mergedOptions = {
+    ...payload,
+    ...(isPlainObject(options) ? options : {})
+  };
+
+  const result = await translateText(text, mergedOptions);
+  return adapterResultFromTranslation(text, result, mergedOptions);
+}
+
+async function normalizeAndTranslate(payloadOrText, options = {}) {
+  return translate(payloadOrText, options);
+}
+
+async function process(payloadOrText, options = {}) {
+  return translate(payloadOrText, options);
+}
+
+async function run(payloadOrText, options = {}) {
+  return translate(payloadOrText, options);
+}
+
+
 function resetUniversalTranslatorCaches() {
   CONFIG = null;
   GLOSSARY = null;
@@ -1080,6 +1164,10 @@ module.exports = {
   translateText,
   applyUniversalTranslation,
   normalizeInputForMarion,
+  translate,
+  normalizeAndTranslate,
+  process,
+  run,
   extractFinalText,
   writeFinalText,
   callProvider,
