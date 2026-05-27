@@ -1,0 +1,79 @@
+/*
+ * Nyx Context Passport Styles
+ *
+ * Purpose:
+ * Compact, safe, elegant chip styling for LanguageSphere context visibility.
+ * This is intentionally small and non-invasive.
+ */
+
+.nyx-context-passport-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 22px;
+  max-width: 100%;
+  pointer-events: none;
+}
+
+.nyx-context-passport-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(248, 250, 252, 0.94);
+  background: rgba(15, 23, 42, 0.74);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.nyx-context-passport-label {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nyx-context-passport-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.82;
+}
+
+.nyx-context-passport-chip--active {
+  border-color: rgba(125, 211, 252, 0.45);
+}
+
+.nyx-context-passport-chip--handoff {
+  border-color: rgba(167, 139, 250, 0.48);
+}
+
+.nyx-context-passport-chip--fallback {
+  border-color: rgba(251, 191, 36, 0.48);
+}
+
+[data-nyx-context-passport-visible="false"] {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .nyx-context-passport-chip {
+    max-width: 92vw;
+    font-size: 10.5px;
+    padding: 4px 7px;
+  }
+}
