@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.15sb LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
+const INDEX_VERSION = "index.js v2.18.16sb NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
@@ -424,6 +424,48 @@ function safeObj(v) {
 
 function cleanText(v) {
   return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
+function normalizePublicNyxAddress(value) {
+  let text = cleanText(value || "");
+  if (!text) return "";
+  text = text
+    .replace(/^(\s*(?:hi|hello|hey|yo|hiya|bonjour|salut|hola|buenos\s+d[ií]as|good\s+morning|good\s+afternoon|good\s+evening)\s+)(marion)(\b|[,:\-])/i, (m, a, _name, b) => `${a}Nyx${b || ""}`)
+    .replace(/^\s*marion\s*[,:\-]\s*/i, "Nyx, ");
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function buildNyxPublicContextPassportSurface(surface = {}) {
+  const s = isObj(surface) ? surface : {};
+  const source = cleanText(s.sourceLanguage || s.detectedLanguage || "unknown").toLowerCase();
+  const target = cleanText(s.targetLanguage || s.responseLanguage || "en").toLowerCase();
+  const domain = cleanText(s.activeDomain || s.domain || "general").toLowerCase();
+  const langLabel = (v) => ({ en: "EN", es: "ES", fr: "FR", unknown: "Language" }[String(v || "").toLowerCase()] || String(v || "Language").toUpperCase());
+  const domainLabel = (v) => ({ general: "General", ai: "AI", psychology: "Psychology", english: "English", finance: "Finance", law: "Law", cyber: "Cyber", business: "Business" }[String(v || "").toLowerCase()] || cleanText(v || "General"));
+  const fallbackUsed = !!s.fallbackUsed;
+  const label = fallbackUsed
+    ? `${langLabel(target)} fallback · Nyx ✓`
+    : source && source !== "unknown" && source !== target
+      ? `${langLabel(source)} → ${langLabel(target)} · ${domainLabel(domain)} · Nyx ✓`
+      : `${langLabel(target)} · ${domainLabel(domain)} · Nyx ✓`;
+  return {
+    visible: true,
+    authority: "marion",
+    displayAuthority: "nyx",
+    publicAgent: "nyx",
+    userFacingAgent: "Nyx",
+    sourceLanguage: source,
+    targetLanguage: target,
+    activeLanguage: source,
+    responseLanguage: target,
+    activeDomain: domain,
+    confidenceBand: cleanText(s.confidenceBand || "unknown"),
+    toneMode: cleanText(s.toneMode || "clear_direct"),
+    handoffStatus: cleanText(s.handoffStatus || "available"),
+    fallbackUsed,
+    label,
+    shortLabel: label.length > 52 ? `${label.slice(0, 49).trim()}…` : label
+  };
 }
 
 function firstString(arr) {
@@ -5087,7 +5129,7 @@ function buildIndexLanguageSphereSurface(selected = {}, norm = {}, languageSpher
     baseLanguageSphere.authority = "marion";
   }
 
-  const contextPassport = firstObjValue(
+  let contextPassport = firstObjValue(
     s.contextPassport,
     fe.contextPassport,
     payload.contextPassport,
@@ -5138,11 +5180,18 @@ function buildIndexLanguageSphereSurface(selected = {}, norm = {}, languageSpher
     version: cleanText(baseLanguageSphere.version || LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION),
     indexBridge: true,
     authority: cleanText(baseLanguageSphere.authority || "marion") || "marion",
+    displayAuthority: "nyx",
+    publicAgent: "nyx",
+    userFacingAgent: "Nyx",
     visibleToUser: baseLanguageSphere.visibleToUser !== false,
-    ...(Object.keys(contextPassport).length ? { contextPassport } : {}),
     ...(languageSphereEvents.length ? { events: languageSphereEvents } : {}),
     ...(Object.keys(languageSphereTelemetry).length ? { telemetry: languageSphereTelemetry } : {})
   };
+
+  if (!Object.keys(contextPassport).length) {
+    contextPassport = buildNyxPublicContextPassportSurface(languageSphere);
+  }
+  languageSphere.contextPassport = contextPassport;
 
   return {
     languageSphere,
@@ -5373,11 +5422,12 @@ function normalizePayload(req) {
   const body = isObj(req.body) ? req.body : {};
   const payload = isObj(body.payload) ? body.payload : {};
   const guidedPrompt = isObj(body.guidedPrompt) ? body.guidedPrompt : (isObj(payload.guidedPrompt) ? payload.guidedPrompt : null);
-  const text = cleanText(
+  const rawText = cleanText(
     body.text || body.message || body.query || body.userText ||
     payload.text || payload.message || payload.query || payload.userText ||
     (guidedPrompt && (guidedPrompt.label || guidedPrompt.text)) || ""
   );
+  const text = normalizePublicNyxAddress(rawText);
   const rawMarionIntent = isObj(body.marionIntent) ? body.marionIntent : (isObj(payload.marionIntent) ? payload.marionIntent : {});
   const technicalTargetLock = canonicalTechnicalTargetFromText(text);
   const technicalFollowUpLock = isTechnicalFollowUpIntent(text);
@@ -5390,6 +5440,8 @@ function normalizePayload(req) {
   return {
     text,
     originalText: text,
+    originalRawText: rawText,
+    publicUserText: text,
     guidedPrompt,
     domainHint: cleanText(body.domainHint || payload.domainHint || marionRouting.domain || (guidedPrompt && guidedPrompt.domainHint) || ""),
     intentHint: cleanText(body.intentHint || payload.intentHint || marionIntent.intent || (guidedPrompt && guidedPrompt.intentHint) || ""),
