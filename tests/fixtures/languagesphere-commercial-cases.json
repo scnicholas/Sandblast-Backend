@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "name": "LanguageSphere Commercial Regression Cases",
+    "version": "1.0.0",
+    "purpose": "Full commercial-readiness fixture cases for LanguageSphere Phases 1-12.",
+    "authority": "marion",
+    "languages": ["en", "es", "fr"]
+  },
+  "cases": [
+    {
+      "id": "commercial-en-ai",
+      "description": "English AI domain commercial route.",
+      "input": {
+        "text": "Explain Marion final envelope and context passport.",
+        "sourceLanguage": "en",
+        "targetLanguage": "en",
+        "domain": "ai",
+        "confidence": 0.94,
+        "confidenceBand": "high",
+        "toneMode": "commercial_precise"
+      },
+      "expected": {
+        "authority": "marion",
+        "activeDomain": "ai",
+        "sourceLanguage": "en",
+        "targetLanguage": "en",
+        "fallbackUsed": false
+      }
+    },
+    {
+      "id": "commercial-fr-ai-to-en",
+      "description": "French AI input translated to English with Marion authority.",
+      "input": {
+        "text": "Bonjour Marion, explique le contexte du passeport.",
+        "sourceLanguage": "fr",
+        "targetLanguage": "en",
+        "domain": "ai",
+        "confidence": 0.9,
+        "confidenceBand": "high",
+        "toneMode": "formal_polite"
+      },
+      "expected": {
+        "authority": "marion",
+        "activeDomain": "ai",
+        "sourceLanguage": "fr",
+        "targetLanguage": "en"
+      }
+    },
+    {
+      "id": "commercial-es-business-to-en",
+      "description": "Spanish business input translated to English with commercial tone.",
+      "input": {
+        "text": "Hola Marion, explica la preparación comercial.",
+        "sourceLanguage": "es",
+        "targetLanguage": "en",
+        "domain": "business",
+        "confidence": 0.88,
+        "confidenceBand": "high",
+        "toneMode": "commercial_precise"
+      },
+      "expected": {
+        "authority": "marion",
+        "activeDomain": "business",
+        "sourceLanguage": "es",
+        "targetLanguage": "en"
+      }
+    },
+    {
+      "id": "commercial-fallback-mixed",
+      "description": "Mixed-language fallback stays safe and Marion-owned.",
+      "input": {
+        "text": "Hello Marion, bonjour, puedes ayudarme?",
+        "sourceLanguage": "mixed",
+        "targetLanguage": "en",
+        "domain": "general",
+        "confidence": 0.42,
+        "confidenceBand": "low",
+        "fallbackUsed": true
+      },
+      "expected": {
+        "authority": "marion",
+        "activeDomain": "general",
+        "targetLanguage": "en",
+        "fallbackUsed": true
+      }
+    }
+  ]
+}
