@@ -1,0 +1,32 @@
+{
+  "authority": "marion",
+  "enabled": true,
+  "maxMetricValueMs": 30000,
+  "defaultConfidenceBand": "unknown",
+  "allowedMetricKeys": [
+    "language_detect_ms",
+    "translation_ms",
+    "domain_route_ms",
+    "tone_adaptation_ms",
+    "final_envelope_ms",
+    "total_pipeline_ms"
+  ],
+  "signals": [
+    "fallback_used",
+    "confidence_band",
+    "source_language",
+    "target_language",
+    "active_domain",
+    "route_family",
+    "tone_mode",
+    "handoff_status",
+    "final_authority"
+  ],
+  "security": {
+    "storeRawUserText": false,
+    "storeTokens": false,
+    "storeSecrets": false,
+    "storeStackTraces": false,
+    "telemetryMayBlockFinalAnswer": false
+  }
+}
