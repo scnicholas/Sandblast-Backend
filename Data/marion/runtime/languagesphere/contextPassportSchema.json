@@ -1,0 +1,45 @@
+{
+  "name": "LanguageSphere Context Passport Event Schema",
+  "version": "1.0.0",
+  "authority": "marion",
+  "visibleToUser": true,
+  "eventTypes": [
+    "LANGUAGE_DETECTED",
+    "LANGUAGE_CONFIDENCE_SCORED",
+    "DOMAIN_ROUTE_SELECTED",
+    "TONE_ADAPTATION_APPLIED",
+    "LANGUAGE_LAYER_ACTIVE",
+    "SAFE_HANDOFF_AVAILABLE",
+    "MARION_FINAL_AUTHORIZED",
+    "FALLBACK_USED"
+  ],
+  "requiredEventFields": [
+    "type",
+    "requestId",
+    "timestamp",
+    "authority",
+    "visibleToUser",
+    "language",
+    "targetLanguage",
+    "domain",
+    "handoffStatus"
+  ],
+  "allowedLanguages": ["en", "es", "fr"],
+  "allowedDomains": [
+    "general",
+    "ai",
+    "psychology",
+    "english",
+    "finance",
+    "law",
+    "cyber",
+    "business"
+  ],
+  "confidenceBands": ["high", "medium", "low", "unknown"],
+  "security": {
+    "redactTokens": true,
+    "redactSecrets": true,
+    "redactStackTraces": true,
+    "allowRawDebugPayload": false
+  }
+}
