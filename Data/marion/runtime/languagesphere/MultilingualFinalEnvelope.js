@@ -110,6 +110,8 @@ function sanitizeString(value) {
 
 function buildMultilingualFinalEnvelope(payload = {}, options = {}) {
   try {
+    payload = payload && typeof payload === "object" ? payload : {};
+    options = options && typeof options === "object" ? options : {};
     const config = {
       ...DEFAULT_CONFIG,
       ...(options.config || payload.config || {}),
@@ -129,7 +131,9 @@ function buildMultilingualFinalEnvelope(payload = {}, options = {}) {
           payload.responseLanguage,
         config.defaultLanguage
       ),
-      confidence: normalizeConfidence(payload.confidence || payload.languageConfidence),
+      confidence: normalizeConfidence(
+        typeof payload.confidence === "number" ? payload.confidence : payload.languageConfidence
+      ),
       confidenceBand: normalizeConfidenceBand(payload.confidenceBand),
       activeDomain: normalizeDomain(
         payload.activeDomain ||
@@ -155,7 +159,9 @@ function buildMultilingualFinalEnvelope(payload = {}, options = {}) {
         valid: true,
         authority: "marion",
         owner: "marionFinalEnvelope",
+        finalAuthority: "marion",
         final,
+        finalAnswer: final,
         languageSphere,
       },
     };
@@ -190,12 +196,14 @@ function buildMultilingualFinalEnvelope(payload = {}, options = {}) {
 }
 
 function validateMultilingualFinalEnvelope(envelope = {}) {
+  envelope = envelope && typeof envelope === "object" ? envelope : {};
   const serialized = safeStringify(envelope);
 
   const hasMarionAuthority =
     envelope.authority === "marion" ||
     envelope.finalAuthority === "marion" ||
-    envelope?.finalEnvelope?.authority === "marion";
+    envelope?.finalEnvelope?.authority === "marion" ||
+    envelope?.finalEnvelope?.owner === "marionFinalEnvelope";
 
   const hasFinal =
     Boolean(envelope.final || envelope.finalAnswer || envelope?.finalEnvelope?.final);
