@@ -136,6 +136,8 @@ function stripUnsafe(value) {
 }
 
 function makeEvent(type, payload = {}, options = {}) {
+  payload = payload && typeof payload === "object" ? payload : {};
+  options = options && typeof options === "object" ? options : {};
   const config = {
     ...DEFAULT_CONFIG,
     ...(options.config || payload.config || {}),
@@ -148,6 +150,7 @@ function makeEvent(type, payload = {}, options = {}) {
     requestId: normalizeString(safePayload.requestId, "languagesphere-event"),
     timestamp: new Date().toISOString(),
     authority: "marion",
+    finalAuthority: "marion",
     visibleToUser:
       typeof safePayload.visibleToUser === "boolean"
         ? safePayload.visibleToUser
@@ -185,6 +188,8 @@ function makeEvent(type, payload = {}, options = {}) {
 
 function emitContextPassportEvents(payload = {}, options = {}) {
   try {
+    payload = payload && typeof payload === "object" ? payload : {};
+    options = options && typeof options === "object" ? options : {};
     const config = {
       ...DEFAULT_CONFIG,
       ...(options.config || payload.config || {}),
