@@ -1,0 +1,87 @@
+{
+  "defaultDomain": "general",
+  "supportedLanguages": ["en", "es", "fr"],
+  "supportedDomains": [
+    "general",
+    "ai",
+    "psychology",
+    "english",
+    "finance",
+    "law",
+    "cyber",
+    "business"
+  ],
+  "terminologySensitiveDomains": [
+    "ai",
+    "psychology",
+    "finance",
+    "law",
+    "cyber",
+    "business"
+  ],
+  "domainAliases": {
+    "artificial_intelligence": "ai",
+    "legal": "law",
+    "cybersecurity": "cyber",
+    "english_language": "english"
+  },
+  "routeRules": {
+    "ai": {
+      "preserveTerms": [
+        "Marion",
+        "Nyx",
+        "LanguageSphere",
+        "final envelope",
+        "context passport",
+        "domain router",
+        "authority gate"
+      ]
+    },
+    "psychology": {
+      "preserveTerms": [
+        "cognitive",
+        "affect",
+        "emotional calibration",
+        "behavioral pattern"
+      ]
+    },
+    "finance": {
+      "preserveTerms": [
+        "cash flow",
+        "valuation",
+        "market risk",
+        "confidence score"
+      ]
+    },
+    "law": {
+      "preserveTerms": [
+        "contract",
+        "liability",
+        "compliance",
+        "terms"
+      ]
+    },
+    "cyber": {
+      "preserveTerms": [
+        "token",
+        "authentication",
+        "authorization",
+        "exploit",
+        "firewall"
+      ]
+    },
+    "business": {
+      "preserveTerms": [
+        "licensing",
+        "pilot",
+        "commercial readiness",
+        "customer segment"
+      ]
+    }
+  },
+  "authority": {
+    "owner": "marion",
+    "domainRouterMayAdvise": true,
+    "domainRouterMayOverrideFinal": false
+  }
+}
