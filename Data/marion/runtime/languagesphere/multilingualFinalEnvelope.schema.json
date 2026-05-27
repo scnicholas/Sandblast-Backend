@@ -1,0 +1,33 @@
+{
+  "name": "LanguageSphere Multilingual Final Envelope Schema",
+  "version": "1.0.0",
+  "authority": "marion",
+  "requiredTopLevelFields": [
+    "authority",
+    "finalAuthority",
+    "final",
+    "finalAnswer",
+    "languageSphere",
+    "finalEnvelope"
+  ],
+  "languageSphereFields": [
+    "sourceLanguage",
+    "targetLanguage",
+    "confidence",
+    "confidenceBand",
+    "activeDomain",
+    "routeFamily",
+    "toneMode",
+    "fallbackUsed",
+    "handoffStatus",
+    "visibleToUser"
+  ],
+  "rules": {
+    "authorityMustBeMarion": true,
+    "languageLayerMayOverrideFinal": false,
+    "finalAnswerRequired": true,
+    "duplicateFinalSuppressionRequired": true,
+    "debugLeakAllowed": false,
+    "visibleToUserMetadataAllowed": true
+  }
+}
