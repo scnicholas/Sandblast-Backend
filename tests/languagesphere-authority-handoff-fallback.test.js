@@ -12,6 +12,7 @@
  * - Handles nested finalEnvelope/languageSphere/contextPassport shapes.
  * - Avoids false failures when MarionBridge returns detailed diagnostic metadata.
  * - Preserves Marion as final authority.
+ * - Allows Marion-owned runtime aliases such as marionFinalEnvelope.
  */
 
 const path = require("path");
@@ -152,18 +153,41 @@ function collectAuthorityOwners(value, owners = [], seen = new WeakSet()) {
   return owners;
 }
 
+function normalizeAuthorityOwner(owner) {
+  return String(owner || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_:-]+/g, "")
+    .replace(/\.+/g, ".");
+}
+
 function isMarionAuthorityOwner(owner) {
-  const value = String(owner || "").trim().toLowerCase();
+  const raw = String(owner || "").trim().toLowerCase();
+  const compact = normalizeAuthorityOwner(owner);
 
   return (
-    value === "marion" ||
-    value === "final-authority" ||
-    value === "marion.final" ||
-    value === "marion_final" ||
-    value === "marion-final" ||
-    value.startsWith("marion.") ||
-    value.startsWith("marion:") ||
-    value.startsWith("compose.final-user-facing-reply")
+    raw === "marion" ||
+    raw === "final-authority" ||
+    raw === "final_authority" ||
+    raw === "marion.final" ||
+    raw === "marion.final.envelope" ||
+    raw === "marion-final-envelope" ||
+    raw === "marion_final_envelope" ||
+    compact === "marion" ||
+    compact === "finalauthority" ||
+    compact === "marion.final" ||
+    compact === "marion.final.envelope" ||
+    compact === "marionfinal" ||
+    compact === "marionfinalenvelope" ||
+    compact === "marionauthority" ||
+    compact === "marionfinalauthority" ||
+    raw.startsWith("marion.") ||
+    raw.startsWith("marion:") ||
+    raw.startsWith("marion_") ||
+    raw.startsWith("marion-") ||
+    raw.startsWith("compose.final-user-facing-reply") ||
+    compact.startsWith("marion") ||
+    compact.startsWith("compose.finaluserfacingreply")
   );
 }
 
