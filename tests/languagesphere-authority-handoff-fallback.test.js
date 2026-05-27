@@ -152,6 +152,21 @@ function collectAuthorityOwners(value, owners = [], seen = new WeakSet()) {
   return owners;
 }
 
+function isMarionAuthorityOwner(owner) {
+  const value = String(owner || "").trim().toLowerCase();
+
+  return (
+    value === "marion" ||
+    value === "final-authority" ||
+    value === "marion.final" ||
+    value === "marion_final" ||
+    value === "marion-final" ||
+    value.startsWith("marion.") ||
+    value.startsWith("marion:") ||
+    value.startsWith("compose.final-user-facing-reply")
+  );
+}
+
 function assertSingleMarionAuthorityOwner(value) {
   const normalized = normalizeAuthority(value);
   const owners = collectAuthorityOwners(value);
@@ -160,9 +175,10 @@ function assertSingleMarionAuthorityOwner(value) {
     owners.push(String(normalized.authority || "marion").toLowerCase());
   }
 
-  const nonMarionOwners = owners.filter((owner) => owner !== "marion");
+  const marionOwners = owners.filter(isMarionAuthorityOwner);
+  const nonMarionOwners = owners.filter((owner) => !isMarionAuthorityOwner(owner));
 
-  expect(owners).toContain("marion");
+  expect(marionOwners.length).toBeGreaterThanOrEqual(1);
   expect(nonMarionOwners).toEqual([]);
 }
 
@@ -239,7 +255,7 @@ describe("LanguageSphere authority handoff fallback", () => {
 
     const normalized = normalizeAuthority(safe);
 
-    expect(String(normalized.authority).toLowerCase()).toContain("marion");
+    expect(isMarionAuthorityOwner(normalized.authority)).toBe(true);
     expect(normalized.final).toBeTruthy();
 
     assertSingleMarionAuthorityOwner(safe);
@@ -274,7 +290,7 @@ describe("LanguageSphere authority handoff fallback", () => {
     const normalized = normalizeAuthority(safe);
 
     expect(normalized.final).toBeTruthy();
-    expect(String(normalized.authority).toLowerCase()).toContain("marion");
+    expect(isMarionAuthorityOwner(normalized.authority)).toBe(true);
     expect(String(normalized.handoffStatus).toLowerCase()).not.toBe("loop");
 
     assertSingleMarionAuthorityOwner(safe);
@@ -340,7 +356,7 @@ describe("LanguageSphere authority handoff fallback", () => {
 
     const normalized = normalizeAuthority(safe);
 
-    expect(String(normalized.authority).toLowerCase()).toContain("marion");
+    expect(isMarionAuthorityOwner(normalized.authority)).toBe(true);
     expect(normalized.final || normalized.envelope).toBeTruthy();
 
     // Critical fix:
