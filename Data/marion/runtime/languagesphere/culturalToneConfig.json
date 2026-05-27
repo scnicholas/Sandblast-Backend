@@ -1,0 +1,27 @@
+{
+  "defaultTone": "clear_direct",
+  "supportedLanguages": ["en", "es", "fr"],
+  "supportedToneModes": [
+    "clear_direct",
+    "warm_direct",
+    "formal_polite",
+    "calm_supportive",
+    "commercial_precise"
+  ],
+  "languageToneDefaults": {
+    "en": "clear_direct",
+    "es": "warm_direct",
+    "fr": "formal_polite"
+  },
+  "preserve": {
+    "marionFinalVoice": true,
+    "userIntent": true,
+    "domainTerminology": true,
+    "emotionalTemperature": true
+  },
+  "authority": {
+    "owner": "marion",
+    "toneLayerMayAdvise": true,
+    "toneLayerMayOverrideFinal": false
+  }
+}
