@@ -23,7 +23,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 const DEFAULT_MEMORY_PATH = path.resolve(
   process.cwd(),
@@ -321,20 +321,25 @@ class TranslationMemoryStore {
       ? path.resolve(options.filePath)
       : DEFAULT_MEMORY_PATH;
 
-    this.maxEntries = Number.isFinite(options.maxEntries)
-      ? Math.max(0, options.maxEntries)
+    const maxEntries = Number(options.maxEntries);
+    const maxTextCharacters = Number(options.maxTextCharacters);
+    const ttlMs = Number(options.ttlMs);
+    const minConfidence = Number(options.minConfidence);
+
+    this.maxEntries = Number.isFinite(maxEntries)
+      ? Math.max(0, Math.floor(maxEntries))
       : DEFAULT_MAX_ENTRIES;
 
-    this.maxTextCharacters = Number.isFinite(options.maxTextCharacters)
-      ? options.maxTextCharacters
+    this.maxTextCharacters = Number.isFinite(maxTextCharacters)
+      ? Math.max(1, Math.floor(maxTextCharacters))
       : DEFAULT_MAX_TEXT_CHARACTERS;
 
-    this.ttlMs = Number.isFinite(options.ttlMs)
-      ? options.ttlMs
+    this.ttlMs = Number.isFinite(ttlMs)
+      ? Math.max(0, Math.floor(ttlMs))
       : DEFAULT_TTL_MS;
 
-    this.minConfidence = Number.isFinite(options.minConfidence)
-      ? options.minConfidence
+    this.minConfidence = Number.isFinite(minConfidence)
+      ? Math.max(0, Math.min(1, minConfidence))
       : DEFAULT_MIN_CONFIDENCE;
 
     this.autoSaveOnHit = options.autoSaveOnHit !== false;
