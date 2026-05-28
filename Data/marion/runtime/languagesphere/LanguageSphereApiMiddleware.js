@@ -254,6 +254,52 @@ function createLanguageContext(envelope = {}, fallbackDecision = {}, targetLangu
   };
 }
 
+
+function createSafeLanguageSphereEnvelope(seed = {}) {
+  const safeSeed = sanitizeObject(seed);
+  const safeText = sanitizeObject(safeSeed.text);
+  const safeLanguage = sanitizeObject(safeSeed.language);
+  const safeFallback = sanitizeObject(safeSeed.fallbackDecision);
+  const reason =
+    sanitizeString(safeSeed.reason) ||
+    sanitizeString(safeFallback.reason) ||
+    'languagesphere-safe-metadata-envelope';
+
+  const originalText = sanitizeString(safeSeed.originalText);
+  const selectedText = sanitizeString(safeFallback.selectedText, originalText);
+  const targetLanguage = sanitizeString(safeSeed.targetLanguage, 'en');
+
+  return {
+    ok: safeSeed.ok === true,
+    applied: safeSeed.applied === true,
+    failedSafe: safeSeed.failedSafe !== false,
+    blocked: Boolean(safeFallback.blocked || safeSeed.blocked),
+    reason,
+    text: {
+      originalText,
+      normalizedText: sanitizeString(safeText.normalizedText, selectedText),
+      translatedText: sanitizeString(safeText.translatedText),
+      selectedText
+    },
+    language: {
+      sourceLanguage: sanitizeString(safeLanguage.sourceLanguage, 'unknown'),
+      targetLanguage: sanitizeString(safeLanguage.targetLanguage, targetLanguage),
+      confidence: typeof safeLanguage.confidence === 'number' ? safeLanguage.confidence : 0,
+      translationRequired: Boolean(safeLanguage.translationRequired),
+      translationApplied: Boolean(safeLanguage.translationApplied),
+      fallbackApplied: Boolean(safeFallback.fallbackApplied || safeSeed.failedSafe)
+    },
+    fallback: safeFallback,
+    authority: createAuthorityLock(),
+    metadata: {
+      generatedBy: 'LanguageSphereApiMiddleware',
+      metadataOnly: true,
+      finalAnswerGenerated: false,
+      marionAuthorityRequired: true
+    }
+  };
+}
+
 function createPreparedMarionPayload(originalPayload = {}, envelope = {}, fallbackDecision = {}, telemetry = {}) {
   const safeOriginal = sanitizeObject(originalPayload);
   const metadata = extractRequestMetadata(safeOriginal);
@@ -349,7 +395,14 @@ function createBlockedMarionPayload(originalPayload = {}, reason = 'blocked-by-l
       metadata.targetLanguage
     ),
 
-    languageSphere: safeExtra.envelope || null,
+    languageSphere: safeExtra.envelope || createSafeLanguageSphereEnvelope({
+      originalText,
+      targetLanguage: metadata.targetLanguage,
+      fallbackDecision,
+      blocked: true,
+      failedSafe: true,
+      reason
+    }),
     languageSphereFallback: fallbackDecision,
     languageSphereTelemetry: telemetry,
     languageSphereTelemetrySummary: summarizeTelemetry(telemetry),
@@ -562,6 +615,14 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
         },
         fallbackDecision.reason,
         {
+          envelope: createSafeLanguageSphereEnvelope({
+            originalText,
+            targetLanguage: metadata.targetLanguage,
+            fallbackDecision,
+            blocked: true,
+            failedSafe: true,
+            reason: fallbackDecision.reason
+          }),
           fallbackDecision,
           telemetry,
           warnings: fallbackDecision.warnings,
@@ -581,10 +642,20 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
       });
     }
 
+    const safeFallbackEnvelope = createSafeLanguageSphereEnvelope({
+      originalText,
+      targetLanguage: metadata.targetLanguage,
+      fallbackDecision,
+      blocked: false,
+      failedSafe: true,
+      reason: 'languagesphere-api-chat-runtime-error-fallback'
+    });
+
     return createMiddlewareResult({
       ok: true,
       blocked: false,
       reason: 'languagesphere-api-chat-runtime-error-fallback',
+      languageSphere: safeFallbackEnvelope,
       marionPayload: {
         ...safePayload,
         text: fallbackDecision.selectedText,
@@ -599,6 +670,7 @@ async function prepareLanguageSphereForApiChat(payload = {}, options = {}) {
         languageSphereApplied: false,
         languageSphereFailedSafe: true,
         languageSphereBlocked: false,
+        languageSphere: safeFallbackEnvelope,
         languageContext: createLanguageContext({}, fallbackDecision, metadata.targetLanguage),
         languageSphereFallback: fallbackDecision,
         languageSphereTelemetry: telemetry,
@@ -647,6 +719,7 @@ module.exports = {
   normalizeTargetLanguage,
   createAuthorityLock,
   createLanguageContext,
+  createSafeLanguageSphereEnvelope,
   assertMiddlewareAuthority,
   isPreparedForMarion
 };
