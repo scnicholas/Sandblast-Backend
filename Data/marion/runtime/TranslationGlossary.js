@@ -14,7 +14,7 @@
  * - No external dependencies.
  */
 
-const VERSION = "0.2.2";
+const VERSION = "0.2.3";
 
 const DEFAULT_PROTECTED_TERMS = Object.freeze([
   "Sandblast",
@@ -35,6 +35,13 @@ const DEFAULT_PROTECTED_TERMS = Object.freeze([
   "Concierge",
   "Universal Translator",
   "LanguageSphere",
+  "Marion Bridge",
+  "MarionBridge",
+  "Final Authority",
+  "authority gate",
+  "State Spine",
+  "StateSpine",
+  "Context Passport",
   "Marion/Nyx",
   "Nyx/Marion",
   "News Canada",
@@ -101,9 +108,12 @@ const DOMAIN_TERMS = Object.freeze({
     "retrieval",
     "classifier",
     "final envelope",
+    "Final Authority",
     "authority gate",
     "loop hardlock",
+    "State Spine",
     "StateSpine",
+    "Marion Bridge",
     "MarionBridge",
     "ComposeMarionResponse"
   ]),
