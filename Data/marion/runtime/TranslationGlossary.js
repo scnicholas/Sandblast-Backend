@@ -14,7 +14,7 @@
  * - No external dependencies.
  */
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 
 const DEFAULT_PROTECTED_TERMS = Object.freeze([
   "Sandblast",
@@ -255,7 +255,9 @@ function getProtectedTerms(options = {}) {
   terms.push(...normalizeTermsInput(options.extraTerms));
   terms.push(...normalizeTermsInput(options.protectedTerms));
 
-  return dedupeTerms(terms);
+  const deduped = dedupeTerms(terms);
+  const maxTerms = Number(options.maxProtectedTerms || options.maxProtectedTermsPerRequest || 0);
+  return Number.isFinite(maxTerms) && maxTerms > 0 ? deduped.slice(0, maxTerms) : deduped;
 }
 
 function makeToken(index) {
