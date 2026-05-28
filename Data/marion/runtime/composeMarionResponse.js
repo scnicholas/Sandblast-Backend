@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.35.2 PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.35.2 PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -74,7 +74,15 @@ const BLOCKED_LOOP_PATTERNS = Object.freeze([
   /\bblocking generic placeholder language\b/i,
   /\bkeeping the reply bound to the routed intent\b/i,
   /\bfinal envelope,? and session-state update\b/i,
-  /\brouteKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=\b/i
+  /\brouteKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=\b/i,
+  /\bsame prompt,?\s*new requirement\b/i,
+  /\banswer with one new fact,?\s*one action,?\s*or one test\b/i,
+  /\bif voice and text return different answers\b/i,
+  /\bpreserve intent and regenerate\b/i,
+  /\bsame normalized text\b/i,
+  /\bvoice and text return different answers,?\s*preserve intent\b/i,
+  /\bregenerate from the same normalized text\b/i,
+  /\bnew requirement:\s*answer with one new fact\b/i
 ]);
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
@@ -996,6 +1004,24 @@ function emotionNyxHint(intent,emotion){
 }
 function isBlockedLoopReply(value){const text=lower(value).replace(/[.!?]+$/g,"");if(!text)return true;return BLOCKED_LOOP_PATTERNS.some(rx=>rx.test(text));}
 
+function isPublicControlPolicyLeak(value){
+  const text=lower(value).replace(/[.!?]+$/g,"").trim();
+  if(!text)return false;
+  return /\bsame prompt,?\s*new requirement\b/i.test(text)||
+    /\banswer with one new fact,?\s*one action,?\s*or one test\b/i.test(text)||
+    /\bif voice and text return different answers\b/i.test(text)||
+    /\bpreserve intent and regenerate\b/i.test(text)||
+    /\bsame normalized text\b/i.test(text)||
+    /\bregenerate from the same normalized text\b/i.test(text);
+}
+function buildLingoLinkPublicAnswer(text="",input={}){
+  const source=[text,safeStr(safeObj(input).text),safeStr(safeObj(input).userText),safeStr(safeObj(input).message)].join(" ");
+  if(/\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(source)&&/\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language)\b/i.test(source)){
+    return "LingoLink helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
+  }
+  return "";
+}
+
 function isGreetingOnly(text){
   const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
   return /^(hi|hello|hey|yo|hiya|morning|afternoon|evening|good morning|good afternoon|good evening)(\s+(nyx|nix|vera))?$/.test(t);
@@ -1342,14 +1368,16 @@ function stripStaleProgressionSurface(value="",intent="",text=""){
     .replace(/\s*instead of generic\.?/gi,"");
   return out.replace(/\s+/g," ").replace(/\s+([.,;:])/g,"$1").trim();
 }
-function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply))return"";return reply;}
+function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply)||isPublicControlPolicyLeak(reply))return"";return reply;}
 function finalSurfaceReply(value,intent,text,input={}){
+  const lingoLinkAnswer=buildLingoLinkPublicAnswer(text,input);
   const fiveTurn=fiveTurnContractReply(intent,text,input,{});
-  if(fiveTurn)return fiveTurn;
+  if(fiveTurn&&!isPublicControlPolicyLeak(fiveTurn))return fiveTurn;
   let reply=applyReplyContractMinimalismGovernor(value,intent,text,input);
   reply=stripStaleProgressionSurface(reply,intent,text);
   reply=stripPublicReplyScaffold(reply);
-  if(reply)return reply;
+  if(reply&&!isPublicControlPolicyLeak(reply))return reply;
+  if(lingoLinkAnswer)return lingoLinkAnswer;
   return buildFinalLoopRecoveryReply(intent,text,input);
 }
 
