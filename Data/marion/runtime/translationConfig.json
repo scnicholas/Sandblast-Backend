@@ -1,5 +1,5 @@
 {
-  "version": "0.3.2",
+  "version": "0.3.3",
   "enabled": true,
   "defaultSourceLanguage": "auto",
   "defaultTargetLanguage": "en",
@@ -203,7 +203,16 @@
     "Finance",
     "Law",
     "Psychology",
-    "English"
+    "English",
+    "Marion Bridge",
+    "MarionBridge",
+    "Final Authority",
+    "State Spine",
+    "StateSpine",
+    "Context Passport",
+    "authority gate",
+    "final envelope",
+    "loop hardlock"
   ],
   "regression": {
     "requiredRuntimeFiles": [
