@@ -30,10 +30,125 @@ const {
   normalizeWhitespace
 } = require('./LanguageSphereFallbackPolicy');
 
-const {
-  createLanguageSphereTelemetry,
-  summarizeTelemetry
-} = require('./LanguageSphereTelemetry');
+const LanguageSphereTelemetry = (() => {
+  try {
+    return require('./LanguageSphereTelemetry') || {};
+  } catch (_) {
+    return {};
+  }
+})();
+
+function createFallbackLanguageSphereTelemetry(seed = {}) {
+  const safeSeed = sanitizeObject(seed);
+  const requestPayload = sanitizeObject(safeSeed.requestPayload);
+  const envelope = sanitizeObject(safeSeed.envelope);
+  const fallbackDecision = sanitizeObject(safeSeed.fallbackDecision);
+
+  const telemetry = {
+    ok: true,
+    authority: 'marion',
+    telemetryEnabled: true,
+    source: 'languagesphere-api-middleware',
+    requestId:
+      sanitizeString(requestPayload.requestId) ||
+      sanitizeString(requestPayload.reqId) ||
+      createMiddlewareTraceId('ls_tel'),
+    sessionId: sanitizeString(requestPayload.sessionId),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    events: [],
+    warnings: sanitizeArray(fallbackDecision.warnings),
+    errors: sanitizeArray(fallbackDecision.errors),
+    signals: {
+      fallback_used: Boolean(fallbackDecision.fallbackApplied),
+      blocked: Boolean(fallbackDecision.blocked),
+      final_authority: 'marion',
+      source_language:
+        sanitizeString(envelope.language && envelope.language.sourceLanguage) ||
+        sanitizeString(requestPayload.sourceLanguage) ||
+        'unknown',
+      target_language:
+        sanitizeString(envelope.language && envelope.language.targetLanguage) ||
+        sanitizeString(requestPayload.targetLanguage) ||
+        'en'
+    },
+
+    record(event, payload = {}) {
+      this.events.push({
+        event: sanitizeString(event, 'event'),
+        payload: sanitizeObject(payload),
+        at: new Date().toISOString()
+      });
+      this.updatedAt = new Date().toISOString();
+      return this;
+    },
+
+    warn(payload = {}) {
+      this.warnings.push(sanitizeObject(payload));
+      this.updatedAt = new Date().toISOString();
+      return this;
+    },
+
+    error(payload = {}) {
+      this.errors.push(sanitizeObject(payload));
+      this.updatedAt = new Date().toISOString();
+      return this;
+    },
+
+    toJSON() {
+      return {
+        ok: this.ok,
+        authority: this.authority,
+        telemetryEnabled: this.telemetryEnabled,
+        source: this.source,
+        requestId: this.requestId,
+        sessionId: this.sessionId,
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
+        events: sanitizeArray(this.events),
+        warnings: sanitizeArray(this.warnings),
+        errors: sanitizeArray(this.errors),
+        signals: sanitizeObject(this.signals)
+      };
+    }
+  };
+
+  telemetry.record('languagesphere-api-middleware-prepared', {
+    blocked: Boolean(fallbackDecision.blocked),
+    fallbackApplied: Boolean(fallbackDecision.fallbackApplied)
+  });
+
+  return telemetry;
+}
+
+function summarizeFallbackTelemetry(telemetry = {}) {
+  const safeTelemetry = sanitizeObject(
+    typeof telemetry.toJSON === 'function' ? telemetry.toJSON() : telemetry
+  );
+
+  return {
+    ok: safeTelemetry.ok !== false,
+    authority: 'marion',
+    telemetryEnabled: safeTelemetry.telemetryEnabled !== false,
+    requestId: sanitizeString(safeTelemetry.requestId),
+    events: sanitizeArray(safeTelemetry.events).length,
+    warnings: sanitizeArray(safeTelemetry.warnings).length,
+    errors: sanitizeArray(safeTelemetry.errors).length,
+    fallbackUsed: Boolean(safeTelemetry.signals && safeTelemetry.signals.fallback_used),
+    blocked: Boolean(safeTelemetry.signals && safeTelemetry.signals.blocked),
+    finalAuthority: 'marion'
+  };
+}
+
+const createLanguageSphereTelemetry =
+  typeof LanguageSphereTelemetry.createLanguageSphereTelemetry === 'function'
+    ? LanguageSphereTelemetry.createLanguageSphereTelemetry
+    : createFallbackLanguageSphereTelemetry;
+
+const summarizeTelemetry =
+  typeof LanguageSphereTelemetry.summarizeTelemetry === 'function'
+    ? LanguageSphereTelemetry.summarizeTelemetry
+    : summarizeFallbackTelemetry;
 
 function sanitizeString(value, fallback = '') {
   return typeof value === 'string' ? value : fallback;
