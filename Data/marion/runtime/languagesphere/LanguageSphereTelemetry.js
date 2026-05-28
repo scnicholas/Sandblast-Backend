@@ -46,6 +46,14 @@ function normalizeString(value, fallback = null) {
 }
 
 function sanitizeTelemetry(value) {
+  if (typeof value === "string") {
+    if (/bearer\s+|stack trace|typeerror|referenceerror|syntaxerror|secret|password|authorization|apikey|api_key/i.test(value)) {
+      return "[redacted]";
+    }
+
+    return value;
+  }
+
   if (!value || typeof value !== "object") return value;
 
   const output = Array.isArray(value) ? [] : {};
@@ -177,6 +185,198 @@ function record(payload = {}, options = {}) {
   return buildTelemetryRecord(payload, options);
 }
 
+
+function normalizeNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function createTelemetryEvent(event, payload = {}) {
+  return {
+    event: normalizeString(event, "event"),
+    payload: sanitizeTelemetry(payload && typeof payload === "object" ? payload : {}),
+    at: new Date().toISOString(),
+  };
+}
+
+function createLanguageSphereTelemetry(seed = {}, options = {}) {
+  try {
+    const safeSeed = seed && typeof seed === "object" ? seed : {};
+    const requestPayload =
+      safeSeed.requestPayload && typeof safeSeed.requestPayload === "object"
+        ? safeSeed.requestPayload
+        : {};
+    const envelope =
+      safeSeed.envelope && typeof safeSeed.envelope === "object" ? safeSeed.envelope : {};
+    const fallbackDecision =
+      safeSeed.fallbackDecision && typeof safeSeed.fallbackDecision === "object"
+        ? safeSeed.fallbackDecision
+        : {};
+
+    const language = envelope.language && typeof envelope.language === "object"
+      ? envelope.language
+      : {};
+
+    const recordPayload = {
+      requestId: requestPayload.requestId || requestPayload.reqId || "languagesphere-api-chat",
+      sessionId: requestPayload.sessionId || requestPayload.session_id || null,
+      sourceLanguage:
+        language.sourceLanguage ||
+        requestPayload.sourceLanguage ||
+        requestPayload.detectedLanguage ||
+        "unknown",
+      targetLanguage:
+        language.targetLanguage ||
+        requestPayload.targetLanguage ||
+        requestPayload.targetLang ||
+        "en",
+      fallbackUsed: Boolean(fallbackDecision.fallbackApplied),
+      confidenceBand:
+        typeof language.confidence === "number"
+          ? language.confidence >= 0.75
+            ? "high"
+            : language.confidence >= 0.55
+              ? "medium"
+              : "low"
+          : "unknown",
+      activeDomain:
+        requestPayload.domain ||
+        requestPayload.activeDomain ||
+        requestPayload.routeFamily ||
+        "general",
+      routeFamily: requestPayload.routeFamily || null,
+      metadata: {
+        blocked: Boolean(fallbackDecision.blocked),
+        reason: fallbackDecision.reason || null,
+      },
+    };
+
+    const base = buildTelemetryRecord(recordPayload, options);
+    const telemetry = {
+      ...base,
+      source: "languagesphere-api-middleware",
+      sessionId: normalizeString(recordPayload.sessionId, null),
+      createdAt: base.timestamp,
+      updatedAt: base.timestamp,
+      events: [
+        createTelemetryEvent("languagesphere-api-chat-telemetry-created", {
+          blocked: Boolean(fallbackDecision.blocked),
+          fallbackApplied: Boolean(fallbackDecision.fallbackApplied),
+        }),
+      ],
+      warnings: normalizeArray(fallbackDecision.warnings).map((item) => sanitizeTelemetry(item)),
+      errors: normalizeArray(fallbackDecision.errors).map((item) => sanitizeTelemetry(item)),
+
+      record(event, payload = {}) {
+        this.events.push(createTelemetryEvent(event, payload));
+        this.updatedAt = new Date().toISOString();
+        return this;
+      },
+
+      warn(payload = {}) {
+        this.warnings.push(sanitizeTelemetry(payload));
+        this.updatedAt = new Date().toISOString();
+        return this;
+      },
+
+      error(payload = {}) {
+        this.errors.push(sanitizeTelemetry(payload));
+        this.updatedAt = new Date().toISOString();
+        return this;
+      },
+
+      toJSON() {
+        return {
+          ok: this.ok,
+          authority: "marion",
+          telemetryEnabled: this.telemetryEnabled,
+          requestId: this.requestId,
+          sessionId: this.sessionId,
+          timestamp: this.timestamp,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt,
+          metrics: this.metrics,
+          signals: this.signals,
+          safeMetadata: sanitizeTelemetry(this.safeMetadata || {}),
+          events: normalizeArray(this.events).map((item) => sanitizeTelemetry(item)),
+          warnings: normalizeArray(this.warnings).map((item) => sanitizeTelemetry(item)),
+          errors: normalizeArray(this.errors).map((item) => sanitizeTelemetry(item)),
+          source: this.source,
+        };
+      },
+    };
+
+    return telemetry;
+  } catch (_) {
+    const fallback = buildTelemetryRecord(
+      {
+        requestId: "languagesphere-telemetry-fallback",
+        fallbackUsed: true,
+        confidenceBand: "low",
+        metadata: {},
+      },
+      options
+    );
+
+    return {
+      ...fallback,
+      source: "languagesphere-api-middleware",
+      createdAt: fallback.timestamp,
+      updatedAt: fallback.timestamp,
+      events: [],
+      warnings: ["telemetry-fallback-created"],
+      errors: [],
+      record() {
+        return this;
+      },
+      warn() {
+        return this;
+      },
+      error() {
+        return this;
+      },
+      toJSON() {
+        return {
+          ...fallback,
+          source: this.source,
+          events: [],
+          warnings: this.warnings,
+          errors: [],
+        };
+      },
+    };
+  }
+}
+
+function summarizeTelemetry(telemetry = {}) {
+  const source =
+    telemetry && typeof telemetry.toJSON === "function"
+      ? telemetry.toJSON()
+      : telemetry && typeof telemetry === "object"
+        ? telemetry
+        : {};
+
+  return {
+    ok: source.ok !== false,
+    authority: "marion",
+    telemetryEnabled: source.telemetryEnabled !== false,
+    requestId: normalizeString(source.requestId, null),
+    source: normalizeString(source.source, "languagesphere-api-middleware"),
+    events: normalizeArray(source.events).length,
+    warnings: normalizeArray(source.warnings).length,
+    errors: normalizeArray(source.errors).length,
+    fallbackUsed: Boolean(source.signals && source.signals.fallback_used),
+    blocked: Boolean(source.safeMetadata && source.safeMetadata.blocked),
+    finalAuthority: "marion",
+    noDebugLeak: validateTelemetryRecord(source).noDebugLeak,
+  };
+}
+
+
 module.exports = {
   DEFAULT_CONFIG,
   clampMs,
@@ -184,6 +384,8 @@ module.exports = {
   normalizeString,
   sanitizeTelemetry,
   buildTelemetryRecord,
+  createLanguageSphereTelemetry,
+  summarizeTelemetry,
   validateTelemetryRecord,
   process,
   record,
