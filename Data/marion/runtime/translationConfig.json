@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.3.2",
   "enabled": true,
   "defaultSourceLanguage": "auto",
   "defaultTargetLanguage": "en",
@@ -79,7 +79,8 @@
     "returnOriginalOnDetectionFailure": true,
     "blockUnsupportedLanguages": true,
     "cloneEnvelopeBeforeMutation": true,
-    "neverTranslateAuthorityFields": true
+    "neverTranslateAuthorityFields": true,
+    "neverExposeInternalAuthorityToUser": true
   },
   "routing": {
     "inputNormalizationTarget": "en",
