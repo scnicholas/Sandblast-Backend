@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.35.1 LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.35.2 PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -78,6 +78,34 @@ const BLOCKED_LOOP_PATTERNS = Object.freeze([
 ]);
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+
+function stripPublicReplyScaffold(value){
+  let t=safeStr(value);
+  if(!t)return "";
+  t=t.replace(/\s+/g," ").trim();
+  for(let i=0;i<10;i+=1){
+    const next=t
+      .replace(/^(?:that makes sense|polished version|i[’']?ve got you|let[’']?s keep it clean|clean version|here[’']?s the clean version)\s*[:\-–—]\s*/i,"")
+      .replace(/^(?:bonjour|hola|hello|hi|hey)\s+nyx\s*,?\s*(?:please\s*)?/i,"");
+    if(next===t)break;
+    t=next.trim();
+  }
+  const chunks=t.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+  if(chunks&&chunks.length>1){
+    const seen=new Set(), out=[];
+    for(const c of chunks){
+      const s=safeStr(c);
+      const k=s.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+      if(!k)continue;
+      if(seen.has(k))continue;
+      seen.add(k);
+      out.push(s);
+    }
+    t=out.join(" ").trim();
+  }
+  return t.replace(/\s+([,.!?;:])/g,"$1").replace(/\s{2,}/g," ").trim();
+}
+
 
 function buildFinalRuntimeTelemetry({source="composeMarionResponse",intent="",domain="",knowledgeDomain="",input={},routed={},reply="",turnId="",finalEnvelopeTrusted=true,canEmit=true,error=""}={}){
   const i=safeObj(input), r=safeObj(routed), routing=safeObj(r.routing), vp=safeObj(i.voiceTextParity);
@@ -1310,12 +1338,13 @@ function stripStaleProgressionSurface(value="",intent="",text=""){
     .replace(/\s*instead of generic\.?/gi,"");
   return out.replace(/\s+/g," ").replace(/\s+([.,;:])/g,"$1").trim();
 }
-function sanitizeUserFacingReply(value,intent,text,input={}){let reply=safeStr(value);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply))reply=stripContractMachinery(reply);reply=stripStaleProgressionSurface(reply,intent,text);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isInternalContractLeak(reply)||isBlockedLoopReply(reply))return"";return reply;}
+function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply))reply=stripContractMachinery(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isInternalContractLeak(reply)||isBlockedLoopReply(reply))return"";return reply;}
 function finalSurfaceReply(value,intent,text,input={}){
   const fiveTurn=fiveTurnContractReply(intent,text,input,{});
   if(fiveTurn)return fiveTurn;
   let reply=applyReplyContractMinimalismGovernor(value,intent,text,input);
   reply=stripStaleProgressionSurface(reply,intent,text);
+  reply=stripPublicReplyScaffold(reply);
   if(reply)return reply;
   return buildFinalLoopRecoveryReply(intent,text,input);
 }
