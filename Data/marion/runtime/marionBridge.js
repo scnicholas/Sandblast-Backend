@@ -284,12 +284,13 @@ function languageSpherePayload({normalized={},routed={},contract={},reply="",run
 
 function applyPublicReplyHygieneToPacket(packet={}){
   const out=safeObj(packet);
-  const reply=stripPublicReplyScaffold(firstText(out.reply,out.text,out.displayReply,out.response,safeObj(out.finalEnvelope).reply,safeObj(out.payload).reply));
+  let reply=stripPublicReplyScaffold(firstText(out.reply,out.text,out.displayReply,out.response,safeObj(out.finalEnvelope).reply,safeObj(out.payload).reply));
+  reply=stripTelemetryLeakFromReply(reply);
   if(!reply)return out;
-  out.reply=reply;out.text=reply;out.answer=reply;out.output=reply;out.response=reply;out.message=reply;out.displayReply=reply;out.spokenText=stripPublicReplyScaffold(firstText(out.spokenText,reply));out.textSpeak=stripPublicReplyScaffold(firstText(out.textSpeak,out.spokenText,reply));out.textDisplay=reply;
-  out.payload={...safeObj(out.payload),reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,spokenText:stripPublicReplyScaffold(firstText(safeObj(out.payload).spokenText,reply)),textSpeak:stripPublicReplyScaffold(firstText(safeObj(out.payload).textSpeak,reply)),textDisplay:reply};
-  out.finalEnvelope={...safeObj(out.finalEnvelope),reply,text:reply,displayReply:reply,spokenText:stripPublicReplyScaffold(firstText(safeObj(out.finalEnvelope).spokenText,reply))};
-  if(isObj(out.speech))out.speech={...out.speech,text:reply,textDisplay:reply,textSpeak:stripPublicReplyScaffold(firstText(out.speech.textSpeak,reply))};
+  out.reply=reply;out.text=reply;out.answer=reply;out.output=reply;out.response=reply;out.message=reply;out.displayReply=reply;out.spokenText=stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(out.spokenText,reply)))||reply;out.textSpeak=stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(out.textSpeak,out.spokenText,reply)))||reply;out.textDisplay=reply;
+  out.payload={...safeObj(out.payload),reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,spokenText:stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(safeObj(out.payload).spokenText,reply)))||reply,textSpeak:stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(safeObj(out.payload).textSpeak,reply)))||reply,textDisplay:reply};
+  out.finalEnvelope={...safeObj(out.finalEnvelope),reply,text:reply,displayReply:reply,spokenText:stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(safeObj(out.finalEnvelope).spokenText,reply)))||reply};
+  if(isObj(out.speech))out.speech={...out.speech,text:reply,textDisplay:reply,textSpeak:stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(out.speech.textSpeak,reply)))||reply};
   return out;
 }
 
@@ -321,23 +322,26 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
   });
   const contextPassport=Object.keys(safeObj(languageSphere.contextPassport)).length?languageSphere.contextPassport:buildNyxPublicContextPassport(languageSphere);
   languageSphere.contextPassport=contextPassport;
+  const languageSphereTelemetry=safeClonePlain(languageSphere.telemetry);
+  const publicLanguageSphere={...languageSphere,telemetry:undefined,events:undefined};
+  delete publicLanguageSphere.telemetry;
+  delete publicLanguageSphere.events;
   const languageSphereEvents=languageSphere.events;
-  const languageSphereTelemetry=languageSphere.telemetry;
   const multilingualFinalEnvelope=safeObj(multilingual.finalEnvelope);
-  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere,contextPassport,languageSphereEvents,languageSphereTelemetry,multilingualFinalEnvelope};
+  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere:publicLanguageSphere,contextPassport,languageSphereEvents};
   return {
     ...out,
-    languageSphere,
+    languageSphere:publicLanguageSphere,
     contextPassport,
     languageSphereEvents,
     events:languageSphereEvents,
     languageSphereTelemetry,
-    telemetry:languageSphereTelemetry,
-    multilingualFinalEnvelope,
+    telemetry:undefined,
+    multilingualFinalEnvelope:undefined,
     finalEnvelope,
-    payload:{...safeObj(out.payload),languageSphere,contextPassport,languageSphereEvents,events:languageSphereEvents,languageSphereTelemetry,telemetry:languageSphereTelemetry,multilingualFinalEnvelope},
-    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,languageSphere,contextPassport,languageSphereEvents,languageSphereTelemetry,multilingualFinalEnvelope},
-    diagnostics:{...safeObj(out.diagnostics),languageSphereBridge:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,universalTranslator:!!universalTranslatorMod,multilingualFinalEnvelope:!!multilingualFinalEnvelopeMod,contextPassportEvents:!!contextPassportEventsMod,telemetry:!!languageSphereTelemetryMod}}
+    payload:{...safeObj(out.payload),languageSphere:publicLanguageSphere,contextPassport,languageSphereEvents,events:languageSphereEvents},
+    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,contextPassport,languageSpherePublic:publicLanguageSphere,noUserFacingDiagnostics:true},
+    diagnostics:{...safeObj(out.diagnostics),languageSphereBridge:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,universalTranslator:!!universalTranslatorMod,multilingualFinalEnvelope:!!multilingualFinalEnvelopeMod,contextPassportEvents:!!contextPassportEventsMod,telemetry:!!languageSphereTelemetryMod,telemetryAttached:false,noUserFacingDiagnostics:true}}
   };
 }
 
@@ -525,12 +529,16 @@ function buildFailureSignatureAudit(fields={}){
   };
 }
 function isTelemetryLeakText(value=""){
-  return /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final)\b/i.test(telemetryAuditText(value));
+  return /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final|languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|compatibilityRoute|compatibilityHealth|stack trace|TypeError|ReferenceError|SyntaxError)\b/i.test(telemetryAuditText(value));
 }
 function stripTelemetryLeakFromReply(value=""){
   const text=telemetryAuditText(value);
   if(!text)return"";
-  if(isTelemetryLeakText(text))return text.replace(/\b(routeKind|speechHints|presenceProfile|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority|nyxStateHint)\s*=\s*[^.;,\n]+[.;,]?\s*/gi,"").replace(/\bdiagnostic packet\b/ig,"").replace(/\bfinal envelope missing\b/ig,"").replace(/\bnon-final\b/ig,"").replace(/\s+/g," ").trim();
+  if(/^\s*[\[{]/.test(text)&&isTelemetryLeakText(text))return"";
+  if(isTelemetryLeakText(text))return text
+    .replace(/\b(routeKind|speechHints|presenceProfile|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority|nyxStateHint|languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|compatibilityRoute|compatibilityHealth)\s*[:=]\s*[^.;,\n}\]]+[.;,]?\s*/gi,"")
+    .replace(/\b(diagnostic packet|final envelope missing|non-final|stack trace|TypeError|ReferenceError|SyntaxError)\b/ig,"")
+    .replace(/\s+/g," ").trim();
   return text;
 }
 
