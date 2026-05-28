@@ -19,7 +19,7 @@ const http = require("http");
 const https = require("https");
 const net = require("net");
 
-const VERSION = "0.2.2";
+const VERSION = "0.2.3";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_CHARACTERS = 4500;
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 512;
@@ -43,12 +43,17 @@ const PROVIDER_ALIASES = {
   manual: "manualDictionary",
   manualdictionary: "manualDictionary",
   manual_dictionary: "manualDictionary",
+  manual_dictionary_provider: "manualDictionary",
+  manual_dictionary_provider_boundary: "manualDictionary",
+  manual_dictionary_provider_boundary_adapter: "manualDictionary",
   dictionary: "manualDictionary",
   dict: "manualDictionary",
   identityprovider: "identity",
   noneprovider: "none",
   local: "localHttp",
   localhttp: "localHttp",
+  local_http: "localHttp",
+  local_http_provider: "localHttp",
   http: "localHttp",
   libretranslate: "localLibreTranslate",
   localibretranslate: "localLibreTranslate",
@@ -56,10 +61,15 @@ const PROVIDER_ALIASES = {
   localprovider: "localModule",
   localmodule: "localModule",
   local_module: "localModule",
+  local_provider_boundary: "localModule",
+  local_provider_module: "localModule",
+  local_module_provider: "localModule",
   localnmt: "localNmt",
   local_nmt: "localNmt",
+  local_nmt_provider: "localNmt",
   huggingfacelocal: "huggingFaceLocal",
-  huggingface_local: "huggingFaceLocal"
+  huggingface_local: "huggingFaceLocal",
+  huggingface_local_provider: "huggingFaceLocal"
 };
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
@@ -80,7 +90,7 @@ const MANUAL_DICTIONARY = {
     "Synapse is live": "Synapse est en direct",
     "Synapse is live on Sandblast Channel.": "Synapse est en direct sur Sandblast Channel.",
     "Nyx is online.": "Nyx est en ligne.",
-    "Marion is ready.": "Marion est prête."
+    "Nyx is ready.": "Nyx est prête."
   },
   "fr:en": {
     "Commencer la lecture": "Start Reading",
@@ -97,7 +107,7 @@ const MANUAL_DICTIONARY = {
     "Synapse est en direct": "Synapse is live",
     "Synapse est en direct sur Sandblast Channel.": "Synapse is live on Sandblast Channel.",
     "Nyx est en ligne.": "Nyx is online.",
-    "Marion est prête.": "Marion is ready."
+    "Nyx est prête.": "Nyx is ready."
   },
   "en:es": {
     "Start Reading": "Comenzar a leer",
@@ -114,7 +124,7 @@ const MANUAL_DICTIONARY = {
     "Synapse is live": "Synapse está en vivo",
     "Synapse is live on Sandblast Channel.": "Synapse está en vivo en Sandblast Channel.",
     "Nyx is online.": "Nyx está en línea.",
-    "Marion is ready.": "Marion está lista."
+    "Nyx is ready.": "Nyx está lista."
   },
   "es:en": {
     "Comenzar a leer": "Start Reading",
@@ -131,7 +141,7 @@ const MANUAL_DICTIONARY = {
     "Synapse está en vivo": "Synapse is live",
     "Synapse está en vivo en Sandblast Channel.": "Synapse is live on Sandblast Channel.",
     "Nyx está en línea.": "Nyx is online.",
-    "Marion está lista.": "Marion is ready."
+    "Nyx está lista.": "Nyx is ready."
   },
   "fr:es": {
     "Commencer la lecture": "Comenzar a leer",
@@ -180,7 +190,7 @@ function normalizeProviderName(providerName) {
 
   if (SUPPORTED_PROVIDERS.includes(raw)) return raw;
 
-  const compact = raw.replace(/[\s-]/g, "_");
+  const compact = raw.replace(/[\s-]+/g, "_");
   const folded = compact.toLowerCase();
   const aliased = PROVIDER_ALIASES[folded] || PROVIDER_ALIASES[raw] || raw;
 
