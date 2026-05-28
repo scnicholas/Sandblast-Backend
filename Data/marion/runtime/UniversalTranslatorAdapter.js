@@ -22,7 +22,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_SUPPORTED_LANGUAGES = ["en", "fr", "es"];
-const VERSION = "0.3.2";
+const VERSION = "0.3.3";
 
 let CONFIG = null;
 let GLOSSARY = null;
@@ -250,19 +250,6 @@ function isSupportedLanguage(lang) {
 }
 
 function internalDetectLanguage(text) {
-  if (detectionBelowRoutingThreshold(detected, config) && options.allowLowConfidenceTranslation !== true) {
-    return {
-      text,
-      meta: {
-        ...meta,
-        translated: false,
-        durationMs: Date.now() - startedAt,
-        warning: LOW_CONFIDENCE_WARNING,
-        candidateLanguage: detected.candidateLanguage || detected.language || null
-      }
-    };
-  }
-
   if (!text || typeof text !== "string") {
     return {
       language: "unknown",
@@ -375,6 +362,10 @@ function createMeta(seed = {}) {
     durationMs: null,
     warning: null,
     error: null,
+    fallbackUsed: false,
+    marionAuthorityRequired: true,
+    finalAnswerAuthorized: false,
+    translationGate: true,
     createdAt: now,
     ...seed
   };
@@ -807,11 +798,31 @@ async function translateText(text, options = {}) {
     };
   }
 
+  if (
+    normalizeLanguageCode(options.sourceLanguage || "auto") === "auto" &&
+    detectionBelowRoutingThreshold(detected, config) &&
+    options.allowLowConfidenceTranslation !== true
+  ) {
+    return {
+      text,
+      meta: {
+        ...meta,
+        translated: false,
+        fallbackUsed: true,
+        durationMs: Date.now() - startedAt,
+        warning: LOW_CONFIDENCE_WARNING,
+        candidateLanguage: detected.candidateLanguage || detected.language || null
+      }
+    };
+  }
+
   if (!shouldTranslate(sourceLanguage, targetLanguage)) {
     return {
       text,
       meta: {
         ...meta,
+        translated: false,
+        fallbackUsed: targetLanguage !== sourceLanguage,
         durationMs: Date.now() - startedAt,
         warning: sourceLanguage === targetLanguage ? "same-language" : "translation-not-required-or-unsupported"
       }
@@ -832,6 +843,7 @@ async function translateText(text, options = {}) {
       meta: {
         ...meta,
         translated: true,
+        fallbackUsed: false,
         provider: memoryEntry.provider || "translation-memory",
         memoryHit: true,
         durationMs: Date.now() - startedAt,
@@ -904,6 +916,7 @@ async function translateText(text, options = {}) {
         languagePair: `${sourceLanguage}-${targetLanguage}`,
         protectedTermsApplied: tokens.length,
         translated,
+        fallbackUsed: translated !== true,
         memoryHit: false,
         durationMs: Date.now() - startedAt,
         warning:
@@ -922,6 +935,7 @@ async function translateText(text, options = {}) {
         meta: {
           ...meta,
           translated: false,
+          fallbackUsed: true,
           durationMs: Date.now() - startedAt,
           error: errorMessage,
           warning: `translation-failed:${errorMessage}`
@@ -1066,7 +1080,10 @@ async function applyUniversalTranslation(envelopeOrText, options = {}) {
       finalTextSlot: extracted.mode,
       domain: options.domain || null,
       emotion: options.emotion || null,
-      context: options.context || "final-output"
+      context: options.context || "final-output",
+      marionAuthorityRequired: true,
+      finalAnswerAuthorized: false,
+      translationGate: true
     };
   }
 
@@ -1163,7 +1180,10 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
     detectedLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.detectedLanguage || payload.sourceLanguage || "auto"),
     confidence: typeof meta.sourceConfidence === "number" ? meta.sourceConfidence : null,
     translationAvailable: meta.translated === true,
-    fallbackUsed: meta.translated !== true,
+    fallbackUsed: meta.fallbackUsed === true || meta.translated !== true,
+    marionAuthorityRequired: true,
+    finalAnswerAuthorized: false,
+    translationGate: true,
     provider: meta.provider || "none",
     translationMeta: meta,
     languageSphere: {
@@ -1173,7 +1193,10 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
       sourceLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.sourceLanguage || payload.detectedLanguage || payload.language),
       targetLanguage: meta.targetLanguage || normalizeLanguageCode(payload.targetLanguage || payload.responseLanguage || "en"),
       translated: meta.translated === true,
-      fallbackUsed: meta.translated !== true,
+      fallbackUsed: meta.fallbackUsed === true || meta.translated !== true,
+      marionAuthorityRequired: true,
+      finalAnswerAuthorized: false,
+      translationGate: true,
       provider: meta.provider || "none",
       confidence: typeof meta.sourceConfidence === "number" ? meta.sourceConfidence : null
     }
