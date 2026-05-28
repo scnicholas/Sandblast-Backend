@@ -22,7 +22,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_SUPPORTED_LANGUAGES = ["en", "fr", "es"];
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 
 let CONFIG = null;
 let GLOSSARY = null;
@@ -32,6 +32,8 @@ let LOCAL_PROVIDER = null;
 let MEMORY_STORE = null;
 
 const CONFIG_PATH = path.join(__dirname, "translationConfig.json");
+const LANGUAGE_SPHERE_PUBLIC_AGENT = "nyx";
+const LOW_CONFIDENCE_WARNING = "low-confidence-detection-original-preserved";
 
 function safeRequire(relativePath, fallback) {
   try {
@@ -167,7 +169,7 @@ function loadConfig(forceReload = false) {
 function loadGlossary(forceReload = false) {
   if (GLOSSARY && !forceReload) return GLOSSARY;
 
-  GLOSSARY = safeRequire("./TranslationGlossary.js", {
+  GLOSSARY = safeRequire("./TranslationGlossary.js", null) || safeRequire("./languagesphere/TranslationGlossary.js", {
     protectText: (text) => ({ text, tokens: [] }),
     restoreText: (text) => text,
     getProtectedTerms: () => []
@@ -178,19 +180,19 @@ function loadGlossary(forceReload = false) {
 
 function loadLanguageDetect(forceReload = false) {
   if (LANGUAGE_DETECT && !forceReload) return LANGUAGE_DETECT;
-  LANGUAGE_DETECT = safeRequire("./LanguageDetect.js", null);
+  LANGUAGE_DETECT = safeRequire("./LanguageDetect.js", null) || safeRequire("./languagesphere/LanguageDetect.js", null);
   return LANGUAGE_DETECT;
 }
 
 function loadMemoryModule(forceReload = false) {
   if (MEMORY_MODULE && !forceReload) return MEMORY_MODULE;
-  MEMORY_MODULE = safeRequire("./TranslationMemoryStore.js", null);
+  MEMORY_MODULE = safeRequire("./TranslationMemoryStore.js", null) || safeRequire("./languagesphere/TranslationMemoryStore.js", null);
   return MEMORY_MODULE;
 }
 
 function loadLocalProvider(forceReload = false) {
   if (LOCAL_PROVIDER && !forceReload) return LOCAL_PROVIDER;
-  LOCAL_PROVIDER = safeRequire("./LocalTranslationProvider.js", null);
+  LOCAL_PROVIDER = safeRequire("./LocalTranslationProvider.js", null) || safeRequire("./languagesphere/LocalTranslationProvider.js", null);
   return LOCAL_PROVIDER;
 }
 
@@ -211,7 +213,28 @@ function normalizeLanguageCode(lang) {
 
 function normalizeProviderName(providerName) {
   if (!providerName || typeof providerName !== "string") return "none";
-  return providerName.trim() || "none";
+  const raw = providerName.trim();
+  if (!raw) return "none";
+  const compact = raw.replace(/[\s-]+/g, "_").toLowerCase();
+  const aliases = {
+    manual: "manualDictionary",
+    manualdictionary: "manualDictionary",
+    manual_dictionary: "manualDictionary",
+    manual_dictionary_provider: "manualDictionary",
+    dictionary: "manualDictionary",
+    local: "localHttp",
+    local_http: "localHttp",
+    http: "localHttp",
+    libretranslate: "localLibreTranslate",
+    local_libretranslate: "localLibreTranslate",
+    local_module: "localModule",
+    local_provider: "localProvider",
+    local_nmt: "localNmt",
+    huggingface_local: "huggingFaceLocal",
+    identity_provider: "identity",
+    none_provider: "none"
+  };
+  return aliases[compact] || raw;
 }
 
 function isSupportedLanguage(lang) {
@@ -227,6 +250,19 @@ function isSupportedLanguage(lang) {
 }
 
 function internalDetectLanguage(text) {
+  if (detectionBelowRoutingThreshold(detected, config) && options.allowLowConfidenceTranslation !== true) {
+    return {
+      text,
+      meta: {
+        ...meta,
+        translated: false,
+        durationMs: Date.now() - startedAt,
+        warning: LOW_CONFIDENCE_WARNING,
+        candidateLanguage: detected.candidateLanguage || detected.language || null
+      }
+    };
+  }
+
   if (!text || typeof text !== "string") {
     return {
       language: "unknown",
@@ -590,7 +626,7 @@ async function callProvider(text, options = {}, meta = {}) {
   meta = isPlainObject(meta) ? meta : createMeta({ warning: "meta-fallback-created" });
   const config = loadConfig();
   const providerName = normalizeProviderName(
-    (config.provider && config.provider.active) || options.provider || "none"
+    options.provider || options.providerName || options.active || (config.provider && config.provider.active) || "none"
   );
   const timeoutMs = Number(config.provider && config.provider.timeoutMs) || 8000;
 
@@ -698,6 +734,28 @@ function safeRestoreText(glossary, text, tokens, originalText, meta) {
   }
 }
 
+function detectionBelowRoutingThreshold(detected, config) {
+  const routing = isPlainObject(config && config.routing) ? config.routing : {};
+  const min = Number.isFinite(Number(routing.minimumDetectionConfidence)) ? Number(routing.minimumDetectionConfidence) : 0;
+  if (min <= 0) return false;
+  const confidence = Number(detected && detected.confidence);
+  if (!Number.isFinite(confidence)) return false;
+  return confidence > 0 && confidence < min;
+}
+
+function resolveTargetLanguageFromOptions(text, options, config) {
+  const explicit = options.targetLanguage || options.responseLanguage || options.target;
+  if (explicit) return normalizeLanguageCode(explicit);
+  const detector = loadLanguageDetect();
+  if (detector && typeof detector.detectTargetLanguageFromRequest === "function") {
+    try {
+      const requested = detector.detectTargetLanguageFromRequest(text);
+      if (requested) return normalizeLanguageCode(requested);
+    } catch (_) {}
+  }
+  return normalizeLanguageCode(config.defaultTargetLanguage || "en");
+}
+
 async function translateText(text, options = {}) {
   options = isPlainObject(options) ? options : {};
   const startedAt = Date.now();
@@ -714,9 +772,7 @@ async function translateText(text, options = {}) {
         };
 
   const sourceLanguage = normalizeLanguageCode(detected.language);
-  const targetLanguage = normalizeLanguageCode(
-    options.targetLanguage || config.defaultTargetLanguage || "en"
-  );
+  const targetLanguage = resolveTargetLanguageFromOptions(text, options, config);
 
   const meta = createMeta({
     provider: config.provider && config.provider.active ? config.provider.active : "none",
@@ -1095,6 +1151,9 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
   return {
     ok: true,
     authority: "marion",
+    publicAgent: LANGUAGE_SPHERE_PUBLIC_AGENT,
+    userFacingAgent: LANGUAGE_SPHERE_PUBLIC_AGENT,
+    displayAuthority: LANGUAGE_SPHERE_PUBLIC_AGENT,
     text: translatedText,
     translatedText,
     normalizedText: translatedText,
@@ -1108,6 +1167,9 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
     provider: meta.provider || "none",
     translationMeta: meta,
     languageSphere: {
+      publicAgent: LANGUAGE_SPHERE_PUBLIC_AGENT,
+      userFacingAgent: LANGUAGE_SPHERE_PUBLIC_AGENT,
+      displayAuthority: LANGUAGE_SPHERE_PUBLIC_AGENT,
       sourceLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.sourceLanguage || payload.detectedLanguage || payload.language),
       targetLanguage: meta.targetLanguage || normalizeLanguageCode(payload.targetLanguage || payload.responseLanguage || "en"),
       translated: meta.translated === true,
@@ -1161,6 +1223,8 @@ module.exports = {
   normalizeProviderName,
   isSupportedLanguage,
   shouldTranslate,
+  detectionBelowRoutingThreshold,
+  resolveTargetLanguageFromOptions,
   translateText,
   applyUniversalTranslation,
   normalizeInputForMarion,
