@@ -535,36 +535,171 @@ function cleanReplyForUser(v) {
 }
 
 
+const PUBLIC_RESPONSE_INTERNAL_KEY_PATTERN = /^(?:meta|diagnostics?|runtimeTelemetry|finalRuntimeTelemetry|loggingSpine|packetPreclassification|packetStateBridge|languageSphereTelemetry|languageSphereFallback|multilingualFinalEnvelope|marionRouting|marionIntent|ctx|ui|directives|sessionPatch|memoryPatch|cog|bridge|audioContract|transportOnly|marionTransportOnly|packetPrediction|compatibilityRoute|compatibilityHealth|raw|debug|stack|errorStack)$/i;
+const PUBLIC_RESPONSE_INTERNAL_TEXT_PATTERN = /\b(?:languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|finalEnvelopeTrusted|replyAuthority|semanticAuthority|diagnostics?|stack trace|TypeError|ReferenceError|SyntaxError)\b/i;
+
+function publicSafePrimitive(value) {
+  if (typeof value === "string") return cleanText(value);
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "boolean") return value;
+  return undefined;
+}
+
+function scrubPublicObject(value, depth = 0) {
+  if (depth > 5) return undefined;
+  if (Array.isArray(value)) {
+    const arr = value.map((item) => scrubPublicObject(item, depth + 1)).filter((item) => item !== undefined);
+    return arr.length ? arr : undefined;
+  }
+  if (!isObj(value)) return publicSafePrimitive(value);
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (PUBLIC_RESPONSE_INTERNAL_KEY_PATTERN.test(key)) continue;
+    if (/languageSphere/i.test(key) && key !== "contextPassport" && key !== "languageSpherePublic") continue;
+    const cleaned = scrubPublicObject(item, depth + 1);
+    if (cleaned !== undefined) out[key] = cleaned;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function cleanPublicVoiceRoute(value) {
+  const route = cleanText(value);
+  if (!route) return "";
+  if (/^https?:\/\//i.test(route) || route.startsWith("/")) return route;
+  return "";
+}
+
+function buildPublicContextPassportFromPacket(packet) {
+  const src = safeObj(packet);
+  const ls = isObj(src.languageSphere) ? src.languageSphere : {};
+  const passport = isObj(src.contextPassport) ? src.contextPassport : (isObj(ls.contextPassport) ? ls.contextPassport : {});
+  if (Object.keys(passport).length) return scrubPublicObject(passport) || undefined;
+  if (Object.keys(ls).length) return buildNyxPublicContextPassportSurface(ls);
+  return undefined;
+}
+
+function buildPublicChatResponse(packet, reply) {
+  const src = safeObj(packet);
+  const payload = safeObj(src.payload);
+  const finalEnvelope = safeObj(src.finalEnvelope);
+  const speechSrc = safeObj(src.speech);
+  const playbackSrc = safeObj(src.playback);
+  const ttsSrc = safeObj(src.tts);
+  const safeReply = cleanReplyForUser(reply || src.displayReply || src.reply || src.response || src.text || src.answer || payload.displayReply || payload.reply || finalEnvelope.displayReply || finalEnvelope.reply || "");
+  const spokenText = cleanReplyForUser(src.spokenText || src.textSpeak || speechSrc.textSpeak || speechSrc.spokenText || payload.spokenText || safeReply) || safeReply;
+  const textSpeak = cleanReplyForUser(src.textSpeak || speechSrc.textSpeak || payload.textSpeak || spokenText || safeReply) || spokenText || safeReply;
+  const textDisplay = cleanReplyForUser(src.textDisplay || speechSrc.textDisplay || payload.textDisplay || safeReply) || safeReply;
+  const marionFinal = src.marionFinal === true || finalEnvelope.marionFinal === true || payload.marionFinal === true;
+  const authority = marionFinal ? "marionFinalEnvelope" : cleanText(finalEnvelope.authority || src.authority || "marion");
+  const out = {
+    ok: src.ok !== false,
+    final: true,
+    marionFinal,
+    handled: true,
+    awaitingMarion: false,
+    suppressUserFacingReply: false,
+    emit: true,
+    blocked: false,
+    reply: safeReply,
+    text: safeReply,
+    short: safeReply,
+    answer: safeReply,
+    output: safeReply,
+    response: safeReply,
+    displayReply: safeReply,
+    spokenText,
+    textSpeak,
+    textDisplay,
+    detail: cleanReplyForUser(src.detail || payload.detail || safeReply) || safeReply,
+    source: "marion",
+    authority,
+    requestId: cleanText(src.requestId || payload.requestId || "") || undefined,
+    sessionId: cleanText(src.sessionId || payload.sessionId || "") || undefined,
+    traceId: cleanText(src.traceId || payload.traceId || "") || undefined,
+    inputSource: cleanText(src.inputSource || payload.inputSource || "text") || "text",
+    lane: cleanText(src.lane || src.laneId || src.sessionLane || payload.lane || "general") || "general",
+    payload: {
+      reply: safeReply,
+      text: safeReply,
+      message: safeReply,
+      answer: safeReply,
+      output: safeReply,
+      response: safeReply,
+      displayReply: safeReply,
+      spokenText,
+      textSpeak,
+      textDisplay,
+      final: true,
+      finalized: true,
+      marionFinal,
+      handled: true,
+      emit: true,
+      blocked: false,
+      suppressUserFacingReply: false,
+      awaitingMarion: false
+    },
+    finalEnvelope: {
+      reply: safeReply,
+      text: safeReply,
+      displayReply: safeReply,
+      spokenText,
+      final: true,
+      marionFinal,
+      handled: true,
+      authority,
+      contractVersion: marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0"
+    }
+  };
+  const contextPassport = buildPublicContextPassportFromPacket(src);
+  if (contextPassport) out.contextPassport = contextPassport;
+  const speech = scrubPublicObject({
+    enabled: speechSrc.enabled,
+    speak: speechSrc.speak,
+    text: safeReply,
+    textDisplay,
+    textSpeak,
+    provider: cleanText(speechSrc.provider || "") || undefined,
+    presenceProfile: cleanText(speechSrc.presenceProfile || "") || undefined,
+    nyxStateHint: cleanText(speechSrc.nyxStateHint || "") || undefined
+  });
+  if (speech) out.speech = speech;
+  const playback = scrubPublicObject({
+    ready: playbackSrc.ready,
+    autoPlay: playbackSrc.autoPlay,
+    route: cleanPublicVoiceRoute(playbackSrc.route || "/api/tts"),
+    health: cleanPublicVoiceRoute(playbackSrc.health || "/api/tts/health"),
+    textSpeak,
+    provider: cleanText(playbackSrc.provider || ttsSrc.provider || "") || undefined
+  });
+  if (playback) out.playback = playback;
+  const tts = scrubPublicObject({
+    ready: ttsSrc.ready,
+    textSpeak,
+    provider: cleanText(ttsSrc.provider || playbackSrc.provider || "") || undefined
+  });
+  if (tts) out.tts = tts;
+  const voiceRoute = cleanPublicVoiceRoute(src.voiceRoute || payload.voiceRoute || "");
+  if (voiceRoute) out.voiceRoute = voiceRoute;
+  return out;
+}
+
 function applyPublicReplyHygieneToResponse(packet) {
   if (!isObj(packet)) return packet;
-  const out = { ...packet };
   const reply = cleanReplyForUser(
-    out.displayReply ||
-    out.reply ||
-    out.response ||
-    out.text ||
-    out.answer ||
-    safeObj(out.payload).displayReply ||
-    safeObj(out.payload).reply ||
-    safeObj(out.finalEnvelope).displayReply ||
-    safeObj(out.finalEnvelope).reply ||
+    packet.displayReply ||
+    packet.reply ||
+    packet.response ||
+    packet.text ||
+    packet.answer ||
+    safeObj(packet.payload).displayReply ||
+    safeObj(packet.payload).reply ||
+    safeObj(packet.finalEnvelope).displayReply ||
+    safeObj(packet.finalEnvelope).reply ||
     ""
   );
-  if (!reply) return out;
-  out.reply = reply;
-  out.text = reply;
-  out.short = reply;
-  out.answer = reply;
-  out.output = reply;
-  out.response = reply;
-  out.displayReply = reply;
-  out.spokenText = cleanReplyForUser(out.spokenText || reply) || reply;
-  out.textSpeak = cleanReplyForUser(out.textSpeak || out.spokenText || reply) || reply;
-  out.textDisplay = reply;
-  out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, displayReply: reply, spokenText: cleanReplyForUser(safeObj(out.payload).spokenText || reply) || reply, textSpeak: cleanReplyForUser(safeObj(out.payload).textSpeak || reply) || reply, textDisplay: reply };
-  out.finalEnvelope = { ...safeObj(out.finalEnvelope), reply, text: reply, displayReply: reply, spokenText: cleanReplyForUser(safeObj(out.finalEnvelope).spokenText || reply) || reply };
-  if (isObj(out.speech)) out.speech = { ...out.speech, text: reply, textDisplay: reply, textSpeak: cleanReplyForUser(out.speech.textSpeak || reply) || reply };
-  return out;
+  if (reply) return buildPublicChatResponse(packet, reply);
+  const scrubbed = scrubPublicObject(packet);
+  return isObj(scrubbed) ? scrubbed : { ok: false, final: false, reply: "", text: "" };
 }
 
 function replyHash(v) {
