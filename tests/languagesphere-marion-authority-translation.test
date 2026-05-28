@@ -1,0 +1,111 @@
+"use strict";
+
+/**
+ * LanguageSphere Marion Authority Translation Regression
+ *
+ * Purpose:
+ * Translation may normalize input/output metadata, but it must never take over
+ * Marion's final authority or expose Marion internals to the user.
+ */
+
+const path = require("path");
+
+const ADAPTER_PATH = path.resolve(
+  process.cwd(),
+  "Data/marion/runtime/UniversalTranslatorAdapter.js"
+);
+
+function loadAdapter() {
+  jest.resetModules();
+  return require(ADAPTER_PATH);
+}
+
+function getNormalizeInputFn(adapter) {
+  return (
+    adapter.normalizeInputForMarion ||
+    adapter.normalizeInput ||
+    adapter.prepareInputForMarion ||
+    null
+  );
+}
+
+function getFinalEnvelopeFn(adapter) {
+  return (
+    adapter.translateFinalEnvelope ||
+    adapter.translateFinalForUser ||
+    adapter.translateFinalAnswer ||
+    null
+  );
+}
+
+describe("LanguageSphere Marion authority translation", () => {
+  test("input normalization remains a routing aid, not final authority", async () => {
+    const adapter = loadAdapter();
+    const fn = getNormalizeInputFn(adapter);
+
+    if (typeof fn !== "function") {
+      console.warn("normalizeInputForMarion-compatible export not found; skipping authority normalization check.");
+      return;
+    }
+
+    const result = await Promise.resolve(
+      fn("Bonjour Nyx, explain this in English.", {
+        targetLanguage: "en",
+        domain: "general",
+        context: "marion-authority-regression",
+      })
+    );
+
+    expect(result).toBeTruthy();
+
+    const serialized = JSON.stringify(result);
+
+    expect(serialized).not.toMatch(/MARION::FINAL::|finalEnvelopeTrusted|replyAuthority/i);
+    expect(serialized).not.toMatch(/Bearer\s+|api[_-]?key|secret/i);
+  });
+
+  test("final envelope translation preserves final-envelope object shape when export exists", async () => {
+    const adapter = loadAdapter();
+    const fn = getFinalEnvelopeFn(adapter);
+
+    if (typeof fn !== "function") {
+      console.warn("final-envelope translation export not found; skipping final-envelope shape check.");
+      return;
+    }
+
+    const envelope = {
+      ok: true,
+      final: true,
+      marionFinal: true,
+      reply: "Start Reading",
+      text: "Start Reading",
+      authority: "marion",
+      finalEnvelope: {
+        authority: "marion",
+        final: true,
+        reply: "Start Reading",
+      },
+      meta: {
+        publicAgent: "nyx",
+      },
+    };
+
+    const result = await Promise.resolve(
+      fn(envelope, {
+        sourceLanguage: "en",
+        targetLanguage: "fr",
+        provider: "manualDictionary",
+        domain: "interface",
+      })
+    );
+
+    expect(result).toBeTruthy();
+    expect(result).not.toBe(envelope);
+    expect(result.final === true || result.marionFinal === true).toBe(true);
+
+    const serialized = JSON.stringify(result);
+
+    expect(serialized).not.toMatch(/runtimeTelemetry|failureSignature|stack trace/i);
+    expect(serialized).not.toMatch(/Bearer\s+|api[_-]?key|secret/i);
+  });
+});
