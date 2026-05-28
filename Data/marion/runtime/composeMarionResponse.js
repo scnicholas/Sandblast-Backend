@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.35.3 LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.35.2 PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -74,15 +74,7 @@ const BLOCKED_LOOP_PATTERNS = Object.freeze([
   /\bblocking generic placeholder language\b/i,
   /\bkeeping the reply bound to the routed intent\b/i,
   /\bfinal envelope,? and session-state update\b/i,
-  /\brouteKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=\b/i,
-  /\bsame prompt,?\s*new requirement\b/i,
-  /\banswer with one new fact,?\s*one action,?\s*or one test\b/i,
-  /\bif voice and text return different answers\b/i,
-  /\bpreserve intent and regenerate\b/i,
-  /\bsame normalized text\b/i,
-  /\bvoice and text return different answers,?\s*preserve intent\b/i,
-  /\bregenerate from the same normalized text\b/i,
-  /\bnew requirement:\s*answer with one new fact\b/i
+  /\brouteKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=\b/i
 ]);
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
@@ -1004,47 +996,6 @@ function emotionNyxHint(intent,emotion){
 }
 function isBlockedLoopReply(value){const text=lower(value).replace(/[.!?]+$/g,"");if(!text)return true;return BLOCKED_LOOP_PATTERNS.some(rx=>rx.test(text));}
 
-function isPublicControlPolicyLeak(value){
-  const text=lower(value).replace(/[.!?]+$/g,"").trim();
-  if(!text)return false;
-  return /\bsame prompt,?\s*new requirement\b/i.test(text)||
-    /\banswer with one new fact,?\s*one action,?\s*or one test\b/i.test(text)||
-    /\bif voice and text return different answers\b/i.test(text)||
-    /\bpreserve intent and regenerate\b/i.test(text)||
-    /\bsame normalized text\b/i.test(text)||
-    /\bregenerate from the same normalized text\b/i.test(text);
-}
-function isPrimitivePublicReply(value){
-  const text=safeStr(value).replace(/[.!?]+$/g,"").trim().toLowerCase();
-  return !text||/^(?:false|true|null|undefined|none|nan|\[object object\])$/.test(text);
-}
-function buildLingoLinkPublicAnswer(text="",input={}){
-  const i=safeObj(input), original=safeObj(i.original), body=safeObj(original.body), payload=safeObj(i.payload), meta=safeObj(i.meta);
-  const source=[
-    text,i.text,i.userText,i.message,i.query,i.userQuery,i.rawUserQuery,i.publicUserQuery,i.inputText,i.originalText,
-    payload.text,payload.userText,payload.message,payload.query,payload.originalText,
-    original.text,original.userText,original.message,original.query,
-    body.text,body.userText,body.message,body.query,
-    meta.text,meta.userText,meta.message,meta.query
-  ].map(safeStr).join(" ");
-  const hasName=/\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(source);
-  const hasIntent=/\\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language|translation|translate|understand|explica|explicame|expl[ií]came|qu[eé]\\s+hace|frase\\s+clara|idioma|idiomas|lenguaje|lenguajes|multiling[uü]e|traducci[oó]n|traducir|comprender|entender|explique|que\\s+fait|qu[e’']?est[-\\s]*ce\\s+que|phrase\\s+claire|langue|langues|multilingue|traduction|traduire|comprendre)\\b/i.test(source);
-  if(hasName&&hasIntent){
-    return "LingoLink helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
-  }
-  return "";
-}
-
-function isGenericGreetingStatusReply(value){
-  const text=lower(value).replace(/[.!?]+$/g,"").trim();
-  if(!text)return false;
-  return /^hello\.?\s*i[’']?m ready when you are\.?\s*what do you need$/i.test(text)||
-    /^hi\.?\s*i[’']?m nyx\.?\s*it[’']?s good to see you\.?\s*what would you like to work on$/i.test(text)||
-    /^i[’']?m here and ready\.?\s*what are we getting into$/i.test(text)||
-    /^ready when you are\b/i.test(text);
-}
-
-
 function isGreetingOnly(text){
   const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
   return /^(hi|hello|hey|yo|hiya|morning|afternoon|evening|good morning|good afternoon|good evening)(\s+(nyx|nix|vera))?$/.test(t);
@@ -1391,16 +1342,14 @@ function stripStaleProgressionSurface(value="",intent="",text=""){
     .replace(/\s*instead of generic\.?/gi,"");
   return out.replace(/\s+/g," ").replace(/\s+([.,;:])/g,"$1").trim();
 }
-function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(isPrimitivePublicReply(reply))return"";if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isPrimitivePublicReply(reply)||isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply)||isPublicControlPolicyLeak(reply))return"";return reply;}
+function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply))return"";return reply;}
 function finalSurfaceReply(value,intent,text,input={}){
-  const lingoLinkAnswer=buildLingoLinkPublicAnswer(text,input);
-  if(lingoLinkAnswer)return lingoLinkAnswer;
   const fiveTurn=fiveTurnContractReply(intent,text,input,{});
-  if(fiveTurn&&!isPublicControlPolicyLeak(fiveTurn)&&!isGenericGreetingStatusReply(fiveTurn))return fiveTurn;
+  if(fiveTurn)return fiveTurn;
   let reply=applyReplyContractMinimalismGovernor(value,intent,text,input);
   reply=stripStaleProgressionSurface(reply,intent,text);
   reply=stripPublicReplyScaffold(reply);
-  if(reply&&!isPublicControlPolicyLeak(reply)&&!isGenericGreetingStatusReply(reply))return reply;
+  if(reply)return reply;
   return buildFinalLoopRecoveryReply(intent,text,input);
 }
 
