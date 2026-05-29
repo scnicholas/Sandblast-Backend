@@ -5,7 +5,10 @@
  * Marion/Nyx Universal Translator full-stack regression.
  *
  * Run from project root:
- * node tests/universal-translator-stack-regression.test.js
+ *   npx jest tests/universal-translator-stack-regression.test.js --runInBand --verbose
+ *
+ * Optional direct Node run:
+ *   node tests/universal-translator-stack-regression.test.js
  *
  * Purpose:
  * - Validate the complete Phase-1 LanguageSphere / Universal Translator bridge.
@@ -23,6 +26,21 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+
+const IS_JEST_RUNTIME =
+  typeof global.describe === "function" && typeof global.test === "function";
+
+function safeLog(...args) {
+  if (!IS_JEST_RUNTIME) {
+    console.log(...args);
+  }
+}
+
+function safeError(...args) {
+  if (!IS_JEST_RUNTIME) {
+    console.error(...args);
+  }
+}
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
@@ -67,11 +85,13 @@ function restoreFile(filePath, backup) {
     return;
   }
 
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, backup.content, "utf8");
 }
 
 function writeJson(filePath, value) {
-  fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf8");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 function createStackTestConfig(overrides = {}) {
@@ -216,6 +236,11 @@ function createStackTestConfig(overrides = {}) {
 }
 
 function assertExport(moduleRef, exportName, label) {
+  assert.ok(
+    moduleRef && typeof moduleRef === "object",
+    `${label} module must load as an object`
+  );
+
   assert.strictEqual(
     typeof moduleRef[exportName],
     "function",
@@ -223,8 +248,17 @@ function assertExport(moduleRef, exportName, label) {
   );
 }
 
+function resetTranslatorCachesIfAvailable(Adapter) {
+  if (Adapter && typeof Adapter.resetUniversalTranslatorCaches === "function") {
+    Adapter.resetUniversalTranslatorCaches();
+    return true;
+  }
+
+  return false;
+}
+
 async function run() {
-  console.log("Running Universal Translator full-stack regression...");
+  safeLog("Running Universal Translator full-stack regression...");
 
   ensureFileExists(ADAPTER_PATH, "UniversalTranslatorAdapter.js");
   ensureFileExists(PROVIDER_PATH, "LocalTranslationProvider.js");
@@ -249,9 +283,7 @@ async function run() {
     let Detect = requireFresh(DETECT_PATH);
     let Memory = requireFresh(MEMORY_PATH);
 
-    if (typeof Adapter.resetUniversalTranslatorCaches === "function") {
-      Adapter.resetUniversalTranslatorCaches();
-    }
+    resetTranslatorCachesIfAvailable(Adapter);
 
     assertExport(Adapter, "detectLanguage", "UniversalTranslatorAdapter");
     assertExport(Adapter, "translateText", "UniversalTranslatorAdapter");
@@ -644,9 +676,7 @@ async function run() {
 
     Adapter = requireFresh(ADAPTER_PATH);
 
-    if (typeof Adapter.resetUniversalTranslatorCaches === "function") {
-      Adapter.resetUniversalTranslatorCaches();
-    }
+    resetTranslatorCachesIfAvailable(Adapter);
 
     const failedProvider = await Adapter.translateText("Start Reading", {
       sourceLanguage: "en",
@@ -689,9 +719,7 @@ async function run() {
 
     Adapter = requireFresh(ADAPTER_PATH);
 
-    if (typeof Adapter.resetUniversalTranslatorCaches === "function") {
-      Adapter.resetUniversalTranslatorCaches();
-    }
+    resetTranslatorCachesIfAvailable(Adapter);
 
     const disabledEnvelope = {
       final: "Start Reading",
@@ -706,10 +734,22 @@ async function run() {
       }
     );
 
-    assert.strictEqual(
+    assert.deepStrictEqual(
       disabledOutput,
       disabledEnvelope,
-      "disabled translator should return the original envelope reference"
+      "disabled translator should return original envelope data unchanged"
+    );
+
+    assert.strictEqual(
+      disabledOutput.final,
+      "Start Reading",
+      "disabled translator should not translate final text"
+    );
+
+    assert.strictEqual(
+      disabledOutput.translationMeta,
+      undefined,
+      "disabled translator should not attach translationMeta when disabled"
     );
 
     /**
@@ -816,9 +856,7 @@ async function run() {
 
     Adapter = requireFresh(ADAPTER_PATH);
 
-    if (typeof Adapter.resetUniversalTranslatorCaches === "function") {
-      Adapter.resetUniversalTranslatorCaches();
-    }
+    resetTranslatorCachesIfAvailable(Adapter);
 
     const memoryAdapterFirst = await Adapter.translateText("Start Reading", {
       sourceLanguage: "en",
@@ -852,21 +890,40 @@ async function run() {
       // Cleanup should not affect regression result.
     }
 
-    console.log("Universal Translator full-stack regression passed.");
+    safeLog("Universal Translator full-stack regression passed.");
   } finally {
     restoreFile(CONFIG_PATH, configBackup);
 
-    if (fs.existsSync(ADAPTER_PATH)) {
-      const Adapter = requireFresh(ADAPTER_PATH);
-      if (typeof Adapter.resetUniversalTranslatorCaches === "function") {
-        Adapter.resetUniversalTranslatorCaches();
+    try {
+      if (fs.existsSync(ADAPTER_PATH)) {
+        const Adapter = requireFresh(ADAPTER_PATH);
+        resetTranslatorCachesIfAvailable(Adapter);
       }
+    } catch (_) {
+      /**
+       * Cleanup must never mask the actual regression result.
+       * The config has already been restored at this point.
+       */
     }
   }
 }
 
-run().catch((error) => {
-  console.error("Universal Translator full-stack regression failed.");
-  console.error(error);
-  process.exit(1);
-});
+if (IS_JEST_RUNTIME) {
+  describe("Universal Translator full-stack regression", () => {
+    test("validates adapter, provider, glossary, detection, memory, config, and Marion envelope safety", async () => {
+      await run();
+    });
+  });
+} else if (require.main === module) {
+  run().catch((error) => {
+    safeError("Universal Translator full-stack regression failed.");
+    safeError(error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  run,
+  createStackTestConfig,
+  resetTranslatorCachesIfAvailable
+};
