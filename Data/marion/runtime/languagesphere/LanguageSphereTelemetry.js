@@ -8,24 +8,28 @@
  *
  * Contract:
  * - Never blocks final answer.
- * - Never exposes secrets, tokens, stack traces, or raw debug.
+ * - Never exposes secrets, tokens, stack traces, raw debug, or provider errors.
  * - Keeps Marion as final authority.
+ * - Provides safe summary/event helpers for API middleware and regression tests.
  */
 
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG = Object.freeze({
   authority: "marion",
   enabled: true,
   maxMetricValueMs: 30000,
   defaultConfidenceBand: "unknown",
-  allowedMetricKeys: [
+  allowedMetricKeys: Object.freeze([
     "language_detect_ms",
     "translation_ms",
     "domain_route_ms",
     "tone_adaptation_ms",
     "final_envelope_ms",
     "total_pipeline_ms",
-  ],
-};
+  ]),
+});
+
+const REDACTION_PATTERN =
+  /bearer\s+|stack trace|typeerror|referenceerror|syntaxerror|secret|password|authorization|apikey|api_key|access[_-]?token|refresh[_-]?token/i;
 
 function clampMs(value, max = DEFAULT_CONFIG.maxMetricValueMs) {
   const n = Number(value);
@@ -41,150 +45,9 @@ function normalizeBoolean(value) {
 }
 
 function normalizeString(value, fallback = null) {
-  const text = String(value || "").trim();
+  const text = String(value ?? "").trim();
   return text || fallback;
 }
-
-function sanitizeTelemetry(value) {
-  if (typeof value === "string") {
-    if (/bearer\s+|stack trace|typeerror|referenceerror|syntaxerror|secret|password|authorization|apikey|api_key/i.test(value)) {
-      return "[redacted]";
-    }
-
-    return value;
-  }
-
-  if (!value || typeof value !== "object") return value;
-
-  const output = Array.isArray(value) ? [] : {};
-
-  for (const [key, item] of Object.entries(value)) {
-    const lowered = key.toLowerCase();
-
-    if (
-      lowered.includes("token") ||
-      lowered.includes("secret") ||
-      lowered.includes("password") ||
-      lowered.includes("authorization") ||
-      lowered.includes("apikey") ||
-      lowered.includes("api_key")
-    ) {
-      output[key] = "[redacted]";
-      continue;
-    }
-
-    if (typeof item === "string" && /bearer\s+|stack trace|typeerror|referenceerror|syntaxerror/i.test(item)) {
-      output[key] = "[redacted]";
-      continue;
-    }
-
-    if (item && typeof item === "object") {
-      output[key] = sanitizeTelemetry(item);
-    } else {
-      output[key] = item;
-    }
-  }
-
-  return output;
-}
-
-function buildTelemetryRecord(payload = {}, options = {}) {
-  try {
-    payload = payload && typeof payload === "object" ? payload : {};
-    options = options && typeof options === "object" ? options : {};
-    const config = {
-      ...DEFAULT_CONFIG,
-      ...(options.config || payload.config || {}),
-    };
-
-    const metrics = {
-      language_detect_ms: clampMs(payload.language_detect_ms || payload.languageDetectMs),
-      translation_ms: clampMs(payload.translation_ms || payload.translationMs),
-      domain_route_ms: clampMs(payload.domain_route_ms || payload.domainRouteMs),
-      tone_adaptation_ms: clampMs(payload.tone_adaptation_ms || payload.toneAdaptationMs),
-      final_envelope_ms: clampMs(payload.final_envelope_ms || payload.finalEnvelopeMs),
-      total_pipeline_ms: clampMs(payload.total_pipeline_ms || payload.totalPipelineMs),
-    };
-
-    return {
-      ok: true,
-      authority: "marion",
-      telemetryEnabled: Boolean(config.enabled),
-      requestId: normalizeString(payload.requestId, "languagesphere-telemetry"),
-      timestamp: new Date().toISOString(),
-      metrics,
-      signals: {
-        fallback_used: normalizeBoolean(payload.fallbackUsed || payload.fallback_used),
-        confidence_band: normalizeString(
-          payload.confidenceBand ||
-            payload.confidence_band,
-          config.defaultConfidenceBand
-        ),
-        source_language: normalizeString(payload.sourceLanguage || payload.source_language, "en"),
-        target_language: normalizeString(payload.targetLanguage || payload.target_language, "en"),
-        active_domain: normalizeString(payload.activeDomain || payload.active_domain || payload.domain, "general"),
-        route_family: normalizeString(payload.routeFamily || payload.route_family, null),
-        tone_mode: normalizeString(payload.toneMode || payload.tone_mode, null),
-        handoff_status: normalizeString(payload.handoffStatus || payload.handoff_status, "available"),
-        final_authority: "marion",
-      },
-      safeMetadata: sanitizeTelemetry(payload.metadata || {}),
-    };
-  } catch (_) {
-    return {
-      ok: false,
-      authority: "marion",
-      telemetryEnabled: false,
-      requestId: "languagesphere-telemetry-fallback",
-      timestamp: new Date().toISOString(),
-      metrics: {
-        language_detect_ms: 0,
-        translation_ms: 0,
-        domain_route_ms: 0,
-        tone_adaptation_ms: 0,
-        final_envelope_ms: 0,
-        total_pipeline_ms: 0,
-      },
-      signals: {
-        fallback_used: true,
-        confidence_band: "low",
-        source_language: "en",
-        target_language: "en",
-        active_domain: "general",
-        route_family: null,
-        tone_mode: null,
-        handoff_status: "fallback",
-        final_authority: "marion",
-      },
-      safeMetadata: {},
-    };
-  }
-}
-
-function validateTelemetryRecord(record = {}) {
-  record = record && typeof record === "object" ? record : {};
-  const serialized = JSON.stringify(record || {});
-
-  return {
-    valid:
-      record.authority === "marion" &&
-      record.signals &&
-      record.signals.final_authority === "marion" &&
-      !/bearer\s+|secret-token|password\s*[:=]|stack trace|typeerror|referenceerror/i.test(serialized),
-    hasMetrics: Boolean(record.metrics),
-    hasSignals: Boolean(record.signals),
-    noDebugLeak: !/stack trace|typeerror|referenceerror|syntaxerror/i.test(serialized),
-  };
-}
-
-function process(payload = {}, options = {}) {
-  return buildTelemetryRecord(payload, options);
-}
-
-function record(payload = {}, options = {}) {
-  return buildTelemetryRecord(payload, options);
-}
-
 
 function normalizeNumber(value, fallback = 0) {
   const number = Number(value);
@@ -195,12 +58,218 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function isSensitiveKey(key) {
+  const lowered = String(key || "").toLowerCase();
+  return (
+    lowered.includes("token") ||
+    lowered.includes("secret") ||
+    lowered.includes("password") ||
+    lowered.includes("authorization") ||
+    lowered.includes("apikey") ||
+    lowered.includes("api_key") ||
+    lowered.includes("accesskey") ||
+    lowered.includes("credential")
+  );
+}
+
+function sanitizeTelemetry(value, depth = 0) {
+  if (depth > 8) return "[redacted-depth-limit]";
+
+  if (typeof value === "string") {
+    return REDACTION_PATTERN.test(value) ? "[redacted]" : value;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "boolean" || value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "function") {
+    return "[redacted-function]";
+  }
+
+  if (value instanceof Error) {
+    return {
+      name: sanitizeTelemetry(value.name || "Error", depth + 1),
+      message: REDACTION_PATTERN.test(String(value.message || ""))
+        ? "[redacted]"
+        : "error-redacted",
+    };
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeTelemetry(item, depth + 1));
+  }
+
+  if (!value || typeof value !== "object") return value;
+
+  const output = {};
+
+  for (const [key, item] of Object.entries(value)) {
+    if (isSensitiveKey(key)) {
+      output[key] = "[redacted]";
+      continue;
+    }
+
+    output[key] = sanitizeTelemetry(item, depth + 1);
+  }
+
+  return output;
+}
+
+function buildTelemetryRecord(payload = {}, options = {}) {
+  try {
+    const safePayload = payload && typeof payload === "object" ? payload : {};
+    const safeOptions = options && typeof options === "object" ? options : {};
+    const config = {
+      ...DEFAULT_CONFIG,
+      ...(safeOptions.config || safePayload.config || {}),
+    };
+
+    const metrics = {
+      language_detect_ms: clampMs(
+        safePayload.language_detect_ms ?? safePayload.languageDetectMs,
+        config.maxMetricValueMs
+      ),
+      translation_ms: clampMs(
+        safePayload.translation_ms ?? safePayload.translationMs,
+        config.maxMetricValueMs
+      ),
+      domain_route_ms: clampMs(
+        safePayload.domain_route_ms ?? safePayload.domainRouteMs,
+        config.maxMetricValueMs
+      ),
+      tone_adaptation_ms: clampMs(
+        safePayload.tone_adaptation_ms ?? safePayload.toneAdaptationMs,
+        config.maxMetricValueMs
+      ),
+      final_envelope_ms: clampMs(
+        safePayload.final_envelope_ms ?? safePayload.finalEnvelopeMs,
+        config.maxMetricValueMs
+      ),
+      total_pipeline_ms: clampMs(
+        safePayload.total_pipeline_ms ?? safePayload.totalPipelineMs,
+        config.maxMetricValueMs
+      ),
+    };
+
+    return {
+      ok: true,
+      authority: "marion",
+      telemetryEnabled: Boolean(config.enabled),
+      requestId: normalizeString(safePayload.requestId, "languagesphere-telemetry"),
+      timestamp: new Date().toISOString(),
+      metrics,
+      signals: {
+        fallback_used: normalizeBoolean(
+          safePayload.fallbackUsed ?? safePayload.fallback_used
+        ),
+        confidence_band: normalizeString(
+          safePayload.confidenceBand ?? safePayload.confidence_band,
+          config.defaultConfidenceBand
+        ),
+        source_language: normalizeString(
+          safePayload.sourceLanguage ?? safePayload.source_language,
+          "en"
+        ),
+        target_language: normalizeString(
+          safePayload.targetLanguage ?? safePayload.target_language,
+          "en"
+        ),
+        active_domain: normalizeString(
+          safePayload.activeDomain ?? safePayload.active_domain ?? safePayload.domain,
+          "general"
+        ),
+        route_family: normalizeString(
+          safePayload.routeFamily ?? safePayload.route_family,
+          null
+        ),
+        tone_mode: normalizeString(safePayload.toneMode ?? safePayload.tone_mode, null),
+        handoff_status: normalizeString(
+          safePayload.handoffStatus ?? safePayload.handoff_status,
+          "available"
+        ),
+        final_authority: "marion",
+      },
+      safeMetadata: sanitizeTelemetry(safePayload.metadata || {}),
+    };
+  } catch (_) {
+    return createFallbackTelemetryRecord();
+  }
+}
+
+function createFallbackTelemetryRecord() {
+  return {
+    ok: false,
+    authority: "marion",
+    telemetryEnabled: false,
+    requestId: "languagesphere-telemetry-fallback",
+    timestamp: new Date().toISOString(),
+    metrics: {
+      language_detect_ms: 0,
+      translation_ms: 0,
+      domain_route_ms: 0,
+      tone_adaptation_ms: 0,
+      final_envelope_ms: 0,
+      total_pipeline_ms: 0,
+    },
+    signals: {
+      fallback_used: true,
+      confidence_band: "low",
+      source_language: "en",
+      target_language: "en",
+      active_domain: "general",
+      route_family: null,
+      tone_mode: null,
+      handoff_status: "fallback",
+      final_authority: "marion",
+    },
+    safeMetadata: {},
+  };
+}
+
+function validateTelemetryRecord(record = {}) {
+  const safeRecord = record && typeof record === "object" ? record : {};
+  const serialized = JSON.stringify(sanitizeTelemetry(safeRecord));
+
+  return {
+    valid:
+      safeRecord.authority === "marion" &&
+      safeRecord.signals &&
+      safeRecord.signals.final_authority === "marion" &&
+      !REDACTION_PATTERN.test(serialized),
+    hasMetrics: Boolean(safeRecord.metrics),
+    hasSignals: Boolean(safeRecord.signals),
+    noDebugLeak: !/stack trace|typeerror|referenceerror|syntaxerror/i.test(serialized),
+  };
+}
+
+function processTelemetry(payload = {}, options = {}) {
+  return buildTelemetryRecord(payload, options);
+}
+
+function record(payload = {}, options = {}) {
+  return buildTelemetryRecord(payload, options);
+}
+
 function createTelemetryEvent(event, payload = {}) {
   return {
     event: normalizeString(event, "event"),
     payload: sanitizeTelemetry(payload && typeof payload === "object" ? payload : {}),
     at: new Date().toISOString(),
   };
+}
+
+function getConfidenceBand(confidence) {
+  const normalized = normalizeNumber(confidence, NaN);
+
+  if (!Number.isFinite(normalized)) return "unknown";
+  if (normalized >= 0.75) return "high";
+  if (normalized >= 0.55) return "medium";
+  return "low";
 }
 
 function createLanguageSphereTelemetry(seed = {}, options = {}) {
@@ -217,9 +286,7 @@ function createLanguageSphereTelemetry(seed = {}, options = {}) {
         ? safeSeed.fallbackDecision
         : {};
 
-    const language = envelope.language && typeof envelope.language === "object"
-      ? envelope.language
-      : {};
+    const language = envelope.language && typeof envelope.language === "object" ? envelope.language : {};
 
     const recordPayload = {
       requestId: requestPayload.requestId || requestPayload.reqId || "languagesphere-api-chat",
@@ -230,24 +297,11 @@ function createLanguageSphereTelemetry(seed = {}, options = {}) {
         requestPayload.detectedLanguage ||
         "unknown",
       targetLanguage:
-        language.targetLanguage ||
-        requestPayload.targetLanguage ||
-        requestPayload.targetLang ||
-        "en",
+        language.targetLanguage || requestPayload.targetLanguage || requestPayload.targetLang || "en",
       fallbackUsed: Boolean(fallbackDecision.fallbackApplied),
-      confidenceBand:
-        typeof language.confidence === "number"
-          ? language.confidence >= 0.75
-            ? "high"
-            : language.confidence >= 0.55
-              ? "medium"
-              : "low"
-          : "unknown",
+      confidenceBand: getConfidenceBand(language.confidence),
       activeDomain:
-        requestPayload.domain ||
-        requestPayload.activeDomain ||
-        requestPayload.routeFamily ||
-        "general",
+        requestPayload.domain || requestPayload.activeDomain || requestPayload.routeFamily || "general",
       routeFamily: requestPayload.routeFamily || null,
       metadata: {
         blocked: Boolean(fallbackDecision.blocked),
@@ -256,12 +310,14 @@ function createLanguageSphereTelemetry(seed = {}, options = {}) {
     };
 
     const base = buildTelemetryRecord(recordPayload, options);
+    const timestamp = base.timestamp;
+
     const telemetry = {
       ...base,
       source: "languagesphere-api-middleware",
       sessionId: normalizeString(recordPayload.sessionId, null),
-      createdAt: base.timestamp,
-      updatedAt: base.timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
       events: [
         createTelemetryEvent("languagesphere-api-chat-telemetry-created", {
           blocked: Boolean(fallbackDecision.blocked),
@@ -376,17 +432,19 @@ function summarizeTelemetry(telemetry = {}) {
   };
 }
 
-
 module.exports = {
   DEFAULT_CONFIG,
   clampMs,
   normalizeBoolean,
   normalizeString,
+  normalizeNumber,
+  normalizeArray,
   sanitizeTelemetry,
   buildTelemetryRecord,
+  createTelemetryEvent,
   createLanguageSphereTelemetry,
   summarizeTelemetry,
   validateTelemetryRecord,
-  process,
+  process: processTelemetry,
   record,
 };
