@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.8.5 LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.8.6 LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -163,11 +163,16 @@ function isPublicControlPolicyLeak(value){
     /\bsame normalized text\b/i.test(text)||
     /\bregenerate from the same normalized text\b/i.test(text);
 }
+function isPrimitivePublicReply(value){
+  const text=safeStr(value).replace(/[.!?]+$/g,"").trim().toLowerCase();
+  return !text||/^(?:false|true|null|undefined|none|nan|\[object object\])$/.test(text);
+}
 function isLingoLinkExplanationPrompt(value=""){
   const text=safeStr(value);
   if(!text)return false;
-  return /\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(text)&&
-    /\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language|translation|translate|understand)\b/i.test(text);
+  const hasName=/\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(text);
+  const hasIntent=/\\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language|translation|translate|understand|explica|explicame|expl[ií]came|qu[eé]\\s+hace|frase\\s+clara|idioma|idiomas|lenguaje|lenguajes|multiling[uü]e|traducci[oó]n|traducir|comprender|entender|explique|que\\s+fait|qu[e’']?est[-\\s]*ce\\s+que|phrase\\s+claire|langue|langues|multilingue|traduction|traduire|comprendre)\\b/i.test(text);
+  return !!(hasName&&hasIntent);
 }
 function isGenericGreetingStatusFallback(value=""){
   const text=lower(value).replace(/[.!?]+$/g,"").trim();
@@ -191,7 +196,7 @@ function applyLingoLinkReplyOverride(packet={},ctx={}){
   if(!answer)return safeObj(packet);
   const out=safeObj(packet);
   const current=firstText(out.reply,out.text,out.answer,out.output,out.response,out.message,out.displayReply,safeObj(out.payload).reply,safeObj(out.finalEnvelope).reply);
-  if(current&&!isGenericGreetingStatusFallback(current)&&!isPublicControlPolicyLeak(current)&&!isThinPlaceholderText(current))return out;
+  if(current&&!isPrimitivePublicReply(current)&&!isGenericGreetingStatusFallback(current)&&!isPublicControlPolicyLeak(current)&&!isThinPlaceholderText(current))return out;
   out.reply=answer;out.text=answer;out.answer=answer;out.output=answer;out.response=answer;out.message=answer;out.displayReply=answer;out.spokenText=answer;out.textSpeak=answer;out.textDisplay=answer;
   out.payload={...safeObj(out.payload),reply:answer,text:answer,message:answer,answer,output:answer,response:answer,displayReply:answer,spokenText:answer,textSpeak:answer,textDisplay:answer};
   out.finalEnvelope={...safeObj(out.finalEnvelope),reply:answer,text:answer,displayReply:answer,spokenText:answer};
@@ -334,7 +339,8 @@ function applyPublicReplyHygieneToPacket(packet={}){
   let reply=stripPublicReplyScaffold(firstText(out.reply,out.text,out.displayReply,out.response,safeObj(out.finalEnvelope).reply,safeObj(out.payload).reply));
   reply=stripTelemetryLeakFromReply(reply);
   const fallback=buildLingoLinkPublicAnswerFromPacket(out,{});
-  if(fallback&&(!reply||isGenericGreetingStatusFallback(reply)||isPublicControlPolicyLeak(reply)||isThinPlaceholderText(reply)))reply=fallback;
+  if(fallback&&(isPrimitivePublicReply(reply)||!reply||isGenericGreetingStatusFallback(reply)||isPublicControlPolicyLeak(reply)||isThinPlaceholderText(reply)))reply=fallback;
+  if(isPrimitivePublicReply(reply))reply="";
   if(!reply)return out;
   out.reply=reply;out.text=reply;out.answer=reply;out.output=reply;out.response=reply;out.message=reply;out.displayReply=reply;out.spokenText=stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(out.spokenText,reply)))||reply;out.textSpeak=stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(out.textSpeak,out.spokenText,reply)))||reply;out.textDisplay=reply;
   out.payload={...safeObj(out.payload),reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,spokenText:stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(safeObj(out.payload).spokenText,reply)))||reply,textSpeak:stripTelemetryLeakFromReply(stripPublicReplyScaffold(firstText(safeObj(out.payload).textSpeak,reply)))||reply,textDisplay:reply};
@@ -582,7 +588,7 @@ function isTelemetryLeakText(value=""){
 }
 function stripTelemetryLeakFromReply(value=""){
   const text=telemetryAuditText(value);
-  if(!text)return"";
+  if(!text||isPrimitivePublicReply(text))return"";
   if(isPublicControlPolicyLeak(text))return"";
   if(/^\s*[\[{]/.test(text)&&isTelemetryLeakText(text))return"";
   if(isTelemetryLeakText(text))return text
@@ -761,7 +767,7 @@ function transportSafePacket(packet = {}) {
   if (!isObj(out)) return out;
   const reply = stripPublicReplyScaffold(extractReply(out) || safeStr(safeObj(out.finalEnvelope).reply));
   const trustedFinal = hasTrustedBridgeFinalPacket(out);
-  const hasReply = !!reply && trustedFinal && !isThinPlaceholderText(reply) && !isDiagnosticText(reply);
+  const hasReply = !!reply && trustedFinal && !isPrimitivePublicReply(reply) && !isThinPlaceholderText(reply) && !isDiagnosticText(reply);
   if (hasReply) {
     out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply; out.spokenText = safeStr(out.spokenText || reply);
     out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
@@ -808,7 +814,7 @@ function hotFallbackReply(_reason,_input={}){return "";}
 function createLocalFinalEnvelope({normalized={},routed={},contract={},reason="local_final_fallback",loopGuardResult={}}={}){
   const routing=safeObj(routed.routing),intent=firstText(routing.intent,contract.intent,"simple_chat"),domain=firstText(routing.domain,contract.domain,normalized.domain,"general");
   let reply=firstText(extractReply(contract));
-  if(!reply||isThinPlaceholderText(reply)||isDiagnosticText(reply))return buildErrorResult(reason||"local_final_reply_missing",{issues:["local_final_reply_missing"],loopGuard:safeObj(loopGuardResult)},normalized);
+  if(!reply||isPrimitivePublicReply(reply)||isThinPlaceholderText(reply)||isDiagnosticText(reply))return buildErrorResult(reason||"local_final_reply_missing",{issues:["local_final_reply_missing"],loopGuard:safeObj(loopGuardResult)},normalized);
   const memoryPatch=safeObj(contract.memoryPatch);
   const runtimeTelemetry=buildBridgeRuntimeTelemetry({source:"marionBridge.createLocalFinalEnvelope",normalized,routed,contract,reply,finalEnvelopeTrusted:true,canEmit:true,error:reason,loopGuardResult});
   const packet={
