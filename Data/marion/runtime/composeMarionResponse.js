@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.35.2 PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.35.2 LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1022,6 +1022,16 @@ function buildLingoLinkPublicAnswer(text="",input={}){
   return "";
 }
 
+function isGenericGreetingStatusReply(value){
+  const text=lower(value).replace(/[.!?]+$/g,"").trim();
+  if(!text)return false;
+  return /^hello\.?\s*i[’']?m ready when you are\.?\s*what do you need$/i.test(text)||
+    /^hi\.?\s*i[’']?m nyx\.?\s*it[’']?s good to see you\.?\s*what would you like to work on$/i.test(text)||
+    /^i[’']?m here and ready\.?\s*what are we getting into$/i.test(text)||
+    /^ready when you are\b/i.test(text);
+}
+
+
 function isGreetingOnly(text){
   const t=normalizeInboundTextForPosture(text).replace(/[.!?]+$/g,"").trim();
   return /^(hi|hello|hey|yo|hiya|morning|afternoon|evening|good morning|good afternoon|good evening)(\s+(nyx|nix|vera))?$/.test(t);
@@ -1371,13 +1381,13 @@ function stripStaleProgressionSurface(value="",intent="",text=""){
 function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply)||isPublicControlPolicyLeak(reply))return"";return reply;}
 function finalSurfaceReply(value,intent,text,input={}){
   const lingoLinkAnswer=buildLingoLinkPublicAnswer(text,input);
+  if(lingoLinkAnswer)return lingoLinkAnswer;
   const fiveTurn=fiveTurnContractReply(intent,text,input,{});
-  if(fiveTurn&&!isPublicControlPolicyLeak(fiveTurn))return fiveTurn;
+  if(fiveTurn&&!isPublicControlPolicyLeak(fiveTurn)&&!isGenericGreetingStatusReply(fiveTurn))return fiveTurn;
   let reply=applyReplyContractMinimalismGovernor(value,intent,text,input);
   reply=stripStaleProgressionSurface(reply,intent,text);
   reply=stripPublicReplyScaffold(reply);
-  if(reply&&!isPublicControlPolicyLeak(reply))return reply;
-  if(lingoLinkAnswer)return lingoLinkAnswer;
+  if(reply&&!isPublicControlPolicyLeak(reply)&&!isGenericGreetingStatusReply(reply))return reply;
   return buildFinalLoopRecoveryReply(intent,text,input);
 }
 
