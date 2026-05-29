@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.35.2 LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.35.3 LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -1014,9 +1014,22 @@ function isPublicControlPolicyLeak(value){
     /\bsame normalized text\b/i.test(text)||
     /\bregenerate from the same normalized text\b/i.test(text);
 }
+function isPrimitivePublicReply(value){
+  const text=safeStr(value).replace(/[.!?]+$/g,"").trim().toLowerCase();
+  return !text||/^(?:false|true|null|undefined|none|nan|\[object object\])$/.test(text);
+}
 function buildLingoLinkPublicAnswer(text="",input={}){
-  const source=[text,safeStr(safeObj(input).text),safeStr(safeObj(input).userText),safeStr(safeObj(input).message)].join(" ");
-  if(/\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(source)&&/\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language)\b/i.test(source)){
+  const i=safeObj(input), original=safeObj(i.original), body=safeObj(original.body), payload=safeObj(i.payload), meta=safeObj(i.meta);
+  const source=[
+    text,i.text,i.userText,i.message,i.query,i.userQuery,i.rawUserQuery,i.publicUserQuery,i.inputText,i.originalText,
+    payload.text,payload.userText,payload.message,payload.query,payload.originalText,
+    original.text,original.userText,original.message,original.query,
+    body.text,body.userText,body.message,body.query,
+    meta.text,meta.userText,meta.message,meta.query
+  ].map(safeStr).join(" ");
+  const hasName=/\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(source);
+  const hasIntent=/\\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language|translation|translate|understand|explica|explicame|expl[ií]came|qu[eé]\\s+hace|frase\\s+clara|idioma|idiomas|lenguaje|lenguajes|multiling[uü]e|traducci[oó]n|traducir|comprender|entender|explique|que\\s+fait|qu[e’']?est[-\\s]*ce\\s+que|phrase\\s+claire|langue|langues|multilingue|traduction|traduire|comprendre)\\b/i.test(source);
+  if(hasName&&hasIntent){
     return "LingoLink helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
   }
   return "";
@@ -1378,7 +1391,7 @@ function stripStaleProgressionSurface(value="",intent="",text=""){
     .replace(/\s*instead of generic\.?/gi,"");
   return out.replace(/\s+/g," ").replace(/\s+([.,;:])/g,"$1").trim();
 }
-function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply)||isPublicControlPolicyLeak(reply))return"";return reply;}
+function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(isPrimitivePublicReply(reply))return"";if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isPrimitivePublicReply(reply)||isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply)||isPublicControlPolicyLeak(reply))return"";return reply;}
 function finalSurfaceReply(value,intent,text,input={}){
   const lingoLinkAnswer=buildLingoLinkPublicAnswer(text,input);
   if(lingoLinkAnswer)return lingoLinkAnswer;
