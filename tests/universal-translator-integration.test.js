@@ -107,6 +107,11 @@ const LANGUAGE_DETECT_PATH = path.join(RUNTIME_DIR, "LanguageDetect.js");
 const MEMORY_STORE_PATH = path.join(RUNTIME_DIR, "TranslationMemoryStore.js");
 
 function requireFresh(modulePath) {
+  assert.ok(
+    fileExists(modulePath),
+    `Cannot require missing module: ${modulePath}`
+  );
+
   const resolved = require.resolve(modulePath);
   delete require.cache[resolved];
   return require(resolved);
@@ -167,13 +172,19 @@ function restoreFile(filePath, backup) {
 }
 
 function clearTranslatorCache() {
-  if (!fileExists(ADAPTER_PATH)) return;
+  if (!fileExists(ADAPTER_PATH)) return false;
 
   const Translator = requireFresh(ADAPTER_PATH);
 
-  if (typeof Translator.resetUniversalTranslatorCaches === "function") {
+  if (
+    Translator &&
+    typeof Translator.resetUniversalTranslatorCaches === "function"
+  ) {
     Translator.resetUniversalTranslatorCaches();
+    return true;
   }
+
+  return false;
 }
 
 function assertTranslatorContract(Translator) {
@@ -282,9 +293,13 @@ function createTestConfig(overrides = {}) {
   };
 }
 
-async function run() {
-  console.log("Running Universal Translator integration regression...");
-  console.log(`Project root: ${PROJECT_ROOT}`);
+async function runIntegrationRegression(options = {}) {
+  const verbose = options.verbose === true;
+
+  if (verbose) {
+    console.log("Running Universal Translator integration regression...");
+    console.log(`Project root: ${PROJECT_ROOT}`);
+  }
 
   ensureRuntimeFilesExist();
 
@@ -762,7 +777,9 @@ async function run() {
       "disabled translator should not attach translationMeta"
     );
 
-    console.log("Universal Translator integration regression passed.");
+    if (verbose) {
+      console.log("Universal Translator integration regression passed.");
+    }
   } finally {
     restoreFile(CONFIG_PATH, configBackup);
 
@@ -779,8 +796,37 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error("Universal Translator integration regression failed.");
-  console.error(error);
-  process.exit(1);
-});
+/**
+ * Jest-owned execution path.
+ *
+ * Critical:
+ * - Do not call runIntegrationRegression() at module load time under Jest.
+ * - Do not call process.exit() from inside a Jest test file.
+ * - Let Jest own async completion so it does not report:
+ *   "Cannot log after tests are done" or false suite failures.
+ */
+if (typeof describe === "function" && typeof test === "function") {
+  describe("Universal Translator integration regression", () => {
+    test("preserves Marion authority, provider safety, glossary terms, and config restoration", async () => {
+      await runIntegrationRegression({ verbose: false });
+    });
+  });
+}
+
+/**
+ * Direct Node execution path remains available for local forensic runs:
+ *   node tests/universal-translator-integration.test.js
+ */
+if (require.main === module) {
+  runIntegrationRegression({ verbose: true }).catch((error) => {
+    console.error("Universal Translator integration regression failed.");
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  runIntegrationRegression,
+  resolveProjectRoot,
+  createTestConfig
+};
