@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.18sb LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
+const INDEX_VERSION = "index.js v2.18.18sb LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
@@ -519,9 +519,16 @@ function stripPublicReplyScaffold(value) {
   return t.replace(/\s+([,.!?;:])/g, "$1").replace(/\s{2,}/g, " ").trim();
 }
 
+function isPrimitivePlaceholderReplyValue(value) {
+  if (typeof value === "boolean") return true;
+  const t = cleanText(value).replace(/[.!?]+$/g, "").toLowerCase();
+  if (!t) return true;
+  return /^(?:false|true|null|undefined|nan|none)$/i.test(t);
+}
+
 function cleanReplyForUser(v) {
   let t = stripPublicReplyScaffold(v);
-  if (!t) return "";
+  if (!t || isPrimitivePlaceholderReplyValue(v) || isPrimitivePlaceholderReplyValue(t)) return "";
   t = stripUserVisibleDebugLeak(t);
   if (!t) return "";
   t = stripPublicReplyScaffold(t);
@@ -531,7 +538,7 @@ function cleanReplyForUser(v) {
   t = t.replace(/\bbackend\b/ig, "system");
   t = stripPublicReplyScaffold(t);
   t = t.replace(/\s+([,.!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
-  return hasUserVisibleDebugLeak(t) || isPublicControlPolicyLeak(t) ? "" : t;
+  return hasUserVisibleDebugLeak(t) || isPublicControlPolicyLeak(t) || isPrimitivePlaceholderReplyValue(t) ? "" : t;
 }
 
 function isPublicControlPolicyLeak(value) {
@@ -550,14 +557,21 @@ function buildLingoLinkPublicAnswerFromPacket(packet) {
   const payload = safeObj(src.payload);
   const finalEnvelope = safeObj(src.finalEnvelope);
   const input = safeObj(src.input);
+  const body = safeObj(src.body);
+  const meta = safeObj(src.meta);
+  const normalized = safeObj(src.normalized || src.norm);
   const source = [
-    src.userText, src.message, src.text, src.query, src.inputText, src.originalText,
-    payload.userText, payload.message, payload.text, payload.query, payload.originalText,
-    finalEnvelope.userText, finalEnvelope.message, finalEnvelope.text,
-    input.userText, input.message, input.text, input.query
+    src.userText, src.rawUserText, src.originalUserText, src.message, src.text, src.query, src.inputText, src.originalText,
+    payload.userText, payload.rawUserText, payload.originalUserText, payload.message, payload.text, payload.query, payload.originalText,
+    finalEnvelope.userText, finalEnvelope.rawUserText, finalEnvelope.originalUserText, finalEnvelope.message, finalEnvelope.text,
+    input.userText, input.rawUserText, input.originalUserText, input.message, input.text, input.query,
+    body.userText, body.rawUserText, body.originalUserText, body.message, body.text, body.query,
+    meta.userText, meta.rawUserText, meta.originalUserText, meta.message, meta.text, meta.query,
+    normalized.userText, normalized.rawUserText, normalized.originalUserText, normalized.message, normalized.text, normalized.query
   ].map(cleanText).join(" ");
-  if (/\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(source) &&
-      /\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language)\b/i.test(source)) {
+  const hasLingoLinkSubject = /\b(?:lingolink|lingo\s*link|language\s*sphere|languagesphere)\b/i.test(source);
+  const hasLingoLinkAsk = /\b(?:explain|what|does|do|clear\s+sentence|one\s+sentence|multilingual|language|languages|explica|explicame|explícame|explique|que\s+hace|qué\s+hace|que\s+fait|frase\s+clara|phrase\s+claire|idioma|idiomas|langue|langues|multilingue|multilingüe|traduccion|traducción|traduction|traduire)\b/i.test(source);
+  if (hasLingoLinkSubject && hasLingoLinkAsk) {
     return "LingoLink helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
   }
   return "";
@@ -578,7 +592,10 @@ const PUBLIC_RESPONSE_INTERNAL_KEY_PATTERN = /^(?:meta|diagnostics?|runtimeTelem
 const PUBLIC_RESPONSE_INTERNAL_TEXT_PATTERN = /\b(?:languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|finalEnvelopeTrusted|replyAuthority|semanticAuthority|diagnostics?|stack trace|TypeError|ReferenceError|SyntaxError|same prompt,?\s*new requirement|answer with one new fact|if voice and text return different answers|preserve intent and regenerate|same normalized text)\b/i;
 
 function publicSafePrimitive(value) {
-  if (typeof value === "string") return cleanText(value);
+  if (typeof value === "string") {
+    const cleaned = cleanText(value);
+    return isPrimitivePlaceholderReplyValue(cleaned) || PUBLIC_RESPONSE_INTERNAL_TEXT_PATTERN.test(cleaned) ? undefined : cleaned;
+  }
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "boolean") return value;
   return undefined;
@@ -740,6 +757,8 @@ function applyPublicReplyHygieneToResponse(packet) {
     ""
   );
   if (reply) return buildPublicChatResponse(packet, reply);
+  const lingoLinkAnswer = buildLingoLinkPublicAnswerFromPacket(packet);
+  if (lingoLinkAnswer) return buildPublicChatResponse(packet, lingoLinkAnswer);
   const scrubbed = scrubPublicObject(packet);
   return isObj(scrubbed) ? scrubbed : { ok: false, final: false, reply: "", text: "" };
 }
@@ -9271,6 +9290,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     output: reply,
     response: reply,
     displayReply: reply,
+    userText: cleanText(norm.text || norm.userText || norm.message || ""),
+    rawUserText: cleanText(norm.rawText || norm.rawUserText || norm.originalText || norm.text || ""),
+    originalUserText: cleanText(norm.originalText || norm.rawUserText || norm.text || ""),
     spokenText: cleanText(speech && speech.textSpeak || reply || ""),
     detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
     finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: !!selected.marionFinal, handled: true, authority: selected.marionFinal ? "marionFinalEnvelope" : cleanText(authority || "packet_or_transport_final"), contractVersion: selected.marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0", finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION, runtimeTelemetry },
@@ -9282,6 +9304,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       text: reply,
       message: reply,
       displayReply: reply,
+      userText: cleanText(norm.text || norm.userText || norm.message || ""),
+      rawUserText: cleanText(norm.rawText || norm.rawUserText || norm.originalText || norm.text || ""),
+      originalUserText: cleanText(norm.originalText || norm.rawUserText || norm.text || ""),
       spokenText: cleanText(speech && speech.textSpeak || reply || ""),
       textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
       textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
