@@ -3,122 +3,184 @@
 /**
  * LanguageSphere Runtime Smoke Test
  * ------------------------------------------------------------
- * Validates the Phase 1 spine:
- * - runtime loads
- * - text normalizes
- * - envelope remains Marion-safe
- * - English passthrough works
- * - Spanish/French detection works conservatively
- * - injected provider can translate
+ * Jest-owned regression/smoke coverage for the Phase 1 LanguageSphere spine.
+ *
+ * Validates:
+ * - Runtime modules load from the backend project root.
+ * - Core exported functions exist before behavior assertions run.
+ * - Text normalization remains stable.
+ * - Runtime envelopes remain Marion-safe.
+ * - English passthrough remains non-translating.
+ * - Spanish/French detection remains conservative but usable.
+ * - Translation requirement logic remains stable.
+ * - Injected providers are honored when translation is required.
+ * - Empty input fails safely without granting LanguageSphere final authority.
+ *
+ * Why this file is Jest-owned:
+ * The previous version used node:test. Jest can execute the file, but it does
+ * not count node:test registrations as Jest tests, which can trigger:
+ * "Your test suite must contain at least one test."
  */
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+const path = require('path');
 
-const {
-  runLanguageSphere,
-  normalizeText,
-  localDetectLanguage,
-  shouldTranslate
-} = require('../Data/marion/runtime/languagesphere/LanguageSphereRuntime');
+function runtimeRequire(relativePath) {
+  return require(path.join(process.cwd(), relativePath));
+}
 
-const {
-  isLanguageSphereEnvelope
-} = require('../Data/marion/runtime/languagesphere/LanguageSphereResultEnvelope');
+function loadRuntime() {
+  return runtimeRequire('Data/marion/runtime/languagesphere/LanguageSphereRuntime.js');
+}
 
-test('LanguageSphere normalizes smart quotes, repeated whitespace, and line breaks', () => {
-  const result = normalizeText('  “Hello”   Mac,\n\nthis   is   clean.  ');
+function loadEnvelopeContract() {
+  return runtimeRequire('Data/marion/runtime/languagesphere/LanguageSphereResultEnvelope.js');
+}
 
-  assert.equal(result, '"Hello" Mac, this is clean.');
+function expectFunction(value, name) {
+  expect(typeof value).toBe('function');
+  return value;
+}
+
+function expectMarionSafeAuthority(envelope) {
+  expect(envelope).toBeTruthy();
+  expect(envelope.authority).toBeTruthy();
+  expect(envelope.authority.finalAuthority).toBe(false);
+  expect(envelope.authority.finalAuthorityOwner).toBe('Marion');
+  expect(envelope.authority.mayBypassMarion).toBe(false);
+}
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.clearAllMocks();
+  jest.clearAllTimers();
 });
 
-test('LanguageSphere returns a Marion-safe envelope for English input', async () => {
-  const envelope = await runLanguageSphere({
-    text: 'Hello Marion, can you help me test LanguageSphere?',
-    targetLanguage: 'en'
+describe('LanguageSphere runtime smoke test', () => {
+  test('loads required runtime exports from the Marion runtime folder', () => {
+    const runtime = loadRuntime();
+    const envelopeContract = loadEnvelopeContract();
+
+    expectFunction(runtime.runLanguageSphere, 'runLanguageSphere');
+    expectFunction(runtime.normalizeText, 'normalizeText');
+    expectFunction(runtime.localDetectLanguage, 'localDetectLanguage');
+    expectFunction(runtime.shouldTranslate, 'shouldTranslate');
+    expectFunction(envelopeContract.isLanguageSphereEnvelope, 'isLanguageSphereEnvelope');
   });
 
-  assert.equal(isLanguageSphereEnvelope(envelope), true);
-  assert.equal(envelope.module, 'LanguageSphere');
-  assert.equal(envelope.authority.finalAuthority, false);
-  assert.equal(envelope.authority.finalAuthorityOwner, 'Marion');
-  assert.equal(envelope.authority.mayBypassMarion, false);
+  test('normalizes smart quotes, repeated whitespace, and line breaks', () => {
+    const { normalizeText } = loadRuntime();
 
-  assert.equal(envelope.language.sourceLanguage, 'en');
-  assert.equal(envelope.language.targetLanguage, 'en');
-  assert.equal(envelope.language.translationRequired, false);
+    const result = normalizeText('  “Hello”   Mac,\n\nthis   is   clean.  ');
 
-  assert.equal(
-    envelope.text.marionInputText,
-    'Hello Marion, can you help me test LanguageSphere?'
-  );
-});
+    expect(result).toBe('"Hello" Mac, this is clean.');
+  });
 
-test('LanguageSphere detects Spanish marker input', () => {
-  const detection = localDetectLanguage('Hola, necesito una traducción para este idioma.');
+  test('returns a Marion-safe envelope for English passthrough input', async () => {
+    const { runLanguageSphere } = loadRuntime();
+    const { isLanguageSphereEnvelope } = loadEnvelopeContract();
 
-  assert.equal(detection.language, 'es');
-  assert.ok(detection.confidence >= 0.55);
-});
-
-test('LanguageSphere detects French marker input', () => {
-  const detection = localDetectLanguage('Bonjour, merci pour la traduction en français.');
-
-  assert.equal(detection.language, 'fr');
-  assert.ok(detection.confidence >= 0.55);
-});
-
-test('LanguageSphere determines translation requirement correctly', () => {
-  assert.equal(shouldTranslate('en', 'en'), false);
-  assert.equal(shouldTranslate('es', 'en'), true);
-  assert.equal(shouldTranslate('fr', 'en'), true);
-  assert.equal(shouldTranslate('unknown', 'en'), false);
-});
-
-test('LanguageSphere uses injected provider when translation is required', async () => {
-  const fakeProvider = {
-    async translate(text, context) {
-      assert.equal(context.sourceLanguage, 'es');
-      assert.equal(context.targetLanguage, 'en');
-
-      return {
-        text: `TRANSLATED: ${text}`,
-        providerName: 'FakeProvider',
-        providerMode: 'test',
-        applied: true
-      };
-    }
-  };
-
-  const envelope = await runLanguageSphere(
-    {
-      text: 'Hola, necesito una traducción para este idioma.',
+    const envelope = await runLanguageSphere({
+      text: 'Hello Marion, can you help me test LanguageSphere?',
       targetLanguage: 'en'
-    },
-    {
-      provider: fakeProvider
-    }
-  );
+    });
 
-  assert.equal(isLanguageSphereEnvelope(envelope), true);
-  assert.equal(envelope.language.sourceLanguage, 'es');
-  assert.equal(envelope.language.targetLanguage, 'en');
-  assert.equal(envelope.language.translationRequired, true);
-  assert.equal(envelope.language.translationApplied, true);
-  assert.equal(envelope.provider.name, 'FakeProvider');
-  assert.equal(envelope.provider.mode, 'test');
-  assert.ok(envelope.text.translatedText.startsWith('TRANSLATED:'));
-});
+    expect(isLanguageSphereEnvelope(envelope)).toBe(true);
+    expect(envelope.module).toBe('LanguageSphere');
+    expectMarionSafeAuthority(envelope);
 
-test('LanguageSphere fails safely on empty input', async () => {
-  const envelope = await runLanguageSphere({
-    text: '      ',
-    targetLanguage: 'en'
+    expect(envelope.language.sourceLanguage).toBe('en');
+    expect(envelope.language.targetLanguage).toBe('en');
+    expect(envelope.language.translationRequired).toBe(false);
+    expect(envelope.language.translationApplied).toBe(false);
+
+    expect(envelope.text.marionInputText).toBe(
+      'Hello Marion, can you help me test LanguageSphere?'
+    );
   });
 
-  assert.equal(isLanguageSphereEnvelope(envelope), true);
-  assert.equal(envelope.status, 'empty');
-  assert.equal(envelope.language.fallbackApplied, true);
-  assert.equal(envelope.text.marionInputText, '');
-  assert.equal(envelope.authority.finalAuthority, false);
+  test('detects Spanish marker input conservatively', () => {
+    const { localDetectLanguage } = loadRuntime();
+
+    const detection = localDetectLanguage('Hola, necesito una traducción para este idioma.');
+
+    expect(detection).toBeTruthy();
+    expect(detection.language).toBe('es');
+    expect(detection.confidence).toBeGreaterThanOrEqual(0.55);
+  });
+
+  test('detects French marker input conservatively', () => {
+    const { localDetectLanguage } = loadRuntime();
+
+    const detection = localDetectLanguage('Bonjour, merci pour la traduction en français.');
+
+    expect(detection).toBeTruthy();
+    expect(detection.language).toBe('fr');
+    expect(detection.confidence).toBeGreaterThanOrEqual(0.55);
+  });
+
+  test('determines translation requirement correctly', () => {
+    const { shouldTranslate } = loadRuntime();
+
+    expect(shouldTranslate('en', 'en')).toBe(false);
+    expect(shouldTranslate('es', 'en')).toBe(true);
+    expect(shouldTranslate('fr', 'en')).toBe(true);
+    expect(shouldTranslate('unknown', 'en')).toBe(false);
+  });
+
+  test('uses injected provider when translation is required', async () => {
+    const { runLanguageSphere } = loadRuntime();
+    const { isLanguageSphereEnvelope } = loadEnvelopeContract();
+
+    const fakeProvider = {
+      async translate(text, context) {
+        expect(context.sourceLanguage).toBe('es');
+        expect(context.targetLanguage).toBe('en');
+
+        return {
+          text: `TRANSLATED: ${text}`,
+          providerName: 'FakeProvider',
+          providerMode: 'test',
+          applied: true
+        };
+      }
+    };
+
+    const envelope = await runLanguageSphere(
+      {
+        text: 'Hola, necesito una traducción para este idioma.',
+        targetLanguage: 'en'
+      },
+      {
+        provider: fakeProvider
+      }
+    );
+
+    expect(isLanguageSphereEnvelope(envelope)).toBe(true);
+    expectMarionSafeAuthority(envelope);
+
+    expect(envelope.language.sourceLanguage).toBe('es');
+    expect(envelope.language.targetLanguage).toBe('en');
+    expect(envelope.language.translationRequired).toBe(true);
+    expect(envelope.language.translationApplied).toBe(true);
+
+    expect(envelope.provider.name).toBe('FakeProvider');
+    expect(envelope.provider.mode).toBe('test');
+    expect(envelope.text.translatedText).toMatch(/^TRANSLATED:/);
+  });
+
+  test('fails safely on empty input without granting final authority', async () => {
+    const { runLanguageSphere } = loadRuntime();
+    const { isLanguageSphereEnvelope } = loadEnvelopeContract();
+
+    const envelope = await runLanguageSphere({
+      text: '      ',
+      targetLanguage: 'en'
+    });
+
+    expect(isLanguageSphereEnvelope(envelope)).toBe(true);
+    expect(envelope.status).toBe('empty');
+    expect(envelope.language.fallbackApplied).toBe(true);
+    expect(envelope.text.marionInputText).toBe('');
+    expectMarionSafeAuthority(envelope);
+  });
 });
