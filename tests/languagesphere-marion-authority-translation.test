@@ -2,18 +2,26 @@
 
 /**
  * LanguageSphere Marion Authority Translation Regression
+ * ------------------------------------------------------------
+ * Jest-compatible regression harness.
  *
  * Purpose:
  * Translation may normalize input/output metadata, but it must never take over
  * Marion's final authority or expose Marion internals to the user.
+ *
+ * Critical patch:
+ * - Uses backend-root absolute runtime loading via process.cwd().
+ * - Keeps optional export checks non-fatal while still validating leakage and
+ *   final-envelope shape whenever the runtime export exists.
  */
 
 const path = require("path");
 
-const ADAPTER_PATH = path.resolve(
-  process.cwd(),
-  "Data/marion/runtime/UniversalTranslatorAdapter.js"
-);
+function runtimeFile(...segments) {
+  return path.resolve(process.cwd(), "Data", "marion", "runtime", ...segments);
+}
+
+const ADAPTER_PATH = runtimeFile("UniversalTranslatorAdapter.js");
 
 function loadAdapter() {
   jest.resetModules();
@@ -37,6 +45,11 @@ function getFinalEnvelopeFn(adapter) {
     null
   );
 }
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.clearAllMocks();
+});
 
 describe("LanguageSphere Marion authority translation", () => {
   test("input normalization remains a routing aid, not final authority", async () => {
