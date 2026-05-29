@@ -3,203 +3,220 @@
 /**
  * LanguageSphere Final Authority Regression Test
  * ------------------------------------------------------------
+ * Jest-compatible regression harness.
+ *
  * Validates:
  * - LanguageSphere cannot claim final authority.
  * - LanguageSphere cannot bypass Marion.
  * - LanguageSphere cannot provide visible final answers.
  * - Final gate only passes safe prepared input.
+ *
+ * Critical patch:
+ * - Removed node:test import so Jest owns the suite lifecycle.
+ * - Runtime modules are loaded from the backend root using process.cwd().
  */
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+const assert = require('assert').strict;
+const path = require('path');
+
+function runtimeModule(...segments) {
+  return require(path.resolve(process.cwd(), 'Data', 'marion', 'runtime', ...segments));
+}
 
 const {
   validateLanguageSphereAuthority,
   enforceLanguageSphereAuthority,
   createSafeAuthorityMetadata
-} = require('../Data/marion/runtime/languagesphere/LanguageSphereAuthorityGuard');
+} = runtimeModule('languagesphere', 'LanguageSphereAuthorityGuard.js');
 
 const {
   gateLanguageSphereForMarion,
   stripLanguageSphereFinalFields,
   assertMarionFinalAuthority
-} = require('../Data/marion/runtime/languagesphere/LanguageSphereFinalGate');
+} = runtimeModule('languagesphere', 'LanguageSphereFinalGate.js');
 
 const {
   createLanguageSphereEnvelope
-} = require('../Data/marion/runtime/languagesphere/LanguageSphereResultEnvelope');
+} = runtimeModule('languagesphere', 'LanguageSphereResultEnvelope.js');
 
-test('Authority metadata factory always preserves Marion ownership', () => {
-  const authority = createSafeAuthorityMetadata({
-    finalAuthority: true,
-    finalAuthorityOwner: 'LanguageSphere',
-    mayBypassMarion: true
-  });
-
-  assert.equal(authority.finalAuthority, false);
-  assert.equal(authority.finalAuthorityOwner, 'Marion');
-  assert.equal(authority.mayBypassMarion, false);
-  assert.equal(authority.marionBypassBlocked, true);
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.clearAllMocks();
 });
 
-test('Authority guard passes valid LanguageSphere envelope', () => {
-  const envelope = createLanguageSphereEnvelope({
-    sourceText: 'Hello',
-    normalizedText: 'Hello',
-    translatedText: 'Hello',
-    sourceLanguage: 'en',
-    targetLanguage: 'en'
+describe('LanguageSphere final authority regression', () => {
+  test('Authority metadata factory always preserves Marion ownership', () => {
+    const authority = createSafeAuthorityMetadata({
+      finalAuthority: true,
+      finalAuthorityOwner: 'LanguageSphere',
+      mayBypassMarion: true
+    });
+
+    assert.equal(authority.finalAuthority, false);
+    assert.equal(authority.finalAuthorityOwner, 'Marion');
+    assert.equal(authority.mayBypassMarion, false);
+    assert.equal(authority.marionBypassBlocked, true);
   });
 
-  const result = validateLanguageSphereAuthority(envelope);
+  test('Authority guard passes valid LanguageSphere envelope', () => {
+    const envelope = createLanguageSphereEnvelope({
+      sourceText: 'Hello',
+      normalizedText: 'Hello',
+      translatedText: 'Hello',
+      sourceLanguage: 'en',
+      targetLanguage: 'en'
+    });
 
-  assert.equal(result.ok, true);
-  assert.equal(result.blocked, false);
-});
+    const result = validateLanguageSphereAuthority(envelope);
 
-test('Authority guard blocks LanguageSphere final authority claim', () => {
-  const envelope = createLanguageSphereEnvelope({
-    sourceText: 'Hello',
-    normalizedText: 'Hello',
-    translatedText: 'Hello',
-    sourceLanguage: 'en',
-    targetLanguage: 'en'
+    assert.equal(result.ok, true);
+    assert.equal(result.blocked, false);
   });
 
-  envelope.authority.finalAuthority = true;
+  test('Authority guard blocks LanguageSphere final authority claim', () => {
+    const envelope = createLanguageSphereEnvelope({
+      sourceText: 'Hello',
+      normalizedText: 'Hello',
+      translatedText: 'Hello',
+      sourceLanguage: 'en',
+      targetLanguage: 'en'
+    });
 
-  const result = validateLanguageSphereAuthority(envelope);
+    envelope.authority.finalAuthority = true;
 
-  assert.equal(result.ok, false);
-  assert.equal(result.blocked, true);
-  assert.equal(result.reason, 'languagesphere-final-authority-not-false');
+    const result = validateLanguageSphereAuthority(envelope);
 
-  assert.throws(
-    () => enforceLanguageSphereAuthority(envelope),
-    /LanguageSphere authority violation/
-  );
-});
+    assert.equal(result.ok, false);
+    assert.equal(result.blocked, true);
+    assert.equal(result.reason, 'languagesphere-final-authority-not-false');
 
-test('Authority guard blocks Marion bypass attempt', () => {
-  const envelope = createLanguageSphereEnvelope({
-    sourceText: 'Hello',
-    normalizedText: 'Hello',
-    translatedText: 'Hello',
-    sourceLanguage: 'en',
-    targetLanguage: 'en'
+    assert.throws(
+      () => enforceLanguageSphereAuthority(envelope),
+      /LanguageSphere authority violation/
+    );
   });
 
-  envelope.authority.mayBypassMarion = true;
+  test('Authority guard blocks Marion bypass attempt', () => {
+    const envelope = createLanguageSphereEnvelope({
+      sourceText: 'Hello',
+      normalizedText: 'Hello',
+      translatedText: 'Hello',
+      sourceLanguage: 'en',
+      targetLanguage: 'en'
+    });
 
-  const result = validateLanguageSphereAuthority(envelope);
+    envelope.authority.mayBypassMarion = true;
 
-  assert.equal(result.ok, false);
-  assert.equal(result.blocked, true);
-  assert.equal(result.reason, 'marion-bypass-not-explicitly-blocked');
-});
+    const result = validateLanguageSphereAuthority(envelope);
 
-test('Authority guard blocks visible final answer fields', () => {
-  const envelope = createLanguageSphereEnvelope({
-    sourceText: 'Hello',
-    normalizedText: 'Hello',
-    translatedText: 'Hello',
-    sourceLanguage: 'en',
-    targetLanguage: 'en'
+    assert.equal(result.ok, false);
+    assert.equal(result.blocked, true);
+    assert.equal(result.reason, 'marion-bypass-not-explicitly-blocked');
   });
 
-  envelope.finalAnswer = 'LanguageSphere should not say this as final.';
+  test('Authority guard blocks visible final answer fields', () => {
+    const envelope = createLanguageSphereEnvelope({
+      sourceText: 'Hello',
+      normalizedText: 'Hello',
+      translatedText: 'Hello',
+      sourceLanguage: 'en',
+      targetLanguage: 'en'
+    });
 
-  const result = validateLanguageSphereAuthority(envelope);
+    envelope.finalAnswer = 'LanguageSphere should not say this as final.';
 
-  assert.equal(result.ok, false);
-  assert.equal(result.blocked, true);
-  assert.equal(result.reason, 'languagesphere-attempted-final-visible-answer');
-});
+    const result = validateLanguageSphereAuthority(envelope);
 
-test('Final gate passes prepared input only', () => {
-  const envelope = createLanguageSphereEnvelope({
-    sourceText: 'Hola, necesito una traducción para este idioma.',
-    normalizedText: 'Hola, necesito una traducción para este idioma.',
-    translatedText: 'Hello, I need translation for this language.',
-    sourceLanguage: 'es',
-    targetLanguage: 'en',
-    translationRequired: true,
-    translationApplied: true
+    assert.equal(result.ok, false);
+    assert.equal(result.blocked, true);
+    assert.equal(result.reason, 'languagesphere-attempted-final-visible-answer');
   });
 
-  const result = gateLanguageSphereForMarion(envelope);
+  test('Final gate passes prepared input only', () => {
+    const envelope = createLanguageSphereEnvelope({
+      sourceText: 'Hola, necesito una traducción para este idioma.',
+      normalizedText: 'Hola, necesito una traducción para este idioma.',
+      translatedText: 'Hello, I need translation for this language.',
+      sourceLanguage: 'es',
+      targetLanguage: 'en',
+      translationRequired: true,
+      translationApplied: true
+    });
 
-  assert.equal(result.ok, true);
-  assert.equal(result.blocked, false);
-  assert.equal(result.finalAuthorityOwner, 'Marion');
-  assert.equal(result.preparedInputText, 'Hello, I need translation for this language.');
-});
+    const result = gateLanguageSphereForMarion(envelope);
 
-test('Final gate blocks empty prepared input by default', () => {
-  const envelope = createLanguageSphereEnvelope({
-    sourceText: '      ',
-    normalizedText: '',
-    translatedText: '',
-    sourceLanguage: 'unknown',
-    targetLanguage: 'en',
-    fallbackApplied: true
+    assert.equal(result.ok, true);
+    assert.equal(result.blocked, false);
+    assert.equal(result.finalAuthorityOwner, 'Marion');
+    assert.equal(result.preparedInputText, 'Hello, I need translation for this language.');
   });
 
-  const result = gateLanguageSphereForMarion(envelope);
+  test('Final gate blocks empty prepared input by default', () => {
+    const envelope = createLanguageSphereEnvelope({
+      sourceText: '      ',
+      normalizedText: '',
+      translatedText: '',
+      sourceLanguage: 'unknown',
+      targetLanguage: 'en',
+      fallbackApplied: true
+    });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.blocked, true);
-  assert.equal(result.reason, 'empty-prepared-input-blocked');
-});
+    const result = gateLanguageSphereForMarion(envelope);
 
-test('Strip function removes unsafe final fields from LanguageSphere object', () => {
-  const envelope = createLanguageSphereEnvelope({
-    sourceText: 'Hello',
-    normalizedText: 'Hello',
-    translatedText: 'Hello',
-    sourceLanguage: 'en',
-    targetLanguage: 'en'
+    assert.equal(result.ok, false);
+    assert.equal(result.blocked, true);
+    assert.equal(result.reason, 'empty-prepared-input-blocked');
   });
 
-  envelope.final = 'Unsafe final';
-  envelope.finalAnswer = 'Unsafe answer';
-  envelope.visibleAnswer = 'Unsafe visible answer';
-  envelope.response = {
-    final: 'Nested unsafe final',
-    finalAnswer: 'Nested unsafe answer',
-    visibleAnswer: 'Nested unsafe visible answer',
-    safeMetadata: true
-  };
+  test('Strip function removes unsafe final fields from LanguageSphere object', () => {
+    const envelope = createLanguageSphereEnvelope({
+      sourceText: 'Hello',
+      normalizedText: 'Hello',
+      translatedText: 'Hello',
+      sourceLanguage: 'en',
+      targetLanguage: 'en'
+    });
 
-  const stripped = stripLanguageSphereFinalFields(envelope);
+    envelope.final = 'Unsafe final';
+    envelope.finalAnswer = 'Unsafe answer';
+    envelope.visibleAnswer = 'Unsafe visible answer';
+    envelope.response = {
+      final: 'Nested unsafe final',
+      finalAnswer: 'Nested unsafe answer',
+      visibleAnswer: 'Nested unsafe visible answer',
+      safeMetadata: true
+    };
 
-  assert.equal(stripped.final, undefined);
-  assert.equal(stripped.finalAnswer, undefined);
-  assert.equal(stripped.visibleAnswer, undefined);
-  assert.equal(stripped.response.final, undefined);
-  assert.equal(stripped.response.finalAnswer, undefined);
-  assert.equal(stripped.response.visibleAnswer, undefined);
-  assert.equal(stripped.response.safeMetadata, true);
-});
+    const stripped = stripLanguageSphereFinalFields(envelope);
 
-test('Marion final authority assertion rejects LanguageSphere as final owner', () => {
-  const result = assertMarionFinalAuthority({
-    final: 'Unsafe',
-    finalAuthorityOwner: 'LanguageSphere',
-    finalAuthority: true
+    assert.equal(stripped.final, undefined);
+    assert.equal(stripped.finalAnswer, undefined);
+    assert.equal(stripped.visibleAnswer, undefined);
+    assert.equal(stripped.response.final, undefined);
+    assert.equal(stripped.response.finalAnswer, undefined);
+    assert.equal(stripped.response.visibleAnswer, undefined);
+    assert.equal(stripped.response.safeMetadata, true);
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.reason, 'non-marion-final-authority-owner');
-});
+  test('Marion final authority assertion rejects LanguageSphere as final owner', () => {
+    const result = assertMarionFinalAuthority({
+      final: 'Unsafe',
+      finalAuthorityOwner: 'LanguageSphere',
+      finalAuthority: true
+    });
 
-test('Marion final authority assertion passes Marion-owned final envelope', () => {
-  const result = assertMarionFinalAuthority({
-    final: 'Safe Marion final.',
-    finalAuthorityOwner: 'Marion',
-    finalAuthority: true
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'non-marion-final-authority-owner');
   });
 
-  assert.equal(result.ok, true);
-  assert.equal(result.reason, 'marion-final-authority-intact');
+  test('Marion final authority assertion passes Marion-owned final envelope', () => {
+    const result = assertMarionFinalAuthority({
+      final: 'Safe Marion final.',
+      finalAuthorityOwner: 'Marion',
+      finalAuthority: true
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.reason, 'marion-final-authority-intact');
+  });
 });
