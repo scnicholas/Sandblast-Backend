@@ -97,7 +97,7 @@ function writeJson(filePath, value) {
 function createStackTestConfig(overrides = {}) {
   return {
     version: "0.3.0-stack-test",
-    enabled: true,
+    enabled: overrides.enabled === false ? false : true,
     defaultSourceLanguage: "auto",
     defaultTargetLanguage: "en",
     supportedLanguages: ["en", "fr", "es"],
