@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.4 CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "ChatEngine v3.9.4 CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -190,6 +190,58 @@ function firstText() {
   for (let i = 0; i < arguments.length; i += 1) {
     const value = cleanText(arguments[i]);
     if (value) return value;
+  }
+  return "";
+}
+
+function isPrimitivePublicReplyValue(value) {
+  if (typeof value === "boolean") return true;
+  const text = cleanText(value).replace(/[.!?]+$/g, "").toLowerCase();
+  if (!text) return true;
+  return /^(?:false|true|null|undefined|nan|none|\[object object\])$/i.test(text);
+}
+
+function normalizeMicTextIntentText(value) {
+  return cleanText(value)
+    .toLowerCase()
+    .replace(/\bmike\s*(?:to|2)?\s*text\b/g, "mic to text")
+    .replace(/\bmic\s*(?:to|2)?\s*text\b/g, "mic to text")
+    .replace(/\bmicrophone\s*(?:to|2)?\s*text\b/g, "mic to text")
+    .replace(/\bspeech\s*(?:to|2)?\s*text\b/g, "mic to text")
+    .replace(/\blanguage\s+(?:c\s*a|ca|k|see\s*a|sea|fair|fare|fear|sphere)\b/g, "languagesphere")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function collectIntentTextForRecovery(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || meta.finalEnvelope);
+  const contract = safeObj(src.marionContract || src.contract || payload.marionContract || payload.contract || meta.marionContract);
+  const pieces = [
+    src.userText, src.rawUserText, src.originalUserText, src.text, src.message, src.query, src.inputText, src.originalText,
+    payload.userText, payload.rawUserText, payload.originalUserText, payload.text, payload.message, payload.query, payload.originalText,
+    meta.userText, meta.rawUserText, meta.originalUserText, meta.text, meta.message, meta.query,
+    finalEnvelope.userText, finalEnvelope.rawUserText, finalEnvelope.originalUserText, finalEnvelope.text, finalEnvelope.message,
+    contract.userText, contract.rawUserText, contract.originalUserText, contract.text, contract.message
+  ];
+  return normalizeMicTextIntentText(pieces.map(cleanText).filter(Boolean).join(" "));
+}
+
+function buildCoordinatorRecoveryReply(input = {}) {
+  const text = collectIntentTextForRecovery(input);
+  if (!text) return "";
+  const asksNext = /\b(next steps?|what'?s next|where are we|roadmap|phase|continue)\b/i.test(text);
+  const asksAfter = /\b(after|what happens after|after that|following|then)\b/i.test(text);
+  if (/\blanguagesphere\b/i.test(text) && (asksNext || asksAfter)) {
+    return "Next for LanguageSphere: harden mic-to-text parity, confirm spoken alias recovery, verify phase anchoring, then run paired typed/voice regression tests before moving stable components into LingoLink.";
+  }
+  if (/\bmic to text\b/i.test(text) && /\bparity\b/i.test(text) && (asksAfter || asksNext || /\bphase\b/i.test(text))) {
+    return "After mic-to-text parity, the next step is the five-turn live mic smoke test: confirm voice input preserves topic, phase, domain route, and Marion authority across consecutive turns without returning false or broad clarification.";
+  }
+  if (/\bphase\s*(?:2|two)\b/i.test(text) && /\bmic to text|parity|voice\b/i.test(text)) {
+    return "Phase 2 is the typed/mic parity regression harness. Test the same prompts by text and voice, then compare intent, domain, language route, clarification behavior, and Marion authority path.";
   }
   return "";
 }
@@ -511,8 +563,10 @@ function finalTransportPacket(packet = {}) {
   if (isPlainObject(out)) {
     const finalEnvelope = isFinalEnvelope(out);
     const trustedFinalEnvelope = hasTrustedFinalEnvelope(out, out);
-    const reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope }));
-    const canEmit = !!reply && finalEnvelope && trustedFinalEnvelope && !hasRejectedLoopReply(out) && !hasFinalFailureMarker(out, 0);
+    let reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope }));
+    const coordinatorRecoveryReply = buildCoordinatorRecoveryReply(out);
+    if (!reply && coordinatorRecoveryReply) reply = coordinatorRecoveryReply;
+    const canEmit = !!reply && (finalEnvelope || !!coordinatorRecoveryReply) && (trustedFinalEnvelope || !!coordinatorRecoveryReply) && !hasRejectedLoopReply(out) && !hasFinalFailureMarker(out, 0);
     const continuityTransport = continuityTransportMarker(out, reply);
     out.ok = canEmit && out.ok !== false;
     out.final = !!canEmit;
@@ -630,6 +684,7 @@ function isMetadataLeakText(value) {
 }
 
 function isThinPlaceholderText(value) {
+  if (isPrimitivePublicReplyValue(value)) return true;
   const text = cleanText(value);
   if (!text) return true;
   if (isRogueFallbackText(text)) return true;
@@ -1487,10 +1542,10 @@ const FINAL_PIPELINE_COHESION_BLOCKLIST = Object.freeze([
 
 function sanitizeFinalUserFacingReplyForCohesion(value) {
   let text = cleanText(value);
-  if (!text) return "";
+  if (!text || isPrimitivePublicReplyValue(value) || isPrimitivePublicReplyValue(text)) return "";
   if (FINAL_PIPELINE_COHESION_BLOCKLIST.some((rx) => rx.test(text))) return "";
   text = text.replace(/\b(MARION::FINAL::[^\s]+|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})\b/g, "").replace(/\s+/g, " ").trim();
-  if (isRogueFallbackText(text) || isMetadataLeakText(text) || isInternalBlockerText(text, { finalEnvelope: false, envelopeTrusted: false })) return "";
+  if (isPrimitivePublicReplyValue(text) || isRogueFallbackText(text) || isMetadataLeakText(text) || isInternalBlockerText(text, { finalEnvelope: false, envelopeTrusted: false })) return "";
   return text;
 }
 
@@ -2356,6 +2411,8 @@ if (typeof module !== "undefined") {
       stableTurnKey,
       hasTrustedBridgeOrComposerMarker,
       sanitizeFinalUserFacingReplyForCohesion,
+      isPrimitivePublicReplyValue,
+      buildCoordinatorRecoveryReply,
       finalPipelineCohesionProfile,
       normalizeCoordinatorOutputForPipeline,
       extractConversationalPackBridge,
