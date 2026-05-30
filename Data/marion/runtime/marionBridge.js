@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.8.7 DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.8.7 DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -290,6 +290,44 @@ function extractBridgeDirectTranslationCommand(value=""){
   }
   return{matched:false,sourceText:"",targetLanguage:"",sourceLanguage:"auto",originalCommandText:original};
 }
+function normalizeBridgeTranslationKey(value=""){
+  return lower(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function buildBridgeDirectTranslationFallback(sourceText="",targetLanguage=""){
+  const src=safeStr(sourceText);
+  const target=normalizeBridgeLanguageCode(targetLanguage,"");
+  const key=normalizeBridgeTranslationKey(src);
+  if(!src||!["en","fr","es"].includes(target))return"";
+  const phraseMap={
+    en:{
+      "commencer la lecture":"Start Reading",
+      "comenzar a leer":"Start Reading",
+      "comenzar la lectura":"Start Reading",
+      "sandblast offre aux createurs une scene mondiale":"Sandblast gives creators a global stage",
+      "sandblast offre aux createurs une scene ouverte sur le monde":"Sandblast gives creators a global stage",
+      "sandblast ofrece a los creadores un escenario global":"Sandblast gives creators a global stage"
+    },
+    fr:{
+      "start reading":"Commencer la lecture",
+      "sandblast gives creators a global stage":"Sandblast offre aux créateurs une scène mondiale"
+    },
+    es:{
+      "start reading":"Comenzar a leer",
+      "sandblast gives creators a global stage":"Sandblast ofrece a los creadores un escenario global"
+    }
+  };
+  return phraseMap[target]&&phraseMap[target][key]?phraseMap[target][key]:"";
+}
+function isBridgeDirectTranslationClarifier(value=""){
+  const text=safeStr(value);
+  return /are you asking about translation,? captions,? or language routing inside the interface\??/i.test(text) ||
+    /translation,? captions,? or language routing/i.test(text);
+}
 function languageSphereText(input={}){
   const o=safeObj(input),ls=safeObj(o.languageSphere),cmd=extractBridgeDirectTranslationCommand(firstText(ls.originalCommandText,o.rawUserQuery,o.userQuery,o.text,o.query,o.userText,o.message));
   return firstText(ls.sourceText,cmd.sourceText,o.userQuery,o.text,o.query,o.rawUserQuery,o.userText,o.message);
@@ -377,7 +415,17 @@ function applyPublicReplyHygieneToPacket(packet={}){
 }
 
 function attachLanguageSphereFinalMetadata(packet={},ctx={}){
-  const out=applyLingoLinkReplyOverride(applyPublicReplyHygieneToPacket(packet),ctx);
+  const context=safeObj(ctx);
+  const normalized=safeObj(context.normalized);
+  const ls=safeObj(normalized.languageSphere);
+  const cmd=extractBridgeDirectTranslationCommand(firstText(ls.originalCommandText,normalized.rawUserQuery,normalized.userQuery,normalized.text,normalized.query,normalized.userText,normalized.message));
+  const fallback=buildBridgeDirectTranslationFallback(firstText(ls.sourceText,cmd.sourceText),firstText(ls.targetLanguage,cmd.targetLanguage));
+  let packetForHygiene=safeObj(packet);
+  const currentReply=firstText(packetForHygiene.reply,packetForHygiene.text,packetForHygiene.displayReply,safeObj(packetForHygiene.payload).reply,safeObj(packetForHygiene.finalEnvelope).reply);
+  if(fallback&&(cmd.matched===true||ls.directTranslationCommand===true)&&(!currentReply||currentReply===firstText(ls.sourceText,cmd.sourceText)||isBridgeDirectTranslationClarifier(currentReply))){
+    packetForHygiene={...packetForHygiene,reply:fallback,text:fallback,answer:fallback,output:fallback,response:fallback,displayReply:fallback,spokenText:fallback,textSpeak:fallback,textDisplay:fallback,payload:{...safeObj(packetForHygiene.payload),reply:fallback,text:fallback,message:fallback,answer:fallback,output:fallback,response:fallback,displayReply:fallback,spokenText:fallback,textSpeak:fallback,textDisplay:fallback,bridgeDirectTranslationFallbackApplied:true},finalEnvelope:{...safeObj(packetForHygiene.finalEnvelope),reply:fallback,text:fallback,displayReply:fallback,spokenText:fallback,bridgeDirectTranslationFallbackApplied:true}};
+  }
+  const out=applyLingoLinkReplyOverride(applyPublicReplyHygieneToPacket(packetForHygiene),ctx);
   const payload=languageSpherePayload(ctx);
   const finalBuilder=multilingualFinalEnvelopeMod&&typeof multilingualFinalEnvelopeMod.buildMultilingualFinalEnvelope==="function"?multilingualFinalEnvelopeMod.buildMultilingualFinalEnvelope:null;
   const passportEmitter=contextPassportEventsMod&&typeof contextPassportEventsMod.emitContextPassportEvents==="function"?contextPassportEventsMod.emitContextPassportEvents:null;
