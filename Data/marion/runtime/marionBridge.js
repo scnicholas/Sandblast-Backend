@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.8.6 LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.8.7 DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -263,13 +263,40 @@ function normalizeLanguageSphereSurface(value={}){
     telemetry:safeClonePlain(src.telemetry)
   };
 }
+function normalizeBridgeLanguageCode(value, fallback=""){
+  const raw=safeStr(value).toLowerCase().trim();
+  const compact=raw.replace(/[^a-z]/g,"");
+  if(!raw)return fallback;
+  if(raw==="auto")return"auto";
+  if(raw.startsWith("en")||compact==="english"||compact==="anglais"||compact==="ingles")return"en";
+  if(raw.startsWith("fr")||compact==="french"||compact==="francais"||compact==="français"||compact==="frances")return"fr";
+  if(raw.startsWith("es")||compact==="spanish"||compact==="espanol"||compact==="español"||compact==="espagnol")return"es";
+  return fallback;
+}
+function extractBridgeDirectTranslationCommand(value=""){
+  const original=safeStr(value);
+  const patterns=[
+    /^(?:please\s+)?translate\s+(?:only\s+)?(?:this\s+)?(?:sentence|text|phrase|line|copy|message)?\s*(?:into|to)\s+([a-zA-ZÀ-ÿ\-]+)\s*[:\-–—]\s*(.+)$/i,
+    /^(?:please\s+)?translate\s+(?:only\s+)?(.+?)\s+(?:into|to)\s+([a-zA-ZÀ-ÿ\-]+)\s*$/i,
+    /^(?:please\s+)?(?:put|render|convert)\s+(?:this\s+)?(?:sentence|text|phrase|line|copy|message)?\s*(?:into|to|in)\s+([a-zA-ZÀ-ÿ\-]+)\s*[:\-–—]\s*(.+)$/i
+  ];
+  for(const rx of patterns){
+    const m=original.match(rx);if(!m)continue;
+    let sourceText="",targetLanguage="";
+    if(rx.source.includes("(.+?)\\s+(?:into|to)")){sourceText=safeStr(m[1]);targetLanguage=normalizeBridgeLanguageCode(m[2],"");}
+    else{targetLanguage=normalizeBridgeLanguageCode(m[1],"");sourceText=safeStr(m[2]);}
+    sourceText=sourceText.replace(/^["'“”‘’]+|["'“”‘’]+$/g,"").trim();
+    if(sourceText&&["en","fr","es"].includes(targetLanguage))return{matched:true,sourceText,targetLanguage,sourceLanguage:"auto",originalCommandText:original,directTranslationCommand:true};
+  }
+  return{matched:false,sourceText:"",targetLanguage:"",sourceLanguage:"auto",originalCommandText:original};
+}
 function languageSphereText(input={}){
-  const o=safeObj(input);
-  return firstText(o.userQuery,o.text,o.query,o.rawUserQuery,o.userText,o.message);
+  const o=safeObj(input),ls=safeObj(o.languageSphere),cmd=extractBridgeDirectTranslationCommand(firstText(ls.originalCommandText,o.rawUserQuery,o.userQuery,o.text,o.query,o.userText,o.message));
+  return firstText(ls.sourceText,cmd.sourceText,o.userQuery,o.text,o.query,o.rawUserQuery,o.userText,o.message);
 }
 function languageSphereTargetLanguage(input={}){
-  const o=safeObj(input), original=safeObj(o.original), body=safeObj(original.body), meta=safeObj(original.meta);
-  return firstText(o.targetLanguage,o.responseLanguage,original.targetLanguage,body.targetLanguage,meta.targetLanguage,"en").toLowerCase();
+  const o=safeObj(input), original=safeObj(o.original), body=safeObj(original.body), meta=safeObj(original.meta), ls=safeObj(o.languageSphere), cmd=extractBridgeDirectTranslationCommand(firstText(ls.originalCommandText,o.rawUserQuery,o.userQuery,o.text,o.query,o.userText,o.message));
+  return normalizeBridgeLanguageCode(firstText(ls.targetLanguage,cmd.targetLanguage,o.targetLanguage,o.responseLanguage,original.targetLanguage,body.targetLanguage,meta.targetLanguage,"en"),"en");
 }
 async function normalizeLanguageSphereInboundSafe(normalized={}){
   if(!universalTranslatorMod||typeof universalTranslatorMod.normalizeInputForMarion!=="function"){
