@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.35.3 LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.35.4 DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -150,6 +150,12 @@ function buildFinalRuntimeTelemetry({source="composeMarionResponse",intent="",do
 }
 
 function lower(value){return safeStr(value).toLowerCase();}
+function isDirectTranslationCommandText(value=""){
+  const text=safeStr(value);
+  if(!text)return false;
+  return /^(?:please\s+)?translate\s+(?:only\s+)?(?:this\s+)?(?:sentence|text|phrase|line|copy|message)?\s*(?:into|to)\s+(?:english|french|spanish|en|fr|es|français|francais|español|espanol)\s*[:\-–—]/i.test(text) ||
+    /^(?:please\s+)?(?:put|render|convert)\s+(?:this\s+)?(?:sentence|text|phrase|line|copy|message)?\s*(?:into|to|in)\s+(?:english|french|spanish|en|fr|es|français|francais|español|espanol)\s*[:\-–—]/i.test(text);
+}
 function isObj(value){return !!value&&typeof value==="object"&&!Array.isArray(value);}
 function safeObj(value){return isObj(value)?value:{};}
 function safeArray(value){return Array.isArray(value)?value:[];}
@@ -208,6 +214,7 @@ function confidenceAwareResponseShapingProfile({intent="",domain="",knowledgeDom
 }
 function confidenceAwareClarifier(route="",knowledgeDomain="",text=""){
   const r=lower(route||knowledgeDomain),t=lower(text);
+  if(isDirectTranslationCommandText(text))return"";
   if(/\broku|channel|feed|linear|tv\b/i.test(t)||r==="roku")return"Are you asking about Roku setup, Roku advertising, or the media feed itself?";
   if(/\bmoneti[sz]e|advertis|sponsor|buyer|revenue\b/i.test(t)||r==="business")return"Are you aiming this at interface buyers, radio sponsors, Roku advertisers, or all three?";
   if(/\bfile|code|patch|audit|backend|frontend|runtime|state spine|bridge|composer\b/i.test(t)||r==="technical")return"Which file or runtime layer do you want me to focus on?";
@@ -219,7 +226,11 @@ function confidenceAwareClarifier(route="",knowledgeDomain="",text=""){
 function applyConfidenceAwareResponseShaping(reply="",profile={},intent="",text="",input={}){
   const p=safeObj(profile);
   let out=safeStr(reply);
-  if(p.needsClarifier&&p.clarifier&&!isNyxMarionBackendTechnicalContext(text)){if(isBroadAnswerableConceptPrompt(text,input,{}))return out||broadConceptFallbackReply(text,input,{});return p.clarifier;}
+  if(p.needsClarifier&&p.clarifier&&!isNyxMarionBackendTechnicalContext(text)){
+    if(isDirectTranslationCommandText(text))return out;
+    if(isBroadAnswerableConceptPrompt(text,input,{}))return out||broadConceptFallbackReply(text,input,{});
+    return p.clarifier;
+  }
   if(!out)return out;
   if(p.highStakes&&p.confidence<0.62&&!/^At a general/i.test(out)&&!/\bgeneral information\b/i.test(out)){
     if(p.knowledgeDomain==="law")out=`At a general-information level, ${out}`;
