@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.8.8 MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.8.9 PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -675,7 +675,7 @@ function stripTelemetryLeakFromReply(value=""){
 
 
 const SPOKEN_PROJECT_ALIAS_RULES = Object.freeze([
-  { canonical: "LanguageSphere", aliases: ["language sphere", "languagesphere", "language fair", "language fare", "language fear", "language share", "language sheer", "language there", "language layer", "lingua sphere"] },
+  { canonical: "LanguageSphere", aliases: ["language sphere", "the language sphere", "languagesphere", "language fair", "language fare", "language fear", "language share", "language sheer", "language there", "language layer", "lingua sphere", "language ca", "the language ca", "language c a", "the language c a", "language k", "the language k", "language see a", "the language see a", "language sea", "the language sea", "language sphare", "language spare", "language sphear", "language spear"] },
   { canonical: "LingoLink", aliases: ["lingo link", "lingolink", "lingo-link", "link o link", "lingu link", "language link", "lingo linkedin"] },
   { canonical: "Nyx", aliases: ["nyx", "nix", "nicks", "nick's", "nyx live", "nix live"] },
   { canonical: "Marion", aliases: ["marion", "mary in", "merry in", "merion", "marian", "marion bridge", "mary and bridge"] },
@@ -699,7 +699,8 @@ function normalizeSpokenProjectAliases(input=""){
   const hits=[];
   if(!output)return {text:"",hits,changed:false};
   for(const rule of SPOKEN_PROJECT_ALIAS_RULES){
-    for(const alias of rule.aliases){
+    const orderedAliases=safeArray(rule.aliases).slice().sort((a,b)=>safeStr(b).length-safeStr(a).length);
+    for(const alias of orderedAliases){
       const rx=new RegExp(`\\b${escapeBridgeRegExp(alias)}\\b`,"gi");
       if(rx.test(output)){
         hits.push({canonical:rule.canonical,alias});
@@ -765,7 +766,7 @@ function buildPhaseAnchorInstruction(input="",context={}){
 }
 function isLanguageSphereNextStepsRequest(text=""){
   const t=lower(text);
-  return /\b(languagesphere|language sphere)\b/i.test(t)&&/\b(next steps?|what'?s next|where are we|roadmap|phase|continue)\b/i.test(t);
+  return /\b(languagesphere|language sphere|language ca|language c a|language k|language see a|language sea)\b/i.test(t)&&/\b(next steps?|what\s+are\s+the\s+next\s+steps|what\s+is\s+next|what'?s next|where are we|roadmap|phase|continue)\b/i.test(t);
 }
 function buildProjectRecoveryReply(normalized={}){
   const n=safeObj(normalized), text=firstText(n.userQuery,n.rawUserQuery);
@@ -804,6 +805,52 @@ function applyProjectRecoveryReplyOverride(packet={},ctx={}){
   return out;
 }
 
+
+
+function readPublicReplyCandidate(packet={}){
+  const p=safeObj(packet), payload=safeObj(p.payload), finalEnvelope=safeObj(p.finalEnvelope), speech=safeObj(p.speech);
+  return firstText(p.reply,p.text,p.answer,p.output,p.response,p.message,p.displayReply,p.spokenText,p.textSpeak,p.textDisplay,payload.reply,payload.text,payload.answer,payload.output,payload.response,payload.message,payload.displayReply,payload.spokenText,payload.textSpeak,payload.textDisplay,finalEnvelope.reply,finalEnvelope.text,finalEnvelope.displayReply,finalEnvelope.spokenText,speech.text,speech.textDisplay,speech.textSpeak);
+}
+function isInvalidPublicReplyValue(value){
+  if(value===false||value===true||value==null)return true;
+  const text=safeStr(value).replace(/[.!?]+$/g,"").trim().toLowerCase();
+  return !text||/^(?:false|true|null|undefined|none|nan|\[object object\])$/.test(text)||isDiagnosticText(text)||isTelemetryLeakText(text)||isPublicControlPolicyLeak(text);
+}
+function buildPrimitiveReplyRecovery(normalized={}){
+  const n=safeObj(normalized);
+  const projectRecovery=buildProjectRecoveryReply(n);
+  if(projectRecovery)return projectRecovery;
+  const text=firstText(n.userQuery,n.publicUserQuery,n.rawUserQuery);
+  if(isLanguageSphereNextStepsRequest(text)){
+    return "Next for LanguageSphere: harden mic-to-text parity, confirm spoken alias recovery, verify phase anchoring, then run paired typed and voice regression tests before moving the stable components into LingoLink.";
+  }
+  if(safeArray(safeObj(n.spokenAliasRecovery).hits).some((h)=>["LanguageSphere","LingoLink"].includes(safeStr(safeObj(h).canonical)))){
+    return "I’m tracking LanguageSphere and LingoLink. The next step is to verify spoken alias recovery, phase anchoring, and mic/text parity before moving the stable language components forward.";
+  }
+  return "I’m tracking the request, but the bridge blocked an invalid public reply. Please send the same prompt again and I’ll answer from the active lane instead of exposing a runtime value.";
+}
+function applyReplyEverywhere(packet={},reply="",flags={}){
+  const out=isObj(packet)?packet:{};
+  const clean=stripTelemetryLeakFromReply(stripPublicReplyScaffold(reply))||safeStr(reply);
+  out.reply=clean;out.text=clean;out.answer=clean;out.output=clean;out.response=clean;out.message=clean;out.displayReply=clean;out.spokenText=clean;out.textSpeak=clean;out.textDisplay=clean;
+  out.ok=true;out.final=true;out.marionFinal=true;out.handled=true;out.awaitingMarion=false;out.terminal=true;out.suppressUserFacingReply=false;out.emit=true;out.blocked=false;out.transportSafe=true;out.socketReconnect=false;
+  out.payload={...safeObj(out.payload),reply:clean,text:clean,answer:clean,output:clean,response:clean,message:clean,displayReply:clean,spokenText:clean,textSpeak:clean,textDisplay:clean,final:true,marionFinal:true,awaitingMarion:false,suppressUserFacingReply:false,emit:true,blocked:false};
+  out.finalEnvelope={...safeObj(out.finalEnvelope),reply:clean,text:clean,displayReply:clean,spokenText:clean,final:true,marionFinal:true,handled:true,qualityPass:true,responseDepthShaped:true,contractVersion:firstText(safeObj(out.finalEnvelope).contractVersion,FINAL_ENVELOPE_CONTRACT),signature:firstText(safeObj(out.finalEnvelope).signature,FINAL_SIGNATURE),authority:firstText(safeObj(out.finalEnvelope).authority,"marionFinalEnvelope")};
+  out.speech={...safeObj(out.speech),text:clean,textDisplay:clean,textSpeak:clean,silent:false,silentAudio:false};
+  out.meta={...safeObj(out.meta),...safeObj(flags),primitivePublicReplyRecovered:!!safeObj(flags).primitivePublicReplyRecovered,noUserFacingDiagnostics:true,transportSafe:true,emit:true,blocked:false,suppressUserFacingReply:false};
+  out.diagnostics={...safeObj(out.diagnostics),primitivePublicReplyRecovered:!!safeObj(flags).primitivePublicReplyRecovered,publicReplyHardlock:true,noUserFacingDiagnostics:true,suppressedUserFacingReply:false,emit:true,blocked:false};
+  return out;
+}
+function enforceValidPublicReply(packet={},ctx={}){
+  const out=safeObj(packet);
+  const normalized=safeObj(ctx.normalized);
+  const candidate=readPublicReplyCandidate(out);
+  if(!isInvalidPublicReplyValue(candidate)&&!isThinPlaceholderText(candidate)&&!isBroadLanguageClarifier(candidate)){
+    return applyReplyEverywhere(out,candidate,{publicReplyHardlock:true});
+  }
+  const recovery=buildPrimitiveReplyRecovery(normalized);
+  return applyReplyEverywhere(out,recovery,{primitivePublicReplyRecovered:true,publicReplyHardlock:true});
+}
 
 
 
@@ -992,7 +1039,8 @@ function transportSafePacket(packet = {}) {
 function transportSafeError(packet = {}) {
   const out = jsonSafe(packet);
   if (isObj(out)) {
-    const hasReply = !!safeStr(out.reply || out.text || out.message || safeObj(out.payload).reply);
+    const candidateReply = readPublicReplyCandidate(out);
+    const hasReply = !!candidateReply && !isInvalidPublicReplyValue(candidateReply) && !isThinPlaceholderText(candidateReply) && !isDiagnosticText(candidateReply);
     if (!hasReply) {
       out.final = false;
       out.marionFinal = false;
@@ -1353,11 +1401,15 @@ async function processWithMarionUnsafe(input={}){
   return wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket});
 }
 async function processWithMarion(input = {}) {
+  let normalizedForPublicReply = {};
+  try { normalizedForPublicReply = normalizeInbound(input); } catch (_err) { normalizedForPublicReply = {}; }
   try {
     const packet = await processWithMarionUnsafe(input);
-    return packet && packet.ok === false ? transportSafeError(packet) : transportSafePacket(packet);
+    const safePacket = packet && packet.ok === false ? transportSafeError(packet) : transportSafePacket(packet);
+    return enforceValidPublicReply(safePacket,{normalized: normalizedForPublicReply});
   } catch (err) {
-    return transportSafeError(buildErrorResult("bridge_transport_exception", { message: safeStr(err && (err.message || err) || "") }, normalizeInbound(input)));
+    const safePacket = transportSafeError(buildErrorResult("bridge_transport_exception", { message: safeStr(err && (err.message || err) || "") }, Object.keys(normalizedForPublicReply).length?normalizedForPublicReply:normalizeInbound(input)));
+    return enforceValidPublicReply(safePacket,{normalized: normalizedForPublicReply});
   }
 }
 async function maybeResolve(input={}){return processWithMarion(input);}
@@ -1388,4 +1440,4 @@ function bridgeForensicNormalizationStatus(){
   };
 }
 
-module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,shouldSuppressDomainConciergeClarifier}};
+module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply}};
