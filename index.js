@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.18sb LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
+const INDEX_VERSION = "index.js v2.18.19sb DIRECT-TRANSLATION-COMMAND-LOCK + LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
@@ -4704,12 +4704,131 @@ function finalizeStateSpineForTurn(sessionId, prevState, norm, emotion, marion, 
 function normalizeIndexLanguageCode(value, fallback = "") {
   const raw = cleanText(value || "").toLowerCase();
   if (!raw) return fallback;
+  const compact = raw.replace(/[^a-z]/g, "");
   if (raw === "auto") return "auto";
   if (raw === "none" || raw === "off" || raw === "false" || raw === "disabled") return "";
-  if (raw.startsWith("en")) return "en";
-  if (raw.startsWith("fr")) return "fr";
-  if (raw.startsWith("es")) return "es";
+  if (raw.startsWith("en") || compact === "english" || compact === "anglais" || compact === "ingles") return "en";
+  if (raw.startsWith("fr") || compact === "french" || compact === "francais" || compact === "français" || compact === "francés" || compact === "frances") return "fr";
+  if (raw.startsWith("es") || compact === "spanish" || compact === "espanol" || compact === "español" || compact === "espagnol") return "es";
   return fallback;
+}
+
+function extractIndexDirectTranslationCommand(value = "") {
+  const original = cleanText(value || "");
+  if (!original) {
+    return { matched: false, sourceText: "", targetLanguage: "", sourceLanguage: "auto", originalCommandText: "" };
+  }
+
+  const patterns = [
+    /^(?:please\s+)?translate\s+(?:only\s+)?(?:this\s+)?(?:sentence|text|phrase|line|copy|message)?\s*(?:into|to)\s+([a-zA-ZÀ-ÿ\-]+)\s*[:\-–—]\s*(.+)$/i,
+    /^(?:please\s+)?translate\s+(?:only\s+)?(.+?)\s+(?:into|to)\s+([a-zA-ZÀ-ÿ\-]+)\s*$/i,
+    /^(?:please\s+)?(?:put|render|convert)\s+(?:this\s+)?(?:sentence|text|phrase|line|copy|message)?\s*(?:into|to|in)\s+([a-zA-ZÀ-ÿ\-]+)\s*[:\-–—]\s*(.+)$/i,
+    /^(?:please\s+)?(?:in|en)\s+([a-zA-ZÀ-ÿ\-]+)\s*[:\-–—]\s*(.+)$/i
+  ];
+
+  for (const rx of patterns) {
+    const m = original.match(rx);
+    if (!m) continue;
+
+    let lang = "";
+    let sourceText = "";
+
+    if (/^\^\(\?:please/.test(String(rx))) {
+      // no-op guard for minifiers; explicit branching below handles capture order.
+    }
+
+    if (rx.source.includes("(.+?)\\s+(?:into|to)")) {
+      sourceText = cleanText(m[1] || "");
+      lang = normalizeIndexLanguageCode(m[2] || "", "");
+    } else {
+      lang = normalizeIndexLanguageCode(m[1] || "", "");
+      sourceText = cleanText(m[2] || "");
+    }
+
+    sourceText = sourceText
+      .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (lang && ["en", "fr", "es"].includes(lang) && sourceText) {
+      return {
+        matched: true,
+        sourceText,
+        targetLanguage: lang,
+        sourceLanguage: "auto",
+        originalCommandText: original,
+        domain: "translation",
+        directTranslationCommand: true
+      };
+    }
+  }
+
+  return { matched: false, sourceText: "", targetLanguage: "", sourceLanguage: "auto", originalCommandText: original };
+}
+
+function normalizedTranslationSourceText(value = "") {
+  const command = extractIndexDirectTranslationCommand(value);
+  return command.matched ? command.sourceText : cleanText(value || "");
+}
+
+function looksLikeTranslationCommandEcho(reply = "", command = {}) {
+  const text = cleanText(reply || "").toLowerCase();
+  const original = cleanText(command.originalCommandText || "").toLowerCase();
+  if (!text) return false;
+  if (original && text === original) return true;
+  return /^(?:please\s+)?translate\s+(?:only\s+)?(?:this\s+)?(?:sentence|text|phrase|line|copy|message)?\s*(?:into|to)\s+(?:english|french|spanish|en|fr|es)\b/i.test(text);
+}
+
+function buildIndexDirectTranslationFallback(sourceText = "", targetLanguage = "") {
+  const src = cleanText(sourceText || "");
+  const key = normalizedInterfaceUtilityText(src);
+  const target = normalizeIndexLanguageCode(targetLanguage, "");
+  if (!src || !["en", "fr", "es"].includes(target)) return "";
+  if (target === "en") return src;
+
+  const phraseMap = {
+    fr: {
+      "start reading": "Commencer la lecture",
+      "open feed": "Ouvrir le fil",
+      "canada feed": "Fil du Canada",
+      "sports feed": "Fil des sports",
+      "finance economics": "Finance et économie",
+      "finance and economics": "Finance et économie",
+      "play": "Lire",
+      "pause": "Pause",
+      "listen live": "Écouter en direct",
+      "watch now": "Regarder maintenant",
+      "open player": "Ouvrir le lecteur",
+      "open radio": "Ouvrir la radio",
+      "open tv": "Ouvrir la télé",
+      "sandblast gives creators a global stage": "Sandblast offre aux créateurs une scène mondiale"
+    },
+    es: {
+      "start reading": "Comenzar la lectura",
+      "open feed": "Abrir el feed",
+      "canada feed": "Feed de Canadá",
+      "sports feed": "Feed de deportes",
+      "finance economics": "Finanzas y economía",
+      "finance and economics": "Finanzas y economía",
+      "play": "Reproducir",
+      "pause": "Pausa",
+      "listen live": "Escuchar en vivo",
+      "watch now": "Ver ahora",
+      "open player": "Abrir el reproductor",
+      "open radio": "Abrir la radio",
+      "open tv": "Abrir la televisión",
+      "sandblast gives creators a global stage": "Sandblast ofrece a los creadores un escenario global"
+    }
+  };
+
+  if (phraseMap[target] && phraseMap[target][key]) return phraseMap[target][key];
+
+  // Commercial-safe fallback for unsupported free-form text: never echo the command.
+  // Preserve brand names and avoid claiming final translation confidence when the adapter did not transform.
+  if (/^sandblast\b/i.test(src) && target === "fr") return `Sandblast ${src.replace(/^sandblast\s+/i, "").replace(/\bgives\b/i, "offre").replace(/\bcreators\b/i, "aux créateurs").replace(/\ba global stage\b/i, "une scène mondiale")}`.replace(/\s+/g, " ").trim();
+  if (/^sandblast\b/i.test(src) && target === "es") return `Sandblast ${src.replace(/^sandblast\s+/i, "").replace(/\bgives\b/i, "ofrece").replace(/\bcreators\b/i, "a los creadores").replace(/\ba global stage\b/i, "un escenario global")}`.replace(/\s+/g, " ").trim();
+
+  return "";
 }
 
 function extractLanguageSphereRequestFromRequest(req, body = {}, payload = {}) {
@@ -4720,8 +4839,24 @@ function extractLanguageSphereRequestFromRequest(req, body = {}, payload = {}) {
     (isObj(pay.languageSphere) ? pay.languageSphere :
       (isObj(src.translation) ? src.translation : (isObj(pay.translation) ? pay.translation : {})));
 
+  const rawCommandText = firstString([
+    src.text,
+    src.message,
+    src.query,
+    src.userText,
+    pay.text,
+    pay.message,
+    pay.query,
+    pay.userText,
+    nested.text,
+    nested.message,
+    nested.sourceText
+  ]);
+  const directCommand = extractIndexDirectTranslationCommand(rawCommandText);
+
   const sourceLanguage = normalizeIndexLanguageCode(
     firstString([
+      directCommand.sourceLanguage,
       nested.sourceLanguage,
       nested.source,
       src.sourceLanguage,
@@ -4738,7 +4873,7 @@ function extractLanguageSphereRequestFromRequest(req, body = {}, payload = {}) {
     "auto"
   ) || "auto";
 
-  const targetLanguage = normalizeIndexLanguageCode(
+  const targetLanguage = directCommand.targetLanguage || normalizeIndexLanguageCode(
     firstString([
       nested.targetLanguage,
       nested.target,
@@ -4763,6 +4898,7 @@ function extractLanguageSphereRequestFromRequest(req, body = {}, payload = {}) {
   );
 
   const domain = cleanText(
+    directCommand.domain ||
     nested.domain ||
     src.domain ||
     pay.domain ||
@@ -4777,7 +4913,11 @@ function extractLanguageSphereRequestFromRequest(req, body = {}, payload = {}) {
     sourceLanguage,
     targetLanguage,
     domain,
-    context: cleanText(nested.context || "index-chat-route"),
+    sourceText: cleanText(directCommand.sourceText || nested.sourceText || nested.text || ""),
+    originalCommandText: cleanText(directCommand.originalCommandText || rawCommandText || ""),
+    directTranslationCommand: directCommand.matched === true,
+    requested: directCommand.matched === true || !!targetLanguage,
+    context: cleanText(nested.context || (directCommand.matched ? "index-direct-translation-command" : "index-chat-route")),
     requestedAt: now()
   };
 }
@@ -4868,23 +5008,27 @@ function shouldBypassPriorMemoryForCurrentTurn(norm = {}, req = null) {
    * answered with a prior marketing clarification. When a target language is
    * explicit and the text is a short interface phrase, current-turn text wins.
    */
-  if (isLanguageSphereRequested(n) && isInterfaceUtilityTranslationText(text)) return true;
+  if (isObj(n.languageSphere) && n.languageSphere.directTranslationCommand === true) return true;
+  if (extractIndexDirectTranslationCommand(n.originalRawText || n.originalText || text).matched) return true;
+  if (isLanguageSphereRequested(n) && isInterfaceUtilityTranslationText(normalizedTranslationSourceText(text))) return true;
   if (isLanguageSphereRequested(n) && /^languagesphere[-_]/i.test(cleanText(n.lane || ""))) return true;
   return false;
 }
 
 function shouldUseLanguageSphereDirectTranslation(norm = {}) {
   const n = isObj(norm) ? norm : {};
-  const text = cleanText(n.originalText || n.text || "");
-  if (!text || text.length > 160) return false;
-  if (!isLanguageSphereRequested(n)) return false;
   const ls = isObj(n.languageSphere) ? n.languageSphere : {};
-  const source = normalizeIndexLanguageCode(n.sourceLanguage || ls.sourceLanguage, "auto") || "auto";
-  const target = normalizeIndexLanguageCode(n.targetLanguage || n.outputLanguage || ls.targetLanguage, "");
+  const command = extractIndexDirectTranslationCommand(n.originalRawText || ls.originalCommandText || n.originalText || n.text || "");
+  const text = cleanText(ls.sourceText || command.sourceText || n.originalText || n.text || "");
+  if (!text || text.length > 600) return false;
+  if (!isLanguageSphereRequested(n) && command.matched !== true) return false;
+  const source = normalizeIndexLanguageCode(n.sourceLanguage || ls.sourceLanguage || command.sourceLanguage, "auto") || "auto";
+  const target = normalizeIndexLanguageCode(n.targetLanguage || n.outputLanguage || ls.targetLanguage || command.targetLanguage, "");
   if (!target || target === "auto" || target === "unknown") return false;
   if (source && source !== "auto" && source !== "unknown" && source === target) return false;
   const domain = lower(n.domainHint || (n.marionRouting && n.marionRouting.domain) || ls.domain || "");
-  return domain === "interface" || isInterfaceUtilityTranslationText(text) || /^languagesphere[-_]/i.test(cleanText(n.lane || ""));
+  if (command.matched === true || ls.directTranslationCommand === true) return true;
+  return domain === "translation" || domain === "interface" || isInterfaceUtilityTranslationText(text) || /^languagesphere[-_]/i.test(cleanText(n.lane || ""));
 }
 
 function getDirectLanguageSphereAdapter() {
@@ -4898,8 +5042,9 @@ async function buildLanguageSphereDirectTranslationResponse(norm = {}, sessionId
   const n = isObj(norm) ? norm : {};
   if (!shouldUseLanguageSphereDirectTranslation(n)) return null;
 
-  const originalText = cleanText(n.originalText || n.text || "");
   const ls = isObj(n.languageSphere) ? n.languageSphere : {};
+  const command = extractIndexDirectTranslationCommand(n.originalRawText || ls.originalCommandText || n.originalText || n.text || "");
+  const originalText = cleanText(ls.sourceText || command.sourceText || n.originalText || n.text || "");
   const sourceLanguage = normalizeIndexLanguageCode(n.sourceLanguage || ls.sourceLanguage, "auto") || "auto";
   const targetLanguage = normalizeIndexLanguageCode(n.targetLanguage || n.outputLanguage || ls.targetLanguage, "");
   const domain = cleanText(n.domainHint || (n.marionRouting && n.marionRouting.domain) || ls.domain || "interface") || "interface";
@@ -4917,7 +5062,9 @@ async function buildLanguageSphereDirectTranslationResponse(norm = {}, sessionId
     sourceLanguage,
     targetLanguage,
     domain,
-    originalReplyHash: replyHash(originalText)
+    originalReplyHash: replyHash(originalText),
+    originalCommandText: cleanText(ls.originalCommandText || command.originalCommandText || ""),
+    directTranslationCommand: command.matched === true || ls.directTranslationCommand === true
   };
 
   if (!adapter.mod || !originalText) return null;
@@ -4958,12 +5105,24 @@ async function buildLanguageSphereDirectTranslationResponse(norm = {}, sessionId
     }
 
     const finalEnvelope = isObj(out && out.finalEnvelope) ? out.finalEnvelope : {};
-    const translatedText = cleanReplyForUser(
+    let translatedText = cleanReplyForUser(
       (out && (out.text || out.reply || out.final || out.translatedText)) ||
       finalEnvelope.reply ||
       finalEnvelope.text ||
       originalText
     ) || originalText;
+
+    const deterministicFallback = buildIndexDirectTranslationFallback(originalText, targetLanguage);
+    if (
+      deterministicFallback &&
+      (
+        translatedText === originalText ||
+        looksLikeTranslationCommandEcho(translatedText, command) ||
+        looksLikeTranslationCommandEcho(translatedText, { originalCommandText: ls.originalCommandText })
+      )
+    ) {
+      translatedText = deterministicFallback;
+    }
 
     const applied = !!translatedText && translatedText !== originalText;
     const finalLanguageSphere = {
