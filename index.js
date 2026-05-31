@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.19sb DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.19sb DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE";
 const SERVER_BOOT_AT = Date.now();
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -567,6 +567,33 @@ function normalizeLastMileIntentText(value) {
     .trim();
 }
 
+const LAST_MILE_PROGRESSION_CONTINUATION_REPLY = "Progression shaping is active. Continue with the next concrete validation step, then mark the result as Passed or Failed so Marion can preserve the current lane and advance cleanly.";
+
+function isLastMileProgressionIntentText(value) {
+  const source = normalizeLastMileIntentText(value);
+  if (!source) return false;
+  return /\b(next steps?|what'?s next|what now|continue|carry on|keep going|move on|next phase|after that|passed|failed)\b/i.test(source);
+}
+
+function isThinLastMileContinuationReply(value) {
+  const text = cleanText(value).replace(/[.!?]+$/g, "").toLowerCase();
+  if (!text) return false;
+  return /^(?:continue|next|ok|okay|done|proceed|go ahead|carry on|keep going)$/i.test(text) ||
+    /^i can continue from your next instruction$/i.test(text);
+}
+
+function buildLastMileProgressionContinuationReply(packet, fallbackText) {
+  const source = `${collectPublicIntentText(packet)} ${cleanText(fallbackText)}`.trim();
+  if (!isLastMileProgressionIntentText(source)) return "";
+  if (/\b(pass(?:ed)?|all passed|green|success|works|complete|locked)\b/i.test(source)) {
+    return "Progression shaping passed. Lock the current result, preserve the progression lane, and move to the next validation layer.";
+  }
+  if (/\b(fail(?:ed)?|error|broke|not working|red|still failing|didn'?t pass|issue)\b/i.test(source)) {
+    return "Progression shaping needs repair. Patch the failing selector, rerun the same prompt, and do not advance until the public reply gives a concrete action plan.";
+  }
+  return LAST_MILE_PROGRESSION_CONTINUATION_REPLY;
+}
+
 function buildLastMileRecoveryReply(packet) {
   const source = normalizeLastMileIntentText(collectPublicIntentText(packet));
   if (!source) return "";
@@ -578,7 +605,7 @@ function buildLastMileRecoveryReply(packet) {
   if (/\bphase\s*(?:2|two)\b/i.test(source) && /\bmic to text|parity|voice\b/i.test(source)) {
     return "Phase 2 is the typed/mic parity regression harness. Test the same prompts by text and voice, then compare intent, domain, language route, clarification behavior, and Marion authority path.";
   }
-  return "";
+  return buildLastMileProgressionContinuationReply(packet, source);
 }
 
 function forcePublicReply(packet, reply, metaPatch) {
@@ -654,12 +681,13 @@ function cleanReplyForUser(v) {
   t = stripUserVisibleDebugLeak(t);
   if (!t) return "";
   t = stripPublicReplyScaffold(t);
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "I can continue from your next instruction.");
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "I can continue from your next instruction.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, LAST_MILE_PROGRESSION_CONTINUATION_REPLY);
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, LAST_MILE_PROGRESSION_CONTINUATION_REPLY);
   t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
   t = t.replace(/\bbackend\b/ig, "system");
   t = stripPublicReplyScaffold(t);
   t = t.replace(/\s+([,.!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
+  if (isThinLastMileContinuationReply(t)) return "";
   return hasUserVisibleDebugLeak(t) || isPublicControlPolicyLeak(t) || isPrimitivePlaceholderReplyValue(t) ? "" : t;
 }
 
@@ -765,6 +793,8 @@ function buildPublicChatResponse(packet, reply) {
   const ttsSrc = safeObj(src.tts);
   const lingoLinkAnswer = buildLingoLinkPublicAnswerFromPacket(src);
   let safeReply = cleanReplyForUser(reply || src.displayReply || src.reply || src.response || src.text || src.answer || payload.displayReply || payload.reply || finalEnvelope.displayReply || finalEnvelope.reply || "");
+  const lastMileProgressionReply = buildLastMileProgressionContinuationReply(src, reply);
+  if (lastMileProgressionReply && (!safeReply || isThinLastMileContinuationReply(safeReply) || /^i can continue from your next instruction\.?$/i.test(safeReply))) safeReply = lastMileProgressionReply;
   if (lingoLinkAnswer && (!safeReply || isGenericGreetingStatusReply(safeReply))) safeReply = lingoLinkAnswer;
   if (!safeReply) safeReply = lingoLinkAnswer;
   if (!safeReply) safeReply = buildLastMileRecoveryReply(src);
@@ -881,6 +911,8 @@ function applyPublicReplyHygieneToResponse(packet) {
     ""
   );
   if (reply) return buildPublicChatResponse(packet, reply);
+  const lastMileProgressionReply = buildLastMileProgressionContinuationReply(packet, "");
+  if (lastMileProgressionReply) return buildPublicChatResponse(forcePublicReply(packet, lastMileProgressionReply, { lastMileProgressionReplyRecovered: true }), lastMileProgressionReply);
   const lingoLinkAnswer = buildLingoLinkPublicAnswerFromPacket(packet);
   if (lingoLinkAnswer) return buildPublicChatResponse(packet, lingoLinkAnswer);
   const lastMileRecovery = buildLastMileRecoveryReply(packet);
@@ -6134,7 +6166,7 @@ function inferEmotion(text, reqCtx) {
 function normalizeSupportReply(text) {
   const cleaned = cleanReplyForUser(text);
   if (cleaned) return cleaned;
-  return "I can continue from your next instruction.";
+  return "Tell me the next concrete step you want to take, and I’ll keep it direct.";
 }
 
 function buildSafeSupportReply(inputText, emotion, extras) {
