@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.0 PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.36.1 PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
@@ -84,6 +84,9 @@ const BLOCKED_LOOP_PATTERNS = Object.freeze([
   /\bregenerate from the same normalized text\b/i,
   /\bnew requirement:\s*answer with one new fact\b/i,
   /\bare you asking about translation,? captions,? or language routing inside the interface\??\b/i
+  /\bthe direct answer needs one usable example\b/i,
+  /\bin practical terms, define the concept\b/i,
+  /\bone concrete use case so the user can apply it immediately\b/i,
 ]);
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
@@ -2035,14 +2038,14 @@ function isProgressionShapingRefinementPrompt(text="",input={},routed={}){
 }
 function progressionShapingRefinementReply(text="",input={},routed={}){
   if(!isProgressionShapingRefinementPrompt(text,input,routed))return "";
-  const t=lower(normalizeVoiceTextParityText(text));
-  if(/\bwhat are we testing|inside that phase|testing inside\b/i.test(t)){
-    return "Inside progression shaping, test whether Marion preserves the active technical lane across 5-7 turns, carries the prior phase anchor, avoids broad clarification, blocks instruction-shaped wording, and gives one concrete next action per reply.";
+  const t=lower(normalizeVoiceTextParityText(text)).replace(/\bafter party\b/g,"after parity").replace(/\b5\s*[:\-]\s*10\b/g,"5 turn").replace(/\bregression test\b/g,"progression test");
+  if(/\bwhat are we testing|inside that phase|testing inside|test objective|continuity objective\b/i.test(t)){
+    return "Inside progression shaping refinement, the continuity objective is the 5-7 turn continuity/depth test: Marion must keep mic-to-text parity marked complete, preserve the active technical lane, carry the phase anchor, avoid broad clarification, block instruction-shaped wording, and give one concrete next action per reply.";
   }
-  if(/\bprotect|losing context|context drop|preserve context\b/i.test(t)){
-    return "It protects Marion by binding each follow-up to the accepted phase anchor before generic templates can run. That keeps mic-to-text parity marked complete, keeps the current phase as progression shaping, and prevents vague prompts like “continue” from resetting the lane.";
+  if(/\bprotect|losing context|context drop|preserve context|context protection\b/i.test(t)){
+    return "Progression shaping protects Marion from losing context by binding every follow-up to the accepted phase anchor before generic templates can shape the reply. That keeps mic-to-text parity complete, keeps the current phase as progression shaping refinement, and prevents vague prompts like “continue” from resetting the lane.";
   }
-  if(/\bnext action|after this test passes|what is next\b/i.test(t)){
+  if(/\bnext action|after this test passes|what is next|after it passes|when this passes\b/i.test(t)){
     return "After progression shaping passes, move into domain confidence scoring: verify Marion can score the active domain, answer when confidence is high, ask one precise clarifier when confidence is low, and fail closed when the domain is weak or unsafe.";
   }
   return "Progression shaping refinement means testing whether Marion carries the active technical thread across 5-7 turns without losing the lane, asking broad clarification, or exposing instruction-shaped wording. Next action: run the five-turn progression sequence and mark the first turn where context, depth, or one-action shaping drops.";
