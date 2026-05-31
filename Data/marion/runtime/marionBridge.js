@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.8.9 PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.9.0 PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -679,7 +679,10 @@ const SPOKEN_PROJECT_ALIAS_RULES = Object.freeze([
   { canonical: "LingoLink", aliases: ["lingo link", "lingolink", "lingo-link", "link o link", "lingu link", "language link", "lingo linkedin"] },
   { canonical: "Nyx", aliases: ["nyx", "nix", "nicks", "nick's", "nyx live", "nix live"] },
   { canonical: "Marion", aliases: ["marion", "mary in", "merry in", "merion", "marian", "marion bridge", "mary and bridge"] },
-  { canonical: "Sandblast", aliases: ["sandblast", "sand blast", "sam blast", "sound blast", "sun blast", "sandblast channel", "sand blast channel"] }
+  { canonical: "Sandblast", aliases: ["sandblast", "sand blast", "sam blast", "sound blast", "sun blast", "sandblast channel", "sand blast channel"] },
+  { canonical: "mic-to-text parity", aliases: ["mic to text parity", "mic-text parity", "mike to text parity", "mike text parity", "microphone text parity", "voice text parity", "voice-to-text parity", "speech text parity", "after party", "after parity"] },
+  { canonical: "progression shaping", aliases: ["progression shaping", "progression shaping refinement", "progression refinement", "regression shaping", "progression shipping", "progression shaving", "five turn progression", "5 turn progression", "5:10 progression", "5:10 regression", "five ten progression", "five ten regression"] },
+  { canonical: "domain confidence scoring", aliases: ["domain confidence", "domain confidence scoring", "domain scoring", "confidence scoring", "confidence score", "domain confident scoring", "domain competence", "domain competency"] }
 ]);
 const MIC_TEXT_PARITY_PHASES = Object.freeze({
   phase1:{label:"Phase 1: Mic input capture and normalization",summary:"Normalize spoken input so mic transcripts enter the same Marion/Nyx route as typed text."},
@@ -692,6 +695,18 @@ const LANGUAGE_SPHERE_PHASES = Object.freeze({
   phase2:{label:"Phase 2: Translation and cultural adaptation",summary:"Translate accurately while preserving tone, intent, domain terminology, and cultural context."},
   phase3:{label:"Phase 3: Glossary and terminology control",summary:"Protect project-specific, business-specific, and domain-specific terms from translation drift."},
   phase4:{label:"Phase 4: Memory and reusable language intelligence",summary:"Use translation memory and prior successful mappings to improve consistency over time."}
+});
+const PROGRESSION_SHAPING_PHASES = Object.freeze({
+  phase1:{label:"Phase 1: Five-to-seven turn lane continuity",summary:"Confirm Marion carries the active technical lane across 5-7 turns without generic clarification, stale fallback, or instruction-shaped public wording."},
+  phase2:{label:"Phase 2: Depth governor and one-action shaping",summary:"Tune response depth so Marion gives the current phase, the validation target, and one useful next action per turn."},
+  phase3:{label:"Phase 3: Follow-up intent carryover",summary:"Make vague continuations inherit the active technical phase instead of resetting to a generic explanation template."},
+  phase4:{label:"Phase 4: Anti-loop and public-surface regression",summary:"Verify Marion changes answer state, blocks loop language, and keeps visible replies clean across text and mic input."}
+});
+const DOMAIN_CONFIDENCE_PHASES = Object.freeze({
+  phase1:{label:"Phase 1: Domain signal extraction",summary:"Extract explicit and implicit domain signals from user text, active lane, memory carry, and routed intent."},
+  phase2:{label:"Phase 2: Confidence scoring and thresholds",summary:"Assign confidence bands, then decide whether Marion should answer, clarify, fail closed, or preserve the current lane."},
+  phase3:{label:"Phase 3: Cross-domain isolation and secondary-lane handling",summary:"Prevent domain bleed while allowing a supporting secondary lane only when it does not take authority away from the primary lane."},
+  phase4:{label:"Phase 4: Telemetry-visible validation",summary:"Expose confidence metadata internally while keeping the user-facing reply direct and free of diagnostics."}
 });
 function escapeBridgeRegExp(value){return String(value||"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}
 function normalizeSpokenProjectAliases(input=""){
@@ -727,6 +742,11 @@ function normalizePhaseAnchorText(input=""){
     .replace(/\bphase two\b/g,"phase 2")
     .replace(/\bphase three\b/g,"phase 3")
     .replace(/\bphase four\b/g,"phase 4")
+    .replace(/\b5\s*[:\-]\s*10\b/g,"5 turn")
+    .replace(/\bfive[-\s]?turn\b/g,"5 turn")
+    .replace(/\bafter party\b/g,"after parity")
+    .replace(/\bregression shaping\b/g,"progression shaping")
+    .replace(/\bregression test\b/g,"progression test")
     .replace(/\s+/g," ").trim();
 }
 function extractPhaseAnchorKey(input=""){
@@ -739,7 +759,7 @@ function extractPhaseAnchorKey(input=""){
 }
 function isBridgeContinuationRequest(input=""){
   const text=normalizePhaseAnchorText(input);
-  return /\b(continue|next steps?|after that|what happens after|move on|go ahead|phase|carry on|keep going)\b/i.test(text);
+  return /\b(continue|next steps?|after that|what happens after|move on|go ahead|phase|carry on|keep going|progression|depth|confidence|scoring|5 turn|parity)\b/i.test(text);
 }
 function activeProjectTextFromMemory(memory={}){
   const m=safeObj(memory),sb=safeObj(m.stateBridge),cv=safeObj(m.conversationVector),st=safeObj(m.stateSpine||m.conversationState),mc=safeObj(m.marionCohesion);
@@ -751,7 +771,9 @@ function resolvePhaseAnchor(input="",context={}){
   const continuation=isBridgeContinuationRequest(text);
   if(!phaseKey&&!continuation)return {resolved:false,phaseKey:"",lane:"",label:"",summary:""};
   let phaseMap=null,lane="";
-  if(/\b(mic|microphone|voice|speech|spoken|parity|transcript|stt|speech to text|speech-to-text)\b/i.test(ctx)){phaseMap=MIC_TEXT_PARITY_PHASES;lane="mic_to_text_parity";}
+  if(/\b(progression shaping|progression refinement|progression|depth governor|continuity depth|5 turn|five turn)\b/i.test(ctx)){phaseMap=PROGRESSION_SHAPING_PHASES;lane="progression_shaping_refinement";}
+  if(!phaseMap&&/\b(domain confidence|confidence scoring|domain scoring|confidence threshold|confidence band)\b/i.test(ctx)){phaseMap=DOMAIN_CONFIDENCE_PHASES;lane="domain_confidence_scoring";}
+  if(!phaseMap&&/\b(mic|microphone|voice|speech|spoken|parity|transcript|stt|speech to text|speech-to-text)\b/i.test(ctx)){phaseMap=MIC_TEXT_PARITY_PHASES;lane="mic_to_text_parity";}
   if(!phaseMap&&/\b(languagesphere|language sphere|translation|translator|lingolink|lingo link|multilingual|language)\b/i.test(ctx)){phaseMap=LANGUAGE_SPHERE_PHASES;lane="languagesphere";}
   if(!phaseMap)return {resolved:false,phaseKey:phaseKey||"",lane:"",label:"",summary:""};
   const safePhaseKey=phaseKey||"phase2";
@@ -762,15 +784,45 @@ function resolvePhaseAnchor(input="",context={}){
 function buildPhaseAnchorInstruction(input="",context={}){
   const anchor=resolvePhaseAnchor(input,context);
   if(!anchor.resolved)return "";
-  return [`The user is continuing the active lane: ${anchor.lane}.`,`Resolved phase: ${anchor.label}.`,`Phase meaning: ${anchor.summary}`,`Answer directly. Do not ask broad clarification unless the user introduces a genuinely new topic.`].join("\n");
+  return [`The user is continuing the active lane: ${anchor.lane}.`,`Resolved phase: ${anchor.label}.`,`Phase meaning: ${anchor.summary}`,`Answer directly. Preserve prior phase context, name the validation target, and give one concrete next action. Do not ask broad clarification unless the user introduces a genuinely new topic.`].join("\n");
 }
 function isLanguageSphereNextStepsRequest(text=""){
   const t=lower(text);
   return /\b(languagesphere|language sphere|language ca|language c a|language k|language see a|language sea)\b/i.test(t)&&/\b(next steps?|what\s+are\s+the\s+next\s+steps|what\s+is\s+next|what'?s next|where are we|roadmap|phase|continue)\b/i.test(t);
 }
+
+function isProgressionShapingRequest(text=""){
+  const t=normalizePhaseAnchorText(text);
+  return /\b(progression shaping|progression refinement|progression test|5 turn progression|5 turn|continuity depth|depth governor)\b/i.test(t) ||
+    /\bafter parity\b/i.test(t)&&/\b(progression|5 turn|regression test)\b/i.test(t);
+}
+function progressionShapingRecoveryReply(){
+  return "Progression shaping refinement means testing whether Marion carries the active technical thread across 5-7 turns without losing the lane, asking broad clarification, or exposing instruction-shaped wording. Next action: run the five-turn progression sequence and mark the first turn where context, depth, or one-action shaping drops.";
+}
+function isDomainConfidenceRequest(text=""){
+  const t=normalizePhaseAnchorText(text);
+  return /\b(domain confidence|confidence scoring|domain scoring|confidence threshold|confidence band|domain signal)\b/i.test(t);
+}
+function domainConfidenceRecoveryReply(){
+  return "Domain confidence scoring means Marion assigns a confidence band to the active lane before answering. Next action: test high, medium, low, and weak domain prompts, confirm low confidence asks one precise clarifier, and confirm weak confidence fails closed without cross-domain bleed.";
+}
+function isWrongLaneProgressionReply(reply=""){
+  const t=lower(reply);
+  return !t ? true :
+    /\bthe direct answer needs one usable example\b/i.test(t) ||
+    /\bdefine the concept\b/i.test(t) ||
+    /\bone concrete use case\b/i.test(t) ||
+    /\ba loop breaks when\b/i.test(t) ||
+    /\bmerely changes wording\b/i.test(t) ||
+    /\btechnical move is to name\b/i.test(t) ||
+    /\bactive component\b.*\bfailure mode\b.*\bvalidation step\b/i.test(t);
+}
+
 function buildProjectRecoveryReply(normalized={}){
   const n=safeObj(normalized), text=firstText(n.userQuery,n.rawUserQuery);
   const phase=safeObj(n.phaseAnchor);
+  if(isProgressionShapingRequest(text)||phase.lane==="progression_shaping_refinement")return progressionShapingRecoveryReply();
+  if(isDomainConfidenceRequest(text)||phase.lane==="domain_confidence_scoring")return domainConfidenceRecoveryReply();
   if(phase.resolved&&phase.lane==="mic_to_text_parity"&&phase.phaseKey==="phase2"){
     return "Phase 2 is the typed/mic parity regression harness. Test the same prompts by text and voice, then compare intent, domain, language route, clarification behavior, and Marion authority path. The pass condition is that mic and typed input behave structurally the same, even if the final wording is not identical.";
   }
@@ -797,7 +849,9 @@ function applyProjectRecoveryReplyOverride(packet={},ctx={}){
   const recovery=buildProjectRecoveryReply(normalized);
   if(!recovery)return out;
   const current=firstText(out.reply,out.text,out.answer,out.output,out.response,out.message,out.displayReply,safeObj(out.payload).reply,safeObj(out.finalEnvelope).reply);
-  if(current&&!isPrimitivePublicReply(current)&&!isThinPlaceholderText(current)&&!isBroadLanguageClarifier(current)&&!isGenericGreetingStatusFallback(current)&&!isPublicControlPolicyLeak(current))return out;
+  const q=firstText(normalized.userQuery,normalized.rawUserQuery);
+  const forceProjectLane=(isProgressionShapingRequest(q)||isDomainConfidenceRequest(q))&&isWrongLaneProgressionReply(current);
+  if(!forceProjectLane&&current&&!isPrimitivePublicReply(current)&&!isThinPlaceholderText(current)&&!isBroadLanguageClarifier(current)&&!isGenericGreetingStatusFallback(current)&&!isPublicControlPolicyLeak(current))return out;
   out.reply=recovery;out.text=recovery;out.answer=recovery;out.output=recovery;out.response=recovery;out.message=recovery;out.displayReply=recovery;out.spokenText=recovery;out.textSpeak=recovery;out.textDisplay=recovery;
   out.payload={...safeObj(out.payload),reply:recovery,text:recovery,message:recovery,answer:recovery,output:recovery,response:recovery,displayReply:recovery,spokenText:recovery,textSpeak:recovery,textDisplay:recovery};
   out.finalEnvelope={...safeObj(out.finalEnvelope),reply:recovery,text:recovery,displayReply:recovery,spokenText:recovery};
@@ -1440,4 +1494,4 @@ function bridgeForensicNormalizationStatus(){
   };
 }
 
-module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply}};
+module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply}};
