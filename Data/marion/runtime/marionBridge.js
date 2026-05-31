@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.2 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.9.2 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -25,6 +25,7 @@ const progressionShapeMod = (() => { try { return require(path.join(__dirname, "
 const progressionMemoryMod = (() => { try { return require(path.join(__dirname, "progressionMemory.js")); } catch (_) { return null; } })();
 const progressionResponsePolicyMod = (() => { try { return require(path.join(__dirname, "progressionResponsePolicy.js")); } catch (_) { return null; } })();
 const progressionTelemetryMod = (() => { try { return require(path.join(__dirname, "progressionTelemetry.js")); } catch (_) { return null; } })();
+const domainConfidenceMod = (() => { try { return require(path.join(__dirname, "domainConfidence.js")); } catch (_) { return null; } })();
 
 function tryRequireMany(paths){for(const p of Array.isArray(paths)?paths:[]){try{const resolved=require.resolve(p);const mod=require(resolved);if(mod)return{mod,resolvedPath:resolved,requested:p,ok:true};}catch(err){}}return{mod:null,resolvedPath:"",requested:"",ok:false};}
 function dependencyStatus(name,loaded){const item=loaded&&typeof loaded==="object"?loaded:{};return{name,ok:!!item.mod,requested:item.requested||"",resolvedPath:item.resolvedPath||"",exists:item.resolvedPath?fs.existsSync(item.resolvedPath):false};}
@@ -157,6 +158,16 @@ function safeObj(value){return isObj(value)?value:{};}
 function safeArray(value){return Array.isArray(value)?value:[];}
 function firstText(){for(let i=0;i<arguments.length;i+=1){const value=safeStr(arguments[i]);if(value)return value;}return "";}
 function hashText(value){const source=lower(value).replace(/[^a-z0-9]+/g," ").trim();let hash=0;for(let i=0;i<source.length;i+=1){hash=((hash<<5)-hash)+source.charCodeAt(i);hash|=0;}return String(hash>>>0);}
+
+function normalizeBridgeDomainConfidence(value={},fallback={}) {
+  const v=safeObj(value), f=safeObj(fallback);
+  if(domainConfidenceMod&&typeof domainConfidenceMod.normalizeDomainConfidenceProfile==="function"){
+    try{return domainConfidenceMod.normalizeDomainConfidenceProfile(v,{...f,candidates:safeArray(v.candidates||f.candidates),confidence:v.confidence||f.confidence});}catch(_){}
+  }
+  const c=Math.max(0,Math.min(1,Number(v.confidence||f.confidence)||0));
+  const band=firstText(v.confidenceBand,v.band,c>=0.82?"high":c>=0.62?"medium":c>=0.48?"low":"weak");
+  return {...v,version:firstText(v.version,"nyx.marion.domainConfidence/1.2"),confidence:c,confidenceScore:c,band,confidenceBand:band,primaryDomain:firstText(v.primaryDomain,v.selectedDomain,f.domain,"general_reasoning"),selectedDomain:firstText(v.selectedDomain,v.primaryDomain,f.domain,"general_reasoning"),secondaryDomains:safeArray(v.secondaryDomains||f.secondaryDomains).slice(0,4),needsClarifier:!!v.needsClarifier,answerMode:firstText(v.answerMode,c>=0.82?"direct":c>=0.62?"grounded":"clarify"),fallbackReason:firstText(v.fallbackReason,""),noCrossDomainBleed:true,noUserFacingDiagnostics:true};
+}
 
 function isPublicControlPolicyLeak(value){
   const text=lower(value).replace(/[.!?]+$/g,"").trim();
@@ -558,7 +569,7 @@ function mergeDomainConciergeIntoRoute(routed={},concierge={}){
     domain:firstText(dc.route,routing.domain,"general"),
     intent:firstText(dc.intent,routing.intent,"simple_chat"),
     knowledgeDomain:firstText(dc.knowledgeDomain,routing.knowledgeDomain),
-    domainConfidence:Object.keys(rawDc).length?rawDc:safeObj(routing.domainConfidence),
+    domainConfidence:normalizeBridgeDomainConfidence(Object.keys(rawDc).length?rawDc:safeObj(routing.domainConfidence),{domain:firstText(dc.route,routing.domain),intent:firstText(dc.intent,routing.intent),secondaryDomains:safeArray(routing.secondaryDomains)}),
     domainConcierge:dc
   };
   return {...base,routing:nextRouting,domainConcierge:dc,confidenceAwareResponseShaping:safeObj(dc.confidenceAwareResponseShaping),domainConfidence:nextRouting.domainConfidence};
