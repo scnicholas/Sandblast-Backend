@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -42,6 +42,7 @@ const MAX_SIGNATURE_TEXT = 512;
 const progressionShapeMod = (() => { try { return require("../Data/marion/runtime/progressionShape.js"); } catch (_) { return null; } })();
 const progressionMemoryMod = (() => { try { return require("../Data/marion/runtime/progressionMemory.js"); } catch (_) { return null; } })();
 const progressionTelemetryMod = (() => { try { return require("../Data/marion/runtime/progressionTelemetry.js"); } catch (_) { return null; } })();
+const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
 
 const STATE_STAGES = Object.freeze([
   "intake",
@@ -444,20 +445,35 @@ function normalizeDomainConfidenceCarry(value) {
   const m = Number.isFinite(margin) ? Math.max(0, Math.min(1, margin)) : 0;
   const routeLocked = !!(v.routeLocked || v.routeLock || c >= 0.82);
   const ambiguous = !!(v.ambiguous || (!routeLocked && (c < 0.62 || (m > 0 && m < 0.08))));
-  return {
-    version: safeStr(v.version || "nyx.marion.domainConfidence/1.1"),
+  const base = {
+    version: safeStr(v.version || "nyx.marion.domainConfidence/1.2"),
     confidence: c,
-    band: boundedOneLine(v.band || (c >= 0.92 ? "high" : c >= 0.72 ? "medium" : c >= 0.52 ? "low" : "weak"), 32),
+    confidenceScore: c,
+    band: boundedOneLine(v.band || v.confidenceBand || (c >= 0.82 ? "high" : c >= 0.62 ? "medium" : c >= 0.48 ? "low" : "weak"), 32),
+    confidenceBand: boundedOneLine(v.confidenceBand || v.band || (c >= 0.82 ? "high" : c >= 0.62 ? "medium" : c >= 0.48 ? "low" : "weak"), 32),
     margin: m,
     ambiguous,
     routeLocked,
     failClosed: !!(v.failClosed || (ambiguous && !routeLocked)),
+    needsClarifier: !!(v.needsClarifier || (ambiguous && !routeLocked)),
     primary: boundedOneLine(v.primary || v.primaryIntent || v.primaryDomain || v.selectedDomain || "", 64),
     primaryDomain: boundedOneLine(v.primaryDomain || v.selectedDomain || v.domain || "", 64),
+    selectedDomain: boundedOneLine(v.selectedDomain || v.primaryDomain || v.domain || "", 64),
+    secondaryDomains: boundedArray(v.secondaryDomains || [], 4, 64),
     knowledgeDomain: boundedOneLine(v.knowledgeDomain || "", 64),
+    answerMode: boundedOneLine(v.answerMode || (c >= 0.82 ? "direct" : (c >= 0.62 ? "grounded" : "clarify")), 64),
+    fallbackReason: boundedOneLine(v.fallbackReason || "", 160),
     reason: boundedOneLine(v.reason || "", 160),
+    noCrossDomainBleed: v.noCrossDomainBleed !== false,
+    noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
     candidates: Array.isArray(v.candidates) ? v.candidates.slice(0, 6).map((x) => isPlainObject(x) ? { domain: boundedOneLine(x.domain || x.primaryDomain || "", 64), confidence: Math.max(0, Math.min(1, Number(x.confidence) || 0)), reasons: boundedArray(x.reasons || [], 4, 80) } : null).filter(Boolean) : []
   };
+  if (domainConfidenceMod && typeof domainConfidenceMod.normalizeDomainConfidenceProfile === "function") {
+    try {
+      return domainConfidenceMod.normalizeDomainConfidenceProfile(base, { candidates: base.candidates, confidence: c });
+    } catch (_err) {}
+  }
+  return base;
 }
 
 function extractDomainConfidenceCarry(params = {}, inbound = {}, memoryPatch = {}) {
