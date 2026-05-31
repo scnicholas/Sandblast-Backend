@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.0 PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionBridge v7.9.1 PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -161,7 +161,10 @@ function isPublicControlPolicyLeak(value){
     /\bif voice and text return different answers\b/i.test(text)||
     /\bpreserve intent and regenerate\b/i.test(text)||
     /\bsame normalized text\b/i.test(text)||
-    /\bregenerate from the same normalized text\b/i.test(text);
+    /\bregenerate from the same normalized text\b/i.test(text)||
+    /\bthe direct answer needs one usable example\b/i.test(text)||
+    /\bin practical terms, define the concept\b/i.test(text)||
+    /\bone concrete use case so the user can apply it immediately\b/i.test(text);
 }
 function isPrimitivePublicReply(value){
   const text=safeStr(value).replace(/[.!?]+$/g,"").trim().toLowerCase();
@@ -793,17 +796,35 @@ function isLanguageSphereNextStepsRequest(text=""){
 
 function isProgressionShapingRequest(text=""){
   const t=normalizePhaseAnchorText(text);
-  return /\b(progression shaping|progression refinement|progression test|5 turn progression|5 turn|continuity depth|depth governor)\b/i.test(t) ||
-    /\bafter parity\b/i.test(t)&&/\b(progression|5 turn|regression test)\b/i.test(t);
+  return /\b(progression shaping|progression refinement|progression test|5 turn progression|5 turn|continuity depth|depth governor|continuity objective|context protection)\b/i.test(t) ||
+    /\b(after parity|after party)\b/i.test(t)&&/\b(progression|5 turn|regression test)\b/i.test(t) ||
+    /\b(what are we testing inside that phase|testing inside that phase|how does this protect marion|losing context|protect marion from losing context|what is the next action after this test passes)\b/i.test(t);
 }
-function progressionShapingRecoveryReply(){
+function progressionShapingRecoveryReply(text=""){
+  const t=normalizePhaseAnchorText(text);
+  if(/\bwhat are we testing|inside that phase|testing inside|test objective|continuity objective\b/i.test(t)){
+    return "Inside progression shaping refinement, the continuity objective is the 5-7 turn continuity/depth test: Marion must keep mic-to-text parity marked complete, preserve the active technical lane, carry the phase anchor, avoid broad clarification, block instruction-shaped wording, and give one concrete next action per reply.";
+  }
+  if(/\bprotect|losing context|context drop|preserve context|context protection\b/i.test(t)){
+    return "Progression shaping protects Marion from losing context by binding every follow-up to the accepted phase anchor before generic templates can shape the reply. That keeps mic-to-text parity complete, keeps the current phase as progression shaping refinement, and prevents vague prompts like “continue” from resetting the lane.";
+  }
+  if(/\bnext action|after this test passes|what is next|after it passes|when this passes\b/i.test(t)){
+    return "After progression shaping passes, move into domain confidence scoring: verify Marion can score the active domain, answer when confidence is high, ask one precise clarifier when confidence is low, and fail closed when the domain is weak or unsafe.";
+  }
   return "Progression shaping refinement means testing whether Marion carries the active technical thread across 5-7 turns without losing the lane, asking broad clarification, or exposing instruction-shaped wording. Next action: run the five-turn progression sequence and mark the first turn where context, depth, or one-action shaping drops.";
 }
 function isDomainConfidenceRequest(text=""){
   const t=normalizePhaseAnchorText(text);
   return /\b(domain confidence|confidence scoring|domain scoring|confidence threshold|confidence band|domain signal)\b/i.test(t);
 }
-function domainConfidenceRecoveryReply(){
+function domainConfidenceRecoveryReply(text=""){
+  const t=normalizePhaseAnchorText(text);
+  if(/\bwhat are we testing|inside that phase|test\b/i.test(t)){
+    return "Inside domain confidence scoring, test four bands: high confidence answers directly, medium answers with grounding, low asks one precise clarifier, and weak confidence fails closed without borrowing another domain.";
+  }
+  if(/\bprotect|domain bleed|cross domain|secondary lane\b/i.test(t)){
+    return "Domain confidence protects Marion by making the primary lane prove itself before the answer is shaped. A secondary lane can support the answer, but it cannot take authority or silently replace the primary domain.";
+  }
   return "Domain confidence scoring means Marion assigns a confidence band to the active lane before answering. Next action: test high, medium, low, and weak domain prompts, confirm low confidence asks one precise clarifier, and confirm weak confidence fails closed without cross-domain bleed.";
 }
 function isWrongLaneProgressionReply(reply=""){
@@ -815,14 +836,20 @@ function isWrongLaneProgressionReply(reply=""){
     /\ba loop breaks when\b/i.test(t) ||
     /\bmerely changes wording\b/i.test(t) ||
     /\btechnical move is to name\b/i.test(t) ||
-    /\bactive component\b.*\bfailure mode\b.*\bvalidation step\b/i.test(t);
+    /\bactive component\b.*\bfailure mode\b.*\bvalidation step\b/i.test(t) ||
+    /\bthe direct answer needs one usable example\b/i.test(t) ||
+    /\bin practical terms, define the concept\b/i.test(t) ||
+    /\bone concrete use case so the user can apply it immediately\b/i.test(t) ||
+    /\bthe direct answer needs one usable example\b.*\bin practical terms\b/i.test(t);
 }
 
 function buildProjectRecoveryReply(normalized={}){
-  const n=safeObj(normalized), text=firstText(n.userQuery,n.rawUserQuery);
+  const n=safeObj(normalized);
   const phase=safeObj(n.phaseAnchor);
-  if(isProgressionShapingRequest(text)||phase.lane==="progression_shaping_refinement")return progressionShapingRecoveryReply();
-  if(isDomainConfidenceRequest(text)||phase.lane==="domain_confidence_scoring")return domainConfidenceRecoveryReply();
+  const sourceText=[n.userQuery,n.rawUserQuery,n.publicUserQuery,n.text,n.message,n.query,n.activeLane,n.currentLane,n.currentProject,phase.lane,phase.label,phase.summary].map(safeStr).filter(Boolean).join(" ");
+  const text=firstText(n.userQuery,n.rawUserQuery,n.publicUserQuery,n.text,n.message,n.query,sourceText);
+  if(isProgressionShapingRequest(sourceText)||phase.lane==="progression_shaping_refinement")return progressionShapingRecoveryReply(sourceText);
+  if(isDomainConfidenceRequest(sourceText)||phase.lane==="domain_confidence_scoring")return domainConfidenceRecoveryReply(sourceText);
   if(phase.resolved&&phase.lane==="mic_to_text_parity"&&phase.phaseKey==="phase2"){
     return "Phase 2 is the typed/mic parity regression harness. Test the same prompts by text and voice, then compare intent, domain, language route, clarification behavior, and Marion authority path. The pass condition is that mic and typed input behave structurally the same, even if the final wording is not identical.";
   }
@@ -849,8 +876,8 @@ function applyProjectRecoveryReplyOverride(packet={},ctx={}){
   const recovery=buildProjectRecoveryReply(normalized);
   if(!recovery)return out;
   const current=firstText(out.reply,out.text,out.answer,out.output,out.response,out.message,out.displayReply,safeObj(out.payload).reply,safeObj(out.finalEnvelope).reply);
-  const q=firstText(normalized.userQuery,normalized.rawUserQuery);
-  const forceProjectLane=(isProgressionShapingRequest(q)||isDomainConfidenceRequest(q))&&isWrongLaneProgressionReply(current);
+  const q=[normalized.userQuery,normalized.rawUserQuery,normalized.publicUserQuery,normalized.text,normalized.message,normalized.query,safeObj(normalized.phaseAnchor).lane,safeObj(normalized.phaseAnchor).label,safeObj(normalized.phaseAnchor).summary].map(safeStr).filter(Boolean).join(" ");
+  const forceProjectLane=(isProgressionShapingRequest(q)||isDomainConfidenceRequest(q)||safeObj(normalized.phaseAnchor).lane==="progression_shaping_refinement"||safeObj(normalized.phaseAnchor).lane==="domain_confidence_scoring")&&isWrongLaneProgressionReply(current);
   if(!forceProjectLane&&current&&!isPrimitivePublicReply(current)&&!isThinPlaceholderText(current)&&!isBroadLanguageClarifier(current)&&!isGenericGreetingStatusFallback(current)&&!isPublicControlPolicyLeak(current))return out;
   out.reply=recovery;out.text=recovery;out.answer=recovery;out.output=recovery;out.response=recovery;out.message=recovery;out.displayReply=recovery;out.spokenText=recovery;out.textSpeak=recovery;out.textDisplay=recovery;
   out.payload={...safeObj(out.payload),reply:recovery,text:recovery,message:recovery,answer:recovery,output:recovery,response:recovery,displayReply:recovery,spokenText:recovery,textSpeak:recovery,textDisplay:recovery};
