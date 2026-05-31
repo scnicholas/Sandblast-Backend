@@ -82,8 +82,9 @@ const progressionTestingReply = assertPublicReply(
 
 assert(
   'compose progression testing names continuity objective',
-  /testing|confirm|checks/i.test(progressionTestingReply) &&
-    /context|lane|continuity|5-7 turns|5–7 turns|five/i.test(progressionTestingReply),
+  /continuity objective|continuity\/depth|continuity depth|testing|confirm|checks/i.test(progressionTestingReply) &&
+    /5-7 turn|5–7 turn|5-7 turns|5–7 turns|five|continuity\/depth|continuity depth/i.test(progressionTestingReply) &&
+    /active technical lane|active lane|lane|context|continuity/i.test(progressionTestingReply),
   progressionTestingReply
 );
 
