@@ -10,7 +10,9 @@
  * - Return recovery signals only; never generate a user-facing reply and never mutate durable memory.
  */
 
-const VERSION = "marionLoopGuard v1.1.0 DEEPENING-LOOP-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionLoopGuard v1.1.0 DEEPENING-LOOP-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
+const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
 
 const DEFAULT_BLOCKED_PHRASES = Object.freeze([
   "i'm here with you",
@@ -363,4 +365,5 @@ module.exports = {
   buildFailureSignatureAudit,
   isTelemetryLeakText,
   stripTelemetryLeakFromReply
-};
+,
+  FINAL_RENDER_TELEMETRY_VERSION};
