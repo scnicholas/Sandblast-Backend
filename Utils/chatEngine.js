@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.4 CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD";
+const VERSION = "ChatEngine v3.9.4 CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -30,6 +30,8 @@ const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/1.0-transport";
 const DOMAIN_CONCIERGE_CONTRACT_VERSION = "nyx.marion.domainConcierge/1.0";
+const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
+const finalRenderTelemetryMod = (() => { try { return require("../Data/marion/runtime/finalRenderTelemetry.js"); } catch (_) { return null; } })();
 
 const LANGUAGE_SPHERE_BRIDGE_VERSION = "nyx.languageSphere.chatEngineBridge/1.0";
 const UNIVERSAL_TRANSLATOR_ADAPTER_PATH = "./UniversalTranslatorAdapter.js";
@@ -348,6 +350,7 @@ function extractRuntimeTelemetry(source = {}) {
 }
 function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",trustedFinalEnvelope=false,finalEnvelope=false,canEmit=false,error=""}={}){
   const src=safeObj(input), inherited=extractRuntimeTelemetry(src), packet=extractPacket(src), packetMeta=safeObj(packet.meta), domainConcierge=extractDomainConcierge(src);
+  const finalRenderTelemetry = finalRenderTelemetryMod && typeof finalRenderTelemetryMod.buildFinalRenderTelemetry === "function" ? safeObj(finalRenderTelemetryMod.buildFinalRenderTelemetry({source,stage:canEmit ? "final" : "awaiting_marion",reply,canEmit,finalEnvelopeTrusted:trustedFinalEnvelope,runtimeTelemetry:inherited,domainConfidence:safeObj(inherited.domainConfidence),error})) : {};
   return {
     ...inherited,
     version: FINAL_RUNTIME_TELEMETRY_VERSION,
@@ -373,6 +376,9 @@ function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",truste
     replySignature: reply ? hashText(reply) : firstText(inherited.replySignature,packetMeta.replySignature,""),
     trustedFinalEnvelope: !!trustedFinalEnvelope,
     finalEnvelope: !!finalEnvelope,
+    finalRenderTelemetry,
+    finalRenderTelemetryActive: !!Object.keys(finalRenderTelemetry).length,
+    publicSurfaceClean: safeObj(finalRenderTelemetry).publicSurfaceClean !== false,
     engineVersion: VERSION,
     updatedAt: Date.now()
   };
