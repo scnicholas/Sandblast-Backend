@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.5.0 ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.5.0 ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -43,6 +43,7 @@ function tryRequireOptional(paths) {
 }
 
 const domainRegistryMod = tryRequireOptional(DOMAIN_REGISTRY_REQUIRE_CANDIDATES);
+const domainConfidenceMod = tryRequireOptional(["./domainConfidence.js", "./domainConfidence", "./Data/marion/runtime/domainConfidence.js", "./Data/marion/runtime/domainConfidence", "../runtime/domainConfidence.js", "../runtime/domainConfidence"]);
 
 const QUESTION_SHAPE_NORMALIZER_REQUIRE_CANDIDATES = Object.freeze([
   "./QuestionShapeNormalizer.js",
@@ -1541,21 +1542,35 @@ function intentConfidenceProfile(intentPacket = {}, text = "") {
   const routeLocked = !!(p.routeLock || answerableTopic || isInfrastructureContinuityPrompt(text) || isNewsMediaPositioningRequest(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
   const ambiguous = !routeLocked && (c < 0.62 || (second && margin < 0.08));
   const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || top.knowledgeDomain || "");
-  return {
+  const base = {
     version: DOMAIN_CONFIDENCE_VERSION,
     confidence: c,
+    confidenceScore: c,
     band: confidenceBand(c),
+    confidenceBand: confidenceBand(c),
     margin,
     ambiguous,
     routeLocked,
+    needsClarifier: ambiguous && !routeLocked,
     reason: safeStr(answerableTopic ? "answerable_topic_request_route_lock" : (p.reason || (top.reasons && top.reasons[0]) || "intent_domain_confidence")),
     primaryIntent: safeStr(p.intent || "simple_chat"),
     primaryDomain: safeStr(knowledgeDomain && p.reason === "definition_query_domain_lock" ? knowledgeDomain : (top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning")),
     selectedDomain: safeStr(knowledgeDomain && p.reason === "definition_query_domain_lock" ? knowledgeDomain : (top.domain || INTENT_TO_DOMAIN[p.intent] || "general_reasoning")),
+    secondaryDomains: candidates.slice(1, 4).map((c) => c.domain).filter(Boolean),
     knowledgeDomain,
     candidates,
-    failClosed: ambiguous && !routeLocked
+    answerMode: c >= 0.82 ? "direct" : (c >= 0.62 ? "grounded" : "clarify"),
+    fallbackReason: ambiguous && !routeLocked ? "intent_domain_confidence_margin_or_score_low" : "",
+    failClosed: ambiguous && !routeLocked && c < 0.38,
+    noCrossDomainBleed: true,
+    noUserFacingDiagnostics: true
   };
+  if (domainConfidenceMod && typeof domainConfidenceMod.normalizeDomainConfidenceProfile === "function") {
+    try {
+      return domainConfidenceMod.normalizeDomainConfidenceProfile(base, { rawText: text, intent: p.intent, knowledgeDomain, candidates, confidence: c });
+    } catch (_err) {}
+  }
+  return base;
 }
 
 function buildDomainConciergeSeed(routing = {}, marionIntent = {}, questionShape = {}) {
@@ -1576,13 +1591,13 @@ function buildDomainConciergeSeed(routing = {}, marionIntent = {}, questionShape
     route,
     intent,
     confidence,
-    confidenceBand: safeStr(rt.routeConfidenceBand || dc.band || confidenceBand(confidence)),
-    needsClarifier: action === "clarify",
+    confidenceBand: safeStr(rt.routeConfidenceBand || dc.confidenceBand || dc.band || confidenceBand(confidence)),
+    needsClarifier: action === "clarify" || !!dc.needsClarifier,
     clarifier: action === "clarify" ? "Which area should I route this to: interface, backend, media/Roku, business strategy, or support?" : "",
     routeLocked,
     routeFailClosed: !!(rt.routeFailClosed || dc.failClosed),
     questionShape: safeObj(questionShape),
-    candidates: safeArray(rt.candidateDomains || dc.candidates).slice(0, 6),
+    answerMode: safeStr(dc.answerMode || (action === "clarify" ? "clarify" : "direct")), fallbackReason: safeStr(dc.fallbackReason || ""), secondaryDomains: safeArray(dc.secondaryDomains || rt.secondaryDomains).slice(0, 4), candidates: safeArray(rt.candidateDomains || dc.candidates).slice(0, 6),
     noUserFacingDiagnostics: true
   };
 }
