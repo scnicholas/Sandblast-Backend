@@ -15,8 +15,9 @@
 
 const fs = require("fs");
 const path = require("path");
+const domainConfidenceMod = (() => { try { return require("./domainConfidence.js"); } catch (_) { return null; } })();
 
-const VERSION = "marionDomainRegistry v1.6.0 DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.6.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -1105,6 +1106,26 @@ function getPipelineForensicNormalizationStatus(){
   };
 }
 
+
+function buildDomainConfidenceProfile(input = {}, fallback = {}) {
+  if (domainConfidenceMod && typeof domainConfidenceMod.buildDomainConfidenceProfile === "function") {
+    try {
+      return domainConfidenceMod.buildDomainConfidenceProfile({
+        text: safeStr(input.text || input.rawText || fallback.text || fallback.rawText || ""),
+        intent: safeStr(input.intent || fallback.intent || "domain_question"),
+        domain: safeStr(input.domain || fallback.domain || ""),
+        knowledgeDomain: safeStr(input.knowledgeDomain || fallback.knowledgeDomain || ""),
+        routing: safeObj(input.routing || fallback.routing),
+        marionIntent: safeObj(input.marionIntent || fallback.marionIntent),
+        candidates: safeArray(input.candidates || fallback.candidates),
+        confidence: input.confidence ?? fallback.confidence
+      });
+    } catch (_err) {}
+  }
+  return normalizeDomainConfidenceProfile(input, fallback);
+}
+
+
 module.exports = {
   VERSION,
   PIPELINE_FORENSIC_NORMALIZATION_VERSION,
@@ -1140,6 +1161,7 @@ module.exports = {
   confidenceBand,
   normalizeDomainConfidenceProfile,
   getDomainConfidenceDefaults,
+  buildDomainConfidenceProfile,
   _internal: {
     safeStr,
     normalizeKey,
