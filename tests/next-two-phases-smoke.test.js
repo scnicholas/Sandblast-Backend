@@ -22,6 +22,21 @@ function hasFn(obj, name) {
   return obj && typeof obj[name] === 'function';
 }
 
+function cleanText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function assertPublicReply(name, value) {
+  const text = cleanText(value);
+  assert(`${name} is non-empty`, text.length > 20, text);
+  assert(
+    `${name} has no public-control leakage`,
+    !/direct answer needs one usable example|specific technical move|practical fix|useful check|active component|failure mode|validation step|internal routing|reply was unclear|ask again|^continue\.?$/i.test(text),
+    text
+  );
+  return text;
+}
+
 assert(
   'compose exposes progressionShapingRefinementReply',
   hasFn(compose, 'progressionShapingRefinementReply')
@@ -39,60 +54,108 @@ assert(
 
 if (process.exitCode) process.exit(process.exitCode);
 
-const progressionReply = compose.progressionShapingRefinementReply(
-  'Continue with the progression shaping refinement.',
-  {},
-  {}
+const progressionReply = assertPublicReply(
+  'compose progression shaping reply',
+  compose.progressionShapingRefinementReply(
+    'Continue with the progression shaping refinement.',
+    {},
+    {}
+  )
 );
 
 assert(
-  'compose progression shaping reply',
+  'compose progression shaping keeps active lane',
   /Progression shaping refinement means testing/i.test(progressionReply) &&
-    /5-7 turns|5–7 turns|five/i.test(progressionReply),
+    /5-7 turns|5–7 turns|five/i.test(progressionReply) &&
+    /lane|context|continuity|depth/i.test(progressionReply),
   progressionReply
 );
 
-const domainReply = compose.domainConfidenceScoringReply(
-  'Move into domain confidence scoring.',
-  {},
-  {}
+const progressionTestingReply = assertPublicReply(
+  'compose progression testing reply',
+  compose.progressionShapingRefinementReply(
+    'What are we testing inside that phase?',
+    {},
+    {}
+  )
 );
 
 assert(
+  'compose progression testing names continuity objective',
+  /testing|confirm|checks/i.test(progressionTestingReply) &&
+    /context|lane|continuity|5-7 turns|5–7 turns|five/i.test(progressionTestingReply),
+  progressionTestingReply
+);
+
+const domainReply = assertPublicReply(
   'compose domain confidence reply',
+  compose.domainConfidenceScoringReply(
+    'Move into domain confidence scoring.',
+    {},
+    {}
+  )
+);
+
+assert(
+  'compose domain confidence names next phase',
   /Domain confidence scoring/i.test(domainReply) &&
     /cross-domain bleed|domain/i.test(domainReply),
   domainReply
 );
 
-const bridgeProgression = bridge.applyProjectRecoveryReplyOverride(
-  { reply: 'The direct answer needs one usable example.' },
-  {
-    normalized: {
-      userQuery: 'Continue with the progression shaping refinement.',
-      phaseAnchor: { lane: 'progression_shaping_refinement' }
+const bridgeProgression = assertPublicReply(
+  'bridge progression override',
+  bridge.applyProjectRecoveryReplyOverride(
+    { reply: 'The direct answer needs one usable example.' },
+    {
+      normalized: {
+        userQuery: 'Continue with the progression shaping refinement.',
+        phaseAnchor: { lane: 'progression_shaping_refinement' }
+      }
     }
-  }
-).reply;
+  ).reply
+);
 
 assert(
-  'bridge progression override',
+  'bridge progression override preserves lane',
   /Progression shaping refinement means testing/i.test(bridgeProgression),
   bridgeProgression
 );
 
-const bridgeDomain = bridge.applyProjectRecoveryReplyOverride(
-  { reply: 'The direct answer needs one usable example.' },
-  {
-    normalized: {
-      userQuery: 'Move into domain confidence scoring.',
-      phaseAnchor: { lane: 'domain_confidence_scoring' }
+const bridgeContextProtection = assertPublicReply(
+  'bridge context-protection override',
+  bridge.applyProjectRecoveryReplyOverride(
+    { reply: 'The direct answer needs one usable example.' },
+    {
+      normalized: {
+        userQuery: 'How does this protect Marion from losing context?',
+        phaseAnchor: { lane: 'progression_shaping_refinement' }
+      }
     }
-  }
-).reply;
+  ).reply
+);
 
 assert(
+  'bridge context-protection answer stays in progression lane',
+  /context|lane|continuity|5-7 turns|5–7 turns|five/i.test(bridgeContextProtection),
+  bridgeContextProtection
+);
+
+const bridgeDomain = assertPublicReply(
   'bridge domain confidence override',
+  bridge.applyProjectRecoveryReplyOverride(
+    { reply: 'The direct answer needs one usable example.' },
+    {
+      normalized: {
+        userQuery: 'Move into domain confidence scoring.',
+        phaseAnchor: { lane: 'domain_confidence_scoring' }
+      }
+    }
+  ).reply
+);
+
+assert(
+  'bridge domain confidence override preserves lane',
   /Domain confidence scoring/i.test(bridgeDomain),
   bridgeDomain
 );
@@ -109,6 +172,17 @@ assert(
   JSON.stringify(phaseAnchor)
 );
 
+const nextPhaseAnchor = phase.resolvePhaseAnchor('What is the next action after this test passes?', {
+  activeLane: 'progression shaping refinement'
+});
+
+assert(
+  'phase anchor next action after progression points forward',
+  nextPhaseAnchor.resolved === true &&
+    /domain_confidence_scoring|progression_shaping_refinement/.test(nextPhaseAnchor.lane),
+  JSON.stringify(nextPhaseAnchor)
+);
+
 const normalized = alias.normalizeSpokenAliases(
   'after party run the 5:10 regression test'
 );
@@ -118,6 +192,16 @@ assert(
   /mic-to-text parity/i.test(normalized) &&
     /progression shaping/i.test(normalized),
   normalized
+);
+
+const normalizedDomain = alias.normalizeSpokenAliases(
+  'move into domain confident scoring'
+);
+
+assert(
+  'spoken alias domain confidence capture',
+  /domain confidence scoring/i.test(normalizedDomain),
+  normalizedDomain
 );
 
 if (!process.exitCode) {
