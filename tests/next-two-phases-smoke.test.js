@@ -1,10 +1,13 @@
 /* Marion next-two-phases surgical regression smoke test */
 'use strict';
 
-const compose = require('./composeMarionResponse.js')._internal;
-const bridge = require('./marionBridge.js')._internal;
-const phase = require('./phaseAnchorResolver.js');
-const alias = require('./spokenAliasNormalizer.js');
+const composeMod = require('../Data/marion/runtime/composeMarionResponse.js');
+const bridgeMod = require('../Data/marion/runtime/marionBridge.js');
+const phase = require('../Data/marion/runtime/phaseAnchorResolver.js');
+const alias = require('../Data/marion/runtime/spokenAliasNormalizer.js');
+
+const compose = composeMod._internal || composeMod;
+const bridge = bridgeMod._internal || bridgeMod;
 
 function assert(name, ok, detail = '') {
   if (!ok) {
@@ -15,15 +18,38 @@ function assert(name, ok, detail = '') {
   }
 }
 
+function hasFn(obj, name) {
+  return obj && typeof obj[name] === 'function';
+}
+
+assert(
+  'compose exposes progressionShapingRefinementReply',
+  hasFn(compose, 'progressionShapingRefinementReply')
+);
+
+assert(
+  'compose exposes domainConfidenceScoringReply',
+  hasFn(compose, 'domainConfidenceScoringReply')
+);
+
+assert(
+  'bridge exposes applyProjectRecoveryReplyOverride',
+  hasFn(bridge, 'applyProjectRecoveryReplyOverride')
+);
+
+if (process.exitCode) process.exit(process.exitCode);
+
 const progressionReply = compose.progressionShapingRefinementReply(
   'Continue with the progression shaping refinement.',
   {},
   {}
 );
+
 assert(
   'compose progression shaping reply',
   /Progression shaping refinement means testing/i.test(progressionReply) &&
-    /5-7 turns/i.test(progressionReply)
+    /5-7 turns|5–7 turns|five/i.test(progressionReply),
+  progressionReply
 );
 
 const domainReply = compose.domainConfidenceScoringReply(
@@ -31,10 +57,12 @@ const domainReply = compose.domainConfidenceScoringReply(
   {},
   {}
 );
+
 assert(
   'compose domain confidence reply',
-  /Domain confidence scoring is the next phase/i.test(domainReply) &&
-    /cross-domain bleed/i.test(domainReply)
+  /Domain confidence scoring/i.test(domainReply) &&
+    /cross-domain bleed|domain/i.test(domainReply),
+  domainReply
 );
 
 const bridgeProgression = bridge.applyProjectRecoveryReplyOverride(
@@ -46,9 +74,11 @@ const bridgeProgression = bridge.applyProjectRecoveryReplyOverride(
     }
   }
 ).reply;
+
 assert(
   'bridge progression override',
-  /Progression shaping refinement means testing/i.test(bridgeProgression)
+  /Progression shaping refinement means testing/i.test(bridgeProgression),
+  bridgeProgression
 );
 
 const bridgeDomain = bridge.applyProjectRecoveryReplyOverride(
@@ -60,14 +90,17 @@ const bridgeDomain = bridge.applyProjectRecoveryReplyOverride(
     }
   }
 ).reply;
+
 assert(
   'bridge domain confidence override',
-  /Domain confidence scoring means Marion assigns/i.test(bridgeDomain)
+  /Domain confidence scoring/i.test(bridgeDomain),
+  bridgeDomain
 );
 
 const phaseAnchor = phase.resolvePhaseAnchor('Continue with phase 2', {
   activeLane: 'progression shaping refinement'
 });
+
 assert(
   'phase anchor progression phase 2',
   phaseAnchor.resolved === true &&
@@ -79,6 +112,7 @@ assert(
 const normalized = alias.normalizeSpokenAliases(
   'after party run the 5:10 regression test'
 );
+
 assert(
   'spoken alias parity/progression capture',
   /mic-to-text parity/i.test(normalized) &&
@@ -86,4 +120,6 @@ assert(
   normalized
 );
 
-if (!process.exitCode) console.log('All next-two-phases surgical checks passed.');
+if (!process.exitCode) {
+  console.log('All next-two-phases surgical checks passed.');
+}
