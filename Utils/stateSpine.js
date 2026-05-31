@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.0 FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -618,19 +618,27 @@ function extractProgressionShapingGuardCarry(params = {}, inbound = {}, memoryPa
 
 function normalizeProgressionRefinementCarry(value = {}) {
   const v = isPlainObject(value) ? value : {};
+  const active = !!v.active;
+  const currentStep = boundedOneLine(v.currentStep || v.phaseKey || "", 64);
+  const lastUserIntent = boundedOneLine(v.lastUserIntent || v.signal || "", 64);
   return {
     version: safeStr(v.version || PROGRESSION_SHAPING_REFINEMENT_VERSION),
-    active: !!v.active,
-    activePhase: boundedOneLine(v.activePhase || v.lane || "progression_shaping_refinement", 80),
-    currentStep: boundedOneLine(v.currentStep || v.phaseKey || "", 64),
+    active,
+    lane: active ? "progression_shaping_refinement" : boundedOneLine(v.lane || "", 80),
+    activePhase: active ? "progression_shaping_refinement" : boundedOneLine(v.activePhase || v.lane || "", 80),
+    currentStep,
+    phaseKey: currentStep,
     phaseId: boundedOneLine(v.phaseId || "", 96),
     phaseLabel: boundedOneLine(v.phaseLabel || "", 180),
-    lastUserIntent: boundedOneLine(v.lastUserIntent || v.signal || "", 64),
+    lastUserIntent,
+    signal: lastUserIntent,
     lastSystemAction: boundedOneLine(v.lastSystemAction || v.responseShape || "", 96),
-    pendingAction: boundedOneLine(v.pendingAction || "", 160),
+    pendingAction: boundedOneLine(v.pendingAction || "", 180),
     responseShape: boundedOneLine(v.responseShape || "", 80),
     confidence: Number.isFinite(Number(v.confidence)) ? Math.max(0, Math.min(1, Number(v.confidence))) : 0,
     passFailState: boundedOneLine(v.passFailState || "", 32),
+    shallowReplyBlocked: !!v.shallowReplyBlocked,
+    expectedPublicShape: active ? "expanded_concrete_action_plan" : "",
     noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
     updatedAt: nowMs()
   };
