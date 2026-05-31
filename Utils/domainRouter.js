@@ -20,6 +20,8 @@
  * - DOMAIN_ENUM, DEFAULT_DOMAIN_ORDER
  */
 
+const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
+
 const ROUTER_VERSION = "domainRouter v1.5.3 CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
@@ -685,52 +687,35 @@ function routeDomain(norm, session, cog, opts = {}) {
     domainConfidence
   };
 
-  return {
-    ok: true,
-    routerVersion: ROUTER_VERSION,
-    telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION,
-    failureSignature: classifyFailureSignature({source:"domainRouter",canEmit:true,domain:canonicalizeDomain(pick.primary),primaryDomain:canonicalizeDomain(pick.primary),secondaryDomains:uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),answerMode:crossDomainProfile && crossDomainProfile.answerMode ? crossDomainProfile.answerMode : ""}),
-    failureSignatureAudit: buildFailureSignatureAudit({source:"domainRouter",canEmit:true,stage:"routed",intent:safeStr((isPlainObject(cog) ? cog.intent : "") || "ADVANCE", 40) || "ADVANCE",domain:canonicalizeDomain(pick.primary),primaryDomain:canonicalizeDomain(pick.primary),secondaryDomains:uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),answerMode:crossDomainProfile && crossDomainProfile.answerMode ? crossDomainProfile.answerMode : ""}),
-    primary: canonicalizeDomain(pick.primary),
-    secondary: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
-    reason,
-    domainConfidence,
-    confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
-    signals: scored.signals,
-    routing: {
-      domain: canonicalizeDomain(pick.primary),
-      secondaryDomains: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
-      answerMode: crossDomainProfile && crossDomainProfile.answerMode ? crossDomainProfile.answerMode : "",
-      crossDomainProfile: crossDomainProfile || null,
-      technicalTargetLock: safeObj(n.technicalTargetLock || canonicalTechnicalTargetFromText(n.text || n.query || n.message || "")),
-      technicalFollowUpLock: !!(n.technicalFollowUpLock || isTechnicalFollowUpIntent(n.text || n.query || n.message || "")),
-      blockScheduleInterception: !!safeObj(n.technicalTargetLock || canonicalTechnicalTargetFromText(n.text || n.query || n.message || "")).targetPath,
-      intent: safeStr((isPlainObject(cog) ? cog.intent : "") || "ADVANCE", 40) || "ADVANCE",
-      endpoint: "marion://routeMarion.primary",
-      bridgeCompatible: true,
-      composerCompatible: true,
-      stateSpineCompatible: true,
-      bootstrapGuardCompatible: true,
-      noCrossDomainBleed: true,
-      inputSource,
-      micTextParity: true,
-      domainConfidence
-    },
-    stateSpinePatch: {
-      source: "domainRouter",
-      schema: "nyx.marion.stateSpine/1.7",
-      shouldAdvanceState: false,
-      domain: canonicalizeDomain(pick.primary),
-      secondaryDomains: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
-      confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
-      domainConfidence,
-      isolation: { noCrossDomainBleed: true, primaryLocked: true },
-      inputSource,
-      turnHash,
-      continuityRegressionReady: true,
-      micTextParity: true
-    }
+  const base = {
+    version: "nyx.marion.domainConfidence/1.2",
+    confidence,
+    confidenceScore: confidence,
+    band,
+    confidenceBand: band,
+    margin,
+    ambiguous,
+    routeLocked,
+    primary,
+    primaryDomain: primary,
+    selectedDomain: primary,
+    secondary,
+    secondaryDomains: secondary ? [secondary] : [],
+    candidates: entries.slice(0, 6).map(([domain, score]) => ({ domain, confidence: clamp01(score), reasons: ["domain_router_score"] })),
+    answerMode: failClosed ? "fail_closed" : (ambiguous ? "clarify" : (confidence >= 0.82 ? "direct" : "grounded")),
+    needsClarifier: ambiguous && !failClosed,
+    failClosed,
+    fallbackReason: failClosed ? "domain_router_confidence_fail_closed" : (ambiguous ? "domain_router_confidence_ambiguous" : ""),
+    reason: infrastructure ? "infrastructure_continuity_route_lock" : (ambiguous ? "domain_confidence_ambiguous" : "domain_confidence_scored"),
+    noCrossDomainBleed: true,
+    noUserFacingDiagnostics: true
   };
+  if (domainConfidenceMod && typeof domainConfidenceMod.normalizeDomainConfidenceProfile === "function") {
+    try {
+      return domainConfidenceMod.normalizeDomainConfidenceProfile(base, { rawText: text, candidates: base.candidates, confidence });
+    } catch (_err) {}
+  }
+  return base;
 }
 
 module.exports = {
