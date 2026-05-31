@@ -124,6 +124,7 @@ function tryRequireOptional(paths) {
 const routerMod = tryRequireOptional(OPTIONAL_ROUTER_PATHS);
 const normalizerMod = tryRequireOptional(OPTIONAL_NORMALIZER_PATHS);
 const registryMod = tryRequireOptional(OPTIONAL_REGISTRY_PATHS);
+const domainConfidenceMod = tryRequireOptional(["./domainConfidence.js", "./domainConfidence", "./Data/marion/runtime/domainConfidence.js", "./Data/marion/runtime/domainConfidence", "../runtime/domainConfidence.js", "../runtime/domainConfidence"]);
 
 function safeStr(value) {
   return value == null ? "" : String(value).replace(/\s+/g, " ").trim();
@@ -404,19 +405,40 @@ function normalizeDomainConfidence(routeResult, route, intent, config) {
     (!routeLocked && margin > 0 && margin < config.marginClarifyBelow)
   );
 
-  return {
+  const base = {
     version: firstText(raw.version, DOMAIN_CONFIDENCE_VERSION),
     confidence: fallbackConfidence,
+    confidenceScore: fallbackConfidence,
     band: firstText(raw.band, confidenceBand(fallbackConfidence)),
+    confidenceBand: firstText(raw.confidenceBand, raw.band, confidenceBand(fallbackConfidence)),
     margin,
     ambiguous,
     routeLocked,
     failClosed: !!(raw.failClosed || (ambiguous && !routeLocked && fallbackConfidence < config.mediumConfidence)),
+    needsClarifier: !!(ambiguous && !routeLocked),
     primaryDomain,
+    selectedDomain: primaryDomain,
+    secondaryDomains: candidates.slice(1, 4).map((c) => c.domain).filter(Boolean),
     knowledgeDomain: compactKey(firstText(raw.knowledgeDomain, routing.knowledgeDomain, marionIntent.knowledgeDomain)),
+    answerMode: firstText(raw.answerMode, fallbackConfidence >= config.highConfidence ? "direct" : (fallbackConfidence >= config.mediumConfidence ? "grounded" : "clarify")),
+    fallbackReason: firstText(raw.fallbackReason, ""),
     reason: firstText(raw.reason, marionIntent.reason, r.reason, "domain_concierge_confidence_normalized"),
-    candidates
+    candidates,
+    noCrossDomainBleed: true,
+    noUserFacingDiagnostics: true
   };
+  if (domainConfidenceMod && typeof domainConfidenceMod.normalizeDomainConfidenceProfile === "function") {
+    try {
+      return domainConfidenceMod.normalizeDomainConfidenceProfile(base, {
+        rawText: extractText(routeResult),
+        intent,
+        domain: route,
+        candidates,
+        confidence: fallbackConfidence
+      });
+    } catch (_err) {}
+  }
+  return base;
 }
 
 function domainExists(domain) {
