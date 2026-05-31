@@ -41,6 +41,60 @@ const SPOKEN_ALIAS_RULES = [
     ]
   },
 
+  // Progression Shaping
+  {
+    canonical: 'progression shaping',
+    aliases: [
+      'progression shaping',
+      'progression shipping',
+      'progression shaving',
+      'regression shaping',
+      'progression refinement',
+      'progression shaping refinement',
+      'five turn progression',
+      '5 turn progression',
+      '5:10 progression',
+      '5:10 regression',
+      'five ten progression',
+      'five ten regression',
+      'after party run the 5:10 regression test',
+      'after parity run the 5:10 progression test'
+    ]
+  },
+
+  // Mic/Text Parity
+  {
+    canonical: 'mic-to-text parity',
+    aliases: [
+      'mic to text parity',
+      'mic-text parity',
+      'mike to text parity',
+      'mike text parity',
+      'microphone text parity',
+      'voice text parity',
+      'voice-to-text parity',
+      'speech text parity',
+      'after party',
+      'after parity'
+    ]
+  },
+
+  // Domain Confidence
+  {
+    canonical: 'domain confidence scoring',
+    aliases: [
+      'domain confidence',
+      'domain confidence scoring',
+      'domain scoring',
+      'confidence scoring',
+      'confidence score',
+      'domain confident scoring',
+      'domain confident',
+      'domain competence',
+      'domain competency'
+    ]
+  },
+
   // Nyx
   {
     canonical: 'Nyx',
