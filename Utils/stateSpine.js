@@ -14,9 +14,10 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
+const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/1.0";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
@@ -43,6 +44,7 @@ const progressionShapeMod = (() => { try { return require("../Data/marion/runtim
 const progressionMemoryMod = (() => { try { return require("../Data/marion/runtime/progressionMemory.js"); } catch (_) { return null; } })();
 const progressionTelemetryMod = (() => { try { return require("../Data/marion/runtime/progressionTelemetry.js"); } catch (_) { return null; } })();
 const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
+const finalRenderTelemetryMod = (() => { try { return require("../Data/marion/runtime/finalRenderTelemetry.js"); } catch (_) { return null; } })();
 
 const STATE_STAGES = Object.freeze([
   "intake",
@@ -367,6 +369,7 @@ function extractRuntimeTelemetryFromTurn(params = {}, inbound = {}) {
 }
 function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalCompletion=false,stage="",intent="",domain="",lane=""}={}){
   const inherited=extractRuntimeTelemetryFromTurn(params,inbound);
+  const finalRenderTelemetry = finalRenderTelemetryMod && typeof finalRenderTelemetryMod.buildFinalRenderTelemetry === "function" ? safeObj(finalRenderTelemetryMod.buildFinalRenderTelemetry({source:"stateSpine.finalizeTurn",stage:normalizeStateStage(stage || (trustedFinalCompletion ? "final" : "open"), "open"),reply,canEmit:trustedFinalCompletion,finalEnvelopeTrusted:trustedFinalCompletion,runtimeTelemetry:inherited,domainConfidence:isPlainObject(inherited.domainConfidence) ? inherited.domainConfidence : safeObj(params).domainConfidence,error:inherited.error||""})) : {};
   return {
     ...inherited,
     version: FINAL_RUNTIME_TELEMETRY_VERSION,
@@ -386,6 +389,9 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
     replySignature: reply ? hashText(reply) : safeStr(inherited.replySignature || ""),
     marionFinalObserved: !!hasMarionFinalSignal(params),
     finalEnvelopeTrusted: !!(hasTrustedMarionFinalEnvelope(params) || hasTrustedFinalShape(params)),
+    finalRenderTelemetry,
+    finalRenderTelemetryActive: !!Object.keys(finalRenderTelemetry).length,
+    publicSurfaceClean: safeObj(finalRenderTelemetry).publicSurfaceClean !== false,
     spineVersion: SPINE_VERSION,
     updatedAt: nowMs()
   };
@@ -2684,6 +2690,7 @@ module.exports = {
   normalizeProgressionRefinementCarry,
   extractProgressionRefinementCarry,
   updateProgressionRefinementState,
-  buildStateProgressionTelemetry
+  buildStateProgressionTelemetry,
+  FINAL_RENDER_TELEMETRY_VERSION
 };
 module.exports.default = module.exports;
