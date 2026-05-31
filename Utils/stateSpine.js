@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.15.0 CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
+const SPINE_VERSION = "stateSpine v2.16.0 FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -26,6 +26,7 @@ const FINAL_ENVELOPE_CONTRACT = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRefinement/1.0";
 
 const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
   FINAL_ENVELOPE_CONTRACT,
@@ -38,6 +39,9 @@ const MAX_STATE_TEXT = 1200;
 const MAX_STATE_SUMMARY = 1800;
 const MAX_STATE_ARRAY_ITEMS = 8;
 const MAX_SIGNATURE_TEXT = 512;
+const progressionShapeMod = (() => { try { return require("../Data/marion/runtime/progressionShape.js"); } catch (_) { return null; } })();
+const progressionMemoryMod = (() => { try { return require("../Data/marion/runtime/progressionMemory.js"); } catch (_) { return null; } })();
+const progressionTelemetryMod = (() => { try { return require("../Data/marion/runtime/progressionTelemetry.js"); } catch (_) { return null; } })();
 
 const STATE_STAGES = Object.freeze([
   "intake",
@@ -610,6 +614,64 @@ function extractProgressionShapingGuardCarry(params = {}, inbound = {}, memoryPa
   ];
   for (const item of candidates) if (isPlainObject(item) && Object.keys(item).length) return normalizeProgressionShapingGuardCarry(item);
   return normalizeProgressionShapingGuardCarry({ active: false, reason: "progression_guard_absent" });
+}
+
+function normalizeProgressionRefinementCarry(value = {}) {
+  const v = isPlainObject(value) ? value : {};
+  return {
+    version: safeStr(v.version || PROGRESSION_SHAPING_REFINEMENT_VERSION),
+    active: !!v.active,
+    activePhase: boundedOneLine(v.activePhase || v.lane || "progression_shaping_refinement", 80),
+    currentStep: boundedOneLine(v.currentStep || v.phaseKey || "", 64),
+    phaseId: boundedOneLine(v.phaseId || "", 96),
+    phaseLabel: boundedOneLine(v.phaseLabel || "", 180),
+    lastUserIntent: boundedOneLine(v.lastUserIntent || v.signal || "", 64),
+    lastSystemAction: boundedOneLine(v.lastSystemAction || v.responseShape || "", 96),
+    pendingAction: boundedOneLine(v.pendingAction || "", 160),
+    responseShape: boundedOneLine(v.responseShape || "", 80),
+    confidence: Number.isFinite(Number(v.confidence)) ? Math.max(0, Math.min(1, Number(v.confidence))) : 0,
+    passFailState: boundedOneLine(v.passFailState || "", 32),
+    noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
+    updatedAt: nowMs()
+  };
+}
+function extractProgressionRefinementCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const prev = isPlainObject(p.prevState) ? p.prevState : (isPlainObject(p.previousState) ? p.previousState : {});
+  const candidates = [
+    mp.progressionRefinement,
+    isPlainObject(mp.stateBridge) ? mp.stateBridge.progressionRefinement : null,
+    p.progressionRefinement,
+    isPlainObject(p.runtimeTelemetry) ? p.runtimeTelemetry.progressionRefinement : null,
+    src.progressionRefinement,
+    isPlainObject(src.sessionPatch) ? src.sessionPatch.progressionRefinement : null,
+    isPlainObject(src.sessionPatch) && isPlainObject(src.sessionPatch.stateBridge) ? src.sessionPatch.stateBridge.progressionRefinement : null,
+    prev.progressionRefinement,
+    isPlainObject(prev.marionCohesion) ? prev.marionCohesion.progressionRefinement : null
+  ];
+  for (const item of candidates) {
+    if (isPlainObject(item) && Object.keys(item).length) return normalizeProgressionRefinementCarry(item);
+  }
+  return normalizeProgressionRefinementCarry({ active: false });
+}
+function updateProgressionRefinementState(params = {}, inbound = {}, memoryPatch = {}, reply = "") {
+  const current = extractProgressionRefinementCarry(params, inbound, memoryPatch);
+  const text = firstNonEmpty(memoryPatch.lastUserText, extractInboundText(inbound), params.rawUserText, params.userText);
+  if (progressionMemoryMod && typeof progressionMemoryMod.updateProgressionMemory === "function") {
+    try { return normalizeProgressionRefinementCarry(progressionMemoryMod.updateProgressionMemory({ text, reply, previous: current, context: { ...safeObj(params), ...safeObj(inbound) } })); } catch (_) {}
+  }
+  if (progressionShapeMod && typeof progressionShapeMod.buildProgressionProfile === "function") {
+    try { return normalizeProgressionRefinementCarry({ ...current, ...progressionShapeMod.buildProgressionProfile(text, current) }); } catch (_) {}
+  }
+  return current;
+}
+function buildStateProgressionTelemetry(progressState = {}, params = {}, inbound = {}, reply = "") {
+  if (progressionTelemetryMod && typeof progressionTelemetryMod.buildProgressionTelemetry === "function") {
+    try { return progressionTelemetryMod.buildProgressionTelemetry({ profile: progressState, memory: progressState, text: firstNonEmpty(extractInboundText(inbound), safeObj(params).rawUserText), reply, source: "stateSpine.finalizeTurn" }); } catch (_) {}
+  }
+  return {};
 }
 
 function greetingPresenceFromTone(tone, fallback = "receptive") {
@@ -1234,6 +1296,8 @@ function createState(seed = {}) {
     lastPlannerMode: "",
     progressionLock: false,
     progressionShapingGuard: normalizeProgressionShapingGuardCarry({ active: false, reason: "initial_state" }),
+    progressionRefinement: normalizeProgressionRefinementCarry({ active: false }),
+    progressionTelemetry: {},
     volatility: "stable",
     turns: { user: 0, assistant: 0 },
     repetition: {
@@ -2295,6 +2359,8 @@ function finalizeTurn(params = {}) {
   const domainConciergeCarry = extractDomainConciergeCarry(params, inbound, memoryPatch);
   const confidenceAwareResponseShapingCarry = extractConfidenceAwareResponseShapingCarry(params, inbound, memoryPatch);
   const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
+  const progressionRefinement = updateProgressionRefinementState(params, inbound, memoryPatch, speak);
+  const progressionTelemetry = buildStateProgressionTelemetry(progressionRefinement, params, inbound, speak);
   const nextState = {
     ...prev,
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
@@ -2331,6 +2397,8 @@ function finalizeTurn(params = {}) {
     confidenceAwareResponseShaping: confidenceAwareResponseShapingCarry,
     progressionLock,
     progressionShapingGuard,
+    progressionRefinement,
+    progressionTelemetry,
     volatility,
     turns: {
       user: clampInt(prev.turns.user, 0, 0, 999999) + 1,
@@ -2415,6 +2483,9 @@ function finalizeTurn(params = {}) {
       lastKnowledgeDomain: composerKnowledgeDomain || activeKnowledgeDomainCarry || prev.lastKnowledgeDomain || "",
       progressionShapingGuard,
       progressionShapingGuardActive: !!progressionShapingGuard.active,
+      progressionRefinement,
+      progressionRefinementActive: !!progressionRefinement.active,
+      progressionTelemetry,
       marionFinalObserved: marionFinalSignal,
       lastComposerIntent: boundedOneLine(memoryPatch.lastIntent || marion.intent || "", 160),
       lastComposerDomain: boundedOneLine(memoryPatch.lastDomain || marion.domain || "", 160),
@@ -2581,7 +2652,14 @@ module.exports = {
   normalizeDomainConciergeCarry,
   extractDomainConciergeCarry,
   CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,
+  PROGRESSION_SHAPING_REFINEMENT_VERSION,
   normalizeConfidenceAwareResponseShapingCarry,
-  extractConfidenceAwareResponseShapingCarry
+  extractConfidenceAwareResponseShapingCarry,
+  normalizeProgressionShapingGuardCarry,
+  extractProgressionShapingGuardCarry,
+  normalizeProgressionRefinementCarry,
+  extractProgressionRefinementCarry,
+  updateProgressionRefinementState,
+  buildStateProgressionTelemetry
 };
 module.exports.default = module.exports;
