@@ -1,6 +1,6 @@
 {
-  "manifestVersion": "2.2.1-normalized",
-  "updatedAt": "2026-05-26",
+  "manifestVersion": "2.3.0-domain-confidence-scoring",
+  "updatedAt": "2026-05-31",
   "targetRuntime": "Marion/Nyx",
   "structuralMode": "split_manifest_and_data_roots",
   "domainRoot": "domains",
@@ -88,5 +88,32 @@
     "gitConflictMarkersRemoved": true,
     "deterministicPrettyPrint": true,
     "hashesIncludedInReport": true
+  },
+  "domainConfidenceScoring": {
+    "enabled": true,
+    "contract": "nyx.marion.domainConfidence/1.2",
+    "primaryFields": [
+      "primaryDomain",
+      "secondaryDomains",
+      "confidenceScore",
+      "confidenceBand",
+      "needsClarifier",
+      "answerMode",
+      "fallbackReason"
+    ],
+    "bands": {
+      "high": 0.82,
+      "medium": 0.62,
+      "low": 0.48,
+      "weak": 0.0
+    },
+    "answerPolicy": {
+      "high": "direct_answer",
+      "medium": "grounded_answer",
+      "low": "single_precise_clarifier",
+      "weak": "fail_closed_isolation"
+    },
+    "crossDomainBleedProtection": true,
+    "publicDiagnostics": false
   }
 }
