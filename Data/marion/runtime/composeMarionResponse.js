@@ -1,12 +1,13 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.5 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "composeMarionResponse v3.36.5 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
 const progressionMemoryMod = (() => { try { return require(path.join(__dirname, "progressionMemory.js")); } catch (_) { return null; } })();
 const progressionResponsePolicyMod = (() => { try { return require(path.join(__dirname, "progressionResponsePolicy.js")); } catch (_) { return null; } })();
 const progressionTelemetryMod = (() => { try { return require(path.join(__dirname, "progressionTelemetry.js")); } catch (_) { return null; } })();
+const domainConfidenceMod = (() => { try { return require(path.join(__dirname, "domainConfidence.js")); } catch (_) { return null; } })();
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
@@ -1666,14 +1667,18 @@ function extractDomainConfidence(input = {}, routed = {}) {
       const margin = Math.max(0, Math.min(1, Number(c.margin) || 0));
       const routeLocked = !!(c.routeLocked || c.routeLock || routing.routeLock || safeObj(r.marionIntent).routeLock || confidence >= 0.82);
       const ambiguous = !!(c.ambiguous || (!routeLocked && (confidence < 0.62 || (margin > 0 && margin < 0.08))));
-      return {...c, version: safeStr(c.version || "nyx.marion.domainConfidence/1.1"), confidence, margin, band: safeStr(c.band || (confidence >= 0.92 ? "high" : confidence >= 0.72 ? "medium" : confidence >= 0.52 ? "low" : "weak")), ambiguous, routeLocked, failClosed: !!(c.failClosed || (ambiguous && !routeLocked))};
+      const base = {...c, version: safeStr(c.version || "nyx.marion.domainConfidence/1.2"), confidence, confidenceScore: confidence, margin, band: safeStr(c.band || c.confidenceBand || (confidence >= 0.82 ? "high" : confidence >= 0.62 ? "medium" : confidence >= 0.48 ? "low" : "weak")), confidenceBand: safeStr(c.confidenceBand || c.band || (confidence >= 0.82 ? "high" : confidence >= 0.62 ? "medium" : confidence >= 0.48 ? "low" : "weak")), ambiguous, routeLocked, failClosed: !!(c.failClosed || (ambiguous && !routeLocked)), needsClarifier: !!(c.needsClarifier || (ambiguous && !routeLocked)), primaryDomain: firstText(c.primaryDomain,c.selectedDomain,c.domain,routing.domain), selectedDomain: firstText(c.selectedDomain,c.primaryDomain,c.domain,routing.domain), secondaryDomains: safeArray(c.secondaryDomains), answerMode: firstText(c.answerMode, confidence >= 0.82 ? "direct" : (confidence >= 0.62 ? "grounded" : "clarify")), fallbackReason: firstText(c.fallbackReason,""), noCrossDomainBleed: true, noUserFacingDiagnostics: true};
+      if(domainConfidenceMod&&typeof domainConfidenceMod.normalizeDomainConfidenceProfile==="function"){try{return domainConfidenceMod.normalizeDomainConfidenceProfile(base,{rawText:firstText(i.rawUserText,i.userText,i.text,r.rawUserText,r.text),routing,marionIntent:safeObj(r.marionIntent),confidence});}catch(_){}}
+      return base;
     }
   }
   const confidence = Number(routing.routeConfidence || meta.routeConfidence || safeObj(r.marionIntent).confidence || 0);
   const c = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
   const routeLocked = !!(routing.routeLock || safeObj(r.marionIntent).routeLock || c >= 0.82);
   const ambiguous = c > 0 && c < 0.62 && !routeLocked;
-  return { version: "nyx.marion.domainConfidence/1.1", confidence: c, margin: c, band: c >= 0.92 ? "high" : c >= 0.72 ? "medium" : c >= 0.52 ? "low" : "weak", ambiguous, routeLocked, failClosed: ambiguous && !routeLocked, reason: firstText(routing.reason, meta.reason, safeObj(r.marionIntent).reason, "compose_confidence_fallback") };
+  const fallback={ version: "nyx.marion.domainConfidence/1.2", confidence: c, confidenceScore:c, margin: c, band: c >= 0.82 ? "high" : c >= 0.62 ? "medium" : c >= 0.48 ? "low" : "weak", confidenceBand: c >= 0.82 ? "high" : c >= 0.62 ? "medium" : c >= 0.48 ? "low" : "weak", ambiguous, routeLocked, failClosed: ambiguous && !routeLocked, needsClarifier: ambiguous && !routeLocked, primaryDomain:firstText(routing.domain,"general_reasoning"), selectedDomain:firstText(routing.domain,"general_reasoning"), secondaryDomains:[], answerMode:c>=0.82?"direct":(c>=0.62?"grounded":"clarify"), fallbackReason: ambiguous && !routeLocked ? "compose_confidence_fallback_ambiguous" : "", reason: firstText(routing.reason, meta.reason, safeObj(r.marionIntent).reason, "compose_confidence_fallback"), noCrossDomainBleed:true, noUserFacingDiagnostics:true };
+  if(domainConfidenceMod&&typeof domainConfidenceMod.normalizeDomainConfidenceProfile==="function"){try{return domainConfidenceMod.normalizeDomainConfidenceProfile(fallback,{rawText:firstText(i.rawUserText,i.userText,i.text,r.rawUserText,r.text),routing,marionIntent:safeObj(r.marionIntent),confidence:c});}catch(_){}}
+  return fallback;
 }
 function responseDepthProfile(text=""){
   const t=lower(text);
@@ -2081,7 +2086,7 @@ function domainConfidenceScoringReply(text="",input={},routed={}){
   if(/\bprotect|domain bleed|cross domain|secondary lane\b/i.test(t)){
     return "Domain confidence protects Marion by making the primary lane prove itself before the answer is shaped. A secondary lane can support the answer, but it cannot take authority or silently replace the primary domain.";
   }
-  return "Domain confidence scoring is the next phase after progression shaping: Marion scores the active domain before answering, applies a confidence band, then chooses direct answer, grounded answer, one clarifier, or fail-closed isolation. Next action: run high, medium, low, and weak confidence prompts and verify no cross-domain bleed.";
+  return "Domain confidence scoring is active. Marion must now carry primaryDomain, secondaryDomains, confidenceScore, confidenceBand, needsClarifier, answerMode, and fallbackReason before the public reply is shaped. Next action: run high, medium, low, and weak confidence prompts and confirm high answers directly, medium grounds the answer, low asks one precise clarifier, and weak fails closed without cross-domain bleed.";
 }
 
 function progressionShapingGuardReply(text="",input={},intent="",routed={}){
