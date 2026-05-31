@@ -13,7 +13,9 @@
  * - Keeps telemetry/internal confidence fields private and transport-safe.
  */
 
-const VERSION = "domainConfidence v1.0.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK";
+const VERSION = "domainConfidence v1.0.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
+const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.2";
 
 const CONFIDENCE_THRESHOLDS = Object.freeze({
@@ -265,4 +267,5 @@ module.exports = {
   normalizeDomainConfidenceProfile,
   buildDomainConfidenceProfile,
   default: buildDomainConfidenceProfile
-};
+,
+  FINAL_RENDER_TELEMETRY_VERSION};
