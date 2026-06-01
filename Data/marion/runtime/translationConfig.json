@@ -1,5 +1,5 @@
 {
-  "version": "0.3.3",
+  "version": "0.3.4-lingolink-aster-gateway",
   "enabled": true,
   "defaultSourceLanguage": "auto",
   "defaultTargetLanguage": "en",
@@ -80,7 +80,8 @@
     "blockUnsupportedLanguages": true,
     "cloneEnvelopeBeforeMutation": true,
     "neverTranslateAuthorityFields": true,
-    "neverExposeInternalAuthorityToUser": true
+    "neverExposeInternalAuthorityToUser": true,
+    "preserveProjectGatewayMetadata": true
   },
   "routing": {
     "inputNormalizationTarget": "en",
@@ -99,7 +100,8 @@
     ],
     "minimumDetectionConfidence": 0.55,
     "lowConfidenceBehavior": "default-to-original",
-    "unsupportedLanguageBehavior": "return-original"
+    "unsupportedLanguageBehavior": "return-original",
+    "projectGatewayPrecedence": true
   },
   "datasets": {
     "preferredOrder": [
@@ -226,5 +228,55 @@
       "tests/universal-translator-integration.test.js"
     ],
     "expectedProviderForPhaseOne": "manualDictionary"
+  },
+  "projects": {
+    "lingoLink": {
+      "enabled": true,
+      "stage": "gateway-hardening",
+      "authority": "marion-final",
+      "activeLanguages": [
+        "en",
+        "fr",
+        "es"
+      ],
+      "preserve": [
+        "intent",
+        "tone",
+        "glossary",
+        "finalEnvelope",
+        "contextPassport"
+      ]
+    },
+    "aster": {
+      "enabled": true,
+      "stage": "environmental-pathway-staged",
+      "authority": "marion-final",
+      "activationMode": "metadata-first",
+      "preserve": [
+        "regionalContext",
+        "environmentalSignal",
+        "riskThreshold",
+        "finalEnvelope",
+        "contextPassport"
+      ],
+      "ingestion": {
+        "enabled": false,
+        "allowedSources": [],
+        "failClosedToContextOnly": true
+      }
+    }
+  },
+  "gateways": {
+    "lingoLink": {
+      "surface": "languageSphere",
+      "defaultTargetLanguage": "en",
+      "failClosedToOriginal": true
+    },
+    "aster": {
+      "surface": "environmentalPathway",
+      "defaultState": "staged",
+      "failClosedToOriginal": true,
+      "noExternalIngestionByDefault": true
+    }
   }
 }
