@@ -23,7 +23,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.1 + LINGOLINK-ASTER-GATEWAY";
 
 const DEFAULT_MEMORY_PATH = path.resolve(
   process.cwd(),
@@ -41,6 +41,7 @@ const DEFAULT_MIN_CONFIDENCE = 0.5;
 const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 
 const SUPPORTED_LANGUAGES = new Set(["en", "fr", "es", "auto", "unknown"]);
+const PROJECT_GATEWAY_DOMAINS = new Set(["lingolink", "language-sphere", "languagesphere", "aster", "environmental", "environmental-pathway"]);
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -71,6 +72,14 @@ function normalizeLanguageCode(lang, fallback = "unknown") {
   if (value.startsWith("es")) return "es";
 
   return fallback;
+}
+
+function normalizeGatewayDomain(domain) {
+  const normalized = normalizeDomain(domain);
+  if (normalized === "lingo-link") return "lingolink";
+  if (normalized === "language-sphere") return "language-sphere";
+  if (normalized === "environment") return "environmental";
+  return normalized;
 }
 
 function normalizeDomain(domain) {
@@ -145,7 +154,7 @@ function makeMemoryKey(params = {}) {
   const sourceLanguage = normalizeLanguageCode(params.sourceLanguage || "auto", "auto");
   const targetLanguage = normalizeLanguageCode(params.targetLanguage || "unknown", "unknown");
   const normalizedSource = normalizeText(params.sourceText);
-  const domainKey = normalizeDomain(params.domain);
+  const domainKey = normalizeGatewayDomain(params.domain);
   const contextFingerprint = makeContextFingerprint(params);
 
   return hashValue(
@@ -705,7 +714,7 @@ class TranslationMemoryStore {
 
     for (const entry of entries) {
       const pair = `${normalizeLanguageCode(entry.sourceLanguage || "auto", "auto")}-${normalizeLanguageCode(entry.targetLanguage || "unknown", "unknown")}`;
-      const domain = normalizeDomain(entry.domain);
+      const domain = normalizeGatewayDomain(entry.domain);
       const provider = normalizeProvider(entry.provider);
 
       byPair[pair] = (byPair[pair] || 0) + 1;
@@ -750,6 +759,8 @@ module.exports = {
   normalizeText,
   normalizeLanguageCode,
   normalizeDomain,
+  normalizeGatewayDomain,
+  PROJECT_GATEWAY_DOMAINS: Array.from(PROJECT_GATEWAY_DOMAINS),
   normalizeProvider,
   hashValue,
   makeContextFingerprint,
