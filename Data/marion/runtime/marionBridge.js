@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.2 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "marionBridge v7.9.2 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -19,6 +19,7 @@ const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
 const LANGUAGE_SPHERE_BRIDGE_VERSION = "nyx.marion.languageSphereBridge/1.0";
 const MARION_BRIDGE_DEPLOY_HARDENING_VERSION = "nyx.marion.bridgeDeployHardening/1.0";
+const BENCHMARK_OBSERVATION_HOOK_VERSION = "nyx.marion.benchmarkObservationHook/1.0";
 
 const fs = require("fs");
 const path = require("path");
@@ -94,6 +95,14 @@ const languageSphereTelemetryLoaded=tryRequireMany([
   "./LanguageSphereTelemetry.js",
   "./LanguageSphereTelemetry"
 ]);
+const marionRuntimeObservationLoaded=tryRequireMany([
+  path.join(__dirname,"benchmarking","marionRuntimeObservationHook.js"),
+  path.join(process.cwd(),"Data","marion","runtime","benchmarking","marionRuntimeObservationHook.js"),
+  "./Data/marion/runtime/benchmarking/marionRuntimeObservationHook.js",
+  "./Data/marion/runtime/benchmarking/marionRuntimeObservationHook",
+  "./benchmarking/marionRuntimeObservationHook.js",
+  "./benchmarking/marionRuntimeObservationHook"
+]);
 
 const finalEnvelopeMod=finalEnvelopeLoaded.mod;
 const intentRouterMod=intentRouterLoaded.mod;
@@ -106,6 +115,7 @@ const universalTranslatorMod=universalTranslatorLoaded.mod;
 const multilingualFinalEnvelopeMod=multilingualFinalEnvelopeLoaded.mod;
 const contextPassportEventsMod=contextPassportEventsLoaded.mod;
 const languageSphereTelemetryMod=languageSphereTelemetryLoaded.mod;
+const marionRuntimeObservationMod=marionRuntimeObservationLoaded.mod;
 const routeMarionIntent=intentRouterMod&&typeof intentRouterMod.routeMarionIntent==="function"?intentRouterMod.routeMarionIntent:null;
 const runDomainConcierge=domainConciergeMod&&typeof domainConciergeMod.runDomainConcierge==="function"?domainConciergeMod.runDomainConcierge:null;
 const composeMarionResponse=composerMod&&typeof composerMod.composeMarionResponse==="function"?composerMod.composeMarionResponse:(composerMod&&typeof composerMod.run==="function"?composerMod.run:(composerMod&&typeof composerMod.default==="function"?composerMod.default:null));
@@ -122,7 +132,8 @@ const DEPENDENCY_STATUS = Object.freeze({
   universalTranslator: dependencyStatus("UniversalTranslatorAdapter", universalTranslatorLoaded),
   multilingualFinalEnvelope: dependencyStatus("MultilingualFinalEnvelope", multilingualFinalEnvelopeLoaded),
   contextPassportEvents: dependencyStatus("ContextPassportEvents", contextPassportEventsLoaded),
-  languageSphereTelemetry: dependencyStatus("LanguageSphereTelemetry", languageSphereTelemetryLoaded)
+  languageSphereTelemetry: dependencyStatus("LanguageSphereTelemetry", languageSphereTelemetryLoaded),
+  marionRuntimeObservationHook: dependencyStatus("marionRuntimeObservationHook", marionRuntimeObservationLoaded)
 });
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
@@ -160,6 +171,26 @@ function safeObj(value){return isObj(value)?value:{};}
 function safeArray(value){return Array.isArray(value)?value:[];}
 function firstText(){for(let i=0;i<arguments.length;i+=1){const value=safeStr(arguments[i]);if(value)return value;}return "";}
 function hashText(value){const source=lower(value).replace(/[^a-z0-9]+/g," ").trim();let hash=0;for(let i=0;i<source.length;i+=1){hash=((hash<<5)-hash)+source.charCodeAt(i);hash|=0;}return String(hash>>>0);}
+
+function benchmarkObservationTelemetryEnabled(){
+  return typeof process !== "undefined" && process && process.env && process.env.SB_BENCHMARK_OBSERVE === "true";
+}
+function observeBridgeRuntimeSafely(runtimeOutput={},context={}){
+  if(!marionRuntimeObservationMod||typeof marionRuntimeObservationMod.observeAndReturnRuntimeOutput!=="function")return runtimeOutput;
+  try{
+    const ctx=safeObj(context);
+    const out=safeObj(runtimeOutput);
+    const normalized=safeObj(ctx.normalized);
+    return marionRuntimeObservationMod.observeAndReturnRuntimeOutput(runtimeOutput,{
+      scenarioId:firstText(ctx.turnId,normalized.turnId,out.turnId,out.requestId,out.scenarioId,"marion-bridge-final"),
+      phase:firstText(ctx.phase,"phase5-bridge-passive-observation"),
+      telemetryEnabled:benchmarkObservationTelemetryEnabled(),
+      telemetryOptions:safeObj(ctx.telemetryOptions)
+    });
+  }catch(_){
+    return runtimeOutput;
+  }
+}
 
 function normalizeBridgeDomainConfidence(value={},fallback={}) {
   const v=safeObj(value), f=safeObj(fallback);
@@ -1252,7 +1283,7 @@ function createLocalFinalEnvelope({normalized={},routed={},contract={},reason="l
     memoryPatch,
     bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true,localFinalFallback:true,deployHardeningVersion:MARION_BRIDGE_DEPLOY_HARDENING_VERSION},
     routed,
-    diagnostics:{bridgeVersion:VERSION,deployHardeningVersion:MARION_BRIDGE_DEPLOY_HARDENING_VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,routerCalled:true,composerCalled:!!Object.keys(safeObj(contract)).length,composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,dependencies:DEPENDENCY_STATUS,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,localFinalFallback:true,reason},
+    diagnostics:{bridgeVersion:VERSION,deployHardeningVersion:MARION_BRIDGE_DEPLOY_HARDENING_VERSION,BENCHMARK_OBSERVATION_HOOK_VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,routerCalled:true,composerCalled:!!Object.keys(safeObj(contract)).length,composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,dependencies:DEPENDENCY_STATUS,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,localFinalFallback:true,reason},
     meta:{version:VERSION,bridgeVersion:VERSION,deployHardeningVersion:MARION_BRIDGE_DEPLOY_HARDENING_VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,localFinalFallback:true,reason}
   };
   return attachLanguageSphereFinalMetadata(packet,{normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:stripPublicReplyScaffold(firstText(contract.spokenText,reply))},reply,runtimeTelemetry,loopGuardResult});
@@ -1546,7 +1577,8 @@ async function processWithMarion(input = {}) {
   try { normalizedForPublicReply = normalizeInbound(input); } catch (_err) { normalizedForPublicReply = {}; }
   try {
     const packet = await processWithMarionUnsafe(input);
-    const safePacket = packet && packet.ok === false ? transportSafeError(packet) : transportSafePacket(packet);
+    const observedPacket = observeBridgeRuntimeSafely(packet,{normalized: normalizedForPublicReply,phase:"phase5-bridge-passive-observation"});
+    const safePacket = observedPacket && observedPacket.ok === false ? transportSafeError(observedPacket) : transportSafePacket(observedPacket);
     return enforceValidPublicReply(safePacket,{normalized: normalizedForPublicReply});
   } catch (err) {
     const safePacket = transportSafeError(buildErrorResult("bridge_transport_exception", { message: safeStr(err && (err.message || err) || "") }, Object.keys(normalizedForPublicReply).length?normalizedForPublicReply:normalizeInbound(input)));
@@ -1581,5 +1613,5 @@ function bridgeForensicNormalizationStatus(){
   };
 }
 
-module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply},
+module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply,observeBridgeRuntimeSafely},
   FINAL_RENDER_TELEMETRY_VERSION};
