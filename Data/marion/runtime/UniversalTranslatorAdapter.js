@@ -22,7 +22,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_SUPPORTED_LANGUAGES = ["en", "fr", "es"];
-const VERSION = "0.3.3";
+const VERSION = "0.3.3 + LINGOLINK-ASTER-GATEWAY";
 
 let CONFIG = null;
 let GLOSSARY = null;
@@ -34,6 +34,41 @@ let MEMORY_STORE = null;
 const CONFIG_PATH = path.join(__dirname, "translationConfig.json");
 const LANGUAGE_SPHERE_PUBLIC_AGENT = "nyx";
 const LOW_CONFIDENCE_WARNING = "low-confidence-detection-original-preserved";
+
+const PROJECT_GATEWAY_CAPABILITIES = Object.freeze({
+  lingoLink: Object.freeze({
+    name: "LingoLink",
+    role: "language_gateway",
+    authority: "marion_final",
+    preserves: Object.freeze(["intent", "tone", "glossary", "finalEnvelope"]),
+    activeLanguages: Object.freeze(["en", "fr", "es"])
+  }),
+  aster: Object.freeze({
+    name: "Aster",
+    role: "environmental_pathway",
+    authority: "marion_final",
+    preserves: Object.freeze(["contextPassport", "regionalSignal", "riskThreshold", "finalEnvelope"]),
+    activation: "staged_gateway"
+  })
+});
+
+function detectProjectGateway(textOrOptions = {}) {
+  const text = typeof textOrOptions === "string"
+    ? textOrOptions
+    : [textOrOptions.text, textOrOptions.userText, textOrOptions.message, textOrOptions.query, textOrOptions.domain].filter(Boolean).join(" ");
+  const detector = loadLanguageDetect();
+  if (detector && typeof detector.detectProjectGatewayFromRequest === "function") {
+    return detector.detectProjectGatewayFromRequest(text);
+  }
+  const normalized = String(text || "").toLowerCase();
+  if (/\b(?:lingolink|lingo link|languagesphere|language sphere)\b/.test(normalized)) {
+    return { matched: true, gateway: "lingoLink", confidence: 0.84, reason: "adapter-fallback-gateway-signal" };
+  }
+  if (/\b(?:aster|environmental pathway|environmental gateway|climate signal|weather signal)\b/.test(normalized)) {
+    return { matched: true, gateway: "aster", confidence: 0.84, reason: "adapter-fallback-gateway-signal" };
+  }
+  return { matched: false, gateway: "", confidence: 0, reason: "no-project-gateway-signal" };
+}
 
 function safeRequire(relativePath, fallback) {
   try {
@@ -1198,6 +1233,7 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
       finalAnswerAuthorized: false,
       translationGate: true,
       provider: meta.provider || "none",
+      projectGateway: detectProjectGateway({ text: sourceText, ...payload }),
       confidence: typeof meta.sourceConfidence === "number" ? meta.sourceConfidence : null
     }
   };
@@ -1264,5 +1300,7 @@ module.exports = {
   loadMemoryModule,
   loadLocalProvider,
   getMemoryStore,
-  resetUniversalTranslatorCaches
+  resetUniversalTranslatorCaches,
+  detectProjectGateway,
+  PROJECT_GATEWAY_CAPABILITIES
 };
