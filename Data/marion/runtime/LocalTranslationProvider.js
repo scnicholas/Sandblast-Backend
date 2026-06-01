@@ -19,7 +19,7 @@ const http = require("http");
 const https = require("https");
 const net = require("net");
 
-const VERSION = "0.2.3";
+const VERSION = "0.2.3 + LINGOLINK-ASTER-GATEWAY";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_CHARACTERS = 4500;
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 512;
@@ -162,6 +162,49 @@ const MANUAL_DICTIONARY = {
     "Idioma": "Langue"
   }
 };
+
+const PROJECT_GATEWAY_TRANSLATIONS = Object.freeze({
+  "en:fr": Object.freeze({
+    "LingoLink gateway": "Passerelle LingoLink",
+    "Aster environmental pathway": "Parcours environnemental Aster",
+    "Context Passport": "Passeport de contexte",
+    "Environmental signal": "Signal environnemental",
+    "Language gateway": "Passerelle linguistique"
+  }),
+  "fr:en": Object.freeze({
+    "Passerelle LingoLink": "LingoLink gateway",
+    "Parcours environnemental Aster": "Aster environmental pathway",
+    "Passeport de contexte": "Context Passport",
+    "Signal environnemental": "Environmental signal",
+    "Passerelle linguistique": "Language gateway"
+  }),
+  "en:es": Object.freeze({
+    "LingoLink gateway": "Puerta de enlace LingoLink",
+    "Aster environmental pathway": "Ruta ambiental Aster",
+    "Context Passport": "Pasaporte de contexto",
+    "Environmental signal": "Señal ambiental",
+    "Language gateway": "Puerta de enlace lingüística"
+  }),
+  "es:en": Object.freeze({
+    "Puerta de enlace LingoLink": "LingoLink gateway",
+    "Ruta ambiental Aster": "Aster environmental pathway",
+    "Pasaporte de contexto": "Context Passport",
+    "Señal ambiental": "Environmental signal",
+    "Puerta de enlace lingüística": "Language gateway"
+  }),
+  "fr:es": Object.freeze({
+    "Passerelle LingoLink": "Puerta de enlace LingoLink",
+    "Parcours environnemental Aster": "Ruta ambiental Aster",
+    "Passeport de contexte": "Pasaporte de contexto",
+    "Signal environnemental": "Señal ambiental"
+  }),
+  "es:fr": Object.freeze({
+    "Puerta de enlace LingoLink": "Passerelle LingoLink",
+    "Ruta ambiental Aster": "Parcours environnemental Aster",
+    "Pasaporte de contexto": "Passeport de contexte",
+    "Señal ambiental": "Signal environnemental"
+  })
+});
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -402,7 +445,7 @@ function lookupManualDictionary(text, sourceLanguage, targetLanguage) {
   const source = normalizeLanguageCode(sourceLanguage);
   const target = normalizeLanguageCode(targetLanguage);
   const pair = `${source}:${target}`;
-  const dictionary = MANUAL_DICTIONARY[pair] || {};
+  const dictionary = { ...(MANUAL_DICTIONARY[pair] || {}), ...(PROJECT_GATEWAY_TRANSLATIONS[pair] || {}) };
 
   if (Object.prototype.hasOwnProperty.call(dictionary, text)) {
     return {
@@ -868,6 +911,7 @@ module.exports = {
   SUPPORTED_PROVIDERS,
   PROVIDER_ALIASES,
   MANUAL_DICTIONARY,
+  PROJECT_GATEWAY_TRANSLATIONS,
   LOCAL_HOSTS,
   normalizeLanguageCode,
   normalizeProviderName,
