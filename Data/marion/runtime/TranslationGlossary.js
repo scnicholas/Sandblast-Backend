@@ -14,7 +14,7 @@
  * - No external dependencies.
  */
 
-const VERSION = "0.2.3";
+const VERSION = "0.2.3 + LINGOLINK-ASTER-GATEWAY";
 
 const DEFAULT_PROTECTED_TERMS = Object.freeze([
   "Sandblast",
@@ -35,6 +35,12 @@ const DEFAULT_PROTECTED_TERMS = Object.freeze([
   "Concierge",
   "Universal Translator",
   "LanguageSphere",
+  "Thalon",
+  "Environmental Gateway",
+  "Aster environmental pathway",
+  "Aster",
+  "Lingo Link",
+  "LingoLink",
   "Marion Bridge",
   "MarionBridge",
   "Final Authority",
@@ -124,6 +130,40 @@ const DOMAIN_TERMS = Object.freeze({
     "semantics",
     "tone",
     "composition"
+  ]),
+  environmental: Object.freeze([
+    "Aster",
+    "environmental signal",
+    "environmental pathway",
+    "climate signal",
+    "weather signal",
+    "air quality",
+    "ecological context",
+    "risk threshold",
+    "regional condition",
+    "sensor input"
+  ]),
+  aster: Object.freeze([
+    "Aster",
+    "environmental signal",
+    "environmental pathway",
+    "climate signal",
+    "weather signal",
+    "air quality",
+    "ecological context",
+    "risk threshold",
+    "regional condition",
+    "sensor input"
+  ]),
+  lingolink: Object.freeze([
+    "LingoLink",
+    "Lingo Link",
+    "LanguageSphere",
+    "language gateway",
+    "translation gateway",
+    "Context Passport",
+    "tone preservation",
+    "glossary preservation"
   ]),
   media: Object.freeze([
     "Sandblast Channel",
