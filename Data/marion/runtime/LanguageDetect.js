@@ -21,7 +21,7 @@
  *   the original caller text.
  */
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.0 + LINGOLINK-ASTER-GATEWAY";
 
 const SUPPORTED_LANGUAGES = ["en", "fr", "es"];
 
@@ -75,6 +75,60 @@ const SIGNALS = {
     ["una", 1], ["un", 1], ["la", 1], ["no", 1]
   ]
 };
+
+const PROJECT_GATEWAY_SIGNALS = Object.freeze({
+  lingoLink: Object.freeze([
+    "lingolink",
+    "lingo link",
+    "language sphere",
+    "languagesphere",
+    "translation gateway",
+    "language gateway",
+    "multilingual gateway"
+  ]),
+  aster: Object.freeze([
+    "aster",
+    "environmental pathway",
+    "environmental gateway",
+    "climate signal",
+    "weather signal",
+    "environmental intelligence",
+    "ecological signal"
+  ])
+});
+
+function detectProjectGatewayFromRequest(text) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return { matched: false, gateway: "", confidence: 0, reason: "empty-text" };
+  }
+
+  const hits = [];
+  for (const [gateway, terms] of Object.entries(PROJECT_GATEWAY_SIGNALS)) {
+    for (const term of terms) {
+      if (normalized.includes(normalizeText(term))) hits.push({ gateway, term });
+    }
+  }
+
+  if (!hits.length) {
+    return { matched: false, gateway: "", confidence: 0, reason: "no-project-gateway-signal" };
+  }
+
+  const counts = hits.reduce((acc, hit) => {
+    acc[hit.gateway] = (acc[hit.gateway] || 0) + 1;
+    return acc;
+  }, {});
+  const gateway = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const confidence = Math.min(0.97, 0.72 + counts[gateway] * 0.08);
+
+  return {
+    matched: true,
+    gateway,
+    confidence,
+    hits: hits.filter((hit) => hit.gateway === gateway),
+    reason: "project-gateway-signal"
+  };
+}
 
 const DIACRITIC_BIAS = {
   fr: [
@@ -442,7 +496,8 @@ function explainDetection(text, options = {}) {
   return {
     ...result,
     normalizedSample: normalizeText(text).trim(),
-    targetLanguageRequest: detectTargetLanguageFromRequest(text)
+    targetLanguageRequest: detectTargetLanguageFromRequest(text),
+    projectGateway: detectProjectGatewayFromRequest(text)
   };
 }
 
@@ -458,6 +513,8 @@ module.exports = {
   detectAccentBias,
   calculateConfidence,
   detectLanguage,
+  detectProjectGatewayFromRequest,
+  PROJECT_GATEWAY_SIGNALS,
   detectTargetLanguageFromRequest,
   explainDetection
 };
