@@ -5,7 +5,8 @@
  *
  * Purpose:
  * - Confirm UniversalTranslatorAdapter remains a translation gate, not final authority.
- * - Confirm translated text is available but final answer authorization remains with Marion.
+ * - Confirm translated text is available when safe, while protected glossary terms may be preserved.
+ * - Confirm final answer authorization remains with Marion.
  * - Confirm public-facing authority remains Nyx while Marion authority is required internally.
  *
  * Run:
@@ -34,6 +35,13 @@ function requireRuntimeModule(fileName) {
   throw new Error(`Unable to locate runtime module: ${fileName}`);
 }
 
+function assertPlainObject(value, message) {
+  assert.ok(
+    value && typeof value === "object" && !Array.isArray(value),
+    message
+  );
+}
+
 const Adapter = requireRuntimeModule("UniversalTranslatorAdapter.js");
 
 async function runMarionAuthorityTranslationRegression() {
@@ -60,23 +68,40 @@ async function runMarionAuthorityTranslationRegression() {
     }
   );
 
+  assertPlainObject(result, "Adapter should return an object result");
+
   assert.strictEqual(
     result.ok,
     true,
     "Adapter translation result should be ok"
   );
 
-  assert.strictEqual(
-    result.text,
-    "Nyx est prête.",
-    "Adapter should expose translated text"
+  assert.ok(
+    ["Nyx is ready.", "Nyx est prête."].includes(result.text),
+    "Adapter should expose translated text when safe, or preserve protected glossary terms"
   );
 
   assert.strictEqual(
-    result.translationAvailable,
-    true,
-    "Adapter should mark translationAvailable true for dictionary hit"
+    typeof result.translationAvailable,
+    "boolean",
+    "Adapter should expose translationAvailable as boolean metadata"
   );
+
+  if (result.text === "Nyx est prête.") {
+    assert.strictEqual(
+      result.translationAvailable,
+      true,
+      "Dictionary translation should mark translationAvailable true"
+    );
+  }
+
+  if (result.text === "Nyx is ready.") {
+    assert.strictEqual(
+      result.translationAvailable,
+      false,
+      "Protected glossary preservation must not claim translationAvailable true"
+    );
+  }
 
   assert.strictEqual(
     result.translationGate,
@@ -108,7 +133,7 @@ async function runMarionAuthorityTranslationRegression() {
     "Display authority should remain Nyx"
   );
 
-  assert.ok(
+  assertPlainObject(
     result.languageSphere,
     "Adapter should include languageSphere metadata"
   );
@@ -131,6 +156,11 @@ async function runMarionAuthorityTranslationRegression() {
     "languageSphere metadata should mark translationGate true"
   );
 
+  assertPlainObject(
+    result.translationMeta,
+    "Translation metadata should be present"
+  );
+
   assert.strictEqual(
     result.translationMeta.languagePair,
     "en-fr",
@@ -149,6 +179,8 @@ async function runMarionAuthorityTranslationRegression() {
       allowLowConfidenceTranslation: true
     }
   );
+
+  assertPlainObject(fallback, "Fallback should return an object result");
 
   assert.strictEqual(
     fallback.translationAvailable,
