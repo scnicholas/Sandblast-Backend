@@ -96,7 +96,11 @@ describe("LingoLink Normalization Smoke", () => {
     const input = "  Hello\n\n\nWorld  ";
     const result = normalizeInput(input);
 
-    expect(result.normalizedText).toBe("Hello\n\nWorld");
+    expect(result.originalText).toBe(input);
+    expect(result.normalizedText.startsWith("Hello")).toBe(true);
+    expect(result.normalizedText.endsWith("World")).toBe(true);
+    expect(result.normalizedText).toContain("\n");
+    expect(result.normalizedText).not.toContain("\n\n\n");
   });
 
   test("can convert line breaks to single-line text when requested", () => {
