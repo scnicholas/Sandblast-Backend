@@ -12,8 +12,8 @@
  * → detect language
  * → create translation advisory
  * → preserve glossary terms
- * → build unknown-language alert metadata
- * → carry dormant scanner heartbeat/readiness metadata
+ * → create unknown-language alert metadata
+ * → carry dormant scanner heartbeat/scan metadata
  * → return one Marion-safe advisory package
  *
  * Authority Rule:
@@ -21,80 +21,44 @@
  * LingoLink only provides advisory metadata.
  */
 
-const GATEWAY_VERSION = "0.3.0";
-const GATEWAY_SOURCE = "LingoLinkGateway";
+let nodeCrypto = null;
+try {
+  nodeCrypto = require("crypto");
+} catch (_) {
+  nodeCrypto = null;
+}
 
-const cryptoMod = (() => {
+const { normalizeInput } = require("./LingoLinkNormalizer");
+const { detectLanguage } = require("./LingoLinkLanguageDetect");
+const { adviseTranslation } = require("./LingoLinkTranslationAdvisor");
+const {
+  preserveGlossaryTerms,
+  inspectGlossaryIntegrity
+} = require("./LingoLinkGlossaryGuard");
+
+const unknownLanguageAlertMod = (() => {
   try {
-    return require("crypto");
+    return require("./LingoLinkUnknownLanguageAlert");
   } catch (_) {
     return null;
   }
 })();
 
-function safeRequire(pathName, fallback) {
+const dormantScannerMod = (() => {
   try {
-    const mod = require(pathName);
-    return mod || fallback;
+    return require("./LingoLinkDormantScanner");
   } catch (_) {
-    return fallback;
+    return null;
   }
-}
+})();
 
-const normalizerMod = safeRequire("./LingoLinkNormalizer", {});
-const languageDetectMod = safeRequire("./LingoLinkLanguageDetect", {});
-const translationAdvisorMod = safeRequire("./LingoLinkTranslationAdvisor", {});
-const glossaryGuardMod = safeRequire("./LingoLinkGlossaryGuard", {});
-const unknownLanguageAlertMod = safeRequire("./LingoLinkUnknownLanguageAlert", {});
-const dormantScannerMod = safeRequire("./LingoLinkDormantScanner", {});
-
-const normalizeInput =
-  typeof normalizerMod.normalizeInput === "function"
-    ? normalizerMod.normalizeInput
-    : fallbackNormalizeInput;
-
-const detectLanguage =
-  typeof languageDetectMod.detectLanguage === "function"
-    ? languageDetectMod.detectLanguage
-    : fallbackDetectLanguage;
-
-const adviseTranslation =
-  typeof translationAdvisorMod.adviseTranslation === "function"
-    ? translationAdvisorMod.adviseTranslation
-    : fallbackAdviseTranslation;
-
-const preserveGlossaryTerms =
-  typeof glossaryGuardMod.preserveGlossaryTerms === "function"
-    ? glossaryGuardMod.preserveGlossaryTerms
-    : fallbackPreserveGlossaryTerms;
-
-const inspectGlossaryIntegrity =
-  typeof glossaryGuardMod.inspectGlossaryIntegrity === "function"
-    ? glossaryGuardMod.inspectGlossaryIntegrity
-    : fallbackInspectGlossaryIntegrity;
-
-const buildUnknownLanguageAlert =
-  typeof unknownLanguageAlertMod.buildUnknownLanguageAlert === "function"
-    ? unknownLanguageAlertMod.buildUnknownLanguageAlert
-    : fallbackBuildUnknownLanguageAlert;
-
-const buildScannerHeartbeat =
-  typeof dormantScannerMod.buildScannerHeartbeat === "function"
-    ? dormantScannerMod.buildScannerHeartbeat
-    : fallbackBuildScannerHeartbeat;
-
-const scanDormantInput =
-  typeof dormantScannerMod.scanDormantInput === "function"
-    ? dormantScannerMod.scanDormantInput
-    : null;
-
-const DEFAULT_GATEWAY_CONFIG = Object.freeze({
+const DEFAULT_GATEWAY_CONFIG = {
   enabled: true,
   gateway: {
     name: "LingoLink",
-    phase: "gateway-orchestration-alert-carry",
+    phase: "gateway-orchestration-alert-scanner-carry",
     mode: "advisory",
-    version: GATEWAY_VERSION
+    version: "0.3.0"
   },
   supportedLanguages: ["en", "fr", "es"],
   defaultLanguage: "en",
@@ -119,31 +83,35 @@ const DEFAULT_GATEWAY_CONFIG = Object.freeze({
     enabled: true,
     advisoryOnly: true
   },
-  unknownLanguageAlert: {
+  alert: {
     enabled: true,
-    advisoryOnly: true,
-    notificationReadyOnly: true
+    alertOnUnknown: true,
+    alertOnUnsupported: true,
+    alertOnLowConfidence: true,
+    alertOnAmbiguous: true
   },
   dormantScanner: {
     enabled: true,
-    carryHeartbeat: true,
-    scanOnGatewayRun: false,
     mode: "event_driven",
-    dormant: true
+    dormant: true,
+    heartbeatIntervalMs: 60000,
+    staleAfterMs: 180000
   },
   telemetry: {
     enabled: true,
     includeLanguageCandidates: true,
     includeNormalizationOperations: true,
     includeGlossaryTerms: true,
-    includeUnknownLanguageAlert: true,
-    includeDormantScanner: true
+    includeAlert: true,
+    includeScanner: true,
+    includeCorrelation: true
   }
-});
+};
 
 function safeString(value) {
   if (typeof value === "string") return value;
   if (value === null || value === undefined) return "";
+
   try {
     return String(value);
   } catch (_) {
@@ -152,54 +120,41 @@ function safeString(value) {
 }
 
 function safeObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
 }
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function clamp01(value, fallback = 0) {
-  const n = Number(value);
-  if (Number.isFinite(n)) return Math.max(0, Math.min(1, n));
-  const f = Number(fallback);
-  return Number.isFinite(f) ? Math.max(0, Math.min(1, f)) : 0;
+function cleanForHash(value) {
+  return safeString(value).replace(/\s+/g, " ").trim();
 }
 
-function normalizeTextForHash(value) {
-  return safeString(value).toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-/**
- * Crypto hardening:
- * Use Node's crypto.createHash only when available. If a runtime has a crypto
- * import issue, fall back to a deterministic FNV-1a style hash. This avoids
- * relying on global crypto, randomUUID, or browser-only WebCrypto behavior.
- */
-function stableHash(value) {
-  const text = normalizeTextForHash(value);
-
-  if (cryptoMod && typeof cryptoMod.createHash === "function") {
-    try {
-      return cryptoMod.createHash("sha256").update(text).digest("hex").slice(0, 16);
-    } catch (_) {}
-  }
-
+function fallbackStableHash(value) {
+  const text = cleanForHash(value);
   let hash = 2166136261;
+
   for (let i = 0; i < text.length; i += 1) {
     hash ^= text.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
-  return (hash >>> 0).toString(16);
+
+  return `fnv_${(hash >>> 0).toString(16)}`;
 }
 
-function makeAuthority(authority = {}) {
-  return {
-    ...safeObject(authority),
-    finalAuthority: "Marion",
-    lingoLinkAdvisoryOnly: true,
-    neverOverrideMarion: true
-  };
+function stableHash(value, prefix = "ll") {
+  const text = cleanForHash(value);
+
+  try {
+    if (nodeCrypto && typeof nodeCrypto.createHash === "function") {
+      return `${prefix}_${nodeCrypto.createHash("sha256").update(text, "utf8").digest("hex").slice(0, 24)}`;
+    }
+  } catch (_) {}
+
+  return `${prefix}_${fallbackStableHash(text).replace(/^fnv_/, "")}`;
 }
 
 function mergeGatewayConfig(config) {
@@ -212,7 +167,13 @@ function mergeGatewayConfig(config) {
       ...DEFAULT_GATEWAY_CONFIG.gateway,
       ...safeObject(incoming.gateway)
     },
-    authority: makeAuthority(incoming.authority || DEFAULT_GATEWAY_CONFIG.authority),
+    authority: {
+      ...DEFAULT_GATEWAY_CONFIG.authority,
+      ...safeObject(incoming.authority),
+      finalAuthority: "Marion",
+      lingoLinkAdvisoryOnly: true,
+      neverOverrideMarion: true
+    },
     normalization: {
       ...DEFAULT_GATEWAY_CONFIG.normalization,
       ...safeObject(incoming.normalization)
@@ -228,10 +189,9 @@ function mergeGatewayConfig(config) {
       ...safeObject(incoming.glossary),
       advisoryOnly: true
     },
-    unknownLanguageAlert: {
-      ...DEFAULT_GATEWAY_CONFIG.unknownLanguageAlert,
-      ...safeObject(incoming.unknownLanguageAlert),
-      advisoryOnly: true
+    alert: {
+      ...DEFAULT_GATEWAY_CONFIG.alert,
+      ...safeObject(incoming.alert)
     },
     dormantScanner: {
       ...DEFAULT_GATEWAY_CONFIG.dormantScanner,
@@ -259,13 +219,18 @@ function extractInput(payload) {
   );
 }
 
-function renderSafeText(value) {
-  return safeString(value).replace(/\s+/g, " ").trim();
+function ensureAuthority(authority = {}) {
+  return {
+    ...safeObject(authority),
+    finalAuthority: "Marion",
+    lingoLinkAdvisoryOnly: true,
+    neverOverrideMarion: true
+  };
 }
 
-function ensureRenderSafeTranslationMeta(value, fallbackText = "") {
+function ensureRenderSafeTranslationMeta(value = {}, fallbackText = "") {
   const meta = safeObject(value);
-  const renderText = renderSafeText(
+  const text = safeString(
     meta.renderText ||
       meta.publicText ||
       meta.finalText ||
@@ -277,134 +242,43 @@ function ensureRenderSafeTranslationMeta(value, fallbackText = "") {
 
   return {
     ...meta,
-    advisoryText: safeString(meta.advisoryText || renderText),
-    translatedText: safeString(meta.translatedText || renderText),
-    text: renderText,
-    renderText,
-    publicText: renderText,
-    finalText: renderText,
-    advisoryOnly: true,
-    forceTranslation: false,
+    advisoryText: safeString(meta.advisoryText || text),
+    translatedText: safeString(meta.translatedText || text),
+    text,
+    renderText: safeString(meta.renderText || text),
+    publicText: safeString(meta.publicText || text),
+    finalText: safeString(meta.finalText || text),
     safeToRender: true,
     renderSafe: true,
-    authority: makeAuthority(meta.authority)
-  };
-}
-
-function fallbackNormalizeInput(input) {
-  const originalText = safeString(input);
-  const normalizedText = originalText.replace(/\s+/g, " ").trim();
-
-  return {
-    originalText,
-    normalizedText,
-    changed: originalText !== normalizedText,
-    operations: ["fallback_normalize"],
-    source: GATEWAY_SOURCE
-  };
-}
-
-function fallbackDetectLanguage(input, options = {}) {
-  const text = safeString(input).trim();
-  const config = safeObject(options.config);
-
-  return {
-    detectedLanguage: text ? safeString(config.unknownLanguage || "unknown") : "unknown",
-    confidence: 0,
-    supported: false,
-    requiresTranslation: false,
-    fallbackTriggered: true,
-    reason: text ? "language_detector_dependency_missing" : "empty_input",
-    source: GATEWAY_SOURCE
-  };
-}
-
-function fallbackAdviseTranslation(input, options = {}) {
-  const normalization = safeObject(options.normalization);
-  const languageMeta = safeObject(options.languageMeta);
-  const originalText = safeString(normalization.originalText || input);
-  const normalizedText = safeString(normalization.normalizedText || input);
-  const detectedLanguage = safeString(languageMeta.detectedLanguage || "unknown");
-
-  return ensureRenderSafeTranslationMeta(
-    {
-      originalText,
-      normalizedText,
-      advisoryText: normalizedText,
-      translatedText: normalizedText,
-      sourceLanguage: detectedLanguage,
-      targetLanguage: "en",
-      translated: false,
-      fallbackTriggered: true,
-      reason: "translation_advisor_dependency_missing",
-      method: "fallback",
-      source: GATEWAY_SOURCE
-    },
-    normalizedText
-  );
-}
-
-function fallbackPreserveGlossaryTerms(sourceText, candidateText) {
-  const originalText = safeString(sourceText);
-  const guardedText = safeString(candidateText);
-
-  return {
-    originalText,
-    candidateText: guardedText,
-    guardedText,
-    changed: false,
-    protectedTerms: [],
-    foundInOriginal: [],
-    foundInCandidate: [],
-    restoredTerms: [],
-    missingTerms: [],
     advisoryOnly: true,
-    reason: "glossary_guard_dependency_missing",
-    authority: makeAuthority({ glossaryAdvisoryOnly: true }),
-    source: GATEWAY_SOURCE
+    forceTranslation: false,
+    authority: ensureAuthority(meta.authority)
   };
 }
 
-function fallbackInspectGlossaryIntegrity(sourceText, candidateText) {
-  return {
-    originalText: safeString(sourceText),
-    candidateText: safeString(candidateText),
-    protectedTerms: [],
-    foundInOriginal: [],
-    foundInCandidate: [],
-    missingTerms: [],
-    intact: true,
-    advisoryOnly: true,
-    source: GATEWAY_SOURCE
-  };
-}
-
-function fallbackBuildUnknownLanguageAlert(payload = {}, options = {}) {
-  const sourcePayload = safeObject(payload);
-  const languageMeta = safeObject(options.languageMeta || sourcePayload.languageMeta);
-  const confidence = clamp01(languageMeta.confidence, 0);
+function buildFallbackUnknownLanguageAlert({ rawInput = "", languageMeta = {}, config = {}, reason = "alert_dependency_missing" } = {}) {
   const detectedLanguage = safeString(languageMeta.detectedLanguage || "unknown") || "unknown";
-  const shouldTrigger =
-    detectedLanguage === "unknown" ||
-    languageMeta.supported === false ||
-    languageMeta.fallbackTriggered === true ||
-    confidence < 0.65;
+  const confidence = Number(languageMeta.confidence);
+  const safeConfidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
+  const alertTriggered =
+    config.enabled !== false &&
+    (detectedLanguage === "unknown" || languageMeta.supported === false || languageMeta.fallbackTriggered === true);
 
   return {
-    version: "nyx.lingolink.unknownLanguageAlert/0.1",
-    alertId: `lingolink_unknown_${stableHash(`${detectedLanguage}:${confidence}:${sourcePayload.originalInput || sourcePayload.message || ""}`)}`,
+    version: "nyx.lingolink.unknownLanguageAlert/fallback",
+    alertId: stableHash(`${detectedLanguage}:${safeConfidence}:${rawInput}`, "alert"),
     alertType: "unknown_language_pattern",
-    alertTriggered: shouldTrigger,
-    enabled: true,
+    alertTriggered,
+    enabled: config.enabled !== false,
     detectedLanguage,
-    confidence,
+    confidence: safeConfidence,
     supported: languageMeta.supported === true,
     fallbackTriggered: languageMeta.fallbackTriggered === true,
-    reason: shouldTrigger ? "unknown_or_low_confidence_language" : "no_alert_needed",
-    severity: shouldTrigger && confidence <= 0.15 ? "critical" : shouldTrigger && confidence <= 0.35 ? "high" : shouldTrigger && confidence <= 0.55 ? "medium" : shouldTrigger ? "low" : "none",
-    sample: safeString(sourcePayload.originalInput || sourcePayload.message || "").slice(0, 240),
-    sampleHash: stableHash(sourcePayload.originalInput || sourcePayload.message || ""),
-    notificationReady: shouldTrigger,
+    reason: alertTriggered ? safeString(languageMeta.reason || reason) : "no_alert_needed",
+    severity: alertTriggered ? "medium" : "none",
+    sample: cleanForHash(rawInput).slice(0, 240),
+    sampleHash: stableHash(rawInput, "sample"),
+    notificationReady: alertTriggered,
     notificationChannel: "marion_dashboard",
     userFacing: false,
     publicText: "",
@@ -412,91 +286,214 @@ function fallbackBuildUnknownLanguageAlert(payload = {}, options = {}) {
     text: "",
     advisoryOnly: true,
     forceTranslation: false,
-    authority: makeAuthority(),
+    authority: ensureAuthority(),
     metadata: {
-      source: GATEWAY_SOURCE,
-      createdAt: Date.now(),
-      fallback: true
+      source: "LingoLinkGatewayFallbackAlert",
+      gateway: "LingoLink"
     },
-    source: GATEWAY_SOURCE
+    source: "LingoLinkGatewayFallbackAlert"
   };
 }
 
-function fallbackBuildScannerHeartbeat(options = {}) {
-  const config = mergeGatewayConfig(safeObject(options.config));
+function buildUnknownLanguageAlertCarry({ rawInput, normalizedText, languageMeta, config } = {}) {
+  if (unknownLanguageAlertMod && typeof unknownLanguageAlertMod.buildUnknownLanguageAlert === "function") {
+    try {
+      return unknownLanguageAlertMod.buildUnknownLanguageAlert(
+        {
+          message: normalizedText,
+          originalInput: rawInput,
+          languageMeta,
+          gateway: "LingoLinkGateway",
+          source: "LingoLinkGateway"
+        },
+        {
+          rawInput,
+          languageMeta,
+          config: safeObject(config.alert)
+        }
+      );
+    } catch (_) {}
+  }
+
+  return buildFallbackUnknownLanguageAlert({ rawInput, languageMeta, config: safeObject(config.alert) });
+}
+
+function buildFallbackScannerHeartbeat(config = {}) {
+  const scannerConfig = safeObject(config.dormantScanner);
+  const now = Date.now();
 
   return {
-    version: "nyx.lingolink.dormantScanner/0.1",
+    version: "nyx.lingolink.dormantScanner/fallbackHeartbeat",
     scanner: "LingoLinkDormantScanner",
-    enabled: config.dormantScanner.enabled !== false,
-    mode: safeString(config.dormantScanner.mode || "event_driven"),
-    dormant: config.dormantScanner.dormant !== false,
-    status: config.dormantScanner.enabled === false ? "disabled" : "ready",
-    heartbeatAt: Number(options.now) || Date.now(),
-    supportedLanguages: safeArray(config.supportedLanguages),
+    enabled: scannerConfig.enabled !== false,
+    mode: safeString(scannerConfig.mode || "event_driven"),
+    dormant: scannerConfig.dormant !== false,
+    status: scannerConfig.enabled === false ? "disabled" : "ready",
+    heartbeatAt: now,
+    heartbeatIntervalMs: Number(scannerConfig.heartbeatIntervalMs) || 60000,
+    staleAfterMs: Number(scannerConfig.staleAfterMs) || 180000,
+    supportedLanguages: safeArray(config.supportedLanguages).length ? safeArray(config.supportedLanguages) : ["en", "fr", "es"],
     defaultLanguage: safeString(config.defaultLanguage || "en"),
     unknownLanguage: safeString(config.unknownLanguage || "unknown"),
     notificationReady: false,
     advisoryOnly: true,
     forceTranslation: false,
-    authority: makeAuthority(config.authority),
-    source: GATEWAY_SOURCE
+    authority: ensureAuthority(),
+    source: "LingoLinkGatewayFallbackScanner"
+  };
+}
+
+function buildFallbackDormantScanner({ rawInput = "", normalization = {}, languageMeta = {}, alert = {}, heartbeat = {}, config = {} } = {}) {
+  return {
+    version: "nyx.lingolink.dormantScanner/fallbackScan",
+    scanId: stableHash(`scan:${rawInput}`, "scan"),
+    enabled: safeObject(config.dormantScanner).enabled !== false,
+    scanned: true,
+    inputHash: stableHash(rawInput, "input"),
+    lingoInput: normalization,
+    languageMeta,
+    unknownLanguageAlert: alert,
+    heartbeat,
+    notificationReady: alert.alertTriggered === true,
+    advisoryOnly: true,
+    forceTranslation: false,
+    authority: ensureAuthority(),
+    telemetry: {
+      scannerReady: safeString(heartbeat.status) === "ready",
+      dormant: heartbeat.dormant !== false,
+      detectedLanguage: languageMeta.detectedLanguage,
+      confidence: languageMeta.confidence,
+      alertTriggered: alert.alertTriggered === true,
+      severity: safeString(alert.severity || "none"),
+      source: "LingoLinkGatewayFallbackScanner"
+    },
+    source: "LingoLinkGatewayFallbackScanner"
+  };
+}
+
+function buildScannerCarry({ rawInput, normalization, languageMeta, alert, config } = {}) {
+  let scannerHeartbeat = null;
+  let dormantScanner = null;
+
+  if (dormantScannerMod && typeof dormantScannerMod.buildScannerHeartbeat === "function") {
+    try {
+      scannerHeartbeat = dormantScannerMod.buildScannerHeartbeat({
+        config: {
+          ...safeObject(config.dormantScanner),
+          supportedLanguages: config.supportedLanguages,
+          defaultLanguage: config.defaultLanguage,
+          unknownLanguage: config.unknownLanguage,
+          authority: config.authority
+        }
+      });
+    } catch (_) {}
+  }
+
+  if (!scannerHeartbeat) {
+    scannerHeartbeat = buildFallbackScannerHeartbeat(config);
+  }
+
+  if (dormantScannerMod && typeof dormantScannerMod.scanDormantInput === "function") {
+    try {
+      dormantScanner = dormantScannerMod.scanDormantInput(rawInput, {
+        config: {
+          ...safeObject(config.dormantScanner),
+          supportedLanguages: config.supportedLanguages,
+          defaultLanguage: config.defaultLanguage,
+          unknownLanguage: config.unknownLanguage,
+          authority: config.authority
+        }
+      });
+    } catch (_) {}
+  }
+
+  if (!dormantScanner) {
+    dormantScanner = buildFallbackDormantScanner({
+      rawInput,
+      normalization,
+      languageMeta,
+      alert,
+      heartbeat: scannerHeartbeat,
+      config
+    });
+  }
+
+  return {
+    scannerHeartbeat: {
+      ...scannerHeartbeat,
+      advisoryOnly: true,
+      forceTranslation: false,
+      authority: ensureAuthority(scannerHeartbeat.authority)
+    },
+    dormantScanner: {
+      ...dormantScanner,
+      advisoryOnly: true,
+      forceTranslation: false,
+      authority: ensureAuthority(dormantScanner.authority)
+    }
   };
 }
 
 function buildDisabledGateway(rawInput, config) {
   const originalText = safeString(rawInput);
-  const authority = makeAuthority(config.authority);
-  const translationMeta = ensureRenderSafeTranslationMeta(
-    {
-      originalText,
-      normalizedText: originalText,
-      advisoryText: originalText,
-      translatedText: originalText,
-      sourceLanguage: config.defaultLanguage || "en",
-      targetLanguage: config.defaultLanguage || "en",
-      translated: false,
-      fallbackTriggered: false,
-      reason: "lingolink_gateway_disabled",
-      method: "disabled",
-      source: GATEWAY_SOURCE,
-      authority
-    },
-    originalText
-  );
-  const unknownLanguageAlert = fallbackBuildUnknownLanguageAlert(
-    {
-      message: originalText,
-      originalInput: originalText,
-      languageMeta: {
-        detectedLanguage: config.defaultLanguage || "en",
-        confidence: 1,
-        supported: true,
-        fallbackTriggered: false
-      }
-    },
-    {
-      languageMeta: {
-        detectedLanguage: config.defaultLanguage || "en",
-        confidence: 1,
-        supported: true,
-        fallbackTriggered: false
-      }
-    }
-  );
-  unknownLanguageAlert.alertTriggered = false;
-  unknownLanguageAlert.notificationReady = false;
-  unknownLanguageAlert.reason = "lingolink_gateway_disabled";
-  unknownLanguageAlert.severity = "none";
+  const inputHash = stableHash(originalText, "input");
+  const gatewayHash = stableHash(`disabled:${originalText}`, "gw");
+  const correlationId = stableHash(`LingoLink:disabled:${originalText}`, "corr");
+  const authority = ensureAuthority(config.authority);
 
-  const scannerHeartbeat = buildScannerHeartbeat({
-    config: {
-      ...config,
-      dormantScanner: {
-        ...safeObject(config.dormantScanner),
-        enabled: config.dormantScanner && config.dormantScanner.enabled !== false
-      }
-    }
+  const languageMeta = {
+    detectedLanguage: config.defaultLanguage || "en",
+    confidence: 1,
+    supported: true,
+    requiresTranslation: false,
+    fallbackTriggered: false,
+    reason: "lingolink_gateway_disabled",
+    source: "LingoLinkGateway"
+  };
+
+  const lingoInput = {
+    originalText,
+    normalizedText: originalText,
+    changed: false,
+    operations: [],
+    source: "LingoLinkGateway"
+  };
+
+  const translationMeta = ensureRenderSafeTranslationMeta({
+    originalText,
+    normalizedText: originalText,
+    advisoryText: originalText,
+    translatedText: originalText,
+    sourceLanguage: config.defaultLanguage || "en",
+    targetLanguage: config.defaultLanguage || "en",
+    translated: false,
+    fallbackTriggered: false,
+    reason: "lingolink_gateway_disabled",
+    source: "LingoLinkGateway",
+    authority
+  }, originalText);
+
+  const glossaryMeta = {
+    originalText,
+    candidateText: originalText,
+    guardedText: originalText,
+    changed: false,
+    restoredTerms: [],
+    missingTerms: [],
+    advisoryOnly: true,
+    reason: "lingolink_gateway_disabled",
+    source: "LingoLinkGateway"
+  };
+
+  const unknownLanguageAlert = buildFallbackUnknownLanguageAlert({ rawInput: originalText, languageMeta, config: { enabled: false } });
+  const scannerHeartbeat = buildFallbackScannerHeartbeat({ ...config, dormantScanner: { ...safeObject(config.dormantScanner), enabled: false } });
+  const dormantScanner = buildFallbackDormantScanner({
+    rawInput: originalText,
+    normalization: lingoInput,
+    languageMeta,
+    alert: unknownLanguageAlert,
+    heartbeat: scannerHeartbeat,
+    config: { ...config, dormantScanner: { ...safeObject(config.dormantScanner), enabled: false } }
   });
 
   return {
@@ -504,68 +501,54 @@ function buildDisabledGateway(rawInput, config) {
     input: originalText,
     message: originalText,
     originalInput: originalText,
-    languageMeta: {
-      detectedLanguage: config.defaultLanguage || "en",
-      confidence: 1,
-      supported: true,
-      requiresTranslation: false,
-      fallbackTriggered: false,
-      reason: "lingolink_gateway_disabled",
-      source: GATEWAY_SOURCE
-    },
-    lingoInput: {
-      originalText,
-      normalizedText: originalText,
-      changed: false,
-      operations: [],
-      source: GATEWAY_SOURCE
-    },
+    inputHash,
+    gatewayHash,
+    correlationId,
+    traceId: correlationId,
+    languageMeta,
+    lingoInput,
     translationMeta,
-    glossaryMeta: {
-      originalText,
-      candidateText: originalText,
-      guardedText: originalText,
-      changed: false,
-      restoredTerms: [],
-      missingTerms: [],
-      advisoryOnly: true,
-      reason: "lingolink_gateway_disabled",
-      source: GATEWAY_SOURCE
-    },
+    glossaryMeta,
     glossaryIntegrity: {
       originalText,
       candidateText: originalText,
-      intact: true,
       missingTerms: [],
-      source: GATEWAY_SOURCE
+      intact: true,
+      advisoryOnly: true,
+      source: "LingoLinkGateway"
     },
     unknownLanguageAlert,
-    dormantScanner: {
-      heartbeat: scannerHeartbeat,
-      scan: null,
-      notificationReady: false,
-      source: GATEWAY_SOURCE
-    },
     scannerHeartbeat,
+    dormantScanner,
     gatewayMeta: {
       gateway: "LingoLink",
-      phase: "gateway-orchestration-alert-carry",
+      phase: "gateway-orchestration-alert-scanner-carry",
+      version: "0.3.0",
       enabled: false,
       advisoryOnly: true,
       fallbackTriggered: false,
       alertTriggered: false,
-      scannerReady: scannerHeartbeat.status === "ready",
+      notificationReady: false,
+      inputHash,
+      gatewayHash,
+      correlationId,
+      traceId: correlationId,
+      stableHash: gatewayHash,
       reason: "lingolink_gateway_disabled",
-      source: GATEWAY_SOURCE
+      source: "LingoLinkGateway"
     },
     telemetry: {
       enabled: false,
-      source: GATEWAY_SOURCE
+      inputHash,
+      gatewayHash,
+      correlationId,
+      traceId: correlationId,
+      source: "LingoLinkGateway"
     },
     authority,
     marionAuthority: true,
     finalAuthority: "Marion",
-    source: GATEWAY_SOURCE
+    source: "LingoLinkGateway"
   };
 }
 
@@ -577,64 +560,49 @@ function createGatewayTelemetry({
   glossaryMeta,
   unknownLanguageAlert,
   scannerHeartbeat,
-  dormantScan
+  dormantScanner,
+  correlation
 }) {
   if (!config.telemetry || config.telemetry.enabled === false) {
     return {
       enabled: false,
-      source: GATEWAY_SOURCE
+      source: "LingoLinkGateway"
     };
   }
 
-  const candidates = safeObject(languageMeta.candidates);
-
   return {
     enabled: true,
-    detectedLanguage: safeString(languageMeta.detectedLanguage || "unknown"),
-    languageConfidence: clamp01(languageMeta.confidence, 0),
-    languageSupported: languageMeta.supported === true,
-    requiresTranslation: languageMeta.requiresTranslation === true,
-    languageCandidates: config.telemetry.includeLanguageCandidates !== false ? candidates : {},
-    normalizationChanged: lingoInput.changed === true,
-    normalizationOperations:
-      config.telemetry.includeNormalizationOperations !== false && Array.isArray(lingoInput.operations)
-        ? lingoInput.operations
-        : [],
-    translated: translationMeta.translated === true,
-    translationMethod: safeString(translationMeta.method || ""),
-    translationRenderSafe: translationMeta.renderSafe === true && translationMeta.safeToRender === true,
-    glossaryChanged: glossaryMeta.changed === true,
-    restoredTerms:
-      config.telemetry.includeGlossaryTerms !== false && Array.isArray(glossaryMeta.restoredTerms)
-        ? glossaryMeta.restoredTerms
-        : [],
-    missingTerms:
-      config.telemetry.includeGlossaryTerms !== false && Array.isArray(glossaryMeta.missingTerms)
-        ? glossaryMeta.missingTerms
-        : [],
-    unknownLanguageAlert:
-      config.telemetry.includeUnknownLanguageAlert !== false
-        ? {
-            alertTriggered: unknownLanguageAlert.alertTriggered === true,
-            notificationReady: unknownLanguageAlert.notificationReady === true,
-            severity: safeString(unknownLanguageAlert.severity || "none"),
-            reason: safeString(unknownLanguageAlert.reason || "")
-          }
-        : {},
-    dormantScanner:
-      config.telemetry.includeDormantScanner !== false
-        ? {
-            enabled: scannerHeartbeat.enabled === true,
-            status: safeString(scannerHeartbeat.status || "unknown"),
-            mode: safeString(scannerHeartbeat.mode || "event_driven"),
-            heartbeatAt: scannerHeartbeat.heartbeatAt || 0,
-            scanned: !!(dormantScan && dormantScan.scanned),
-            notificationReady: !!(dormantScan && dormantScan.notificationReady)
-          }
-        : {},
+    detectedLanguage: languageMeta.detectedLanguage,
+    languageConfidence: languageMeta.confidence,
+    languageSupported: languageMeta.supported,
+    requiresTranslation: languageMeta.requiresTranslation,
+    normalizationChanged: lingoInput.changed,
+    normalizationOperations: Array.isArray(lingoInput.operations)
+      ? lingoInput.operations
+      : [],
+    translated: translationMeta.translated,
+    translationMethod: translationMeta.method,
+    glossaryChanged: glossaryMeta.changed,
+    restoredTerms: Array.isArray(glossaryMeta.restoredTerms)
+      ? glossaryMeta.restoredTerms
+      : [],
+    missingTerms: Array.isArray(glossaryMeta.missingTerms)
+      ? glossaryMeta.missingTerms
+      : [],
+    alertTriggered: unknownLanguageAlert.alertTriggered === true,
+    notificationReady:
+      unknownLanguageAlert.notificationReady === true ||
+      dormantScanner.notificationReady === true,
+    alertSeverity: safeString(unknownLanguageAlert.severity || "none"),
+    scannerStatus: safeString(scannerHeartbeat.status || "unknown"),
+    scannerDormant: scannerHeartbeat.dormant !== false,
+    scannerReady: safeString(scannerHeartbeat.status || "ready") === "ready",
+    inputHash: correlation.inputHash,
+    gatewayHash: correlation.gatewayHash,
+    correlationId: correlation.correlationId,
+    traceId: correlation.traceId,
     advisoryOnly: true,
-    correlationHash: stableHash(`${safeString(lingoInput.originalText)}:${safeString(languageMeta.detectedLanguage)}:${safeString(translationMeta.reason)}`),
-    source: GATEWAY_SOURCE
+    source: "LingoLinkGateway"
   };
 }
 
@@ -645,8 +613,6 @@ function runLingoLinkGateway(payload, options = {}) {
   if (!config.enabled) {
     return buildDisabledGateway(rawInput, config);
   }
-
-  const authority = makeAuthority(config.authority);
 
   const normalization = normalizeInput(rawInput, {
     preserveLineBreaks: config.normalization.preserveLineBreaks !== false
@@ -663,25 +629,24 @@ function runLingoLinkGateway(payload, options = {}) {
     }
   });
 
-  const translationMeta = ensureRenderSafeTranslationMeta(
-    adviseTranslation(normalizedText, {
-      normalization,
-      languageMeta,
-      config: {
-        enabled: config.translation.enabled !== false,
-        defaultLanguage: config.defaultLanguage,
-        supportedLanguages: config.supportedLanguages,
-        advisoryOnly: true,
-        forceTranslation: false,
-        authority
-      }
-    }),
-    normalizedText
-  );
+  const rawTranslationMeta = adviseTranslation(normalizedText, {
+    normalization,
+    languageMeta,
+    config: {
+      enabled: config.translation.enabled !== false,
+      defaultLanguage: config.defaultLanguage,
+      supportedLanguages: config.supportedLanguages,
+      advisoryOnly: true,
+      forceTranslation: false,
+      authority: config.authority
+    }
+  });
+
+  const translationMeta = ensureRenderSafeTranslationMeta(rawTranslationMeta, normalizedText);
 
   const glossaryMeta = preserveGlossaryTerms(
     normalization.originalText,
-    translationMeta.advisoryText || translationMeta.translatedText || translationMeta.renderText || normalizedText,
+    translationMeta.advisoryText || translationMeta.translatedText || normalizedText,
     {
       config: {
         enabled: config.glossary.enabled !== false,
@@ -704,85 +669,74 @@ function runLingoLinkGateway(payload, options = {}) {
     }
   );
 
-  const unknownLanguageAlert = buildUnknownLanguageAlert(
-    {
-      message: normalizedText,
-      input: normalizedText,
-      originalInput: normalization.originalText,
-      languageMeta,
-      gateway: "LingoLink",
-      source: GATEWAY_SOURCE
-    },
-    {
-      rawInput: normalization.originalText,
-      languageMeta,
-      config: {
-        ...safeObject(config.unknownLanguageAlert),
-        enabled: config.unknownLanguageAlert.enabled !== false,
-        authority
-      }
-    }
-  );
-
-  const scannerHeartbeat = buildScannerHeartbeat({
-    config: {
-      enabled: config.dormantScanner.enabled !== false,
-      mode: config.dormantScanner.mode || "event_driven",
-      dormant: config.dormantScanner.dormant !== false,
-      supportedLanguages: config.supportedLanguages,
-      defaultLanguage: config.defaultLanguage,
-      unknownLanguage: config.unknownLanguage,
-      authority
-    }
+  const unknownLanguageAlert = buildUnknownLanguageAlertCarry({
+    rawInput: normalization.originalText,
+    normalizedText,
+    languageMeta,
+    config
   });
 
-  const dormantScan =
-    config.dormantScanner.scanOnGatewayRun === true && typeof scanDormantInput === "function"
-      ? scanDormantInput(rawInput, {
-          config: {
-            enabled: config.dormantScanner.enabled !== false,
-            mode: config.dormantScanner.mode || "event_driven",
-            dormant: config.dormantScanner.dormant !== false,
-            supportedLanguages: config.supportedLanguages,
-            defaultLanguage: config.defaultLanguage,
-            unknownLanguage: config.unknownLanguage,
-            authority
-          }
-        })
-      : null;
+  const scannerCarry = buildScannerCarry({
+    rawInput: normalization.originalText,
+    normalization,
+    languageMeta,
+    alert: unknownLanguageAlert,
+    config
+  });
 
-  const dormantScanner = {
-    heartbeat: scannerHeartbeat,
-    scan: dormantScan,
-    notificationReady: unknownLanguageAlert.notificationReady === true || !!(dormantScan && dormantScan.notificationReady),
-    advisoryOnly: true,
-    forceTranslation: false,
-    authority,
-    source: GATEWAY_SOURCE
-  };
+  const scannerHeartbeat = scannerCarry.scannerHeartbeat;
+  const dormantScanner = scannerCarry.dormantScanner;
+
+  const inputHash = stableHash(normalization.originalText, "input");
+  const gatewayHash = stableHash(
+    JSON.stringify({
+      input: normalization.originalText,
+      normalizedText,
+      language: languageMeta.detectedLanguage,
+      translated: translationMeta.translated,
+      alert: unknownLanguageAlert.alertTriggered === true
+    }),
+    "gw"
+  );
+  const correlationId = stableHash(`${inputHash}:${gatewayHash}:${languageMeta.detectedLanguage}`, "corr");
+  const traceId = correlationId;
+
+  const notificationReady =
+    unknownLanguageAlert.notificationReady === true ||
+    dormantScanner.notificationReady === true;
+
+  const alertTriggered =
+    unknownLanguageAlert.alertTriggered === true ||
+    safeObject(dormantScanner.unknownLanguageAlert).alertTriggered === true;
 
   const gatewayMeta = {
     gateway: config.gateway.name || "LingoLink",
-    phase: config.gateway.phase || "gateway-orchestration-alert-carry",
+    phase: config.gateway.phase || "gateway-orchestration-alert-scanner-carry",
     mode: config.gateway.mode || "advisory",
-    version: config.gateway.version || GATEWAY_VERSION,
+    version: config.gateway.version || "0.3.0",
     enabled: true,
     advisoryOnly: true,
     fallbackTriggered:
       Boolean(languageMeta.fallbackTriggered) ||
       Boolean(translationMeta.fallbackTriggered),
-    alertTriggered: unknownLanguageAlert.alertTriggered === true,
-    notificationReady: unknownLanguageAlert.notificationReady === true,
-    scannerReady: scannerHeartbeat.status === "ready",
-    languageDetected: safeString(languageMeta.detectedLanguage || "unknown"),
-    sourceLanguage: safeString(translationMeta.sourceLanguage || languageMeta.detectedLanguage || "unknown"),
-    targetLanguage: safeString(translationMeta.targetLanguage || config.defaultLanguage || "en"),
-    glossaryIntact: glossaryIntegrity.intact !== false,
-    correlationHash: stableHash(`${normalization.originalText}:${safeString(languageMeta.detectedLanguage)}:${safeString(translationMeta.reason)}`),
-    cryptoMode: cryptoMod && typeof cryptoMod.createHash === "function" ? "node_crypto_sha256" : "fnv_fallback",
+    alertTriggered,
+    notificationReady,
+    languageDetected: languageMeta.detectedLanguage,
+    sourceLanguage: translationMeta.sourceLanguage,
+    targetLanguage: translationMeta.targetLanguage,
+    glossaryIntact: glossaryIntegrity.intact,
+    scannerStatus: safeString(scannerHeartbeat.status || "ready"),
+    scannerDormant: scannerHeartbeat.dormant !== false,
+    inputHash,
+    gatewayHash,
+    stableHash: gatewayHash,
+    correlationId,
+    traceId,
     reason: "lingolink_gateway_completed",
-    source: GATEWAY_SOURCE
+    source: "LingoLinkGateway"
   };
+
+  const authority = ensureAuthority(config.authority);
 
   const telemetry = createGatewayTelemetry({
     config,
@@ -792,28 +746,42 @@ function runLingoLinkGateway(payload, options = {}) {
     glossaryMeta,
     unknownLanguageAlert,
     scannerHeartbeat,
-    dormantScan
+    dormantScanner,
+    correlation: {
+      inputHash,
+      gatewayHash,
+      correlationId,
+      traceId
+    }
   });
 
   return {
     enabled: true,
+
     input: normalizedText,
     message: normalizedText,
     originalInput: normalization.originalText,
+
+    inputHash,
+    gatewayHash,
+    correlationId,
+    traceId,
+
     languageMeta,
     lingoInput: normalization,
     translationMeta,
     glossaryMeta,
     glossaryIntegrity,
     unknownLanguageAlert,
-    dormantScanner,
     scannerHeartbeat,
+    dormantScanner,
     gatewayMeta,
     telemetry,
     authority,
+
     marionAuthority: true,
     finalAuthority: "Marion",
-    source: GATEWAY_SOURCE
+    source: "LingoLinkGateway"
   };
 }
 
@@ -824,20 +792,28 @@ function buildMarionBridgePayload(payload, options = {}) {
     message: gatewayPackage.message,
     input: gatewayPackage.input,
     originalInput: gatewayPackage.originalInput,
+
+    inputHash: gatewayPackage.inputHash,
+    gatewayHash: gatewayPackage.gatewayHash,
+    correlationId: gatewayPackage.correlationId,
+    traceId: gatewayPackage.traceId,
+
     languageMeta: gatewayPackage.languageMeta,
     lingoInput: gatewayPackage.lingoInput,
     translationMeta: gatewayPackage.translationMeta,
     glossaryMeta: gatewayPackage.glossaryMeta,
     glossaryIntegrity: gatewayPackage.glossaryIntegrity,
     unknownLanguageAlert: gatewayPackage.unknownLanguageAlert,
-    dormantScanner: gatewayPackage.dormantScanner,
     scannerHeartbeat: gatewayPackage.scannerHeartbeat,
+    dormantScanner: gatewayPackage.dormantScanner,
     gatewayMeta: gatewayPackage.gatewayMeta,
     telemetry: gatewayPackage.telemetry,
+
     authority: gatewayPackage.authority,
     marionAuthority: true,
     finalAuthority: "Marion",
-    source: GATEWAY_SOURCE
+
+    source: "LingoLinkGateway"
   };
 }
 
@@ -848,6 +824,5 @@ module.exports = {
   mergeGatewayConfig,
   stableHash,
   ensureRenderSafeTranslationMeta,
-  DEFAULT_GATEWAY_CONFIG,
-  GATEWAY_VERSION
+  DEFAULT_GATEWAY_CONFIG
 };
