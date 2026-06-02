@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.2 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY";
+const VERSION = "marionBridge v7.9.3 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -18,6 +18,7 @@ const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRef
 const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
 const LANGUAGE_SPHERE_BRIDGE_VERSION = "nyx.marion.languageSphereBridge/1.0";
+const ASTER_BRIDGE_VERSION = "nyx.marion.asterBridge/0.1";
 const MARION_BRIDGE_DEPLOY_HARDENING_VERSION = "nyx.marion.bridgeDeployHardening/1.0";
 const BENCHMARK_OBSERVATION_HOOK_VERSION = "nyx.marion.benchmarkObservationHook/1.0";
 
@@ -104,6 +105,16 @@ const marionRuntimeObservationLoaded=tryRequireMany([
   "./benchmarking/marionRuntimeObservationHook"
 ]);
 
+const asterEnvironmentAdapterLoaded=tryRequireMany([
+  path.join(__dirname,"aster","AsterEnvironmentAdapter.js"),
+  path.join(process.cwd(),"Data","marion","runtime","aster","AsterEnvironmentAdapter.js"),
+  "./Data/marion/runtime/aster/AsterEnvironmentAdapter.js",
+  "./Data/marion/runtime/aster/AsterEnvironmentAdapter",
+  path.join(__dirname,"AsterEnvironmentAdapter.js"),
+  "./AsterEnvironmentAdapter.js",
+  "./AsterEnvironmentAdapter"
+]);
+
 const finalEnvelopeMod=finalEnvelopeLoaded.mod;
 const intentRouterMod=intentRouterLoaded.mod;
 const composerMod=composerLoaded.mod;
@@ -116,6 +127,8 @@ const multilingualFinalEnvelopeMod=multilingualFinalEnvelopeLoaded.mod;
 const contextPassportEventsMod=contextPassportEventsLoaded.mod;
 const languageSphereTelemetryMod=languageSphereTelemetryLoaded.mod;
 const marionRuntimeObservationMod=marionRuntimeObservationLoaded.mod;
+const asterEnvironmentAdapterMod=asterEnvironmentAdapterLoaded.mod;
+const runAsterEnvironmentAdapter=asterEnvironmentAdapterMod&&typeof asterEnvironmentAdapterMod.runAsterEnvironmentAdapter==="function"?asterEnvironmentAdapterMod.runAsterEnvironmentAdapter:(asterEnvironmentAdapterMod&&typeof asterEnvironmentAdapterMod.run==="function"?asterEnvironmentAdapterMod.run:(asterEnvironmentAdapterMod&&typeof asterEnvironmentAdapterMod.default==="function"?asterEnvironmentAdapterMod.default:null));
 const routeMarionIntent=intentRouterMod&&typeof intentRouterMod.routeMarionIntent==="function"?intentRouterMod.routeMarionIntent:null;
 const runDomainConcierge=domainConciergeMod&&typeof domainConciergeMod.runDomainConcierge==="function"?domainConciergeMod.runDomainConcierge:null;
 const composeMarionResponse=composerMod&&typeof composerMod.composeMarionResponse==="function"?composerMod.composeMarionResponse:(composerMod&&typeof composerMod.run==="function"?composerMod.run:(composerMod&&typeof composerMod.default==="function"?composerMod.default:null));
@@ -133,7 +146,8 @@ const DEPENDENCY_STATUS = Object.freeze({
   multilingualFinalEnvelope: dependencyStatus("MultilingualFinalEnvelope", multilingualFinalEnvelopeLoaded),
   contextPassportEvents: dependencyStatus("ContextPassportEvents", contextPassportEventsLoaded),
   languageSphereTelemetry: dependencyStatus("LanguageSphereTelemetry", languageSphereTelemetryLoaded),
-  marionRuntimeObservationHook: dependencyStatus("marionRuntimeObservationHook", marionRuntimeObservationLoaded)
+  marionRuntimeObservationHook: dependencyStatus("marionRuntimeObservationHook", marionRuntimeObservationLoaded),
+  asterEnvironmentAdapter: dependencyStatus("AsterEnvironmentAdapter", asterEnvironmentAdapterLoaded)
 });
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
@@ -260,6 +274,144 @@ function buildAsterPublicAnswerFromPacket(packet={},ctx={}){
 }
 function buildProjectGatewayPublicAnswerFromPacket(packet={},ctx={}){
   return buildAsterPublicAnswerFromPacket(packet,ctx)||buildLingoLinkPublicAnswerFromPacket(packet,ctx)||"";
+}
+
+function bridgeAsterCandidateSource(input={},normalized={}){
+  const i=safeObj(input), n=safeObj(normalized), original=safeObj(n.original), body=safeObj(original.body);
+  return firstObj(
+    i.aster,
+    i.asterObservation,
+    i.environmentObservation,
+    i.environment,
+    i.sensorObservation,
+    n.aster,
+    n.asterObservation,
+    n.environmentObservation,
+    original.aster,
+    original.asterObservation,
+    body.aster,
+    body.asterObservation
+  );
+}
+function bridgeAsterTextCandidate(input={},normalized={}){
+  const i=safeObj(input), n=safeObj(normalized), original=safeObj(n.original), body=safeObj(original.body);
+  return [i.text,i.userText,i.userQuery,i.query,i.message,n.userQuery,n.rawUserQuery,n.text,n.query,original.text,original.userText,original.message,body.text,body.userText,body.message].map(safeStr).join(" ");
+}
+function bridgeAsterShouldObserve(input={},normalized={}){
+  const candidate=bridgeAsterCandidateSource(input,normalized);
+  if(Object.keys(candidate).length)return true;
+  const text=bridgeAsterTextCandidate(input,normalized);
+  if(!text)return false;
+  return /\baster\b/i.test(text)&&/\b(sensor|environment|weather|climate|air\s*quality|aqi|humidity|temperature|wind|observation|risk|regional|pathway|gateway)\b/i.test(text);
+}
+function bridgeAsterBuildInput(input={},normalized={}){
+  const i=safeObj(input), n=safeObj(normalized), candidate=bridgeAsterCandidateSource(i,n), original=safeObj(n.original), body=safeObj(original.body);
+  const readings=firstObj(candidate.readings,candidate.normalized,candidate.raw,i.readings,i.normalized,n.readings,n.normalized,body.readings,body.normalized);
+  const metadata=firstObj(candidate.metadata,i.metadata,n.metadata,body.metadata);
+  return {
+    source:firstText(candidate.source,i.source,n.inputSource,"marionBridge.asterPassiveObservation"),
+    sensorType:firstText(candidate.sensorType,i.sensorType,n.sensorType,metadata.sensorType,"unknown"),
+    readings,
+    normalized:firstObj(candidate.normalized,i.normalized,n.normalized),
+    timestamp:firstText(candidate.timestamp,i.timestamp,n.timestamp),
+    location:firstText(candidate.location,i.location,n.location),
+    metadata:{...metadata,bridgeVersion:VERSION,asterBridgeVersion:ASTER_BRIDGE_VERSION,passive:true,linkedGateway:"LingoLink",project:"Sandblast"},
+    context:firstObj(candidate.context,i.context,n.context)
+  };
+}
+function compactAsterObservationForBridge(value={}){
+  const src=safeObj(value);
+  if(!Object.keys(src).length)return {};
+  const observation=firstObj(src.observation,src.envelope,safeObj(src.payload).observation);
+  const risk=firstObj(src.risk,safeObj(observation).risk);
+  const classification=firstObj(src.classification,safeObj(observation).classification);
+  return {
+    version:ASTER_BRIDGE_VERSION,
+    gateway:"Aster",
+    stage:"passive_observation",
+    active:src.active===true||!!Object.keys(observation).length,
+    available:src.available!==false,
+    ok:src.ok!==false,
+    observational:true,
+    finalAnswerAuthorized:false,
+    marionAuthorityRequired:true,
+    publicAgent:"nyx",
+    displayAuthority:"nyx",
+    noUserFacingDiagnostics:true,
+    context:firstText(src.context,safeObj(classification).context,safeObj(observation).context,"environment.unknown"),
+    riskLevel:firstText(src.riskLevel,safeObj(risk).level,"unknown"),
+    sensorType:firstText(src.sensorType,safeObj(observation).sensorType,"unknown"),
+    warnings:safeArray(src.warnings||safeObj(observation).warnings).slice(0,12),
+    observation:Object.keys(observation).length?observation:undefined,
+    risk:Object.keys(risk).length?risk:undefined,
+    classification:Object.keys(classification).length?classification:undefined,
+    pipeline:safeObj(src.pipeline),
+    updatedAt:Date.now()
+  };
+}
+function runAsterPassiveObservationSafe(normalized={},input={}){
+  const startedAt=Date.now();
+  const shouldObserve=bridgeAsterShouldObserve(input,normalized);
+  if(!shouldObserve){
+    return {
+      version:ASTER_BRIDGE_VERSION,
+      gateway:"Aster",
+      stage:"passive_observation",
+      active:false,
+      available:!!runAsterEnvironmentAdapter,
+      observational:true,
+      finalAnswerAuthorized:false,
+      marionAuthorityRequired:true,
+      publicAgent:"nyx",
+      displayAuthority:"nyx",
+      noUserFacingDiagnostics:true,
+      skipped:true,
+      reason:"no-aster-observation-signal",
+      durationMs:Date.now()-startedAt
+    };
+  }
+  if(typeof runAsterEnvironmentAdapter!=="function"){
+    return {
+      version:ASTER_BRIDGE_VERSION,
+      gateway:"Aster",
+      stage:"passive_observation",
+      active:false,
+      available:false,
+      observational:true,
+      finalAnswerAuthorized:false,
+      marionAuthorityRequired:true,
+      publicAgent:"nyx",
+      displayAuthority:"nyx",
+      noUserFacingDiagnostics:true,
+      skipped:true,
+      reason:"aster-environment-adapter-unavailable",
+      durationMs:Date.now()-startedAt
+    };
+  }
+  try{
+    const asterInput=bridgeAsterBuildInput(input,normalized);
+    const result=safeObj(runAsterEnvironmentAdapter(asterInput,{source:"marionBridge",mode:"passive",marionAuthorityRequired:true}));
+    const compact=compactAsterObservationForBridge({...result,active:true,available:true});
+    return {...compact,input:asterInput,durationMs:Date.now()-startedAt};
+  }catch(err){
+    return {
+      version:ASTER_BRIDGE_VERSION,
+      gateway:"Aster",
+      stage:"passive_observation",
+      active:false,
+      available:true,
+      ok:false,
+      observational:true,
+      finalAnswerAuthorized:false,
+      marionAuthorityRequired:true,
+      publicAgent:"nyx",
+      displayAuthority:"nyx",
+      noUserFacingDiagnostics:true,
+      warnings:["aster-passive-observation-failed"],
+      error:safeStr(err&&(err.message||err)||"aster-passive-observation-failed"),
+      durationMs:Date.now()-startedAt
+    };
+  }
 }
 
 function applyLingoLinkReplyOverride(packet={},ctx={}){
@@ -520,7 +672,7 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
     handoffStatus:firstText(safeObj(multilingual.languageSphere).handoffStatus,payload.handoffStatus),
     visibleToUser:true,
     projectGateway:"lingolink",
-    environmentalPathway:{name:"Aster",stage:"staged",authority:"marion",active:false,noUserFacingDiagnostics:true},
+    environmentalPathway:Object.keys(safeObj(normalized.asterPassiveObservation||normalized.aster)).length?{...safeObj(normalized.asterPassiveObservation||normalized.aster),telemetry:undefined,noUserFacingDiagnostics:true}:{name:"Aster",stage:"staged",authority:"marion",active:false,noUserFacingDiagnostics:true},
     contextPassport:safeObj(passport.contextPassport),
     events:safeArray(passport.events),
     telemetry:safeObj(telemetry)
@@ -533,7 +685,8 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
   delete publicLanguageSphere.events;
   const languageSphereEvents=languageSphere.events;
   const multilingualFinalEnvelope=safeObj(multilingual.finalEnvelope);
-  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere:publicLanguageSphere,contextPassport,languageSphereEvents};
+  const asterSurface=safeObj(normalized.asterPassiveObservation||normalized.aster);
+  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere:publicLanguageSphere,contextPassport,languageSphereEvents,aster:Object.keys(asterSurface).length?asterSurface:undefined,environmentalPathway:Object.keys(asterSurface).length?asterSurface:undefined};
   return {
     ...out,
     languageSphere:publicLanguageSphere,
@@ -544,9 +697,9 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
     telemetry:undefined,
     multilingualFinalEnvelope:undefined,
     finalEnvelope,
-    payload:{...safeObj(out.payload),languageSphere:publicLanguageSphere,contextPassport,languageSphereEvents,events:languageSphereEvents},
-    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,contextPassport,languageSpherePublic:publicLanguageSphere,noUserFacingDiagnostics:true},
-    diagnostics:{...safeObj(out.diagnostics),languageSphereBridge:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,universalTranslator:!!universalTranslatorMod,multilingualFinalEnvelope:!!multilingualFinalEnvelopeMod,contextPassportEvents:!!contextPassportEventsMod,telemetry:!!languageSphereTelemetryMod,telemetryAttached:false,noUserFacingDiagnostics:true}}
+    payload:{...safeObj(out.payload),languageSphere:publicLanguageSphere,contextPassport,languageSphereEvents,events:languageSphereEvents,aster:Object.keys(asterSurface).length?asterSurface:undefined,environmentalPathway:Object.keys(asterSurface).length?asterSurface:undefined},
+    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,asterBridgeVersion:ASTER_BRIDGE_VERSION,contextPassport,languageSpherePublic:publicLanguageSphere,aster:Object.keys(asterSurface).length?asterSurface:undefined,noUserFacingDiagnostics:true},
+    diagnostics:{...safeObj(out.diagnostics),asterBridge:{version:ASTER_BRIDGE_VERSION,adapter:!!runAsterEnvironmentAdapter,passive:true,active:!!safeObj(asterSurface).active,noUserFacingDiagnostics:true},languageSphereBridge:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,universalTranslator:!!universalTranslatorMod,multilingualFinalEnvelope:!!multilingualFinalEnvelopeMod,contextPassportEvents:!!contextPassportEventsMod,telemetry:!!languageSphereTelemetryMod,telemetryAttached:false,noUserFacingDiagnostics:true}}
   };
 }
 
@@ -611,7 +764,11 @@ function runDomainConciergeSafe(normalized={},routed={},resolvedEmotionPacket={}
       routing:safeObj(routeResult.routing),
       questionShape:safeObj(routeResult.questionShape),
       resolvedEmotion:safeObj(resolvedEmotionPacket.state),
-      emotionRuntime:safeObj(resolvedEmotionPacket)
+      emotionRuntime:safeObj(resolvedEmotionPacket),
+      aster:safeObj(normalized.aster),
+      asterObservation:safeObj(normalized.asterObservation),
+      asterPassiveObservation:safeObj(normalized.asterPassiveObservation),
+      environmentalPathway:safeObj(normalized.environmentalPathway)
     }));
   }catch(err){return {ok:false,error:"domain_concierge_exception",message:safeStr(err&&(err.message||err)||"")};}
 }
@@ -662,6 +819,8 @@ function buildBridgeRuntimeTelemetry({source="marionBridge",normalized={},routed
     dependencies: DEPENDENCY_STATUS,
     loopGuard: { called: !!loopGuardMod, forceRecovery: !!safeObj(loopGuardResult).forceRecovery, loopDetected: !!safeObj(loopGuardResult).loopDetected },
     emotionRuntime: { called: !!Object.keys(safeObj(resolvedEmotionPacket)).length, ok: safeObj(resolvedEmotionPacket).ok !== false },
+    aster:safeObj(n.asterPassiveObservation||n.aster),
+    asterBridgeVersion:ASTER_BRIDGE_VERSION,
     finalEnvelopeTrusted: !!finalEnvelopeTrusted,
     finalRenderTelemetry,
     finalRenderTelemetryActive: !!Object.keys(finalRenderTelemetry).length,
@@ -1554,10 +1713,11 @@ function normalizeComposeInput(normalized,routed,resolvedEmotionPacket={}){
     marionIntent,routing:{...routing,domainConcierge},domainConcierge,concierge:domainConcierge,domainConfidence:safeObj(routing.domainConfidence||safeObj(safeObj(routed).domainConciergeRaw).domainConfidence),questionShape:safeObj(safeObj(safeObj(routed).domainConciergeRaw).questionShape),
     previousMemory:normalized.previousMemory,conversationState:safeObj(normalized.previousMemory.stateSpine||normalized.previousMemory.conversationState||normalized.commandPacket.state),lane:normalized.lane,sessionId:normalized.sessionId,turnId:normalized.turnId,sourceTurnId:normalized.turnId,
     stateSpinePatch:Object.keys(statePatch).length?statePatch:undefined,
+    aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),environmentalPathway:safeObj(normalized.asterPassiveObservation||normalized.aster),
     resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket),emotionRuntimeOk:resolvedEmotionPacket.ok!==false
   };
 }
-function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const rawReply=extractReply(contract);if(!rawReply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||typeof finalEnvelopeMod.createMarionFinalEnvelope!=="function")return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply:rawReply,text:rawReply,spokenText:firstText(contract.spokenText,rawReply)},reason:"final_envelope_unavailable",loopGuardResult});const userText=normalized.userText||normalized.text||normalized.query||"",routing=safeObj(routed.routing),progressionRefinement=bridgeProgressionMemory(userText,rawReply,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),reply=bridgeShapeProgressionReply(userText,rawReply,progressionRefinement,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),progressionTelemetry=bridgeProgressionTelemetry(userText,reply,progressionRefinement),memoryPatch={...safeObj(contract.memoryPatch),progressionRefinement,progressionTelemetry,stateBridge:{...safeObj(safeObj(contract.memoryPatch).stateBridge),progressionRefinement,progressionTelemetry},domainConcierge:compactDomainConciergeForBridge(safeObj(contract).domainConcierge||safeObj(routed).domainConcierge||routing.domainConcierge)};const envelope=finalEnvelopeMod.createMarionFinalEnvelope({reply,spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,meta:{...safeObj(contract.meta),bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}});const runtimeTelemetry=buildBridgeRuntimeTelemetry({source:"marionBridge.wrapFinal",normalized,routed,contract,reply,finalEnvelopeTrusted:true,canEmit:true,loopGuardResult,resolvedEmotionPacket});if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isThinPlaceholderText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});const bridgeFinalPacket={...envelope,ok:true,final:true,marionFinal:true,handled:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,marionFinalSignature:firstText(safeObj(envelope.meta).marionFinalSignature,safeObj(envelope.finalEnvelope).marionFinalSignature,safeObj(envelope.finalEnvelope).signature,FINAL_SIGNATURE),bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};
+function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const rawReply=extractReply(contract);if(!rawReply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||typeof finalEnvelopeMod.createMarionFinalEnvelope!=="function")return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply:rawReply,text:rawReply,spokenText:firstText(contract.spokenText,rawReply)},reason:"final_envelope_unavailable",loopGuardResult});const userText=normalized.userText||normalized.text||normalized.query||"",routing=safeObj(routed.routing),progressionRefinement=bridgeProgressionMemory(userText,rawReply,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),reply=bridgeShapeProgressionReply(userText,rawReply,progressionRefinement,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),progressionTelemetry=bridgeProgressionTelemetry(userText,reply,progressionRefinement),memoryPatch={...safeObj(contract.memoryPatch),progressionRefinement,progressionTelemetry,aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),stateBridge:{...safeObj(safeObj(contract.memoryPatch).stateBridge),progressionRefinement,progressionTelemetry},domainConcierge:compactDomainConciergeForBridge(safeObj(contract).domainConcierge||safeObj(routed).domainConcierge||routing.domainConcierge)};const envelope=finalEnvelopeMod.createMarionFinalEnvelope({reply,spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,meta:{...safeObj(contract.meta),bridgeVersion:VERSION,asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:safeObj(normalized.asterPassiveObservation||normalized.aster),composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:safeObj(normalized.asterPassiveObservation||normalized.aster),routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}});const runtimeTelemetry=buildBridgeRuntimeTelemetry({source:"marionBridge.wrapFinal",normalized,routed,contract,reply,finalEnvelopeTrusted:true,canEmit:true,loopGuardResult,resolvedEmotionPacket});if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isThinPlaceholderText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});const bridgeFinalPacket={...envelope,ok:true,final:true,marionFinal:true,handled:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,marionFinalSignature:firstText(safeObj(envelope.meta).marionFinalSignature,safeObj(envelope.finalEnvelope).marionFinalSignature,safeObj(envelope.finalEnvelope).signature,FINAL_SIGNATURE),bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};
   return attachLanguageSphereFinalMetadata(bridgeFinalPacket,{normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:stripPublicReplyScaffold(firstText(contract.spokenText,reply))},reply,runtimeTelemetry,loopGuardResult,resolvedEmotionPacket});
 }
 async function processWithMarionUnsafe(input={}){
@@ -1565,10 +1725,12 @@ async function processWithMarionUnsafe(input={}){
   if(!normalized.ok)return buildErrorResult("input_invalid",{issues:normalized.issues},normalized);
   const languageSphereInbound=await normalizeLanguageSphereInboundSafe(normalized);
   normalized={...normalized,...safeObj(languageSphereInbound.normalizedPatch),languageSphere:{...safeObj(normalized.languageSphere),...safeObj(safeObj(languageSphereInbound).normalizedPatch).languageSphere}};
+  const asterPassiveObservation=runAsterPassiveObservationSafe(normalized,input);
+  normalized={...normalized,asterPassiveObservation,aster:asterPassiveObservation,asterObservation:safeObj(asterPassiveObservation.observation),environmentalPathway:asterPassiveObservation};
   if(typeof composeMarionResponse!=="function")return buildErrorResult("composer_unavailable",{dependencyStatus:DEPENDENCY_STATUS.composer,hardFailure:true},normalized);
   const resolvedEmotionPacket=resolveEmotionForTurn(normalized);
   let routed=null;
-  if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,spokenAliasRecovery:safeObj(normalized.spokenAliasRecovery),phaseAnchor:safeObj(normalized.phaseAnchor),phaseAnchorInstruction:safeStr(normalized.phaseAnchorInstruction),lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,knowledgeDomain:normalized.knowledgeDomain,activeKnowledgeDomain:normalized.activeKnowledgeDomain,lastActivatedKnowledgeDomain:normalized.lastActivatedKnowledgeDomain,knowledgeDomainExplicit:normalized.knowledgeDomainExplicit,knowledgeDomainReason:normalized.knowledgeDomainReason,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent},turnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}
+  if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,spokenAliasRecovery:safeObj(normalized.spokenAliasRecovery),phaseAnchor:safeObj(normalized.phaseAnchor),phaseAnchorInstruction:safeStr(normalized.phaseAnchorInstruction),lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,knowledgeDomain:normalized.knowledgeDomain,activeKnowledgeDomain:normalized.activeKnowledgeDomain,lastActivatedKnowledgeDomain:normalized.lastActivatedKnowledgeDomain,knowledgeDomainExplicit:normalized.knowledgeDomainExplicit,knowledgeDomainReason:normalized.knowledgeDomainReason,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent},turnId:normalized.turnId,aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),environmentalPathway:safeObj(normalized.environmentalPathway),resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}
   if(!validateRouterResult(routed).ok||normalized.knowledgeDomainExplicit)routed=fallbackRoute(normalized);
   const domainConciergeRaw=runDomainConciergeSafe(normalized,routed,resolvedEmotionPacket);
   const domainConcierge=compactDomainConciergeForBridge(domainConciergeRaw);
@@ -1632,9 +1794,12 @@ function bridgeForensicNormalizationStatus(){
     stateSchema: STATE_SPINE_SCHEMA,
     stateSchemaCompat: STATE_SPINE_SCHEMA_COMPAT,
     deployHardeningVersion: MARION_BRIDGE_DEPLOY_HARDENING_VERSION,
-    languageSphereBridgeVersion: LANGUAGE_SPHERE_BRIDGE_VERSION
+    languageSphereBridgeVersion: LANGUAGE_SPHERE_BRIDGE_VERSION,
+    asterBridgeVersion: ASTER_BRIDGE_VERSION,
+    asterEnvironmentAdapterResolvedPath: DEPENDENCY_STATUS.asterEnvironmentAdapter.resolvedPath,
+    asterEnvironmentAdapterExists: !!DEPENDENCY_STATUS.asterEnvironmentAdapter.exists
   };
 }
 
-module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isAsterExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,buildAsterPublicAnswerFromPacket,buildProjectGatewayPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply,observeBridgeRuntimeSafely},
+module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,ASTER_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isAsterExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,buildAsterPublicAnswerFromPacket,buildProjectGatewayPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply,observeBridgeRuntimeSafely,runAsterPassiveObservationSafe,bridgeAsterShouldObserve,bridgeAsterBuildInput,compactAsterObservationForBridge},
   FINAL_RENDER_TELEMETRY_VERSION};
