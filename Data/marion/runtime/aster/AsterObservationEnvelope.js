@@ -1,131 +1,309 @@
 "use strict";
 
 /**
- * tests/aster/aster-observation-envelope-smoke.test.js
+ * AsterObservationEnvelope.js
  *
- * Purpose:
- * - Validate Aster observation envelope creation.
- * - Confirm envelope carries observation metadata safely.
- * - Confirm Aster remains below Marion final-answer authority.
+ * Runtime role:
+ * - Build a stable Aster observation envelope.
+ * - Carry raw/normalized/context/risk metadata safely.
+ * - Keep Aster observational only.
+ * - Never authorize public final answers.
  *
- * Run:
- *   node .\tests\aster\aster-observation-envelope-smoke.test.js
+ * Architecture:
+ * AsterSensorNormalizer -> AsterContextClassifier -> AsterRiskTagger -> AsterObservationEnvelope -> Marion final authority
  */
 
-const assert = require("assert");
-const path = require("path");
 const fs = require("fs");
+const path = require("path");
 
-function requireRuntimeModule(fileName) {
-  const root = path.resolve(__dirname, "..", "..");
+const VERSION = "0.1.0";
+const ASTER_OBSERVATION_SCHEMA = "nyx.marion.aster.observation/1.0";
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function safeString(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  return String(value).replace(/\s+/g, " ").trim() || fallback;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function loadAsterConfig() {
   const candidates = [
-    path.join(root, "Data", "marion", "runtime", "aster", fileName),
-    path.join(root, "Data", "marion", "runtime", fileName),
-    path.join(root, "Data", "marion", "runtime", "Aster", fileName),
-    path.join(root, "aster", fileName),
-    path.join(root, fileName)
+    path.join(__dirname, "asterConfig.json"),
+    path.join(process.cwd(), "Data", "marion", "runtime", "aster", "asterConfig.json"),
+    path.join(process.cwd(), "Data", "marion", "runtime", "asterConfig.json")
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return require(candidate);
+    try {
+      if (!fs.existsSync(candidate)) continue;
+      const raw = fs.readFileSync(candidate, "utf8");
+      if (!raw.trim()) continue;
+      return JSON.parse(raw);
+    } catch (_) {
+      return {};
     }
   }
 
-  throw new Error(`Unable to locate Aster runtime module: ${fileName}`);
+  return {};
 }
 
-function getFunction(moduleValue, names) {
-  for (const name of names) {
-    if (moduleValue && typeof moduleValue[name] === "function") {
-      return moduleValue[name];
-    }
+function cloneJson(value) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_) {
+    return {};
   }
-
-  if (typeof moduleValue === "function") {
-    return moduleValue;
-  }
-
-  throw new Error(`Unable to locate exported function. Tried: ${names.join(", ")}`);
 }
 
-const Envelope = requireRuntimeModule("AsterObservationEnvelope.js");
+function extractObservation(input = {}) {
+  if (!isPlainObject(input)) return {};
 
-const createEnvelope = getFunction(Envelope, [
-  "createAsterObservationEnvelope",
-  "buildAsterObservationEnvelope",
-  "createObservationEnvelope",
-  "buildObservationEnvelope",
-  "envelopeObservation",
-  "run",
-  "default"
-]);
+  if (isPlainObject(input.observation)) return cloneJson(input.observation);
 
-(function runAsterObservationEnvelopeSmoke() {
-  const result = createEnvelope({
-    source: "observation-envelope-smoke",
-    observation: {
-      sensorType: "weather",
-      normalized: {
-        temperatureC: 29,
-        humidityPercent: 64,
-        airQualityIndex: 55,
-        windKph: 12
-      },
-      context: "environment.weather.general",
-      risk: {
-        level: "low",
-        tags: ["stable", "watch"]
-      }
+  return {
+    sensorType: input.sensorType || "unknown",
+    raw: isPlainObject(input.raw) ? cloneJson(input.raw) : undefined,
+    readings: isPlainObject(input.readings) ? cloneJson(input.readings) : undefined,
+    normalized: isPlainObject(input.normalized) ? cloneJson(input.normalized) : undefined,
+    context: input.context || undefined,
+    risk: isPlainObject(input.risk) ? cloneJson(input.risk) : undefined
+  };
+}
+
+function normalizeGatewayMetadata(input = {}, config = {}) {
+  const configLinkage =
+    isPlainObject(config.observationEnvelope) &&
+    isPlainObject(config.observationEnvelope.gatewayLinkage)
+      ? config.observationEnvelope.gatewayLinkage
+      : {};
+
+  const metadata = isPlainObject(input.metadata) ? input.metadata : {};
+
+  return {
+    gateway: safeString(metadata.gateway || configLinkage.gateway || "Aster"),
+    linkedGateway: safeString(metadata.linkedGateway || configLinkage.linkedGateway || "LingoLink"),
+    project: safeString(metadata.project || configLinkage.project || "Sandblast"),
+    state: safeString(configLinkage.state || metadata.state || "staged-environmental-pathway")
+  };
+}
+
+function buildEnvelopePayload(input = {}, options = {}) {
+  const config = loadAsterConfig();
+
+  const observation = extractObservation(input);
+  const gatewayMetadata = normalizeGatewayMetadata(input, config);
+
+  const source = safeString(
+    input.source ||
+      observation.source ||
+      options.source ||
+      "aster-observation-envelope"
+  );
+
+  const sensorType = safeString(
+    observation.sensorType ||
+      input.sensorType ||
+      options.sensorType ||
+      "unknown"
+  );
+
+  const context = safeString(
+    observation.context ||
+      input.context ||
+      (isPlainObject(input.classification) ? input.classification.context : "") ||
+      "environment.unknown"
+  );
+
+  const risk =
+    isPlainObject(observation.risk)
+      ? cloneJson(observation.risk)
+      : isPlainObject(input.risk)
+        ? cloneJson(input.risk)
+        : {};
+
+  const normalized =
+    isPlainObject(observation.normalized)
+      ? cloneJson(observation.normalized)
+      : isPlainObject(input.normalized)
+        ? cloneJson(input.normalized)
+        : {};
+
+  const raw =
+    isPlainObject(observation.raw)
+      ? cloneJson(observation.raw)
+      : isPlainObject(input.raw)
+        ? cloneJson(input.raw)
+        : isPlainObject(input.readings)
+          ? cloneJson(input.readings)
+          : {};
+
+  const warnings = [];
+
+  if (sensorType === "unknown") warnings.push("unknown-sensor-type");
+  if (!Object.keys(normalized).length && !Object.keys(raw).length) {
+    warnings.push("no-observation-readings");
+  }
+
+  const envelope = {
+    schema: ASTER_OBSERVATION_SCHEMA,
+    version: VERSION,
+    gateway: "Aster",
+    role: "environmental-observation-envelope",
+    observational: true,
+    source,
+    sensorType,
+    raw,
+    normalized,
+    context,
+    risk,
+    gatewayMetadata,
+    linkedGateways: [
+      gatewayMetadata.linkedGateway,
+      "LanguageSphere"
+    ].filter(Boolean),
+    authority: {
+      finalAnswerAuthorized: false,
+      marionAuthorityRequired: true,
+      publicAgent: "nyx",
+      displayAuthority: "nyx",
+      observationOnly: true
     },
-    metadata: {
+    warnings,
+    createdAt: nowIso()
+  };
+
+  return {
+    ok: true,
+    version: VERSION,
+    schema: ASTER_OBSERVATION_SCHEMA,
+    gateway: "Aster",
+    aster: {
       gateway: "Aster",
-      linkedGateway: "LingoLink",
-      project: "Sandblast"
-    }
-  });
+      module: "AsterObservationEnvelope",
+      observational: true
+    },
+    envelope,
+    observation: envelope,
+    context,
+    risk,
+    sensorType,
+    source,
+    warnings,
+    gatewayMetadata,
 
-  assert.ok(result, "Observation envelope should return a result object");
+    finalAnswerAuthorized: false,
+    marionAuthorityRequired: true,
+    publicAgent: "nyx",
+    displayAuthority: "nyx",
+    updatedAt: Date.now()
+  };
+}
 
-  assert.strictEqual(
-    typeof result,
-    "object",
-    "Observation envelope result should be object-shaped"
-  );
+function createAsterObservationEnvelope(input = {}, options = {}) {
+  try {
+    return buildEnvelopePayload(isPlainObject(input) ? input : {}, options);
+  } catch (error) {
+    return {
+      ok: false,
+      version: VERSION,
+      schema: ASTER_OBSERVATION_SCHEMA,
+      gateway: "Aster",
+      aster: {
+        gateway: "Aster",
+        module: "AsterObservationEnvelope",
+        observational: true
+      },
+      envelope: {
+        schema: ASTER_OBSERVATION_SCHEMA,
+        version: VERSION,
+        gateway: "Aster",
+        role: "environmental-observation-envelope",
+        observational: true,
+        source: "aster-observation-envelope",
+        sensorType: "unknown",
+        raw: {},
+        normalized: {},
+        context: "environment.unknown",
+        risk: {
+          level: "unknown",
+          tags: ["risk", "unknown", "fallback"]
+        },
+        gatewayMetadata: {
+          gateway: "Aster",
+          linkedGateway: "LingoLink",
+          project: "Sandblast",
+          state: "staged-environmental-pathway"
+        },
+        authority: {
+          finalAnswerAuthorized: false,
+          marionAuthorityRequired: true,
+          publicAgent: "nyx",
+          displayAuthority: "nyx",
+          observationOnly: true
+        },
+        warnings: ["observation-envelope-failed"],
+        error: error && error.message ? error.message : "unknown-error",
+        createdAt: nowIso()
+      },
+      observation: {
+        context: "environment.unknown"
+      },
+      context: "environment.unknown",
+      risk: {
+        level: "unknown",
+        tags: ["risk", "unknown", "fallback"]
+      },
+      warnings: ["observation-envelope-failed"],
+      finalAnswerAuthorized: false,
+      marionAuthorityRequired: true,
+      publicAgent: "nyx",
+      displayAuthority: "nyx",
+      updatedAt: Date.now()
+    };
+  }
+}
 
-  const serialized = JSON.stringify(result).toLowerCase();
+function buildAsterObservationEnvelope(input = {}, options = {}) {
+  return createAsterObservationEnvelope(input, options);
+}
 
-  assert.ok(
-    serialized.includes("aster"),
-    "Envelope should include Aster gateway identity"
-  );
+function createObservationEnvelope(input = {}, options = {}) {
+  return createAsterObservationEnvelope(input, options);
+}
 
-  assert.ok(
-    serialized.includes("observation") ||
-      serialized.includes("environment") ||
-      serialized.includes("weather"),
-    "Envelope should include observation/environment/weather metadata"
-  );
+function buildObservationEnvelope(input = {}, options = {}) {
+  return createAsterObservationEnvelope(input, options);
+}
 
-  assert.notStrictEqual(
-    result.finalAnswerAuthorized,
-    true,
-    "Aster observation envelope must not authorize final public answers"
-  );
+function envelopeObservation(input = {}, options = {}) {
+  return createAsterObservationEnvelope(input, options);
+}
 
-  assert.notStrictEqual(
-    result.marionAuthorityRequired,
-    false,
-    "Aster observation envelope should preserve Marion authority requirement"
-  );
+function run(input = {}, options = {}) {
+  return createAsterObservationEnvelope(input, options);
+}
 
-  assert.ok(
-    serialized.includes("lingolink") ||
-      serialized.includes("linkedgateway") ||
-      serialized.includes("gateway"),
-    "Envelope should carry gateway linkage metadata for future LingoLink/Aster sequencing"
-  );
+module.exports = {
+  VERSION,
+  ASTER_OBSERVATION_SCHEMA,
+  createAsterObservationEnvelope,
+  buildAsterObservationEnvelope,
+  createObservationEnvelope,
+  buildObservationEnvelope,
+  envelopeObservation,
+  run,
+  default: createAsterObservationEnvelope,
 
-  console.log("PASS aster-observation-envelope-smoke");
-})();
+  _internal: {
+    loadAsterConfig,
+    extractObservation,
+    normalizeGatewayMetadata,
+    buildEnvelopePayload
+  }
+};
