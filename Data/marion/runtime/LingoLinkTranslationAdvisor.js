@@ -6,38 +6,35 @@
  * Purpose:
  * Provides Marion-safe advisory translation metadata for LingoLink.
  *
- * Architectural contract:
- * - LingoLink advises only.
- * - Marion remains final authority.
- * - This module does not perform production translation.
- * - This module never forces translation.
- * - This module preserves original input.
- * - This module returns render-safe strings so backend rendering cannot crash on
- *   missing translation data, missing dependencies, null input, or malformed metadata.
+ * Scope:
+ * - Advisory only: never overrides Marion.
+ * - Render-safe: every branch returns text/renderText/publicText/finalText.
+ * - Failure-safe: missing dependencies or malformed metadata do not crash backend rendering.
+ * - Audit-safe: preserves original input and normalized input.
  */
 
-const VERSION = "LingoLinkTranslationAdvisor v0.3.0 RENDER-SAFE-ADVISORY-HARDENED + MARION-AUTHORITY-LOCK";
+let detectLanguage = null;
+let normalizeInput = null;
 
-function safeRequire(relativePath) {
-  try {
-    return require(relativePath);
-  } catch (_) {
-    return null;
+try {
+  const languageDetectMod = require("./LingoLinkLanguageDetect");
+  if (languageDetectMod && typeof languageDetectMod.detectLanguage === "function") {
+    detectLanguage = languageDetectMod.detectLanguage;
   }
+} catch (_) {
+  detectLanguage = null;
 }
 
-const languageDetectMod = safeRequire("./LingoLinkLanguageDetect");
-const normalizerMod = safeRequire("./LingoLinkNormalizer");
+try {
+  const normalizerMod = require("./LingoLinkNormalizer");
+  if (normalizerMod && typeof normalizerMod.normalizeInput === "function") {
+    normalizeInput = normalizerMod.normalizeInput;
+  }
+} catch (_) {
+  normalizeInput = null;
+}
 
-const detectLanguage =
-  languageDetectMod && typeof languageDetectMod.detectLanguage === "function"
-    ? languageDetectMod.detectLanguage
-    : fallbackDetectLanguage;
-
-const normalizeInput =
-  normalizerMod && typeof normalizerMod.normalizeInput === "function"
-    ? normalizerMod.normalizeInput
-    : fallbackNormalizeInput;
+const VERSION = "LingoLinkTranslationAdvisor v0.2.2 RENDER-SAFE-NULL-FALLBACK-HARDLOCK";
 
 const DEFAULT_TRANSLATION_CONFIG = Object.freeze({
   enabled: true,
@@ -45,54 +42,43 @@ const DEFAULT_TRANSLATION_CONFIG = Object.freeze({
   supportedLanguages: ["en", "fr", "es"],
   advisoryOnly: true,
   forceTranslation: false,
-  renderSafe: true,
-  confidenceFloorForPhraseMemory: 0.72,
+  renderSafeFallback: true,
   authority: {
     finalAuthority: "Marion",
     lingoLinkAdvisoryOnly: true,
     neverOverrideMarion: true
-  },
-  telemetry: {
-    enabled: true,
-    includeLookupKey: true,
-    includeDependencyStatus: true
   }
 });
 
 const PHRASE_TRANSLATION_MEMORY = Object.freeze({
   fr: Object.freeze({
     "bonjour": "hello",
-    "bonjour, comment ça va?": "hello, how are you?",
-    "bonjour, comment ca va?": "hello, how are you?",
-    "bonjour comment ça va": "hello, how are you?",
     "bonjour comment ca va": "hello, how are you?",
-    "comment ça va?": "how are you?",
-    "comment ca va?": "how are you?",
-    "comment ça va": "how are you?",
+    "bonjour comment ça va": "hello, how are you?",
     "comment ca va": "how are you?",
+    "comment ça va": "how are you?",
     "merci": "thank you",
-    "s'il vous plaît": "please",
-    "s'il vous plait": "please",
-    "sil vous plaît": "please",
+    "s il vous plait": "please",
+    "s il vous plaît": "please",
     "sil vous plait": "please",
     "au revoir": "goodbye"
   }),
   es: Object.freeze({
     "hola": "hello",
-    "hola, cómo estás?": "hello, how are you?",
-    "hola, como estas?": "hello, how are you?",
-    "hola cómo estás": "hello, how are you?",
     "hola como estas": "hello, how are you?",
-    "cómo estás?": "how are you?",
-    "como estas?": "how are you?",
-    "cómo estás": "how are you?",
+    "hola cómo estás": "hello, how are you?",
     "como estas": "how are you?",
+    "cómo estás": "how are you?",
     "gracias": "thank you",
     "por favor": "please",
-    "adiós": "goodbye",
-    "adios": "goodbye"
+    "adios": "goodbye",
+    "adiós": "goodbye"
   })
 });
+
+function isPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
 
 function safeString(value) {
   if (typeof value === "string") return value;
@@ -105,11 +91,7 @@ function safeString(value) {
 }
 
 function safeObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
-}
-
-function safeArray(value) {
-  return Array.isArray(value) ? value : [];
+  return isPlainObject(value) ? value : {};
 }
 
 function clamp01(value, fallback = 0) {
@@ -120,12 +102,10 @@ function clamp01(value, fallback = 0) {
 }
 
 function normalizeLanguageCode(value, fallback = "unknown") {
-  const raw = safeString(value).trim().toLowerCase();
-  if (!raw) return fallback;
-  if (raw === "english") return "en";
-  if (raw === "french" || raw === "français" || raw === "francais") return "fr";
-  if (raw === "spanish" || raw === "español" || raw === "espanol") return "es";
-  if (["en", "fr", "es", "unknown"].includes(raw)) return raw;
+  const text = safeString(value).trim().toLowerCase();
+  if (["en", "eng", "english"].includes(text)) return "en";
+  if (["fr", "fre", "fra", "french", "français", "francais"].includes(text)) return "fr";
+  if (["es", "spa", "spanish", "español", "espanol"].includes(text)) return "es";
   return fallback;
 }
 
@@ -139,60 +119,41 @@ function normalizeKey(value) {
   return safeString(value)
     .trim()
     .toLowerCase()
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/([¿¡])\s+/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normalizeLooseKey(value) {
-  return stripDiacritics(normalizeKey(value))
     .replace(/[¿¡]/g, "")
-    .replace(/[^a-z0-9' ]+/g, " ")
+    .replace(/[’']/g, " ")
+    .replace(/[.,!?;:()\[\]{}"“”]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function safeMergeConfig(config) {
-  const incoming = safeObject(config);
-  const authority = safeObject(incoming.authority);
-  const telemetry = safeObject(incoming.telemetry);
+function normalizeLookupKeys(value) {
+  const base = normalizeKey(value);
+  const stripped = normalizeKey(stripDiacritics(value));
+  return Array.from(new Set([base, stripped].filter(Boolean)));
+}
 
-  return {
-    ...DEFAULT_TRANSLATION_CONFIG,
-    ...incoming,
-    enabled: incoming.enabled !== false,
-    advisoryOnly: true,
-    forceTranslation: false,
-    defaultLanguage: normalizeLanguageCode(incoming.defaultLanguage, DEFAULT_TRANSLATION_CONFIG.defaultLanguage),
-    supportedLanguages: safeArray(incoming.supportedLanguages).length
-      ? safeArray(incoming.supportedLanguages).map((item) => normalizeLanguageCode(item, "")).filter(Boolean)
-      : [...DEFAULT_TRANSLATION_CONFIG.supportedLanguages],
-    authority: {
-      ...DEFAULT_TRANSLATION_CONFIG.authority,
-      ...authority,
-      finalAuthority: "Marion",
-      lingoLinkAdvisoryOnly: true,
-      neverOverrideMarion: true
-    },
-    telemetry: {
-      ...DEFAULT_TRANSLATION_CONFIG.telemetry,
-      ...telemetry
-    }
-  };
+function extractTextInput(input) {
+  if (typeof input === "string") return input;
+  const obj = safeObject(input);
+  return safeString(
+    obj.message ||
+    obj.input ||
+    obj.text ||
+    obj.prompt ||
+    obj.originalInput ||
+    obj.normalizedText ||
+    ""
+  );
 }
 
 function fallbackNormalizeInput(input) {
-  const originalText = safeString(input);
+  const originalText = extractTextInput(input);
   const normalizedText = originalText
     .trim()
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
+    .replace(/\u00A0/g, " ")
+    .replace(/[ \t]+/g, " ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .replace(/([¿¡])\s+/g, "$1")
-    .replace(/[ \t]+/g, " ")
     .trim();
 
   return {
@@ -204,143 +165,169 @@ function fallbackNormalizeInput(input) {
   };
 }
 
-function fallbackDetectLanguage(input, options = {}) {
-  const text = normalizeLooseKey(input);
-  const config = safeObject(options.config);
-  const supportedLanguages = safeArray(config.supportedLanguages).length
-    ? safeArray(config.supportedLanguages)
-    : ["en", "fr", "es"];
+function fallbackDetectLanguage(input, config = {}) {
+  const text = normalizeKey(input);
+  const plain = normalizeKey(stripDiacritics(input));
 
-  let detectedLanguage = "unknown";
-  let confidence = 0;
-
-  if (/\b(bonjour|merci|comment ca va|sil vous plait|au revoir)\b/.test(text)) {
-    detectedLanguage = "fr";
-    confidence = 0.82;
-  } else if (/\b(hola|gracias|como estas|por favor|adios)\b/.test(text)) {
-    detectedLanguage = "es";
-    confidence = 0.82;
-  } else if (/\b(hello|how are you|thanks|please|goodbye|today)\b/.test(text)) {
-    detectedLanguage = "en";
-    confidence = 0.78;
+  if (!text) {
+    return {
+      detectedLanguage: "unknown",
+      confidence: 0,
+      supported: false,
+      requiresTranslation: false,
+      fallbackTriggered: true,
+      reason: "empty_input",
+      source: "LingoLinkTranslationAdvisorFallbackDetect"
+    };
   }
 
+  let detectedLanguage = "unknown";
+  let confidence = 0.12;
+
+  if (/\b(bonjour|merci|comment|vous|plait|sil|revoir)\b/.test(plain)) {
+    detectedLanguage = "fr";
+    confidence = 0.82;
+  } else if (/\b(hola|gracias|como|estas|por favor|adios)\b/.test(plain)) {
+    detectedLanguage = "es";
+    confidence = 0.82;
+  } else if (/\b(hello|how|are|you|today|thanks|please|goodbye)\b/.test(plain)) {
+    detectedLanguage = "en";
+    confidence = 0.82;
+  }
+
+  const supportedLanguages = Array.isArray(config.supportedLanguages)
+    ? config.supportedLanguages.map((item) => normalizeLanguageCode(item, "")).filter(Boolean)
+    : ["en", "fr", "es"];
+
+  const defaultLanguage = normalizeLanguageCode(config.defaultLanguage, "en");
   const supported = detectedLanguage !== "unknown" && supportedLanguages.includes(detectedLanguage);
 
   return {
     detectedLanguage,
     confidence,
     supported,
-    requiresTranslation: supported && detectedLanguage !== normalizeLanguageCode(config.defaultLanguage, "en"),
+    requiresTranslation: supported && detectedLanguage !== defaultLanguage,
     fallbackTriggered: !supported,
-    reason: supported ? "fallback_language_detected" : "fallback_unknown_language",
-    source: "LingoLinkTranslationAdvisorFallbackDetector"
+    reason: supported ? "language_detected" : "low_confidence_or_ambiguous",
+    source: "LingoLinkTranslationAdvisorFallbackDetect"
   };
 }
 
-function normalizeLanguageMeta(value, config) {
-  const meta = safeObject(value);
-  const detectedLanguage = normalizeLanguageCode(meta.detectedLanguage || meta.language, "unknown");
-  const supported = detectedLanguage !== "unknown" && safeArray(config.supportedLanguages).includes(detectedLanguage);
-  const confidence = clamp01(meta.confidence, supported ? 0.72 : 0);
-
+function safeMergeConfig(config) {
+  const incoming = safeObject(config);
   return {
-    ...meta,
-    detectedLanguage,
-    confidence,
-    supported: Boolean(meta.supported === undefined ? supported : meta.supported && supported),
-    requiresTranslation: Boolean(
-      meta.requiresTranslation === undefined
-        ? supported && detectedLanguage !== config.defaultLanguage
-        : meta.requiresTranslation && supported
-    ),
-    fallbackTriggered: Boolean(meta.fallbackTriggered || !supported),
-    reason: safeString(meta.reason) || (supported ? "language_detected" : "unsupported_or_unknown_language"),
-    source: safeString(meta.source) || "LingoLinkTranslationAdvisor"
+    ...DEFAULT_TRANSLATION_CONFIG,
+    ...incoming,
+    supportedLanguages: Array.isArray(incoming.supportedLanguages)
+      ? incoming.supportedLanguages
+      : DEFAULT_TRANSLATION_CONFIG.supportedLanguages,
+    authority: {
+      ...DEFAULT_TRANSLATION_CONFIG.authority,
+      ...safeObject(incoming.authority),
+      finalAuthority: "Marion",
+      lingoLinkAdvisoryOnly: true,
+      neverOverrideMarion: true
+    },
+    advisoryOnly: true,
+    forceTranslation: false
   };
 }
 
-function dependencyTelemetry() {
-  return {
-    languageDetectLoaded: Boolean(languageDetectMod && typeof languageDetectMod.detectLanguage === "function"),
-    normalizerLoaded: Boolean(normalizerMod && typeof normalizerMod.normalizeInput === "function")
-  };
+function normalizeLanguageMeta(languageMeta, config, normalizedText) {
+  const meta = safeObject(languageMeta);
+  const defaultLanguage = normalizeLanguageCode(config.defaultLanguage, "en");
+  const detectedLanguage = normalizeLanguageCode(meta.detectedLanguage, "unknown");
+  const supportedLanguages = Array.isArray(config.supportedLanguages)
+    ? config.supportedLanguages.map((item) => normalizeLanguageCode(item, "")).filter(Boolean)
+    : ["en", "fr", "es"];
+
+  if (detectedLanguage !== "unknown") {
+    const supported = typeof meta.supported === "boolean"
+      ? meta.supported
+      : supportedLanguages.includes(detectedLanguage);
+
+    return {
+      detectedLanguage,
+      confidence: clamp01(meta.confidence, 0.74),
+      supported,
+      requiresTranslation: typeof meta.requiresTranslation === "boolean"
+        ? meta.requiresTranslation
+        : supported && detectedLanguage !== defaultLanguage,
+      fallbackTriggered: !!meta.fallbackTriggered,
+      reason: safeString(meta.reason) || (supported ? "language_detected" : "unsupported_language"),
+      source: safeString(meta.source) || "LingoLinkTranslationAdvisor"
+    };
+  }
+
+  if (typeof detectLanguage === "function") {
+    try {
+      return normalizeLanguageMeta(
+        detectLanguage(normalizedText, {
+          config: {
+            supportedLanguages,
+            defaultLanguage,
+            unknownLanguage: "unknown"
+          }
+        }),
+        config,
+        normalizedText
+      );
+    } catch (_) {}
+  }
+
+  return fallbackDetectLanguage(normalizedText, {
+    supportedLanguages,
+    defaultLanguage
+  });
 }
 
 function lookupAdvisoryTranslation(normalizedText, sourceLanguage) {
   const lang = normalizeLanguageCode(sourceLanguage, "unknown");
   const languageMemory = PHRASE_TRANSLATION_MEMORY[lang];
-  const originalKey = normalizeKey(normalizedText);
-  const looseKey = normalizeLooseKey(normalizedText);
+  const original = safeString(normalizedText);
 
   if (!languageMemory) {
     return {
-      translatedText: safeString(normalizedText),
+      translatedText: original,
       matched: false,
-      method: "passthrough",
-      lookupKey: originalKey,
-      sourceLanguage: lang
+      method: "passthrough"
     };
   }
 
-  const exact = languageMemory[originalKey];
-  if (exact) {
-    return {
-      translatedText: exact,
-      matched: true,
-      method: "phrase_memory_exact",
-      lookupKey: originalKey,
-      sourceLanguage: lang
-    };
-  }
-
-  for (const [key, translatedText] of Object.entries(languageMemory)) {
-    if (normalizeLooseKey(key) === looseKey) {
+  const keys = normalizeLookupKeys(original);
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(languageMemory, key)) {
       return {
-        translatedText,
+        translatedText: languageMemory[key],
         matched: true,
-        method: "phrase_memory_loose",
-        lookupKey: looseKey,
-        sourceLanguage: lang
+        method: "phrase_memory"
       };
     }
   }
 
   return {
-    translatedText: safeString(normalizedText),
+    translatedText: original,
     matched: false,
-    method: "passthrough",
-    lookupKey: originalKey,
-    sourceLanguage: lang
+    method: "passthrough"
   };
 }
 
-function buildTelemetry({ config, languageMeta, lookup = {}, reason = "", dependency = dependencyTelemetry() } = {}) {
-  if (!safeObject(config).telemetry || safeObject(config.telemetry).enabled === false) {
-    return {
-      enabled: false,
-      source: "LingoLinkTranslationAdvisor"
-    };
-  }
+function makeRenderAliases(text, fallbackText = "") {
+  const safeText = safeString(text);
+  const safeFallback = safeString(fallbackText);
+  const renderText = safeText || safeFallback;
 
   return {
-    enabled: true,
-    version: VERSION,
-    detectedLanguage: safeString(safeObject(languageMeta).detectedLanguage || "unknown"),
-    confidence: clamp01(safeObject(languageMeta).confidence, 0),
-    supported: Boolean(safeObject(languageMeta).supported),
-    requiresTranslation: Boolean(safeObject(languageMeta).requiresTranslation),
-    lookupKey: config.telemetry.includeLookupKey === false ? "" : safeString(lookup.lookupKey),
-    method: safeString(lookup.method),
-    reason: safeString(reason),
-    dependencyStatus: config.telemetry.includeDependencyStatus === false ? {} : dependency,
-    advisoryOnly: true,
-    finalAuthority: "Marion",
-    source: "LingoLinkTranslationAdvisor"
+    text: renderText,
+    renderText,
+    publicText: renderText,
+    finalText: renderText,
+    safeToRender: true,
+    renderSafe: true
   };
 }
 
-function buildAdvisoryPacket({
+function buildAdvisoryEnvelope({
   originalText = "",
   normalizedText = "",
   advisoryText = "",
@@ -351,239 +338,163 @@ function buildAdvisoryPacket({
   confidence = 0,
   supported = false,
   fallbackTriggered = false,
-  reason = "",
+  reason = "translation_advisory_created",
   method = "passthrough",
-  config = DEFAULT_TRANSLATION_CONFIG,
-  lookup = {},
-  safeToRender = true
+  config = DEFAULT_TRANSLATION_CONFIG
 } = {}) {
-  const cleanConfig = safeMergeConfig(config);
-  const finalAdvisoryText = safeString(advisoryText || translatedText || normalizedText);
-  const finalTranslatedText = safeString(translatedText || finalAdvisoryText);
-  const finalNormalizedText = safeString(normalizedText);
-  const renderText = safeString(finalAdvisoryText || finalNormalizedText);
+  const safeConfig = safeMergeConfig(config);
+  const safeOriginalText = safeString(originalText);
+  const safeNormalizedText = safeString(normalizedText);
+  const preferredText = safeString(advisoryText) || safeString(translatedText) || safeNormalizedText || safeOriginalText;
+  const renderAliases = makeRenderAliases(preferredText, safeNormalizedText || safeOriginalText);
 
   return {
-    originalText: safeString(originalText),
-    normalizedText: finalNormalizedText,
-    advisoryText: renderText,
-    translatedText: finalTranslatedText,
-
-    /**
-     * Render-safe aliases. These are strings by contract, so downstream renderers
-     * do not crash if they expect a public text field instead of advisoryText.
-     */
-    text: renderText,
-    renderText,
-    publicText: renderText,
-    finalText: renderText,
-
+    version: VERSION,
+    originalText: safeOriginalText,
+    normalizedText: safeNormalizedText,
+    advisoryText: renderAliases.renderText,
+    translatedText: renderAliases.renderText,
     sourceLanguage: normalizeLanguageCode(sourceLanguage, "unknown"),
-    targetLanguage: normalizeLanguageCode(targetLanguage, cleanConfig.defaultLanguage),
-    translated: Boolean(translated),
+    targetLanguage: normalizeLanguageCode(targetLanguage, "en"),
+    translated: !!translated,
     advisoryOnly: true,
     forceTranslation: false,
     confidence: clamp01(confidence, 0),
-    supported: Boolean(supported),
-    fallbackTriggered: Boolean(fallbackTriggered),
-    reason: safeString(reason),
-    method: safeString(method || "passthrough"),
-    safeToRender: Boolean(safeToRender && renderText),
-    renderSafe: true,
-    authority: cleanConfig.authority,
-    marionAuthority: true,
-    finalAuthority: "Marion",
-    telemetry: buildTelemetry({
-      config: cleanConfig,
-      languageMeta: {
-        detectedLanguage: sourceLanguage,
-        confidence,
-        supported,
-        requiresTranslation: Boolean(supported) && sourceLanguage !== targetLanguage
-      },
-      lookup,
-      reason
-    }),
-    source: "LingoLinkTranslationAdvisor",
-    version: VERSION
+    supported: !!supported,
+    fallbackTriggered: !!fallbackTriggered,
+    reason: safeString(reason) || "translation_advisory_created",
+    method: safeString(method) || "passthrough",
+    authority: {
+      ...safeConfig.authority,
+      finalAuthority: "Marion",
+      lingoLinkAdvisoryOnly: true,
+      neverOverrideMarion: true
+    },
+    ...renderAliases,
+    source: "LingoLinkTranslationAdvisor"
   };
 }
 
-function buildDisabledAdvisory(originalText, normalizedText, languageMeta, config) {
-  return buildAdvisoryPacket({
-    originalText,
-    normalizedText,
-    advisoryText: normalizedText,
-    translatedText: normalizedText,
-    sourceLanguage: languageMeta.detectedLanguage || config.defaultLanguage,
-    targetLanguage: config.defaultLanguage,
-    translated: false,
-    confidence: languageMeta.confidence || 0,
-    supported: Boolean(languageMeta.supported),
-    fallbackTriggered: true,
-    reason: "translation_advisor_disabled",
-    method: "disabled",
-    config,
-    safeToRender: true
-  });
-}
-
-function buildNoTranslationNeededAdvisory(originalText, normalizedText, languageMeta, config) {
-  return buildAdvisoryPacket({
-    originalText,
-    normalizedText,
-    advisoryText: normalizedText,
-    translatedText: normalizedText,
-    sourceLanguage: languageMeta.detectedLanguage || config.defaultLanguage,
-    targetLanguage: config.defaultLanguage,
-    translated: false,
-    confidence: languageMeta.confidence || 0,
-    supported: Boolean(languageMeta.supported),
-    fallbackTriggered: false,
-    reason: "translation_not_required",
-    method: "passthrough",
-    config,
-    safeToRender: true
-  });
-}
-
-function buildFallbackAdvisory(originalText, normalizedText, languageMeta, config, reason) {
-  return buildAdvisoryPacket({
-    originalText,
-    normalizedText,
-    advisoryText: normalizedText,
-    translatedText: normalizedText,
-    sourceLanguage: languageMeta.detectedLanguage || "unknown",
-    targetLanguage: config.defaultLanguage,
-    translated: false,
-    confidence: languageMeta.confidence || 0,
-    supported: false,
-    fallbackTriggered: true,
-    reason,
-    method: "fallback",
-    config,
-    safeToRender: Boolean(normalizedText)
-  });
-}
-
-function normalizeForAdvisor(input, options = {}) {
-  const supplied = safeObject(options.normalization);
-  if (Object.keys(supplied).length) {
-    return {
-      ...supplied,
-      originalText: safeString(supplied.originalText !== undefined ? supplied.originalText : input),
-      normalizedText: safeString(supplied.normalizedText !== undefined ? supplied.normalizedText : input),
-      changed: Boolean(supplied.changed),
-      operations: safeArray(supplied.operations),
-      source: safeString(supplied.source) || "LingoLinkTranslationAdvisorSuppliedNormalization"
-    };
-  }
-
-  try {
-    const result = normalizeInput(input, safeObject(options.normalizerOptions));
-    const normalized = safeObject(result);
-    return {
-      ...normalized,
-      originalText: safeString(normalized.originalText !== undefined ? normalized.originalText : input),
-      normalizedText: safeString(normalized.normalizedText !== undefined ? normalized.normalizedText : input),
-      changed: Boolean(normalized.changed),
-      operations: safeArray(normalized.operations),
-      source: safeString(normalized.source) || "LingoLinkNormalizer"
-    };
-  } catch (_) {
-    return fallbackNormalizeInput(input);
-  }
-}
-
-function detectForAdvisor(normalizedText, options = {}, config = DEFAULT_TRANSLATION_CONFIG) {
-  if (safeObject(options.languageMeta) && Object.keys(safeObject(options.languageMeta)).length) {
-    return normalizeLanguageMeta(options.languageMeta, config);
-  }
-
-  try {
-    const detected = detectLanguage(normalizedText, {
-      config: {
-        supportedLanguages: config.supportedLanguages,
-        defaultLanguage: config.defaultLanguage,
-        unknownLanguage: "unknown",
-        confidenceThresholds: safeObject(config.confidenceThresholds)
-      }
-    });
-    return normalizeLanguageMeta(detected, config);
-  } catch (_) {
-    return normalizeLanguageMeta(fallbackDetectLanguage(normalizedText, { config }), config);
-  }
-}
-
 function adviseTranslation(input, options = {}) {
-  const config = safeMergeConfig(safeObject(options).config);
-  const normalization = normalizeForAdvisor(input, options);
-  const originalText = safeString(normalization.originalText);
-  const normalizedText = safeString(normalization.normalizedText);
-  const languageMeta = detectForAdvisor(normalizedText, options, config);
+  const opts = safeObject(options);
+  const config = safeMergeConfig(opts.config);
+
+  let normalization = safeObject(opts.normalization);
+  if (!normalization.normalizedText && !normalization.originalText) {
+    if (typeof normalizeInput === "function") {
+      try {
+        normalization = normalizeInput(input);
+      } catch (_) {
+        normalization = fallbackNormalizeInput(input);
+      }
+    } else {
+      normalization = fallbackNormalizeInput(input);
+    }
+  }
+
+  const originalText = safeString(
+    normalization.originalText !== undefined
+      ? normalization.originalText
+      : extractTextInput(input)
+  );
+  const normalizedText = safeString(
+    normalization.normalizedText !== undefined
+      ? normalization.normalizedText
+      : originalText
+  );
+
+  const languageMeta = normalizeLanguageMeta(opts.languageMeta, config, normalizedText);
+  const sourceLanguage = languageMeta.detectedLanguage || "unknown";
+  const targetLanguage = normalizeLanguageCode(config.defaultLanguage, "en");
 
   if (!config.enabled) {
-    return buildDisabledAdvisory(originalText, normalizedText, languageMeta, config);
+    return buildAdvisoryEnvelope({
+      originalText,
+      normalizedText,
+      advisoryText: normalizedText,
+      translatedText: normalizedText,
+      sourceLanguage,
+      targetLanguage,
+      translated: false,
+      confidence: languageMeta.confidence,
+      supported: !!languageMeta.supported,
+      fallbackTriggered: true,
+      reason: "translation_advisor_disabled",
+      method: "disabled",
+      config
+    });
   }
 
   if (!normalizedText) {
-    return buildFallbackAdvisory(
+    return buildAdvisoryEnvelope({
       originalText,
       normalizedText,
-      languageMeta,
-      config,
-      "empty_input"
-    );
+      advisoryText: "",
+      translatedText: "",
+      sourceLanguage: "unknown",
+      targetLanguage,
+      translated: false,
+      confidence: 0,
+      supported: false,
+      fallbackTriggered: true,
+      reason: "empty_input",
+      method: "fallback",
+      config
+    });
   }
 
-  if (!languageMeta.supported || languageMeta.detectedLanguage === "unknown") {
-    return buildFallbackAdvisory(
+  if (!languageMeta.supported || sourceLanguage === "unknown") {
+    return buildAdvisoryEnvelope({
       originalText,
       normalizedText,
-      languageMeta,
-      config,
-      "unsupported_or_unknown_language"
-    );
+      advisoryText: normalizedText,
+      translatedText: normalizedText,
+      sourceLanguage,
+      targetLanguage,
+      translated: false,
+      confidence: languageMeta.confidence,
+      supported: false,
+      fallbackTriggered: true,
+      reason: "unsupported_or_unknown_language",
+      method: "fallback",
+      config
+    });
   }
 
   if (!languageMeta.requiresTranslation) {
-    return buildNoTranslationNeededAdvisory(
+    return buildAdvisoryEnvelope({
       originalText,
       normalizedText,
-      languageMeta,
+      advisoryText: normalizedText,
+      translatedText: normalizedText,
+      sourceLanguage,
+      targetLanguage,
+      translated: false,
+      confidence: languageMeta.confidence,
+      supported: true,
+      fallbackTriggered: false,
+      reason: "translation_not_required",
+      method: "passthrough",
       config
-    );
+    });
   }
 
-  const lookup = lookupAdvisoryTranslation(
-    normalizedText,
-    languageMeta.detectedLanguage
-  );
+  const lookup = lookupAdvisoryTranslation(normalizedText, sourceLanguage);
 
-  const matched = Boolean(lookup.matched);
-  const confidence = matched
-    ? Math.max(
-        clamp01(languageMeta.confidence, 0),
-        clamp01(config.confidenceFloorForPhraseMemory, 0.72)
-      )
-    : clamp01(languageMeta.confidence, 0);
-
-  return buildAdvisoryPacket({
+  return buildAdvisoryEnvelope({
     originalText,
     normalizedText,
     advisoryText: lookup.translatedText,
     translatedText: lookup.translatedText,
-    sourceLanguage: languageMeta.detectedLanguage,
-    targetLanguage: config.defaultLanguage,
-    translated: matched,
-    confidence,
+    sourceLanguage,
+    targetLanguage,
+    translated: lookup.matched,
+    confidence: lookup.matched ? Math.max(0.8, languageMeta.confidence || 0.8) : languageMeta.confidence,
     supported: true,
-    fallbackTriggered: !matched,
-    reason: matched ? "translation_advisory_created" : "no_phrase_memory_match",
+    fallbackTriggered: !lookup.matched,
+    reason: lookup.matched ? "translation_advisory_created" : "no_phrase_memory_match",
     method: lookup.method,
-    config,
-    lookup,
-    safeToRender: true
+    config
   });
 }
 
@@ -601,9 +512,6 @@ module.exports = {
   buildTranslationAdvisory,
   runTranslationAdvisor,
   lookupAdvisoryTranslation,
-  normalizeKey,
-  normalizeLooseKey,
-  safeMergeConfig,
   DEFAULT_TRANSLATION_CONFIG,
   PHRASE_TRANSLATION_MEMORY,
   default: adviseTranslation
