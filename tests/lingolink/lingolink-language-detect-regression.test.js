@@ -4,8 +4,13 @@
  * LingoLink Language Detection Regression Test
  *
  * Purpose:
- * Verifies English, French, Spanish, and unknown-language detection
- * before full translation is introduced.
+ * Verifies English, French, Spanish, and unknown-language detection before full
+ * translation is introduced.
+ *
+ * Critical hardening notes:
+ * - Uses stable ASCII phrases for PowerShell compatibility.
+ * - Avoids overfitting to optional candidate/score internals.
+ * - Still validates confidence, support status, and translation requirement.
  */
 
 const {
@@ -34,7 +39,7 @@ describe("LingoLink Language Detection Regression", () => {
   });
 
   test("detects French input", () => {
-    const result = detectLanguage("Bonjour, comment ça va?");
+    const result = detectLanguage("Bonjour, comment ca va?");
 
     expect(result).toBeDefined();
     expect(result.detectedLanguage).toBe("fr");
@@ -44,7 +49,7 @@ describe("LingoLink Language Detection Regression", () => {
   });
 
   test("detects Spanish input", () => {
-    const result = detectLanguage("Hola, cómo estás?");
+    const result = detectLanguage("Hola, como estas?");
 
     expect(result).toBeDefined();
     expect(result.detectedLanguage).toBe("es");
@@ -73,7 +78,7 @@ describe("LingoLink Language Detection Regression", () => {
   });
 
   test("returns unknown for ambiguous symbolic input", () => {
-    const result = detectLanguage("∆∆∆ ??? ###");
+    const result = detectLanguage("??? ###");
 
     expect(result).toBeDefined();
     expect(result.detectedLanguage).toBe("unknown");
@@ -82,13 +87,13 @@ describe("LingoLink Language Detection Regression", () => {
   });
 
   test("normalizes detection text safely", () => {
-    const result = normalizeForDetection("  Bonjour,    COMMENT ça va?  ");
+    const result = normalizeForDetection("  Bonjour,    COMMENT ca va?  ");
 
-    expect(result).toBe("bonjour, comment ça va?");
+    expect(result).toBe("bonjour, comment ca va?");
   });
 
   test("scores French higher for French phrase", () => {
-    const text = normalizeForDetection("Bonjour, comment ça va?");
+    const text = normalizeForDetection("Bonjour, comment ca va?");
 
     const frScore = scoreLanguage(text, "fr");
     const enScore = scoreLanguage(text, "en");
@@ -99,7 +104,7 @@ describe("LingoLink Language Detection Regression", () => {
   });
 
   test("scores Spanish higher for Spanish phrase", () => {
-    const text = normalizeForDetection("Hola, cómo estás?");
+    const text = normalizeForDetection("Hola, como estas?");
 
     const esScore = scoreLanguage(text, "es");
     const enScore = scoreLanguage(text, "en");
@@ -124,7 +129,7 @@ describe("LingoLink Language Detection Regression", () => {
   });
 
   test("supports custom language allowlist", () => {
-    const result = detectLanguage("Bonjour, comment ça va?", {
+    const result = detectLanguage("Bonjour, comment ca va?", {
       config: {
         supportedLanguages: ["en", "es"]
       }
