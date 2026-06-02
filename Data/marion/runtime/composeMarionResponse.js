@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.6 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + LINGOLINK-GATEWAY-COMPOSER-PASSTHROUGH";
+const VERSION = "composeMarionResponse v3.36.6 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + LINGOLINK-GATEWAY-COMPOSER-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-CARRY";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -206,13 +206,24 @@ function safeObj(value){return isObj(value)?value:{};}
 function safeArray(value){return Array.isArray(value)?value:[];}
 function extractLingoLinkCarry(input={},routed={}){
   const i=safeObj(input), r=safeObj(routed), routing=safeObj(r.routing), meta=safeObj(i.meta), payload=safeObj(i.payload);
-  const lingoLink=safeObj(i.lingoLink || r.lingoLink || routing.lingoLink || meta.lingoLink || payload.lingoLink);
-  const languageMeta=safeObj(i.languageMeta || r.languageMeta || routing.languageMeta || meta.languageMeta || payload.languageMeta);
-  const lingoInput=safeObj(i.lingoInput || r.lingoInput || routing.lingoInput || meta.lingoInput || payload.lingoInput);
-  const translationMeta=safeObj(i.translationMeta || r.translationMeta || routing.translationMeta || meta.translationMeta || payload.translationMeta);
-  const glossaryMeta=safeObj(i.glossaryMeta || r.glossaryMeta || routing.glossaryMeta || meta.glossaryMeta || payload.glossaryMeta);
-  const gatewayMeta=safeObj(i.lingoLinkGatewayMeta || i.gatewayMeta || r.lingoLinkGatewayMeta || routing.lingoLinkGatewayMeta || meta.lingoLinkGatewayMeta || payload.lingoLinkGatewayMeta);
-  if(!Object.keys(lingoLink).length&&!Object.keys(languageMeta).length&&!Object.keys(translationMeta).length&&!Object.keys(glossaryMeta).length)return {};
+  const firstObjLocal=function(){for(let idx=0;idx<arguments.length;idx+=1){const o=safeObj(arguments[idx]);if(Object.keys(o).length)return o;}return {};};
+  const lingoLink=firstObjLocal(i.lingoLink,r.lingoLink,routing.lingoLink,meta.lingoLink,payload.lingoLink);
+  const languageMeta=firstObjLocal(i.languageMeta,r.languageMeta,routing.languageMeta,meta.languageMeta,payload.languageMeta);
+  const lingoInput=firstObjLocal(i.lingoInput,r.lingoInput,routing.lingoInput,meta.lingoInput,payload.lingoInput);
+  const translationMeta=firstObjLocal(i.translationMeta,r.translationMeta,routing.translationMeta,meta.translationMeta,payload.translationMeta);
+  const glossaryMeta=firstObjLocal(i.glossaryMeta,r.glossaryMeta,routing.glossaryMeta,meta.glossaryMeta,payload.glossaryMeta);
+  const glossaryIntegrity=firstObjLocal(i.glossaryIntegrity,r.glossaryIntegrity,routing.glossaryIntegrity,meta.glossaryIntegrity,payload.glossaryIntegrity);
+  const gatewayMeta=firstObjLocal(i.lingoLinkGatewayMeta,i.gatewayMeta,r.lingoLinkGatewayMeta,r.gatewayMeta,routing.lingoLinkGatewayMeta,routing.gatewayMeta,meta.lingoLinkGatewayMeta,meta.gatewayMeta,payload.lingoLinkGatewayMeta,payload.gatewayMeta);
+  const unknownLanguageAlert=firstObjLocal(i.unknownLanguageAlert,r.unknownLanguageAlert,routing.unknownLanguageAlert,meta.unknownLanguageAlert,payload.unknownLanguageAlert,lingoLink.unknownLanguageAlert);
+  const scannerHeartbeat=firstObjLocal(i.scannerHeartbeat,r.scannerHeartbeat,routing.scannerHeartbeat,meta.scannerHeartbeat,payload.scannerHeartbeat,lingoLink.scannerHeartbeat);
+  const dormantScanner=firstObjLocal(i.dormantScanner,r.dormantScanner,routing.dormantScanner,meta.dormantScanner,payload.dormantScanner,lingoLink.dormantScanner);
+  const telemetry=firstObjLocal(i.lingoLinkTelemetry,i.telemetry,r.lingoLinkTelemetry,r.telemetry,routing.lingoLinkTelemetry,routing.telemetry,meta.lingoLinkTelemetry,meta.telemetry,payload.lingoLinkTelemetry,payload.telemetry);
+  const correlationId=firstText(i.correlationId,r.correlationId,routing.correlationId,meta.correlationId,payload.correlationId,gatewayMeta.correlationId,lingoLink.correlationId,"");
+  const traceId=firstText(i.traceId,r.traceId,routing.traceId,meta.traceId,payload.traceId,gatewayMeta.traceId,lingoLink.traceId,"");
+  const inputHash=firstText(i.inputHash,r.inputHash,routing.inputHash,meta.inputHash,payload.inputHash,gatewayMeta.inputHash,lingoLink.inputHash,"");
+  const gatewayHash=firstText(i.gatewayHash,r.gatewayHash,routing.gatewayHash,meta.gatewayHash,payload.gatewayHash,gatewayMeta.gatewayHash,lingoLink.gatewayHash,"");
+  const stableHash=firstText(i.stableHash,r.stableHash,routing.stableHash,meta.stableHash,payload.stableHash,gatewayMeta.stableHash,lingoLink.stableHash,"");
+  if(!Object.keys(lingoLink).length&&!Object.keys(languageMeta).length&&!Object.keys(translationMeta).length&&!Object.keys(glossaryMeta).length&&!Object.keys(unknownLanguageAlert).length&&!Object.keys(scannerHeartbeat).length&&!Object.keys(dormantScanner).length)return {};
   return {
     version: LINGOLINK_GATEWAY_COMPOSER_VERSION,
     authority: "marion",
@@ -222,14 +233,28 @@ function extractLingoLinkCarry(input={},routed={}){
     lingoInput,
     translationMeta,
     glossaryMeta,
+    glossaryIntegrity,
     gatewayMeta,
+    unknownLanguageAlert,
+    scannerHeartbeat,
+    dormantScanner,
+    telemetry,
     detectedLanguage:firstText(languageMeta.detectedLanguage,lingoLink.detectedLanguage,translationMeta.sourceLanguage,""),
     sourceLanguage:firstText(translationMeta.sourceLanguage,languageMeta.detectedLanguage,lingoLink.sourceLanguage,""),
     targetLanguage:firstText(translationMeta.targetLanguage,lingoLink.targetLanguage,"en"),
     translated:translationMeta.translated===true,
     requiresTranslation:languageMeta.requiresTranslation===true,
     fallbackTriggered:!!(languageMeta.fallbackTriggered||translationMeta.fallbackTriggered||gatewayMeta.fallbackTriggered),
-    glossaryIntact:safeObj(i.glossaryIntegrity).intact!==false,
+    alertTriggered:!!(unknownLanguageAlert.alertTriggered||gatewayMeta.alertTriggered||safeObj(dormantScanner.unknownLanguageAlert).alertTriggered),
+    notificationReady:!!(unknownLanguageAlert.notificationReady||gatewayMeta.notificationReady||dormantScanner.notificationReady),
+    scannerReady:firstText(scannerHeartbeat.status,"")==="ready"||safeObj(dormantScanner.telemetry).scannerReady===true,
+    glossaryIntact:glossaryIntegrity.intact!==false,
+    restoredTerms:safeArray(glossaryMeta.restoredTerms),
+    correlationId,
+    traceId,
+    inputHash,
+    gatewayHash,
+    stableHash,
     noUserFacingDiagnostics:true,
     source:"composeMarionResponse"
   };
