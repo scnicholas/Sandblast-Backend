@@ -1,139 +1,449 @@
 "use strict";
 
 /**
- * tests/aster/aster-risk-tagger-regression.test.js
+ * AsterRiskTagger.js
  *
- * Purpose:
- * - Validate Aster risk tagging.
- * - Confirm higher-risk readings are tagged without creating alarmist public output.
- * - Confirm low-risk readings remain low/no-risk.
+ * Runtime role:
+ * - Assess normalized environmental readings.
+ * - Attach risk level, tags, and reason codes.
+ * - Stay observational only.
+ * - Never authorize final public answers.
  *
- * Run:
- *   node .\tests\aster\aster-risk-tagger-regression.test.js
+ * Architecture:
+ * AsterSensorNormalizer -> AsterContextClassifier -> AsterRiskTagger -> AsterObservationEnvelope -> Marion final authority
  */
 
-const assert = require("assert");
-const path = require("path");
 const fs = require("fs");
+const path = require("path");
 
-function requireRuntimeModule(fileName) {
-  const root = path.resolve(__dirname, "..", "..");
+const VERSION = "0.1.0";
+const ASTER_RISK_SCHEMA = "nyx.marion.aster.risk/1.0";
 
+const DEFAULT_THRESHOLDS = Object.freeze({
+  temperatureC: Object.freeze({
+    low: 27,
+    moderate: 32,
+    elevated: 36,
+    high: 40
+  }),
+  humidityPercent: Object.freeze({
+    low: 65,
+    moderate: 75,
+    elevated: 85,
+    high: 95
+  }),
+  airQualityIndex: Object.freeze({
+    low: 51,
+    moderate: 101,
+    elevated: 151,
+    high: 201
+  }),
+  windKph: Object.freeze({
+    low: 25,
+    moderate: 40,
+    elevated: 60,
+    high: 90
+  }),
+  uvIndex: Object.freeze({
+    low: 3,
+    moderate: 6,
+    elevated: 8,
+    high: 11
+  }),
+  co2Ppm: Object.freeze({
+    low: 800,
+    moderate: 1200,
+    elevated: 2000,
+    high: 5000
+  }),
+  noiseDb: Object.freeze({
+    low: 55,
+    moderate: 70,
+    elevated: 85,
+    high: 100
+  }),
+  pm25: Object.freeze({
+    low: 12,
+    moderate: 35,
+    elevated: 55,
+    high: 150
+  }),
+  pm10: Object.freeze({
+    low: 55,
+    moderate: 155,
+    elevated: 255,
+    high: 355
+  }),
+  vocIndex: Object.freeze({
+    low: 100,
+    moderate: 200,
+    elevated: 300,
+    high: 400
+  })
+});
+
+const RISK_RANK = Object.freeze({
+  none: 0,
+  low: 1,
+  moderate: 2,
+  elevated: 3,
+  high: 4,
+  unknown: -1
+});
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function safeString(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  return String(value).replace(/\s+/g, " ").trim() || fallback;
+}
+
+function safeNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  if (typeof value === "string") {
+    const cleaned = value.trim().replace(/,/g, "");
+    if (!cleaned) return null;
+
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function loadAsterConfig() {
   const candidates = [
-    path.join(root, "Data", "marion", "runtime", "aster", fileName),
-    path.join(root, "Data", "marion", "runtime", fileName),
-    path.join(root, "Data", "marion", "runtime", "Aster", fileName),
-    path.join(root, "aster", fileName),
-    path.join(root, fileName)
+    path.join(__dirname, "asterConfig.json"),
+    path.join(process.cwd(), "Data", "marion", "runtime", "aster", "asterConfig.json"),
+    path.join(process.cwd(), "Data", "marion", "runtime", "asterConfig.json")
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return require(candidate);
+    try {
+      if (!fs.existsSync(candidate)) continue;
+      const raw = fs.readFileSync(candidate, "utf8");
+      if (!raw.trim()) continue;
+      return JSON.parse(raw);
+    } catch (_) {
+      return {};
     }
   }
 
-  throw new Error(`Unable to locate Aster runtime module: ${fileName}`);
+  return {};
 }
 
-function getFunction(moduleValue, names) {
-  for (const name of names) {
-    if (moduleValue && typeof moduleValue[name] === "function") {
-      return moduleValue[name];
+function getThresholds(config = {}) {
+  const configured =
+    isPlainObject(config.riskTagging) && isPlainObject(config.riskTagging.thresholds)
+      ? config.riskTagging.thresholds
+      : {};
+
+  return {
+    ...DEFAULT_THRESHOLDS,
+    ...configured
+  };
+}
+
+function normalizeReadings(input = {}) {
+  if (!isPlainObject(input)) return {};
+
+  if (isPlainObject(input.normalized)) return input.normalized;
+  if (isPlainObject(input.readings)) return input.readings;
+  if (isPlainObject(input.observation) && isPlainObject(input.observation.normalized)) {
+    return input.observation.normalized;
+  }
+  if (isPlainObject(input.observation) && isPlainObject(input.observation.readings)) {
+    return input.observation.readings;
+  }
+
+  return input;
+}
+
+function riskLevelForValue(metric, value, thresholds) {
+  const numeric = safeNumber(value);
+  const table = isPlainObject(thresholds[metric]) ? thresholds[metric] : null;
+
+  if (numeric === null || !table) {
+    return {
+      metric,
+      value,
+      numeric: null,
+      level: "unknown",
+      reasonCode: `risk.${metric}.unreadable`
+    };
+  }
+
+  if (numeric >= Number(table.high)) {
+    return {
+      metric,
+      value,
+      numeric,
+      level: "high",
+      reasonCode: `risk.${metric}.high`
+    };
+  }
+
+  if (numeric >= Number(table.elevated)) {
+    return {
+      metric,
+      value,
+      numeric,
+      level: "elevated",
+      reasonCode: `risk.${metric}.elevated`
+    };
+  }
+
+  if (numeric >= Number(table.moderate)) {
+    return {
+      metric,
+      value,
+      numeric,
+      level: "moderate",
+      reasonCode: `risk.${metric}.moderate`
+    };
+  }
+
+  if (numeric >= Number(table.low)) {
+    return {
+      metric,
+      value,
+      numeric,
+      level: "low",
+      reasonCode: `risk.${metric}.low`
+    };
+  }
+
+  return {
+    metric,
+    value,
+    numeric,
+    level: "none",
+    reasonCode: `risk.${metric}.normal`
+  };
+}
+
+function strongestRiskLevel(items) {
+  let strongest = "none";
+
+  for (const item of items || []) {
+    const level = safeString(item.level, "unknown");
+    const currentRank = RISK_RANK[level] ?? -1;
+    const strongestRank = RISK_RANK[strongest] ?? -1;
+
+    if (currentRank > strongestRank) {
+      strongest = level;
     }
   }
 
-  if (typeof moduleValue === "function") {
-    return moduleValue;
-  }
-
-  throw new Error(`Unable to locate exported function. Tried: ${names.join(", ")}`);
+  return strongest;
 }
 
-const RiskTagger = requireRuntimeModule("AsterRiskTagger.js");
+function tagsForLevel(level, context = "") {
+  const tags = ["risk"];
 
-const tagRisk = getFunction(RiskTagger, [
-  "tagAsterRisk",
-  "tagEnvironmentRisk",
-  "tagRisk",
-  "assessRisk",
-  "classifyRisk",
-  "run",
-  "default"
-]);
+  if (context) {
+    tags.push(context);
+  }
 
-(function runAsterRiskTaggerRegression() {
-  const elevated = tagRisk({
-    context: "environment.weather.air-quality",
-    normalized: {
-      temperatureC: 38,
-      humidityPercent: 82,
-      airQualityIndex: 155,
-      windKph: 45
+  if (level === "high") {
+    tags.push("high", "caution", "review-required");
+  } else if (level === "elevated") {
+    tags.push("elevated", "caution", "watch");
+  } else if (level === "moderate") {
+    tags.push("moderate", "watch");
+  } else if (level === "low") {
+    tags.push("low", "stable-watch");
+  } else if (level === "none") {
+    tags.push("low", "normal", "stable");
+  } else {
+    tags.push("unknown", "fallback");
+  }
+
+  return Array.from(new Set(tags.filter(Boolean)));
+}
+
+function summarizeReasonCodes(metricAssessments) {
+  return (metricAssessments || [])
+    .filter((item) => item && item.reasonCode)
+    .map((item) => item.reasonCode);
+}
+
+function buildRiskPayload(input = {}, options = {}) {
+  const config = loadAsterConfig();
+  const thresholds = getThresholds(config);
+
+  const context = safeString(
+    input.context ||
+      input.classification ||
+      (isPlainObject(input.observation) ? input.observation.context : "") ||
+      "environment.unknown"
+  );
+
+  const source = safeString(input.source || options.source || "aster-risk-tagger");
+  const readings = normalizeReadings(input);
+
+  const metricAssessments = [];
+
+  for (const metric of Object.keys(thresholds)) {
+    if (!Object.prototype.hasOwnProperty.call(readings, metric)) continue;
+    metricAssessments.push(riskLevelForValue(metric, readings[metric], thresholds));
+  }
+
+  const level = metricAssessments.length
+    ? strongestRiskLevel(metricAssessments)
+    : "unknown";
+
+  const reasonCodes = summarizeReasonCodes(metricAssessments);
+  const tags = tagsForLevel(level, context);
+
+  const warnings = [];
+
+  if (!metricAssessments.length) {
+    warnings.push("no-supported-risk-metrics-found");
+  }
+
+  for (const item of metricAssessments) {
+    if (item.level === "unknown") {
+      warnings.push(`unreadable-risk-metric:${item.metric}`);
+    }
+  }
+
+  const risk = {
+    schema: ASTER_RISK_SCHEMA,
+    version: VERSION,
+    gateway: "Aster",
+    role: "environmental-risk-tagging",
+    observational: true,
+    level,
+    tags,
+    reasonCodes,
+    metricAssessments,
+    publicAlarm: false,
+    source,
+    context: context || "environment.unknown",
+    warnings,
+    createdAt: nowIso()
+  };
+
+  return {
+    ok: true,
+    version: VERSION,
+    schema: ASTER_RISK_SCHEMA,
+    gateway: "Aster",
+    aster: {
+      gateway: "Aster",
+      module: "AsterRiskTagger",
+      observational: true
     },
-    source: "risk-regression"
-  });
+    risk,
+    riskLevel: level,
+    tags,
+    reasonCodes,
+    metricAssessments,
+    context: context || "environment.unknown",
+    source,
+    warnings,
+    publicAlarm: false,
 
-  assert.ok(elevated, "Risk tagger should return a result object");
+    /**
+     * Authority guardrails.
+     * Aster observes and tags. Marion authorizes public final output.
+     */
+    finalAnswerAuthorized: false,
+    marionAuthorityRequired: true,
+    publicAgent: "nyx",
+    displayAuthority: "nyx",
+    updatedAt: Date.now()
+  };
+}
 
-  assert.strictEqual(
-    typeof elevated,
-    "object",
-    "Risk tagger result should be object-shaped"
-  );
+function tagAsterRisk(input = {}, options = {}) {
+  try {
+    return buildRiskPayload(isPlainObject(input) ? input : {}, options);
+  } catch (error) {
+    return {
+      ok: false,
+      version: VERSION,
+      schema: ASTER_RISK_SCHEMA,
+      gateway: "Aster",
+      aster: {
+        gateway: "Aster",
+        module: "AsterRiskTagger",
+        observational: true
+      },
+      risk: {
+        schema: ASTER_RISK_SCHEMA,
+        version: VERSION,
+        level: "unknown",
+        tags: ["risk", "unknown", "fallback"],
+        reasonCodes: ["risk.tagger.error"],
+        metricAssessments: [],
+        publicAlarm: false,
+        warnings: ["risk-tagger-failed"],
+        error: error && error.message ? error.message : "unknown-error",
+        createdAt: nowIso()
+      },
+      riskLevel: "unknown",
+      tags: ["risk", "unknown", "fallback"],
+      reasonCodes: ["risk.tagger.error"],
+      warnings: ["risk-tagger-failed"],
+      publicAlarm: false,
+      finalAnswerAuthorized: false,
+      marionAuthorityRequired: true,
+      publicAgent: "nyx",
+      displayAuthority: "nyx",
+      updatedAt: Date.now()
+    };
+  }
+}
 
-  const elevatedText = JSON.stringify(elevated).toLowerCase();
+function tagEnvironmentRisk(input = {}, options = {}) {
+  return tagAsterRisk(input, options);
+}
 
-  assert.ok(
-    elevatedText.includes("risk") ||
-      elevatedText.includes("elevated") ||
-      elevatedText.includes("moderate") ||
-      elevatedText.includes("high") ||
-      elevatedText.includes("caution"),
-    "Elevated readings should produce risk/elevated/moderate/high/caution metadata"
-  );
+function tagRisk(input = {}, options = {}) {
+  return tagAsterRisk(input, options);
+}
 
-  assert.notStrictEqual(
-    elevated.finalAnswerAuthorized,
-    true,
-    "Risk tagger must not authorize final public answers"
-  );
+function assessRisk(input = {}, options = {}) {
+  return tagAsterRisk(input, options);
+}
 
-  assert.notStrictEqual(
-    elevated.publicAlarm,
-    true,
-    "Risk tagger should not create alarmist public output by default"
-  );
+function classifyRisk(input = {}, options = {}) {
+  return tagAsterRisk(input, options);
+}
 
-  const low = tagRisk({
-    context: "environment.weather.general",
-    normalized: {
-      temperatureC: 21,
-      humidityPercent: 45,
-      airQualityIndex: 28,
-      windKph: 8
-    },
-    source: "low-risk-regression"
-  });
+function run(input = {}, options = {}) {
+  return tagAsterRisk(input, options);
+}
 
-  assert.ok(low, "Low-risk input should return a result object");
+module.exports = {
+  VERSION,
+  ASTER_RISK_SCHEMA,
+  tagAsterRisk,
+  tagEnvironmentRisk,
+  tagRisk,
+  assessRisk,
+  classifyRisk,
+  run,
+  default: tagAsterRisk,
 
-  const lowText = JSON.stringify(low).toLowerCase();
-
-  assert.ok(
-    lowText.includes("low") ||
-      lowText.includes("normal") ||
-      lowText.includes("stable") ||
-      lowText.includes("none") ||
-      lowText.includes("risk"),
-    "Low-risk readings should produce low/normal/stable/none/risk metadata"
-  );
-
-  assert.notStrictEqual(
-    low.finalAnswerAuthorized,
-    true,
-    "Low-risk path must still not authorize final public answers"
-  );
-
-  console.log("PASS aster-risk-tagger-regression");
-})();
+  /**
+   * Exported for tests/diagnostics.
+   */
+  _internal: {
+    loadAsterConfig,
+    getThresholds,
+    normalizeReadings,
+    riskLevelForValue,
+    strongestRiskLevel,
+    tagsForLevel
+  }
+};
