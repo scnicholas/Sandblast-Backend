@@ -1,136 +1,331 @@
 "use strict";
 
 /**
- * tests/aster/aster-context-classifier-regression.test.js
+ * AsterContextClassifier.js
  *
- * Purpose:
- * - Validate Aster context classification.
- * - Confirm environmental observations are classified without becoming final answers.
- * - Confirm unknown context falls back safely.
+ * Runtime role:
+ * - Classify normalized environmental readings into stable Aster context lanes.
+ * - Stay observational only.
+ * - Never authorize public final answers.
  *
- * Run:
- *   node .\tests\aster\aster-context-classifier-regression.test.js
+ * Architecture:
+ * AsterSensorNormalizer -> AsterContextClassifier -> AsterRiskTagger -> AsterObservationEnvelope -> Marion final authority
  */
 
-const assert = require("assert");
-const path = require("path");
 const fs = require("fs");
+const path = require("path");
 
-function requireRuntimeModule(fileName) {
-  const root = path.resolve(__dirname, "..", "..");
+const VERSION = "0.1.0";
+const ASTER_CONTEXT_SCHEMA = "nyx.marion.aster.context/1.0";
 
+const DEFAULT_CONTEXT_MAP = Object.freeze({
+  weather: "environment.weather.general",
+  airQuality: "environment.air-quality.general",
+  airquality: "environment.air-quality.general",
+  indoorEnvironment: "environment.indoor.general",
+  indoorenvironment: "environment.indoor.general",
+  locationContext: "environment.location.general",
+  locationcontext: "environment.location.general",
+  unknown: "environment.unknown"
+});
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function safeString(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  return String(value).replace(/\s+/g, " ").trim() || fallback;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function loadAsterConfig() {
   const candidates = [
-    path.join(root, "Data", "marion", "runtime", "aster", fileName),
-    path.join(root, "Data", "marion", "runtime", fileName),
-    path.join(root, "Data", "marion", "runtime", "Aster", fileName),
-    path.join(root, "aster", fileName),
-    path.join(root, fileName)
+    path.join(__dirname, "asterConfig.json"),
+    path.join(process.cwd(), "Data", "marion", "runtime", "aster", "asterConfig.json"),
+    path.join(process.cwd(), "Data", "marion", "runtime", "asterConfig.json")
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return require(candidate);
+    try {
+      if (!fs.existsSync(candidate)) continue;
+      const raw = fs.readFileSync(candidate, "utf8");
+      if (!raw.trim()) continue;
+      return JSON.parse(raw);
+    } catch (_) {
+      return {};
     }
   }
 
-  throw new Error(`Unable to locate Aster runtime module: ${fileName}`);
+  return {};
 }
 
-function getFunction(moduleValue, names) {
-  for (const name of names) {
-    if (moduleValue && typeof moduleValue[name] === "function") {
-      return moduleValue[name];
-    }
-  }
+function normalizeSensorType(sensorType) {
+  const raw = safeString(sensorType, "unknown");
+  const compact = raw.replace(/[^a-zA-Z0-9]+/g, "").toLowerCase();
 
-  if (typeof moduleValue === "function") {
-    return moduleValue;
-  }
+  if (compact === "weather") return "weather";
+  if (compact === "airquality") return "airQuality";
+  if (compact === "indoorenvironment" || compact === "indoor") return "indoorEnvironment";
+  if (compact === "locationcontext" || compact === "location") return "locationContext";
 
-  throw new Error(`Unable to locate exported function. Tried: ${names.join(", ")}`);
+  return raw || "unknown";
 }
 
-const Classifier = requireRuntimeModule("AsterContextClassifier.js");
+function extractNormalized(input = {}) {
+  if (!isPlainObject(input)) return {};
 
-const classifyContext = getFunction(Classifier, [
-  "classifyAsterContext",
-  "classifyEnvironmentContext",
-  "classifyContext",
-  "classify",
-  "run",
-  "default"
-]);
+  if (isPlainObject(input.normalized)) return input.normalized;
+  if (isPlainObject(input.readings)) return input.readings;
 
-(function runAsterContextClassifierRegression() {
-  const result = classifyContext({
-    sensorType: "weather",
-    normalized: {
-      temperatureC: 34,
-      humidityPercent: 78,
-      airQualityIndex: 91,
-      windKph: 22
+  if (isPlainObject(input.observation)) {
+    if (isPlainObject(input.observation.normalized)) return input.observation.normalized;
+    if (isPlainObject(input.observation.readings)) return input.observation.readings;
+  }
+
+  return {};
+}
+
+function hasAnyMetric(readings = {}, metrics = []) {
+  if (!isPlainObject(readings)) return false;
+  return metrics.some((metric) => Object.prototype.hasOwnProperty.call(readings, metric));
+}
+
+function inferContextFromReadings(readings = {}, fallback = "environment.general") {
+  if (!isPlainObject(readings)) return fallback;
+
+  const hasAir = hasAnyMetric(readings, [
+    "airQualityIndex",
+    "pm25",
+    "pm10",
+    "co2Ppm",
+    "vocIndex"
+  ]);
+
+  const hasWeather = hasAnyMetric(readings, [
+    "temperatureC",
+    "humidityPercent",
+    "windKph",
+    "pressureHpa",
+    "precipitationMm",
+    "uvIndex"
+  ]);
+
+  const hasIndoor = hasAnyMetric(readings, [
+    "noiseDb",
+    "lightLux"
+  ]);
+
+  if (hasAir && hasWeather) return "environment.weather.air-quality";
+  if (hasAir) return "environment.air-quality.general";
+  if (hasIndoor) return "environment.indoor.comfort";
+  if (hasWeather) return "environment.weather.general";
+
+  return fallback;
+}
+
+function refineWeatherContext(readings = {}, baseContext = "environment.weather.general") {
+  if (!isPlainObject(readings)) return baseContext;
+
+  const temp = Number(readings.temperatureC);
+  const humidity = Number(readings.humidityPercent);
+  const wind = Number(readings.windKph);
+  const uv = Number(readings.uvIndex);
+  const aqi = Number(readings.airQualityIndex);
+
+  if (Number.isFinite(aqi) && aqi >= 101) return "environment.weather.air-quality";
+  if (Number.isFinite(temp) && temp >= 32) return "environment.weather.heat";
+  if (Number.isFinite(humidity) && humidity >= 75) return "environment.weather.humidity";
+  if (Number.isFinite(wind) && wind >= 40) return "environment.weather.wind";
+  if (Number.isFinite(uv) && uv >= 6) return "environment.weather.uv";
+
+  return baseContext;
+}
+
+function getConfiguredContext(sensorType, config = {}) {
+  const normalized = normalizeSensorType(sensorType);
+  const configuredMap =
+    isPlainObject(config.classification) && isPlainObject(config.classification.contextMap)
+      ? config.classification.contextMap
+      : {};
+
+  return (
+    configuredMap[normalized] ||
+    configuredMap[safeString(sensorType)] ||
+    DEFAULT_CONTEXT_MAP[normalized] ||
+    DEFAULT_CONTEXT_MAP[safeString(sensorType).toLowerCase()] ||
+    ""
+  );
+}
+
+function classifyPayload(input = {}, options = {}) {
+  const config = loadAsterConfig();
+
+  const sensorType = normalizeSensorType(
+    input.sensorType ||
+      (isPlainObject(input.observation) ? input.observation.sensorType : "") ||
+      options.sensorType ||
+      "unknown"
+  );
+
+  const source = safeString(input.source || options.source || "aster-context-classifier");
+  const readings = extractNormalized(input);
+
+  const defaultContext =
+    isPlainObject(config.classification) && config.classification.defaultContext
+      ? safeString(config.classification.defaultContext, "environment.general")
+      : "environment.general";
+
+  const unknownContext =
+    isPlainObject(config.classification) && config.classification.unknownContext
+      ? safeString(config.classification.unknownContext, "environment.unknown")
+      : "environment.unknown";
+
+  let context = getConfiguredContext(sensorType, config);
+
+  if (!context || context === "environment.unknown") {
+    context = inferContextFromReadings(
+      readings,
+      sensorType === "unknown" ? unknownContext : defaultContext
+    );
+  }
+
+  if (context === "environment.weather.general" || context === "environment.weather.air-quality") {
+    context = refineWeatherContext(readings, context);
+  }
+
+  const confidence = context === unknownContext ? 0.35 : 0.82;
+
+  const tags = Array.from(
+    new Set([
+      "aster",
+      "environment",
+      sensorType,
+      ...String(context).split(".").filter(Boolean)
+    ])
+  );
+
+  const warnings = [];
+
+  if (sensorType === "unknown") {
+    warnings.push("unknown-sensor-type");
+  }
+
+  if (!Object.keys(readings).length) {
+    warnings.push("no-normalized-readings");
+  }
+
+  return {
+    ok: true,
+    version: VERSION,
+    schema: ASTER_CONTEXT_SCHEMA,
+    gateway: "Aster",
+    aster: {
+      gateway: "Aster",
+      module: "AsterContextClassifier",
+      observational: true
     },
-    location: "test-zone",
-    source: "manual-regression"
-  });
+    classification: {
+      schema: ASTER_CONTEXT_SCHEMA,
+      version: VERSION,
+      context,
+      sensorType,
+      confidence,
+      tags,
+      source,
+      warnings,
+      createdAt: nowIso()
+    },
+    context,
+    sensorType,
+    confidence,
+    tags,
+    source,
+    warnings,
 
-  assert.ok(result, "Classifier should return a result object");
+    finalAnswerAuthorized: false,
+    marionAuthorityRequired: true,
+    publicAgent: "nyx",
+    displayAuthority: "nyx",
+    updatedAt: Date.now()
+  };
+}
 
-  assert.strictEqual(
-    typeof result,
-    "object",
-    "Classifier result should be object-shaped"
-  );
+function classifyAsterContext(input = {}, options = {}) {
+  try {
+    return classifyPayload(isPlainObject(input) ? input : {}, options);
+  } catch (error) {
+    return {
+      ok: false,
+      version: VERSION,
+      schema: ASTER_CONTEXT_SCHEMA,
+      gateway: "Aster",
+      aster: {
+        gateway: "Aster",
+        module: "AsterContextClassifier",
+        observational: true
+      },
+      classification: {
+        schema: ASTER_CONTEXT_SCHEMA,
+        version: VERSION,
+        context: "environment.unknown",
+        sensorType: "unknown",
+        confidence: 0,
+        tags: ["aster", "environment", "unknown", "fallback"],
+        source: "aster-context-classifier",
+        warnings: ["context-classifier-failed"],
+        error: error && error.message ? error.message : "unknown-error",
+        createdAt: nowIso()
+      },
+      context: "environment.unknown",
+      sensorType: "unknown",
+      confidence: 0,
+      tags: ["aster", "environment", "unknown", "fallback"],
+      warnings: ["context-classifier-failed"],
+      finalAnswerAuthorized: false,
+      marionAuthorityRequired: true,
+      publicAgent: "nyx",
+      displayAuthority: "nyx",
+      updatedAt: Date.now()
+    };
+  }
+}
 
-  const serialized = JSON.stringify(result).toLowerCase();
+function classifyEnvironmentContext(input = {}, options = {}) {
+  return classifyAsterContext(input, options);
+}
 
-  assert.ok(
-    serialized.includes("environment") ||
-      serialized.includes("weather") ||
-      serialized.includes("air") ||
-      serialized.includes("climate") ||
-      serialized.includes("context"),
-    "Classifier should identify an environmental/weather/air/climate context"
-  );
+function classifyContext(input = {}, options = {}) {
+  return classifyAsterContext(input, options);
+}
 
-  assert.notStrictEqual(
-    result.finalAnswerAuthorized,
-    true,
-    "Context classifier must not authorize final public answers"
-  );
+function classify(input = {}, options = {}) {
+  return classifyAsterContext(input, options);
+}
 
-  assert.notStrictEqual(
-    result.marionAuthorityRequired,
-    false,
-    "Context classifier should preserve Marion authority requirement"
-  );
+function run(input = {}, options = {}) {
+  return classifyAsterContext(input, options);
+}
 
-  const unknown = classifyContext({
-    sensorType: "unknown-sensor",
-    normalized: {},
-    source: "unknown-context-regression"
-  });
+module.exports = {
+  VERSION,
+  ASTER_CONTEXT_SCHEMA,
+  classifyAsterContext,
+  classifyEnvironmentContext,
+  classifyContext,
+  classify,
+  run,
+  default: classifyAsterContext,
 
-  assert.ok(
-    unknown,
-    "Unknown context should fail closed into a result object"
-  );
-
-  assert.strictEqual(
-    typeof unknown,
-    "object",
-    "Unknown context result should be object-shaped"
-  );
-
-  const unknownText = JSON.stringify(unknown).toLowerCase();
-
-  assert.ok(
-    unknownText.includes("unknown") ||
-      unknownText.includes("general") ||
-      unknownText.includes("fallback") ||
-      unknownText.includes("context"),
-    "Unknown context should include unknown/general/fallback/context metadata"
-  );
-
-  console.log("PASS aster-context-classifier-regression");
-})();
+  _internal: {
+    loadAsterConfig,
+    normalizeSensorType,
+    extractNormalized,
+    inferContextFromReadings,
+    refineWeatherContext,
+    getConfiguredContext
+  }
+};
