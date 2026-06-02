@@ -4,17 +4,18 @@
  * LingoLinkLanguageDetect
  *
  * Purpose:
- * Lightweight language detection gateway for Marion/LingoLink.
+ * Lightweight advisory language detection gateway for Marion/LingoLink.
  *
  * Scope:
  * - Detects English, French, Spanish, or unknown.
+ * - Handles short phrases, including unaccented Spanish/French user input.
  * - Returns structured metadata only.
  * - Does not translate.
  * - Does not mutate user input.
  * - Does not override Marion authority.
  */
 
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   supportedLanguages: ["en", "fr", "es"],
   defaultLanguage: "en",
@@ -28,7 +29,36 @@ const DEFAULT_CONFIG = {
     finalAuthority: "Marion",
     lingolinkAdvisoryOnly: true
   }
-};
+});
+
+const LANGUAGE_LEXICONS = Object.freeze({
+  en: [
+    "hello", "hi", "hey", "good", "morning", "night", "today", "tomorrow",
+    "the", "and", "you", "are", "is", "this", "that", "with", "for",
+    "what", "how", "why", "where", "when", "thanks", "thank", "please",
+    "need", "help", "tell", "about", "explain", "i", "we", "they", "he", "she",
+    "it", "my", "your", "our", "their", "can", "could", "would", "should"
+  ],
+  fr: [
+    "bonjour", "salut", "merci", "comment", "ca", "ça", "va", "oui", "non",
+    "s'il", "sil", "vous", "plait", "plaît", "je", "tu", "il", "elle", "nous",
+    "ils", "elles", "mon", "ma", "mes", "votre", "le", "la", "les", "un",
+    "une", "des", "est", "sont", "avec", "pour", "quoi", "qui", "ou", "où",
+    "dans", "sur", "de", "du", "ce", "cette"
+  ],
+  es: [
+    "hola", "gracias", "como", "cómo", "estas", "estás", "buenos", "buenas",
+    "dias", "días", "tardes", "noches", "por", "favor", "yo", "tu", "tú",
+    "el", "él", "ella", "nosotros", "ustedes", "ellos", "ellas", "mi", "mis",
+    "su", "es", "son", "con", "para", "que", "qué", "quien", "quién", "donde",
+    "dónde", "cuando", "cuándo", "muy", "bien", "necesito", "ayuda"
+  ]
+});
+
+const CHARACTER_HINTS = Object.freeze({
+  fr: /[àâçéèêëîïôùûüÿœ]/i,
+  es: /[áéíóúñü¿¡]/i
+});
 
 function safeString(value) {
   if (typeof value === "string") return value;
@@ -44,70 +74,51 @@ function normalizeForDetection(value) {
   return safeString(value)
     .trim()
     .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
     .replace(/\s+/g, " ");
 }
 
-function countMatches(text, patterns) {
-  if (!text || !Array.isArray(patterns)) return 0;
+function tokenize(text) {
+  const normalized = normalizeForDetection(text)
+    .replace(/[¿¡]/g, " ")
+    .replace(/[^\p{L}\p{N}'\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  return patterns.reduce((count, pattern) => {
-    if (!pattern) return count;
-
-    if (pattern instanceof RegExp) {
-      return count + (pattern.test(text) ? 1 : 0);
-    }
-
-    return count + (text.includes(String(pattern).toLowerCase()) ? 1 : 0);
-  }, 0);
+  if (!normalized) return [];
+  return normalized.split(/\s+/).filter(Boolean);
 }
 
-const LANGUAGE_PATTERNS = {
-  en: [
-    /\b(the|and|you|are|is|this|that|with|for|what|how|hello|thanks|please)\b/i,
-    /\b(good|morning|night|today|tomorrow|need|help|tell|about|explain)\b/i,
-    /\b(i|we|they|he|she|it|my|your|our|their)\b/i
-  ],
-
-  fr: [
-    /\b(bonjour|salut|merci|s'il|sil|vous|plaît|plait|comment|ça|ca|va)\b/i,
-    /\b(je|tu|il|elle|nous|vous|ils|elles|mon|ma|mes|votre)\b/i,
-    /\b(le|la|les|un|une|des|est|sont|avec|pour|quoi|qui|où|ou)\b/i,
-    /[àâçéèêëîïôùûüÿœ]/i
-  ],
-
-  es: [
-    /\b(hola|gracias|por favor|como|cómo|estas|estás|buenos|buenas)\b/i,
-    /\b(yo|tú|tu|él|ella|nosotros|ustedes|ellos|ellas|mi|mis|su)\b/i,
-    /\b(el|la|los|las|un|una|unos|unas|es|son|con|para|qué|que|quién)\b/i,
-    /[áéíóúñü¿¡]/i
-  ]
-};
+function countTokenMatches(tokens, lexicon) {
+  if (!Array.isArray(tokens) || !Array.isArray(lexicon)) return 0;
+  const lexiconSet = new Set(lexicon);
+  return tokens.reduce((count, token) => count + (lexiconSet.has(token) ? 1 : 0), 0);
+}
 
 function scoreLanguage(text, languageCode) {
-  const patterns = LANGUAGE_PATTERNS[languageCode] || [];
-  const matches = countMatches(text, patterns);
+  const originalText = safeString(text);
+  const tokens = tokenize(originalText);
+  if (!tokens.length) return 0;
 
-  if (!text) return 0;
+  const lexicon = LANGUAGE_LEXICONS[languageCode] || [];
+  const matches = countTokenMatches(tokens, lexicon);
+  const tokenRatio = matches / Math.max(tokens.length, 1);
+  const matchDensity = matches / Math.max(Math.min(tokens.length, 6), 1);
 
-  const wordCount = text.split(/\s+/).filter(Boolean).length;
-  const baseScore = matches / Math.max(patterns.length, 1);
+  let score = Math.max(tokenRatio, matchDensity);
 
-  /**
-   * Short text needs a slightly forgiving boost because phrases like
-   * "bonjour" or "hola" may only trigger one strong language signal.
-   */
-  const shortTextBoost = wordCount <= 4 && matches > 0 ? 0.18 : 0;
+  if (tokens.length <= 4 && matches >= 1) score += 0.22;
+  if (tokens.length <= 4 && matches >= 2) score += 0.18;
+  if (tokens.length <= 6 && matches >= 3) score += 0.12;
 
-  /**
-   * Accent/character matches are strong evidence for French or Spanish.
-   */
-  const characterBoost =
-    (languageCode === "fr" && /[àâçéèêëîïôùûüÿœ]/i.test(text)) ||
-    (languageCode === "es" && /[áéíóúñü¿¡]/i.test(text))
-      ? 0.2
-      : 0;
+  const characterHint = CHARACTER_HINTS[languageCode];
+  if (characterHint && characterHint.test(originalText)) score += 0.18;
 
-  return Math.min(1, Number((baseScore + shortTextBoost + characterBoost).toFixed(2)));
+  // Avoid over-crediting English for single common words in very short inputs.
+  if (languageCode === "en" && tokens.length <= 2 && matches === 1) score -= 0.12;
+
+  return Math.max(0, Math.min(1, Number(score.toFixed(2))));
 }
 
 function chooseBestLanguage(scores) {
@@ -123,20 +134,25 @@ function chooseBestLanguage(scores) {
   };
 }
 
-function detectLanguage(input, options = {}) {
-  const config = {
+function mergeConfig(options) {
+  const supplied = options && typeof options === "object" ? options.config || {} : {};
+
+  return {
     ...DEFAULT_CONFIG,
-    ...(options.config || {}),
+    ...supplied,
     confidenceThresholds: {
       ...DEFAULT_CONFIG.confidenceThresholds,
-      ...((options.config && options.config.confidenceThresholds) || {})
+      ...(supplied.confidenceThresholds || {})
     },
     authority: {
       ...DEFAULT_CONFIG.authority,
-      ...((options.config && options.config.authority) || {})
+      ...(supplied.authority || {})
     }
   };
+}
 
+function detectLanguage(input, options = {}) {
+  const config = mergeConfig(options);
   const originalText = safeString(input);
   const detectionText = normalizeForDetection(originalText);
 
@@ -212,5 +228,6 @@ module.exports = {
   detectLanguage,
   normalizeForDetection,
   scoreLanguage,
-  DEFAULT_CONFIG
+  DEFAULT_CONFIG,
+  LANGUAGE_LEXICONS
 };
