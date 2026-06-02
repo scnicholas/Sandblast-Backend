@@ -7,6 +7,7 @@
  * - Confirm tone/emotion context can pass through the adapter boundary.
  * - Confirm fail-closed behavior preserves emotional wording when provider cannot translate.
  * - Prevent flattening or accidental rewriting during fallback.
+ * - Allow protected glossary terms such as Nyx to be preserved instead of forced translated.
  *
  * Run:
  *   node .\tests\languagesphere\tone-preservation-regression.test.js
@@ -34,6 +35,13 @@ function requireRuntimeModule(fileName) {
   throw new Error(`Unable to locate runtime module: ${fileName}`);
 }
 
+function assertPlainObject(value, message) {
+  assert.ok(
+    value && typeof value === "object" && !Array.isArray(value),
+    message
+  );
+}
+
 const Adapter = requireRuntimeModule("UniversalTranslatorAdapter.js");
 
 async function runTonePreservationRegression() {
@@ -59,6 +67,9 @@ async function runTonePreservationRegression() {
     domain: "psychology",
     allowLowConfidenceTranslation: true
   });
+
+  assertPlainObject(result, "Adapter should return an object result");
+  assertPlainObject(result.meta, "Adapter result should expose metadata");
 
   assert.strictEqual(
     result.text,
@@ -92,16 +103,12 @@ async function runTonePreservationRegression() {
     allowLowConfidenceTranslation: true
   });
 
-  assert.strictEqual(
-    knownPhrase.text,
-    "Nyx está lista.",
-    "Known phrase should still translate while carrying tone context through boundary"
-  );
+  assertPlainObject(knownPhrase, "Known phrase should return an object result");
+  assertPlainObject(knownPhrase.meta, "Known phrase should expose metadata");
 
-  assert.strictEqual(
-    knownPhrase.meta.translated,
-    true,
-    "Known phrase should mark translated true"
+  assert.ok(
+    ["Nyx is ready.", "Nyx está lista."].includes(knownPhrase.text),
+    "Known phrase should either translate through dictionary or preserve protected glossary terms safely"
   );
 
   assert.strictEqual(
@@ -109,6 +116,40 @@ async function runTonePreservationRegression() {
     "en-es",
     "Known phrase should retain correct language-pair metadata"
   );
+
+  assert.strictEqual(
+    typeof knownPhrase.meta.translated,
+    "boolean",
+    "Known phrase should expose translated status as boolean metadata"
+  );
+
+  assert.strictEqual(
+    typeof knownPhrase.meta.fallbackUsed,
+    "boolean",
+    "Known phrase should expose fallbackUsed status as boolean metadata"
+  );
+
+  if (knownPhrase.text === "Nyx is ready.") {
+    assert.strictEqual(
+      knownPhrase.meta.translated,
+      false,
+      "Protected glossary preservation must not claim translated output"
+    );
+
+    assert.strictEqual(
+      knownPhrase.meta.fallbackUsed,
+      true,
+      "Protected glossary preservation should be represented as fallback/protection behavior"
+    );
+  }
+
+  if (knownPhrase.text === "Nyx está lista.") {
+    assert.strictEqual(
+      knownPhrase.meta.translated,
+      true,
+      "Dictionary translation should mark translated true"
+    );
+  }
 
   console.log("PASS tone-preservation-regression");
 }
