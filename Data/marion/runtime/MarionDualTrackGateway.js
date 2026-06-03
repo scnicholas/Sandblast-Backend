@@ -23,7 +23,7 @@ const {
   buildRealWorldInputEnvelope
 } = require("./MarionRealWorldInputEnvelope");
 
-const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.2";
+const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.3";
 
 const DEFAULT_DUAL_TRACK_CONFIG = Object.freeze({
   enabled: true,
@@ -53,6 +53,88 @@ function safeString(value) {
 
 function safeObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of safeArray(values)) {
+    const text = safeString(value).trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out;
+}
+
+function extractActiveTracksFromPacket(packet = {}) {
+  const p = safeObject(packet);
+  const meta = safeObject(p.coordinationMeta || p);
+  if (Array.isArray(meta.activeTracks)) return uniqueStrings(meta.activeTracks);
+  return uniqueStrings([
+    safeObject(p.languageTrack).active === true ? "language" : "",
+    safeObject(p.realWorldTrack).active === true ? "real_world" : "",
+    safeObject(p.ethicalTrack).active === true ? "ethical" : "",
+    safeObject(p.strategicTrack).active === true ? "strategic" : ""
+  ].filter(Boolean));
+}
+
+function extractPreviousActiveTracks(payload = {}, options = {}) {
+  const p = safeObject(payload);
+  const o = safeObject(options);
+  const previous = safeObject(
+    o.previousDualTrack ||
+      o.previousPacket ||
+      o.previousParallelLaneCoordination ||
+      p.previousDualTrack ||
+      p.previousPacket ||
+      p.previousParallelLaneCoordination ||
+      p.previousLaneState
+  );
+  const previousMeta = safeObject(previous.coordinationMeta || previous);
+  const explicit = uniqueStrings(
+    previousMeta.activeTracks ||
+      previous.activeTracks ||
+      safeObject(previous.dualTrackSummary).activeTracks ||
+      safeObject(previous.coordinationSummary).activeTracks ||
+      []
+  );
+  if (explicit.length) return explicit;
+  return extractActiveTracksFromPacket(previous);
+}
+
+function buildLaneRecencyMaintenance(payload = {}, activeTracks = [], options = {}) {
+  const currentTracks = uniqueStrings(activeTracks);
+  const previousTracks = extractPreviousActiveTracks(payload, options);
+  const staleTracks = previousTracks.filter((track) => !currentTracks.includes(track));
+  const newlyActiveTracks = currentTracks.filter((track) => !previousTracks.includes(track));
+  const unchangedTracks = currentTracks.filter((track) => previousTracks.includes(track));
+  const turnId = safeString(safeObject(payload).turnId || safeObject(options).turnId || safeObject(payload).requestId || "");
+
+  return {
+    version: "nyx.marion.parallelLaneRecency/0.1",
+    active: previousTracks.length > 0 || currentTracks.length > 0,
+    currentTracks,
+    previousTracks,
+    newlyActiveTracks,
+    unchangedTracks,
+    staleTracks,
+    staleLanes: staleTracks,
+    staleCarrySuppressed: staleTracks.length > 0,
+    normalTurn: currentTracks.length === 0,
+    turnId,
+    advisoryOnly: true,
+    finalAuthority: "Marion",
+    publicReplyVisible: false,
+    userFacing: false,
+    noUserFacingDiagnostics: true,
+    source: "MarionDualTrackGateway"
+  };
 }
 
 function mergeDualTrackConfig(config) {
@@ -213,6 +295,12 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
       strategicTrack: { active: false, source: "ThalonStrategicAdvisory" },
       coordinationMeta: {
         activeTracks: [],
+        trackCount: 0,
+        mixedInput: false,
+        laneRecency: buildLaneRecencyMaintenance(payload, [], options),
+        staleTracks: [],
+        staleLanes: [],
+        staleCarrySuppressed: false,
         reason: "dual_track_gateway_disabled",
         source: "MarionDualTrackGateway"
       },
@@ -248,6 +336,8 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
   if (ethicalTrack.active) activeTracks.push("ethical");
   if (strategicTrack.active) activeTracks.push("strategic");
 
+  const laneRecency = buildLaneRecencyMaintenance(payload, activeTracks, options);
+
   const notificationReady = Boolean(
     safeObject(languageTrack.gatewayMeta).notificationReady ||
       safeObject(languageTrack.unknownLanguageAlert).notificationReady ||
@@ -273,6 +363,10 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
       activeTracks,
       trackCount: activeTracks.length,
       mixedInput: activeTracks.length > 1,
+      laneRecency,
+      staleTracks: laneRecency.staleTracks,
+      staleLanes: laneRecency.staleLanes,
+      staleCarrySuppressed: laneRecency.staleCarrySuppressed,
       notificationReady,
       requiresHumanReview: Boolean(realWorldTrack.requiresHumanReview || ethicalTrack.requiresHumanReview || strategicTrack.requiresHumanReview),
       publicReplyVisible: false,
@@ -290,6 +384,10 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
 
     advisoryOnly: true,
     forceAction: false,
+    laneRecency,
+    staleTracks: laneRecency.staleTracks,
+    staleLanes: laneRecency.staleLanes,
+    staleCarrySuppressed: laneRecency.staleCarrySuppressed,
 
     authority: {
       ...config.authority,
@@ -311,13 +409,10 @@ function summarizeDualTrackPacket(packet = {}) {
   const p = safeObject(packet);
   const meta = safeObject(p.coordinationMeta || p);
   const activeTracks = Array.isArray(meta.activeTracks)
-    ? meta.activeTracks
-    : [
-        safeObject(p.languageTrack).active === true ? "language" : "",
-        safeObject(p.realWorldTrack).active === true ? "real_world" : "",
-        safeObject(p.ethicalTrack).active === true ? "ethical" : "",
-        safeObject(p.strategicTrack).active === true ? "strategic" : ""
-      ].filter(Boolean);
+    ? uniqueStrings(meta.activeTracks)
+    : extractActiveTracksFromPacket(p);
+  const laneRecency = safeObject(p.laneRecency || meta.laneRecency);
+  const staleTracks = uniqueStrings(meta.staleTracks || meta.staleLanes || laneRecency.staleTracks || laneRecency.staleLanes || []);
 
   return {
     version: DUAL_TRACK_GATEWAY_VERSION,
@@ -327,6 +422,10 @@ function summarizeDualTrackPacket(packet = {}) {
     mixedInput: meta.mixedInput === true || activeTracks.length > 1,
     notificationReady: meta.notificationReady === true,
     requiresHumanReview: meta.requiresHumanReview === true,
+    laneRecency,
+    staleTracks,
+    staleLanes: staleTracks,
+    staleCarrySuppressed: meta.staleCarrySuppressed === true || laneRecency.staleCarrySuppressed === true || staleTracks.length > 0,
     authority: {
       finalAuthority: "Marion",
       lingoLinkAdvisoryOnly: true,
@@ -346,6 +445,8 @@ module.exports = {
   extractRealWorldTrack,
   extractEthicalTrack,
   extractStrategicTrack,
+  buildLaneRecencyMaintenance,
+  extractActiveTracksFromPacket,
   mergeDualTrackConfig,
   DEFAULT_DUAL_TRACK_CONFIG,
   DUAL_TRACK_GATEWAY_VERSION
