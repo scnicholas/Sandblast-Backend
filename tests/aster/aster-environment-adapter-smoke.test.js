@@ -1,15 +1,9 @@
 "use strict";
 
 /**
- * tests/aster/aster-environment-adapter-smoke.test.js
- *
- * Purpose:
- * - Smoke test Aster environmental adapter boundary.
- * - Confirm Aster stays observational, not final authority.
- * - Confirm adapter emits normalized observation metadata safely.
- *
- * Run:
- *   node .\tests\aster\aster-environment-adapter-smoke.test.js
+ * Jest-compatible Aster regression/smoke test.
+ * Maintenance: converted from raw Node assert runner to Jest test wrapper.
+ * Authority rule: Aster remains observational/advisory; Marion remains final authority.
  */
 
 const assert = require("assert");
@@ -46,6 +40,7 @@ function getFunction(moduleValue, names) {
   throw new Error(`Unable to locate exported function. Tried: ${names.join(", ")}`);
 }
 
+
 const Adapter = requireRuntimeModule("AsterEnvironmentAdapter.js");
 
 const runAdapter = getFunction(Adapter, [
@@ -57,56 +52,56 @@ const runAdapter = getFunction(Adapter, [
   "default"
 ]);
 
-(function runAsterEnvironmentAdapterSmoke() {
-  const result = runAdapter({
-    source: "manual-smoke",
-    sensorType: "weather",
-    location: "test-zone",
-    readings: {
-      temperatureC: 31,
-      humidityPercent: 72,
-      airQualityIndex: 68,
-      windKph: 19
-    },
-    context: {
-      userFacing: false,
-      project: "Aster",
-      gateway: "LingoLink"
-    }
+describe("AsterEnvironmentAdapter smoke", () => {
+  test("emits normalized observation metadata while preserving Marion authority", () => {
+    const result = runAdapter({
+      source: "manual-smoke",
+      sensorType: "weather",
+      location: "test-zone",
+      readings: {
+        temperatureC: 31,
+        humidityPercent: 72,
+        airQualityIndex: 68,
+        windKph: 19
+      },
+      context: {
+        userFacing: false,
+        project: "Aster",
+        gateway: "LingoLink"
+      }
+    });
+
+    assert.ok(result, "Adapter should return a result object");
+    assert.strictEqual(typeof result, "object", "Adapter result should be an object");
+
+    assert.notStrictEqual(
+      result.finalAnswerAuthorized,
+      true,
+      "Aster adapter must not authorize final public answers"
+    );
+
+    assert.notStrictEqual(
+      result.marionAuthorityRequired,
+      false,
+      "Aster adapter should require Marion authority before public final output"
+    );
+
+    assert.ok(
+      result.observation || result.normalized || result.envelope || result.aster,
+      "Adapter should expose observation, normalized, envelope, or aster payload"
+    );
+
+    const serialized = JSON.stringify(result).toLowerCase();
+
+    assert.ok(
+      serialized.includes("aster"),
+      "Adapter result should include Aster identity metadata"
+    );
+
+    assert.ok(
+      !serialized.includes("marion_final_authority") ||
+        serialized.includes("marionauthorityrequired"),
+      "Adapter should not pretend to be Marion final authority"
+    );
   });
-
-  assert.ok(result, "Adapter should return a result object");
-  assert.strictEqual(typeof result, "object", "Adapter result should be an object");
-
-  assert.notStrictEqual(
-    result.finalAnswerAuthorized,
-    true,
-    "Aster adapter must not authorize final public answers"
-  );
-
-  assert.notStrictEqual(
-    result.marionAuthorityRequired,
-    false,
-    "Aster adapter should require Marion authority before public final output"
-  );
-
-  assert.ok(
-    result.observation || result.normalized || result.envelope || result.aster,
-    "Adapter should expose observation, normalized, envelope, or aster payload"
-  );
-
-  const serialized = JSON.stringify(result).toLowerCase();
-
-  assert.ok(
-    serialized.includes("aster"),
-    "Adapter result should include Aster identity metadata"
-  );
-
-  assert.ok(
-    !serialized.includes("marion_final_authority") ||
-      serialized.includes("marionauthorityrequired"),
-    "Adapter should not pretend to be Marion final authority"
-  );
-
-  console.log("PASS aster-environment-adapter-smoke");
-})();
+});
