@@ -11,7 +11,7 @@
  * - Real-world context envelope
  * - Ethical gatekeeper
  * - Real-world risk classifier
- * - Thalon readiness stub
+ * - Thalon readiness / strategic advisory path
  *
  * Scope:
  * - Does not expose public reply text.
@@ -20,7 +20,7 @@
  * - Produces diagnostic telemetry only.
  */
 
-const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.1";
+const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.2";
 
 const DEFAULT_COORDINATION_TELEMETRY_CONFIG = Object.freeze({
   enabled: true,
@@ -175,6 +175,19 @@ function detectThalonReviewRecommended(payload = {}) {
   return Boolean(
     thalon.strategicReviewRequired === true ||
       thalon.thalonReady === true && safeString(thalon.recommendationMode) === "advisory_review"
+  );
+}
+
+function detectStrategicAdvisoryActive(payload = {}) {
+  const p = safeObject(payload);
+  const strategicTrack = safeObject(p.strategicTrack);
+  const thalon = safeObject(p.thalonReadiness || p.thalon || p.thalonReview || p.strategicReview || strategicTrack.strategicReview);
+
+  return Boolean(
+    strategicTrack.active === true ||
+      thalon.strategicReviewRequired === true ||
+      thalon.advisoryOnly === true ||
+      Number(thalon.decisionPressureIndex || thalon.pressureIndex || 0) > 0
   );
 }
 
@@ -333,6 +346,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
   const ethicalGatekeeperActive = detectEthicalGatekeeperActive(p);
   const riskClassifierActive = detectRiskClassifierActive(p);
   const thalonReviewRecommended = detectThalonReviewRecommended(p);
+  const strategicAdvisoryActive = detectStrategicAdvisoryActive(p);
 
   const activeLanes = [];
   if (lingoLinkActive) activeLanes.push("lingolink");
@@ -342,6 +356,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
   if (ethicalGatekeeperActive) activeLanes.push("ethical_gatekeeper");
   if (riskClassifierActive) activeLanes.push("risk_classifier");
   if (thalonReviewRecommended) activeLanes.push("thalon_review");
+  if (strategicAdvisoryActive) activeLanes.push("strategic_advisory");
 
   const notificationReady = Boolean(
     safeObject(p.coordinationMeta).notificationReady ||
@@ -373,6 +388,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
     ethicalGatekeeperActive,
     riskClassifierActive,
     thalonReviewRecommended,
+    strategicAdvisoryActive,
 
     notificationReady,
     requiresHumanReview,
@@ -446,6 +462,7 @@ module.exports = {
   detectEthicalGatekeeperActive,
   detectRiskClassifierActive,
   detectThalonReviewRecommended,
+  detectStrategicAdvisoryActive,
   mergeCoordinationTelemetryConfig,
   stableHash,
   DEFAULT_COORDINATION_TELEMETRY_CONFIG,
