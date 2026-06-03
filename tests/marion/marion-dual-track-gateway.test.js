@@ -131,9 +131,21 @@ describe("Marion Dual-Track Gateway", () => {
     expect(packet.forceAction).toBe(false);
   });
 
-  test("summary remains compact", () => {
+  test("summary remains compact for explicit language plus real-world packet", () => {
     const packet = buildMarionDualTrackPacket({
-      message: "Hello",
+      message: "Bonjour Nyx, translate this environmental note.",
+      languageMeta: {
+        detectedLanguage: "fr",
+        requiresTranslation: true,
+        confidence: 0.94,
+        updatedAt: Date.now()
+      },
+      translationMeta: {
+        sourceLanguage: "fr",
+        targetLanguage: "en",
+        translated: true,
+        updatedAt: Date.now()
+      },
       observation: {
         observationSummary: "Clear environment.",
         permissionStatus: "allowed",
@@ -149,6 +161,8 @@ describe("Marion Dual-Track Gateway", () => {
     expect(summary.activeTracks).toContain("real_world");
     expect(summary.mixedInput).toBe(true);
     expect(summary.authority.finalAuthority).toBe("Marion");
+    assertAuthority(packet);
+    assertInternalOnly(packet);
   });
 
   test("disabled gateway remains Marion-safe", () => {
