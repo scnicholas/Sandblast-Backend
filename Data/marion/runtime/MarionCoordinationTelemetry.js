@@ -20,7 +20,7 @@
  * - Produces diagnostic telemetry only.
  */
 
-const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3.1";
+const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3.2";
 
 const DEFAULT_COORDINATION_TELEMETRY_CONFIG = Object.freeze({
   enabled: true,
