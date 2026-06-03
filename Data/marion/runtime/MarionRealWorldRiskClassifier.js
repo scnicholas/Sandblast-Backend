@@ -14,7 +14,7 @@
  * - Provides advisory risk metadata only.
  */
 
-const REAL_WORLD_RISK_CLASSIFIER_VERSION = "nyx.marion.realWorldRiskClassifier/0.1";
+const REAL_WORLD_RISK_CLASSIFIER_VERSION = "nyx.marion.realWorldRiskClassifier/0.2";
 
 const DEFAULT_RISK_CONFIG = Object.freeze({
   enabled: true,
