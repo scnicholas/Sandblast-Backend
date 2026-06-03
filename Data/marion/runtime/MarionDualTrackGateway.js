@@ -23,18 +23,20 @@ const {
   buildRealWorldInputEnvelope
 } = require("./MarionRealWorldInputEnvelope");
 
-const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.1";
+const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.2";
 
 const DEFAULT_DUAL_TRACK_CONFIG = Object.freeze({
   enabled: true,
   languageTrackEnabled: true,
   realWorldTrackEnabled: true,
   ethicalTrackEnabled: true,
+  strategicTrackEnabled: true,
   authority: {
     finalAuthority: "Marion",
     lingoLinkAdvisoryOnly: true,
     realWorldAdvisoryOnly: true,
     ethicalAdvisoryOnly: true,
+    strategicAdvisoryOnly: true,
     neverOverrideMarion: true
   }
 });
@@ -66,6 +68,7 @@ function mergeDualTrackConfig(config) {
       lingoLinkAdvisoryOnly: true,
       realWorldAdvisoryOnly: true,
       ethicalAdvisoryOnly: true,
+      strategicAdvisoryOnly: true,
       neverOverrideMarion: true
     }
   };
@@ -159,6 +162,31 @@ function extractEthicalTrack(payload = {}) {
   };
 }
 
+function extractStrategicTrack(payload = {}) {
+  const p = safeObject(payload);
+  const strategic = safeObject(
+    p.strategicReview ||
+      p.strategicAssessment ||
+      p.thalonStrategicAssessment ||
+      p.thalonAdvisory ||
+      p.thalon ||
+      p.thalonReview ||
+      p.strategyReview
+  );
+
+  const pressure = Number(strategic.decisionPressureIndex || strategic.pressureIndex || strategic.pressure || 0);
+
+  return {
+    active: Object.keys(strategic).length > 0 || pressure > 0,
+    source: "ThalonStrategicAdvisory",
+    strategicReview: strategic,
+    decisionPressureIndex: Number.isFinite(pressure) ? Math.max(0, Math.min(1, pressure)) : 0,
+    requiresHumanReview: strategic.requiresHumanReview === true || strategic.humanReviewRecommended === true || pressure >= 0.75,
+    advisoryOnly: true,
+    finalAuthority: "Marion"
+  };
+}
+
 function buildMarionDualTrackPacket(payload = {}, options = {}) {
   const config = mergeDualTrackConfig(options.config);
 
@@ -169,6 +197,7 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
       languageTrack: { active: false, source: "LingoLink" },
       realWorldTrack: { active: false, source: "RealWorldInputEnvelope" },
       ethicalTrack: { active: false, source: "ThalonReadinessPending" },
+      strategicTrack: { active: false, source: "ThalonStrategicAdvisory" },
       coordinationMeta: {
         activeTracks: [],
         reason: "dual_track_gateway_disabled",
@@ -196,16 +225,23 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
     ? { active: false, source: "ThalonReadinessPending", disabled: true }
     : extractEthicalTrack(payload);
 
+  const strategicTrack = config.strategicTrackEnabled === false
+    ? { active: false, source: "ThalonStrategicAdvisory", disabled: true }
+    : extractStrategicTrack(payload);
+
   const activeTracks = [];
   if (languageTrack.active) activeTracks.push("language");
   if (realWorldTrack.active) activeTracks.push("real_world");
   if (ethicalTrack.active) activeTracks.push("ethical");
+  if (strategicTrack.active) activeTracks.push("strategic");
 
   const notificationReady = Boolean(
     safeObject(languageTrack.gatewayMeta).notificationReady ||
       safeObject(languageTrack.unknownLanguageAlert).notificationReady ||
       safeObject(languageTrack.dormantScanner).notificationReady ||
-      realWorldTrack.requiresHumanReview
+      realWorldTrack.requiresHumanReview ||
+      ethicalTrack.requiresHumanReview ||
+      strategicTrack.requiresHumanReview
   );
 
   return {
@@ -218,13 +254,14 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
     languageTrack,
     realWorldTrack,
     ethicalTrack,
+    strategicTrack,
 
     coordinationMeta: {
       activeTracks,
       trackCount: activeTracks.length,
       mixedInput: activeTracks.length > 1,
       notificationReady,
-      requiresHumanReview: Boolean(realWorldTrack.requiresHumanReview),
+      requiresHumanReview: Boolean(realWorldTrack.requiresHumanReview || ethicalTrack.requiresHumanReview || strategicTrack.requiresHumanReview),
       publicReplyVisible: false,
       userFacing: false,
       reason: activeTracks.length
@@ -247,6 +284,7 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
       lingoLinkAdvisoryOnly: true,
       realWorldAdvisoryOnly: true,
       ethicalAdvisoryOnly: true,
+      strategicAdvisoryOnly: true,
       neverOverrideMarion: true
     },
 
@@ -273,6 +311,7 @@ function summarizeDualTrackPacket(packet = {}) {
       lingoLinkAdvisoryOnly: true,
       realWorldAdvisoryOnly: true,
       ethicalAdvisoryOnly: true,
+      strategicAdvisoryOnly: true,
       neverOverrideMarion: true
     },
     source: "MarionDualTrackGateway"
@@ -285,6 +324,7 @@ module.exports = {
   extractLanguageTrack,
   extractRealWorldTrack,
   extractEthicalTrack,
+  extractStrategicTrack,
   mergeDualTrackConfig,
   DEFAULT_DUAL_TRACK_CONFIG,
   DUAL_TRACK_GATEWAY_VERSION
