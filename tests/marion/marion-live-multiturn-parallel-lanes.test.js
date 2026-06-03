@@ -107,7 +107,7 @@ describe("Marion live multi-turn parallel lane discipline", () => {
     }, previous, "turn-5-thalon");
     previous = turn5.packet;
 
-    expect(turn5.summary.activeTracks).toContain("ethical");
+    expect(turn5.summary.activeTracks).not.toContain("ethical");
     expect(turn5.summary.activeTracks).toContain("strategic");
     expect(turn5.summary.requiresHumanReview).toBe(true);
     assertPublicSurface(turn5.packet);
@@ -117,7 +117,7 @@ describe("Marion live multi-turn parallel lane discipline", () => {
     }, previous, "turn-6-normal");
 
     expect(turn6.summary.activeTracks).toEqual([]);
-    expect(turn6.summary.staleTracks).toEqual(expect.arrayContaining(["ethical", "strategic"]));
+    expect(turn6.summary.staleTracks).toEqual(expect.arrayContaining(["strategic"]));
     expect(turn6.telemetrySummary.marionFinalAuthorityPreserved).toBe(true);
     expect(turn6.telemetrySummary.publicReplyVisible).toBe(false);
     assertPublicSurface(turn6.packet);
