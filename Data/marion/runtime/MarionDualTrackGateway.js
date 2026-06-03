@@ -23,7 +23,7 @@ const {
   buildRealWorldInputEnvelope
 } = require("./MarionRealWorldInputEnvelope");
 
-const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.3";
+const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.3.1";
 
 const DEFAULT_DUAL_TRACK_CONFIG = Object.freeze({
   enabled: true,
@@ -156,17 +156,31 @@ function mergeDualTrackConfig(config) {
   };
 }
 
+
+function looksLikeExplicitLanguageSignal(payload = {}) {
+  const p = safeObject(payload);
+  const text = safeString(p.message || p.input || p.text || p.prompt || "");
+  const lower = text.toLowerCase();
+
+  return Boolean(
+    Object.keys(safeObject(p.languageMeta)).length ||
+      Object.keys(safeObject(p.lingoInput)).length ||
+      Object.keys(safeObject(p.translationMeta)).length ||
+      Object.keys(safeObject(p.unknownLanguageAlert)).length ||
+      Object.keys(safeObject(p.scannerHeartbeat)).length ||
+      Object.keys(safeObject(p.dormantScanner)).length ||
+      Object.keys(safeObject(p.gatewayMeta)).length && /lingolink|language|translation/i.test(JSON.stringify(safeObject(p.gatewayMeta))) ||
+      /\b(?:translate|translation|language|lingolink|lingo link|bonjour|hola|français|francais|español|espanol)\b/i.test(text) ||
+      /[À-ÿ¿¡]/.test(text) ||
+      (lower.includes("nyx") && /\b(?:bonjour|hola)\b/i.test(text))
+  );
+}
+
 function extractLanguageTrack(payload = {}) {
   const p = safeObject(payload);
 
   return {
-    active: Boolean(
-      safeString(p.message || p.input || p.text || p.prompt) ||
-        Object.keys(safeObject(p.languageMeta)).length ||
-        Object.keys(safeObject(p.lingoInput)).length ||
-        Object.keys(safeObject(p.translationMeta)).length ||
-        Object.keys(safeObject(p.unknownLanguageAlert)).length
-    ),
+    active: looksLikeExplicitLanguageSignal(p),
     source: "LingoLink",
     message: safeString(p.message || p.input || p.text || p.prompt || ""),
     languageMeta: safeObject(p.languageMeta),
@@ -463,6 +477,7 @@ module.exports = {
   extractStrategicTrack,
   buildLaneRecencyMaintenance,
   extractActiveTracksFromPacket,
+  looksLikeExplicitLanguageSignal,
   mergeDualTrackConfig,
   DEFAULT_DUAL_TRACK_CONFIG,
   DUAL_TRACK_GATEWAY_VERSION
