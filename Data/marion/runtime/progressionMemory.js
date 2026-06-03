@@ -1,14 +1,34 @@
 "use strict";
 
-const VERSION = "progressionMemory v1.1.0 RESPONSE-EXPANSION-CARRY-HARDLOCK";
+const VERSION = "progressionMemory v1.1.1 RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
 const PROGRESSION_MEMORY_VERSION = "nyx.marion.progressionMemory/1.1";
+const PARALLEL_LANE_RECENCY_VERSION = "nyx.marion.parallelLaneRecency/0.1";
 const shape = require("./progressionShape.js");
 
 function safeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
 function safeObj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+function safeArray(value) { return Array.isArray(value) ? value : []; }
 function firstText() { for (let i = 0; i < arguments.length; i += 1) { const v = safeStr(arguments[i]); if (v) return v; } return ""; }
 function clamp01(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback; }
 function hashText(value) { const s = safeStr(value).toLowerCase(); let h = 2166136261; for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16); }
+
+
+function normalizeParallelLaneRecencyMemory(value = {}) {
+  const v = safeObj(value);
+  const stale = safeArray(v.staleTracks || v.staleLanes).map(safeStr).filter(Boolean).slice(0, 8);
+  const current = safeArray(v.currentTracks || v.activeTracks).map(safeStr).filter(Boolean).slice(0, 8);
+  return {
+    version: firstText(v.version, PARALLEL_LANE_RECENCY_VERSION),
+    active: !!(v.active || stale.length || current.length),
+    currentTracks: current,
+    previousTracks: safeArray(v.previousTracks).map(safeStr).filter(Boolean).slice(0, 8),
+    staleTracks: stale,
+    staleLanes: stale,
+    staleCarrySuppressed: !!(v.staleCarrySuppressed || v.staleLaneCarrySuppressed || stale.length),
+    noUserFacingDiagnostics: true,
+    updatedAt: Number.isFinite(Number(v.updatedAt)) ? Number(v.updatedAt) : Date.now()
+  };
+}
 
 function normalizeProgressionMemory(value = {}) {
   const v = safeObj(value);
@@ -35,6 +55,7 @@ function normalizeProgressionMemory(value = {}) {
     passFailState: firstText(v.passFailState, ""),
     shallowReplyBlocked: !!v.shallowReplyBlocked,
     noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
+    parallelLaneRecency: normalizeParallelLaneRecencyMemory(v.parallelLaneRecency || v.parallelLaneCarryMaintenance),
     updatedAt: Number.isFinite(Number(v.updatedAt)) ? Number(v.updatedAt) : Date.now()
   };
 }
@@ -77,9 +98,10 @@ function updateProgressionMemory({ text = "", reply = "", previous = {}, context
     passFailState: profile.signal === "pass" ? "passed" : (profile.signal === "fail" ? "failed" : prev.passFailState),
     shallowReplyBlocked: shallow || prev.shallowReplyBlocked,
     noUserFacingDiagnostics: true,
+    parallelLaneRecency: normalizeParallelLaneRecencyMemory(safeObj(context).parallelLaneRecency || safeObj(context).parallelLaneCarryMaintenance || safeObj(prev).parallelLaneRecency),
     updatedAt: Date.now()
   });
   return { ...next, profile };
 }
 
-module.exports = { VERSION, PROGRESSION_MEMORY_VERSION, normalizeProgressionMemory, pendingActionFor, updateProgressionMemory, default: updateProgressionMemory };
+module.exports = { VERSION, PROGRESSION_MEMORY_VERSION, PARALLEL_LANE_RECENCY_VERSION, normalizeParallelLaneRecencyMemory, normalizeProgressionMemory, pendingActionFor, updateProgressionMemory, default: updateProgressionMemory };
