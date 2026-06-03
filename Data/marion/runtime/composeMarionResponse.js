@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.6 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + LINGOLINK-GATEWAY-COMPOSER-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE";
+const VERSION = "composeMarionResponse v3.36.6 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + LINGOLINK-GATEWAY-COMPOSER-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -134,12 +134,15 @@ function buildParallelLaneCarryMaintenance(input={},routed={}){
   const plc=firstObj(i.parallelLaneCoordination,r.parallelLaneCoordination,routing.parallelLaneCoordination);
   const telemetry=firstObj(i.coordinationTelemetry,r.coordinationTelemetry,routing.coordinationTelemetry,safeObj(plc).coordinationTelemetry);
   const dualTrack=firstObj(i.dualTrack,r.dualTrack,routing.dualTrack,safeObj(plc).dualTrack);
-  const recency=firstObj(safeObj(plc).recencyMaintenance,safeObj(telemetry).laneRecency,safeObj(dualTrack).laneRecency);
-  const staleLanes=safeArray(safeObj(plc).staleLanes||safeObj(recency).staleLanes||safeObj(recency).staleTracks||safeObj(telemetry).staleLanes||safeObj(safeObj(dualTrack).coordinationMeta).staleTracks);
+  const dualTrackMeta=safeObj(safeObj(dualTrack).coordinationMeta);
+  const recency=firstObj(safeObj(plc).recencyMaintenance,safeObj(telemetry).laneRecency,safeObj(dualTrack).laneRecency,safeObj(dualTrackMeta).laneRecency);
+  const staleLanes=safeArray(safeObj(plc).staleLanes||safeObj(recency).staleLanes||safeObj(recency).staleTracks||safeObj(telemetry).staleLanes||safeObj(dualTrackMeta).staleTracks||safeObj(dualTrackMeta).staleLanes);
   return {
     active:!!Object.keys(plc).length||!!Object.keys(telemetry).length||!!Object.keys(dualTrack).length,
-    staleLaneCarrySuppressed:staleLanes.length>0||safeObj(recency).staleCarrySuppressed===true||safeObj(plc).staleLaneCarrySuppressed===true,
+    staleLaneCarrySuppressed:staleLanes.length>0||safeObj(recency).staleCarrySuppressed===true||safeObj(plc).staleLaneCarrySuppressed===true||safeObj(dualTrackMeta).staleCarrySuppressed===true,
     staleLanes,
+    currentTracks:safeArray(safeObj(recency).currentTracks||safeObj(dualTrackMeta).activeTracks),
+    previousTracks:safeArray(safeObj(recency).previousTracks),
     laneRecency:recency,
     noUserFacingDiagnostics:true,
     publicReplyVisible:false,
