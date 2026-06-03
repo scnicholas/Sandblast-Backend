@@ -304,6 +304,13 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
         reason: "dual_track_gateway_disabled",
         source: "MarionDualTrackGateway"
       },
+      publicReplyVisible: false,
+      userFacing: false,
+      publicText: "",
+      renderText: "",
+      text: "",
+      advisoryOnly: true,
+      forceAction: false,
       authority: config.authority,
       marionAuthority: true,
       finalAuthority: "Marion",
@@ -377,6 +384,7 @@ function buildMarionDualTrackPacket(payload = {}, options = {}) {
       source: "MarionDualTrackGateway"
     },
 
+    publicReplyVisible: false,
     userFacing: false,
     publicText: "",
     renderText: "",
@@ -426,6 +434,14 @@ function summarizeDualTrackPacket(packet = {}) {
     staleTracks,
     staleLanes: staleTracks,
     staleCarrySuppressed: meta.staleCarrySuppressed === true || laneRecency.staleCarrySuppressed === true || staleTracks.length > 0,
+    publicReplyVisible: false,
+    userFacing: false,
+    publicText: "",
+    renderText: "",
+    text: "",
+    advisoryOnly: true,
+    marionAuthority: true,
+    finalAuthority: "Marion",
     authority: {
       finalAuthority: "Marion",
       lingoLinkAdvisoryOnly: true,
