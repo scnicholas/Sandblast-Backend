@@ -1,15 +1,9 @@
 "use strict";
 
 /**
- * tests/aster/aster-risk-tagger-regression.test.js
- *
- * Purpose:
- * - Validate Aster risk tagging.
- * - Confirm higher-risk readings are tagged without creating alarmist public output.
- * - Confirm low-risk readings remain low/no-risk.
- *
- * Run:
- *   node .\tests\aster\aster-risk-tagger-regression.test.js
+ * Jest-compatible Aster regression/smoke test.
+ * Maintenance: converted from raw Node assert runner to Jest test wrapper.
+ * Authority rule: Aster remains observational/advisory; Marion remains final authority.
  */
 
 const assert = require("assert");
@@ -46,6 +40,7 @@ function getFunction(moduleValue, names) {
   throw new Error(`Unable to locate exported function. Tried: ${names.join(", ")}`);
 }
 
+
 const RiskTagger = requireRuntimeModule("AsterRiskTagger.js");
 
 const tagRisk = getFunction(RiskTagger, [
@@ -58,73 +53,75 @@ const tagRisk = getFunction(RiskTagger, [
   "default"
 ]);
 
-(function runAsterRiskTaggerRegression() {
-  const elevated = tagRisk({
-    context: "environment.weather.air-quality",
-    normalized: {
-      temperatureC: 38,
-      humidityPercent: 82,
-      airQualityIndex: 155,
-      windKph: 45
-    },
-    source: "risk-regression"
+describe("AsterRiskTagger regression", () => {
+  test("tags elevated readings without alarmist public output", () => {
+    const elevated = tagRisk({
+      context: "environment.weather.air-quality",
+      normalized: {
+        temperatureC: 38,
+        humidityPercent: 82,
+        airQualityIndex: 155,
+        windKph: 45
+      },
+      source: "risk-regression"
+    });
+
+    assert.ok(elevated, "Risk tagger should return a result object");
+    assert.strictEqual(typeof elevated, "object", "Risk tagger result should be object-shaped");
+
+    const elevatedText = JSON.stringify(elevated).toLowerCase();
+
+    assert.ok(
+      elevatedText.includes("risk") ||
+        elevatedText.includes("elevated") ||
+        elevatedText.includes("moderate") ||
+        elevatedText.includes("high") ||
+        elevatedText.includes("caution"),
+      "Elevated readings should produce risk/elevated/moderate/high/caution metadata"
+    );
+
+    assert.notStrictEqual(
+      elevated.finalAnswerAuthorized,
+      true,
+      "Risk tagger must not authorize final public answers"
+    );
+
+    assert.notStrictEqual(
+      elevated.publicAlarm,
+      true,
+      "Risk tagger should not create alarmist public output by default"
+    );
   });
 
-  assert.ok(elevated, "Risk tagger should return a result object");
-  assert.strictEqual(typeof elevated, "object", "Risk tagger result should be object-shaped");
+  test("keeps low-risk readings low or stable while advisory-only", () => {
+    const low = tagRisk({
+      context: "environment.weather.general",
+      normalized: {
+        temperatureC: 21,
+        humidityPercent: 45,
+        airQualityIndex: 28,
+        windKph: 8
+      },
+      source: "low-risk-regression"
+    });
 
-  const elevatedText = JSON.stringify(elevated).toLowerCase();
+    assert.ok(low, "Low-risk input should return a result object");
 
-  assert.ok(
-    elevatedText.includes("risk") ||
-      elevatedText.includes("elevated") ||
-      elevatedText.includes("moderate") ||
-      elevatedText.includes("high") ||
-      elevatedText.includes("caution"),
-    "Elevated readings should produce risk/elevated/moderate/high/caution metadata"
-  );
+    const lowText = JSON.stringify(low).toLowerCase();
 
-  assert.notStrictEqual(
-    elevated.finalAnswerAuthorized,
-    true,
-    "Risk tagger must not authorize final public answers"
-  );
+    assert.ok(
+      lowText.includes("low") ||
+        lowText.includes("normal") ||
+        lowText.includes("stable") ||
+        lowText.includes("none") ||
+        lowText.includes("risk"),
+      "Low-risk readings should produce low/normal/stable/none/risk metadata"
+    );
 
-  assert.notStrictEqual(
-    elevated.publicAlarm,
-    true,
-    "Risk tagger should not create alarmist public output by default"
-  );
-
-  const low = tagRisk({
-    context: "environment.weather.general",
-    normalized: {
-      temperatureC: 21,
-      humidityPercent: 45,
-      airQualityIndex: 28,
-      windKph: 8
-    },
-    source: "low-risk-regression"
+    assert.notStrictEqual(
+      low.finalAnswerAuthorized,
+      true,
+      "Low-risk path must still not authorize final public answers"
+    );
   });
-
-  assert.ok(low, "Low-risk input should return a result object");
-
-  const lowText = JSON.stringify(low).toLowerCase();
-
-  assert.ok(
-    lowText.includes("low") ||
-      lowText.includes("normal") ||
-      lowText.includes("stable") ||
-      lowText.includes("none") ||
-      lowText.includes("risk"),
-    "Low-risk readings should produce low/normal/stable/none/risk metadata"
-  );
-
-  assert.notStrictEqual(
-    low.finalAnswerAuthorized,
-    true,
-    "Low-risk path must still not authorize final public answers"
-  );
-
-  console.log("PASS aster-risk-tagger-regression");
-})();
+});
