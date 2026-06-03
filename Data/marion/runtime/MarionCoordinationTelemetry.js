@@ -20,12 +20,13 @@
  * - Produces diagnostic telemetry only.
  */
 
-const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.2";
+const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3";
 
 const DEFAULT_COORDINATION_TELEMETRY_CONFIG = Object.freeze({
   enabled: true,
   includeHashes: true,
   includeTrackSummaries: true,
+  maxLaneCarryAgeMs: 5 * 60 * 1000,
   publicReplyVisible: false,
   authority: {
     finalAuthority: "Marion",
@@ -62,6 +63,73 @@ function clamp01(value, fallback = 0) {
   const n = Number(value);
   if (!Number.isFinite(n)) return Math.max(0, Math.min(1, Number(fallback) || 0));
   return Math.max(0, Math.min(1, n));
+}
+
+function finiteTimestamp(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  if (value instanceof Date) {
+    const t = value.getTime();
+    return Number.isFinite(t) ? t : 0;
+  }
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  const parsed = Date.parse(safeString(value));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function newestTimestamp() {
+  let newest = 0;
+  for (let i = 0; i < arguments.length; i += 1) {
+    const t = finiteTimestamp(arguments[i]);
+    if (t > newest) newest = t;
+  }
+  return newest;
+}
+
+function buildLaneRecencySnapshot(payload = {}, maxAgeMs = 5 * 60 * 1000, now = Date.now()) {
+  const p = safeObject(payload);
+  const languageTrack = safeObject(p.languageTrack);
+  const realWorldTrack = safeObject(p.realWorldTrack);
+  const ethicalGate = safeObject(p.ethicalGate || p.ethicalGatekeeper);
+  const risk = safeObject(p.riskClassification || p.riskClassifier || p.realWorldRisk);
+  const strategicTrack = safeObject(p.strategicTrack);
+  const thalon = safeObject(p.thalonReadiness || p.thalon || p.thalonReview || p.strategicReview || strategicTrack.strategicReview);
+  const allowedAge = Math.max(1000, Number(maxAgeMs) || (5 * 60 * 1000));
+  const laneTimestamps = {
+    lingolink: newestTimestamp(p.updatedAt, languageTrack.updatedAt, p.languageMeta && p.languageMeta.updatedAt, p.translationMeta && p.translationMeta.updatedAt, p.gatewayMeta && p.gatewayMeta.updatedAt),
+    unknown_language_alert: newestTimestamp(p.unknownLanguageAlert && p.unknownLanguageAlert.updatedAt, languageTrack.unknownLanguageAlert && languageTrack.unknownLanguageAlert.updatedAt),
+    dormant_scanner: newestTimestamp(p.dormantScanner && p.dormantScanner.updatedAt, languageTrack.dormantScanner && languageTrack.dormantScanner.updatedAt),
+    real_world_context: newestTimestamp(realWorldTrack.updatedAt, p.realWorldEnvelope && p.realWorldEnvelope.updatedAt, p.realWorldObservation && p.realWorldObservation.updatedAt, p.observation && p.observation.updatedAt),
+    ethical_gatekeeper: newestTimestamp(ethicalGate.updatedAt),
+    risk_classifier: newestTimestamp(risk.updatedAt),
+    thalon_review: newestTimestamp(thalon.updatedAt),
+    strategic_advisory: newestTimestamp(strategicTrack.updatedAt, thalon.updatedAt)
+  };
+  const laneAgeMs = {};
+  const staleLanes = [];
+  for (const lane of Object.keys(laneTimestamps)) {
+    const ts = laneTimestamps[lane];
+    const age = ts > 0 ? Math.max(0, now - ts) : 0;
+    laneAgeMs[lane] = age;
+    if (ts > 0 && age > allowedAge) staleLanes.push(lane);
+  }
+  return {
+    enabled: true,
+    maxLaneCarryAgeMs: allowedAge,
+    staleLanes,
+    staleCarrySuppressed: staleLanes.length > 0,
+    laneTimestamps,
+    laneAgeMs,
+    noUserFacingDiagnostics: true,
+    publicReplyVisible: false,
+    userFacing: false,
+    source: "MarionCoordinationTelemetry"
+  };
+}
+
+function filterFreshActiveLanes(activeLanes = [], laneRecency = {}) {
+  const stale = new Set(safeArray(safeObject(laneRecency).staleLanes));
+  return safeArray(activeLanes).filter((lane) => !stale.has(lane));
 }
 
 function mergeCoordinationTelemetryConfig(config) {
@@ -338,6 +406,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
   const p = safeObject(payload);
   const ids = extractCoordinationIds(p);
   const laneSummary = buildLaneSummary(p);
+  const laneRecency = buildLaneRecencySnapshot(p, config.maxLaneCarryAgeMs);
 
   const lingoLinkActive = detectLingoLinkActive(p);
   const unknownLanguageAlertActive = detectUnknownLanguageAlertActive(p);
@@ -357,6 +426,8 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
   if (riskClassifierActive) activeLanes.push("risk_classifier");
   if (thalonReviewRecommended) activeLanes.push("thalon_review");
   if (strategicAdvisoryActive) activeLanes.push("strategic_advisory");
+
+  const freshActiveLanes = filterFreshActiveLanes(activeLanes, laneRecency);
 
   const notificationReady = Boolean(
     safeObject(p.coordinationMeta).notificationReady ||
@@ -393,8 +464,12 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
     notificationReady,
     requiresHumanReview,
 
-    activeLanes,
-    activeLaneCount: activeLanes.length,
+    activeLanes: freshActiveLanes,
+    rawActiveLanes: activeLanes,
+    activeLaneCount: freshActiveLanes.length,
+    staleLaneCarrySuppressed: laneRecency.staleCarrySuppressed,
+    staleLanes: laneRecency.staleLanes,
+    laneRecency,
 
     marionFinalAuthorityPreserved: true,
     publicReplyVisible: false,
@@ -435,7 +510,10 @@ function summarizeCoordinationTelemetry(telemetry = {}) {
     version: MARION_COORDINATION_TELEMETRY_VERSION,
     enabled: t.enabled !== false,
     activeLanes: safeArray(t.activeLanes),
+    rawActiveLanes: safeArray(t.rawActiveLanes),
     activeLaneCount: Number(t.activeLaneCount || 0),
+    staleLaneCarrySuppressed: safeObject(t.laneRecency).staleCarrySuppressed === true || safeArray(t.staleLanes).length > 0,
+    staleLanes: safeArray(t.staleLanes || safeObject(t.laneRecency).staleLanes),
     notificationReady: t.notificationReady === true,
     requiresHumanReview: t.requiresHumanReview === true,
     marionFinalAuthorityPreserved: t.marionFinalAuthorityPreserved !== false,
@@ -463,6 +541,8 @@ module.exports = {
   detectRiskClassifierActive,
   detectThalonReviewRecommended,
   detectStrategicAdvisoryActive,
+  buildLaneRecencySnapshot,
+  filterFreshActiveLanes,
   mergeCoordinationTelemetryConfig,
   stableHash,
   DEFAULT_COORDINATION_TELEMETRY_CONFIG,
