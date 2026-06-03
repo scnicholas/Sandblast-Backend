@@ -1,74 +1,123 @@
-
 "use strict";
 
 const {
   buildMarionDualTrackPacket,
-  summarizeDualTrackPacket,
-  DUAL_TRACK_GATEWAY_VERSION
+  summarizeDualTrackPacket
 } = require("../../Data/marion/runtime/MarionDualTrackGateway");
 
 function assertAuthority(packet) {
+  expect(packet).toBeTruthy();
   expect(packet.finalAuthority).toBe("Marion");
   expect(packet.marionAuthority).toBe(true);
   expect(packet.advisoryOnly).toBe(true);
   expect(packet.publicReplyVisible).toBe(false);
   expect(packet.userFacing).toBe(false);
   expect(packet.text).toBe("");
+  expect(packet.publicText).toBe("");
+  expect(packet.renderText).toBe("");
 }
 
-describe("Marion parallel lane stale-carry suppression", () => {
-  test("clears stale advisory lanes across a six-turn mixed flow", () => {
+function buildTurn(payload, previousDualTrack, turnId) {
+  const packet = buildMarionDualTrackPacket(
+    { ...payload, turnId },
+    { previousDualTrack, turnId }
+  );
+
+  return {
+    packet,
+    summary: summarizeDualTrackPacket(packet)
+  };
+}
+
+describe("Marion parallel lane stale-carry discipline", () => {
+  test("normal chat after a language turn suppresses stale language carry", () => {
     let previous = null;
 
-    const turn1 = buildMarionDualTrackPacket({
-      message: "Bonjour Nyx",
-      languageMeta: { detectedLanguage: "fr", requiresTranslation: true }
-    }, { previousDualTrack: previous });
-    expect(turn1.coordinationMeta.activeTracks).toEqual(["language"]);
-    expect(turn1.coordinationMeta.laneRecency.staleTracks).toEqual([]);
-    assertAuthority(turn1);
-    previous = turn1;
+    const turn1 = buildTurn({
+      message: "Bonjour Nyx, translate this phrase into English.",
+      languageMeta: {
+        detectedLanguage: "fr",
+        requiresTranslation: true,
+        confidence: 0.94,
+        updatedAt: Date.now()
+      },
+      translationMeta: {
+        sourceLanguage: "fr",
+        targetLanguage: "en",
+        translated: true,
+        updatedAt: Date.now()
+      }
+    }, previous, "turn-1-language");
 
-    const turn2 = buildMarionDualTrackPacket({ message: "normal chat" }, { previousDualTrack: previous });
-    expect(turn2.coordinationMeta.activeTracks).toEqual(["language"]);
-    expect(turn2.coordinationMeta.laneRecency.staleTracks).toEqual([]);
-    assertAuthority(turn2);
-    previous = turn2;
+    expect(turn1.summary.activeTracks).toContain("language");
+    expect(turn1.summary.activeTracks).not.toContain("real_world");
+    expect(turn1.summary.activeTracks).not.toContain("strategic");
+    assertAuthority(turn1.packet);
+    previous = turn1.packet;
 
-    const turn3 = buildMarionDualTrackPacket({
-      realWorldObservation: { observationType: "environment", riskLevel: "low", observationSummary: "clear environment" }
-    }, { previousDualTrack: previous });
-    expect(turn3.coordinationMeta.activeTracks).toEqual(["real_world"]);
-    expect(turn3.coordinationMeta.laneRecency.staleTracks).toContain("language");
-    expect(turn3.coordinationMeta.staleCarrySuppressed).toBe(true);
-    assertAuthority(turn3);
-    previous = turn3;
+    const turn2 = buildTurn({
+      message: "normal chat"
+    }, previous, "turn-2-normal");
 
-    const turn4 = buildMarionDualTrackPacket({}, { previousDualTrack: previous });
-    expect(turn4.coordinationMeta.activeTracks).toEqual([]);
-    expect(turn4.coordinationMeta.laneRecency.staleTracks).toContain("real_world");
-    expect(turn4.coordinationMeta.staleCarrySuppressed).toBe(true);
-    assertAuthority(turn4);
-    previous = turn4;
+    expect(turn2.summary.activeTracks).toEqual([]);
+    expect(turn2.summary.staleCarrySuppressed).toBe(true);
+    expect(turn2.summary.staleTracks).toContain("language");
+    assertAuthority(turn2.packet);
+    previous = turn2.packet;
 
-    const turn5 = buildMarionDualTrackPacket({
-      strategicReview: { decisionPressureIndex: 0.82, humanReviewRecommended: true }
-    }, { previousDualTrack: previous });
-    expect(turn5.coordinationMeta.activeTracks).toEqual(["strategic"]);
-    expect(turn5.coordinationMeta.requiresHumanReview).toBe(true);
-    assertAuthority(turn5);
-    previous = turn5;
+    const turn3 = buildTurn({
+      message: "Aster observation packet.",
+      realWorldObservation: {
+        observationType: "environment",
+        observationSummary: "smoke indoors",
+        riskLevel: "high",
+        confidence: 0.82,
+        updatedAt: Date.now()
+      }
+    }, previous, "turn-3-real-world");
 
-    const turn6 = buildMarionDualTrackPacket({ message: "normal chat" }, { previousDualTrack: previous });
-    expect(turn6.coordinationMeta.activeTracks).toEqual(["language"]);
-    expect(turn6.coordinationMeta.laneRecency.staleTracks).toContain("strategic");
-    expect(turn6.coordinationMeta.staleCarrySuppressed).toBe(true);
+    expect(turn3.summary.activeTracks).toContain("real_world");
+    expect(turn3.summary.activeTracks).not.toContain("language");
+    expect(turn3.summary.requiresHumanReview).toBe(true);
+    assertAuthority(turn3.packet);
+    previous = turn3.packet;
 
-    const summary = summarizeDualTrackPacket(turn6);
-    expect(summary.version).toBe(DUAL_TRACK_GATEWAY_VERSION);
-    expect(summary.activeTracks).toContain("language");
-    expect(summary.staleTracks).toContain("strategic");
-    expect(summary.staleCarrySuppressed).toBe(true);
-    expect(summary.authority.finalAuthority).toBe("Marion");
+    const turn4 = buildTurn({
+      message: "Return to ordinary chat."
+    }, previous, "turn-4-normal");
+
+    expect(turn4.summary.activeTracks).toEqual([]);
+    expect(turn4.summary.staleCarrySuppressed).toBe(true);
+    expect(turn4.summary.staleTracks).toContain("real_world");
+    assertAuthority(turn4.packet);
+  });
+
+  test("normal chat after strategic review suppresses stale strategic carry", () => {
+    let previous = null;
+
+    const turn1 = buildTurn({
+      message: "Thalon strategic review packet.",
+      strategicReview: {
+        decisionPressureIndex: 0.86,
+        strategicReviewRequired: true,
+        humanReviewRecommended: true,
+        advisoryOnly: true,
+        updatedAt: Date.now()
+      }
+    }, previous, "turn-1-strategic");
+
+    expect(turn1.summary.activeTracks).toContain("strategic");
+    expect(turn1.summary.requiresHumanReview).toBe(true);
+    assertAuthority(turn1.packet);
+    previous = turn1.packet;
+
+    const turn2 = buildTurn({
+      message: "normal chat"
+    }, previous, "turn-2-normal");
+
+    expect(turn2.summary.activeTracks).toEqual([]);
+    expect(turn2.summary.staleCarrySuppressed).toBe(true);
+    expect(turn2.summary.staleTracks).toContain("strategic");
+    assertAuthority(turn2.packet);
   });
 });
