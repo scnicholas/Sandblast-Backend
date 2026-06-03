@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -2609,6 +2609,60 @@ function applyLoopRecoveryPatch(prevState, loopGuardResult = {}) {
   };
 }
 
+
+const PARALLEL_LANE_RECENCY_VERSION = "nyx.marion.parallelLaneRecency/0.1";
+
+function normalizeParallelLaneRecencyCarry(value = {}) {
+  const src = isPlainObject(value) ? value : {};
+  const currentTracks = boundedArray(src.currentTracks || src.activeTracks || [], MAX_STATE_ARRAY_ITEMS, 64);
+  const previousTracks = boundedArray(src.previousTracks || [], MAX_STATE_ARRAY_ITEMS, 64);
+  const staleTracks = boundedArray(src.staleTracks || src.staleLanes || [], MAX_STATE_ARRAY_ITEMS, 64);
+  return {
+    version: boundedOneLine(src.version || PARALLEL_LANE_RECENCY_VERSION, 120),
+    active: !!(src.active || currentTracks.length || previousTracks.length || staleTracks.length),
+    currentTracks,
+    previousTracks,
+    staleTracks,
+    staleLanes: staleTracks,
+    staleCarrySuppressed: !!(src.staleCarrySuppressed || src.staleLaneCarrySuppressed || staleTracks.length),
+    normalTurn: !!src.normalTurn || currentTracks.length === 0,
+    turnId: boundedOneLine(src.turnId || "", 160),
+    advisoryOnly: true,
+    finalAuthority: "Marion",
+    publicReplyVisible: false,
+    userFacing: false,
+    noUserFacingDiagnostics: true,
+    source: boundedOneLine(src.source || "stateSpine", 160)
+  };
+}
+
+function extractParallelLaneRecencyCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const meta = isPlainObject(src.meta) ? src.meta : {};
+  const payload = isPlainObject(src.payload) ? src.payload : {};
+  const candidates = [
+    p.parallelLaneRecency,
+    p.parallelLaneCarryMaintenance,
+    isPlainObject(p.parallelLaneCoordination) ? p.parallelLaneCoordination.recencyMaintenance : null,
+    isPlainObject(p.dualTrack) ? p.dualTrack.laneRecency : null,
+    isPlainObject(isPlainObject(p.dualTrack) ? p.dualTrack.coordinationMeta : null) ? p.dualTrack.coordinationMeta.laneRecency : null,
+    mp.parallelLaneRecency,
+    mp.parallelLaneCarryMaintenance,
+    isPlainObject(mp.stateBridge) ? mp.stateBridge.parallelLaneRecency : null,
+    src.parallelLaneRecency,
+    src.parallelLaneCarryMaintenance,
+    meta.parallelLaneRecency,
+    payload.parallelLaneRecency
+  ];
+  for (const item of candidates) {
+    const o = isPlainObject(item) ? item : {};
+    if (Object.keys(o).length) return normalizeParallelLaneRecencyCarry(o);
+  }
+  return normalizeParallelLaneRecencyCarry({ active: false });
+}
+
 module.exports = {
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
@@ -2691,6 +2745,9 @@ module.exports = {
   extractProgressionRefinementCarry,
   updateProgressionRefinementState,
   buildStateProgressionTelemetry,
+  PARALLEL_LANE_RECENCY_VERSION,
+  normalizeParallelLaneRecencyCarry,
+  extractParallelLaneRecencyCarry,
   FINAL_RENDER_TELEMETRY_VERSION
 };
 module.exports.default = module.exports;
