@@ -15,7 +15,7 @@
  * - Produces advisory ethics metadata only.
  */
 
-const ETHICAL_GATEKEEPER_VERSION = "nyx.marion.ethicalGatekeeper/0.1";
+const ETHICAL_GATEKEEPER_VERSION = "nyx.marion.ethicalGatekeeper/0.2";
 
 const DEFAULT_ETHICAL_CONFIG = Object.freeze({
   enabled: true,
