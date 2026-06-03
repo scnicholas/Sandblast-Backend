@@ -20,7 +20,7 @@
  * - Produces diagnostic telemetry only.
  */
 
-const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3";
+const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3.1";
 
 const DEFAULT_COORDINATION_TELEMETRY_CONFIG = Object.freeze({
   enabled: true,
@@ -86,6 +86,32 @@ function newestTimestamp() {
   return newest;
 }
 
+function normalizeLaneName(value) {
+  const lane = safeString(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (!lane) return "";
+  if (lane === "language" || lane === "lingo_link" || lane === "lingolink_gateway") return "lingolink";
+  if (lane === "unknown_language" || lane === "unknown_language_alerts") return "unknown_language_alert";
+  if (lane === "scanner" || lane === "language_scanner") return "dormant_scanner";
+  if (lane === "real_world" || lane === "realworld" || lane === "aster" || lane === "environment" || lane === "real_world_observation") return "real_world_context";
+  if (lane === "ethics" || lane === "ethical" || lane === "ethical_gate") return "ethical_gatekeeper";
+  if (lane === "risk" || lane === "real_world_risk") return "risk_classifier";
+  if (lane === "thalon" || lane === "thalon_readiness") return "thalon_review";
+  if (lane === "strategic" || lane === "strategy" || lane === "strategic_review") return "strategic_advisory";
+  return lane;
+}
+
+function uniqueNormalizedLanes(value = []) {
+  const out = [];
+  const seen = new Set();
+  for (const item of safeArray(value)) {
+    const lane = normalizeLaneName(item);
+    if (!lane || seen.has(lane)) continue;
+    seen.add(lane);
+    out.push(lane);
+  }
+  return out;
+}
+
 function buildLaneRecencySnapshot(payload = {}, maxAgeMs = 5 * 60 * 1000, now = Date.now()) {
   const p = safeObject(payload);
   const languageTrack = safeObject(p.languageTrack);
@@ -94,30 +120,75 @@ function buildLaneRecencySnapshot(payload = {}, maxAgeMs = 5 * 60 * 1000, now = 
   const risk = safeObject(p.riskClassification || p.riskClassifier || p.realWorldRisk);
   const strategicTrack = safeObject(p.strategicTrack);
   const thalon = safeObject(p.thalonReadiness || p.thalon || p.thalonReview || p.strategicReview || strategicTrack.strategicReview);
+  const coordinationMeta = safeObject(p.coordinationMeta);
+  const carriedRecency = safeObject(p.laneRecency || coordinationMeta.laneRecency || p.recencyMaintenance);
+  const carriedTimestamps = safeObject(carriedRecency.laneTimestamps);
+
   const allowedAge = Math.max(1000, Number(maxAgeMs) || (5 * 60 * 1000));
   const laneTimestamps = {
-    lingolink: newestTimestamp(p.updatedAt, languageTrack.updatedAt, p.languageMeta && p.languageMeta.updatedAt, p.translationMeta && p.translationMeta.updatedAt, p.gatewayMeta && p.gatewayMeta.updatedAt),
-    unknown_language_alert: newestTimestamp(p.unknownLanguageAlert && p.unknownLanguageAlert.updatedAt, languageTrack.unknownLanguageAlert && languageTrack.unknownLanguageAlert.updatedAt),
-    dormant_scanner: newestTimestamp(p.dormantScanner && p.dormantScanner.updatedAt, languageTrack.dormantScanner && languageTrack.dormantScanner.updatedAt),
-    real_world_context: newestTimestamp(realWorldTrack.updatedAt, p.realWorldEnvelope && p.realWorldEnvelope.updatedAt, p.realWorldObservation && p.realWorldObservation.updatedAt, p.observation && p.observation.updatedAt),
-    ethical_gatekeeper: newestTimestamp(ethicalGate.updatedAt),
-    risk_classifier: newestTimestamp(risk.updatedAt),
-    thalon_review: newestTimestamp(thalon.updatedAt),
-    strategic_advisory: newestTimestamp(strategicTrack.updatedAt, thalon.updatedAt)
+    lingolink: newestTimestamp(
+      carriedTimestamps.lingolink,
+      languageTrack.updatedAt,
+      safeObject(p.languageMeta).updatedAt,
+      safeObject(p.translationMeta).updatedAt,
+      safeObject(p.lingoInput).updatedAt,
+      safeObject(p.gatewayMeta).updatedAt
+    ),
+    unknown_language_alert: newestTimestamp(
+      carriedTimestamps.unknown_language_alert,
+      safeObject(p.unknownLanguageAlert).updatedAt,
+      safeObject(languageTrack.unknownLanguageAlert).updatedAt
+    ),
+    dormant_scanner: newestTimestamp(
+      carriedTimestamps.dormant_scanner,
+      safeObject(p.dormantScanner).updatedAt,
+      safeObject(languageTrack.dormantScanner).updatedAt,
+      safeObject(p.scannerHeartbeat).updatedAt,
+      safeObject(languageTrack.scannerHeartbeat).updatedAt
+    ),
+    real_world_context: newestTimestamp(
+      carriedTimestamps.real_world_context,
+      realWorldTrack.updatedAt,
+      safeObject(p.realWorldEnvelope).updatedAt,
+      safeObject(p.realWorldObservation).updatedAt,
+      safeObject(p.observation).updatedAt,
+      safeObject(realWorldTrack.envelope).updatedAt
+    ),
+    ethical_gatekeeper: newestTimestamp(
+      carriedTimestamps.ethical_gatekeeper,
+      ethicalGate.updatedAt
+    ),
+    risk_classifier: newestTimestamp(
+      carriedTimestamps.risk_classifier,
+      risk.updatedAt
+    ),
+    thalon_review: newestTimestamp(
+      carriedTimestamps.thalon_review,
+      thalon.updatedAt
+    ),
+    strategic_advisory: newestTimestamp(
+      carriedTimestamps.strategic_advisory,
+      strategicTrack.updatedAt,
+      thalon.updatedAt
+    )
   };
+
+  const explicitStale = uniqueNormalizedLanes(carriedRecency.staleLanes || carriedRecency.staleTracks || p.staleLanes || coordinationMeta.staleTracks);
   const laneAgeMs = {};
-  const staleLanes = [];
+  const staleSet = new Set(explicitStale);
   for (const lane of Object.keys(laneTimestamps)) {
     const ts = laneTimestamps[lane];
     const age = ts > 0 ? Math.max(0, now - ts) : 0;
     laneAgeMs[lane] = age;
-    if (ts > 0 && age > allowedAge) staleLanes.push(lane);
+    if (ts > 0 && age > allowedAge) staleSet.add(lane);
   }
+  const staleLanes = Array.from(staleSet);
+
   return {
     enabled: true,
     maxLaneCarryAgeMs: allowedAge,
     staleLanes,
-    staleCarrySuppressed: staleLanes.length > 0,
+    staleCarrySuppressed: staleLanes.length > 0 || carriedRecency.staleCarrySuppressed === true,
     laneTimestamps,
     laneAgeMs,
     noUserFacingDiagnostics: true,
@@ -128,8 +199,8 @@ function buildLaneRecencySnapshot(payload = {}, maxAgeMs = 5 * 60 * 1000, now = 
 }
 
 function filterFreshActiveLanes(activeLanes = [], laneRecency = {}) {
-  const stale = new Set(safeArray(safeObject(laneRecency).staleLanes));
-  return safeArray(activeLanes).filter((lane) => !stale.has(lane));
+  const stale = new Set(uniqueNormalizedLanes(safeObject(laneRecency).staleLanes));
+  return uniqueNormalizedLanes(activeLanes).filter((lane) => !stale.has(lane));
 }
 
 function mergeCoordinationTelemetryConfig(config) {
@@ -172,8 +243,9 @@ function detectLingoLinkActive(payload = {}) {
       Object.keys(safeObject(p.languageMeta)).length ||
       Object.keys(safeObject(p.lingoInput)).length ||
       Object.keys(safeObject(p.translationMeta)).length ||
-      Object.keys(gatewayMeta).length ||
-      gatewayMeta.gateway === "LingoLink"
+      gatewayMeta.gateway === "LingoLink" ||
+      gatewayMeta.source === "LingoLink" ||
+      gatewayMeta.lane === "lingolink"
   );
 }
 
@@ -371,6 +443,12 @@ function buildLaneSummary(payload = {}) {
       strategicReviewRequired: thalon.strategicReviewRequired === true,
       ethicalConcernLevel: safeString(thalon.ethicalConcernLevel || ""),
       advisoryOnly: true
+    },
+    strategicAdvisory: {
+      active: detectStrategicAdvisoryActive(p),
+      decisionPressureIndex: clamp01(safeObject(p.strategicTrack).decisionPressureIndex || thalon.decisionPressureIndex || thalon.pressureIndex, 0),
+      requiresHumanReview: safeObject(p.strategicTrack).requiresHumanReview === true || thalon.requiresHumanReview === true || thalon.humanReviewRecommended === true,
+      advisoryOnly: true
     }
   };
 }
@@ -390,6 +468,13 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
       ethicalGatekeeperActive: false,
       riskClassifierActive: false,
       thalonReviewRecommended: false,
+      strategicAdvisoryActive: false,
+      activeLanes: [],
+      rawActiveLanes: [],
+      activeLaneCount: 0,
+      staleLaneCarrySuppressed: false,
+      staleLanes: [],
+      laneRecency: buildLaneRecencySnapshot({}, config.maxLaneCarryAgeMs),
       marionFinalAuthorityPreserved: true,
       publicReplyVisible: false,
       userFacing: false,
@@ -461,6 +546,15 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
     thalonReviewRecommended,
     strategicAdvisoryActive,
 
+    freshLingoLinkActive: freshActiveLanes.includes("lingolink"),
+    freshUnknownLanguageAlertActive: freshActiveLanes.includes("unknown_language_alert"),
+    freshDormantScannerActive: freshActiveLanes.includes("dormant_scanner"),
+    freshRealWorldContextActive: freshActiveLanes.includes("real_world_context"),
+    freshEthicalGatekeeperActive: freshActiveLanes.includes("ethical_gatekeeper"),
+    freshRiskClassifierActive: freshActiveLanes.includes("risk_classifier"),
+    freshThalonReviewRecommended: freshActiveLanes.includes("thalon_review"),
+    freshStrategicAdvisoryActive: freshActiveLanes.includes("strategic_advisory"),
+
     notificationReady,
     requiresHumanReview,
 
@@ -514,6 +608,8 @@ function summarizeCoordinationTelemetry(telemetry = {}) {
     activeLaneCount: Number(t.activeLaneCount || 0),
     staleLaneCarrySuppressed: safeObject(t.laneRecency).staleCarrySuppressed === true || safeArray(t.staleLanes).length > 0,
     staleLanes: safeArray(t.staleLanes || safeObject(t.laneRecency).staleLanes),
+    laneRecency: safeObject(t.laneRecency),
+    freshActiveLanes: safeArray(t.activeLanes),
     notificationReady: t.notificationReady === true,
     requiresHumanReview: t.requiresHumanReview === true,
     marionFinalAuthorityPreserved: t.marionFinalAuthorityPreserved !== false,
@@ -543,6 +639,8 @@ module.exports = {
   detectStrategicAdvisoryActive,
   buildLaneRecencySnapshot,
   filterFreshActiveLanes,
+  normalizeLaneName,
+  uniqueNormalizedLanes,
   mergeCoordinationTelemetryConfig,
   stableHash,
   DEFAULT_COORDINATION_TELEMETRY_CONFIG,
