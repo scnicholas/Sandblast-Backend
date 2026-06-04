@@ -23,7 +23,7 @@ const {
   buildRealWorldInputEnvelope
 } = require("./MarionRealWorldInputEnvelope");
 
-const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.3.1+productionMonitoringShield";
+const DUAL_TRACK_GATEWAY_VERSION = "nyx.marion.dualTrackGateway/0.3.1+productionMonitoringShield+releaseReadinessRollbackSafety";
 
 const DEFAULT_DUAL_TRACK_CONFIG = Object.freeze({
   enabled: true,
