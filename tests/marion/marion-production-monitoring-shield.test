@@ -1,0 +1,209 @@
+"use strict";
+
+/**
+ * Marion production monitoring shield
+ *
+ * This test is intentionally behavior-light:
+ * - It does not add new reasoning behavior.
+ * - It verifies production-facing hygiene and advisory-lane containment.
+ * - It protects against public debug leakage shape drift.
+ */
+
+const {
+  buildMarionDualTrackPacket,
+  summarizeDualTrackPacket,
+  looksLikeExplicitLanguageSignal
+} = require("../../Data/marion/runtime/MarionDualTrackGateway");
+
+const {
+  buildMarionCoordinationTelemetry,
+  summarizeCoordinationTelemetry
+} = require("../../Data/marion/runtime/MarionCoordinationTelemetry");
+
+const FORBIDDEN_PUBLIC_KEYS = Object.freeze([
+  "finalEnvelope",
+  "runtimeTelemetry",
+  "routeKind",
+  "sessionPatch",
+  "coordinationTelemetry",
+  "dualTrack",
+  "coordinationMeta",
+  "laneRecency",
+  "languageTrack",
+  "realWorldTrack",
+  "ethicalTrack",
+  "strategicTrack"
+]);
+
+function assertInternalPacketSafe(packet) {
+  expect(packet).toBeTruthy();
+  expect(packet.finalAuthority).toBe("Marion");
+  expect(packet.marionAuthority).toBe(true);
+  expect(packet.advisoryOnly).toBe(true);
+  expect(packet.forceAction).toBe(false);
+  expect(packet.publicReplyVisible).toBe(false);
+  expect(packet.userFacing).toBe(false);
+  expect(packet.text).toBe("");
+  expect(packet.publicText).toBe("");
+  expect(packet.renderText).toBe("");
+}
+
+function assertTelemetrySafe(telemetry) {
+  expect(telemetry).toBeTruthy();
+  expect(telemetry.finalAuthority).toBe("Marion");
+  expect(telemetry.marionAuthority).toBe(true);
+  expect(telemetry.advisoryOnly).toBe(true);
+  expect(telemetry.forceAction).toBe(false);
+  expect(telemetry.publicReplyVisible).toBe(false);
+  expect(telemetry.userFacing).toBe(false);
+  expect(telemetry.text).toBe("");
+  expect(telemetry.publicText).toBe("");
+  expect(telemetry.renderText).toBe("");
+  expect(telemetry.marionFinalAuthorityPreserved).toBe(true);
+}
+
+function publicProjection(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+
+  return {
+    reply: value.reply || value.message || value.text || "",
+    finalAuthority: value.finalAuthority || "Marion"
+  };
+}
+
+function assertPublicProjectionClean(value) {
+  const projected = publicProjection(value);
+
+  if (typeof projected === "string") {
+    expect(projected).not.toMatch(/finalEnvelope|runtimeTelemetry|routeKind|sessionPatch|coordinationMeta|laneRecency/i);
+    return;
+  }
+
+  expect(projected).toBeTruthy();
+  const keys = Object.keys(projected);
+  for (const forbidden of FORBIDDEN_PUBLIC_KEYS) {
+    expect(keys).not.toContain(forbidden);
+  }
+  expect(projected.finalAuthority).toBe("Marion");
+}
+
+function buildMonitoredTurn(payload, previousDualTrack, turnId) {
+  const packet = buildMarionDualTrackPacket(
+    { ...payload, turnId },
+    { previousDualTrack, turnId }
+  );
+
+  const telemetry = buildMarionCoordinationTelemetry({
+    ...payload,
+    turnId,
+    languageTrack: packet.languageTrack,
+    realWorldTrack: packet.realWorldTrack,
+    ethicalGate: packet.ethicalTrack && packet.ethicalTrack.ethicalReview,
+    strategicTrack: packet.strategicTrack,
+    coordinationMeta: packet.coordinationMeta,
+    laneRecency: packet.laneRecency
+  });
+
+  return {
+    packet,
+    telemetry,
+    summary: summarizeDualTrackPacket(packet),
+    telemetrySummary: summarizeCoordinationTelemetry(telemetry)
+  };
+}
+
+describe("Marion production monitoring shield", () => {
+  test("normal production hygiene prompt does not activate advisory lanes", () => {
+    expect(looksLikeExplicitLanguageSignal({
+      message: "Run a production-safe Marion pipeline explanation."
+    })).toBe(false);
+
+    const turn = buildMonitoredTurn({
+      message: "Run a production-safe Marion pipeline explanation.",
+      inputSource: "text"
+    }, null, "monitor-normal");
+
+    expect(turn.summary.activeTracks).toEqual([]);
+    expect(turn.summary.authority.finalAuthority).toBe("Marion");
+    assertInternalPacketSafe(turn.packet);
+    assertTelemetrySafe(turn.telemetry);
+  });
+
+  test("explicit advisory payload stays internal and Marion-final", () => {
+    const turn = buildMonitoredTurn({
+      message: "Bonjour Nyx, translate this environmental note.",
+      inputSource: "text",
+      languageMeta: {
+        detectedLanguage: "fr",
+        requiresTranslation: true,
+        confidence: 0.93,
+        updatedAt: Date.now()
+      },
+      translationMeta: {
+        sourceLanguage: "fr",
+        targetLanguage: "en",
+        translated: true,
+        updatedAt: Date.now()
+      },
+      realWorldObservation: {
+        observationType: "environment",
+        observationSummary: "smoke near a wall",
+        riskLevel: "high",
+        permissionStatus: "allowed",
+        confidence: 0.84,
+        updatedAt: Date.now()
+      },
+      strategicReview: {
+        decisionPressureIndex: 0.81,
+        strategicReviewRequired: true,
+        humanReviewRecommended: true,
+        advisoryOnly: true,
+        updatedAt: Date.now()
+      }
+    }, null, "monitor-mixed");
+
+    expect(turn.summary.activeTracks).toEqual(expect.arrayContaining(["language", "real_world", "strategic"]));
+    expect(turn.summary.requiresHumanReview).toBe(true);
+    assertInternalPacketSafe(turn.packet);
+    assertTelemetrySafe(turn.telemetry);
+  });
+
+  test("public projection excludes internal debug and advisory metadata", () => {
+    const candidate = {
+      reply: "Marion remains the final authority. LingoLink, Aster, and Thalon are advisory lanes.",
+      finalAuthority: "Marion",
+      routeKind: "internal-debug",
+      runtimeTelemetry: { hidden: true },
+      finalEnvelope: { hidden: true },
+      coordinationMeta: { hidden: true },
+      laneRecency: { hidden: true }
+    };
+
+    assertPublicProjectionClean(candidate);
+  });
+
+  test("disabled coordination remains safe under monitoring shield", () => {
+    const packet = buildMarionDualTrackPacket({
+      message: "Bonjour Nyx, translate this.",
+      languageMeta: {
+        detectedLanguage: "fr",
+        requiresTranslation: true,
+        updatedAt: Date.now()
+      }
+    }, {
+      config: { enabled: false },
+      turnId: "monitor-disabled"
+    });
+
+    expect(packet.enabled).toBe(false);
+    assertInternalPacketSafe(packet);
+
+    const telemetry = buildMarionCoordinationTelemetry({}, {
+      config: { enabled: false }
+    });
+
+    expect(telemetry.enabled).toBe(false);
+    assertTelemetrySafe(telemetry);
+  });
+});
