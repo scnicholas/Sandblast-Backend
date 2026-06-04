@@ -1,0 +1,226 @@
+"use strict";
+
+/**
+ * Marion release readiness + rollback safety
+ *
+ * Purpose:
+ * - Verify production-safe release shape without adding new runtime behavior.
+ * - Confirm rollback-mode payloads remain Marion-final and advisory-only.
+ * - Confirm disabled gateway/telemetry contracts remain non-public.
+ * - Confirm public projection excludes internal metadata.
+ */
+
+const {
+  buildMarionDualTrackPacket,
+  summarizeDualTrackPacket,
+  looksLikeExplicitLanguageSignal
+} = require("../../Data/marion/runtime/MarionDualTrackGateway");
+
+const {
+  buildMarionCoordinationTelemetry,
+  summarizeCoordinationTelemetry
+} = require("../../Data/marion/runtime/MarionCoordinationTelemetry");
+
+const FORBIDDEN_PUBLIC_KEYS = Object.freeze([
+  "finalEnvelope",
+  "runtimeTelemetry",
+  "routeKind",
+  "sessionPatch",
+  "coordinationTelemetry",
+  "dualTrack",
+  "coordinationMeta",
+  "laneRecency",
+  "languageTrack",
+  "realWorldTrack",
+  "ethicalTrack",
+  "strategicTrack",
+  "diagnostics"
+]);
+
+function assertPacketSafe(packet) {
+  expect(packet).toBeTruthy();
+  expect(packet.finalAuthority).toBe("Marion");
+  expect(packet.marionAuthority).toBe(true);
+  expect(packet.advisoryOnly).toBe(true);
+  expect(packet.forceAction).toBe(false);
+  expect(packet.publicReplyVisible).toBe(false);
+  expect(packet.userFacing).toBe(false);
+  expect(packet.text).toBe("");
+  expect(packet.publicText).toBe("");
+  expect(packet.renderText).toBe("");
+}
+
+function assertTelemetrySafe(telemetry) {
+  expect(telemetry).toBeTruthy();
+  expect(telemetry.finalAuthority).toBe("Marion");
+  expect(telemetry.marionAuthority).toBe(true);
+  expect(telemetry.advisoryOnly).toBe(true);
+  expect(telemetry.forceAction).toBe(false);
+  expect(telemetry.publicReplyVisible).toBe(false);
+  expect(telemetry.userFacing).toBe(false);
+  expect(telemetry.text).toBe("");
+  expect(telemetry.publicText).toBe("");
+  expect(telemetry.renderText).toBe("");
+  expect(telemetry.marionFinalAuthorityPreserved).toBe(true);
+}
+
+function publicProjection(candidate) {
+  if (typeof candidate === "string") return candidate;
+  const src = candidate && typeof candidate === "object" && !Array.isArray(candidate) ? candidate : {};
+  return {
+    reply: src.reply || src.message || src.text || "",
+    finalAuthority: src.finalAuthority || "Marion"
+  };
+}
+
+function assertPublicProjectionSafe(candidate) {
+  const projected = publicProjection(candidate);
+
+  if (typeof projected === "string") {
+    expect(projected).not.toMatch(/finalEnvelope|runtimeTelemetry|routeKind|sessionPatch|coordinationMeta|laneRecency|diagnostics/i);
+    return;
+  }
+
+  const keys = Object.keys(projected);
+  for (const forbidden of FORBIDDEN_PUBLIC_KEYS) {
+    expect(keys).not.toContain(forbidden);
+  }
+  expect(projected.finalAuthority).toBe("Marion");
+}
+
+function buildReleaseTurn(payload, previousDualTrack, turnId) {
+  const packet = buildMarionDualTrackPacket(
+    { ...payload, turnId },
+    { previousDualTrack, turnId }
+  );
+
+  const telemetry = buildMarionCoordinationTelemetry({
+    ...payload,
+    turnId,
+    languageTrack: packet.languageTrack,
+    realWorldTrack: packet.realWorldTrack,
+    ethicalGate: packet.ethicalTrack && packet.ethicalTrack.ethicalReview,
+    strategicTrack: packet.strategicTrack,
+    coordinationMeta: packet.coordinationMeta,
+    laneRecency: packet.laneRecency
+  });
+
+  return {
+    packet,
+    telemetry,
+    summary: summarizeDualTrackPacket(packet),
+    telemetrySummary: summarizeCoordinationTelemetry(telemetry)
+  };
+}
+
+describe("Marion release readiness and rollback safety", () => {
+  test("ordinary release-health prompt does not activate advisory lanes", () => {
+    const payload = {
+      message: "Run a release readiness health check for Marion.",
+      inputSource: "text"
+    };
+
+    expect(looksLikeExplicitLanguageSignal(payload)).toBe(false);
+
+    const turn = buildReleaseTurn(payload, null, "release-health-normal");
+
+    expect(turn.summary.activeTracks).toEqual([]);
+    expect(turn.summary.authority.finalAuthority).toBe("Marion");
+    assertPacketSafe(turn.packet);
+    assertTelemetrySafe(turn.telemetry);
+  });
+
+  test("explicit mixed advisory payload stays internal and rollback-safe", () => {
+    const first = buildReleaseTurn({
+      message: "Bonjour Nyx, translate this environmental release note.",
+      inputSource: "text",
+      languageMeta: {
+        detectedLanguage: "fr",
+        requiresTranslation: true,
+        confidence: 0.94,
+        updatedAt: Date.now()
+      },
+      translationMeta: {
+        sourceLanguage: "fr",
+        targetLanguage: "en",
+        translated: true,
+        updatedAt: Date.now()
+      },
+      realWorldObservation: {
+        observationType: "environment",
+        observationSummary: "smoke visible near a wall",
+        riskLevel: "high",
+        permissionStatus: "allowed",
+        confidence: 0.86,
+        updatedAt: Date.now()
+      },
+      strategicReview: {
+        decisionPressureIndex: 0.83,
+        strategicReviewRequired: true,
+        humanReviewRecommended: true,
+        advisoryOnly: true,
+        updatedAt: Date.now()
+      }
+    }, null, "release-mixed-1");
+
+    expect(first.summary.activeTracks).toEqual(expect.arrayContaining(["language", "real_world", "strategic"]));
+    expect(first.summary.requiresHumanReview).toBe(true);
+    assertPacketSafe(first.packet);
+    assertTelemetrySafe(first.telemetry);
+
+    const rollbackFollowup = buildReleaseTurn({
+      message: "Rollback-safe normal follow-up.",
+      inputSource: "text"
+    }, first.packet, "release-mixed-rollback-followup");
+
+    expect(rollbackFollowup.summary.activeTracks).toEqual([]);
+    expect(rollbackFollowup.summary.staleCarrySuppressed).toBe(true);
+    expect(rollbackFollowup.summary.staleTracks).toEqual(
+      expect.arrayContaining(["language", "real_world", "strategic"])
+    );
+    assertPacketSafe(rollbackFollowup.packet);
+    assertTelemetrySafe(rollbackFollowup.telemetry);
+  });
+
+  test("disabled gateway and disabled telemetry remain non-public", () => {
+    const packet = buildMarionDualTrackPacket({
+      message: "Hola Nyx, translate this.",
+      languageMeta: {
+        detectedLanguage: "es",
+        requiresTranslation: true,
+        updatedAt: Date.now()
+      }
+    }, {
+      config: { enabled: false },
+      turnId: "release-disabled-gateway"
+    });
+
+    expect(packet.enabled).toBe(false);
+    expect(packet.coordinationMeta.reason).toBe("dual_track_gateway_disabled");
+    assertPacketSafe(packet);
+
+    const telemetry = buildMarionCoordinationTelemetry({}, {
+      config: { enabled: false }
+    });
+
+    expect(telemetry.enabled).toBe(false);
+    expect(telemetry.reason).toBe("coordination_telemetry_disabled");
+    assertTelemetrySafe(telemetry);
+  });
+
+  test("public projection strips internal release metadata shape", () => {
+    const candidate = {
+      reply: "Marion remains final authority. Advisory lanes stay internal.",
+      finalAuthority: "Marion",
+      finalEnvelope: { internal: true },
+      runtimeTelemetry: { internal: true },
+      routeKind: "debug",
+      sessionPatch: { internal: true },
+      coordinationMeta: { internal: true },
+      laneRecency: { internal: true },
+      diagnostics: { internal: true }
+    };
+
+    assertPublicProjectionSafe(candidate);
+  });
+});
