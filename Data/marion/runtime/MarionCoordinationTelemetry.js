@@ -20,7 +20,7 @@
  * - Produces diagnostic telemetry only.
  */
 
-const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3.2";
+const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3.2+productionMonitoringShield";
 
 const DEFAULT_COORDINATION_TELEMETRY_CONFIG = Object.freeze({
   enabled: true,
@@ -463,6 +463,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
       reason: "coordination_telemetry_disabled",
       advisoryOnly: true,
       forceAction: false,
+      noUserFacingDiagnostics: true,
       lingoLinkActive: false,
       unknownLanguageAlertActive: false,
       dormantScannerActive: false,
@@ -480,6 +481,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
       marionFinalAuthorityPreserved: true,
     advisoryOnly: true,
     forceAction: false,
+      noUserFacingDiagnostics: true,
       publicReplyVisible: false,
       userFacing: false,
       publicText: "",
