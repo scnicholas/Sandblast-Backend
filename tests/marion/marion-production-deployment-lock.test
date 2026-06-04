@@ -1,0 +1,188 @@
+"use strict";
+
+/**
+ * tests/marion/marion-production-deployment-lock.test.js
+ *
+ * Purpose:
+ * - Lock Marion's production-facing coordination behavior.
+ * - Confirm advisory lanes never become public output.
+ * - Confirm production-style payloads keep Marion as the only final authority.
+ * - Confirm stale lane carry is suppressed across a normal follow-up turn.
+ */
+
+const {
+  buildMarionDualTrackPacket,
+  summarizeDualTrackPacket
+} = require("../../Data/marion/runtime/MarionDualTrackGateway");
+
+const {
+  buildMarionCoordinationTelemetry,
+  summarizeCoordinationTelemetry
+} = require("../../Data/marion/runtime/MarionCoordinationTelemetry");
+
+function assertPublicSurfaceSafe(packet) {
+  expect(packet).toBeTruthy();
+  expect(packet.finalAuthority).toBe("Marion");
+  expect(packet.marionAuthority).toBe(true);
+  expect(packet.advisoryOnly).toBe(true);
+  expect(packet.forceAction).toBe(false);
+  expect(packet.publicReplyVisible).toBe(false);
+  expect(packet.userFacing).toBe(false);
+  expect(packet.publicText).toBe("");
+  expect(packet.renderText).toBe("");
+  expect(packet.text).toBe("");
+}
+
+function assertTelemetrySafe(telemetry) {
+  expect(telemetry).toBeTruthy();
+  expect(telemetry.finalAuthority).toBe("Marion");
+  expect(telemetry.marionAuthority).toBe(true);
+  expect(telemetry.advisoryOnly).toBe(true);
+  expect(telemetry.forceAction).toBe(false);
+  expect(telemetry.publicReplyVisible).toBe(false);
+  expect(telemetry.userFacing).toBe(false);
+  expect(telemetry.publicText).toBe("");
+  expect(telemetry.renderText).toBe("");
+  expect(telemetry.text).toBe("");
+  expect(telemetry.marionFinalAuthorityPreserved).toBe(true);
+}
+
+function buildProductionTurn(payload, previousDualTrack, turnId) {
+  const packet = buildMarionDualTrackPacket(
+    { ...payload, turnId },
+    { previousDualTrack, turnId }
+  );
+
+  const telemetry = buildMarionCoordinationTelemetry({
+    ...payload,
+    turnId,
+    languageTrack: packet.languageTrack,
+    realWorldTrack: packet.realWorldTrack,
+    ethicalGate: packet.ethicalTrack && packet.ethicalTrack.ethicalReview,
+    strategicTrack: packet.strategicTrack,
+    coordinationMeta: packet.coordinationMeta,
+    laneRecency: packet.laneRecency
+  });
+
+  return {
+    packet,
+    telemetry,
+    summary: summarizeDualTrackPacket(packet),
+    telemetrySummary: summarizeCoordinationTelemetry(telemetry)
+  };
+}
+
+describe("Marion production deployment lock", () => {
+  test("production-style mixed advisory payload remains Marion-final and internal-only", () => {
+    const turn = buildProductionTurn({
+      message: "Bonjour Nyx, translate this environmental note while keeping Marion final.",
+      inputSource: "text",
+      languageMeta: {
+        detectedLanguage: "fr",
+        requiresTranslation: true,
+        confidence: 0.94,
+        updatedAt: Date.now()
+      },
+      translationMeta: {
+        sourceLanguage: "fr",
+        targetLanguage: "en",
+        translated: true,
+        updatedAt: Date.now()
+      },
+      realWorldObservation: {
+        observationType: "environment",
+        observationSummary: "smoke visible near a wall",
+        permissionStatus: "allowed",
+        riskLevel: "high",
+        confidence: 0.82,
+        updatedAt: Date.now()
+      },
+      strategicReview: {
+        decisionPressureIndex: 0.8,
+        strategicReviewRequired: true,
+        humanReviewRecommended: true,
+        advisoryOnly: true,
+        updatedAt: Date.now()
+      }
+    }, null, "production-lock-turn-1");
+
+    expect(turn.summary.activeTracks).toContain("language");
+    expect(turn.summary.activeTracks).toContain("real_world");
+    expect(turn.summary.activeTracks).toContain("strategic");
+    expect(turn.summary.requiresHumanReview).toBe(true);
+    expect(turn.summary.authority.finalAuthority).toBe("Marion");
+
+    assertPublicSurfaceSafe(turn.packet);
+    assertTelemetrySafe(turn.telemetry);
+
+    expect(turn.telemetrySummary.marionFinalAuthorityPreserved).toBe(true);
+    expect(turn.telemetrySummary.publicReplyVisible).toBe(false);
+    expect(turn.telemetrySummary.userFacing).toBe(false);
+  });
+
+  test("normal follow-up suppresses stale advisory lane carry after production-style payload", () => {
+    const first = buildProductionTurn({
+      message: "Hola Nyx, translate this risk note.",
+      inputSource: "text",
+      languageMeta: {
+        detectedLanguage: "es",
+        requiresTranslation: true,
+        confidence: 0.93,
+        updatedAt: Date.now()
+      },
+      translationMeta: {
+        sourceLanguage: "es",
+        targetLanguage: "en",
+        translated: true,
+        updatedAt: Date.now()
+      },
+      realWorldObservation: {
+        observationType: "environment",
+        observationSummary: "wet floor near electrical equipment",
+        permissionStatus: "allowed",
+        riskLevel: "high",
+        confidence: 0.88,
+        updatedAt: Date.now()
+      }
+    }, null, "production-lock-turn-2a");
+
+    const followup = buildProductionTurn({
+      message: "Give me a normal clean follow-up sentence.",
+      inputSource: "text"
+    }, first.packet, "production-lock-turn-2b");
+
+    expect(followup.summary.activeTracks).toEqual([]);
+    expect(followup.summary.staleCarrySuppressed).toBe(true);
+    expect(followup.summary.staleTracks).toEqual(
+      expect.arrayContaining(["language", "real_world"])
+    );
+
+    assertPublicSurfaceSafe(followup.packet);
+    assertTelemetrySafe(followup.telemetry);
+  });
+
+  test("disabled coordination remains safe and non-public", () => {
+    const packet = buildMarionDualTrackPacket({
+      message: "Bonjour Nyx, translate this.",
+      languageMeta: {
+        detectedLanguage: "fr",
+        requiresTranslation: true,
+        updatedAt: Date.now()
+      }
+    }, {
+      config: { enabled: false },
+      turnId: "production-lock-disabled"
+    });
+
+    expect(packet.enabled).toBe(false);
+    expect(packet.coordinationMeta.reason).toBe("dual_track_gateway_disabled");
+    assertPublicSurfaceSafe(packet);
+
+    const telemetry = buildMarionCoordinationTelemetry({}, {
+      config: { enabled: false }
+    });
+
+    expect(telemetry.enabled).toBe(false);
+    assertTelemetrySafe(telemetry);
+  });
+});
