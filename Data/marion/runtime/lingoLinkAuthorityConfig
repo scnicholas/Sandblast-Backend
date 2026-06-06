@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "scope": "Marion-to-LingoLink phases 1 through 3",
+  "authority": {
+    "rawInputOwner": "Marion",
+    "languageDetector": "LingoLink/LanguageSphere",
+    "languageValidationOwner": "Marion",
+    "intentPreservationOwner": "Marion",
+    "translationAllowedInThisPhase": false
+  },
+  "thresholds": {
+    "languageConfidence": 0.75,
+    "intentConfidence": 0.7
+  },
+  "supportedInitialLanguages": [
+    "en",
+    "fr",
+    "es"
+  ],
+  "phaseGate": {
+    "phase1": "raw input must be non-empty and locked",
+    "phase2": "language confidence must meet Marion threshold",
+    "phase3": "intent must be preserved before translation normalization"
+  },
+  "nextPhase": "Phase 4 - Translation Normalization"
+}
