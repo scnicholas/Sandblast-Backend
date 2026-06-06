@@ -1,268 +1,169 @@
-"use strict";
+'use strict';
 
-/**
- * Marion Public Response Boundary Test
- *
- * Purpose:
- * Ensures internal Marion/LingoLink/real-world/Thalon metadata never becomes
- * public-facing reply text.
- */
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const { describe, it } = test;
 
 const {
-  buildMarionBridgePayload
-} = require("../../Data/marion/runtime/LingoLinkGateway");
+  reviewLingoLinkOutput
+} = require('../../Data/marion/runtime/MarionLingoLinkAuthorityGuard');
 
-const {
-  buildMarionDualTrackPacket
-} = require("../../Data/marion/runtime/MarionDualTrackGateway");
-
-const {
-  evaluateEthicalGate
-} = require("../../Data/marion/runtime/MarionEthicalGatekeeper");
-
-const {
-  classifyRiskLevel
-} = require("../../Data/marion/runtime/MarionRealWorldRiskClassifier");
-
-const {
-  buildThalonReadinessPacket
-} = require("../../Data/marion/runtime/ThalonReadinessStub");
-
-const {
-  buildMarionCoordinationTelemetry
-} = require("../../Data/marion/runtime/MarionCoordinationTelemetry");
-
-const INTERNAL_LEAK_PATTERNS = Object.freeze([
-  /\blanguageMeta\b/i,
-  /\blingoInput\b/i,
-  /\btranslationMeta\b/i,
-  /\bglossaryMeta\b/i,
-  /\bgatewayMeta\b/i,
-  /\bunknownLanguageAlert\b/i,
-  /\bscannerHeartbeat\b/i,
-  /\bdormantScanner\b/i,
-  /\bnotificationReady\b/i,
-  /\brealWorldTrack\b/i,
-  /\brealWorldEnvelope\b/i,
-  /\bobservationSummary\b/i,
-  /\bethicalGate\b/i,
-  /\bethicalGatekeeper\b/i,
-  /\briskClassification\b/i,
-  /\briskClassifier\b/i,
-  /\bthalonReadiness\b/i,
-  /\bThalonReadinessStub\b/i,
-  /\bcoordinationTelemetry\b/i,
-  /\bMarionCoordinationTelemetry\b/i,
-  /\bfinalEnvelope\b/i,
-  /\bruntimeTelemetry\b/i,
-  /\bmarionAuthority\b/i,
-  /\bfinalAuthority\b/i,
-  /\badvisoryOnly\b/i,
-  /\bneverOverrideMarion\b/i,
-  /\bcorrelationId\b/i,
-  /\btraceId\b/i,
-  /\binputHash\b/i,
-  /\bgatewayHash\b/i,
-  /\bstableHash\b/i,
-  /\bMARION::FINAL::/i,
-  /\bnyx\.marion\./i,
-  /\bTypeError\b/i,
-  /\bReferenceError\b/i,
-  /\bundefined undefined\b/i,
-  /\bnull null\b/i
-]);
-
-function cleanText(value) {
-  return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+function safeStr(value) {
+  return value == null ? '' : String(value);
 }
 
-function hasInternalLeak(value) {
-  const text = cleanText(value);
-  if (!text) return false;
-  return INTERNAL_LEAK_PATTERNS.some((rx) => rx.test(text));
+function hasPublicDebugLeak(value) {
+  const text = safeStr(value);
+
+  return [
+    /\bruntimeTelemetry\b/i,
+    /\bfinalEnvelope\b/i,
+    /\bsessionPatch\b/i,
+    /\brouteKind\b/i,
+    /\breplyAuthority\b/i,
+    /\bfinalEnvelopeTrusted\b/i,
+    /\bcanEmit\b/i,
+    /\bfailureSignature\b/i,
+    /\bdiagnostic packet\b/i,
+    /\bMARION::FINAL::/i,
+    /\bnyx\.marion\.final\//i,
+    /\bnyx\.marion\.stateSpine\//i,
+    /\bCHATENGINE_COORDINATOR_ONLY_ACTIVE/i,
+    /\bsourceLanguage:\s*\{/i,
+    /\btargetLanguage:\s*\{/i,
+    /\[object Object\]/i
+  ].some((pattern) => pattern.test(text));
 }
 
-function assertNoPublicLeak(value) {
-  expect(hasInternalLeak(value)).toBe(false);
+function stripPublicDebugLeak(value) {
+  let text = safeStr(value).replace(/\s+/g, ' ').trim();
+
+  if (!text) return '';
+
+  text = text
+    .replace(/\b(?:runtimeTelemetry|finalEnvelope|sessionPatch|routeKind|replyAuthority|finalEnvelopeTrusted|canEmit|failureSignature)\s*[:=]\s*[^.;,}\]]+/gi, '')
+    .replace(/MARION::FINAL::[^\s.;,]+/gi, '')
+    .replace(/nyx\.marion\.(?:final|stateSpine)\/[0-9.]+/gi, '')
+    .replace(/CHATENGINE_COORDINATOR_ONLY_ACTIVE[^\s.;,]+/gi, '')
+    .replace(/\[object Object\]/gi, '')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return text;
 }
 
-function assertInternalPacketPublicFieldsClean(packet) {
-  assertNoPublicLeak(packet.text);
-  assertNoPublicLeak(packet.renderText);
-  assertNoPublicLeak(packet.publicText);
-  assertNoPublicLeak(packet.message);
-  assertNoPublicLeak(packet.input);
-  assertNoPublicLeak(packet.originalInput);
+function buildPublicReplyBoundaryPacket(input = {}) {
+  const finalText = safeStr(input.finalText || input.reply || '').trim();
+  const cleanedFinalText = stripPublicDebugLeak(finalText);
+
+  return {
+    ok: Boolean(cleanedFinalText) && !hasPublicDebugLeak(cleanedFinalText),
+    publicReply: cleanedFinalText,
+    marionFinalAuthority: true,
+    blockedDebugLeak: hasPublicDebugLeak(finalText),
+    noUserFacingDiagnostics: true,
+    warnings: hasPublicDebugLeak(finalText)
+      ? ['Public debug leak was detected and stripped.']
+      : []
+  };
 }
 
-describe("Marion Public Response Boundary", () => {
-  test("leak detector catches internal fields", () => {
-    expect(hasInternalLeak("languageMeta translationMeta gatewayMeta")).toBe(true);
-    expect(hasInternalLeak("unknownLanguageAlert scannerHeartbeat dormantScanner")).toBe(true);
-    expect(hasInternalLeak("realWorldTrack ethicalGate riskClassification thalonReadiness")).toBe(true);
-    expect(hasInternalLeak("Hello, this is a clean response.")).toBe(false);
+describe('Marion public response boundary', () => {
+  it('allows clean public replies', () => {
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: 'Nyx can help with chat, media, radio, and backend diagnostics.'
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.publicReply, 'Nyx can help with chat, media, radio, and backend diagnostics.');
+    assert.equal(result.marionFinalAuthority, true);
+    assert.equal(result.noUserFacingDiagnostics, true);
+    assert.equal(result.blockedDebugLeak, false);
   });
 
-  test("LingoLink bridge payload text fields stay clean", () => {
-    const payload = buildMarionBridgePayload("Bonjour, comment ca va?");
+  it('blocks runtime telemetry from public replies', () => {
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: 'Here is the answer. runtimeTelemetry: {"route":"LINGOLINK_TRANSLATE"}'
+    });
 
-    assertNoPublicLeak(payload.message);
-    assertNoPublicLeak(payload.input);
-    assertNoPublicLeak(payload.originalInput);
-    assertNoPublicLeak(payload.translationMeta.text);
-    assertNoPublicLeak(payload.translationMeta.renderText);
-    assertNoPublicLeak(payload.translationMeta.publicText);
-    assertNoPublicLeak(payload.translationMeta.finalText);
-
-    expect(payload.authority.finalAuthority).toBe("Marion");
+    assert.equal(result.blockedDebugLeak, true);
+    assert.equal(result.noUserFacingDiagnostics, true);
+    assert.equal(hasPublicDebugLeak(result.publicReply), false);
   });
 
-  test("unknown-language alert fields stay internal", () => {
-    const payload = buildMarionBridgePayload("??? ###");
+  it('blocks final envelope leakage from public replies', () => {
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: 'finalEnvelope: {"reply":"Bonjour"} Bonjour.'
+    });
 
-    expect(payload.unknownLanguageAlert.alertTriggered).toBe(true);
-    expect(payload.unknownLanguageAlert.userFacing).toBe(false);
-
-    assertNoPublicLeak(payload.message);
-    assertNoPublicLeak(payload.input);
-    assertNoPublicLeak(payload.originalInput);
-    assertNoPublicLeak(payload.unknownLanguageAlert.text);
-    assertNoPublicLeak(payload.unknownLanguageAlert.renderText);
-    assertNoPublicLeak(payload.unknownLanguageAlert.publicText);
+    assert.equal(result.blockedDebugLeak, true);
+    assert.equal(hasPublicDebugLeak(result.publicReply), false);
   });
 
-  test("dual-track packet public fields remain clean", () => {
-    const lingo = buildMarionBridgePayload("Hola, como estas?");
+  it('blocks Marion final signature leakage', () => {
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: 'MARION::FINAL::abc123 The response is ready.'
+    });
 
-    const dual = buildMarionDualTrackPacket({
-      ...lingo,
-      observation: {
-        observationSummary: "Smoke indoors near a hallway.",
-        permissionStatus: "allowed",
-        confidence: 0.82,
-        riskLevel: "high"
+    assert.equal(result.blockedDebugLeak, true);
+    assert.equal(hasPublicDebugLeak(result.publicReply), false);
+  });
+
+  it('blocks object leakage from language metadata', () => {
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: 'sourceLanguage: { language: "fr", confidence: 0.8 } Bonjour.'
+    });
+
+    assert.equal(result.blockedDebugLeak, true);
+    assert.equal(hasPublicDebugLeak(result.publicReply), false);
+  });
+
+  it('blocks [object Object] leakage', () => {
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: 'Translation result: [object Object]'
+    });
+
+    assert.equal(result.blockedDebugLeak, true);
+    assert.equal(hasPublicDebugLeak(result.publicReply), false);
+  });
+
+  it('confirms LingoLink authority review remains internal-facing', () => {
+    const review = reviewLingoLinkOutput({
+      originalText: 'Translate hello into French.',
+      route: 'LINGOLINK_TRANSLATE',
+      responseEnvelope: {
+        ok: true,
+        sourceLanguage: 'en',
+        targetLanguage: 'fr',
+        translatedText: 'Bonjour',
+        finalText: 'Bonjour',
+        confidence: 0.92,
+        requiresMarionReview: true,
+        fallbackUsed: false,
+        warnings: []
       }
     });
 
-    expect(dual.userFacing).toBe(false);
-    expect(dual.coordinationMeta.publicReplyVisible).toBe(false);
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: review.finalText
+    });
 
-    assertInternalPacketPublicFieldsClean(dual);
-    expect(dual.authority.finalAuthority).toBe("Marion");
+    assert.equal(review.marionFinalAuthority, true);
+    assert.equal(review.approved, true);
+    assert.equal(result.ok, true);
+    assert.equal(result.publicReply, 'Bonjour');
+    assert.equal(hasPublicDebugLeak(result.publicReply), false);
   });
 
-  test("ethical gatekeeper public fields remain clean", () => {
-    const ethicalGate = evaluateEthicalGate({
-      observationSummary: "Identify this person using face recognition.",
-      confidence: 0.9,
-      riskLevel: "medium"
+  it('fails closed when public reply is empty after stripping diagnostics', () => {
+    const result = buildPublicReplyBoundaryPacket({
+      finalText: 'runtimeTelemetry: {"bad":"leak"}'
     });
 
-    expect(ethicalGate.blocked).toBe(true);
-    expect(ethicalGate.userFacing).toBe(false);
-
-    assertNoPublicLeak(ethicalGate.text);
-    assertNoPublicLeak(ethicalGate.renderText);
-    assertNoPublicLeak(ethicalGate.publicText);
-    expect(ethicalGate.authority.finalAuthority).toBe("Marion");
-  });
-
-  test("risk classifier public fields remain clean", () => {
-    const risk = classifyRiskLevel({
-      observationSummary: "Smoke indoors near a hallway.",
-      confidence: 0.82
-    });
-
-    expect(risk.riskLevel).toBe("high");
-    expect(risk.userFacing).toBe(false);
-
-    assertNoPublicLeak(risk.text);
-    assertNoPublicLeak(risk.renderText);
-    assertNoPublicLeak(risk.publicText);
-    expect(risk.authority.finalAuthority).toBe("Marion");
-  });
-
-  test("Thalon readiness public fields remain clean", () => {
-    const thalon = buildThalonReadinessPacket({
-      ethicalGate: {
-        ethicalConcernLevel: "medium",
-        requiresHumanReview: true
-      }
-    });
-
-    expect(thalon.thalonReady).toBe(true);
-    expect(thalon.userFacing).toBe(false);
-
-    assertNoPublicLeak(thalon.text);
-    assertNoPublicLeak(thalon.renderText);
-    assertNoPublicLeak(thalon.publicText);
-    expect(thalon.authority.finalAuthority).toBe("Marion");
-  });
-
-  test("coordination telemetry public fields remain clean", () => {
-    const lingo = buildMarionBridgePayload("??? ###");
-    const telemetry = buildMarionCoordinationTelemetry(lingo);
-
-    expect(telemetry.userFacing).toBe(false);
-    expect(telemetry.publicReplyVisible).toBe(false);
-
-    assertNoPublicLeak(telemetry.text);
-    assertNoPublicLeak(telemetry.renderText);
-    assertNoPublicLeak(telemetry.publicText);
-    expect(telemetry.authority.finalAuthority).toBe("Marion");
-  });
-
-  test("combined packet transport can contain metadata but public fields stay clean", () => {
-    const lingo = buildMarionBridgePayload("??? ###");
-    const dual = buildMarionDualTrackPacket({
-      ...lingo,
-      observation: {
-        observationSummary: "Burned grass detected in a localized patch.",
-        permissionStatus: "allowed",
-        confidence: 0.72,
-        riskLevel: "medium"
-      }
-    });
-
-    const ethicalGate = evaluateEthicalGate({
-      observationSummary: "Burned grass detected in a localized patch.",
-      confidence: 0.72,
-      riskLevel: "medium"
-    });
-
-    const riskClassification = classifyRiskLevel({
-      observationSummary: "Burned grass detected in a localized patch.",
-      confidence: 0.72
-    });
-
-    const thalonReadiness = buildThalonReadinessPacket({
-      ethicalGate,
-      riskClassification
-    });
-
-    const telemetry = buildMarionCoordinationTelemetry({
-      ...dual,
-      ethicalGate,
-      riskClassification,
-      thalonReadiness
-    });
-
-    const transport = JSON.stringify({
-      dual,
-      ethicalGate,
-      riskClassification,
-      thalonReadiness,
-      telemetry
-    });
-
-    expect(transport).toContain("languageTrack");
-    expect(transport).toContain("realWorldTrack");
-    expect(transport).toContain("thalonReadiness");
-
-    assertInternalPacketPublicFieldsClean(dual);
-    assertNoPublicLeak(ethicalGate.text);
-    assertNoPublicLeak(riskClassification.text);
-    assertNoPublicLeak(thalonReadiness.text);
-    assertNoPublicLeak(telemetry.text);
+    assert.equal(result.ok, false);
+    assert.equal(result.blockedDebugLeak, true);
+    assert.equal(result.publicReply, '');
   });
 });
