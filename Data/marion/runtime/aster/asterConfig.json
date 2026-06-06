@@ -1,10 +1,10 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "enabled": true,
   "gateway": {
     "name": "Aster",
     "role": "environmental-observation-layer",
-    "status": "staged",
+    "status": "staged-hardened",
     "linkedGateways": [
       "LingoLink",
       "LanguageSphere"
@@ -18,7 +18,10 @@
     "displayAuthority": "nyx",
     "neverOverrideMarionFinal": true,
     "neverExposeInternalDiagnosticsToUser": true,
-    "observationOnly": true
+    "observationOnly": true,
+    "advisoryOnly": true,
+    "publicReplyVisible": false,
+    "userFacing": false
   },
   "runtime": {
     "failClosed": true,
@@ -184,7 +187,8 @@
       "moderate",
       "elevated",
       "high",
-      "unknown"
+      "unknown",
+      "critical"
     ],
     "defaultRiskLevel": "unknown",
     "includeReasonCodes": true,
@@ -230,7 +234,31 @@
         "moderate": 70,
         "elevated": 85,
         "high": 100
-      }
+      },
+      "pm25": {
+        "low": 12,
+        "moderate": 35,
+        "elevated": 55,
+        "high": 150
+      },
+      "pm10": {
+        "low": 55,
+        "moderate": 155,
+        "elevated": 255,
+        "high": 355
+      },
+      "vocIndex": {
+        "low": 100,
+        "moderate": 200,
+        "elevated": 300,
+        "high": 400
+      },
+      "critical": {}
+    },
+    "aliases": {
+      "medium": "moderate",
+      "normal": "none",
+      "severe": "critical"
     }
   },
   "observationEnvelope": {
@@ -283,13 +311,23 @@
     ]
   },
   "development": {
-    "phase": "Aster Phase 0",
-    "nextPhase": "Aster Phase 1 environmental adapter smoke validation",
+    "phase": "Aster Phase 0.5 after-conflagration cleanup",
+    "nextPhase": "Aster Phase 1 smoke/regression validation after conflict cleanup",
     "notes": [
       "Keep Aster observational.",
       "Do not give Aster final-answer authority.",
       "Do not merge Aster into LingoLink translation flow yet.",
-      "Use Aster as structured environmental metadata feeding Marion-authorized responses."
+      "Use Aster as structured environmental metadata feeding Marion-authorized responses.",
+      "After-conflagration cleanup hardened runtime authority fields.",
+      "Aster remains observational/advisory only; Marion owns final public output."
     ]
+  },
+  "escalation": {
+    "enabled": true,
+    "lane": "real_world",
+    "highRiskRequiresHumanReview": true,
+    "criticalRiskRequiresHumanReview": true,
+    "publicReplyVisible": false,
+    "userFacing": false
   }
 }
