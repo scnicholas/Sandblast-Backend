@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.21sb MARION-LINGOLINK-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOLINK-GATEWAY-INDEX-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const INDEX_VERSION = "index.js v2.18.21sb MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -46,7 +46,7 @@ const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./Data/marion/runtime/finalRenderTelemetry.js"); } catch (_) { return null; } })();
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
-const LINGOLINK_GATEWAY_INDEX_VERSION = "nyx.lingolink.indexGateway/0.2";
+const LINGOSENTINEL_GATEWAY_INDEX_VERSION = "nyx.lingosentinel.indexGateway/0.2";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -543,7 +543,7 @@ function isPrimitivePlaceholderReplyValue(value) {
 }
 
 
-const LAST_MILE_LANGUAGE_SPHERE_NEXT_STEPS_REPLY = "Next for LanguageSphere: harden mic-to-text parity, confirm spoken alias recovery, verify phase anchoring, then run paired typed/voice regression tests before moving stable components into LingoLink.";
+const LAST_MILE_LANGUAGE_SPHERE_NEXT_STEPS_REPLY = "Next for LanguageSphere: harden mic-to-text parity, confirm spoken alias recovery, verify phase anchoring, then run paired typed/voice regression tests before moving stable components into LingoSentinel.";
 const LAST_MILE_MIC_TEXT_PARITY_AFTER_REPLY = "After mic-to-text parity, the next step is the five-turn live mic smoke test: confirm voice input preserves topic, phase, domain route, and Marion authority across consecutive turns without returning false or broad clarification.";
 
 function collectPublicIntentText(packet) {
@@ -572,7 +572,7 @@ function normalizeLastMileIntentText(value) {
     .replace(/\blanguage\s+(?:c\s*a|ca|k|see\s*a|sea)\b/g, "languagesphere")
     .replace(/\blanguage\s+(?:fair|fare|fear|share|sphere)\b/g, "languagesphere")
     .replace(/\blanguagesphere\b/g, "languagesphere")
-    .replace(/\blingo\s*link\b/g, "lingolink")
+    .replace(/\blingo\s*link\b/g, "lingosentinel")
     .replace(/\bmike\s*(?:to|2)?\s*text\b/g, "mic to text")
     .replace(/\bmic\s*(?:to|2)?\s*text\b/g, "mic to text")
     .replace(/\bmicrophone\s*(?:to|2)?\s*text\b/g, "mic to text")
@@ -655,7 +655,7 @@ function buildLastMileRecoveryReply(packet) {
   const asksNext = /\b(next steps?|what'?s next|where are we|roadmap|phase|continue)\b/i.test(source);
   const asksAfter = /\b(after|what happens after|after that|following|then)\b/i.test(source);
   if (/\blanguagesphere\b/i.test(source) && (asksNext || asksAfter)) return LAST_MILE_LANGUAGE_SPHERE_NEXT_STEPS_REPLY;
-  if (/\blingolink\b/i.test(source) && /\blanguagesphere|language|translation|mic to text|parity\b/i.test(source)) return LAST_MILE_LANGUAGE_SPHERE_NEXT_STEPS_REPLY;
+  if (/\blingosentinel\b/i.test(source) && /\blanguagesphere|language|translation|mic to text|parity\b/i.test(source)) return LAST_MILE_LANGUAGE_SPHERE_NEXT_STEPS_REPLY;
   if (/\bmic to text\b/i.test(source) && /\bparity\b/i.test(source) && (asksAfter || asksNext || /\bphase\b/i.test(source))) return LAST_MILE_MIC_TEXT_PARITY_AFTER_REPLY;
   if (/\bphase\s*(?:2|two)\b/i.test(source) && /\bmic to text|parity|voice\b/i.test(source)) {
     return "Phase 2 is the typed/mic parity regression harness. Test the same prompts by text and voice, then compare intent, domain, language route, clarification behavior, and Marion authority path.";
@@ -758,7 +758,7 @@ function isPublicControlPolicyLeak(value) {
     /\bregenerate from the same normalized text\b/i.test(text);
 }
 
-function buildLingoLinkPublicAnswerFromPacket(packet) {
+function buildLingoSentinelPublicAnswerFromPacket(packet) {
   const src = safeObj(packet);
   const payload = safeObj(src.payload);
   const finalEnvelope = safeObj(src.finalEnvelope);
@@ -775,10 +775,10 @@ function buildLingoLinkPublicAnswerFromPacket(packet) {
     meta.userText, meta.rawUserText, meta.originalUserText, meta.message, meta.text, meta.query,
     normalized.userText, normalized.rawUserText, normalized.originalUserText, normalized.message, normalized.text, normalized.query
   ].map(cleanText).join(" ");
-  const hasLingoLinkSubject = /\b(?:lingolink|lingo\s*link|language\s*sphere|languagesphere)\b/i.test(source);
-  const hasLingoLinkAsk = /\b(?:explain|what|does|do|clear\s+sentence|one\s+sentence|multilingual|language|languages|explica|explicame|explícame|explique|que\s+hace|qué\s+hace|que\s+fait|frase\s+clara|phrase\s+claire|idioma|idiomas|langue|langues|multilingue|multilingüe|traduccion|traducción|traduction|traduire)\b/i.test(source);
-  if (hasLingoLinkSubject && hasLingoLinkAsk) {
-    return "LingoLink helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
+  const hasLingoSentinelSubject = /\b(?:lingosentinel|lingo\s*link|language\s*sphere|languagesphere)\b/i.test(source);
+  const hasLingoSentinelAsk = /\b(?:explain|what|does|do|clear\s+sentence|one\s+sentence|multilingual|language|languages|explica|explicame|explícame|explique|que\s+hace|qué\s+hace|que\s+fait|frase\s+clara|phrase\s+claire|idioma|idiomas|langue|langues|multilingue|multilingüe|traduccion|traducción|traduction|traduire)\b/i.test(source);
+  if (hasLingoSentinelSubject && hasLingoSentinelAsk) {
+    return "LingoSentinel helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
   }
   return "";
 }
@@ -847,12 +847,12 @@ function buildPublicChatResponse(packet, reply) {
   const speechSrc = safeObj(src.speech);
   const playbackSrc = safeObj(src.playback);
   const ttsSrc = safeObj(src.tts);
-  const lingoLinkAnswer = buildLingoLinkPublicAnswerFromPacket(src);
+  const lingoSentinelAnswer = buildLingoSentinelPublicAnswerFromPacket(src);
   let safeReply = cleanReplyForUser(reply || src.displayReply || src.reply || src.response || src.text || src.answer || payload.displayReply || payload.reply || finalEnvelope.displayReply || finalEnvelope.reply || "");
   const lastMileProgressionReply = buildLastMileProgressionContinuationReply(src, reply);
   if (lastMileProgressionReply && (!safeReply || isThinLastMileContinuationReply(safeReply) || /^i can continue from your next instruction\.?$/i.test(safeReply))) safeReply = lastMileProgressionReply;
-  if (lingoLinkAnswer && (!safeReply || isGenericGreetingStatusReply(safeReply))) safeReply = lingoLinkAnswer;
-  if (!safeReply) safeReply = lingoLinkAnswer;
+  if (lingoSentinelAnswer && (!safeReply || isGenericGreetingStatusReply(safeReply))) safeReply = lingoSentinelAnswer;
+  if (!safeReply) safeReply = lingoSentinelAnswer;
   if (!safeReply) safeReply = buildLastMileRecoveryReply(src);
   if (!safeReply || isPrimitivePlaceholderReplyValue(safeReply)) safeReply = "";
   const spokenText = cleanReplyForUser(src.spokenText || src.textSpeak || speechSrc.textSpeak || speechSrc.spokenText || payload.spokenText || safeReply) || safeReply;
@@ -969,8 +969,8 @@ function applyPublicReplyHygieneToResponse(packet) {
   if (reply) return buildPublicChatResponse(packet, reply);
   const lastMileProgressionReply = buildLastMileProgressionContinuationReply(packet, "");
   if (lastMileProgressionReply) return buildPublicChatResponse(forcePublicReply(packet, lastMileProgressionReply, { lastMileProgressionReplyRecovered: true }), lastMileProgressionReply);
-  const lingoLinkAnswer = buildLingoLinkPublicAnswerFromPacket(packet);
-  if (lingoLinkAnswer) return buildPublicChatResponse(packet, lingoLinkAnswer);
+  const lingoSentinelAnswer = buildLingoSentinelPublicAnswerFromPacket(packet);
+  if (lingoSentinelAnswer) return buildPublicChatResponse(packet, lingoSentinelAnswer);
   const lastMileRecovery = buildLastMileRecoveryReply(packet);
   if (lastMileRecovery) return buildPublicChatResponse(forcePublicReply(packet, lastMileRecovery, { primitivePublicReplyRecovered: true }), lastMileRecovery);
   return {
@@ -1924,22 +1924,26 @@ const marionBridgeMod = tryRequireMany([
   "./Utils/marionBridge.js"
 ]);
 
-const lingoLinkGatewayMod = tryRequireMany([
-  "./Data/marion/runtime/MarionLingoLinkGateway",
-  "./Data/marion/runtime/MarionLingoLinkGateway.js",
-  "./MarionLingoLinkGateway",
-  "./MarionLingoLinkGateway.js",
-  "./runtime/MarionLingoLinkGateway",
-  "./runtime/MarionLingoLinkGateway.js",
-  "./Data/marion/runtime/LingoLinkGateway",
-  "./Data/marion/runtime/LingoLinkGateway.js",
-  "./LingoLinkGateway",
-  "./LingoLinkGateway.js",
-  "./runtime/LingoLinkGateway",
-  "./runtime/LingoLinkGateway.js"
+const lingoSentinelGatewayMod = tryRequireMany([
+  "./Data/marion/runtime/MarionLingoSentinelGateway",
+  "./Data/marion/runtime/MarionLingoSentinelGateway.js",
+  "./MarionLingoSentinelGateway",
+  "./MarionLingoSentinelGateway.js",
+  "./runtime/MarionLingoSentinelGateway",
+  "./runtime/MarionLingoSentinelGateway.js",
+  "./Data/marion/runtime/LingoSentinelGateway",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelGateway",
+  "./Data/marion/runtime/LingoSentinelGateway.js",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelGateway.js",
+  "./LingoSentinelGateway",
+  "./LingoSentinel/LingoSentinelGateway",
+  "./LingoSentinelGateway.js",
+  "./LingoSentinel/LingoSentinelGateway.js",
+  "./runtime/LingoSentinelGateway",
+  "./runtime/LingoSentinelGateway.js"
 ]);
-const runIndexLingoLinkGateway = lingoLinkGatewayMod && typeof lingoLinkGatewayMod.runMarionLingoLinkGateway === "function" ? lingoLinkGatewayMod.runMarionLingoLinkGateway.bind(lingoLinkGatewayMod) : (lingoLinkGatewayMod && typeof lingoLinkGatewayMod.runLingoLinkGateway === "function" ? lingoLinkGatewayMod.runLingoLinkGateway.bind(lingoLinkGatewayMod) : null);
-const buildIndexLingoLinkMarionPayload = lingoLinkGatewayMod && typeof lingoLinkGatewayMod.buildMarionBridgePayload === "function" ? lingoLinkGatewayMod.buildMarionBridgePayload.bind(lingoLinkGatewayMod) : null;
+const runIndexLingoSentinelGateway = lingoSentinelGatewayMod && typeof lingoSentinelGatewayMod.runMarionLingoSentinelGateway === "function" ? lingoSentinelGatewayMod.runMarionLingoSentinelGateway.bind(lingoSentinelGatewayMod) : (lingoSentinelGatewayMod && typeof lingoSentinelGatewayMod.runLingoSentinelGateway === "function" ? lingoSentinelGatewayMod.runLingoSentinelGateway.bind(lingoSentinelGatewayMod) : null);
+const buildIndexLingoSentinelMarionPayload = lingoSentinelGatewayMod && typeof lingoSentinelGatewayMod.buildMarionBridgePayload === "function" ? lingoSentinelGatewayMod.buildMarionBridgePayload.bind(lingoSentinelGatewayMod) : null;
 
 const composeMarionResponseMod = tryRequireMany([
   "./Data/marion/runtime/composeMarionResponse",
@@ -2688,10 +2692,10 @@ function getMarionRuntimeDiagnostics() {
     marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
     marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
     marionBridgeVersion: cleanText(marionBridgeMod && marionBridgeMod.VERSION || ""),
-    lingoLinkGatewayLoaded: !!lingoLinkGatewayMod,
-    lingoLinkGatewayHasRun: !!runIndexLingoLinkGateway,
-    lingoLinkGatewayHasBuildPayload: !!buildIndexLingoLinkMarionPayload,
-    lingoLinkGatewayIndexVersion: LINGOLINK_GATEWAY_INDEX_VERSION,
+    lingoSentinelGatewayLoaded: !!lingoSentinelGatewayMod,
+    lingoSentinelGatewayHasRun: !!runIndexLingoSentinelGateway,
+    lingoSentinelGatewayHasBuildPayload: !!buildIndexLingoSentinelMarionPayload,
+    lingoSentinelGatewayIndexVersion: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
     marionEmotionRuntimeLoaded: !!marionEmotionRuntimeMod,
     marionEmotionRuntimeHasHealth: !!(marionEmotionRuntimeMod && typeof marionEmotionRuntimeMod.getHealth === "function"),
     marionEmotionRuntimeMode: "resolved_state_only",
@@ -6116,14 +6120,14 @@ async function applyIndexLanguageSphereToTrustedFinal(selected = {}, norm = {}, 
 }
 
 
-function normalizeIndexLingoLinkGatewaySurface(value) {
+function normalizeIndexLingoSentinelGatewaySurface(value) {
   const src = isObj(value) ? value : {};
-  const response = isObj(src.lingoLinkResponse) ? src.lingoLinkResponse : {};
+  const response = isObj(src.lingoSentinelResponse) ? src.lingoSentinelResponse : {};
   const authorityReview = isObj(src.authorityReview) ? src.authorityReview : {};
   const languageMeta = isObj(src.languageMeta) ? src.languageMeta : {};
   const translationMeta = isObj(src.translationMeta) ? src.translationMeta : {};
   const glossaryMeta = isObj(src.glossaryMeta) ? src.glossaryMeta : (isObj(response.glossaryMeta) ? response.glossaryMeta : {});
-  const gatewayMeta = isObj(src.gatewayMeta) ? src.gatewayMeta : (isObj(src.lingoLinkGatewayMeta) ? src.lingoLinkGatewayMeta : {});
+  const gatewayMeta = isObj(src.gatewayMeta) ? src.gatewayMeta : (isObj(src.lingoSentinelGatewayMeta) ? src.lingoSentinelGatewayMeta : {});
   const unknownLanguageAlert = isObj(src.unknownLanguageAlert) ? src.unknownLanguageAlert : {};
   const scannerHeartbeat = isObj(src.scannerHeartbeat) ? src.scannerHeartbeat : {};
   const dormantScanner = isObj(src.dormantScanner) ? src.dormantScanner : {};
@@ -6137,11 +6141,11 @@ function normalizeIndexLingoLinkGatewaySurface(value) {
   const correlationId = cleanText(src.correlationId || gatewayMeta.correlationId || src.requestId || gatewayHash || stableHash || "");
   const traceId = cleanText(src.traceId || gatewayMeta.traceId || src.requestId || correlationId || "");
   const finalText = cleanText(src.finalText || authorityReview.finalText || response.finalText || response.adaptedText || response.translatedText || translationMeta.advisoryText || translationMeta.translatedText || translationMeta.renderText || translationMeta.publicText || translationMeta.text || "");
-  const routed = src.routed === true || route.indexOf("LINGOLINK_") === 0;
+  const routed = src.routed === true || route.indexOf("LINGOSENTINEL_") === 0;
   const fallbackTriggered = src.ok === false || response.fallbackUsed === true || languageMeta.fallbackTriggered === true || translationMeta.fallbackTriggered === true || gatewayMeta.fallbackTriggered === true;
   return {
-    version: LINGOLINK_GATEWAY_INDEX_VERSION,
-    available: !!runIndexLingoLinkGateway,
+    version: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
+    available: !!runIndexLingoSentinelGateway,
     active: src.ok !== false && routed,
     routed,
     route,
@@ -6176,22 +6180,22 @@ function normalizeIndexLingoLinkGatewaySurface(value) {
     correlationId,
     traceId,
     noUserFacingDiagnostics: true,
-    source: "MarionLingoLinkGateway"
+    source: "MarionLingoSentinelGateway"
   };
 }
-function buildIndexLingoLinkGatewayPatch(result, rawText, n) {
+function buildIndexLingoSentinelGatewayPatch(result, rawText, n) {
   const src = isObj(result) ? result : {};
-  const response = isObj(src.lingoLinkResponse) ? src.lingoLinkResponse : {};
+  const response = isObj(src.lingoSentinelResponse) ? src.lingoSentinelResponse : {};
   const authorityReview = isObj(src.authorityReview) ? src.authorityReview : {};
   const route = cleanText(src.route || "MARION_ONLY");
   const sourceLanguage = cleanText(src.sourceLanguage || response.sourceLanguage || response.detectedLanguage || "unknown");
   const targetLanguage = cleanText(src.targetLanguage || response.targetLanguage || "en");
   const finalText = cleanText(src.finalText || authorityReview.finalText || response.finalText || response.adaptedText || response.translatedText || "");
   const confidence = Number.isFinite(Number(src.confidence)) ? Number(src.confidence) : (Number.isFinite(Number(response.confidence)) ? Number(response.confidence) : null);
-  const routed = src.routed === true || route.indexOf("LINGOLINK_") === 0;
+  const routed = src.routed === true || route.indexOf("LINGOSENTINEL_") === 0;
   const gatewayMeta = {
-    version: LINGOLINK_GATEWAY_INDEX_VERSION,
-    source: "MarionLingoLinkGateway",
+    version: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
+    source: "MarionLingoSentinelGateway",
     requestId: cleanText(src.requestId || n.traceId || ""),
     ok: src.ok !== false,
     routed,
@@ -6202,7 +6206,7 @@ function buildIndexLingoLinkGatewayPatch(result, rawText, n) {
     reason: cleanText(src.reason || authorityReview.reason || "")
   };
   return {
-    surface: normalizeIndexLingoLinkGatewaySurface({ ...src, gatewayMeta }),
+    surface: normalizeIndexLingoSentinelGatewaySurface({ ...src, gatewayMeta }),
     languageMeta: isObj(src.languageMeta) ? src.languageMeta : { detectedLanguage: sourceLanguage, sourceLanguage, targetLanguage, confidence, supported: true, requiresTranslation: routed, fallbackTriggered: src.ok === false || response.fallbackUsed === true, route },
     lingoInput: isObj(src.lingoInput) ? src.lingoInput : { originalText: cleanText(src.originalText || rawText), normalizedText: cleanText(src.originalText || rawText), route },
     translationMeta: isObj(src.translationMeta) ? src.translationMeta : { sourceLanguage, targetLanguage, translated: !!(routed && finalText && src.ok !== false), translatedText: finalText, advisoryText: finalText, finalText, confidence, route, fallbackTriggered: src.ok === false || response.fallbackUsed === true },
@@ -6217,15 +6221,15 @@ function buildIndexLingoLinkGatewayPatch(result, rawText, n) {
     authorityReview
   };
 }
-async function applyIndexLingoLinkGatewayToNorm(norm) {
+async function applyIndexLingoSentinelGatewayToNorm(norm) {
   const n = isObj(norm) ? norm : {};
-  if (!runIndexLingoLinkGateway) {
-    n.lingoLink = { version: LINGOLINK_GATEWAY_INDEX_VERSION, available: false, active: false, authority: "marion", advisoryOnly: true, stage: "index-pre-marion", reason: "lingolink_gateway_unavailable", noUserFacingDiagnostics: true };
+  if (!runIndexLingoSentinelGateway) {
+    n.lingoSentinel = { version: LINGOSENTINEL_GATEWAY_INDEX_VERSION, available: false, active: false, authority: "marion", advisoryOnly: true, stage: "index-pre-marion", reason: "lingosentinel_gateway_unavailable", noUserFacingDiagnostics: true };
     return n;
   }
   try {
     const rawText = cleanText(n.originalRawText || n.originalText || n.text || "");
-    const result = await Promise.resolve(runIndexLingoLinkGateway({
+    const result = await Promise.resolve(runIndexLingoSentinelGateway({
       requestId: n.traceId || n.turnId,
       text: n.text || rawText,
       message: rawText || n.text,
@@ -6238,8 +6242,8 @@ async function applyIndexLingoLinkGatewayToNorm(norm) {
       languageSphere: isObj(n.languageSphere) ? n.languageSphere : {},
       meta: { traceId: n.traceId, turnId: n.turnId, source: "index_transport_only" }
     }, { defaultTargetLanguage: "en", domain: cleanText(n.knowledgeDomain || n.domain || "general") }));
-    const patch = buildIndexLingoLinkGatewayPatch(result, rawText, n);
-    n.lingoLink = { ...(isObj(n.lingoLink) ? n.lingoLink : {}), ...patch.surface };
+    const patch = buildIndexLingoSentinelGatewayPatch(result, rawText, n);
+    n.lingoSentinel = { ...(isObj(n.lingoSentinel) ? n.lingoSentinel : {}), ...patch.surface };
     n.languageMeta = patch.languageMeta;
     n.lingoInput = patch.lingoInput;
     n.translationMeta = patch.translationMeta;
@@ -6248,10 +6252,10 @@ async function applyIndexLingoLinkGatewayToNorm(norm) {
     n.unknownLanguageAlert = patch.unknownLanguageAlert;
     n.scannerHeartbeat = patch.scannerHeartbeat;
     n.dormantScanner = patch.dormantScanner;
-    n.lingoLinkGatewayMeta = patch.gatewayMeta;
-    n.lingoLinkTelemetry = patch.telemetry;
-    n.lingoLinkResponse = patch.response;
-    n.lingoLinkAuthorityReview = patch.authorityReview;
+    n.lingoSentinelGatewayMeta = patch.gatewayMeta;
+    n.lingoSentinelTelemetry = patch.telemetry;
+    n.lingoSentinelResponse = patch.response;
+    n.lingoSentinelAuthorityReview = patch.authorityReview;
     n.inputHash = cleanText(result.inputHash || patch.gatewayMeta.requestId || n.inputHash || "");
     n.gatewayHash = cleanText(result.gatewayHash || patch.gatewayMeta.requestId || n.gatewayHash || "");
     n.stableHash = cleanText(result.stableHash || patch.gatewayMeta.requestId || n.stableHash || "");
@@ -6259,7 +6263,7 @@ async function applyIndexLingoLinkGatewayToNorm(norm) {
     n.traceId = cleanText(result.traceId || patch.gatewayMeta.requestId || n.traceId || "");
     n.notificationReady = !!(patch.gatewayMeta.notificationReady || patch.unknownLanguageAlert.notificationReady || patch.dormantScanner.notificationReady);
   } catch (err) {
-    n.lingoLink = { version: LINGOLINK_GATEWAY_INDEX_VERSION, available: false, active: false, authority: "marion", advisoryOnly: true, stage: "index-pre-marion", fallbackTriggered: true, error: "gateway-failed-safe", detail: cleanText(err && (err.message || err) || ""), noUserFacingDiagnostics: true };
+    n.lingoSentinel = { version: LINGOSENTINEL_GATEWAY_INDEX_VERSION, available: false, active: false, authority: "marion", advisoryOnly: true, stage: "index-pre-marion", fallbackTriggered: true, error: "gateway-failed-safe", detail: cleanText(err && (err.message || err) || ""), noUserFacingDiagnostics: true };
   }
   return n;
 }
@@ -9323,7 +9327,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   hardenCors(req, res);
   try { // CHAT-POST-502-PURGE try
   const startedAt = now();
-  const norm = await applyIndexLingoLinkGatewayToNorm(normalizePayload(req));
+  const norm = await applyIndexLingoSentinelGatewayToNorm(normalizePayload(req));
   const sessionId = getSessionId(req);
   const resetConversation = shouldResetConversationFromRequest(req, norm.body, norm.payload) || norm.resetConversation === true || norm.clearSession === true;
   if (resetConversation) clearSessionRuntimeState(sessionId);
@@ -9530,14 +9534,14 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     languageSphereInput: isObj(norm.languageSphereInput) ? norm.languageSphereInput : {},
     languageSphereApiMiddleware: isObj(norm.languageSphereApiMiddleware) ? norm.languageSphereApiMiddleware : {},
     languageSphereLanguageContext: isObj(norm.languageSphereLanguageContext) ? norm.languageSphereLanguageContext : {},
-    lingoLink: isObj(norm.lingoLink) ? norm.lingoLink : {},
+    lingoSentinel: isObj(norm.lingoSentinel) ? norm.lingoSentinel : {},
     languageMeta: isObj(norm.languageMeta) ? norm.languageMeta : {},
     lingoInput: isObj(norm.lingoInput) ? norm.lingoInput : {},
     translationMeta: isObj(norm.translationMeta) ? norm.translationMeta : {},
     glossaryMeta: isObj(norm.glossaryMeta) ? norm.glossaryMeta : {},
     glossaryIntegrity: isObj(norm.glossaryIntegrity) ? norm.glossaryIntegrity : {},
-    lingoLinkGatewayMeta: isObj(norm.lingoLinkGatewayMeta) ? norm.lingoLinkGatewayMeta : {},
-    lingoLinkTelemetry: isObj(norm.lingoLinkTelemetry) ? norm.lingoLinkTelemetry : {},
+    lingoSentinelGatewayMeta: isObj(norm.lingoSentinelGatewayMeta) ? norm.lingoSentinelGatewayMeta : {},
+    lingoSentinelTelemetry: isObj(norm.lingoSentinelTelemetry) ? norm.lingoSentinelTelemetry : {},
     previousMemory: norm.staleCarryBypass ? {} : (isObj(priorTurn) ? priorTurn : {}),
     commandPacket: isObj(marionCommandPacket) ? marionCommandPacket : {},
     state: isObj(marionCommandPacket && marionCommandPacket.state) ? marionCommandPacket.state : {},
@@ -9565,22 +9569,22 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       languageSphereInput: isObj(norm.languageSphereInput) ? norm.languageSphereInput : {},
       languageSphereApiMiddleware: isObj(norm.languageSphereApiMiddleware) ? norm.languageSphereApiMiddleware : {},
       languageSphereLanguageContext: isObj(norm.languageSphereLanguageContext) ? norm.languageSphereLanguageContext : {},
-      lingoLinkGatewayIndexVersion: LINGOLINK_GATEWAY_INDEX_VERSION,
-      lingoLink: isObj(norm.lingoLink) ? norm.lingoLink : {},
+      lingoSentinelGatewayIndexVersion: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
+      lingoSentinel: isObj(norm.lingoSentinel) ? norm.lingoSentinel : {},
       languageMeta: isObj(norm.languageMeta) ? norm.languageMeta : {},
       translationMeta: isObj(norm.translationMeta) ? norm.translationMeta : {},
       glossaryMeta: isObj(norm.glossaryMeta) ? norm.glossaryMeta : {},
       unknownLanguageAlert: isObj(norm.unknownLanguageAlert) ? norm.unknownLanguageAlert : {},
       scannerHeartbeat: isObj(norm.scannerHeartbeat) ? norm.scannerHeartbeat : {},
       dormantScanner: isObj(norm.dormantScanner) ? norm.dormantScanner : {},
-      lingoLinkGatewayMeta: isObj(norm.lingoLinkGatewayMeta) ? norm.lingoLinkGatewayMeta : {},
+      lingoSentinelGatewayMeta: isObj(norm.lingoSentinelGatewayMeta) ? norm.lingoSentinelGatewayMeta : {},
       inputHash: cleanText(norm.inputHash || ""),
       gatewayHash: cleanText(norm.gatewayHash || ""),
       stableHash: cleanText(norm.stableHash || ""),
       correlationId: cleanText(norm.correlationId || ""),
       traceId: cleanText(norm.traceId || ""),
       notificationReady: !!norm.notificationReady,
-      lingoLinkGatewayAvailable: !!runIndexLingoLinkGateway,
+      lingoSentinelGatewayAvailable: !!runIndexLingoSentinelGateway,
       resetConversation: !!norm.resetConversation,
       staleCarryBypass: !!norm.staleCarryBypass,
       languageSphereDirectTranslation: !!norm.languageSphereDirectTranslation
