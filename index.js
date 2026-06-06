@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.20sb DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOLINK-GATEWAY-INDEX-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY";
+const INDEX_VERSION = "index.js v2.18.21sb MARION-LINGOLINK-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOLINK-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOLINK-GATEWAY-INDEX-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -1879,6 +1879,12 @@ const marionBridgeMod = tryRequireMany([
 ]);
 
 const lingoLinkGatewayMod = tryRequireMany([
+  "./Data/marion/runtime/MarionLingoLinkGateway",
+  "./Data/marion/runtime/MarionLingoLinkGateway.js",
+  "./MarionLingoLinkGateway",
+  "./MarionLingoLinkGateway.js",
+  "./runtime/MarionLingoLinkGateway",
+  "./runtime/MarionLingoLinkGateway.js",
   "./Data/marion/runtime/LingoLinkGateway",
   "./Data/marion/runtime/LingoLinkGateway.js",
   "./LingoLinkGateway",
@@ -1886,7 +1892,7 @@ const lingoLinkGatewayMod = tryRequireMany([
   "./runtime/LingoLinkGateway",
   "./runtime/LingoLinkGateway.js"
 ]);
-const runIndexLingoLinkGateway = lingoLinkGatewayMod && typeof lingoLinkGatewayMod.runLingoLinkGateway === "function" ? lingoLinkGatewayMod.runLingoLinkGateway.bind(lingoLinkGatewayMod) : null;
+const runIndexLingoLinkGateway = lingoLinkGatewayMod && typeof lingoLinkGatewayMod.runMarionLingoLinkGateway === "function" ? lingoLinkGatewayMod.runMarionLingoLinkGateway.bind(lingoLinkGatewayMod) : (lingoLinkGatewayMod && typeof lingoLinkGatewayMod.runLingoLinkGateway === "function" ? lingoLinkGatewayMod.runLingoLinkGateway.bind(lingoLinkGatewayMod) : null);
 const buildIndexLingoLinkMarionPayload = lingoLinkGatewayMod && typeof lingoLinkGatewayMod.buildMarionBridgePayload === "function" ? lingoLinkGatewayMod.buildMarionBridgePayload.bind(lingoLinkGatewayMod) : null;
 
 const composeMarionResponseMod = tryRequireMany([
@@ -6066,53 +6072,106 @@ async function applyIndexLanguageSphereToTrustedFinal(selected = {}, norm = {}, 
 
 function normalizeIndexLingoLinkGatewaySurface(value) {
   const src = isObj(value) ? value : {};
+  const response = isObj(src.lingoLinkResponse) ? src.lingoLinkResponse : {};
+  const authorityReview = isObj(src.authorityReview) ? src.authorityReview : {};
   const languageMeta = isObj(src.languageMeta) ? src.languageMeta : {};
   const translationMeta = isObj(src.translationMeta) ? src.translationMeta : {};
-  const glossaryMeta = isObj(src.glossaryMeta) ? src.glossaryMeta : {};
-  const gatewayMeta = isObj(src.gatewayMeta) ? src.gatewayMeta : {};
+  const glossaryMeta = isObj(src.glossaryMeta) ? src.glossaryMeta : (isObj(response.glossaryMeta) ? response.glossaryMeta : {});
+  const gatewayMeta = isObj(src.gatewayMeta) ? src.gatewayMeta : (isObj(src.lingoLinkGatewayMeta) ? src.lingoLinkGatewayMeta : {});
   const unknownLanguageAlert = isObj(src.unknownLanguageAlert) ? src.unknownLanguageAlert : {};
   const scannerHeartbeat = isObj(src.scannerHeartbeat) ? src.scannerHeartbeat : {};
   const dormantScanner = isObj(src.dormantScanner) ? src.dormantScanner : {};
-  const inputHash = cleanText(src.inputHash || gatewayMeta.inputHash || gatewayMeta.stableHash || "");
-  const gatewayHash = cleanText(src.gatewayHash || gatewayMeta.gatewayHash || gatewayMeta.stableHash || "");
-  const stableHash = cleanText(src.stableHash || gatewayMeta.stableHash || gatewayHash || inputHash || "");
-  const correlationId = cleanText(src.correlationId || gatewayMeta.correlationId || gatewayHash || stableHash || "");
-  const traceId = cleanText(src.traceId || gatewayMeta.traceId || correlationId || "");
+  const route = cleanText(src.route || gatewayMeta.route || "MARION_ONLY");
+  const sourceLanguage = cleanText(src.sourceLanguage || response.sourceLanguage || response.detectedLanguage || languageMeta.detectedLanguage || translationMeta.sourceLanguage || "unknown");
+  const targetLanguage = cleanText(src.targetLanguage || response.targetLanguage || translationMeta.targetLanguage || "en");
+  const confidence = Number.isFinite(Number(src.confidence)) ? Number(src.confidence) : (Number.isFinite(Number(response.confidence)) ? Number(response.confidence) : (Number.isFinite(Number(languageMeta.confidence)) ? Number(languageMeta.confidence) : null));
+  const inputHash = cleanText(src.inputHash || gatewayMeta.inputHash || gatewayMeta.stableHash || src.requestId || "");
+  const gatewayHash = cleanText(src.gatewayHash || gatewayMeta.gatewayHash || gatewayMeta.stableHash || src.requestId || "");
+  const stableHash = cleanText(src.stableHash || gatewayMeta.stableHash || gatewayHash || inputHash || src.requestId || "");
+  const correlationId = cleanText(src.correlationId || gatewayMeta.correlationId || src.requestId || gatewayHash || stableHash || "");
+  const traceId = cleanText(src.traceId || gatewayMeta.traceId || src.requestId || correlationId || "");
+  const finalText = cleanText(src.finalText || authorityReview.finalText || response.finalText || response.adaptedText || response.translatedText || translationMeta.advisoryText || translationMeta.translatedText || translationMeta.renderText || translationMeta.publicText || translationMeta.text || "");
+  const routed = src.routed === true || route.indexOf("LINGOLINK_") === 0;
+  const fallbackTriggered = src.ok === false || response.fallbackUsed === true || languageMeta.fallbackTriggered === true || translationMeta.fallbackTriggered === true || gatewayMeta.fallbackTriggered === true;
   return {
     version: LINGOLINK_GATEWAY_INDEX_VERSION,
     available: !!runIndexLingoLinkGateway,
-    active: src.enabled !== false,
+    active: src.ok !== false && routed,
+    routed,
+    route,
+    requestId: cleanText(src.requestId || gatewayMeta.requestId || ""),
     stage: "index-pre-marion",
     authority: "marion",
     advisoryOnly: true,
-    detectedLanguage: cleanText(languageMeta.detectedLanguage || translationMeta.sourceLanguage || "unknown"),
-    sourceLanguage: cleanText(translationMeta.sourceLanguage || languageMeta.detectedLanguage || "unknown"),
-    targetLanguage: cleanText(translationMeta.targetLanguage || "en"),
-    confidence: Number.isFinite(Number(languageMeta.confidence)) ? Number(languageMeta.confidence) : null,
-    supported: languageMeta.supported === true,
-    requiresTranslation: languageMeta.requiresTranslation === true,
-    translated: translationMeta.translated === true,
-    fallbackTriggered: !!(languageMeta.fallbackTriggered || translationMeta.fallbackTriggered || gatewayMeta.fallbackTriggered),
+    marionFinalAuthority: src.marionFinalAuthority !== false,
+    approvedByMarion: authorityReview.approved !== false && src.ok !== false,
+    detectedLanguage: sourceLanguage,
+    sourceLanguage,
+    targetLanguage,
+    confidence,
+    supported: languageMeta.supported !== false,
+    requiresTranslation: routed,
+    translated: !!(routed && finalText && src.ok !== false),
+    fallbackTriggered,
     alertTriggered: !!(unknownLanguageAlert.alertTriggered || gatewayMeta.alertTriggered || (isObj(dormantScanner.unknownLanguageAlert) && dormantScanner.unknownLanguageAlert.alertTriggered)),
     notificationReady: !!(unknownLanguageAlert.notificationReady || gatewayMeta.notificationReady || dormantScanner.notificationReady),
     scannerReady: cleanText(scannerHeartbeat.status)==="ready" || (isObj(dormantScanner.telemetry) && dormantScanner.telemetry.scannerReady === true),
-    advisoryText: cleanText(translationMeta.advisoryText || translationMeta.translatedText || translationMeta.renderText || translationMeta.publicText || translationMeta.text || ""),
+    advisoryText: finalText,
     glossaryIntact: !(src.glossaryIntegrity && src.glossaryIntegrity.intact === false),
     restoredTerms: Array.isArray(glossaryMeta.restoredTerms) ? glossaryMeta.restoredTerms : [],
     gatewayMeta,
     unknownLanguageAlert,
     scannerHeartbeat,
     dormantScanner,
+    authorityReview,
     inputHash,
     gatewayHash,
     stableHash,
     correlationId,
     traceId,
     noUserFacingDiagnostics: true,
-    source: "LingoLinkGateway"
+    source: "MarionLingoLinkGateway"
   };
 }
-function applyIndexLingoLinkGatewayToNorm(norm) {
+function buildIndexLingoLinkGatewayPatch(result, rawText, n) {
+  const src = isObj(result) ? result : {};
+  const response = isObj(src.lingoLinkResponse) ? src.lingoLinkResponse : {};
+  const authorityReview = isObj(src.authorityReview) ? src.authorityReview : {};
+  const route = cleanText(src.route || "MARION_ONLY");
+  const sourceLanguage = cleanText(src.sourceLanguage || response.sourceLanguage || response.detectedLanguage || "unknown");
+  const targetLanguage = cleanText(src.targetLanguage || response.targetLanguage || "en");
+  const finalText = cleanText(src.finalText || authorityReview.finalText || response.finalText || response.adaptedText || response.translatedText || "");
+  const confidence = Number.isFinite(Number(src.confidence)) ? Number(src.confidence) : (Number.isFinite(Number(response.confidence)) ? Number(response.confidence) : null);
+  const routed = src.routed === true || route.indexOf("LINGOLINK_") === 0;
+  const gatewayMeta = {
+    version: LINGOLINK_GATEWAY_INDEX_VERSION,
+    source: "MarionLingoLinkGateway",
+    requestId: cleanText(src.requestId || n.traceId || ""),
+    ok: src.ok !== false,
+    routed,
+    route,
+    marionFinalAuthority: src.marionFinalAuthority !== false,
+    approvedByMarion: authorityReview.approved !== false && src.ok !== false,
+    fallbackTriggered: src.ok === false || response.fallbackUsed === true,
+    reason: cleanText(src.reason || authorityReview.reason || "")
+  };
+  return {
+    surface: normalizeIndexLingoLinkGatewaySurface({ ...src, gatewayMeta }),
+    languageMeta: isObj(src.languageMeta) ? src.languageMeta : { detectedLanguage: sourceLanguage, sourceLanguage, targetLanguage, confidence, supported: true, requiresTranslation: routed, fallbackTriggered: src.ok === false || response.fallbackUsed === true, route },
+    lingoInput: isObj(src.lingoInput) ? src.lingoInput : { originalText: cleanText(src.originalText || rawText), normalizedText: cleanText(src.originalText || rawText), route },
+    translationMeta: isObj(src.translationMeta) ? src.translationMeta : { sourceLanguage, targetLanguage, translated: !!(routed && finalText && src.ok !== false), translatedText: finalText, advisoryText: finalText, finalText, confidence, route, fallbackTriggered: src.ok === false || response.fallbackUsed === true },
+    glossaryMeta: isObj(src.glossaryMeta) ? src.glossaryMeta : (isObj(response.glossaryMeta) ? response.glossaryMeta : {}),
+    glossaryIntegrity: isObj(src.glossaryIntegrity) ? src.glossaryIntegrity : {},
+    unknownLanguageAlert: isObj(src.unknownLanguageAlert) ? src.unknownLanguageAlert : {},
+    scannerHeartbeat: isObj(src.scannerHeartbeat) ? src.scannerHeartbeat : {},
+    dormantScanner: isObj(src.dormantScanner) ? src.dormantScanner : {},
+    gatewayMeta,
+    telemetry: isObj(src.telemetry) ? src.telemetry : {},
+    response,
+    authorityReview
+  };
+}
+async function applyIndexLingoLinkGatewayToNorm(norm) {
   const n = isObj(norm) ? norm : {};
   if (!runIndexLingoLinkGateway) {
     n.lingoLink = { version: LINGOLINK_GATEWAY_INDEX_VERSION, available: false, active: false, authority: "marion", advisoryOnly: true, stage: "index-pre-marion", reason: "lingolink_gateway_unavailable", noUserFacingDiagnostics: true };
@@ -6120,32 +6179,39 @@ function applyIndexLingoLinkGatewayToNorm(norm) {
   }
   try {
     const rawText = cleanText(n.originalRawText || n.originalText || n.text || "");
-    const result = runIndexLingoLinkGateway({
+    const result = await Promise.resolve(runIndexLingoLinkGateway({
+      requestId: n.traceId || n.turnId,
+      text: n.text || rawText,
       message: rawText || n.text,
       input: n.text,
       originalInput: rawText || n.text,
+      sourceLanguage: cleanText((isObj(n.languageSphere) && n.languageSphere.sourceLanguage) || (isObj(n.languageMeta) && n.languageMeta.sourceLanguage) || "auto"),
+      targetLanguage: cleanText((isObj(n.languageSphere) && n.languageSphere.targetLanguage) || (isObj(n.languageMeta) && n.languageMeta.targetLanguage) || "en"),
+      domain: cleanText(n.knowledgeDomain || n.domain || "general"),
       payload: isObj(n.payload) ? n.payload : {},
       languageSphere: isObj(n.languageSphere) ? n.languageSphere : {},
       meta: { traceId: n.traceId, turnId: n.turnId, source: "index_transport_only" }
-    }, { config: { defaultLanguage: "en", supportedLanguages: ["en", "fr", "es"], authority: { finalAuthority: "Marion", lingoLinkAdvisoryOnly: true, neverOverrideMarion: true } } });
-    const surface = normalizeIndexLingoLinkGatewaySurface(result);
-    n.lingoLink = { ...(isObj(n.lingoLink) ? n.lingoLink : {}), ...surface };
-    n.languageMeta = isObj(result.languageMeta) ? result.languageMeta : {};
-    n.lingoInput = isObj(result.lingoInput) ? result.lingoInput : {};
-    n.translationMeta = isObj(result.translationMeta) ? result.translationMeta : {};
-    n.glossaryMeta = isObj(result.glossaryMeta) ? result.glossaryMeta : {};
-    n.glossaryIntegrity = isObj(result.glossaryIntegrity) ? result.glossaryIntegrity : {};
-    n.unknownLanguageAlert = isObj(result.unknownLanguageAlert) ? result.unknownLanguageAlert : {};
-    n.scannerHeartbeat = isObj(result.scannerHeartbeat) ? result.scannerHeartbeat : {};
-    n.dormantScanner = isObj(result.dormantScanner) ? result.dormantScanner : {};
-    n.lingoLinkGatewayMeta = isObj(result.gatewayMeta) ? result.gatewayMeta : {};
-    n.lingoLinkTelemetry = isObj(result.telemetry) ? result.telemetry : {};
-    n.inputHash = cleanText(result.inputHash || (isObj(result.gatewayMeta) ? result.gatewayMeta.inputHash : "") || n.inputHash || "");
-    n.gatewayHash = cleanText(result.gatewayHash || (isObj(result.gatewayMeta) ? result.gatewayMeta.gatewayHash : "") || n.gatewayHash || "");
-    n.stableHash = cleanText(result.stableHash || (isObj(result.gatewayMeta) ? result.gatewayMeta.stableHash : "") || n.stableHash || "");
-    n.correlationId = cleanText(result.correlationId || (isObj(result.gatewayMeta) ? result.gatewayMeta.correlationId : "") || n.correlationId || "");
-    n.traceId = cleanText(result.traceId || (isObj(result.gatewayMeta) ? result.gatewayMeta.traceId : "") || n.traceId || "");
-    n.notificationReady = !!((isObj(result.gatewayMeta) && result.gatewayMeta.notificationReady) || (isObj(result.unknownLanguageAlert) && result.unknownLanguageAlert.notificationReady) || (isObj(result.dormantScanner) && result.dormantScanner.notificationReady));
+    }, { defaultTargetLanguage: "en", domain: cleanText(n.knowledgeDomain || n.domain || "general") }));
+    const patch = buildIndexLingoLinkGatewayPatch(result, rawText, n);
+    n.lingoLink = { ...(isObj(n.lingoLink) ? n.lingoLink : {}), ...patch.surface };
+    n.languageMeta = patch.languageMeta;
+    n.lingoInput = patch.lingoInput;
+    n.translationMeta = patch.translationMeta;
+    n.glossaryMeta = patch.glossaryMeta;
+    n.glossaryIntegrity = patch.glossaryIntegrity;
+    n.unknownLanguageAlert = patch.unknownLanguageAlert;
+    n.scannerHeartbeat = patch.scannerHeartbeat;
+    n.dormantScanner = patch.dormantScanner;
+    n.lingoLinkGatewayMeta = patch.gatewayMeta;
+    n.lingoLinkTelemetry = patch.telemetry;
+    n.lingoLinkResponse = patch.response;
+    n.lingoLinkAuthorityReview = patch.authorityReview;
+    n.inputHash = cleanText(result.inputHash || patch.gatewayMeta.requestId || n.inputHash || "");
+    n.gatewayHash = cleanText(result.gatewayHash || patch.gatewayMeta.requestId || n.gatewayHash || "");
+    n.stableHash = cleanText(result.stableHash || patch.gatewayMeta.requestId || n.stableHash || "");
+    n.correlationId = cleanText(result.correlationId || patch.gatewayMeta.requestId || n.correlationId || "");
+    n.traceId = cleanText(result.traceId || patch.gatewayMeta.requestId || n.traceId || "");
+    n.notificationReady = !!(patch.gatewayMeta.notificationReady || patch.unknownLanguageAlert.notificationReady || patch.dormantScanner.notificationReady);
   } catch (err) {
     n.lingoLink = { version: LINGOLINK_GATEWAY_INDEX_VERSION, available: false, active: false, authority: "marion", advisoryOnly: true, stage: "index-pre-marion", fallbackTriggered: true, error: "gateway-failed-safe", detail: cleanText(err && (err.message || err) || ""), noUserFacingDiagnostics: true };
   }
@@ -9211,7 +9277,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   hardenCors(req, res);
   try { // CHAT-POST-502-PURGE try
   const startedAt = now();
-  const norm = applyIndexLingoLinkGatewayToNorm(normalizePayload(req));
+  const norm = await applyIndexLingoLinkGatewayToNorm(normalizePayload(req));
   const sessionId = getSessionId(req);
   const resetConversation = shouldResetConversationFromRequest(req, norm.body, norm.payload) || norm.resetConversation === true || norm.clearSession === true;
   if (resetConversation) clearSessionRuntimeState(sessionId);
