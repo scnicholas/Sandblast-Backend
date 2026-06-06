@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.4 RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOLINK-GATEWAY-ORCHESTRATION-BRIDGE + LINGOLINK-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY";
+const VERSION = "marionBridge v7.9.5 MARION-LINGOLINK-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOLINK-GATEWAY-ORCHESTRATION-BRIDGE + LINGOLINK-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -98,6 +98,12 @@ const languageSphereTelemetryLoaded=tryRequireMany([
   "./LanguageSphereTelemetry"
 ]);
 const lingoLinkGatewayLoaded=tryRequireMany([
+  path.join(__dirname,"MarionLingoLinkGateway.js"),
+  path.join(process.cwd(),"Data","marion","runtime","MarionLingoLinkGateway.js"),
+  "./Data/marion/runtime/MarionLingoLinkGateway.js",
+  "./Data/marion/runtime/MarionLingoLinkGateway",
+  "./MarionLingoLinkGateway.js",
+  "./MarionLingoLinkGateway",
   path.join(__dirname,"LingoLinkGateway.js"),
   path.join(process.cwd(),"Data","marion","runtime","LingoLinkGateway.js"),
   "./Data/marion/runtime/LingoLinkGateway.js",
@@ -181,7 +187,7 @@ const multilingualFinalEnvelopeMod=multilingualFinalEnvelopeLoaded.mod;
 const contextPassportEventsMod=contextPassportEventsLoaded.mod;
 const languageSphereTelemetryMod=languageSphereTelemetryLoaded.mod;
 const lingoLinkGatewayMod=lingoLinkGatewayLoaded.mod;
-const runLingoLinkGateway=lingoLinkGatewayMod&&typeof lingoLinkGatewayMod.runLingoLinkGateway==="function"?lingoLinkGatewayMod.runLingoLinkGateway:null;
+const runLingoLinkGateway=lingoLinkGatewayMod&&typeof lingoLinkGatewayMod.runMarionLingoLinkGateway==="function"?lingoLinkGatewayMod.runMarionLingoLinkGateway:(lingoLinkGatewayMod&&typeof lingoLinkGatewayMod.runLingoLinkGateway==="function"?lingoLinkGatewayMod.runLingoLinkGateway:null);
 const buildLingoLinkMarionBridgePayload=lingoLinkGatewayMod&&typeof lingoLinkGatewayMod.buildMarionBridgePayload==="function"?lingoLinkGatewayMod.buildMarionBridgePayload:null;
 const marionRuntimeObservationMod=marionRuntimeObservationLoaded.mod;
 const asterEnvironmentAdapterMod=asterEnvironmentAdapterLoaded.mod;
@@ -744,93 +750,144 @@ async function normalizeLanguageSphereInboundSafe(normalized={}){
 }
 function normalizeLingoLinkGatewaySurfaceForBridge(value={}){
   const src=safeObj(value);
+  const response=safeObj(src.lingoLinkResponse);
+  const authorityReview=safeObj(src.authorityReview);
   const languageMeta=safeObj(src.languageMeta);
   const translationMeta=safeObj(src.translationMeta);
-  const glossaryMeta=safeObj(src.glossaryMeta);
-  const gatewayMeta=safeObj(src.gatewayMeta);
+  const glossaryMeta=firstObj(src.glossaryMeta,response.glossaryMeta);
+  const gatewayMeta=safeObj(src.gatewayMeta||src.lingoLinkGatewayMeta);
   const unknownLanguageAlert=safeObj(src.unknownLanguageAlert);
   const scannerHeartbeat=safeObj(src.scannerHeartbeat);
   const dormantScanner=safeObj(src.dormantScanner);
-  const inputHash=firstText(src.inputHash,gatewayMeta.inputHash,gatewayMeta.stableHash,"");
-  const gatewayHash=firstText(src.gatewayHash,gatewayMeta.gatewayHash,gatewayMeta.stableHash,"");
-  const stableHash=firstText(src.stableHash,gatewayMeta.stableHash,gatewayHash,inputHash,"");
-  const correlationId=firstText(src.correlationId,gatewayMeta.correlationId,gatewayHash,stableHash,"");
-  const traceId=firstText(src.traceId,gatewayMeta.traceId,correlationId,"");
+  const route=firstText(src.route,gatewayMeta.route,"MARION_ONLY");
+  const sourceLanguage=firstText(src.sourceLanguage,response.sourceLanguage,response.detectedLanguage,languageMeta.detectedLanguage,translationMeta.sourceLanguage,"unknown");
+  const targetLanguage=firstText(src.targetLanguage,response.targetLanguage,translationMeta.targetLanguage,"en");
+  const confidence=Number.isFinite(Number(src.confidence))?Number(src.confidence):(Number.isFinite(Number(response.confidence))?Number(response.confidence):(Number.isFinite(Number(languageMeta.confidence))?Number(languageMeta.confidence):null));
+  const inputHash=firstText(src.inputHash,gatewayMeta.inputHash,gatewayMeta.stableHash,src.requestId,"");
+  const gatewayHash=firstText(src.gatewayHash,gatewayMeta.gatewayHash,gatewayMeta.stableHash,src.requestId,"");
+  const stableHash=firstText(src.stableHash,gatewayMeta.stableHash,gatewayHash,inputHash,src.requestId,"");
+  const correlationId=firstText(src.correlationId,gatewayMeta.correlationId,src.requestId,gatewayHash,stableHash,"");
+  const traceId=firstText(src.traceId,gatewayMeta.traceId,src.requestId,correlationId,"");
+  const routed=src.routed===true||route.indexOf("LINGOLINK_")===0;
+  const fallbackTriggered=src.ok===false||response.fallbackUsed===true||languageMeta.fallbackTriggered===true||translationMeta.fallbackTriggered===true||gatewayMeta.fallbackTriggered===true;
+  const finalText=firstText(src.finalText,authorityReview.finalText,response.finalText,response.adaptedText,response.translatedText,translationMeta.advisoryText,translationMeta.translatedText,translationMeta.renderText,translationMeta.publicText,translationMeta.text,"");
   return {
     version: LINGOLINK_GATEWAY_BRIDGE_VERSION,
     available: !!runLingoLinkGateway,
-    active: src.enabled !== false,
+    active: src.ok !== false && routed,
+    routed,
+    route,
+    requestId:firstText(src.requestId,gatewayMeta.requestId,""),
     stage: "bridge-input",
     authority: "marion",
     advisoryOnly: true,
-    detectedLanguage: firstText(languageMeta.detectedLanguage, translationMeta.sourceLanguage, "unknown"),
-    sourceLanguage: firstText(translationMeta.sourceLanguage, languageMeta.detectedLanguage, "unknown"),
-    targetLanguage: firstText(translationMeta.targetLanguage, "en"),
-    confidence: Number.isFinite(Number(languageMeta.confidence)) ? Number(languageMeta.confidence) : null,
-    supported: languageMeta.supported === true,
-    requiresTranslation: languageMeta.requiresTranslation === true,
-    translated: translationMeta.translated === true,
-    fallbackTriggered: !!(languageMeta.fallbackTriggered || translationMeta.fallbackTriggered || gatewayMeta.fallbackTriggered),
+    marionFinalAuthority: src.marionFinalAuthority !== false,
+    approvedByMarion: authorityReview.approved !== false && src.ok !== false,
+    detectedLanguage: sourceLanguage,
+    sourceLanguage,
+    targetLanguage,
+    confidence,
+    supported: languageMeta.supported !== false,
+    requiresTranslation: routed,
+    translated: !!(routed && finalText && src.ok !== false),
+    fallbackTriggered,
     alertTriggered: !!(unknownLanguageAlert.alertTriggered || gatewayMeta.alertTriggered || safeObj(dormantScanner.unknownLanguageAlert).alertTriggered),
     notificationReady: !!(unknownLanguageAlert.notificationReady || gatewayMeta.notificationReady || dormantScanner.notificationReady),
     scannerReady: firstText(scannerHeartbeat.status,"")==="ready" || safeObj(dormantScanner.telemetry).scannerReady === true,
-    originalText: firstText(src.originalInput, safeObj(src.lingoInput).originalText),
-    normalizedText: firstText(src.input, src.message, safeObj(src.lingoInput).normalizedText),
-    advisoryText: firstText(translationMeta.advisoryText, translationMeta.translatedText, translationMeta.renderText, translationMeta.publicText, translationMeta.text),
+    originalText: firstText(src.originalText,src.originalInput,safeObj(src.lingoInput).originalText),
+    normalizedText: firstText(src.normalizedText,src.input,src.message,safeObj(src.lingoInput).normalizedText),
+    advisoryText: finalText,
     glossaryIntact: safeObj(src.glossaryIntegrity).intact !== false,
     restoredTerms: safeArray(glossaryMeta.restoredTerms),
     gatewayMeta,
     unknownLanguageAlert,
     scannerHeartbeat,
     dormantScanner,
+    authorityReview,
+    telemetry: safeObj(src.telemetry),
     inputHash,
     gatewayHash,
     stableHash,
     correlationId,
     traceId,
-    telemetry: safeObj(src.telemetry),
     noUserFacingDiagnostics: true,
-    source: "LingoLinkGateway"
+    source: "MarionLingoLinkGateway"
   };
 }
-function runLingoLinkGatewayForBridgeSafe(normalized={},rawInput={}){
+function buildLingoLinkBridgePatch(result={},originalText=""){
+  const src=safeObj(result);
+  const response=safeObj(src.lingoLinkResponse);
+  const authorityReview=safeObj(src.authorityReview);
+  const route=firstText(src.route,"MARION_ONLY");
+  const sourceLanguage=firstText(src.sourceLanguage,response.sourceLanguage,response.detectedLanguage,"unknown");
+  const targetLanguage=firstText(src.targetLanguage,response.targetLanguage,"en");
+  const finalText=firstText(src.finalText,authorityReview.finalText,response.finalText,response.adaptedText,response.translatedText,"");
+  const confidence=Number.isFinite(Number(src.confidence))?Number(src.confidence):(Number.isFinite(Number(response.confidence))?Number(response.confidence):null);
+  const routed=src.routed===true||route.indexOf("LINGOLINK_")===0;
+  const gatewayMeta={
+    version:LINGOLINK_GATEWAY_BRIDGE_VERSION,
+    source:"MarionLingoLinkGateway",
+    requestId:firstText(src.requestId,""),
+    ok:src.ok!==false,
+    routed,
+    route,
+    marionFinalAuthority:src.marionFinalAuthority!==false,
+    approvedByMarion:authorityReview.approved!==false&&src.ok!==false,
+    fallbackTriggered:src.ok===false||response.fallbackUsed===true,
+    reason:firstText(src.reason,authorityReview.reason,""),
+    latencyMs:Number.isFinite(Number(safeObj(safeArray(safeObj(src.telemetry).events).slice(-1)[0]).latencyMs))?Number(safeObj(safeArray(safeObj(src.telemetry).events).slice(-1)[0]).latencyMs):null
+  };
+  const languageMeta=safeObj(src.languageMeta);
+  const translationMeta=safeObj(src.translationMeta);
+  const patch={
+    lingoLink:normalizeLingoLinkGatewaySurfaceForBridge({...src,gatewayMeta}),
+    languageMeta:Object.keys(languageMeta).length?languageMeta:{detectedLanguage:sourceLanguage,sourceLanguage,targetLanguage,confidence,supported:true,requiresTranslation:routed,fallbackTriggered:src.ok===false||response.fallbackUsed===true,route},
+    lingoInput:safeObj(src.lingoInput),
+    translationMeta:Object.keys(translationMeta).length?translationMeta:{sourceLanguage,targetLanguage,translated:!!(routed&&finalText&&src.ok!==false),translatedText:finalText,advisoryText:finalText,finalText,confidence,route,fallbackTriggered:src.ok===false||response.fallbackUsed===true},
+    glossaryMeta:safeObj(src.glossaryMeta||response.glossaryMeta),
+    glossaryIntegrity:safeObj(src.glossaryIntegrity),
+    unknownLanguageAlert:safeObj(src.unknownLanguageAlert),
+    scannerHeartbeat:safeObj(src.scannerHeartbeat),
+    dormantScanner:safeObj(src.dormantScanner),
+    lingoLinkGatewayMeta:gatewayMeta,
+    lingoLinkTelemetry:safeObj(src.telemetry),
+    lingoLinkResponse:response,
+    lingoLinkAuthorityReview:authorityReview,
+    inputHash:firstText(src.inputHash,gatewayMeta.requestId),
+    gatewayHash:firstText(src.gatewayHash,gatewayMeta.requestId),
+    stableHash:firstText(src.stableHash,gatewayMeta.requestId),
+    correlationId:firstText(src.correlationId,gatewayMeta.requestId),
+    traceId:firstText(src.traceId,gatewayMeta.requestId),
+    notificationReady:!!(gatewayMeta.notificationReady||safeObj(src.unknownLanguageAlert).notificationReady||safeObj(src.dormantScanner).notificationReady),
+    marionAuthority:true,
+    finalAuthority:"Marion"
+  };
+  if(!Object.keys(patch.lingoInput).length){patch.lingoInput={originalText:firstText(src.originalText,originalText),normalizedText:firstText(src.originalText,originalText),route};}
+  return patch;
+}
+async function runLingoLinkGatewayForBridgeSafe(normalized={},rawInput={}){
   const originalText=firstText(normalized.rawUserQuery, normalized.originalText, normalized.userQuery, normalized.text, normalized.query, safeObj(rawInput).message, safeObj(rawInput).text);
   if(typeof runLingoLinkGateway!=="function"){
     return {ok:false,unavailable:true,normalizedPatch:{lingoLink:{version:LINGOLINK_GATEWAY_BRIDGE_VERSION,available:false,active:false,authority:"marion",advisoryOnly:true,stage:"bridge-input",reason:"lingolink_gateway_unavailable",noUserFacingDiagnostics:true}}};
   }
   try{
-    const result=safeObj(runLingoLinkGateway({
+    const result=safeObj(await Promise.resolve(runLingoLinkGateway({
+      requestId:firstText(normalized.turnId,safeObj(rawInput).turnId,safeObj(rawInput).requestId),
+      text:firstText(normalized.userQuery, normalized.text, originalText),
       message: originalText,
       originalInput: originalText,
-      input: firstText(normalized.userQuery, normalized.text, originalText),
+      sourceLanguage:firstText(safeObj(normalized.languageSphere).sourceLanguage,safeObj(normalized.languageMeta).sourceLanguage,"auto"),
+      targetLanguage:firstText(safeObj(normalized.languageSphere).targetLanguage,safeObj(normalized.languageMeta).targetLanguage,"en"),
+      domain:firstText(normalized.knowledgeDomain,normalized.domain,"general"),
       languageSphere: safeObj(normalized.languageSphere),
       payload: safeObj(normalized.payload),
       meta: safeObj(normalized.meta)
     },{
-      config:{defaultLanguage:"en", supportedLanguages:["en","fr","es"], authority:{finalAuthority:"Marion",lingoLinkAdvisoryOnly:true,neverOverrideMarion:true}}
-    }));
-    const surface=normalizeLingoLinkGatewaySurfaceForBridge(result);
-    const patch={
-      lingoLink:surface,
-      languageMeta:safeObj(result.languageMeta),
-      lingoInput:safeObj(result.lingoInput),
-      translationMeta:safeObj(result.translationMeta),
-      glossaryMeta:safeObj(result.glossaryMeta),
-      glossaryIntegrity:safeObj(result.glossaryIntegrity),
-      unknownLanguageAlert:safeObj(result.unknownLanguageAlert),
-      scannerHeartbeat:safeObj(result.scannerHeartbeat),
-      dormantScanner:safeObj(result.dormantScanner),
-      lingoLinkGatewayMeta:safeObj(result.gatewayMeta),
-      lingoLinkTelemetry:safeObj(result.telemetry),
-      inputHash:firstText(result.inputHash,safeObj(result.gatewayMeta).inputHash),
-      gatewayHash:firstText(result.gatewayHash,safeObj(result.gatewayMeta).gatewayHash),
-      stableHash:firstText(result.stableHash,safeObj(result.gatewayMeta).stableHash),
-      correlationId:firstText(result.correlationId,safeObj(result.gatewayMeta).correlationId),
-      traceId:firstText(result.traceId,safeObj(result.gatewayMeta).traceId),
-      notificationReady:!!(safeObj(result.gatewayMeta).notificationReady||safeObj(result.unknownLanguageAlert).notificationReady||safeObj(result.dormantScanner).notificationReady),
-      marionAuthority:true,
-      finalAuthority:"Marion"
-    };
+      defaultTargetLanguage:"en",
+      domain:firstText(normalized.knowledgeDomain,normalized.domain,"general"),
+      safetyContext:safeObj(normalized.safetyContext)
+    })));
+    const patch=buildLingoLinkBridgePatch(result,originalText);
     return {ok:true,normalizedPatch:patch,lingoLinkGateway:result};
   }catch(err){
     return {ok:false,error:"lingolink_gateway_exception",message:safeStr(err&&(err.message||err)||""),normalizedPatch:{lingoLink:{version:LINGOLINK_GATEWAY_BRIDGE_VERSION,available:false,active:false,authority:"marion",advisoryOnly:true,stage:"bridge-input",fallbackTriggered:true,error:"gateway-failed-safe",noUserFacingDiagnostics:true}}};
@@ -1972,7 +2029,7 @@ function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPa
 async function processWithMarionUnsafe(input={}){
   let normalized=normalizeInbound(input);
   if(!normalized.ok)return buildErrorResult("input_invalid",{issues:normalized.issues},normalized);
-  const lingoLinkInbound=runLingoLinkGatewayForBridgeSafe(normalized,input);
+  const lingoLinkInbound=await runLingoLinkGatewayForBridgeSafe(normalized,input);
   normalized={...normalized,...safeObj(lingoLinkInbound.normalizedPatch),lingoLink:{...safeObj(normalized.lingoLink),...safeObj(safeObj(lingoLinkInbound).normalizedPatch).lingoLink}};
   const languageSphereInbound=await normalizeLanguageSphereInboundSafe(normalized);
   normalized={...normalized,...safeObj(languageSphereInbound.normalizedPatch),languageSphere:{...safeObj(normalized.languageSphere),...safeObj(safeObj(languageSphereInbound).normalizedPatch).languageSphere}};
