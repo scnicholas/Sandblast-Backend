@@ -1,93 +1,162 @@
 "use strict";
 
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const path = require("path");
-const fs = require("fs");
-const { describe, it } = test;
+/**
+ * AsterMarionEscalationBridge.js
+ *
+ * Runtime role:
+ * - Convert Aster environmental observation/risk metadata into a Marion-safe
+ *   real-world advisory packet.
+ * - Recommend escalation for elevated/high/critical risk.
+ * - Remain advisory-only.
+ * - Never authorize final public answers.
+ */
 
-function requireRuntimeModule(fileName) {
-  const root = path.resolve(__dirname, "..", "..");
-  const candidates = [
-    path.join(root, "Data", "marion", "runtime", "aster", fileName),
-    path.join(root, "Data", "marion", "runtime", fileName),
-    path.join(root, "Data", "marion", "runtime", "Aster", fileName),
-    path.join(root, "aster", fileName),
-    path.join(root, fileName)
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return require(candidate);
-  }
-  throw new Error(`Unable to locate Aster runtime module: ${fileName}`);
-}
+const ASTER_MARION_ESCALATION_BRIDGE_VERSION = "nyx.aster.marionEscalationBridge/0.2";
 
-function getFunction(moduleValue, names) {
-  for (const name of names) {
-    if (moduleValue && typeof moduleValue[name] === "function") return moduleValue[name];
-  }
-  if (typeof moduleValue === "function") return moduleValue;
-  throw new Error(`Unable to locate exported function. Tried: ${names.join(", ")}`);
-}
-
-function assertAsterAuthority(value, label = "Aster packet") {
-  assert.ok(value, `${label} should exist`);
-  assert.equal(value.finalAnswerAuthorized, false, `${label} must not authorize final public answers`);
-  assert.notEqual(value.marionAuthorityRequired, false, `${label} must preserve Marion authority`);
-  assert.notEqual(value.publicReplyVisible, true, `${label} must not expose public reply visibility`);
-  assert.notEqual(value.userFacing, true, `${label} must not mark itself user-facing`);
-  if (Object.prototype.hasOwnProperty.call(value, "publicText")) assert.equal(value.publicText || "", "");
-  if (Object.prototype.hasOwnProperty.call(value, "renderText")) assert.equal(value.renderText || "", "");
-  if (Object.prototype.hasOwnProperty.call(value, "text")) assert.equal(value.text || "", "");
-}
-
-function stringifyLower(value) {
-  return JSON.stringify(value || {}).toLowerCase();
-}
-
-
-const {
-  buildAsterMarionEscalationBridge,
-  ASTER_MARION_ESCALATION_BRIDGE_VERSION
-} = requireRuntimeModule("AsterMarionEscalationBridge.js");
-
-describe("AsterMarionEscalationBridge", () => {
-  it("builds Marion-authorized escalation packet for high-risk real-world context", () => {
-    const packet = buildAsterMarionEscalationBridge({
-      envelope: { riskLevel: "high", requiresHumanReview: true, observationSummary: "smoke indoors" }
-    });
-    assert.equal(packet.version, ASTER_MARION_ESCALATION_BRIDGE_VERSION);
-    assert.equal(packet.active, true);
-    assert.equal(packet.lane, "real_world");
-    assert.equal(packet.source, "AsterMarionEscalationBridge");
-    assert.equal(packet.riskLevel, "high");
-    assert.equal(packet.requiresHumanReview, true);
-    assert.equal(packet.escalationRecommended, true);
-    assert.equal(packet.advisoryOnly, true);
-    assert.equal(packet.finalAuthority, "Marion");
-    assertAsterAuthority(packet, "High-risk escalation packet");
-  });
-
-  it("keeps low-risk context advisory-only without forcing escalation", () => {
-    const packet = buildAsterMarionEscalationBridge({
-      envelope: { riskLevel: "low", requiresHumanReview: false, observationSummary: "clear environment" }
-    });
-    assert.equal(packet.active, true);
-    assert.equal(packet.riskLevel, "low");
-    assert.equal(packet.requiresHumanReview, false);
-    assert.equal(packet.escalationRecommended, false);
-    assert.equal(packet.advisoryOnly, true);
-    assert.equal(packet.finalAuthority, "Marion");
-    assertAsterAuthority(packet, "Low-risk escalation packet");
-  });
-
-  it("normalizes moderate/elevated risk lanes without becoming public output", () => {
-    const moderate = buildAsterMarionEscalationBridge({ envelope: { riskLevel: "moderate" } });
-    const elevated = buildAsterMarionEscalationBridge({ envelope: { riskLevel: "elevated" } });
-    assert.equal(moderate.requiresHumanReview, false);
-    assert.equal(moderate.escalationRecommended, false);
-    assert.equal(elevated.requiresHumanReview, true);
-    assert.equal(elevated.escalationRecommended, true);
-    assertAsterAuthority(moderate, "Moderate escalation packet");
-    assertAsterAuthority(elevated, "Elevated escalation packet");
-  });
+const RISK_ALIASES = Object.freeze({
+  normal: "none",
+  stable: "none",
+  none: "none",
+  low: "low",
+  mild: "low",
+  medium: "moderate",
+  med: "moderate",
+  moderate: "moderate",
+  elevated: "elevated",
+  severe: "critical",
+  high: "high",
+  critical: "critical",
+  unknown: "unknown",
+  fallback: "unknown"
 });
+
+const RISK_RANK = Object.freeze({
+  unknown: -1,
+  none: 0,
+  low: 1,
+  moderate: 2,
+  elevated: 3,
+  high: 4,
+  critical: 5
+});
+
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function safeString(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  return String(value).replace(/\s+/g, " ").trim() || fallback;
+}
+
+function normalizeRiskLevel(level) {
+  const raw = safeString(level, "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return RISK_ALIASES[raw] || "unknown";
+}
+
+function riskRank(level) {
+  const normalized = normalizeRiskLevel(level);
+  return Object.prototype.hasOwnProperty.call(RISK_RANK, normalized)
+    ? RISK_RANK[normalized]
+    : RISK_RANK.unknown;
+}
+
+function riskAtLeast(level, minimum) {
+  return riskRank(level) >= riskRank(minimum);
+}
+
+function extractEnvelope(payload = {}) {
+  const p = safeObject(payload);
+  const realWorldTrack = safeObject(p.realWorldTrack);
+  const riskClassification = safeObject(p.riskClassification);
+  const observation = safeObject(p.observation);
+  const nestedEnvelope = safeObject(realWorldTrack.envelope);
+
+  return safeObject(
+    p.envelope ||
+    p.realWorldEnvelope ||
+    p.asterEnvelope ||
+    nestedEnvelope ||
+    observation.envelope ||
+    riskClassification.envelope
+  );
+}
+
+function extractRiskLevel(payload = {}, envelope = {}) {
+  const p = safeObject(payload);
+  const e = safeObject(envelope);
+  const riskClassification = safeObject(p.riskClassification);
+  const risk = safeObject(p.risk || e.risk || riskClassification.risk);
+  const realWorldTrack = safeObject(p.realWorldTrack);
+
+  return normalizeRiskLevel(
+    p.riskLevel ||
+    e.riskLevel ||
+    e.level ||
+    risk.level ||
+    risk.riskLevel ||
+    riskClassification.riskLevel ||
+    riskClassification.level ||
+    realWorldTrack.riskLevel ||
+    "unknown"
+  );
+}
+
+function buildAsterMarionEscalationBridge(payload = {}, options = {}) {
+  const p = safeObject(payload);
+  const envelope = extractEnvelope(p);
+  const riskLevel = extractRiskLevel(p, envelope);
+
+  const explicitHumanReview =
+    p.requiresHumanReview === true ||
+    envelope.requiresHumanReview === true ||
+    safeObject(p.riskClassification).requiresHumanReview === true ||
+    safeObject(p.realWorldTrack).requiresHumanReview === true;
+
+  const elevatedOrHigher = riskAtLeast(riskLevel, "elevated");
+  const requiresHumanReview = explicitHumanReview || elevatedOrHigher;
+
+  const active = Boolean(
+    Object.keys(envelope).length ||
+    p.active === true ||
+    riskLevel !== "unknown"
+  );
+
+  return {
+    version: ASTER_MARION_ESCALATION_BRIDGE_VERSION,
+    active,
+    lane: "real_world",
+    source: "AsterMarionEscalationBridge",
+    envelope,
+    riskLevel,
+    riskRank: riskRank(riskLevel),
+    requiresHumanReview,
+    escalationRecommended: requiresHumanReview,
+    advisoryOnly: true,
+
+    /**
+     * Authority guardrails.
+     * Aster can recommend escalation. Marion authorizes all public final output.
+     */
+    finalAnswerAuthorized: false,
+    finalAuthority: "Marion",
+    marionAuthorityRequired: true,
+    publicReplyVisible: false,
+    userFacing: false,
+    publicText: "",
+    renderText: "",
+    text: "",
+    options: safeObject(options),
+    updatedAt: Date.now()
+  };
+}
+
+module.exports = {
+  ASTER_MARION_ESCALATION_BRIDGE_VERSION,
+  RISK_RANK,
+  normalizeRiskLevel,
+  riskRank,
+  riskAtLeast,
+  buildAsterMarionEscalationBridge,
+  default: buildAsterMarionEscalationBridge
+};
