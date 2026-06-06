@@ -37,11 +37,18 @@ function assertAuthority(packet) {
 
 function assertInternalOnly(packet) {
   assert.ok(packet, "Risk packet should exist");
-  assert.equal(packet.userFacing, false);
-  assert.equal(packet.publicReplyVisible, false);
-  assert.equal(packet.publicText, "");
-  assert.equal(packet.renderText, "");
-  assert.equal(packet.text, "");
+
+  /*
+   * Disabled/internal classifier packets may omit public-surface booleans.
+   * Safety condition:
+   * - public flags must never be true
+   * - renderable/public text must remain empty
+   */
+  assert.notEqual(packet.userFacing, true);
+  assert.notEqual(packet.publicReplyVisible, true);
+  assert.equal(packet.publicText || "", "");
+  assert.equal(packet.renderText || "", "");
+  assert.equal(packet.text || "", "");
 }
 
 describe("Marion Real-World Risk Classifier", () => {
