@@ -1,20 +1,36 @@
 "use strict";
 
+/**
+ * tests/marion/marion-parallel-lane-stale-carry.test.js
+ *
+ * Purpose:
+ * - Validate parallel lane stale-carry discipline.
+ * - Confirm advisory lanes do not persist into ordinary follow-up turns.
+ * - Confirm Marion remains the final authority and public output remains empty.
+ *
+ * Node test runner compatible.
+ */
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const { describe, it } = test;
+
 const {
   buildMarionDualTrackPacket,
   summarizeDualTrackPacket
 } = require("../../Data/marion/runtime/MarionDualTrackGateway");
 
 function assertAuthority(packet) {
-  expect(packet).toBeTruthy();
-  expect(packet.finalAuthority).toBe("Marion");
-  expect(packet.marionAuthority).toBe(true);
-  expect(packet.advisoryOnly).toBe(true);
-  expect(packet.publicReplyVisible).toBe(false);
-  expect(packet.userFacing).toBe(false);
-  expect(packet.text).toBe("");
-  expect(packet.publicText).toBe("");
-  expect(packet.renderText).toBe("");
+  assert.ok(packet, "Packet should exist");
+  assert.equal(packet.finalAuthority, "Marion");
+  assert.equal(packet.marionAuthority, true);
+  assert.equal(packet.advisoryOnly, true);
+  assert.equal(packet.publicReplyVisible, false);
+  assert.equal(packet.userFacing, false);
+  assert.equal(packet.text, "");
+  assert.equal(packet.publicText, "");
+  assert.equal(packet.renderText, "");
 }
 
 function buildTurn(payload, previousDualTrack, turnId) {
@@ -30,7 +46,7 @@ function buildTurn(payload, previousDualTrack, turnId) {
 }
 
 describe("Marion parallel lane stale-carry discipline", () => {
-  test("normal chat after a language turn suppresses stale language carry", () => {
+  it("normal chat after a language turn suppresses stale language carry", () => {
     let previous = null;
 
     const turn1 = buildTurn({
@@ -49,9 +65,9 @@ describe("Marion parallel lane stale-carry discipline", () => {
       }
     }, previous, "turn-1-language");
 
-    expect(turn1.summary.activeTracks).toContain("language");
-    expect(turn1.summary.activeTracks).not.toContain("real_world");
-    expect(turn1.summary.activeTracks).not.toContain("strategic");
+    assert.ok(turn1.summary.activeTracks.includes("language"));
+    assert.equal(turn1.summary.activeTracks.includes("real_world"), false);
+    assert.equal(turn1.summary.activeTracks.includes("strategic"), false);
     assertAuthority(turn1.packet);
     previous = turn1.packet;
 
@@ -59,9 +75,9 @@ describe("Marion parallel lane stale-carry discipline", () => {
       message: "normal chat"
     }, previous, "turn-2-normal");
 
-    expect(turn2.summary.activeTracks).toEqual([]);
-    expect(turn2.summary.staleCarrySuppressed).toBe(true);
-    expect(turn2.summary.staleTracks).toContain("language");
+    assert.deepEqual(turn2.summary.activeTracks, []);
+    assert.equal(turn2.summary.staleCarrySuppressed, true);
+    assert.ok(turn2.summary.staleTracks.includes("language"));
     assertAuthority(turn2.packet);
     previous = turn2.packet;
 
@@ -76,9 +92,9 @@ describe("Marion parallel lane stale-carry discipline", () => {
       }
     }, previous, "turn-3-real-world");
 
-    expect(turn3.summary.activeTracks).toContain("real_world");
-    expect(turn3.summary.activeTracks).not.toContain("language");
-    expect(turn3.summary.requiresHumanReview).toBe(true);
+    assert.ok(turn3.summary.activeTracks.includes("real_world"));
+    assert.equal(turn3.summary.activeTracks.includes("language"), false);
+    assert.equal(turn3.summary.requiresHumanReview, true);
     assertAuthority(turn3.packet);
     previous = turn3.packet;
 
@@ -86,13 +102,13 @@ describe("Marion parallel lane stale-carry discipline", () => {
       message: "Return to ordinary chat."
     }, previous, "turn-4-normal");
 
-    expect(turn4.summary.activeTracks).toEqual([]);
-    expect(turn4.summary.staleCarrySuppressed).toBe(true);
-    expect(turn4.summary.staleTracks).toContain("real_world");
+    assert.deepEqual(turn4.summary.activeTracks, []);
+    assert.equal(turn4.summary.staleCarrySuppressed, true);
+    assert.ok(turn4.summary.staleTracks.includes("real_world"));
     assertAuthority(turn4.packet);
   });
 
-  test("normal chat after strategic review suppresses stale strategic carry", () => {
+  it("normal chat after strategic review suppresses stale strategic carry", () => {
     let previous = null;
 
     const turn1 = buildTurn({
@@ -106,8 +122,8 @@ describe("Marion parallel lane stale-carry discipline", () => {
       }
     }, previous, "turn-1-strategic");
 
-    expect(turn1.summary.activeTracks).toContain("strategic");
-    expect(turn1.summary.requiresHumanReview).toBe(true);
+    assert.ok(turn1.summary.activeTracks.includes("strategic"));
+    assert.equal(turn1.summary.requiresHumanReview, true);
     assertAuthority(turn1.packet);
     previous = turn1.packet;
 
@@ -115,9 +131,9 @@ describe("Marion parallel lane stale-carry discipline", () => {
       message: "normal chat"
     }, previous, "turn-2-normal");
 
-    expect(turn2.summary.activeTracks).toEqual([]);
-    expect(turn2.summary.staleCarrySuppressed).toBe(true);
-    expect(turn2.summary.staleTracks).toContain("strategic");
+    assert.deepEqual(turn2.summary.activeTracks, []);
+    assert.equal(turn2.summary.staleCarrySuppressed, true);
+    assert.ok(turn2.summary.staleTracks.includes("strategic"));
     assertAuthority(turn2.packet);
   });
 });
