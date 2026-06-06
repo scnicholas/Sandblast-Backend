@@ -5,6 +5,12 @@
  *
  * Final gateway between Marion and LingoLink.
  *
+ * Current architecture note:
+ * - LingoLink / LanguageSphere runtime files are expected to live in the
+ *   Marion runtime folder beside this file.
+ * - Do not require from ../../lingolink/runtime unless the project structure
+ *   is intentionally changed later.
+ *
  * Responsibilities:
  * - Classify whether multilingual routing is needed.
  * - Build a LingoLink request envelope.
@@ -41,15 +47,63 @@ function optionalRequire(path) {
   }
 }
 
-const LingoLinkRequestEnvelope = optionalRequire('../../lingolink/runtime/LingoLinkRequestEnvelope');
-const LingoLinkCoreAdapter = optionalRequire('../../lingolink/runtime/LingoLinkCoreAdapter');
+/**
+ * LingoLink files currently live in Data/marion/runtime.
+ * This is intentional. Keep these local requires unless the runtime structure changes.
+ */
+const LingoLinkRequestEnvelope = optionalRequire('./LingoLinkRequestEnvelope');
+const LingoLinkCoreAdapter = optionalRequire('./LingoLinkCoreAdapter');
 
 function normalizeText(value) {
   return String(value || '').trim();
 }
 
+function isObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function asInputObject(input) {
+  if (typeof input === 'string') {
+    return { text: input };
+  }
+
+  return isObject(input) ? input : {};
+}
+
 function generateRequestId(prefix = 'marion_ll') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeWarnings(warnings) {
+  const list = Array.isArray(warnings) ? warnings : [warnings];
+
+  return Array.from(
+    new Set(
+      list
+        .flat()
+        .filter(Boolean)
+        .map((warning) => String(warning).trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function mergeWarnings(...warningLists) {
+  return normalizeWarnings(warningLists.flat());
+}
+
+function safeTelemetryBundle(events) {
+  try {
+    return createTelemetryBundle(Array.isArray(events) ? events.filter(Boolean) : []);
+  } catch (error) {
+    return {
+      ok: false,
+      gateway: 'marion-lingolink',
+      count: 0,
+      events: [],
+      error: `Telemetry bundle creation failed: ${error.message}`
+    };
+  }
 }
 
 function mapRouteToMode(route) {
@@ -70,17 +124,30 @@ function mapRouteToMode(route) {
   }
 }
 
+function hasRequiredRuntime() {
+  return Boolean(
+    LingoLinkRequestEnvelope &&
+    typeof LingoLinkRequestEnvelope.createLingoLinkRequestEnvelope === 'function' &&
+    typeof LingoLinkRequestEnvelope.validateLingoLinkRequestEnvelope === 'function' &&
+    LingoLinkCoreAdapter &&
+    typeof LingoLinkCoreAdapter.processLingoLinkRequest === 'function'
+  );
+}
+
 function createFallbackGatewayResult(input = {}) {
   const requestId = input.requestId || generateRequestId('marion_ll_fallback');
+  const reason = input.reason || 'Gateway fallback used.';
+  const warnings = mergeWarnings(input.warnings, reason);
 
-  const telemetry = createTelemetryBundle([
+  const telemetry = safeTelemetryBundle([
     createHandoffFallback({
       requestId,
       route: input.route || ROUTES.LINGOLINK_FALLBACK,
       sourceLanguage: input.sourceLanguage || 'auto',
       targetLanguage: input.targetLanguage || 'en',
       confidence: 0,
-      warnings: [input.reason || 'Gateway fallback used.']
+      fallbackUsed: true,
+      warnings
     })
   ]);
 
@@ -92,21 +159,180 @@ function createFallbackGatewayResult(input = {}) {
     route: input.route || ROUTES.LINGOLINK_FALLBACK,
     sourceLanguage: input.sourceLanguage || 'auto',
     targetLanguage: input.targetLanguage || 'en',
-    marionFinalAuthority: true,
+    originalText: input.originalText || '',
     finalText: '',
-    reason: input.reason || 'Gateway fallback used.',
-    warnings: [input.reason || 'Gateway fallback used.'],
+    confidence: 0,
+    marionFinalAuthority: true,
+    reason,
+    warnings,
     telemetry
+  };
+}
+
+function createMarionOnlyResult({
+  requestId,
+  text,
+  classification,
+  telemetryEvents,
+  startedAt
+}) {
+  telemetryEvents.push(createHandoffCompleted({
+    requestId,
+    route: ROUTES.MARION_ONLY,
+    sourceLanguage: classification.sourceLanguage,
+    targetLanguage: classification.targetLanguage,
+    confidence: classification.confidence,
+    approvedByMarion: true,
+    latencyMs: Date.now() - startedAt,
+    metadata: {
+      reason: classification.reason
+    }
+  }));
+
+  return {
+    ok: true,
+    gateway: 'marion-lingolink',
+    requestId,
+    routed: false,
+    route: ROUTES.MARION_ONLY,
+    sourceLanguage: classification.sourceLanguage,
+    targetLanguage: classification.targetLanguage,
+    originalText: text,
+    finalText: text,
+    confidence: classification.confidence,
+    marionFinalAuthority: true,
+    reason: classification.reason,
+    warnings: [],
+    telemetry: safeTelemetryBundle(telemetryEvents)
+  };
+}
+
+function createUnavailableRuntimeResult({
+  requestId,
+  text,
+  classification,
+  telemetryEvents,
+  startedAt
+}) {
+  const warnings = [
+    'LingoLink runtime files are unavailable or missing required exports.',
+    'Expected local runtime files: ./LingoLinkRequestEnvelope and ./LingoLinkCoreAdapter.'
+  ];
+
+  telemetryEvents.push(createHandoffFallback({
+    requestId,
+    route: classification.route,
+    sourceLanguage: classification.sourceLanguage,
+    targetLanguage: classification.targetLanguage,
+    confidence: 0,
+    fallbackUsed: true,
+    latencyMs: Date.now() - startedAt,
+    warnings
+  }));
+
+  return {
+    ok: false,
+    gateway: 'marion-lingolink',
+    requestId,
+    routed: false,
+    route: classification.route,
+    sourceLanguage: classification.sourceLanguage,
+    targetLanguage: classification.targetLanguage,
+    originalText: text,
+    finalText: '',
+    confidence: 0,
+    marionFinalAuthority: true,
+    reason: 'LingoLink runtime files are unavailable or incomplete.',
+    warnings,
+    telemetry: safeTelemetryBundle(telemetryEvents)
+  };
+}
+
+function createInvalidEnvelopeResult({
+  requestId,
+  text,
+  classification,
+  validation,
+  telemetryEvents,
+  startedAt
+}) {
+  const warnings = mergeWarnings(validation && validation.errors);
+
+  telemetryEvents.push(createHandoffFallback({
+    requestId,
+    route: classification.route,
+    sourceLanguage: classification.sourceLanguage,
+    targetLanguage: classification.targetLanguage,
+    confidence: 0,
+    fallbackUsed: true,
+    latencyMs: Date.now() - startedAt,
+    warnings
+  }));
+
+  return {
+    ok: false,
+    gateway: 'marion-lingolink',
+    requestId,
+    routed: false,
+    route: classification.route,
+    sourceLanguage: classification.sourceLanguage,
+    targetLanguage: classification.targetLanguage,
+    originalText: text,
+    finalText: '',
+    confidence: 0,
+    marionFinalAuthority: true,
+    reason: 'Invalid LingoLink request envelope.',
+    warnings,
+    telemetry: safeTelemetryBundle(telemetryEvents)
+  };
+}
+
+function normalizeLingoLinkResponse(response, requestEnvelope) {
+  if (response && typeof response === 'object') {
+    return {
+      ...response,
+      warnings: normalizeWarnings(response.warnings)
+    };
+  }
+
+  return {
+    ok: false,
+    gateway: 'marion-lingolink',
+    requestId: requestEnvelope.requestId,
+    detectedLanguage: requestEnvelope.sourceLanguage || 'auto',
+    sourceLanguage: requestEnvelope.sourceLanguage || 'auto',
+    targetLanguage: requestEnvelope.targetLanguage || 'en',
+    mode: requestEnvelope.mode || 'translate',
+    normalizedText: requestEnvelope.text || '',
+    translatedText: '',
+    adaptedText: '',
+    finalText: '',
+    confidence: 0,
+    warnings: ['LingoLink returned an invalid or empty response envelope.'],
+    fallbackUsed: true,
+    requiresMarionReview: true,
+    provider: 'invalid-lingolink-response'
   };
 }
 
 async function runMarionLingoLinkGateway(input = {}, options = {}) {
   const startedAt = Date.now();
-  const requestId = input.requestId || options.requestId || generateRequestId();
+  const safeInput = asInputObject(input);
+  const safeOptions = asInputObject(options);
+
+  const requestId =
+    safeInput.requestId ||
+    safeOptions.requestId ||
+    safeInput.marionRequestId ||
+    safeOptions.marionRequestId ||
+    generateRequestId();
+
   const text = normalizeText(
-    typeof input === 'string'
-      ? input
-      : input.text || input.message || input.query || input.userText
+    safeInput.text ||
+    safeInput.message ||
+    safeInput.query ||
+    safeInput.userText ||
+    safeInput.originalText
   );
 
   const telemetryEvents = [];
@@ -118,11 +344,22 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
     });
   }
 
-  const classification = classifyLanguageRoute(text, {
-    sourceLanguage: input.sourceLanguage || options.sourceLanguage,
-    targetLanguage: input.targetLanguage || options.targetLanguage,
-    defaultTargetLanguage: options.defaultTargetLanguage || 'en'
-  });
+  let classification;
+
+  try {
+    classification = classifyLanguageRoute(text, {
+      sourceLanguage: safeInput.sourceLanguage || safeOptions.sourceLanguage,
+      targetLanguage: safeInput.targetLanguage || safeOptions.targetLanguage,
+      defaultTargetLanguage: safeOptions.defaultTargetLanguage || 'en'
+    });
+  } catch (error) {
+    return createFallbackGatewayResult({
+      requestId,
+      originalText: text,
+      reason: `Language route classification failed: ${error.message}`,
+      warnings: [`Language route classification failed: ${error.message}`]
+    });
+  }
 
   telemetryEvents.push(createHandoffStarted({
     requestId,
@@ -136,64 +373,23 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
   }));
 
   if (!classification.requiresLingoLink || classification.route === ROUTES.MARION_ONLY) {
-    const completed = createHandoffCompleted({
+    return createMarionOnlyResult({
       requestId,
-      route: ROUTES.MARION_ONLY,
-      sourceLanguage: classification.sourceLanguage,
-      targetLanguage: classification.targetLanguage,
-      confidence: classification.confidence,
-      approvedByMarion: true,
-      latencyMs: Date.now() - startedAt,
-      metadata: {
-        reason: classification.reason
-      }
+      text,
+      classification,
+      telemetryEvents,
+      startedAt
     });
-
-    telemetryEvents.push(completed);
-
-    return {
-      ok: true,
-      gateway: 'marion-lingolink',
-      requestId,
-      routed: false,
-      route: ROUTES.MARION_ONLY,
-      sourceLanguage: classification.sourceLanguage,
-      targetLanguage: classification.targetLanguage,
-      originalText: text,
-      finalText: text,
-      marionFinalAuthority: true,
-      reason: classification.reason,
-      warnings: [],
-      telemetry: createTelemetryBundle(telemetryEvents)
-    };
   }
 
-  if (!LingoLinkRequestEnvelope || !LingoLinkCoreAdapter) {
-    telemetryEvents.push(createHandoffFallback({
+  if (!hasRequiredRuntime()) {
+    return createUnavailableRuntimeResult({
       requestId,
-      route: classification.route,
-      sourceLanguage: classification.sourceLanguage,
-      targetLanguage: classification.targetLanguage,
-      confidence: 0,
-      latencyMs: Date.now() - startedAt,
-      warnings: ['LingoLink runtime files are unavailable.']
-    }));
-
-    return {
-      ok: false,
-      gateway: 'marion-lingolink',
-      requestId,
-      routed: false,
-      route: classification.route,
-      sourceLanguage: classification.sourceLanguage,
-      targetLanguage: classification.targetLanguage,
-      originalText: text,
-      finalText: '',
-      marionFinalAuthority: true,
-      reason: 'LingoLink runtime files are unavailable.',
-      warnings: ['LingoLink runtime files are unavailable.'],
-      telemetry: createTelemetryBundle(telemetryEvents)
-    };
+      text,
+      classification,
+      telemetryEvents,
+      startedAt
+    });
   }
 
   try {
@@ -201,58 +397,47 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
       requestId,
       marionRequestId: requestId,
       text,
-      sourceLanguage: classification.sourceLanguage,
-      targetLanguage: classification.targetLanguage,
+      sourceLanguage: classification.sourceLanguage || safeInput.sourceLanguage || 'auto',
+      targetLanguage: classification.targetLanguage || safeInput.targetLanguage || safeOptions.defaultTargetLanguage || 'en',
       mode: mapRouteToMode(classification.route),
-      domain: input.domain || options.domain || 'general',
+      domain: safeInput.domain || safeOptions.domain || 'general',
       route: classification.route,
-      preserveTone: input.preserveTone !== false,
-      preserveIntent: input.preserveIntent !== false,
-      safetyContext: input.safetyContext || options.safetyContext || {},
-      glossaryHints: input.glossaryHints || [],
+      preserveTone: safeInput.preserveTone !== false,
+      preserveIntent: safeInput.preserveIntent !== false,
+      safetyContext: safeInput.safetyContext || safeOptions.safetyContext || {},
+      glossaryHints: Array.isArray(safeInput.glossaryHints) ? safeInput.glossaryHints : [],
       metadata: {
         classificationReason: classification.reason,
-        userLocale: input.userLocale || options.userLocale || null
+        userLocale: safeInput.userLocale || safeOptions.userLocale || null,
+        gatewayVersion: 'marion-runtime-local-v1'
       }
     });
 
     const validation = LingoLinkRequestEnvelope.validateLingoLinkRequestEnvelope(requestEnvelope);
 
-    if (!validation.ok) {
-      telemetryEvents.push(createHandoffFallback({
+    if (!validation || validation.ok !== true) {
+      return createInvalidEnvelopeResult({
         requestId,
-        route: classification.route,
-        sourceLanguage: classification.sourceLanguage,
-        targetLanguage: classification.targetLanguage,
-        confidence: 0,
-        latencyMs: Date.now() - startedAt,
-        warnings: validation.errors
-      }));
-
-      return {
-        ok: false,
-        gateway: 'marion-lingolink',
-        requestId,
-        routed: false,
-        route: classification.route,
-        sourceLanguage: classification.sourceLanguage,
-        targetLanguage: classification.targetLanguage,
-        originalText: text,
-        finalText: '',
-        marionFinalAuthority: true,
-        reason: 'Invalid LingoLink request envelope.',
-        warnings: validation.errors,
-        telemetry: createTelemetryBundle(telemetryEvents)
-      };
+        text,
+        classification,
+        validation: validation || { errors: ['Envelope validation returned no result.'] },
+        telemetryEvents,
+        startedAt
+      });
     }
 
-    const lingoLinkResponse = await LingoLinkCoreAdapter.processLingoLinkRequest(requestEnvelope);
+    const rawLingoLinkResponse = await LingoLinkCoreAdapter.processLingoLinkRequest(requestEnvelope);
+    const lingoLinkResponse = normalizeLingoLinkResponse(rawLingoLinkResponse, requestEnvelope);
 
     const authorityReview = reviewLingoLinkOutput({
       originalText: text,
       route: classification.route,
       responseEnvelope: lingoLinkResponse
     });
+
+    const authorityWarnings = normalizeWarnings(authorityReview && authorityReview.warnings);
+    const responseWarnings = normalizeWarnings(lingoLinkResponse.warnings);
+    const allWarnings = mergeWarnings(responseWarnings, authorityWarnings);
 
     telemetryEvents.push(createAuthorityReview({
       requestId,
@@ -262,7 +447,7 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
       confidence: authorityReview.authorityConfidence,
       approvedByMarion: authorityReview.approved,
       fallbackUsed: lingoLinkResponse.fallbackUsed,
-      warnings: authorityReview.warnings
+      warnings: authorityWarnings
     }));
 
     if (!authorityReview.approved) {
@@ -274,7 +459,7 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
         confidence: authorityReview.authorityConfidence,
         fallbackUsed: true,
         latencyMs: Date.now() - startedAt,
-        warnings: authorityReview.warnings
+        warnings: allWarnings
       }));
 
       return {
@@ -286,13 +471,14 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
         sourceLanguage: classification.sourceLanguage,
         targetLanguage: classification.targetLanguage,
         originalText: text,
+        finalText: '',
+        confidence: authorityReview.authorityConfidence || 0,
         lingoLinkResponse,
         authorityReview,
-        finalText: '',
         marionFinalAuthority: true,
-        reason: authorityReview.reason,
-        warnings: authorityReview.warnings,
-        telemetry: createTelemetryBundle(telemetryEvents)
+        reason: authorityReview.reason || 'Marion authority guard rejected the LingoLink response.',
+        warnings: allWarnings,
+        telemetry: safeTelemetryBundle(telemetryEvents)
       };
     }
 
@@ -305,10 +491,7 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
       approvedByMarion: true,
       fallbackUsed: lingoLinkResponse.fallbackUsed,
       latencyMs: Date.now() - startedAt,
-      warnings: [
-        ...(Array.isArray(lingoLinkResponse.warnings) ? lingoLinkResponse.warnings : []),
-        ...(Array.isArray(authorityReview.warnings) ? authorityReview.warnings : [])
-      ]
+      warnings: allWarnings
     }));
 
     return {
@@ -326,11 +509,8 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
       authorityReview,
       marionFinalAuthority: true,
       reason: authorityReview.reason,
-      warnings: [
-        ...(Array.isArray(lingoLinkResponse.warnings) ? lingoLinkResponse.warnings : []),
-        ...(Array.isArray(authorityReview.warnings) ? authorityReview.warnings : [])
-      ],
-      telemetry: createTelemetryBundle(telemetryEvents)
+      warnings: allWarnings,
+      telemetry: safeTelemetryBundle(telemetryEvents)
     };
   } catch (error) {
     telemetryEvents.push(createErrorEvent({
@@ -354,10 +534,11 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
       targetLanguage: classification.targetLanguage,
       originalText: text,
       finalText: '',
+      confidence: 0,
       marionFinalAuthority: true,
       reason: `MarionLingoLinkGateway failed: ${error.message}`,
       warnings: [`MarionLingoLinkGateway failed: ${error.message}`],
-      telemetry: createTelemetryBundle(telemetryEvents)
+      telemetry: safeTelemetryBundle(telemetryEvents)
     };
   }
 }
@@ -365,5 +546,7 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
 module.exports = {
   runMarionLingoLinkGateway,
   createFallbackGatewayResult,
-  mapRouteToMode
+  mapRouteToMode,
+  hasRequiredRuntime,
+  normalizeLingoLinkResponse
 };
