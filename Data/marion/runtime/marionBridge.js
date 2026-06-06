@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.5 MARION-LINGOLINK-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOLINK-GATEWAY-ORCHESTRATION-BRIDGE + LINGOLINK-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.5 MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -18,7 +18,7 @@ const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRef
 const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
 const LANGUAGE_SPHERE_BRIDGE_VERSION = "nyx.marion.languageSphereBridge/1.0";
-const LINGOLINK_GATEWAY_BRIDGE_VERSION = "nyx.marion.lingolinkGatewayBridge/0.2";
+const LINGOSENTINEL_GATEWAY_BRIDGE_VERSION = "nyx.marion.lingosentinelGatewayBridge/0.2";
 const ASTER_BRIDGE_VERSION = "nyx.marion.asterBridge/0.1";
 const MARION_BRIDGE_DEPLOY_HARDENING_VERSION = "nyx.marion.bridgeDeployHardening/1.0";
 const BENCHMARK_OBSERVATION_HOOK_VERSION = "nyx.marion.benchmarkObservationHook/1.0";
@@ -97,19 +97,25 @@ const languageSphereTelemetryLoaded=tryRequireMany([
   "./LanguageSphereTelemetry.js",
   "./LanguageSphereTelemetry"
 ]);
-const lingoLinkGatewayLoaded=tryRequireMany([
-  path.join(__dirname,"MarionLingoLinkGateway.js"),
-  path.join(process.cwd(),"Data","marion","runtime","MarionLingoLinkGateway.js"),
-  "./Data/marion/runtime/MarionLingoLinkGateway.js",
-  "./Data/marion/runtime/MarionLingoLinkGateway",
-  "./MarionLingoLinkGateway.js",
-  "./MarionLingoLinkGateway",
-  path.join(__dirname,"LingoLinkGateway.js"),
-  path.join(process.cwd(),"Data","marion","runtime","LingoLinkGateway.js"),
-  "./Data/marion/runtime/LingoLinkGateway.js",
-  "./Data/marion/runtime/LingoLinkGateway",
-  "./LingoLinkGateway.js",
-  "./LingoLinkGateway"
+const lingoSentinelGatewayLoaded=tryRequireMany([
+  path.join(__dirname,"MarionLingoSentinelGateway.js"),
+  path.join(process.cwd(),"Data","marion","runtime","MarionLingoSentinelGateway.js"),
+  "./Data/marion/runtime/MarionLingoSentinelGateway.js",
+  "./Data/marion/runtime/MarionLingoSentinelGateway",
+  "./MarionLingoSentinelGateway.js",
+  "./MarionLingoSentinelGateway",
+  path.join(__dirname,"LingoSentinelGateway.js"),
+  path.join(__dirname,"LingoSentinel","LingoSentinelGateway.js"),
+  path.join(process.cwd(),"Data","marion","runtime","LingoSentinelGateway.js"),
+  path.join(process.cwd(),"Data","marion","runtime","LingoSentinel","LingoSentinelGateway.js"),
+  "./Data/marion/runtime/LingoSentinelGateway.js",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelGateway.js",
+  "./Data/marion/runtime/LingoSentinelGateway",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelGateway",
+  "./LingoSentinelGateway.js",
+  "./LingoSentinel/LingoSentinelGateway.js",
+  "./LingoSentinelGateway",
+  "./LingoSentinel/LingoSentinelGateway"
 ]);
 const marionRuntimeObservationLoaded=tryRequireMany([
   path.join(__dirname,"benchmarking","marionRuntimeObservationHook.js"),
@@ -186,9 +192,9 @@ const universalTranslatorMod=universalTranslatorLoaded.mod;
 const multilingualFinalEnvelopeMod=multilingualFinalEnvelopeLoaded.mod;
 const contextPassportEventsMod=contextPassportEventsLoaded.mod;
 const languageSphereTelemetryMod=languageSphereTelemetryLoaded.mod;
-const lingoLinkGatewayMod=lingoLinkGatewayLoaded.mod;
-const runLingoLinkGateway=lingoLinkGatewayMod&&typeof lingoLinkGatewayMod.runMarionLingoLinkGateway==="function"?lingoLinkGatewayMod.runMarionLingoLinkGateway:(lingoLinkGatewayMod&&typeof lingoLinkGatewayMod.runLingoLinkGateway==="function"?lingoLinkGatewayMod.runLingoLinkGateway:null);
-const buildLingoLinkMarionBridgePayload=lingoLinkGatewayMod&&typeof lingoLinkGatewayMod.buildMarionBridgePayload==="function"?lingoLinkGatewayMod.buildMarionBridgePayload:null;
+const lingoSentinelGatewayMod=lingoSentinelGatewayLoaded.mod;
+const runLingoSentinelGateway=lingoSentinelGatewayMod&&typeof lingoSentinelGatewayMod.runMarionLingoSentinelGateway==="function"?lingoSentinelGatewayMod.runMarionLingoSentinelGateway:(lingoSentinelGatewayMod&&typeof lingoSentinelGatewayMod.runLingoSentinelGateway==="function"?lingoSentinelGatewayMod.runLingoSentinelGateway:null);
+const buildLingoSentinelMarionBridgePayload=lingoSentinelGatewayMod&&typeof lingoSentinelGatewayMod.buildMarionBridgePayload==="function"?lingoSentinelGatewayMod.buildMarionBridgePayload:null;
 const marionRuntimeObservationMod=marionRuntimeObservationLoaded.mod;
 const asterEnvironmentAdapterMod=asterEnvironmentAdapterLoaded.mod;
 const runAsterEnvironmentAdapter=asterEnvironmentAdapterMod&&typeof asterEnvironmentAdapterMod.runAsterEnvironmentAdapter==="function"?asterEnvironmentAdapterMod.runAsterEnvironmentAdapter:(asterEnvironmentAdapterMod&&typeof asterEnvironmentAdapterMod.run==="function"?asterEnvironmentAdapterMod.run:(asterEnvironmentAdapterMod&&typeof asterEnvironmentAdapterMod.default==="function"?asterEnvironmentAdapterMod.default:null));
@@ -209,7 +215,7 @@ const DEPENDENCY_STATUS = Object.freeze({
   multilingualFinalEnvelope: dependencyStatus("MultilingualFinalEnvelope", multilingualFinalEnvelopeLoaded),
   contextPassportEvents: dependencyStatus("ContextPassportEvents", contextPassportEventsLoaded),
   languageSphereTelemetry: dependencyStatus("LanguageSphereTelemetry", languageSphereTelemetryLoaded),
-  lingoLinkGateway: dependencyStatus("LingoLinkGateway", lingoLinkGatewayLoaded),
+  lingoSentinelGateway: dependencyStatus("LingoSentinelGateway", lingoSentinelGatewayLoaded),
   marionRuntimeObservationHook: dependencyStatus("marionRuntimeObservationHook", marionRuntimeObservationLoaded),
   asterEnvironmentAdapter: dependencyStatus("AsterEnvironmentAdapter", asterEnvironmentAdapterLoaded),
   marionDualTrackGateway: dependencyStatus("MarionDualTrackGateway", marionDualTrackGatewayLoaded),
@@ -301,10 +307,10 @@ function isPrimitivePublicReply(value){
   const text=safeStr(value).replace(/[.!?]+$/g,"").trim().toLowerCase();
   return !text||/^(?:false|true|null|undefined|none|nan|\[object object\])$/.test(text);
 }
-function isLingoLinkExplanationPrompt(value=""){
+function isLingoSentinelExplanationPrompt(value=""){
   const text=safeStr(value);
   if(!text)return false;
-  const hasName=/\b(?:lingolink|lingo link|language sphere|languagesphere)\b/i.test(text);
+  const hasName=/\b(?:lingosentinel|lingosentinel|language sphere|languagesphere)\b/i.test(text);
   const hasIntent=/\b(?:explain|what|does|do|clear sentence|one sentence|multilingual|language|translation|translate|understand|explica|explicame|expl[ií]came|qu[eé]\\s+hace|frase\\s+clara|idioma|idiomas|lenguaje|lenguajes|multiling[uü]e|traducci[oó]n|traducir|comprender|entender|explique|que\\s+fait|qu[e’']?est[-\\s]*ce\\s+que|phrase\\s+claire|langue|langues|multilingue|traduction|traduire|comprendre)\\b/i.test(text);
   return !!(hasName&&hasIntent);
 }
@@ -317,11 +323,11 @@ function isGenericGreetingStatusFallback(value=""){
     /^i[’']?m doing well,? thank you\.?\s*i[’']?m ready to help\.?\s*what would you like to work on today$/i.test(text)||
     /^i[’']?ve got you\.?\s*tell me what you want to work on,? and i[’']?ll keep the response clear and specific$/i.test(text);
 }
-function buildLingoLinkPublicAnswerFromPacket(packet={},ctx={}){
+function buildLingoSentinelPublicAnswerFromPacket(packet={},ctx={}){
   const p=safeObj(packet), payload=safeObj(p.payload), c=safeObj(ctx), n=safeObj(c.normalized), original=safeObj(n.original), body=safeObj(original.body);
   const source=[p.userText,p.message,p.text,p.query,p.input,payload.userText,payload.message,payload.text,n.userText,n.message,n.text,n.query,n.userQuery,n.rawUserQuery,n.publicUserQuery,original.text,original.userText,original.message,body.text,body.userText,body.message].map(safeStr).join(" ");
-  if(isLingoLinkExplanationPrompt(source)){
-    return "LingoLink helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
+  if(isLingoSentinelExplanationPrompt(source)){
+    return "LingoSentinel helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
   }
   return "";
 }
@@ -341,7 +347,7 @@ function buildAsterPublicAnswerFromPacket(packet={},ctx={}){
   return "";
 }
 function buildProjectGatewayPublicAnswerFromPacket(packet={},ctx={}){
-  return buildAsterPublicAnswerFromPacket(packet,ctx)||buildLingoLinkPublicAnswerFromPacket(packet,ctx)||"";
+  return buildAsterPublicAnswerFromPacket(packet,ctx)||buildLingoSentinelPublicAnswerFromPacket(packet,ctx)||"";
 }
 
 function bridgeAsterCandidateSource(input={},normalized={}){
@@ -383,7 +389,7 @@ function bridgeAsterBuildInput(input={},normalized={}){
     normalized:firstObj(candidate.normalized,i.normalized,n.normalized),
     timestamp:firstText(candidate.timestamp,i.timestamp,n.timestamp),
     location:firstText(candidate.location,i.location,n.location),
-    metadata:{...metadata,bridgeVersion:VERSION,asterBridgeVersion:ASTER_BRIDGE_VERSION,passive:true,linkedGateway:"LingoLink",project:"Sandblast"},
+    metadata:{...metadata,bridgeVersion:VERSION,asterBridgeVersion:ASTER_BRIDGE_VERSION,passive:true,linkedGateway:"LingoSentinel",project:"Sandblast"},
     context:firstObj(candidate.context,i.context,n.context)
   };
 }
@@ -522,7 +528,7 @@ function buildParallelCoordinationSafe(normalized={},input={}){
     unknownLanguageAlert:safeObj(normalized.unknownLanguageAlert),
     scannerHeartbeat:safeObj(normalized.scannerHeartbeat),
     dormantScanner:safeObj(normalized.dormantScanner),
-    gatewayMeta:firstObj(normalized.lingoLinkGatewayMeta,normalized.gatewayMeta),
+    gatewayMeta:firstObj(normalized.lingoSentinelGatewayMeta,normalized.gatewayMeta),
     realWorldObservation:firstObj(normalized.asterObservation,normalized.asterPassiveObservation,safeObj(input).realWorldObservation,safeObj(input).observation,safeObj(input).environment),
     realWorldTrack:safeObj(normalized.asterPassiveObservation),
     strategicReview:firstObj(safeObj(input).strategicReview,safeObj(input).thalon,safeObj(input).thalonReview),
@@ -562,7 +568,7 @@ function buildParallelCoordinationSafe(normalized={},input={}){
   };
 }
 
-function applyLingoLinkReplyOverride(packet={},ctx={}){
+function applyLingoSentinelReplyOverride(packet={},ctx={}){
   const answer=buildProjectGatewayPublicAnswerFromPacket(packet,ctx);
   if(!answer)return safeObj(packet);
   const out=safeObj(packet);
@@ -572,7 +578,7 @@ function applyLingoLinkReplyOverride(packet={},ctx={}){
   out.payload={...safeObj(out.payload),reply:answer,text:answer,message:answer,answer,output:answer,response:answer,displayReply:answer,spokenText:answer,textSpeak:answer,textDisplay:answer};
   out.finalEnvelope={...safeObj(out.finalEnvelope),reply:answer,text:answer,displayReply:answer,spokenText:answer};
   if(isObj(out.speech))out.speech={...out.speech,text:answer,textDisplay:answer,textSpeak:answer};
-  out.meta={...safeObj(out.meta),lingoLinkGreetingPrecedence:true,noUserFacingDiagnostics:true};
+  out.meta={...safeObj(out.meta),lingoSentinelGreetingPrecedence:true,noUserFacingDiagnostics:true};
   return out;
 }
 
@@ -626,7 +632,7 @@ function normalizeLanguageSphereSurface(value={}){
     fallbackUsed:!!src.fallbackUsed,
     handoffStatus:firstText(src.handoffStatus,"available"),
     visibleToUser:src.visibleToUser!==false,
-    projectGateway:firstText(src.projectGateway,src.gateway,"lingolink"),
+    projectGateway:firstText(src.projectGateway,src.gateway,"lingosentinel"),
     environmentalPathway:safeClonePlain(src.environmentalPathway),
     publicAgent:"nyx",
     userFacingAgent:"Nyx",
@@ -748,14 +754,14 @@ async function normalizeLanguageSphereInboundSafe(normalized={}){
     return {ok:false,error:"language_sphere_input_exception",message:safeStr(err&&(err.message||err)||""),normalizedPatch:{languageSphere:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,available:false,stage:"input",authority:"marion",fallbackUsed:true,error:"input-normalization-failed",durationMs:Date.now()-startedAt}}};
   }
 }
-function normalizeLingoLinkGatewaySurfaceForBridge(value={}){
+function normalizeLingoSentinelGatewaySurfaceForBridge(value={}){
   const src=safeObj(value);
-  const response=safeObj(src.lingoLinkResponse);
+  const response=safeObj(src.lingoSentinelResponse);
   const authorityReview=safeObj(src.authorityReview);
   const languageMeta=safeObj(src.languageMeta);
   const translationMeta=safeObj(src.translationMeta);
   const glossaryMeta=firstObj(src.glossaryMeta,response.glossaryMeta);
-  const gatewayMeta=safeObj(src.gatewayMeta||src.lingoLinkGatewayMeta);
+  const gatewayMeta=safeObj(src.gatewayMeta||src.lingoSentinelGatewayMeta);
   const unknownLanguageAlert=safeObj(src.unknownLanguageAlert);
   const scannerHeartbeat=safeObj(src.scannerHeartbeat);
   const dormantScanner=safeObj(src.dormantScanner);
@@ -768,12 +774,12 @@ function normalizeLingoLinkGatewaySurfaceForBridge(value={}){
   const stableHash=firstText(src.stableHash,gatewayMeta.stableHash,gatewayHash,inputHash,src.requestId,"");
   const correlationId=firstText(src.correlationId,gatewayMeta.correlationId,src.requestId,gatewayHash,stableHash,"");
   const traceId=firstText(src.traceId,gatewayMeta.traceId,src.requestId,correlationId,"");
-  const routed=src.routed===true||route.indexOf("LINGOLINK_")===0;
+  const routed=src.routed===true||route.indexOf("LINGOSENTINEL_")===0;
   const fallbackTriggered=src.ok===false||response.fallbackUsed===true||languageMeta.fallbackTriggered===true||translationMeta.fallbackTriggered===true||gatewayMeta.fallbackTriggered===true;
   const finalText=firstText(src.finalText,authorityReview.finalText,response.finalText,response.adaptedText,response.translatedText,translationMeta.advisoryText,translationMeta.translatedText,translationMeta.renderText,translationMeta.publicText,translationMeta.text,"");
   return {
-    version: LINGOLINK_GATEWAY_BRIDGE_VERSION,
-    available: !!runLingoLinkGateway,
+    version: LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,
+    available: !!runLingoSentinelGateway,
     active: src.ok !== false && routed,
     routed,
     route,
@@ -811,22 +817,22 @@ function normalizeLingoLinkGatewaySurfaceForBridge(value={}){
     correlationId,
     traceId,
     noUserFacingDiagnostics: true,
-    source: "MarionLingoLinkGateway"
+    source: "MarionLingoSentinelGateway"
   };
 }
-function buildLingoLinkBridgePatch(result={},originalText=""){
+function buildLingoSentinelBridgePatch(result={},originalText=""){
   const src=safeObj(result);
-  const response=safeObj(src.lingoLinkResponse);
+  const response=safeObj(src.lingoSentinelResponse);
   const authorityReview=safeObj(src.authorityReview);
   const route=firstText(src.route,"MARION_ONLY");
   const sourceLanguage=firstText(src.sourceLanguage,response.sourceLanguage,response.detectedLanguage,"unknown");
   const targetLanguage=firstText(src.targetLanguage,response.targetLanguage,"en");
   const finalText=firstText(src.finalText,authorityReview.finalText,response.finalText,response.adaptedText,response.translatedText,"");
   const confidence=Number.isFinite(Number(src.confidence))?Number(src.confidence):(Number.isFinite(Number(response.confidence))?Number(response.confidence):null);
-  const routed=src.routed===true||route.indexOf("LINGOLINK_")===0;
+  const routed=src.routed===true||route.indexOf("LINGOSENTINEL_")===0;
   const gatewayMeta={
-    version:LINGOLINK_GATEWAY_BRIDGE_VERSION,
-    source:"MarionLingoLinkGateway",
+    version:LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,
+    source:"MarionLingoSentinelGateway",
     requestId:firstText(src.requestId,""),
     ok:src.ok!==false,
     routed,
@@ -840,7 +846,7 @@ function buildLingoLinkBridgePatch(result={},originalText=""){
   const languageMeta=safeObj(src.languageMeta);
   const translationMeta=safeObj(src.translationMeta);
   const patch={
-    lingoLink:normalizeLingoLinkGatewaySurfaceForBridge({...src,gatewayMeta}),
+    lingoSentinel:normalizeLingoSentinelGatewaySurfaceForBridge({...src,gatewayMeta}),
     languageMeta:Object.keys(languageMeta).length?languageMeta:{detectedLanguage:sourceLanguage,sourceLanguage,targetLanguage,confidence,supported:true,requiresTranslation:routed,fallbackTriggered:src.ok===false||response.fallbackUsed===true,route},
     lingoInput:safeObj(src.lingoInput),
     translationMeta:Object.keys(translationMeta).length?translationMeta:{sourceLanguage,targetLanguage,translated:!!(routed&&finalText&&src.ok!==false),translatedText:finalText,advisoryText:finalText,finalText,confidence,route,fallbackTriggered:src.ok===false||response.fallbackUsed===true},
@@ -849,10 +855,10 @@ function buildLingoLinkBridgePatch(result={},originalText=""){
     unknownLanguageAlert:safeObj(src.unknownLanguageAlert),
     scannerHeartbeat:safeObj(src.scannerHeartbeat),
     dormantScanner:safeObj(src.dormantScanner),
-    lingoLinkGatewayMeta:gatewayMeta,
-    lingoLinkTelemetry:safeObj(src.telemetry),
-    lingoLinkResponse:response,
-    lingoLinkAuthorityReview:authorityReview,
+    lingoSentinelGatewayMeta:gatewayMeta,
+    lingoSentinelTelemetry:safeObj(src.telemetry),
+    lingoSentinelResponse:response,
+    lingoSentinelAuthorityReview:authorityReview,
     inputHash:firstText(src.inputHash,gatewayMeta.requestId),
     gatewayHash:firstText(src.gatewayHash,gatewayMeta.requestId),
     stableHash:firstText(src.stableHash,gatewayMeta.requestId),
@@ -865,13 +871,13 @@ function buildLingoLinkBridgePatch(result={},originalText=""){
   if(!Object.keys(patch.lingoInput).length){patch.lingoInput={originalText:firstText(src.originalText,originalText),normalizedText:firstText(src.originalText,originalText),route};}
   return patch;
 }
-async function runLingoLinkGatewayForBridgeSafe(normalized={},rawInput={}){
+async function runLingoSentinelGatewayForBridgeSafe(normalized={},rawInput={}){
   const originalText=firstText(normalized.rawUserQuery, normalized.originalText, normalized.userQuery, normalized.text, normalized.query, safeObj(rawInput).message, safeObj(rawInput).text);
-  if(typeof runLingoLinkGateway!=="function"){
-    return {ok:false,unavailable:true,normalizedPatch:{lingoLink:{version:LINGOLINK_GATEWAY_BRIDGE_VERSION,available:false,active:false,authority:"marion",advisoryOnly:true,stage:"bridge-input",reason:"lingolink_gateway_unavailable",noUserFacingDiagnostics:true}}};
+  if(typeof runLingoSentinelGateway!=="function"){
+    return {ok:false,unavailable:true,normalizedPatch:{lingoSentinel:{version:LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,available:false,active:false,authority:"marion",advisoryOnly:true,stage:"bridge-input",reason:"lingosentinel_gateway_unavailable",noUserFacingDiagnostics:true}}};
   }
   try{
-    const result=safeObj(await Promise.resolve(runLingoLinkGateway({
+    const result=safeObj(await Promise.resolve(runLingoSentinelGateway({
       requestId:firstText(normalized.turnId,safeObj(rawInput).turnId,safeObj(rawInput).requestId),
       text:firstText(normalized.userQuery, normalized.text, originalText),
       message: originalText,
@@ -887,10 +893,10 @@ async function runLingoLinkGatewayForBridgeSafe(normalized={},rawInput={}){
       domain:firstText(normalized.knowledgeDomain,normalized.domain,"general"),
       safetyContext:safeObj(normalized.safetyContext)
     })));
-    const patch=buildLingoLinkBridgePatch(result,originalText);
-    return {ok:true,normalizedPatch:patch,lingoLinkGateway:result};
+    const patch=buildLingoSentinelBridgePatch(result,originalText);
+    return {ok:true,normalizedPatch:patch,lingoSentinelGateway:result};
   }catch(err){
-    return {ok:false,error:"lingolink_gateway_exception",message:safeStr(err&&(err.message||err)||""),normalizedPatch:{lingoLink:{version:LINGOLINK_GATEWAY_BRIDGE_VERSION,available:false,active:false,authority:"marion",advisoryOnly:true,stage:"bridge-input",fallbackTriggered:true,error:"gateway-failed-safe",noUserFacingDiagnostics:true}}};
+    return {ok:false,error:"lingosentinel_gateway_exception",message:safeStr(err&&(err.message||err)||""),normalizedPatch:{lingoSentinel:{version:LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,available:false,active:false,authority:"marion",advisoryOnly:true,stage:"bridge-input",fallbackTriggered:true,error:"gateway-failed-safe",noUserFacingDiagnostics:true}}};
   }
 }
 function languageSpherePayload({normalized={},routed={},contract={},reply="",runtimeTelemetry={}}={}){
@@ -921,7 +927,7 @@ function applyPublicReplyHygieneToPacket(packet={}){
   const out=safeObj(packet);
   let reply=stripPublicReplyScaffold(firstText(out.reply,out.text,out.displayReply,out.response,safeObj(out.finalEnvelope).reply,safeObj(out.payload).reply));
   reply=stripTelemetryLeakFromReply(reply);
-  const fallback=buildLingoLinkPublicAnswerFromPacket(out,{});
+  const fallback=buildLingoSentinelPublicAnswerFromPacket(out,{});
   if(fallback&&(isPrimitivePublicReply(reply)||!reply||isGenericGreetingStatusFallback(reply)||isPublicControlPolicyLeak(reply)||isThinPlaceholderText(reply)))reply=fallback;
   if(isPrimitivePublicReply(reply))reply="";
   if(!reply)return out;
@@ -943,7 +949,7 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
   if(fallback&&(cmd.matched===true||ls.directTranslationCommand===true)&&(!currentReply||currentReply===firstText(ls.sourceText,cmd.sourceText)||isBridgeDirectTranslationClarifier(currentReply))){
     packetForHygiene={...packetForHygiene,reply:fallback,text:fallback,answer:fallback,output:fallback,response:fallback,displayReply:fallback,spokenText:fallback,textSpeak:fallback,textDisplay:fallback,payload:{...safeObj(packetForHygiene.payload),reply:fallback,text:fallback,message:fallback,answer:fallback,output:fallback,response:fallback,displayReply:fallback,spokenText:fallback,textSpeak:fallback,textDisplay:fallback,bridgeDirectTranslationFallbackApplied:true},finalEnvelope:{...safeObj(packetForHygiene.finalEnvelope),reply:fallback,text:fallback,displayReply:fallback,spokenText:fallback,bridgeDirectTranslationFallbackApplied:true}};
   }
-  const out=applyProjectRecoveryReplyOverride(applyLingoLinkReplyOverride(applyPublicReplyHygieneToPacket(packetForHygiene),ctx),ctx);
+  const out=applyProjectRecoveryReplyOverride(applyLingoSentinelReplyOverride(applyPublicReplyHygieneToPacket(packetForHygiene),ctx),ctx);
   const payload=languageSpherePayload(ctx);
   const finalBuilder=multilingualFinalEnvelopeMod&&typeof multilingualFinalEnvelopeMod.buildMultilingualFinalEnvelope==="function"?multilingualFinalEnvelopeMod.buildMultilingualFinalEnvelope:null;
   const passportEmitter=contextPassportEventsMod&&typeof contextPassportEventsMod.emitContextPassportEvents==="function"?contextPassportEventsMod.emitContextPassportEvents:null;
@@ -964,7 +970,7 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
     fallbackUsed:!!safeObj(multilingual.languageSphere).fallbackUsed||!!payload.fallbackUsed,
     handoffStatus:firstText(safeObj(multilingual.languageSphere).handoffStatus,payload.handoffStatus),
     visibleToUser:true,
-    projectGateway:"lingolink",
+    projectGateway:"lingosentinel",
     environmentalPathway:Object.keys(safeObj(normalized.asterPassiveObservation||normalized.aster)).length?{...safeObj(normalized.asterPassiveObservation||normalized.aster),telemetry:undefined,noUserFacingDiagnostics:true}:{name:"Aster",stage:"staged",authority:"marion",active:false,noUserFacingDiagnostics:true},
     contextPassport:safeObj(passport.contextPassport),
     events:safeArray(passport.events),
@@ -979,12 +985,12 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
   const languageSphereEvents=languageSphere.events;
   const multilingualFinalEnvelope=safeObj(multilingual.finalEnvelope);
   const asterSurface=safeObj(normalized.asterPassiveObservation||normalized.aster);
-  const lingoLinkSurface=safeObj(normalized.lingoLink);
-  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere:publicLanguageSphere,lingoLink:Object.keys(lingoLinkSurface).length?lingoLinkSurface:undefined,languageMeta:Object.keys(safeObj(normalized.languageMeta)).length?safeObj(normalized.languageMeta):undefined,translationMeta:Object.keys(safeObj(normalized.translationMeta)).length?safeObj(normalized.translationMeta):undefined,glossaryMeta:Object.keys(safeObj(normalized.glossaryMeta)).length?safeObj(normalized.glossaryMeta):undefined,contextPassport,languageSphereEvents,aster:Object.keys(asterSurface).length?asterSurface:undefined,environmentalPathway:Object.keys(asterSurface).length?asterSurface:undefined};
+  const lingoSentinelSurface=safeObj(normalized.lingoSentinel);
+  const finalEnvelope={...safeObj(out.finalEnvelope),languageSphere:publicLanguageSphere,lingoSentinel:Object.keys(lingoSentinelSurface).length?lingoSentinelSurface:undefined,languageMeta:Object.keys(safeObj(normalized.languageMeta)).length?safeObj(normalized.languageMeta):undefined,translationMeta:Object.keys(safeObj(normalized.translationMeta)).length?safeObj(normalized.translationMeta):undefined,glossaryMeta:Object.keys(safeObj(normalized.glossaryMeta)).length?safeObj(normalized.glossaryMeta):undefined,contextPassport,languageSphereEvents,aster:Object.keys(asterSurface).length?asterSurface:undefined,environmentalPathway:Object.keys(asterSurface).length?asterSurface:undefined};
   return {
     ...out,
     languageSphere:publicLanguageSphere,
-    lingoLink:Object.keys(safeObj(normalized.lingoLink)).length?safeObj(normalized.lingoLink):undefined,
+    lingoSentinel:Object.keys(safeObj(normalized.lingoSentinel)).length?safeObj(normalized.lingoSentinel):undefined,
     languageMeta:Object.keys(safeObj(normalized.languageMeta)).length?safeObj(normalized.languageMeta):undefined,
     translationMeta:Object.keys(safeObj(normalized.translationMeta)).length?safeObj(normalized.translationMeta):undefined,
     glossaryMeta:Object.keys(safeObj(normalized.glossaryMeta)).length?safeObj(normalized.glossaryMeta):undefined,
@@ -995,9 +1001,9 @@ function attachLanguageSphereFinalMetadata(packet={},ctx={}){
     telemetry:undefined,
     multilingualFinalEnvelope:undefined,
     finalEnvelope,
-    payload:{...safeObj(out.payload),languageSphere:publicLanguageSphere,lingoLink:Object.keys(safeObj(normalized.lingoLink)).length?safeObj(normalized.lingoLink):undefined,languageMeta:Object.keys(safeObj(normalized.languageMeta)).length?safeObj(normalized.languageMeta):undefined,translationMeta:Object.keys(safeObj(normalized.translationMeta)).length?safeObj(normalized.translationMeta):undefined,glossaryMeta:Object.keys(safeObj(normalized.glossaryMeta)).length?safeObj(normalized.glossaryMeta):undefined,contextPassport,languageSphereEvents,events:languageSphereEvents,aster:Object.keys(asterSurface).length?asterSurface:undefined,environmentalPathway:Object.keys(asterSurface).length?asterSurface:undefined},
-    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,lingoLinkGatewayBridgeVersion:LINGOLINK_GATEWAY_BRIDGE_VERSION,contextPassport,languageSpherePublic:publicLanguageSphere,lingoLink:Object.keys(safeObj(normalized.lingoLink)).length?safeObj(normalized.lingoLink):undefined,asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:Object.keys(asterSurface).length?asterSurface:undefined,noUserFacingDiagnostics:true},
-    diagnostics:{...safeObj(out.diagnostics),lingoLinkGatewayBridge:{version:LINGOLINK_GATEWAY_BRIDGE_VERSION,available:!!runLingoLinkGateway,active:!!safeObj(normalized.lingoLink).active,advisoryOnly:true,noUserFacingDiagnostics:true},asterBridge:{version:ASTER_BRIDGE_VERSION,adapter:!!runAsterEnvironmentAdapter,passive:true,active:!!safeObj(asterSurface).active,noUserFacingDiagnostics:true},languageSphereBridge:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,universalTranslator:!!universalTranslatorMod,multilingualFinalEnvelope:!!multilingualFinalEnvelopeMod,contextPassportEvents:!!contextPassportEventsMod,telemetry:!!languageSphereTelemetryMod,telemetryAttached:false,noUserFacingDiagnostics:true}}
+    payload:{...safeObj(out.payload),languageSphere:publicLanguageSphere,lingoSentinel:Object.keys(safeObj(normalized.lingoSentinel)).length?safeObj(normalized.lingoSentinel):undefined,languageMeta:Object.keys(safeObj(normalized.languageMeta)).length?safeObj(normalized.languageMeta):undefined,translationMeta:Object.keys(safeObj(normalized.translationMeta)).length?safeObj(normalized.translationMeta):undefined,glossaryMeta:Object.keys(safeObj(normalized.glossaryMeta)).length?safeObj(normalized.glossaryMeta):undefined,contextPassport,languageSphereEvents,events:languageSphereEvents,aster:Object.keys(asterSurface).length?asterSurface:undefined,environmentalPathway:Object.keys(asterSurface).length?asterSurface:undefined},
+    meta:{...safeObj(out.meta),languageSphereBridgeVersion:LANGUAGE_SPHERE_BRIDGE_VERSION,lingoSentinelGatewayBridgeVersion:LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,contextPassport,languageSpherePublic:publicLanguageSphere,lingoSentinel:Object.keys(safeObj(normalized.lingoSentinel)).length?safeObj(normalized.lingoSentinel):undefined,asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:Object.keys(asterSurface).length?asterSurface:undefined,noUserFacingDiagnostics:true},
+    diagnostics:{...safeObj(out.diagnostics),lingoSentinelGatewayBridge:{version:LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,available:!!runLingoSentinelGateway,active:!!safeObj(normalized.lingoSentinel).active,advisoryOnly:true,noUserFacingDiagnostics:true},asterBridge:{version:ASTER_BRIDGE_VERSION,adapter:!!runAsterEnvironmentAdapter,passive:true,active:!!safeObj(asterSurface).active,noUserFacingDiagnostics:true},languageSphereBridge:{version:LANGUAGE_SPHERE_BRIDGE_VERSION,universalTranslator:!!universalTranslatorMod,multilingualFinalEnvelope:!!multilingualFinalEnvelopeMod,contextPassportEvents:!!contextPassportEventsMod,telemetry:!!languageSphereTelemetryMod,telemetryAttached:false,noUserFacingDiagnostics:true}}
   };
 }
 
@@ -1219,7 +1225,7 @@ function stripTelemetryLeakFromReply(value=""){
 
 const SPOKEN_PROJECT_ALIAS_RULES = Object.freeze([
   { canonical: "LanguageSphere", aliases: ["language sphere", "the language sphere", "languagesphere", "language fair", "language fare", "language fear", "language share", "language sheer", "language there", "language layer", "lingua sphere", "language ca", "the language ca", "language c a", "the language c a", "language k", "the language k", "language see a", "the language see a", "language sea", "the language sea", "language sphare", "language spare", "language sphear", "language spear"] },
-  { canonical: "LingoLink", aliases: ["lingo link", "lingolink", "lingo-link", "link o link", "lingu link", "language link", "lingo linkedin"] },
+  { canonical: "LingoSentinel", aliases: ["lingosentinel", "lingosentinel", "lingo-link", "link o link", "lingu link", "language link", "lingosentineledin"] },
   { canonical: "Nyx", aliases: ["nyx", "nix", "nicks", "nick's", "nyx live", "nix live"] },
   { canonical: "Marion", aliases: ["marion", "mary in", "merry in", "merion", "marian", "marion bridge", "mary and bridge"] },
   { canonical: "Sandblast", aliases: ["sandblast", "sand blast", "sam blast", "sound blast", "sun blast", "sandblast channel", "sand blast channel"] },
@@ -1317,7 +1323,7 @@ function resolvePhaseAnchor(input="",context={}){
   if(/\b(progression shaping|progression refinement|progression|depth governor|continuity depth|5 turn|five turn)\b/i.test(ctx)){phaseMap=PROGRESSION_SHAPING_PHASES;lane="progression_shaping_refinement";}
   if(!phaseMap&&/\b(domain confidence|confidence scoring|domain scoring|confidence threshold|confidence band)\b/i.test(ctx)){phaseMap=DOMAIN_CONFIDENCE_PHASES;lane="domain_confidence_scoring";}
   if(!phaseMap&&/\b(mic|microphone|voice|speech|spoken|parity|transcript|stt|speech to text|speech-to-text)\b/i.test(ctx)){phaseMap=MIC_TEXT_PARITY_PHASES;lane="mic_to_text_parity";}
-  if(!phaseMap&&/\b(languagesphere|language sphere|translation|translator|lingolink|lingo link|multilingual|language)\b/i.test(ctx)){phaseMap=LANGUAGE_SPHERE_PHASES;lane="languagesphere";}
+  if(!phaseMap&&/\b(languagesphere|language sphere|translation|translator|lingosentinel|lingosentinel|multilingual|language)\b/i.test(ctx)){phaseMap=LANGUAGE_SPHERE_PHASES;lane="languagesphere";}
   if(!phaseMap)return {resolved:false,phaseKey:phaseKey||"",lane:"",label:"",summary:""};
   const safePhaseKey=phaseKey||"phase2";
   const phase=phaseMap[safePhaseKey];
@@ -1397,7 +1403,7 @@ function buildProjectRecoveryReply(normalized={}){
     return `${phase.label}: ${phase.summary}`;
   }
   if(isLanguageSphereNextStepsRequest(text)){
-    return "Next for LanguageSphere: harden mic-to-text parity, add spoken project-name recovery, anchor vague phase commands to the active lane, then run paired typed/voice regression tests before moving the stable components into LingoLink.";
+    return "Next for LanguageSphere: harden mic-to-text parity, add spoken project-name recovery, anchor vague phase commands to the active lane, then run paired typed/voice regression tests before moving the stable components into LingoSentinel.";
   }
   return "";
 }
@@ -1408,7 +1414,7 @@ function shouldSuppressDomainConciergeClarifier(normalized={},domainConcierge={}
   const n=safeObj(normalized), dc=safeObj(domainConcierge), clarifier=firstText(dc.clarifier,dc.reply,dc.text);
   if(!isBroadLanguageClarifier(clarifier))return false;
   if(safeObj(n.phaseAnchor).resolved)return true;
-  if(safeArray(safeObj(n.spokenAliasRecovery).hits).some(h=>safeObj(h).canonical==="LanguageSphere"||safeObj(h).canonical==="LingoLink"))return true;
+  if(safeArray(safeObj(n.spokenAliasRecovery).hits).some(h=>safeObj(h).canonical==="LanguageSphere"||safeObj(h).canonical==="LingoSentinel"))return true;
   return isLanguageSphereNextStepsRequest(firstText(n.userQuery,n.rawUserQuery));
 }
 function applyProjectRecoveryReplyOverride(packet={},ctx={}){
@@ -1498,10 +1504,10 @@ function buildPrimitiveReplyRecovery(normalized={},packet={}){
   const deterministic=buildDeterministicLastMilePublicReplyFromText(text);
   if(deterministic)return deterministic;
   if(isLanguageSphereNextStepsRequest(text)){
-    return "Next for LanguageSphere: harden mic-to-text parity, confirm spoken alias recovery, verify phase anchoring, then run paired typed and voice regression tests before moving the stable components into LingoLink.";
+    return "Next for LanguageSphere: harden mic-to-text parity, confirm spoken alias recovery, verify phase anchoring, then run paired typed and voice regression tests before moving the stable components into LingoSentinel.";
   }
-  if(safeArray(safeObj(n.spokenAliasRecovery).hits).some((h)=>["LanguageSphere","LingoLink"].includes(safeStr(safeObj(h).canonical)))){
-    return "I’m tracking LanguageSphere and LingoLink. The next step is to verify spoken alias recovery, phase anchoring, and mic/text parity before moving the stable language components forward.";
+  if(safeArray(safeObj(n.spokenAliasRecovery).hits).some((h)=>["LanguageSphere","LingoSentinel"].includes(safeStr(safeObj(h).canonical)))){
+    return "I’m tracking LanguageSphere and LingoSentinel. The next step is to verify spoken alias recovery, phase anchoring, and mic/text parity before moving the stable language components forward.";
   }
   return "I can answer that directly with a clean public reply, but I need the original prompt preserved on this turn.";
 }
@@ -1931,8 +1937,8 @@ function isCapabilityQuestion(text){const t=lower(text);return /\b(what can you 
 function isIdentityQuestion(text){const t=lower(text);return /\b(who are you|what are you|what is nyx|who is nyx|what is marion|who is marion|how do you work|how does marion help|how marion helps|marion helps you think)\b/i.test(t);}
 function bridgeRecoveryReply(normalized={},routed={},reason="bridge_recovery"){
   const text=safeStr(normalized.userQuery||normalized.text||normalized.query||"");
-  const lingoLinkReply=buildLingoLinkPublicAnswerFromPacket({text,userText:normalized.rawUserQuery,message:text},{normalized});
-  if(lingoLinkReply)return lingoLinkReply;
+  const lingoSentinelReply=buildLingoSentinelPublicAnswerFromPacket({text,userText:normalized.rawUserQuery,message:text},{normalized});
+  if(lingoSentinelReply)return lingoSentinelReply;
   const bare=bareKnowledgeDomainActivationDomain(text);if(bare)return bridgeDomainActivationReply(bare);
   const routing=safeObj(routed.routing);
   const intent=safeStr(routing.intent||safeObj(routed.marionIntent).intent||safeObj(normalized.marionIntent).intent||"simple_chat");
@@ -2073,19 +2079,19 @@ function normalizeComposeInput(normalized,routed,resolvedEmotionPacket={}){
     marionIntent,routing:{...routing,domainConcierge},domainConcierge,concierge:domainConcierge,domainConfidence:safeObj(routing.domainConfidence||safeObj(safeObj(routed).domainConciergeRaw).domainConfidence),questionShape:safeObj(safeObj(safeObj(routed).domainConciergeRaw).questionShape),
     previousMemory:normalized.previousMemory,conversationState:safeObj(normalized.previousMemory.stateSpine||normalized.previousMemory.conversationState||normalized.commandPacket.state),lane:normalized.lane,sessionId:normalized.sessionId,turnId:normalized.turnId,sourceTurnId:normalized.turnId,
     stateSpinePatch:Object.keys(statePatch).length?statePatch:undefined,
-    lingoLink:safeObj(normalized.lingoLink),languageMeta:safeObj(normalized.languageMeta),lingoInput:safeObj(normalized.lingoInput),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),glossaryIntegrity:safeObj(normalized.glossaryIntegrity),lingoLinkGatewayMeta:safeObj(normalized.lingoLinkGatewayMeta),lingoLinkTelemetry:safeObj(normalized.lingoLinkTelemetry),
+    lingoSentinel:safeObj(normalized.lingoSentinel),languageMeta:safeObj(normalized.languageMeta),lingoInput:safeObj(normalized.lingoInput),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),glossaryIntegrity:safeObj(normalized.glossaryIntegrity),lingoSentinelGatewayMeta:safeObj(normalized.lingoSentinelGatewayMeta),lingoSentinelTelemetry:safeObj(normalized.lingoSentinelTelemetry),
     aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),environmentalPathway:safeObj(normalized.asterPassiveObservation||normalized.aster),parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),
     resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket),emotionRuntimeOk:resolvedEmotionPacket.ok!==false
   };
 }
-function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const rawReply=extractReply(contract);if(!rawReply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||typeof finalEnvelopeMod.createMarionFinalEnvelope!=="function")return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply:rawReply,text:rawReply,spokenText:firstText(contract.spokenText,rawReply)},reason:"final_envelope_unavailable",loopGuardResult});const userText=normalized.userText||normalized.text||normalized.query||"",routing=safeObj(routed.routing),progressionRefinement=bridgeProgressionMemory(userText,rawReply,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),reply=bridgeShapeProgressionReply(userText,rawReply,progressionRefinement,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),progressionTelemetry=bridgeProgressionTelemetry(userText,reply,progressionRefinement),memoryPatch={...safeObj(contract.memoryPatch),progressionRefinement,progressionTelemetry,lingoLink:safeObj(normalized.lingoLink),languageMeta:safeObj(normalized.languageMeta),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),stateBridge:{...safeObj(safeObj(contract.memoryPatch).stateBridge),progressionRefinement,progressionTelemetry},domainConcierge:compactDomainConciergeForBridge(safeObj(contract).domainConcierge||safeObj(routed).domainConcierge||routing.domainConcierge)};const envelope=finalEnvelopeMod.createMarionFinalEnvelope({reply,spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,meta:{...safeObj(contract.meta),bridgeVersion:VERSION,lingoLinkGatewayBridgeVersion:LINGOLINK_GATEWAY_BRIDGE_VERSION,lingoLink:safeObj(normalized.lingoLink),languageMeta:safeObj(normalized.languageMeta),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),unknownLanguageAlert:safeObj(normalized.unknownLanguageAlert),scannerHeartbeat:safeObj(normalized.scannerHeartbeat),dormantScanner:safeObj(normalized.dormantScanner),lingoLinkGatewayMeta:safeObj(normalized.lingoLinkGatewayMeta),inputHash:safeStr(normalized.inputHash),gatewayHash:safeStr(normalized.gatewayHash),stableHash:safeStr(normalized.stableHash),correlationId:safeStr(normalized.correlationId),traceId:safeStr(normalized.traceId),notificationReady:!!normalized.notificationReady,parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:safeObj(normalized.asterPassiveObservation||normalized.aster),composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,lingoLinkGatewayBridgeVersion:LINGOLINK_GATEWAY_BRIDGE_VERSION,lingoLinkGatewayAvailable:!!runLingoLinkGateway,lingoLink:safeObj(normalized.lingoLink),languageMeta:safeObj(normalized.languageMeta),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),unknownLanguageAlert:safeObj(normalized.unknownLanguageAlert),scannerHeartbeat:safeObj(normalized.scannerHeartbeat),dormantScanner:safeObj(normalized.dormantScanner),lingoLinkGatewayMeta:safeObj(normalized.lingoLinkGatewayMeta),inputHash:safeStr(normalized.inputHash),gatewayHash:safeStr(normalized.gatewayHash),stableHash:safeStr(normalized.stableHash),correlationId:safeStr(normalized.correlationId),traceId:safeStr(normalized.traceId),notificationReady:!!normalized.notificationReady,parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:safeObj(normalized.asterPassiveObservation||normalized.aster),routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}});const runtimeTelemetry=buildBridgeRuntimeTelemetry({source:"marionBridge.wrapFinal",normalized,routed,contract,reply,finalEnvelopeTrusted:true,canEmit:true,loopGuardResult,resolvedEmotionPacket});if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isThinPlaceholderText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});const bridgeFinalPacket={...envelope,ok:true,final:true,marionFinal:true,handled:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,marionFinalSignature:firstText(safeObj(envelope.meta).marionFinalSignature,safeObj(envelope.finalEnvelope).marionFinalSignature,safeObj(envelope.finalEnvelope).signature,FINAL_SIGNATURE),bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};
+function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const rawReply=extractReply(contract);if(!rawReply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||typeof finalEnvelopeMod.createMarionFinalEnvelope!=="function")return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply:rawReply,text:rawReply,spokenText:firstText(contract.spokenText,rawReply)},reason:"final_envelope_unavailable",loopGuardResult});const userText=normalized.userText||normalized.text||normalized.query||"",routing=safeObj(routed.routing),progressionRefinement=bridgeProgressionMemory(userText,rawReply,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),reply=bridgeShapeProgressionReply(userText,rawReply,progressionRefinement,{...safeObj(contract.memoryPatch),...safeObj(normalized.memory),...safeObj(routed)}),progressionTelemetry=bridgeProgressionTelemetry(userText,reply,progressionRefinement),memoryPatch={...safeObj(contract.memoryPatch),progressionRefinement,progressionTelemetry,lingoSentinel:safeObj(normalized.lingoSentinel),languageMeta:safeObj(normalized.languageMeta),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),stateBridge:{...safeObj(safeObj(contract.memoryPatch).stateBridge),progressionRefinement,progressionTelemetry},domainConcierge:compactDomainConciergeForBridge(safeObj(contract).domainConcierge||safeObj(routed).domainConcierge||routing.domainConcierge)};const envelope=finalEnvelopeMod.createMarionFinalEnvelope({reply,spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,meta:{...safeObj(contract.meta),bridgeVersion:VERSION,lingoSentinelGatewayBridgeVersion:LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,lingoSentinel:safeObj(normalized.lingoSentinel),languageMeta:safeObj(normalized.languageMeta),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),unknownLanguageAlert:safeObj(normalized.unknownLanguageAlert),scannerHeartbeat:safeObj(normalized.scannerHeartbeat),dormantScanner:safeObj(normalized.dormantScanner),lingoSentinelGatewayMeta:safeObj(normalized.lingoSentinelGatewayMeta),inputHash:safeStr(normalized.inputHash),gatewayHash:safeStr(normalized.gatewayHash),stableHash:safeStr(normalized.stableHash),correlationId:safeStr(normalized.correlationId),traceId:safeStr(normalized.traceId),notificationReady:!!normalized.notificationReady,parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:safeObj(normalized.asterPassiveObservation||normalized.aster),composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,lingoSentinelGatewayBridgeVersion:LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,lingoSentinelGatewayAvailable:!!runLingoSentinelGateway,lingoSentinel:safeObj(normalized.lingoSentinel),languageMeta:safeObj(normalized.languageMeta),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),unknownLanguageAlert:safeObj(normalized.unknownLanguageAlert),scannerHeartbeat:safeObj(normalized.scannerHeartbeat),dormantScanner:safeObj(normalized.dormantScanner),lingoSentinelGatewayMeta:safeObj(normalized.lingoSentinelGatewayMeta),inputHash:safeStr(normalized.inputHash),gatewayHash:safeStr(normalized.gatewayHash),stableHash:safeStr(normalized.stableHash),correlationId:safeStr(normalized.correlationId),traceId:safeStr(normalized.traceId),notificationReady:!!normalized.notificationReady,parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),asterBridgeVersion:ASTER_BRIDGE_VERSION,aster:safeObj(normalized.asterPassiveObservation||normalized.aster),routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}});const runtimeTelemetry=buildBridgeRuntimeTelemetry({source:"marionBridge.wrapFinal",normalized,routed,contract,reply,finalEnvelopeTrusted:true,canEmit:true,loopGuardResult,resolvedEmotionPacket});if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isThinPlaceholderText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});const bridgeFinalPacket={...envelope,ok:true,final:true,marionFinal:true,handled:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,marionFinalSignature:firstText(safeObj(envelope.meta).marionFinalSignature,safeObj(envelope.finalEnvelope).marionFinalSignature,safeObj(envelope.finalEnvelope).signature,FINAL_SIGNATURE),bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};
   return attachLanguageSphereFinalMetadata(bridgeFinalPacket,{normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:stripPublicReplyScaffold(firstText(contract.spokenText,reply))},reply,runtimeTelemetry,loopGuardResult,resolvedEmotionPacket});
 }
 async function processWithMarionUnsafe(input={}){
   let normalized=normalizeInbound(input);
   if(!normalized.ok)return buildErrorResult("input_invalid",{issues:normalized.issues},normalized);
-  const lingoLinkInbound=await runLingoLinkGatewayForBridgeSafe(normalized,input);
-  normalized={...normalized,...safeObj(lingoLinkInbound.normalizedPatch),lingoLink:{...safeObj(normalized.lingoLink),...safeObj(safeObj(lingoLinkInbound).normalizedPatch).lingoLink}};
+  const lingoSentinelInbound=await runLingoSentinelGatewayForBridgeSafe(normalized,input);
+  normalized={...normalized,...safeObj(lingoSentinelInbound.normalizedPatch),lingoSentinel:{...safeObj(normalized.lingoSentinel),...safeObj(safeObj(lingoSentinelInbound).normalizedPatch).lingoSentinel}};
   const languageSphereInbound=await normalizeLanguageSphereInboundSafe(normalized);
   normalized={...normalized,...safeObj(languageSphereInbound.normalizedPatch),languageSphere:{...safeObj(normalized.languageSphere),...safeObj(safeObj(languageSphereInbound).normalizedPatch).languageSphere}};
   const asterPassiveObservation=runAsterPassiveObservationSafe(normalized,input);
@@ -2095,7 +2101,7 @@ async function processWithMarionUnsafe(input={}){
   if(typeof composeMarionResponse!=="function")return buildErrorResult("composer_unavailable",{dependencyStatus:DEPENDENCY_STATUS.composer,hardFailure:true},normalized);
   const resolvedEmotionPacket=resolveEmotionForTurn(normalized);
   let routed=null;
-  if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,spokenAliasRecovery:safeObj(normalized.spokenAliasRecovery),phaseAnchor:safeObj(normalized.phaseAnchor),phaseAnchorInstruction:safeStr(normalized.phaseAnchorInstruction),lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,knowledgeDomain:normalized.knowledgeDomain,activeKnowledgeDomain:normalized.activeKnowledgeDomain,lastActivatedKnowledgeDomain:normalized.lastActivatedKnowledgeDomain,knowledgeDomainExplicit:normalized.knowledgeDomainExplicit,knowledgeDomainReason:normalized.knowledgeDomainReason,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent},turnId:normalized.turnId,lingoLink:safeObj(normalized.lingoLink),languageMeta:safeObj(normalized.languageMeta),lingoInput:safeObj(normalized.lingoInput),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),lingoLinkGatewayMeta:safeObj(normalized.lingoLinkGatewayMeta),aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),environmentalPathway:safeObj(normalized.environmentalPathway),parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}
+  if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,spokenAliasRecovery:safeObj(normalized.spokenAliasRecovery),phaseAnchor:safeObj(normalized.phaseAnchor),phaseAnchorInstruction:safeStr(normalized.phaseAnchorInstruction),lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,knowledgeDomain:normalized.knowledgeDomain,activeKnowledgeDomain:normalized.activeKnowledgeDomain,lastActivatedKnowledgeDomain:normalized.lastActivatedKnowledgeDomain,knowledgeDomainExplicit:normalized.knowledgeDomainExplicit,knowledgeDomainReason:normalized.knowledgeDomainReason,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent},turnId:normalized.turnId,lingoSentinel:safeObj(normalized.lingoSentinel),languageMeta:safeObj(normalized.languageMeta),lingoInput:safeObj(normalized.lingoInput),translationMeta:safeObj(normalized.translationMeta),glossaryMeta:safeObj(normalized.glossaryMeta),lingoSentinelGatewayMeta:safeObj(normalized.lingoSentinelGatewayMeta),aster:safeObj(normalized.aster),asterObservation:safeObj(normalized.asterObservation),asterPassiveObservation:safeObj(normalized.asterPassiveObservation),environmentalPathway:safeObj(normalized.environmentalPathway),parallelLaneCoordination:safeObj(normalized.parallelLaneCoordination),dualTrack:safeObj(normalized.dualTrack),coordinationTelemetry:safeObj(normalized.coordinationTelemetry),ethicalGate:safeObj(normalized.ethicalGate),riskClassification:safeObj(normalized.riskClassification),resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}
   if(!validateRouterResult(routed).ok||normalized.knowledgeDomainExplicit)routed=fallbackRoute(normalized);
   const domainConciergeRaw=runDomainConciergeSafe(normalized,routed,resolvedEmotionPacket);
   const domainConcierge=compactDomainConciergeForBridge(domainConciergeRaw);
@@ -2111,12 +2117,12 @@ async function processWithMarionUnsafe(input={}){
   let contract={};
   try{contract=await Promise.resolve(composeMarionResponse({...safeObj(routed),primaryDomain:safeStr(safeObj(routed.routing).domain||composeInput.domain),domain:safeStr(safeObj(routed.routing).domain||composeInput.domain),intent:safeStr(safeObj(routed.routing).intent||composeInput.intent),routing:safeObj(routed.routing),marionIntent:safeObj(routed.marionIntent)},composeInput));}
   catch(err){return buildErrorResult("composer_exception",{message:safeStr(err&&(err.message||err)||""),routed:safeObj(routed)},normalized);}
-  contract=applyProjectRecoveryReplyOverride(applyLingoLinkReplyOverride(safeObj(contract),{normalized,routed}),{normalized,routed});
+  contract=applyProjectRecoveryReplyOverride(applyLingoSentinelReplyOverride(safeObj(contract),{normalized,routed}),{normalized,routed});
   if(Object.keys(domainConcierge).length){contract={...safeObj(contract),domainConcierge,meta:{...safeObj(safeObj(contract).meta),domainConcierge},memoryPatch:{...safeObj(safeObj(contract).memoryPatch),domainConcierge},sessionPatch:{...safeObj(safeObj(contract).sessionPatch),domainConcierge}};}
   let composeValidation=validateComposeResult(contract);
   if(!composeValidation.ok)return buildErrorResult("composer_invalid",{issues:composeValidation.issues,composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,rawPreview:safeStr(firstText(safeObj(contract).reply,safeObj(contract).text,safeObj(contract).message)).slice(0,180)},normalized);
   contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);
-  contract=applyProjectRecoveryReplyOverride(applyLingoLinkReplyOverride(safeObj(contract),{normalized,routed}),{normalized,routed});
+  contract=applyProjectRecoveryReplyOverride(applyLingoSentinelReplyOverride(safeObj(contract),{normalized,routed}),{normalized,routed});
   let reply=extractReply(contract),loopGuardResult={ok:true,loopDetected:false,allowReply:true,forceRecovery:false,reasons:[]};
   if(loopGuardMod&&typeof loopGuardMod.applyLoopGuard==="function"){try{loopGuardResult=safeObj(loopGuardMod.applyLoopGuard({...composeInput,state:{...safeObj(composeInput.conversationState),...safeObj(normalized.commandPacket&&normalized.commandPacket.state),lastAssistantReply:safeStr(safeObj(composeInput.conversationState).lastAssistantReply||safeObj(normalized.commandPacket&&normalized.commandPacket.state).lastAssistantReply),loopCount:Number(safeObj(composeInput.conversationState).loopCount||safeObj(normalized.commandPacket&&normalized.commandPacket.state).loopCount||0)}},reply));if(loopGuardResult.forceRecovery){const recoveryContract=await Promise.resolve(composeMarionResponse({...safeObj(routed),forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons)},{...composeInput,forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons),state:{...safeObj(composeInput.conversationState),stateStage:"recover",recoveryRequired:true,loopCount:Number(safeObj(composeInput.conversationState).loopCount||0)+1,lastLoopReasons:safeArray(loopGuardResult.reasons)}}));const rv=validateComposeResult(recoveryContract);if(!rv.ok)return buildErrorResult("loop_recovery_invalid",{issues:rv.issues,loopGuard:loopGuardResult},normalized);contract=mergeEmotionIntoContract(recoveryContract,resolvedEmotionPacket);reply=extractReply(contract);}}catch(err){loopGuardResult={ok:false,loopDetected:false,allowReply:true,forceRecovery:false,reasons:["loop_guard_error"],detail:safeStr(err&&(err.message||err)||"")};}}
   if(!reply||isThinPlaceholderText(reply))return buildErrorResult("final_reply_rejected",{reason:"thin_or_placeholder_reply",loopGuard:loopGuardResult},normalized);
@@ -2166,5 +2172,5 @@ function bridgeForensicNormalizationStatus(){
   };
 }
 
-module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,LINGOLINK_GATEWAY_BRIDGE_VERSION,ASTER_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,runLingoLinkGatewayForBridgeSafe,normalizeLingoLinkGatewaySurfaceForBridge,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoLinkExplanationPrompt,isAsterExplanationPrompt,isGenericGreetingStatusFallback,buildLingoLinkPublicAnswerFromPacket,buildAsterPublicAnswerFromPacket,buildProjectGatewayPublicAnswerFromPacket,applyLingoLinkReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply,observeBridgeRuntimeSafely,runAsterPassiveObservationSafe,bridgeAsterShouldObserve,bridgeAsterBuildInput,compactAsterObservationForBridge,buildParallelCoordinationSafe,bridgeLaneRecencySummary},
+module.exports={VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,ASTER_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,runLingoSentinelGatewayForBridgeSafe,normalizeLingoSentinelGatewaySurfaceForBridge,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoSentinelExplanationPrompt,isAsterExplanationPrompt,isGenericGreetingStatusFallback,buildLingoSentinelPublicAnswerFromPacket,buildAsterPublicAnswerFromPacket,buildProjectGatewayPublicAnswerFromPacket,applyLingoSentinelReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply,observeBridgeRuntimeSafely,runAsterPassiveObservationSafe,bridgeAsterShouldObserve,bridgeAsterBuildInput,compactAsterObservationForBridge,buildParallelCoordinationSafe,bridgeLaneRecencySummary},
   FINAL_RENDER_TELEMETRY_VERSION};
