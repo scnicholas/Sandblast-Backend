@@ -1,0 +1,52 @@
+{
+  "enabled": true,
+  "gateway": {
+    "name": "LingoSentinel",
+    "phase": "entry-detection-normalization",
+    "mode": "advisory",
+    "version": "0.1.0"
+  },
+  "supportedLanguages": [
+    "en",
+    "fr",
+    "es"
+  ],
+  "defaultLanguage": "en",
+  "unknownLanguage": "unknown",
+  "confidenceThresholds": {
+    "detect": 0.65,
+    "safe": 0.8,
+    "fallback": 0.45
+  },
+  "normalization": {
+    "enabled": true,
+    "preserveOriginalInput": true,
+    "preserveAccents": true,
+    "preserveLineBreaks": true,
+    "allowSmartQuoteNormalization": true,
+    "allowWhitespaceNormalization": true,
+    "allowPunctuationSpacingNormalization": true
+  },
+  "translation": {
+    "enabled": false,
+    "advisoryOnly": true,
+    "forceTranslation": false
+  },
+  "authority": {
+    "finalAuthority": "Marion",
+    "lingosentinelAdvisoryOnly": true,
+    "neverOverrideMarion": true
+  },
+  "fallback": {
+    "unknownLanguageFallback": true,
+    "emptyInputFallback": true,
+    "lowConfidenceFallback": true,
+    "safeReason": "LingoSentinel could not confidently detect a supported language."
+  },
+  "telemetry": {
+    "enabled": true,
+    "includeCandidates": true,
+    "includeOperations": true,
+    "includeConfidence": true
+  }
+}
