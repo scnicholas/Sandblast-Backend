@@ -34,7 +34,7 @@
   },
   "authority": {
     "finalAuthority": "Marion",
-    "lingosentinelAdvisoryOnly": true,
+    "lingoSentinelAdvisoryOnly": true,
     "neverOverrideMarion": true
   },
   "fallback": {
