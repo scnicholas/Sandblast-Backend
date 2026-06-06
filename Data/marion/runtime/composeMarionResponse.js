@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.7 MARION-LINGOLINK-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + LINGOLINK-GATEWAY-COMPOSER-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY";
+const VERSION = "composeMarionResponse v3.36.7 MARION-LINGOLINK-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + LINGOLINK-GATEWAY-COMPOSER-PASSTHROUGH + LINGOLINK-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -97,6 +97,9 @@ const BLOCKED_LOOP_PATTERNS = Object.freeze([
   /\bthe direct answer needs one usable example\b/i,
   /\bin practical terms, define the concept\b/i,
   /\bone concrete use case so the user can apply it immediately\b/i,
+  /\bbridge blocked an invalid public reply\b/i,
+  /\bexposing a runtime value\b/i,
+  /\banswer from the active lane\b/i,
 ]);
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
@@ -966,7 +969,7 @@ function buildFailureSignatureAudit(fields={}){
   };
 }
 function isTelemetryLeakText(value=""){
-  return /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final|languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|compatibilityRoute|compatibilityHealth|stack trace|TypeError|ReferenceError|SyntaxError)\b/i.test(telemetryAuditText(value));
+  return /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final|languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|compatibilityRoute|compatibilityHealth|stack trace|TypeError|ReferenceError|SyntaxError|bridge blocked an invalid public reply|exposing a runtime value|answer from the active lane)\b/i.test(telemetryAuditText(value));
 }
 function stripTelemetryLeakFromReply(value=""){
   const text=telemetryAuditText(value);
@@ -1555,7 +1558,33 @@ function translatePublicDiagnosticReply(reply="",intent="",text="",input={},rout
 }
 
 
+function buildDeterministicLastMilePublicReplyFromText(value=""){
+  const source=safeStr(value);
+  if(!source)return "";
+  if(/\bsandblast\s+channel\b/i.test(source))return "Sandblast Channel is a media and AI interface ecosystem built around chat, radio, video, news, and multilingual support through Nyx and Marion.";
+  const target=/\b(?:into|to|in)\s+french\b|\bfrançais\b|\bfrancais\b/i.test(source)?"fr":(/\b(?:into|to|in)\s+spanish\b|\bespañol\b|\bespanol\b/i.test(source)?"es":(/\b(?:into|to|in)\s+english\b/i.test(source)?"en":""));
+  if(/\btranslate\b|\bhow do you say\b|\bsay .* in\b/i.test(source)){
+    if(target==="fr"&&/\bgood morning\b/i.test(source))return "Good morning in French is: Bonjour.";
+    if(target==="es"&&/\bgood morning\b/i.test(source))return "Good morning in Spanish is: Buenos días.";
+    if(target==="en"&&/\bbonjour\b/i.test(source))return "Bonjour means hello in English.";
+    if(target==="en"&&/\bhola\b/i.test(source))return "Hola means hello in English.";
+    if(target==="fr")return "I can translate that into French, but I need the exact phrase to keep the answer accurate.";
+    if(target==="es")return "I can translate that into Spanish, but I need the exact phrase to keep the answer accurate.";
+    if(target==="en")return "I can translate that into English, but I need the exact phrase to keep the answer accurate.";
+  }
+  if(/\bbonjour\b/i.test(source)&&/\bcomment allez[- ]?vous\b/i.test(source))return "Bonjour, comment allez-vous? means: Hello, how are you?";
+  if(/\bhola\b/i.test(source)&&/\bc[oó]mo est[aá]s\b/i.test(source))return "Hola, ¿cómo estás? means: Hello, how are you?";
+  if(/\badapt\b/i.test(source)&&/\bfrench audience\b/i.test(source))return "For a French audience, keep the message clear, polished, and culturally respectful while preserving the original intent.";
+  if(/\bteach me\b|\blearn\b/i.test(source)){
+    if(/\bthank you\b/i.test(source)&&/\bspanish\b/i.test(source))return "Thank you in Spanish is: Gracias.";
+    if(/\bthank you\b/i.test(source)&&/\bfrench\b/i.test(source))return "Thank you in French is: Merci.";
+  }
+  return "";
+}
+
 function buildFinalLoopRecoveryReply(intent,text,input={}){
+  const deterministic=buildDeterministicLastMilePublicReplyFromText(text||safeObj(input).rawUserText||safeObj(input).userText||safeObj(input).message||safeObj(input).query);
+  if(deterministic)return deterministic;
   if(isWarmSocialTurn(text))return buildWarmSocialReply(text,input);
   if(intent==="technical_debug"||/\b(loop|looping|debug|test|fallback|technical|route|bridge|composer|chat engine|state spine|api|backend|frontend|final envelope)\b/i.test(lower(text))){
     return technicalReply(text,input);
