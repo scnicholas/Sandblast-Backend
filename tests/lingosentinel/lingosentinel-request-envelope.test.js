@@ -1,102 +1,113 @@
-'use strict';
+"use strict";
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+/**
+ * LingoSentinel Request Envelope Test
+ *
+ * Jest-compatible conversion.
+ *
+ * Purpose:
+ * - Verifies request envelope creation.
+ * - Verifies defaults for mode/domain.
+ * - Verifies tone/intent preservation flags.
+ * - Verifies validation behavior.
+ */
 
 const {
   MODES,
   DOMAINS,
   createLingoSentinelRequestEnvelope,
   validateLingoSentinelRequestEnvelope
-} = require('../../Data/marion/runtime/LingoSentinel/LingoSentinelRequestEnvelope');
+} = require("../../Data/marion/runtime/LingoSentinel/LingoSentinelRequestEnvelope");
 
-test('creates valid LingoSentinel request envelope', () => {
-  const envelope = createLingoSentinelRequestEnvelope({
-    requestId: 'ls_req_1',
-    text: 'Translate hello into French.',
-    sourceLanguage: 'en',
-    targetLanguage: 'fr',
-    mode: 'translate',
-    domain: 'general'
+describe("LingoSentinel Request Envelope", () => {
+  test("creates valid LingoSentinel request envelope", () => {
+    const envelope = createLingoSentinelRequestEnvelope({
+      requestId: "ls_req_1",
+      text: "Translate hello into French.",
+      sourceLanguage: "en",
+      targetLanguage: "fr",
+      mode: "translate",
+      domain: "general"
+    });
+
+    expect(envelope.ok).toBe(true);
+    expect(envelope.requestId).toBe("ls_req_1");
+    expect(envelope.gateway).toBe("marion-lingosentinel");
+    expect(envelope.text).toBe("Translate hello into French.");
+    expect(envelope.sourceLanguage).toBe("en");
+    expect(envelope.targetLanguage).toBe("fr");
+    expect(envelope.mode).toBe(MODES.TRANSLATE);
+    expect(envelope.domain).toBe(DOMAINS.GENERAL);
+    expect(envelope.requiresMarionReview).toBe(true);
   });
 
-  assert.equal(envelope.ok, true);
-  assert.equal(envelope.requestId, 'ls_req_1');
-  assert.equal(envelope.gateway, 'marion-lingosentinel');
-  assert.equal(envelope.text, 'Translate hello into French.');
-  assert.equal(envelope.sourceLanguage, 'en');
-  assert.equal(envelope.targetLanguage, 'fr');
-  assert.equal(envelope.mode, MODES.TRANSLATE);
-  assert.equal(envelope.domain, DOMAINS.GENERAL);
-  assert.equal(envelope.requiresMarionReview, true);
-});
+  test("defaults missing mode to translate", () => {
+    const envelope = createLingoSentinelRequestEnvelope({
+      text: "Hello",
+      sourceLanguage: "en",
+      targetLanguage: "fr",
+      mode: "unsupported-mode"
+    });
 
-test('defaults missing mode to translate', () => {
-  const envelope = createLingoSentinelRequestEnvelope({
-    text: 'Hello',
-    sourceLanguage: 'en',
-    targetLanguage: 'fr',
-    mode: 'unsupported-mode'
+    expect(envelope.mode).toBe(MODES.TRANSLATE);
   });
 
-  assert.equal(envelope.mode, MODES.TRANSLATE);
-});
+  test("defaults missing domain to general", () => {
+    const envelope = createLingoSentinelRequestEnvelope({
+      text: "Hello",
+      sourceLanguage: "en",
+      targetLanguage: "fr",
+      domain: "unknown-domain"
+    });
 
-test('defaults missing domain to general', () => {
-  const envelope = createLingoSentinelRequestEnvelope({
-    text: 'Hello',
-    sourceLanguage: 'en',
-    targetLanguage: 'fr',
-    domain: 'unknown-domain'
+    expect(envelope.domain).toBe(DOMAINS.GENERAL);
   });
 
-  assert.equal(envelope.domain, DOMAINS.GENERAL);
-});
+  test("preserves tone and intent by default", () => {
+    const envelope = createLingoSentinelRequestEnvelope({
+      text: "Hello"
+    });
 
-test('preserves tone and intent by default', () => {
-  const envelope = createLingoSentinelRequestEnvelope({
-    text: 'Hello'
+    expect(envelope.preserveTone).toBe(true);
+    expect(envelope.preserveIntent).toBe(true);
   });
 
-  assert.equal(envelope.preserveTone, true);
-  assert.equal(envelope.preserveIntent, true);
-});
+  test("allows preserveTone and preserveIntent to be disabled explicitly", () => {
+    const envelope = createLingoSentinelRequestEnvelope({
+      text: "Hello",
+      preserveTone: false,
+      preserveIntent: false
+    });
 
-test('allows preserveTone and preserveIntent to be disabled explicitly', () => {
-  const envelope = createLingoSentinelRequestEnvelope({
-    text: 'Hello',
-    preserveTone: false,
-    preserveIntent: false
+    expect(envelope.preserveTone).toBe(false);
+    expect(envelope.preserveIntent).toBe(false);
   });
 
-  assert.equal(envelope.preserveTone, false);
-  assert.equal(envelope.preserveIntent, false);
-});
+  test("validates correct request envelope", () => {
+    const envelope = createLingoSentinelRequestEnvelope({
+      text: "Translate hello.",
+      sourceLanguage: "en",
+      targetLanguage: "fr",
+      mode: "translate"
+    });
 
-test('validates correct request envelope', () => {
-  const envelope = createLingoSentinelRequestEnvelope({
-    text: 'Translate hello.',
-    sourceLanguage: 'en',
-    targetLanguage: 'fr',
-    mode: 'translate'
+    const validation = validateLingoSentinelRequestEnvelope(envelope);
+
+    expect(validation.ok).toBe(true);
+    expect(validation.errors).toEqual([]);
   });
 
-  const validation = validateLingoSentinelRequestEnvelope(envelope);
+  test("rejects envelope without text", () => {
+    const envelope = createLingoSentinelRequestEnvelope({
+      text: "",
+      sourceLanguage: "en",
+      targetLanguage: "fr",
+      mode: "translate"
+    });
 
-  assert.equal(validation.ok, true);
-  assert.deepEqual(validation.errors, []);
-});
+    const validation = validateLingoSentinelRequestEnvelope(envelope);
 
-test('rejects envelope without text', () => {
-  const envelope = createLingoSentinelRequestEnvelope({
-    text: '',
-    sourceLanguage: 'en',
-    targetLanguage: 'fr',
-    mode: 'translate'
+    expect(validation.ok).toBe(false);
+    expect(validation.errors).toContain("Envelope text is required.");
   });
-
-  const validation = validateLingoSentinelRequestEnvelope(envelope);
-
-  assert.equal(validation.ok, false);
-  assert.ok(validation.errors.includes('Envelope text is required.'));
 });
