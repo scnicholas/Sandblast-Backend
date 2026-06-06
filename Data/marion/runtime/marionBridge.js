@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.5 MARION-LINGOLINK-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOLINK-GATEWAY-ORCHESTRATION-BRIDGE + LINGOLINK-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY";
+const VERSION = "marionBridge v7.9.5 MARION-LINGOLINK-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOLINK-MULTILINGUAL-FALSE-SUPPRESSION + LINGOLINK-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOLINK-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOLINK-GATEWAY-ORCHESTRATION-BRIDGE + LINGOLINK-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -1435,7 +1435,13 @@ function readPublicReplyCandidate(packet={}){
 function isInvalidPublicReplyValue(value){
   if(value===false||value===true||value==null)return true;
   const text=safeStr(value).replace(/[.!?]+$/g,"").trim().toLowerCase();
-  return !text||/^(?:false|true|null|undefined|none|nan|\[object object\])$/.test(text)||isDiagnosticText(text)||isTelemetryLeakText(text)||isPublicControlPolicyLeak(text);
+  return !text||
+    /^(?:false|true|null|undefined|none|nan|\[object object\])$/.test(text)||
+    /\bi can answer that directly\.?\s*send the prompt again\b/i.test(text)||
+    /\bkeep the reply clean,?\s*public[- ]facing,?\s*and free of runtime details\b/i.test(text)||
+    isDiagnosticText(text)||
+    isTelemetryLeakText(text)||
+    isPublicControlPolicyLeak(text);
 }
 function buildDeterministicLastMilePublicReplyFromText(text=""){
   const source=safeStr(text);
@@ -1464,11 +1470,31 @@ function buildDeterministicLastMilePublicReplyFromText(text=""){
   return "";
 }
 
-function buildPrimitiveReplyRecovery(normalized={}){
+function collectPrimitiveRecoverySource(normalized={},packet={}){
+  const n=safeObj(normalized);
+  const p=safeObj(packet);
+  const np=safeObj(n.payload), nb=safeObj(n.body), nm=safeObj(n.meta), ni=safeObj(n.input);
+  const pp=safeObj(p.payload), pb=safeObj(p.body), pm=safeObj(p.meta), pi=safeObj(p.input), fe=safeObj(p.finalEnvelope);
+  return [
+    n.userQuery,n.publicUserQuery,n.rawUserQuery,n.originalUserText,n.originalText,n.rawUserText,n.message,n.text,n.query,
+    np.userQuery,np.publicUserQuery,np.rawUserQuery,np.originalUserText,np.originalText,np.rawUserText,np.message,np.text,np.query,
+    nb.userQuery,nb.publicUserQuery,nb.rawUserQuery,nb.originalUserText,nb.originalText,nb.rawUserText,nb.message,nb.text,nb.query,
+    nm.userQuery,nm.publicUserQuery,nm.rawUserQuery,nm.originalUserText,nm.originalText,nm.rawUserText,nm.message,nm.text,nm.query,
+    ni.userQuery,ni.publicUserQuery,ni.rawUserQuery,ni.originalUserText,ni.originalText,ni.rawUserText,ni.message,ni.text,ni.query,
+    p.userQuery,p.publicUserQuery,p.rawUserQuery,p.originalUserText,p.originalText,p.rawUserText,p.userText,p.message,p.query,
+    pp.userQuery,pp.publicUserQuery,pp.rawUserQuery,pp.originalUserText,pp.originalText,pp.rawUserText,pp.userText,pp.message,pp.query,
+    pb.userQuery,pb.publicUserQuery,pb.rawUserQuery,pb.originalUserText,pb.originalText,pb.rawUserText,pb.userText,pb.message,pb.query,
+    pm.userQuery,pm.publicUserQuery,pm.rawUserQuery,pm.originalUserText,pm.originalText,pm.rawUserText,pm.userText,pm.message,pm.query,
+    pi.userQuery,pi.publicUserQuery,pi.rawUserQuery,pi.originalUserText,pi.originalText,pi.rawUserText,pi.userText,pi.message,pi.query,
+    fe.userQuery,fe.publicUserQuery,fe.rawUserQuery,fe.originalUserText,fe.originalText,fe.rawUserText,fe.userText,fe.message,fe.query
+  ].map(safeStr).filter(Boolean).join(" ");
+}
+
+function buildPrimitiveReplyRecovery(normalized={},packet={}){
   const n=safeObj(normalized);
   const projectRecovery=buildProjectRecoveryReply(n);
   if(projectRecovery)return projectRecovery;
-  const text=firstText(n.userQuery,n.publicUserQuery,n.rawUserQuery,n.originalUserText,n.message,n.text,n.query);
+  const text=collectPrimitiveRecoverySource(n,packet);
   const deterministic=buildDeterministicLastMilePublicReplyFromText(text);
   if(deterministic)return deterministic;
   if(isLanguageSphereNextStepsRequest(text)){
@@ -1477,7 +1503,7 @@ function buildPrimitiveReplyRecovery(normalized={}){
   if(safeArray(safeObj(n.spokenAliasRecovery).hits).some((h)=>["LanguageSphere","LingoLink"].includes(safeStr(safeObj(h).canonical)))){
     return "I’m tracking LanguageSphere and LingoLink. The next step is to verify spoken alias recovery, phase anchoring, and mic/text parity before moving the stable language components forward.";
   }
-  return "I can answer that directly. Send the prompt again, and I’ll keep the reply clean, public-facing, and free of runtime details.";
+  return "I can answer that directly with a clean public reply, but I need the original prompt preserved on this turn.";
 }
 function applyReplyEverywhere(packet={},reply="",flags={}){
   const out=isObj(packet)?packet:{};
@@ -1498,8 +1524,8 @@ function enforceValidPublicReply(packet={},ctx={}){
   if(!isInvalidPublicReplyValue(candidate)&&!isThinPlaceholderText(candidate)&&!isBroadLanguageClarifier(candidate)){
     return applyReplyEverywhere(out,candidate,{publicReplyHardlock:true});
   }
-  const recovery=buildPrimitiveReplyRecovery(normalized);
-  return applyReplyEverywhere(out,recovery,{primitivePublicReplyRecovered:true,publicReplyHardlock:true});
+  const recovery=buildPrimitiveReplyRecovery(normalized,out);
+  return applyReplyEverywhere(out,recovery,{primitivePublicReplyRecovered:true,publicReplyHardlock:true,deterministicOriginalPromptRecovery:!!buildDeterministicLastMilePublicReplyFromText(collectPrimitiveRecoverySource(normalized,out))});
 }
 
 
