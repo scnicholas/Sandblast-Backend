@@ -5,9 +5,15 @@
  *
  * Connects the Marion ↔ LingoLink gateway to the existing translation stack.
  *
- * This file is intentionally defensive:
- * - It attempts to use existing LanguageSphere / Universal Translator files.
- * - If those files are absent or shaped differently, it falls back safely.
+ * Current runtime placement:
+ * - This file lives in Data/marion/runtime.
+ * - LingoLink/LanguageSphere support files currently live beside it.
+ *
+ * Design rules:
+ * - Normalize detector output before it reaches Marion.
+ * - Never leak provider-specific object shapes downstream.
+ * - Prefer existing UniversalTranslatorAdapter / LocalTranslationProvider when available.
+ * - Fall back safely without crashing Marion.
  * - Marion still reviews every response through the authority guard.
  */
 
@@ -30,8 +36,107 @@ const LanguageDetect = optionalRequire('./LanguageDetect');
 const TranslationGlossary = optionalRequire('./TranslationGlossary');
 const TranslationMemoryStore = optionalRequire('./TranslationMemoryStore');
 
+const SUPPORTED_LANGUAGE_CODES = new Set(['auto', 'en', 'fr', 'es']);
+
 function normalizeText(value) {
   return String(value || '').trim();
+}
+
+function clampConfidence(value, fallback = 0.75) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.min(1, number));
+}
+
+function uniqueWarnings(warnings = []) {
+  const seen = new Set();
+  const clean = [];
+
+  for (const warning of warnings) {
+    const value = normalizeText(warning);
+
+    if (!value || seen.has(value)) continue;
+
+    seen.add(value);
+    clean.push(value);
+  }
+
+  return clean;
+}
+
+function normalizeLanguageCode(code, fallback = 'auto') {
+  const value = normalizeText(code).toLowerCase();
+
+  if (!value) return fallback;
+
+  const aliases = {
+    english: 'en',
+    anglais: 'en',
+    ingles: 'en',
+    inglés: 'en',
+
+    french: 'fr',
+    francais: 'fr',
+    français: 'fr',
+    frances: 'fr',
+    francés: 'fr',
+
+    spanish: 'es',
+    espanol: 'es',
+    español: 'es',
+    espagnol: 'es'
+  };
+
+  const normalized = aliases[value] || value;
+
+  if (SUPPORTED_LANGUAGE_CODES.has(normalized)) {
+    return normalized;
+  }
+
+  return normalized.length >= 2 && normalized.length <= 8
+    ? normalized
+    : fallback;
+}
+
+function extractLanguageCode(result, fallback = 'auto') {
+  if (!result) return fallback;
+
+  if (typeof result === 'string') {
+    return normalizeLanguageCode(result, fallback);
+  }
+
+  if (typeof result === 'object') {
+    return normalizeLanguageCode(
+      result.language ||
+      result.lang ||
+      result.code ||
+      result.detectedLanguage ||
+      result.sourceLanguage ||
+      result.locale ||
+      result.id,
+      fallback
+    );
+  }
+
+  return fallback;
+}
+
+function extractLanguageConfidence(result, fallback = 0.75) {
+  if (!result || typeof result !== 'object') {
+    return fallback;
+  }
+
+  return clampConfidence(
+    result.confidence ||
+    result.score ||
+    result.probability ||
+    result.certainty,
+    fallback
+  );
 }
 
 function simpleDetectLanguage(text) {
@@ -39,41 +144,74 @@ function simpleDetectLanguage(text) {
 
   if (!value) return 'auto';
 
-  if (/[ñáéíóú¿¡]/i.test(value) || /\b(hola|gracias|cómo|qué|dónde|usted|español)\b/i.test(value)) {
+  if (/[ñáéíóú¿¡]/i.test(value) || /\b(hola|gracias|cómo|qué|dónde|usted|ustedes|español|porque)\b/i.test(value)) {
     return 'es';
   }
 
-  if (/[àâçéèêëîïôûùüÿ]/i.test(value) || /\b(bonjour|merci|comment|pourquoi|vous|français)\b/i.test(value)) {
+  if (/[àâçéèêëîïôûùüÿ]/i.test(value) || /\b(bonjour|merci|comment|pourquoi|vous|nous|français|avec|est-ce)\b/i.test(value)) {
     return 'fr';
   }
 
   return 'en';
 }
 
-async function detectLanguage(text) {
+async function detectLanguageDetailed(text) {
   const value = normalizeText(text);
+  const fallbackLanguage = simpleDetectLanguage(value);
 
-  if (!value) return 'auto';
+  if (!value) {
+    return {
+      language: 'auto',
+      confidence: 0,
+      provider: 'none',
+      raw: null,
+      warning: 'Empty text cannot be language-detected.'
+    };
+  }
 
   try {
     if (LanguageDetect) {
+      let raw = null;
+      let provider = 'LanguageDetect';
+
       if (typeof LanguageDetect.detectLanguage === 'function') {
-        return await LanguageDetect.detectLanguage(value);
+        raw = await LanguageDetect.detectLanguage(value);
+      } else if (typeof LanguageDetect.detect === 'function') {
+        raw = await LanguageDetect.detect(value);
+      } else if (typeof LanguageDetect === 'function') {
+        raw = await LanguageDetect(value);
       }
 
-      if (typeof LanguageDetect.detect === 'function') {
-        return await LanguageDetect.detect(value);
-      }
-
-      if (typeof LanguageDetect === 'function') {
-        return await LanguageDetect(value);
+      if (raw !== null && raw !== undefined) {
+        return {
+          language: extractLanguageCode(raw, fallbackLanguage),
+          confidence: extractLanguageConfidence(raw, fallbackLanguage === 'auto' ? 0 : 0.78),
+          provider,
+          raw
+        };
       }
     }
   } catch (error) {
-    return simpleDetectLanguage(value);
+    return {
+      language: fallbackLanguage,
+      confidence: fallbackLanguage === 'auto' ? 0 : 0.62,
+      provider: 'simple-detector',
+      raw: null,
+      warning: `LanguageDetect failed: ${error.message}`
+    };
   }
 
-  return simpleDetectLanguage(value);
+  return {
+    language: fallbackLanguage,
+    confidence: fallbackLanguage === 'auto' ? 0 : 0.68,
+    provider: 'simple-detector',
+    raw: null
+  };
+}
+
+async function detectLanguage(text) {
+  const detail = await detectLanguageDetailed(text);
+  return detail.language;
 }
 
 function applyGlossary(text, requestEnvelope = {}) {
@@ -98,13 +236,17 @@ function applyGlossary(text, requestEnvelope = {}) {
         const result = TranslationGlossary.apply(output, requestEnvelope);
         output = normalizeText(result && result.text ? result.text : result || output);
         glossaryUsed = true;
+      } else if (typeof TranslationGlossary.replace === 'function') {
+        const result = TranslationGlossary.replace(output, requestEnvelope);
+        output = normalizeText(result && result.text ? result.text : result || output);
+        glossaryUsed = true;
       }
     }
   } catch (error) {
     return {
       text: output,
       glossaryUsed: false,
-      warning: 'Glossary application failed.'
+      warning: `Glossary application failed: ${error.message}`
     };
   }
 
@@ -124,6 +266,10 @@ async function readTranslationMemory(requestEnvelope = {}) {
 
     if (typeof TranslationMemoryStore.get === 'function') {
       return await TranslationMemoryStore.get(requestEnvelope);
+    }
+
+    if (typeof TranslationMemoryStore.find === 'function') {
+      return await TranslationMemoryStore.find(requestEnvelope);
     }
   } catch (error) {
     return null;
@@ -145,11 +291,70 @@ async function writeTranslationMemory(requestEnvelope = {}, responseEnvelope = {
       await TranslationMemoryStore.set(requestEnvelope, responseEnvelope);
       return true;
     }
+
+    if (typeof TranslationMemoryStore.save === 'function') {
+      await TranslationMemoryStore.save(requestEnvelope, responseEnvelope);
+      return true;
+    }
   } catch (error) {
     return false;
   }
 
   return false;
+}
+
+function normalizeTranslationResult(result, provider) {
+  if (!result) {
+    return {
+      ok: false,
+      text: '',
+      translatedText: '',
+      adaptedText: '',
+      confidence: 0,
+      provider,
+      warnings: [`${provider} returned no result.`]
+    };
+  }
+
+  if (typeof result === 'string') {
+    const text = normalizeText(result);
+
+    return {
+      ok: Boolean(text),
+      text,
+      translatedText: text,
+      adaptedText: '',
+      confidence: 0.72,
+      provider,
+      warnings: []
+    };
+  }
+
+  const warnings = Array.isArray(result.warnings)
+    ? result.warnings
+    : result.warning
+      ? [result.warning]
+      : [];
+
+  const text = normalizeText(
+    result.finalText ||
+    result.translatedText ||
+    result.adaptedText ||
+    result.text ||
+    result.output ||
+    result.result
+  );
+
+  return {
+    ok: result.ok !== false && Boolean(text),
+    text,
+    translatedText: normalizeText(result.translatedText || result.translation || text),
+    adaptedText: normalizeText(result.adaptedText || result.localizedText || ''),
+    confidence: clampConfidence(result.confidence, 0.76),
+    provider: result.provider || provider,
+    warnings: uniqueWarnings(warnings),
+    metadata: result.metadata || {}
+  };
 }
 
 async function callUniversalTranslator(requestEnvelope = {}) {
@@ -159,9 +364,10 @@ async function callUniversalTranslator(requestEnvelope = {}) {
     return {
       ok: false,
       text: '',
+      translatedText: '',
       confidence: 0,
       provider: 'none',
-      warning: 'No text provided for translation.'
+      warnings: ['No text provided for translation.']
     };
   }
 
@@ -175,7 +381,9 @@ async function callUniversalTranslator(requestEnvelope = {}) {
           mode: requestEnvelope.mode,
           domain: requestEnvelope.domain,
           preserveTone: requestEnvelope.preserveTone,
-          preserveIntent: requestEnvelope.preserveIntent
+          preserveIntent: requestEnvelope.preserveIntent,
+          glossaryHints: requestEnvelope.glossaryHints || [],
+          metadata: requestEnvelope.metadata || {}
         });
 
         return normalizeTranslationResult(result, 'UniversalTranslatorAdapter');
@@ -183,6 +391,11 @@ async function callUniversalTranslator(requestEnvelope = {}) {
 
       if (typeof UniversalTranslatorAdapter.process === 'function') {
         const result = await UniversalTranslatorAdapter.process(requestEnvelope);
+        return normalizeTranslationResult(result, 'UniversalTranslatorAdapter');
+      }
+
+      if (typeof UniversalTranslatorAdapter.run === 'function') {
+        const result = await UniversalTranslatorAdapter.run(requestEnvelope);
         return normalizeTranslationResult(result, 'UniversalTranslatorAdapter');
       }
 
@@ -195,9 +408,10 @@ async function callUniversalTranslator(requestEnvelope = {}) {
     return {
       ok: false,
       text: '',
+      translatedText: '',
       confidence: 0,
       provider: 'UniversalTranslatorAdapter',
-      warning: `UniversalTranslatorAdapter failed: ${error.message}`
+      warnings: [`UniversalTranslatorAdapter failed: ${error.message}`]
     };
   }
 
@@ -218,71 +432,39 @@ async function callUniversalTranslator(requestEnvelope = {}) {
         const result = await LocalTranslationProvider.process(requestEnvelope);
         return normalizeTranslationResult(result, 'LocalTranslationProvider');
       }
+
+      if (typeof LocalTranslationProvider.run === 'function') {
+        const result = await LocalTranslationProvider.run(requestEnvelope);
+        return normalizeTranslationResult(result, 'LocalTranslationProvider');
+      }
     }
   } catch (error) {
     return {
       ok: false,
       text: '',
+      translatedText: '',
       confidence: 0,
       provider: 'LocalTranslationProvider',
-      warning: `LocalTranslationProvider failed: ${error.message}`
+      warnings: [`LocalTranslationProvider failed: ${error.message}`]
     };
   }
 
   return localFallbackTranslate(requestEnvelope);
 }
 
-function normalizeTranslationResult(result, provider) {
-  if (!result) {
-    return {
-      ok: false,
-      text: '',
-      confidence: 0,
-      provider,
-      warning: `${provider} returned no result.`
-    };
-  }
-
-  if (typeof result === 'string') {
-    return {
-      ok: Boolean(normalizeText(result)),
-      text: normalizeText(result),
-      confidence: 0.72,
-      provider
-    };
-  }
-
-  const text = normalizeText(
-    result.finalText ||
-    result.translatedText ||
-    result.adaptedText ||
-    result.text ||
-    result.output
-  );
-
-  return {
-    ok: result.ok !== false && Boolean(text),
-    text,
-    translatedText: normalizeText(result.translatedText || text),
-    adaptedText: normalizeText(result.adaptedText),
-    confidence: Number.isFinite(Number(result.confidence)) ? Number(result.confidence) : 0.76,
-    provider: result.provider || provider,
-    warnings: Array.isArray(result.warnings) ? result.warnings : []
-  };
-}
-
 function localFallbackTranslate(requestEnvelope = {}) {
   const text = normalizeText(requestEnvelope.text);
-  const source = requestEnvelope.sourceLanguage || 'auto';
-  const target = requestEnvelope.targetLanguage || 'en';
+  const source = normalizeLanguageCode(requestEnvelope.sourceLanguage || 'auto', 'auto');
+  const target = normalizeLanguageCode(requestEnvelope.targetLanguage || 'en', 'en');
 
   if (!text) {
     return {
       ok: false,
       text: '',
+      translatedText: '',
       confidence: 0,
       provider: 'local-fallback',
-      warning: 'Empty fallback translation input.'
+      warnings: ['Empty fallback translation input.']
     };
   }
 
@@ -320,9 +502,10 @@ function adaptText(text, requestEnvelope = {}) {
   }
 
   /**
-   * This is intentionally conservative.
-   * True cultural adaptation should be handled by a stronger provider later.
-   * For now, we preserve content and lightly normalize spacing.
+   * Conservative adaptation pass:
+   * - Normalize spacing.
+   * - Preserve content.
+   * - Avoid inventing cultural meaning without a stronger adaptation provider.
    */
   return value
     .replace(/\s+/g, ' ')
@@ -337,8 +520,18 @@ function explainLanguageLearning(text, requestEnvelope = {}) {
   return [
     value,
     '',
-    'Language note: LingoLink can route this as a learning request, but Marion should provide the final explanation, examples, and confidence boundaries.'
+    'Language note: LingoLink routed this as a learning request. Marion should provide the final explanation, examples, and confidence boundaries.'
   ].join('\n');
+}
+
+function getMemoryFinalText(memoryHit = {}) {
+  return normalizeText(
+    memoryHit.finalText ||
+    memoryHit.translatedText ||
+    memoryHit.adaptedText ||
+    memoryHit.text ||
+    memoryHit.output
+  );
 }
 
 async function processLingoLinkRequest(requestEnvelope = {}) {
@@ -351,25 +544,38 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
     if (!text) {
       return createLingoLinkFallbackResponse({
         requestId: requestEnvelope.requestId,
-        sourceLanguage: requestEnvelope.sourceLanguage,
-        targetLanguage: requestEnvelope.targetLanguage,
+        sourceLanguage: normalizeLanguageCode(requestEnvelope.sourceLanguage || 'auto', 'auto'),
+        targetLanguage: normalizeLanguageCode(requestEnvelope.targetLanguage || 'en', 'en'),
         mode: requestEnvelope.mode,
         reason: 'LingoLink received empty text.'
       });
     }
 
-    const detectedLanguage = requestEnvelope.sourceLanguage === 'auto'
-      ? await detectLanguage(text)
-      : requestEnvelope.sourceLanguage;
+    const detectionDetail = requestEnvelope.sourceLanguage === 'auto'
+      ? await detectLanguageDetailed(text)
+      : {
+          language: normalizeLanguageCode(requestEnvelope.sourceLanguage, 'auto'),
+          confidence: 1,
+          provider: 'provided-source-language',
+          raw: requestEnvelope.sourceLanguage
+        };
+
+    if (detectionDetail.warning) {
+      warnings.push(detectionDetail.warning);
+    }
+
+    const detectedLanguage = normalizeLanguageCode(detectionDetail.language, 'auto');
 
     const enrichedRequest = {
       ...requestEnvelope,
-      sourceLanguage: detectedLanguage || requestEnvelope.sourceLanguage || 'auto'
+      sourceLanguage: detectedLanguage || normalizeLanguageCode(requestEnvelope.sourceLanguage || 'auto', 'auto'),
+      targetLanguage: normalizeLanguageCode(requestEnvelope.targetLanguage || 'en', 'en')
     };
 
     const memoryHit = await readTranslationMemory(enrichedRequest);
+    const memoryFinalText = memoryHit ? getMemoryFinalText(memoryHit) : '';
 
-    if (memoryHit && memoryHit.finalText) {
+    if (memoryHit && memoryFinalText) {
       return createLingoLinkResponseEnvelope({
         ok: true,
         requestId: enrichedRequest.requestId,
@@ -378,14 +584,17 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
         targetLanguage: enrichedRequest.targetLanguage,
         mode: enrichedRequest.mode,
         normalizedText: text,
-        translatedText: memoryHit.translatedText || memoryHit.finalText,
-        adaptedText: memoryHit.adaptedText || '',
-        finalText: memoryHit.finalText,
-        confidence: memoryHit.confidence || 0.86,
+        translatedText: normalizeText(memoryHit.translatedText || memoryFinalText),
+        adaptedText: normalizeText(memoryHit.adaptedText || ''),
+        finalText: memoryFinalText,
+        confidence: clampConfidence(memoryHit.confidence, 0.86),
+        warnings: uniqueWarnings(warnings),
         memoryUsed: true,
         provider: 'TranslationMemoryStore',
         metadata: {
-          latencyMs: Date.now() - startedAt
+          latencyMs: Date.now() - startedAt,
+          detectorProvider: detectionDetail.provider,
+          detectorConfidence: detectionDetail.confidence
         }
       });
     }
@@ -402,10 +611,12 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
         translatedText: text,
         adaptedText: '',
         finalText: `Detected language: ${detectedLanguage}`,
-        confidence: 0.8,
-        provider: 'LanguageDetect',
+        confidence: clampConfidence(detectionDetail.confidence, 0.8),
+        warnings: uniqueWarnings(warnings),
+        provider: detectionDetail.provider || 'LanguageDetect',
         metadata: {
-          latencyMs: Date.now() - startedAt
+          latencyMs: Date.now() - startedAt,
+          detectorConfidence: detectionDetail.confidence
         }
       });
     }
@@ -420,7 +631,11 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
       warnings.push(translationResult.warning);
     }
 
-    const translatedText = normalizeText(translationResult.translatedText || translationResult.text || text);
+    const translatedText = normalizeText(
+      translationResult.translatedText ||
+      translationResult.text ||
+      text
+    );
 
     const glossaryResult = applyGlossary(translatedText, enrichedRequest);
 
@@ -428,7 +643,7 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
       warnings.push(glossaryResult.warning);
     }
 
-    let finalText = glossaryResult.text;
+    let finalText = glossaryResult.text || translatedText || text;
 
     if (enrichedRequest.mode === 'adapt') {
       finalText = adaptText(finalText, enrichedRequest);
@@ -439,7 +654,7 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
     }
 
     const responseEnvelope = createLingoLinkResponseEnvelope({
-      ok: translationResult.ok !== false,
+      ok: translationResult.ok !== false && Boolean(finalText),
       requestId: enrichedRequest.requestId,
       detectedLanguage,
       sourceLanguage: enrichedRequest.sourceLanguage,
@@ -449,14 +664,20 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
       translatedText,
       adaptedText: enrichedRequest.mode === 'adapt' ? finalText : '',
       finalText,
-      confidence: translationResult.confidence,
-      warnings,
-      fallbackUsed: translationResult.provider === 'local-fallback' && translationResult.confidence < 0.6,
-      glossaryUsed: glossaryResult.glossaryUsed,
+      confidence: clampConfidence(
+        translationResult.confidence,
+        translationResult.provider === 'local-fallback' ? 0.42 : 0.76
+      ),
+      warnings: uniqueWarnings(warnings),
+      fallbackUsed: translationResult.provider === 'local-fallback' && clampConfidence(translationResult.confidence, 0.42) < 0.6,
+      glossaryUsed: Boolean(glossaryResult.glossaryUsed),
       memoryUsed: false,
-      provider: translationResult.provider,
+      provider: translationResult.provider || 'lingolink-core',
       metadata: {
-        latencyMs: Date.now() - startedAt
+        latencyMs: Date.now() - startedAt,
+        detectorProvider: detectionDetail.provider,
+        detectorConfidence: detectionDetail.confidence,
+        translationMetadata: translationResult.metadata || {}
       }
     });
 
@@ -466,8 +687,8 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
   } catch (error) {
     return createLingoLinkFallbackResponse({
       requestId: requestEnvelope.requestId,
-      sourceLanguage: requestEnvelope.sourceLanguage,
-      targetLanguage: requestEnvelope.targetLanguage,
+      sourceLanguage: normalizeLanguageCode(requestEnvelope.sourceLanguage || 'auto', 'auto'),
+      targetLanguage: normalizeLanguageCode(requestEnvelope.targetLanguage || 'en', 'en'),
       mode: requestEnvelope.mode,
       reason: `LingoLink processing failed: ${error.message}`
     });
@@ -477,6 +698,9 @@ async function processLingoLinkRequest(requestEnvelope = {}) {
 module.exports = {
   processLingoLinkRequest,
   detectLanguage,
+  detectLanguageDetailed,
+  extractLanguageCode,
+  normalizeLanguageCode,
   applyGlossary,
   localFallbackTranslate
 };
