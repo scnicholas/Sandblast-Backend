@@ -8,7 +8,14 @@
  * - Confirm rollback-mode payloads remain Marion-final and advisory-only.
  * - Confirm disabled gateway/telemetry contracts remain non-public.
  * - Confirm public projection excludes internal metadata.
+ *
+ * Node test runner compatible.
  */
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const { describe, it } = test;
 
 const {
   buildMarionDualTrackPacket,
@@ -34,39 +41,59 @@ const FORBIDDEN_PUBLIC_KEYS = Object.freeze([
   "realWorldTrack",
   "ethicalTrack",
   "strategicTrack",
-  "diagnostics"
+  "diagnostics",
+  "lingoLinkResponse",
+  "lingoLinkAuthorityReview",
+  "authorityReview",
+  "telemetry"
 ]);
 
+const FORBIDDEN_PUBLIC_PATTERN = /finalEnvelope|runtimeTelemetry|routeKind|sessionPatch|coordinationMeta|laneRecency|diagnostics|coordinationTelemetry|dualTrack|languageTrack|realWorldTrack|ethicalTrack|strategicTrack|lingoLinkResponse|lingoLinkAuthorityReview|authorityReview|telemetry/i;
+
+function assertTruthy(value, message = "Expected value to be truthy") {
+  assert.ok(value, message);
+}
+
+function assertContainsAll(array, expectedItems, message = "Expected array to contain all values") {
+  assert.ok(Array.isArray(array), "Expected value to be an array");
+
+  for (const item of expectedItems) {
+    assert.ok(array.includes(item), `${message}: missing ${item}`);
+  }
+}
+
 function assertPacketSafe(packet) {
-  expect(packet).toBeTruthy();
-  expect(packet.finalAuthority).toBe("Marion");
-  expect(packet.marionAuthority).toBe(true);
-  expect(packet.advisoryOnly).toBe(true);
-  expect(packet.forceAction).toBe(false);
-  expect(packet.publicReplyVisible).toBe(false);
-  expect(packet.userFacing).toBe(false);
-  expect(packet.text).toBe("");
-  expect(packet.publicText).toBe("");
-  expect(packet.renderText).toBe("");
+  assertTruthy(packet, "Packet should exist");
+  assert.equal(packet.finalAuthority, "Marion");
+  assert.equal(packet.marionAuthority, true);
+  assert.equal(packet.advisoryOnly, true);
+  assert.equal(packet.forceAction, false);
+  assert.equal(packet.publicReplyVisible, false);
+  assert.equal(packet.userFacing, false);
+  assert.equal(packet.text, "");
+  assert.equal(packet.publicText, "");
+  assert.equal(packet.renderText, "");
 }
 
 function assertTelemetrySafe(telemetry) {
-  expect(telemetry).toBeTruthy();
-  expect(telemetry.finalAuthority).toBe("Marion");
-  expect(telemetry.marionAuthority).toBe(true);
-  expect(telemetry.advisoryOnly).toBe(true);
-  expect(telemetry.forceAction).toBe(false);
-  expect(telemetry.publicReplyVisible).toBe(false);
-  expect(telemetry.userFacing).toBe(false);
-  expect(telemetry.text).toBe("");
-  expect(telemetry.publicText).toBe("");
-  expect(telemetry.renderText).toBe("");
-  expect(telemetry.marionFinalAuthorityPreserved).toBe(true);
+  assertTruthy(telemetry, "Telemetry should exist");
+  assert.equal(telemetry.finalAuthority, "Marion");
+  assert.equal(telemetry.marionAuthority, true);
+  assert.equal(telemetry.advisoryOnly, true);
+  assert.equal(telemetry.forceAction, false);
+  assert.equal(telemetry.publicReplyVisible, false);
+  assert.equal(telemetry.userFacing, false);
+  assert.equal(telemetry.text, "");
+  assert.equal(telemetry.publicText, "");
+  assert.equal(telemetry.renderText, "");
+  assert.equal(telemetry.marionFinalAuthorityPreserved, true);
 }
 
 function publicProjection(candidate) {
   if (typeof candidate === "string") return candidate;
+
   const src = candidate && typeof candidate === "object" && !Array.isArray(candidate) ? candidate : {};
+
   return {
     reply: src.reply || src.message || src.text || "",
     finalAuthority: src.finalAuthority || "Marion"
@@ -77,15 +104,25 @@ function assertPublicProjectionSafe(candidate) {
   const projected = publicProjection(candidate);
 
   if (typeof projected === "string") {
-    expect(projected).not.toMatch(/finalEnvelope|runtimeTelemetry|routeKind|sessionPatch|coordinationMeta|laneRecency|diagnostics/i);
+    assert.equal(
+      FORBIDDEN_PUBLIC_PATTERN.test(projected),
+      false,
+      "Projected public string should not contain internal metadata"
+    );
     return;
   }
 
   const keys = Object.keys(projected);
+
   for (const forbidden of FORBIDDEN_PUBLIC_KEYS) {
-    expect(keys).not.toContain(forbidden);
+    assert.equal(
+      keys.includes(forbidden),
+      false,
+      `Projected public object should not contain forbidden key: ${forbidden}`
+    );
   }
-  expect(projected.finalAuthority).toBe("Marion");
+
+  assert.equal(projected.finalAuthority, "Marion");
 }
 
 function buildReleaseTurn(payload, previousDualTrack, turnId) {
@@ -114,23 +151,23 @@ function buildReleaseTurn(payload, previousDualTrack, turnId) {
 }
 
 describe("Marion release readiness and rollback safety", () => {
-  test("ordinary release-health prompt does not activate advisory lanes", () => {
+  it("ordinary release-health prompt does not activate advisory lanes", () => {
     const payload = {
       message: "Run a release readiness health check for Marion.",
       inputSource: "text"
     };
 
-    expect(looksLikeExplicitLanguageSignal(payload)).toBe(false);
+    assert.equal(looksLikeExplicitLanguageSignal(payload), false);
 
     const turn = buildReleaseTurn(payload, null, "release-health-normal");
 
-    expect(turn.summary.activeTracks).toEqual([]);
-    expect(turn.summary.authority.finalAuthority).toBe("Marion");
+    assert.deepEqual(turn.summary.activeTracks, []);
+    assert.equal(turn.summary.authority.finalAuthority, "Marion");
     assertPacketSafe(turn.packet);
     assertTelemetrySafe(turn.telemetry);
   });
 
-  test("explicit mixed advisory payload stays internal and rollback-safe", () => {
+  it("explicit mixed advisory payload stays internal and rollback-safe", () => {
     const first = buildReleaseTurn({
       message: "Bonjour Nyx, translate this environmental release note.",
       inputSource: "text",
@@ -163,8 +200,8 @@ describe("Marion release readiness and rollback safety", () => {
       }
     }, null, "release-mixed-1");
 
-    expect(first.summary.activeTracks).toEqual(expect.arrayContaining(["language", "real_world", "strategic"]));
-    expect(first.summary.requiresHumanReview).toBe(true);
+    assertContainsAll(first.summary.activeTracks, ["language", "real_world", "strategic"]);
+    assert.equal(first.summary.requiresHumanReview, true);
     assertPacketSafe(first.packet);
     assertTelemetrySafe(first.telemetry);
 
@@ -173,16 +210,14 @@ describe("Marion release readiness and rollback safety", () => {
       inputSource: "text"
     }, first.packet, "release-mixed-rollback-followup");
 
-    expect(rollbackFollowup.summary.activeTracks).toEqual([]);
-    expect(rollbackFollowup.summary.staleCarrySuppressed).toBe(true);
-    expect(rollbackFollowup.summary.staleTracks).toEqual(
-      expect.arrayContaining(["language", "real_world", "strategic"])
-    );
+    assert.deepEqual(rollbackFollowup.summary.activeTracks, []);
+    assert.equal(rollbackFollowup.summary.staleCarrySuppressed, true);
+    assertContainsAll(rollbackFollowup.summary.staleTracks, ["language", "real_world", "strategic"]);
     assertPacketSafe(rollbackFollowup.packet);
     assertTelemetrySafe(rollbackFollowup.telemetry);
   });
 
-  test("disabled gateway and disabled telemetry remain non-public", () => {
+  it("disabled gateway and disabled telemetry remain non-public", () => {
     const packet = buildMarionDualTrackPacket({
       message: "Hola Nyx, translate this.",
       languageMeta: {
@@ -195,20 +230,20 @@ describe("Marion release readiness and rollback safety", () => {
       turnId: "release-disabled-gateway"
     });
 
-    expect(packet.enabled).toBe(false);
-    expect(packet.coordinationMeta.reason).toBe("dual_track_gateway_disabled");
+    assert.equal(packet.enabled, false);
+    assert.equal(packet.coordinationMeta.reason, "dual_track_gateway_disabled");
     assertPacketSafe(packet);
 
     const telemetry = buildMarionCoordinationTelemetry({}, {
       config: { enabled: false }
     });
 
-    expect(telemetry.enabled).toBe(false);
-    expect(telemetry.reason).toBe("coordination_telemetry_disabled");
+    assert.equal(telemetry.enabled, false);
+    assert.equal(telemetry.reason, "coordination_telemetry_disabled");
     assertTelemetrySafe(telemetry);
   });
 
-  test("public projection strips internal release metadata shape", () => {
+  it("public projection strips internal release metadata shape", () => {
     const candidate = {
       reply: "Marion remains final authority. Advisory lanes stay internal.",
       finalAuthority: "Marion",
@@ -219,6 +254,19 @@ describe("Marion release readiness and rollback safety", () => {
       coordinationMeta: { internal: true },
       laneRecency: { internal: true },
       diagnostics: { internal: true }
+    };
+
+    assertPublicProjectionSafe(candidate);
+  });
+
+  it("public projection strips LingoLink gateway metadata shape", () => {
+    const candidate = {
+      reply: "Bonjour.",
+      finalAuthority: "Marion",
+      lingoLinkResponse: { finalText: "Bonjour.", confidence: 0.92 },
+      lingoLinkAuthorityReview: { approved: true },
+      authorityReview: { action: "ALLOW_FINAL_RESPONSE" },
+      telemetry: { route: "LINGOLINK_TRANSLATE" }
     };
 
     assertPublicProjectionSafe(candidate);
