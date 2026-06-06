@@ -6,10 +6,16 @@
   "type": "commonjs",
   "scripts": {
     "lint:syntax": "node --check index.js",
+    "lint:marion-runtime": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/composeMarionResponse.js",
     "prestart": "node --check index.js",
     "start": "node index.js",
     "dev": "node --check index.js && node index.js",
     "start:prod": "NODE_ENV=production node --check index.js && NODE_ENV=production node index.js",
+    "test": "npx jest",
+    "test:lingosentinel": "npx jest tests/lingosentinel --runInBand",
+    "test:lingosentinel-node": "node tests/lingosentinel/lingosentinel-core-adapter.test.js && node tests/lingosentinel/lingosentinel-request-envelope.test.js && node tests/lingosentinel/lingosentinel-response-envelope.test.js",
+    "test:lingosentinel:node": "node tests/lingosentinel/lingosentinel-core-adapter.test.js && node tests/lingosentinel/lingosentinel-request-envelope.test.js && node tests/lingosentinel/lingosentinel-response-envelope.test.js",
+    "test:lingosentinel:all": "npm run test:lingosentinel && npm run test:lingosentinel-node",
     "build:top10": "node Scripts/build_top10_by_year_v1.js",
     "check:top10": "node Scripts/check_top10_by_year_v1.js",
     "top10:rebuild": "npm run build:top10 && npm run check:top10"
