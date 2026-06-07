@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.22sb NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const INDEX_VERSION = "index.js v2.18.23sb PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -66,6 +66,17 @@ const INDEX_FAILURE_SIGNATURES = Object.freeze({
 });
 
 const USER_VISIBLE_DEBUG_LEAK_PATTERNS = Object.freeze([
+  /\bi stopped a repeated response before it could render again\b/i,
+  /\bcurrent turn is preserved\b/i,
+  /\bfresh Marion final\b/i,
+  /\bwait for a fresh\s+Marion\s+final\b/i,
+  /\breplaying the same fallback\b/i,
+  /\bI caught the repeated Nyx\/Marion reply\b/i,
+  /\bIndex\.js transport[- ]only\b/i,
+  /\btransport only\b/i,
+  /\bloop is being contained at the bridge layer\b/i,
+  /\bMarionBridge should accept only one clean Marion final\b/i,
+  /\bresponse[- ]authority problem\b/i,
   /\bfailureSignature\b/i,
   /\bruntimeTelemetry\b/i,
   /\breplyAuthority\b/i,
@@ -734,6 +745,7 @@ function cleanReplyForUser(v) {
   let t = stripPublicReplyScaffold(v);
   if (!t || isPrimitivePlaceholderReplyValue(v) || isPrimitivePlaceholderReplyValue(t)) return "";
   if (isInvalidPublicReplyRecoveryText(t)) return "";
+  if (isInternalMarionBlockerReply(t)) return "";
   t = stripUserVisibleDebugLeak(t);
   if (!t) return "";
   t = stripPublicReplyScaffold(t);
@@ -795,7 +807,7 @@ function isGenericGreetingStatusReply(value) {
 
 
 const PUBLIC_RESPONSE_INTERNAL_KEY_PATTERN = /^(?:meta|diagnostics?|runtimeTelemetry|finalRuntimeTelemetry|loggingSpine|packetPreclassification|packetStateBridge|languageSphereTelemetry|languageSphereFallback|multilingualFinalEnvelope|marionRouting|marionIntent|ctx|ui|directives|sessionPatch|memoryPatch|cog|bridge|audioContract|transportOnly|marionTransportOnly|packetPrediction|compatibilityRoute|compatibilityHealth|raw|debug|stack|errorStack)$/i;
-const PUBLIC_RESPONSE_INTERNAL_TEXT_PATTERN = /\b(?:languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|finalEnvelopeTrusted|replyAuthority|semanticAuthority|diagnostics?|stack trace|TypeError|ReferenceError|SyntaxError|same prompt,?\s*new requirement|answer with one new fact|if voice and text return different answers|preserve intent and regenerate|same normalized text)\b/i;
+const PUBLIC_RESPONSE_INTERNAL_TEXT_PATTERN = /\b(?:i stopped a repeated response before it could render again|current turn is preserved|fresh Marion final|wait for a fresh\s+Marion\s+final|replaying the same fallback|I caught the repeated Nyx\/Marion reply|Index\.js transport[- ]only|transport only|loop is being contained at the bridge layer|MarionBridge should accept only one clean Marion final|response[- ]authority problem|languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|finalEnvelopeTrusted|replyAuthority|semanticAuthority|diagnostics?|stack trace|TypeError|ReferenceError|SyntaxError|same prompt,?\s*new requirement|answer with one new fact|if voice and text return different answers|preserve intent and regenerate|same normalized text)\b/i;
 
 function publicSafePrimitive(value) {
   if (typeof value === "string") {
@@ -1017,7 +1029,17 @@ const INTERNAL_MARION_BLOCKER_REPLY_PATTERNS = [
   /answer with one new fact,?\s*one action,?\s*or one test/i,
   /if voice and text return different answers/i,
   /preserve intent and regenerate/i,
-  /same normalized text/i
+  /same normalized text/i,
+  /i stopped a repeated response before it could render again/i,
+  /current turn is preserved/i,
+  /fresh Marion final/i,
+  /wait for a fresh\s+Marion\s+final/i,
+  /replaying the same fallback/i,
+  /i caught the repeated Nyx\/Marion reply/i,
+  /Index\.js transport[- ]only/i,
+  /loop is being contained at the bridge layer/i,
+  /MarionBridge should accept only one clean Marion final/i,
+  /response[- ]authority problem/i
 ];
 
 const BLOCKED_LOOPING_SUPPORT_REPLY = "i am here with you, and i can stay with this clearly.";
@@ -1485,12 +1507,13 @@ function buildIndexLoopBreakReply(norm = {}, previousReply = "", authority = "",
   const n = isObj(norm) ? norm : {};
   const source = [n.text, n.rawText, n.rawUserText, n.originalText, n.userText, n.message, safeObj(n.payload).userText, safeObj(n.payload).message].map(cleanText).filter(Boolean).join(" ");
   if (isCognitiveLoadSeparationRequestText(source)) return buildCognitiveLoadSeparationPublicReply();
-  if (/\b(loop|looping|repeat|repeated|duplicate|fallback)\b/i.test(source) && /\b(nyx|nix|nicks|marion|bridge|composer|index|chat)\b/i.test(source)) {
-    return "I caught the repeated Nyx/Marion reply and stopped it. The correction is to keep Marion as the single final-answer authority, reject recycled generic fallbacks, and let Index.js transport only the trusted final reply instead of inventing another response.";
+  const explicitLoopQuestion = /\b(loop|looping|repeat|repeated|duplicate|fallback)\b/i.test(source) && /\b(nyx|nix|nicks|marion|bridge|composer|index|chat)\b/i.test(source);
+  if (explicitLoopQuestion && isTechnicalDebugTurn(source, n)) {
+    return "Nyx should not render recycled fallbacks. Keep Marion as the final-answer authority, reject duplicate generic replies after sanitization, and let the transport layer return silently until a clean final reply exists.";
   }
   const deterministic = buildDeterministicLastMilePublicReplyFromText(source);
-  if (deterministic && !isBlockedLoopingSupportReply(deterministic) && !isConversationDiagnosticFallbackReply(deterministic)) return deterministic;
-  return "I stopped a repeated response before it could render again. The current turn is preserved, and Nyx should wait for a fresh Marion final instead of replaying the same fallback.";
+  if (deterministic && !isBlockedLoopingSupportReply(deterministic) && !isConversationDiagnosticFallbackReply(deterministic) && !isInternalMarionBlockerReply(deterministic)) return deterministic;
+  return "";
 }
 
 function buildIndexSafeTransportReply(norm, reason, extra) {
@@ -6582,8 +6605,8 @@ function normalizeReplyEnvelope(shaped, reply, metaPatch) {
 }
 
 function buildLoopBreakReply(norm, loop, supportState) {
-  if (isTechnicalDebugTurn(norm && norm.text, norm)) return "I caught the repeated turn. I am breaking the support loop and staying on the technical path: inspect the route, duplicate detector, fallback branch, and finalization guard.";
-  return "I caught the repeated response, so I am not going to recycle the same support line. Let us move one step forward from the exact point you want handled next.";
+  if (isTechnicalDebugTurn(norm && norm.text, norm)) return "Duplicate generic output was blocked. Validate the final route, duplicate detector, fallback branch, and finalization guard before rendering again.";
+  return "";
 }
 
 function buildSupportSessionPatch(existing, active, release) {
@@ -9740,8 +9763,18 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   const duplicateGate = detectLoop(sessionId, reply, norm.text, { turnId: norm.turnId, route: norm.lane || "general", authority });
   if (duplicateGate.repeated && !isHighRiskSupportSignal(null, norm.text)) {
     const loopBreakReply = finalizeRenderableReply(buildIndexLoopBreakReply(norm, reply, authority, duplicateGate), norm, authority, "duplicate_reply_loop_break");
-    if (cleanText(loopBreakReply) && !isBlockedLoopingSupportReply(loopBreakReply) && !isConversationDiagnosticFallbackReply(loopBreakReply)) {
+    if (cleanText(loopBreakReply) && !isBlockedLoopingSupportReply(loopBreakReply) && !isConversationDiagnosticFallbackReply(loopBreakReply) && !isInternalMarionBlockerReply(loopBreakReply)) {
       reply = loopBreakReply;
+    } else {
+      const safe = buildConversationSafeErrorReply(norm, 200, "loop_guard_silent_block", "duplicate_public_reply_suppressed_waiting_for_clean_marion_final", {
+        authority,
+        duplicateGate,
+        suppressUserFacingReply: true,
+        publicSurfaceLeakBlocked: true,
+        latencyMs: now() - startedAt
+      });
+      setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", authority: "none", loopReplyBlocked: true, suppressUserFacingReply: true, publicSurfaceLeakBlocked: true });
+      return res.status(200).json(applyPublicReplyHygieneToResponse(safe));
     }
     selected = {
       ...(isObj(selected) ? selected : {}),
@@ -9826,8 +9859,18 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     : (norm.staleCarryBypass ? {} : resolveNyxPacketBridge(norm, selected, marion, priorTurn));
   selected = applyPacketBridgeToSelected(selected, packetBridge, norm);
 
-  if (isBlockedLoopingSupportReply(reply) || isConversationDiagnosticFallbackReply(reply)) {
+  if (isBlockedLoopingSupportReply(reply) || isConversationDiagnosticFallbackReply(reply) || isInternalMarionBlockerReply(reply)) {
     const repaired = finalizeRenderableReply(buildIndexLoopBreakReply(norm, reply, authority, { repeated: true, stage: "post_packet_bridge" }), norm, authority, "post_packet_bridge_loop_break");
+    if (!cleanText(repaired) || isInternalMarionBlockerReply(repaired) || isConversationDiagnosticFallbackReply(repaired) || isBlockedLoopingSupportReply(repaired)) {
+      const safe = buildConversationSafeErrorReply(norm, 200, "post_packet_bridge_silent_block", "invalid_public_reply_suppressed_waiting_for_clean_marion_final", {
+        authority,
+        suppressUserFacingReply: true,
+        publicSurfaceLeakBlocked: true,
+        latencyMs: now() - startedAt
+      });
+      setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", authority: "none", loopReplyBlocked: true, suppressUserFacingReply: true, publicSurfaceLeakBlocked: true });
+      return res.status(200).json(applyPublicReplyHygieneToResponse(safe));
+    }
     if (cleanText(repaired)) {
       reply = repaired;
       selected.reply = reply;
