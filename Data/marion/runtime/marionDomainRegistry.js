@@ -17,7 +17,7 @@ const fs = require("fs");
 const path = require("path");
 const domainConfidenceMod = (() => { try { return require("./domainConfidence.js"); } catch (_) { return null; } })();
 
-const VERSION = "marionDomainRegistry v1.6.1 SIX-DOMAIN-PUBLIC-ALIASES + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.6.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -111,8 +111,6 @@ const DOMAIN_ALIASES = Object.freeze({
   context: "execution_context",
 
   psychology: "psychology",
-  cognitive: "psychology",
-  cognition: "psychology",
   english: "english",
   ai: "ai",
   artificial_intelligence: "ai",
