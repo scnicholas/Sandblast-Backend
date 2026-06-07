@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.9 PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "composeMarionResponse v3.36.9 LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -114,6 +114,38 @@ const BLOCKED_LOOP_PATTERNS = Object.freeze([
 ]);
 
 function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+
+
+function isWarmNyxGreetingOnly(value=""){
+  const t=lower(value).replace(/[.!?]+$/g,"").trim();
+  return /^(?:hi|hello|hey|yo|hiya|good morning|good afternoon|good evening)(?:\s+nyx)?$/.test(t)||/^(?:hi|hello|hey)\s+nyx$/.test(t);
+}
+function isExplicitProgressionUserIntent(value=""){
+  const t=lower(normalizeVoiceTextParityText(value));
+  if(!t||isWarmNyxGreetingOnly(t))return false;
+  return /\b(progression shaping|progression refinement|progression_shaping_refinement|progression test|response[-\s]?expansion validation|5[-\s]?7 turn|5 turn|continuity depth|depth governor|mic[-\s]?to[-\s]?text parity|phase anchor|phase\s*[1-9]|passed|failed|mark passed|mark failed|validation harness|regression harness)\b/i.test(t)||
+    (/\b(continue|next|next steps?|what now|what'?s next|carry on|keep going|after this test passes|run next validation)\b/i.test(t)&&/\b(test|validation|phase|progression|parity|continuity|passed|failed)\b/i.test(t));
+}
+function isPublicWorkflowStateLeak(value=""){
+  const t=safeStr(value);
+  if(!t)return false;
+  return /\bprogression active\b/i.test(t)||
+    /\brun next validation\b/i.test(t)||
+    /\bmark passed or failed\b/i.test(t)||
+    /\bmark\s+(?:as\s+)?(?:passed|failed)\b/i.test(t)||
+    /\bvalidation harness\b/i.test(t)||
+    /\bregression harness\b/i.test(t)||
+    /\btest\s+(?:next steps|passed|failed|continue|what now|update it)\b/i.test(t)||
+    /\bexpected result:\s*marion\b/i.test(t)||
+    /\bphase anchor\b/i.test(t)||
+    /\bstate spine\b/i.test(t)||
+    /\bprogression shaping guard\b/i.test(t)||
+    /\bfinal render telemetry\b/i.test(t)||
+    /\bproduction monitoring shield\b/i.test(t)||
+    /\bsmoke test\b/i.test(t)||
+    /\bnode --check\b/i.test(t)||
+    /\bpassed or failed\b/i.test(t);
+}
 
 function stripPublicReplyScaffold(value){
   let t=safeStr(value);
@@ -1673,7 +1705,7 @@ function stripStaleProgressionSurface(value="",intent="",text=""){
     .replace(/\s*instead of generic\.?/gi,"");
   return out.replace(/\s+/g," ").replace(/\s+([.,;:])/g,"$1").trim();
 }
-function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(isPrimitivePublicReply(reply))return"";if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isPrimitivePublicReply(reply)||isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply)||isPublicControlPolicyLeak(reply))return"";return reply;}
+function sanitizeUserFacingReply(value,intent,text,input={}){let reply=stripPublicReplyScaffold(value);if(isPrimitivePublicReply(reply))return"";if(!reply)return"";reply=stripTelemetryLeakFromReply(reply);if(!reply)return"";reply=translatePublicDiagnosticReply(reply,intent,text,input,{});reply=stripStaleProgressionSurface(reply,intent,text);if(isInternalContractLeak(reply)||isTelemetryLeakText(reply))reply=stripContractMachinery(reply);reply=stripTelemetryLeakFromReply(reply);reply=stripStaleProgressionSurface(reply,intent,text);reply=stripPublicReplyScaffold(reply);if(!reply)return"";reply=reply.replace(/\s+/g," ").trim();if(isPrimitivePublicReply(reply)||isInternalContractLeak(reply)||isTelemetryLeakText(reply)||isBlockedLoopReply(reply)||isPublicControlPolicyLeak(reply)||isPublicWorkflowStateLeak(reply))return"";return reply;}
 function finalSurfaceReply(value,intent,text,input={}){
   const asterAnswer=buildAsterPublicAnswer(text,input);
   if(asterAnswer)return asterAnswer;
@@ -1684,7 +1716,7 @@ function finalSurfaceReply(value,intent,text,input={}){
   let reply=applyReplyContractMinimalismGovernor(value,intent,text,input);
   reply=stripStaleProgressionSurface(reply,intent,text);
   reply=stripPublicReplyScaffold(reply);
-  if(reply&&!isPublicControlPolicyLeak(reply)&&!isGenericGreetingStatusReply(reply))return reply;
+  if(reply&&!isPublicControlPolicyLeak(reply)&&!isGenericGreetingStatusReply(reply)&&!isPublicWorkflowStateLeak(reply))return reply;
   return buildFinalLoopRecoveryReply(intent,text,input);
 }
 
@@ -2318,7 +2350,7 @@ function progressionShapingRefinementReply(text="",input={},routed={}){
     return "Progression shaping protects Marion from losing context by binding every follow-up to the accepted phase anchor before generic templates can shape the reply. That keeps mic-to-text parity complete, keeps the current phase as progression shaping refinement, and prevents vague prompts like “continue” from resetting the lane.";
   }
   if(/\bnext action|after this test passes|what is next|after it passes|when this passes|next steps?|what now|what'?s next|continue|carry on|keep going\b/i.test(t)){
-    return "Progression shaping refinement: run the response-expansion validation now. Test next steps, Passed, Failed, Continue, What now, and Update it. Expected result: Marion keeps the active progression lane, returns a concrete action plan instead of a one-word reply, and advances only after Passed.";
+    return "Progression shaping refinement is ready for the next check. Use one clear follow-up at a time, then confirm whether the answer preserved context, stayed specific, and avoided generic fallback language.";
   }
   if(!isProgressionShapingRefinementPrompt(text,input,routed))return "";
   return "Progression shaping refinement means testing whether Marion carries the active technical thread across 5-7 turns without losing the lane, asking broad clarification, exposing instruction-shaped wording, or under-answering with a one-word reply. Next action: run the response-expansion validation and mark the first turn where context, depth, or one-action shaping drops.";
@@ -2404,7 +2436,7 @@ function enforceFiveTurnContractSurface(reply="",intent="",text="",input={},rout
 }
 
 function buildReply(intent,text,input={},routed={}){if(isVoiceSystemCheckTurn(text,input))return buildVoiceSystemCheckReply(text,input);if(isRokuPublishingRequest(text))return rokuPublishingReply(text);if(isNewsMediaPositioningRequest(text))return newsMediaPositioningReply(text);const fiveTurnReply=fiveTurnContractReply(intent,text,input,routed);if(fiveTurnReply)return fiveTurnReply;const parityDirect=parityRegressionDirectReply(text,input);if(parityDirect)return parityDirect;const progressionGuard=highPriorityProgressionSurfaceReply(text,input,intent,routed);if(progressionGuard)return progressionGuard;if(isBroadAnswerableConceptPrompt(text,input,routed)){const broad=broadConceptFallbackReply(text,input,routed);if(broad)return broad;}const emotion=resolveEffectiveEmotion(input,normalizeResolvedEmotion(input)),knowledgeDomain=resolveKnowledgeDomain(routed,input,text);const ambiguousDefinition=ambiguousDefinitionClarificationReply(text,input,routed);if(ambiguousDefinition)return ambiguousDefinition;const continuationReply=continuationAwareReply(intent,text,input,routed);if(continuationReply)return continuationReply;if(knowledgeDomain&&!(knowledgeDomain==="psychology"&&intent==="emotional_support")){const kdReply=knowledgeDomainReply(knowledgeDomain,text,input,routed);if(kdReply)return kdReply;}if(isCapabilityQuestion(text))return registryCapabilityIntro();if(intent==="simple_chat"&&isWarmSocialTurn(text))return buildWarmSocialReply(text,input);if(isRecoveryRequested(input,routed))return recoveryReply(intent,text,input);if(intent==="simple_chat"&&emotion.present&&emotion.primary!=="neutral"&&hasEmotionalContinuityCue(text))return emotionalReply(text,input);switch(intent){case"contextual_directive":return contextualDirectiveReply(text,input,routed);case"directive_response":return directiveReply(text,input,routed);case"identity_query":return identityReply(text,input);case"technical_debug":return technicalReply(text,input,routed);case"emotional_support":return emotionalReply(text,input);case"business_strategy":return continuationAwareBusinessReply(text,input,routed);case"music_query":return"Music lane is ready. Give me the year, artist, chart, or story angle and I’ll route it cleanly.";case"news_query":return isNewsMediaPositioningRequest(text)?newsMediaPositioningReply(text):"News Canada lane is ready. Give me the story, headline, or feed issue and I’ll keep the source path clean.";case"roku_query":return isRokuPublishingRequest(text)?rokuPublishingReply(text):"Roku lane is ready. Tell me whether we’re checking the app path, live TV lane, content feed, or deployment issue.";case"identity_or_memory":return buildFinalLoopRecoveryReply(intent,text,input);case"domain_question":return domainQuestionReply(text,input,routed);default:return simpleChatReply(text,input);}}
-function safeReply(value,intent,text,input={}){const progressionGuard=highPriorityProgressionSurfaceReply(text,input,intent,{});if(progressionGuard)return progressionGuard;const fiveTurn=fiveTurnContractReply(intent,text,input,{});if(fiveTurn)return fiveTurn;const parityDirect=parityRegressionDirectReply(text,input);if(parityDirect)return parityDirect;if(isVoiceSystemCheckTurn(text,input))return buildVoiceSystemCheckReply(text,input);const reply=sanitizeUserFacingReply(value,intent,text,input);let candidate="";if(isWarmSocialTurn(text))candidate=buildWarmSocialReply(text,input);else if(reply)candidate=reply;else if(intent==="technical_debug"||/\b(loop|looping|debug|fallback|technical|route|bridge|composer|chat engine|state spine|api|backend|frontend)\b/i.test(lower(text)))candidate=technicalReply(text,input);else{const emotion=resolveEffectiveEmotion(input,normalizeResolvedEmotion(input));if(intent==="emotional_support"||detectDistress(text).emotional||(emotion.present&&emotion.primary!=="neutral")){const emotional=emotionalReply(text,{...input,forceRecovery:false,recoveryRequired:false,lastLoopReasons:["blocked_or_empty_reply_emotion_preserved"]});candidate=finalSurfaceReply(emotional,intent,text,input);}else candidate=buildFinalLoopRecoveryReply(intent,text,input);}const forced=highPriorityProgressionSurfaceReply(text,input,intent,{});if(forced)return forced;return applyConversationQuality(candidate,intent,text,input,{});}
+function safeReply(value,intent,text,input={}){const progressionGuard=highPriorityProgressionSurfaceReply(text,input,intent,{});if(progressionGuard&&isExplicitProgressionUserIntent(text)&&!isPublicWorkflowStateLeak(progressionGuard))return progressionGuard;const fiveTurn=fiveTurnContractReply(intent,text,input,{});if(fiveTurn)return fiveTurn;const parityDirect=parityRegressionDirectReply(text,input);if(parityDirect)return parityDirect;if(isVoiceSystemCheckTurn(text,input))return buildVoiceSystemCheckReply(text,input);const reply=sanitizeUserFacingReply(value,intent,text,input);let candidate="";if(isWarmSocialTurn(text))candidate=buildWarmSocialReply(text,input);else if(reply)candidate=reply;else if(intent==="technical_debug"||/\b(loop|looping|debug|fallback|technical|route|bridge|composer|chat engine|state spine|api|backend|frontend)\b/i.test(lower(text)))candidate=technicalReply(text,input);else{const emotion=resolveEffectiveEmotion(input,normalizeResolvedEmotion(input));if(intent==="emotional_support"||detectDistress(text).emotional||(emotion.present&&emotion.primary!=="neutral")){const emotional=emotionalReply(text,{...input,forceRecovery:false,recoveryRequired:false,lastLoopReasons:["blocked_or_empty_reply_emotion_preserved"]});candidate=finalSurfaceReply(emotional,intent,text,input);}else candidate=buildFinalLoopRecoveryReply(intent,text,input);}const forced=highPriorityProgressionSurfaceReply(text,input,intent,{});if(forced)return forced;return applyConversationQuality(candidate,intent,text,input,{});}
 function chooseNextMove(intent,recoveryRequired){if(recoveryRequired)return "recover_with_marion_final";if(intent==="technical_debug")return "verify_final_contract";if(intent==="emotional_support")return "preserve_emotional_continuity";if(intent==="business_strategy")return "convert_to_execution";if(intent==="identity_query")return "clarify_identity";return "advance_conversation";}
 function buildFourPhaseProgressionProfile(text="",input={},routed={},reply="",intent=""){
   const previousMemory=safeObj(safeObj(input).previousMemory||safeObj(input).memory||safeObj(input).state||{});
