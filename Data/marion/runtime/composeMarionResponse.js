@@ -1602,6 +1602,41 @@ function translatePublicDiagnosticReply(reply="",intent="",text="",input={},rout
 }
 
 
+function normalizeSixDomainTopicLabel(value=""){
+  const raw=String(value==null?"":value).replace(/\s+/g," ").trim();
+  if(!raw)return "";
+  let s=raw
+    .replace(/^(?:tell me about|explain|what is|what are|define|describe|break down|give me an overview of|help me understand)\s+/i,"")
+    .replace(/\?+$/,"")
+    .trim();
+  s=s.replace(/^(?:the|a|an)\s+/i,"").trim();
+  return s.slice(0,72);
+}
+function buildSixDomainPublicKnowledgeAnswer(value=""){
+  const source=String(value==null?"":value).replace(/\s+/g," ").trim();
+  const t=source.toLowerCase();
+  if(!t)return "";
+  if(/\bcash[- ]?flow\b/.test(t))return "Cash flow is the movement of money into and out of a business over a period of time. Healthy cash flow means the business can pay expenses, manage timing gaps, and keep operating without constant pressure.";
+  if(/\bauditing\b|\baudit process\b|\bfinancial audit\b|\boperational audit\b|\baudit\b/.test(t))return "Auditing is a structured review of records, systems, finances, or work against a standard. The goal is to find gaps, confirm accuracy, reduce risk, and improve accountability.";
+  if(/\bcognitive\b|\bcognition\b|\bcognitive process\b/.test(t))return "Cognitive refers to mental processes like attention, memory, learning, reasoning, problem-solving, and decision-making. It is about how information is taken in, processed, and used.";
+  if(/\bmachine learning\b|\bml\b/.test(t))return "Machine learning is a branch of AI where systems learn patterns from data and use those patterns to classify, predict, recommend, or make decisions without being manually programmed for every case.";
+  if(/\bartificial intelligence\b|\bai\b/.test(t))return "Artificial intelligence is the use of computer systems to perform tasks that normally require human reasoning, such as understanding language, recognizing patterns, making predictions, or supporting decisions.";
+  if(/\bleast privilege\b/.test(t))return "Least privilege is a cybersecurity principle where a user, service, or system gets only the access needed to do its job. It limits damage if an account, tool, or process is misused or compromised.";
+  if(/\bphishing\b/.test(t))return "Phishing is a cyberattack where someone pretends to be a trusted source to trick a person into giving up passwords, money, or sensitive information.";
+  if(/\bsyntax\b/.test(t))return "Syntax is the structure that controls how words, phrases, or symbols are arranged so meaning is clear. In English, it affects sentence order; in code, it controls whether instructions are valid.";
+  if(/\bconsideration\b/.test(t)&&/\b(contract|law|legal)\b/.test(t))return "Consideration in contract law is the value exchanged between parties, such as money, services, goods, a promise, or a benefit. It helps show that an agreement is more than a casual statement.";
+  if(/\bcontract\b|\blegal\b|\blaw\b|\bliability\b|\bnegligence\b/.test(t))return "In law, the key is to identify the rule, the facts, the duties involved, and the likely consequence. For public use, Nyx should explain the concept clearly without presenting it as legal advice.";
+  if(/\brevenue\b|\bprofit\b|\bmargin\b|\bbudget\b|\bpricing\b|\bfinance\b|\bfinancial\b/.test(t))return "In finance, the important question is how money moves, what creates value, what creates cost, and whether the numbers support the decision. A useful answer should connect the concept to cash, risk, and timing.";
+  if(/\bgrammar\b|\bwriting\b|\bsentence\b|\bparagraph\b|\bsemantics\b|\bmeaning\b/.test(t))return "In English, the goal is clear meaning. Grammar controls correctness, syntax controls structure, and word choice controls tone and precision.";
+  if(/\bpsychology\b|\bbehavior\b|\bemotion\b|\bmotivation\b|\bmemory\b|\blearning\b|\battention\b|\bbias\b|\bfallacy\b/.test(t))return "In psychology, the focus is how people think, feel, learn, decide, and behave. A good explanation connects the concept to real patterns, triggers, and outcomes.";
+  if(/\bcyber\b|\bsecurity\b|\bpassword\b|\bmalware\b|\bransomware\b|\bprivacy\b|\bcredential\b|\baccess\b/.test(t))return "In cybersecurity, the goal is to protect systems, accounts, data, and people from misuse or attack. The strongest answer usually covers the threat, the risk, and the practical control.";
+  const topic=normalizeSixDomainTopicLabel(source);
+  if(topic&&/\b(tell me about|explain|what is|what are|define|describe|break down|help me understand)\b/i.test(source)){
+    return topic.charAt(0).toUpperCase()+topic.slice(1)+" is a public knowledge topic Marion can route through the six-domain layer. At a high level, the useful answer should define the term, explain why it matters, and give one practical example.";
+  }
+  return "";
+}
+
 function buildDeterministicLastMilePublicReplyFromText(value=""){
   const source=safeStr(value);
   if(!source)return "";
@@ -1623,6 +1658,8 @@ function buildDeterministicLastMilePublicReplyFromText(value=""){
     if(/\bthank you\b/i.test(source)&&/\bspanish\b/i.test(source))return "Thank you in Spanish is: Gracias.";
     if(/\bthank you\b/i.test(source)&&/\bfrench\b/i.test(source))return "Thank you in French is: Merci.";
   }
+  const sixDomainReply=buildSixDomainPublicKnowledgeAnswer(source);
+  if(sixDomainReply)return sixDomainReply;
   return "";
 }
 
