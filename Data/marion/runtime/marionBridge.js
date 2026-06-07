@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.7 PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.7 LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -288,6 +288,49 @@ function normalizeBridgeDomainConfidence(value={},fallback={}) {
   const c=Math.max(0,Math.min(1,Number(v.confidence||f.confidence)||0));
   const band=firstText(v.confidenceBand,v.band,c>=0.82?"high":c>=0.62?"medium":c>=0.48?"low":"weak");
   return {...v,version:firstText(v.version,"nyx.marion.domainConfidence/1.2"),confidence:c,confidenceScore:c,band,confidenceBand:band,primaryDomain:firstText(v.primaryDomain,v.selectedDomain,f.domain,"general_reasoning"),selectedDomain:firstText(v.selectedDomain,v.primaryDomain,f.domain,"general_reasoning"),secondaryDomains:safeArray(v.secondaryDomains||f.secondaryDomains).slice(0,4),needsClarifier:!!v.needsClarifier,answerMode:firstText(v.answerMode,c>=0.82?"direct":c>=0.62?"grounded":"clarify"),fallbackReason:firstText(v.fallbackReason,""),noCrossDomainBleed:true,noUserFacingDiagnostics:true};
+}
+
+
+function isWarmNyxGreetingOnly(value=""){
+  const t=lower(value).replace(/[.!?]+$/g,"").trim();
+  return /^(?:hi|hello|hey|yo|hiya|good morning|good afternoon|good evening)(?:\s+nyx)?$/.test(t)||/^(?:hi|hello|hey)\s+nyx$/.test(t);
+}
+function isExplicitProjectProgressionText(value=""){
+  const t=lower(value);
+  if(!t||isWarmNyxGreetingOnly(t))return false;
+  return /\b(progression shaping|progression refinement|progression_shaping_refinement|domain confidence scoring|response[-\s]?expansion validation|5[-\s]?7 turn|5 turn|continuity depth|depth governor|mic[-\s]?to[-\s]?text parity|phase anchor|phase\s*[1-9]|validation harness|regression harness|mark passed|mark failed|passed|failed)\b/i.test(t)||
+    (/\b(continue|next|next steps?|what now|what'?s next|carry on|keep going|after this test passes|run next validation)\b/i.test(t)&&/\b(test|validation|phase|progression|parity|continuity|domain confidence|passed|failed)\b/i.test(t));
+}
+function isPublicWorkflowStateLeak(value=""){
+  const t=safeStr(value);
+  if(!t)return false;
+  return /\bprogression active\b/i.test(t)||
+    /\brun next validation\b/i.test(t)||
+    /\bmark passed or failed\b/i.test(t)||
+    /\bmark\s+(?:as\s+)?(?:passed|failed)\b/i.test(t)||
+    /\bvalidation harness\b/i.test(t)||
+    /\bregression harness\b/i.test(t)||
+    /\btest\s+(?:next steps|passed|failed|continue|what now|update it)\b/i.test(t)||
+    /\bexpected result:\s*marion\b/i.test(t)||
+    /\bphase anchor\b/i.test(t)||
+    /\bstate spine\b/i.test(t)||
+    /\bprogression shaping guard\b/i.test(t)||
+    /\bfinal render telemetry\b/i.test(t)||
+    /\bproduction monitoring shield\b/i.test(t)||
+    /\bsmoke test\b/i.test(t)||
+    /\bnode --check\b/i.test(t)||
+    /\bpassed or failed\b/i.test(t);
+}
+function suppressPublicReplyPacket(packet={},flags={}){
+  const out=isObj(packet)?packet:{};
+  out.reply="";out.text="";out.answer="";out.output="";out.response="";out.message="";out.displayReply="";out.spokenText="";out.textSpeak="";out.textDisplay="";
+  out.ok=true;out.final=false;out.marionFinal=false;out.handled=true;out.awaitingMarion=true;out.terminal=false;out.suppressUserFacingReply=true;out.emit=false;out.blocked=true;out.transportSafe=true;out.socketReconnect=false;
+  out.payload={...safeObj(out.payload),reply:"",text:"",answer:"",output:"",response:"",message:"",displayReply:"",spokenText:"",textSpeak:"",textDisplay:"",final:false,marionFinal:false,awaitingMarion:true,suppressUserFacingReply:true,emit:false,blocked:true};
+  out.finalEnvelope={...safeObj(out.finalEnvelope),reply:"",text:"",displayReply:"",spokenText:"",final:false,marionFinal:false,handled:true,qualityPass:false};
+  out.speech={...safeObj(out.speech),text:"",textDisplay:"",textSpeak:"",silent:true,silentAudio:true};
+  out.meta={...safeObj(out.meta),...safeObj(flags),noUserFacingDiagnostics:true,transportSafe:true,emit:false,blocked:true,suppressUserFacingReply:true,awaitingMarion:true};
+  out.diagnostics={...safeObj(out.diagnostics),...safeObj(flags),publicReplyHardlock:true,noUserFacingDiagnostics:true,suppressedUserFacingReply:true,emit:false,blocked:true};
+  return out;
 }
 
 function isPublicControlPolicyLeak(value){
@@ -1396,8 +1439,10 @@ function buildProjectRecoveryReply(normalized={}){
   const phase=safeObj(n.phaseAnchor);
   const sourceText=[n.userQuery,n.rawUserQuery,n.publicUserQuery,n.text,n.message,n.query,n.activeLane,n.currentLane,n.currentProject,phase.lane,phase.label,phase.summary].map(safeStr).filter(Boolean).join(" ");
   const text=firstText(n.userQuery,n.rawUserQuery,n.publicUserQuery,n.text,n.message,n.query,sourceText);
-  if(isProgressionShapingRequest(sourceText)||phase.lane==="progression_shaping_refinement")return progressionShapingRecoveryReply(sourceText);
-  if(isDomainConfidenceRequest(sourceText)||phase.lane==="domain_confidence_scoring")return domainConfidenceRecoveryReply(sourceText);
+  if(isWarmNyxGreetingOnly(text))return "";
+  const explicitProjectIntent=isExplicitProjectProgressionText(text);
+  if((isProgressionShapingRequest(sourceText)||phase.lane==="progression_shaping_refinement")&&explicitProjectIntent)return progressionShapingRecoveryReply(sourceText);
+  if((isDomainConfidenceRequest(sourceText)||phase.lane==="domain_confidence_scoring")&&explicitProjectIntent)return domainConfidenceRecoveryReply(sourceText);
   if(phase.resolved&&phase.lane==="mic_to_text_parity"&&phase.phaseKey==="phase2"){
     return "Phase 2 is the typed/mic parity regression harness. Test the same prompts by text and voice, then compare intent, domain, language route, clarification behavior, and Marion authority path. The pass condition is that mic and typed input behave structurally the same, even if the final wording is not identical.";
   }
@@ -1424,9 +1469,11 @@ function applyProjectRecoveryReplyOverride(packet={},ctx={}){
   const recovery=buildProjectRecoveryReply(normalized);
   if(!recovery)return out;
   const current=firstText(out.reply,out.text,out.answer,out.output,out.response,out.message,out.displayReply,safeObj(out.payload).reply,safeObj(out.finalEnvelope).reply);
-  const q=[normalized.userQuery,normalized.rawUserQuery,normalized.publicUserQuery,normalized.text,normalized.message,normalized.query,safeObj(normalized.phaseAnchor).lane,safeObj(normalized.phaseAnchor).label,safeObj(normalized.phaseAnchor).summary].map(safeStr).filter(Boolean).join(" ");
-  const forceProjectLane=(isProgressionShapingRequest(q)||isDomainConfidenceRequest(q)||safeObj(normalized.phaseAnchor).lane==="progression_shaping_refinement"||safeObj(normalized.phaseAnchor).lane==="domain_confidence_scoring")&&isWrongLaneProgressionReply(current);
-  if(!forceProjectLane&&current&&!isPrimitivePublicReply(current)&&!isThinPlaceholderText(current)&&!isBroadLanguageClarifier(current)&&!isGenericGreetingStatusFallback(current)&&!isPublicControlPolicyLeak(current))return out;
+  const userText=firstText(normalized.userQuery,normalized.rawUserQuery,normalized.publicUserQuery,normalized.text,normalized.message,normalized.query);
+  if(isWarmNyxGreetingOnly(userText))return out;
+  const q=[userText,safeObj(normalized.phaseAnchor).lane,safeObj(normalized.phaseAnchor).label,safeObj(normalized.phaseAnchor).summary].map(safeStr).filter(Boolean).join(" ");
+  const forceProjectLane=isExplicitProjectProgressionText(userText)&&(isProgressionShapingRequest(q)||isDomainConfidenceRequest(q)||safeObj(normalized.phaseAnchor).lane==="progression_shaping_refinement"||safeObj(normalized.phaseAnchor).lane==="domain_confidence_scoring")&&isWrongLaneProgressionReply(current);
+  if(!forceProjectLane&&current&&!isPrimitivePublicReply(current)&&!isThinPlaceholderText(current)&&!isBroadLanguageClarifier(current)&&!isGenericGreetingStatusFallback(current)&&!isPublicControlPolicyLeak(current)&&!isPublicWorkflowStateLeak(current))return out;
   out.reply=recovery;out.text=recovery;out.answer=recovery;out.output=recovery;out.response=recovery;out.message=recovery;out.displayReply=recovery;out.spokenText=recovery;out.textSpeak=recovery;out.textDisplay=recovery;
   out.payload={...safeObj(out.payload),reply:recovery,text:recovery,message:recovery,answer:recovery,output:recovery,response:recovery,displayReply:recovery,spokenText:recovery,textSpeak:recovery,textDisplay:recovery};
   out.finalEnvelope={...safeObj(out.finalEnvelope),reply:recovery,text:recovery,displayReply:recovery,spokenText:recovery};
@@ -1449,7 +1496,8 @@ function isInvalidPublicReplyValue(value){
     /\bkeep the reply clean,?\s*public[- ]facing,?\s*and free of runtime details\b/i.test(text)||
     isDiagnosticText(text)||
     isTelemetryLeakText(text)||
-    isPublicControlPolicyLeak(text);
+    isPublicControlPolicyLeak(text)||
+    isPublicWorkflowStateLeak(text);
 }
 function buildDeterministicLastMilePublicReplyFromText(text=""){
   const source=safeStr(text);
@@ -1533,6 +1581,9 @@ function enforceValidPublicReply(packet={},ctx={}){
     return applyReplyEverywhere(out,candidate,{publicReplyHardlock:true});
   }
   const recovery=buildPrimitiveReplyRecovery(normalized,out);
+  if(!recovery||isInvalidPublicReplyValue(recovery)||isThinPlaceholderText(recovery)||isBroadLanguageClarifier(recovery)||isPublicWorkflowStateLeak(recovery)){
+    return suppressPublicReplyPacket(out,{publicReplyHardlock:true,loopSuppressionSilent:true,workflowStateLeakSuppressed:true});
+  }
   return applyReplyEverywhere(out,recovery,{primitivePublicReplyRecovered:true,publicReplyHardlock:true,deterministicOriginalPromptRecovery:!!buildDeterministicLastMilePublicReplyFromText(collectPrimitiveRecoverySource(normalized,out))});
 }
 
@@ -1651,6 +1702,7 @@ function bridgeProgressionTelemetry(text="",reply="",progressionRefinement={}){
 }
 function bridgeShapeProgressionReply(text="",reply="",progressionRefinement={},memory={}){
   const profile=safeObj(progressionRefinement.profile||progressionRefinement);
+  if(isWarmNyxGreetingOnly(text))return safeStr(reply);
   if(!profile.active)return safeStr(reply);
   if(progressionResponsePolicyMod&&typeof progressionResponsePolicyMod.shapeProgressionReply==="function"){
     try{
@@ -1659,7 +1711,7 @@ function bridgeShapeProgressionReply(text="",reply="",progressionRefinement={},m
     }catch(_){}
   }
   if(/^\s*(continue|next|ok|done|proceed)\.?\s*$/i.test(safeStr(reply))){
-    return "Progression shaping refinement: continue with the response-expansion validation. Test next steps, Passed, Failed, Continue, What now, and Update it; the expected result is a concrete action plan, not a one-word reply.";
+    return "Progression shaping refinement is ready for the next check. Use one clear follow-up at a time, then confirm whether the answer preserved context, stayed specific, and avoided generic fallback language.";
   }
   return safeStr(reply);
 }
@@ -1781,7 +1833,7 @@ function transportSafeError(packet = {}) {
   return out;
 }
 
-function isDiagnosticText(value){const t=lower(value);return /marion[_ -]?final[_ -]?envelope[_ -]?missing|final envelope missing|diagnostic packet|non-final|no_final|composer_invalid|composer_reply_missing|final_envelope_unavailable|bridge_error|packet_invalid|contract_invalid|bridge blocked an invalid public reply|exposing a runtime value|answer from the active lane|i stopped a repeated response before it could render again|current turn is preserved|fresh Marion final|replaying the same fallback|Index\.js transport[- ]only|loop is being contained at the bridge layer|MarionBridge should accept only one clean Marion final/.test(t);} 
+function isDiagnosticText(value){const t=lower(value);return /marion[_ -]?final[_ -]?envelope[_ -]?missing|final envelope missing|diagnostic packet|non-final|no_final|composer_invalid|composer_reply_missing|final_envelope_unavailable|bridge_error|packet_invalid|contract_invalid|bridge blocked an invalid public reply|exposing a runtime value|answer from the active lane|i stopped a repeated response before it could render again|current turn is preserved|fresh Marion final|replaying the same fallback|Index\.js transport[- ]only|loop is being contained at the bridge layer|MarionBridge should accept only one clean Marion final|progression active|run next validation|mark passed or failed|validation harness|regression harness|expected result:\s*marion/.test(t)||isPublicWorkflowStateLeak(t);} 
 function isRogueFallbackText(value){const t=lower(value);if(!t)return false;if(/give me the specific target or outcome/i.test(t)||/specific target.*answer directly/i.test(t))return true;return /\b(i['’]?m here and tracking the turn|i am here and tracking the turn|nyx is live and tracking the turn|give me the next clear target|send a specific command|press reset|ready\.\s*send|i blocked a repeated fallback|i['’]?m here\.?\s*what[’']?s next|i am here\.?\s*what[’']?s next|i['’]?m online\.?\s*what[’']?s next|i am online\.?\s*what[’']?s next|i['’]?m here,?\s*fully online\.?\s*what are we working on|hi\s*[—-]\s*i['’]?m here|fully online.*what are we working on|i['’]?m holding the thread\.\s*tell me what continuity point|technical path confirmed\.\s*i['’]?ll inspect the route output, composer reply, final envelope, bridge return shape, and state spine mutation|ready for the next test|online\. send next test|still connected\. send the next test)\b/i.test(t);}
 function isThinPlaceholderText(value){const t=lower(value);if(!t)return true;if(isDiagnosticText(t)||isRogueFallbackText(t))return true;if(t.length<18)return /^(ready|done|working|ok|okay|yes|no|next|continue|what next|i['’]?m here)$/i.test(t);return /^(i['’]?m here|i am here|i['’]?m online|i am online|still connected|online|ready)\b.*\b(next|test|continue|working on)\b/i.test(t)||/\b(i['’]?ll inspect|i will inspect|i['’]?m holding|i am holding)\b/i.test(t);}
 function neutralInterruptedReply(){return "";}
