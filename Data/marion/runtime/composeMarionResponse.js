@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.10 PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "composeMarionResponse v3.36.11 STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -1648,6 +1648,7 @@ function buildLoopGovernorTechnicalReply(text=""){
 }
 
 function buildFinalLoopRecoveryReply(intent,text,input={}){
+  if(isPublicWorkflowStateLeak(text)||isWarmNyxGreetingOnly(text))return "";
   const src=safeObj(input);
   const payload=safeObj(src.payload);
   const body=safeObj(src.body);
@@ -1717,6 +1718,7 @@ function finalSurfaceReply(value,intent,text,input={}){
   reply=stripStaleProgressionSurface(reply,intent,text);
   reply=stripPublicReplyScaffold(reply);
   if(reply&&!isPublicControlPolicyLeak(reply)&&!isGenericGreetingStatusReply(reply)&&!isPublicWorkflowStateLeak(reply))return reply;
+  if(isPublicWorkflowStateLeak(value)||isPublicWorkflowStateLeak(text)||isWarmNyxGreetingOnly(text))return "";
   return buildFinalLoopRecoveryReply(intent,text,input);
 }
 
@@ -2409,9 +2411,12 @@ function highPriorityProgressionSurfaceReply(text="",input={},intent="",routed={
 const FIVE_TURN_CONTRACT_VERSION = "nyx.marion.fiveTurnContract/1.2";
 function isFiveTurnContractTurn(text="",input={},routed={}){
   const i=safeObj(input), pm=safeObj(i.previousMemory||i.memory||i.turnMemory), st=safeObj(i.state||i.conversationState||pm.stateSpine||pm.conversationState), cr=safeObj(pm.continuityRegression||st.continuityRegression||i.continuityRegression), prior=safeObj(pm.fiveTurnContract||st.fiveTurnContract||i.fiveTurnContract);
-  const t=lower(text), ctx=lower(firstText(i.contextCarry,i.carryForwardSummary,i.conversationSummary,i.lastTopic,pm.lastTopic,st.lastTopic,cr.regressionTarget,cr.turnObjective,prior.regressionTarget,prior.turnObjective,prior.parityTarget));
-  if(prior.active||cr.continuityEligible)return true;
-  return /\b(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|voice and typed|voice and text|typed input|final[- ]?envelope authority|preserve route|preserve.*state|regression target|summarize this regression|without resetting context|what should stay consistent)\b/i.test(t+" "+ctx);
+  const t=lower(text);
+  const currentExplicit=/(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|voice and typed|voice and text|typed input|final[- ]?envelope authority|preserve route|preserve.*state|regression target|summarize this regression|without resetting context|what should stay consistent|progression shaping|progression refinement|validation harness|regression harness|mark passed|mark failed)/i.test(t);
+  if(isWarmNyxGreetingOnly(text))return false;
+  if((prior.active||cr.continuityEligible)&&!currentExplicit)return false;
+  if((prior.active||cr.continuityEligible)&&currentExplicit)return true;
+  return /(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|voice and typed|voice and text|typed input|final[- ]?envelope authority|preserve route|preserve.*state|regression target|summarize this regression|without resetting context|what should stay consistent)/i.test(t);
 }
 function fiveTurnContractProfile(text="",input={},routed={}){
   const t=lower(text), pm=safeObj(safeObj(input).previousMemory||safeObj(input).memory||{}), st=safeObj(safeObj(input).state||safeObj(input).conversationState||{}), cr=safeObj(pm.continuityRegression||st.continuityRegression||safeObj(input).continuityRegression), prior=safeObj(pm.fiveTurnContract||st.fiveTurnContract||safeObj(input).fiveTurnContract);
