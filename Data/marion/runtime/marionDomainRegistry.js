@@ -119,7 +119,18 @@ const DOMAIN_ALIASES = Object.freeze({
   law: "law",
   legal: "law",
   finance: "finance",
-  financial: "finance"
+  financial: "finance",
+  cash_flow: "finance",
+  cashflow: "finance",
+  cognitive: "psychology",
+  cognition: "psychology",
+  machine_learning: "ai",
+  ml: "ai",
+  syntax: "english",
+  phishing: "cyber",
+  least_privilege: "cyber",
+  consideration: "law",
+  contract_law: "law"
 });
 
 const INTENT_TO_DOMAIN = Object.freeze({
