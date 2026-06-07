@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.8 PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.9 CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -1363,7 +1363,10 @@ function resolvePhaseAnchor(input="",context={}){
   const text=normalizePhaseAnchorText(input), ctx=lower([safeObj(context).activeLane,safeObj(context).currentLane,safeObj(context).activeProject,safeObj(context).topic,safeObj(context).memoryText,input].map(safeStr).join(" ")).replace(/[_-]+/g," ");
   const phaseKey=extractPhaseAnchorKey(text);
   const continuation=isBridgeContinuationRequest(text);
-  if(!phaseKey&&!continuation)return {resolved:false,phaseKey:"",lane:"",label:"",summary:""};
+  const explicitProjectIntent=isExplicitProjectProgressionText(input);
+  if(isWarmNyxGreetingOnly(input))return {resolved:false,phaseKey:"",lane:"",label:"",summary:""};
+  if(!phaseKey&&(!continuation||!explicitProjectIntent))return {resolved:false,phaseKey:"",lane:"",label:"",summary:""};
+  if(continuation&&!explicitProjectIntent)return {resolved:false,phaseKey:phaseKey||"",lane:"",label:"",summary:""};
   let phaseMap=null,lane="";
   if(/\b(progression shaping|progression refinement|progression|depth governor|continuity depth|5 turn|five turn)\b/i.test(ctx)){phaseMap=PROGRESSION_SHAPING_PHASES;lane="progression_shaping_refinement";}
   if(!phaseMap&&/\b(domain confidence|confidence scoring|domain scoring|confidence threshold|confidence band)\b/i.test(ctx)){phaseMap=DOMAIN_CONFIDENCE_PHASES;lane="domain_confidence_scoring";}
@@ -1450,7 +1453,7 @@ function buildProjectRecoveryReply(normalized={}){
     return `${phase.label}: ${phase.summary}`;
   }
   if(isLanguageSphereNextStepsRequest(text)){
-    return "Next for LanguageSphere: harden mic-to-text parity, add spoken project-name recovery, anchor vague phase commands to the active lane, then run paired typed/voice regression tests before moving the stable components into LingoSentinel.";
+    return "LanguageSphere is being prepared to support reliable language routing, translation consistency, and voice/text alignment before the stable pieces move into LingoSentinel.";
   }
   return "";
 }
@@ -1554,16 +1557,17 @@ function buildPrimitiveReplyRecovery(normalized={},packet={}){
   const deterministic=buildDeterministicLastMilePublicReplyFromText(text);
   if(deterministic)return deterministic;
   if(isLanguageSphereNextStepsRequest(text)){
-    return "Next for LanguageSphere: harden mic-to-text parity, confirm spoken alias recovery, verify phase anchoring, then run paired typed and voice regression tests before moving the stable components into LingoSentinel.";
+    return "LanguageSphere is being prepared to support reliable language routing, translation consistency, and voice/text alignment before the stable pieces move into LingoSentinel.";
   }
   if(safeArray(safeObj(n.spokenAliasRecovery).hits).some((h)=>["LanguageSphere","LingoSentinel"].includes(safeStr(safeObj(h).canonical)))){
-    return "I’m tracking LanguageSphere and LingoSentinel. The next step is to verify spoken alias recovery, phase anchoring, and mic/text parity before moving the stable language components forward.";
+    return "I’m tracking LanguageSphere and LingoSentinel. The next step is to keep language routing, translation consistency, and voice/text alignment stable before moving the language components forward.";
   }
   return bridgeLoopGovernorReply(n, safeObj(packet), "primitive_public_reply_recovery");
 }
 function applyReplyEverywhere(packet={},reply="",flags={}){
   const out=isObj(packet)?packet:{};
-  const clean=stripTelemetryLeakFromReply(stripPublicReplyScaffold(reply))||safeStr(reply);
+  const clean=stripTelemetryLeakFromReply(stripPublicReplyScaffold(reply));
+  if(!clean||isInvalidPublicReplyValue(clean)||isThinPlaceholderText(clean)||isBroadLanguageClarifier(clean)||isPublicWorkflowStateLeak(clean))return suppressPublicReplyPacket(out,{...safeObj(flags),publicReplyHardlock:true,unsafeApplyReplySuppressed:true});
   out.reply=clean;out.text=clean;out.answer=clean;out.output=clean;out.response=clean;out.message=clean;out.displayReply=clean;out.spokenText=clean;out.textSpeak=clean;out.textDisplay=clean;
   out.ok=true;out.final=true;out.marionFinal=true;out.handled=true;out.awaitingMarion=false;out.terminal=true;out.suppressUserFacingReply=false;out.emit=true;out.blocked=false;out.transportSafe=true;out.socketReconnect=false;
   out.payload={...safeObj(out.payload),reply:clean,text:clean,answer:clean,output:clean,response:clean,message:clean,displayReply:clean,spokenText:clean,textSpeak:clean,textDisplay:clean,final:true,marionFinal:true,awaitingMarion:false,suppressUserFacingReply:false,emit:true,blocked:false};
@@ -1843,7 +1847,7 @@ function hotFallbackReply(_reason,_input={}){return "";}
 function createLocalFinalEnvelope({normalized={},routed={},contract={},reason="local_final_fallback",loopGuardResult={}}={}){
   const routing=safeObj(routed.routing),intent=firstText(routing.intent,contract.intent,"simple_chat"),domain=firstText(routing.domain,contract.domain,normalized.domain,"general");
   let reply=firstText(extractReply(contract));
-  if(!reply||isPrimitivePublicReply(reply)||isThinPlaceholderText(reply)||isDiagnosticText(reply))return buildErrorResult(reason||"local_final_reply_missing",{issues:["local_final_reply_missing"],loopGuard:safeObj(loopGuardResult)},normalized);
+  if(!reply||isPrimitivePublicReply(reply)||isThinPlaceholderText(reply)||isDiagnosticText(reply)||isPublicWorkflowStateLeak(reply)||isPublicControlPolicyLeak(reply))return buildErrorResult(reason||"local_final_reply_missing",{issues:["local_final_reply_missing"],loopGuard:safeObj(loopGuardResult),publicWorkflowStateSuppressed:true},normalized);
   const memoryPatch=safeObj(contract.memoryPatch);
   const runtimeTelemetry=buildBridgeRuntimeTelemetry({source:"marionBridge.createLocalFinalEnvelope",normalized,routed,contract,reply,finalEnvelopeTrusted:true,canEmit:true,error:reason,loopGuardResult});
   const packet={
