@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.23sb PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const INDEX_VERSION = "index.js v2.18.24sb PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -590,13 +590,31 @@ function collectPublicIntentText(packet) {
   const pieces = [
     src.userText, src.rawUserText, src.originalUserText, src.message, src.text, src.query, src.inputText, src.originalText,
     payload.userText, payload.rawUserText, payload.originalUserText, payload.message, payload.text, payload.query, payload.originalText,
-    finalEnvelope.userText, finalEnvelope.rawUserText, finalEnvelope.originalUserText, finalEnvelope.message, finalEnvelope.text,
+    finalEnvelope.userText, finalEnvelope.rawUserText, finalEnvelope.originalUserText,
     input.userText, input.rawUserText, input.originalUserText, input.message, input.text, input.query,
     body.userText, body.rawUserText, body.originalUserText, body.message, body.text, body.query,
-    meta.userText, meta.rawUserText, meta.originalUserText, meta.message, meta.text, meta.query,
-    normalized.userText, normalized.rawUserText, normalized.originalUserText, normalized.message, normalized.text, normalized.query
+    meta.userText, meta.rawUserText, meta.originalUserText, meta.query,
+    normalized.userText, normalized.rawUserText, normalized.originalUserText, normalized.query
   ];
-  return pieces.map(cleanText).filter(Boolean).join(" ");
+  return pieces.map(cleanText).filter((piece) => piece && !isPublicWorkflowStateLeak(piece) && !hasUserVisibleDebugLeak(piece)).join(" ");
+}
+
+function collectCurrentUserIntentText(packet) {
+  const src = safeObj(packet);
+  const payload = safeObj(src.payload);
+  const input = safeObj(src.input);
+  const body = safeObj(src.body);
+  const normalized = safeObj(src.normalized || src.norm);
+  const original = safeObj(src.original);
+  const pieces = [
+    src.userText, src.rawUserText, src.originalUserText, src.userQuery, src.rawUserQuery, src.publicUserQuery, src.query, src.inputText, src.originalText,
+    payload.userText, payload.rawUserText, payload.originalUserText, payload.userQuery, payload.rawUserQuery, payload.publicUserQuery, payload.query, payload.originalText,
+    input.userText, input.rawUserText, input.originalUserText, input.query,
+    body.userText, body.rawUserText, body.originalUserText, body.query,
+    normalized.userText, normalized.rawUserText, normalized.originalUserText, normalized.userQuery, normalized.rawUserQuery, normalized.publicUserQuery, normalized.query,
+    original.userText, original.rawUserText, original.originalUserText, original.query
+  ];
+  return pieces.map(cleanText).filter((piece) => piece && !isPublicWorkflowStateLeak(piece) && !hasUserVisibleDebugLeak(piece)).join(" ");
 }
 
 function normalizeLastMileIntentText(value) {
@@ -614,7 +632,7 @@ function normalizeLastMileIntentText(value) {
     .trim();
 }
 
-const LAST_MILE_PROGRESSION_CONTINUATION_REPLY = "Progression shaping is active. Continue with the next concrete validation step, then mark the result as Passed or Failed so Marion can preserve the current lane and advance cleanly.";
+const LAST_MILE_PROGRESSION_CONTINUATION_REPLY = "";
 
 function buildDeterministicLastMilePublicReplyFromText(value = "") {
   const source = cleanText(value);
@@ -658,7 +676,10 @@ function isInvalidPublicReplyRecoveryText(value = "") {
 function isLastMileProgressionIntentText(value) {
   const source = normalizeLastMileIntentText(value);
   if (!source) return false;
-  return /\b(next steps?|what'?s next|what now|continue|carry on|keep going|move on|next phase|after that|passed|failed)\b/i.test(source);
+  if (isPublicWorkflowStateLeak(source) || hasUserVisibleDebugLeak(source)) return false;
+  const explicitProgression = /\b(progression shaping|progression refinement|progression_shaping_refinement|response[-\s]?expansion validation|validation harness|regression harness|mic[-\s]?to[-\s]?text parity|domain confidence scoring|phase\s*[1-9]|5[-\s]?turn|five[-\s]?turn)\b/i.test(source);
+  const explicitResult = /\b(mark\s+(?:as\s+)?(?:passed|failed)|all passed|all failed|passed|failed)\b/i.test(source) && /\b(test|validation|phase|progression|parity|domain confidence|harness)\b/i.test(source);
+  return !!(explicitProgression || explicitResult);
 }
 
 function isThinLastMileContinuationReply(value) {
@@ -669,17 +690,18 @@ function isThinLastMileContinuationReply(value) {
 }
 
 function buildLastMileProgressionContinuationReply(packet, fallbackText) {
-  const source = `${collectPublicIntentText(packet)} ${cleanText(fallbackText)}`.trim();
-  if (!isLastMileProgressionIntentText(source)) return "";
-  if (/\b(pass(?:ed)?|all passed|green|success|works|complete|locked)\b/i.test(source)) {
-    return "Progression shaping passed. Lock the current result, preserve the progression lane, and move to the next validation layer.";
+  const currentUserSource = collectCurrentUserIntentText(packet);
+  const fallback = cleanText(fallbackText);
+  if (!currentUserSource || !isLastMileProgressionIntentText(currentUserSource)) return "";
+  if (isPublicWorkflowStateLeak(fallback) || hasUserVisibleDebugLeak(fallback)) return "";
+  if (/\b(pass(?:ed)?|all passed|green|success|works|complete|locked)\b/i.test(currentUserSource)) {
+    return "I can help validate the next step. Send me the exact file or behavior you want checked.";
   }
-  if (/\b(fail(?:ed)?|error|broke|not working|red|still failing|didn'?t pass|issue)\b/i.test(source)) {
-    return "Progression shaping needs repair. Patch the failing selector, rerun the same prompt, and do not advance until the public reply gives a concrete action plan.";
+  if (/\b(fail(?:ed)?|error|broke|not working|red|still failing|didn'?t pass|issue)\b/i.test(currentUserSource)) {
+    return "I can help isolate the failure. Send me the exact file, prompt, or screenshot tied to the issue.";
   }
-  return LAST_MILE_PROGRESSION_CONTINUATION_REPLY;
+  return "I can help with the next validation, but I need the exact target to keep it precise.";
 }
-
 function buildLastMileRecoveryReply(packet) {
   const source = normalizeLastMileIntentText(collectPublicIntentText(packet));
   if (!source) return "";
@@ -771,14 +793,14 @@ function cleanReplyForUser(v) {
   t = stripUserVisibleDebugLeak(t);
   if (!t) return "";
   t = stripPublicReplyScaffold(t);
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, LAST_MILE_PROGRESSION_CONTINUATION_REPLY);
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, LAST_MILE_PROGRESSION_CONTINUATION_REPLY);
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "Tell me what you need help with, and I’ll keep it focused.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "Tell me what you need help with, and I’ll keep it focused.");
   t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
   t = t.replace(/\bbackend\b/ig, "system");
   t = stripPublicReplyScaffold(t);
   t = t.replace(/\s+([,.!?])/g, "$1").replace(/\s{2,}/g, " ").trim();
   if (isThinLastMileContinuationReply(t)) return "";
-  return hasUserVisibleDebugLeak(t) || isPublicControlPolicyLeak(t) || isPrimitivePlaceholderReplyValue(t) ? "" : t;
+  return hasUserVisibleDebugLeak(t) || isPublicWorkflowStateLeak(t) || isPublicControlPolicyLeak(t) || isPrimitivePlaceholderReplyValue(t) ? "" : t;
 }
 
 function isPublicControlPolicyLeak(value) {
@@ -883,7 +905,7 @@ function buildPublicChatResponse(packet, reply) {
   const ttsSrc = safeObj(src.tts);
   const lingoSentinelAnswer = buildLingoSentinelPublicAnswerFromPacket(src);
   let safeReply = cleanReplyForUser(reply || src.displayReply || src.reply || src.response || src.text || src.answer || payload.displayReply || payload.reply || finalEnvelope.displayReply || finalEnvelope.reply || "");
-  const lastMileProgressionReply = buildLastMileProgressionContinuationReply(src, reply);
+  const lastMileProgressionReply = buildLastMileProgressionContinuationReply(src, "");
   if (lastMileProgressionReply && (!safeReply || isThinLastMileContinuationReply(safeReply) || /^i can continue from your next instruction\.?$/i.test(safeReply))) safeReply = lastMileProgressionReply;
   if (lingoSentinelAnswer && (!safeReply || isGenericGreetingStatusReply(safeReply))) safeReply = lingoSentinelAnswer;
   if (!safeReply) safeReply = lingoSentinelAnswer;
