@@ -15,8 +15,8 @@
  *     events:   *_MESSAGE_READY
  *
  * Important:
- * - Adaptive payloads may not expose `schema` at the top level.
- * - The engine result telemetry remains the source of truth for payloadShape.
+ * - Adaptive payloads/signals may not expose old canonical-only fields at the top level.
+ * - The public engine result, routePreview, publish target, and telemetry are the stable contract.
  *
  * Confirms:
  * - Engine loads from the dedicated LingoSentinel runtime folder.
@@ -335,7 +335,7 @@ runAll([
     assertNoSecretLeak(preview);
   }),
 
-  test('buildSignalPlan prepares canonical signal and active publish target', () => {
+  test('buildSignalPlan prepares active publish target and gateway-governed route', () => {
     const plan = Engine.buildSignalPlan({
       mode: 'group_room',
       roomId: 'region-singapore',
@@ -354,11 +354,13 @@ runAll([
     assert.strictEqual(plan.publish.channel, activeChannel('room', 'region-singapore'));
     assert.strictEqual(plan.publish.eventName, ACTIVE_EVENTS.group_room);
     assert.ok(plan.signal && typeof plan.signal === 'object', 'Expected signal object.');
-    assert.strictEqual(plan.signal.room.lane, 'room');
-    assert.strictEqual(plan.signal.metadata.region, 'Singapore');
-    assert.strictEqual(plan.signal.metadata.city, 'Singapore');
-    assert.strictEqual(plan.signal.metadata.interactionSource, 'globe_click');
-    assert.strictEqual(plan.signal.governance.marionAuthority, true);
+    assert.ok(plan.gateway && plan.gateway.ok, 'Expected gateway-approved plan.');
+    assert.strictEqual(plan.gateway.publishInput.mode, 'group_room');
+    assert.strictEqual(plan.gateway.publishInput.roomId, 'region-singapore');
+    assert.strictEqual(plan.gateway.governance.marionAuthority, true);
+    assert.strictEqual(plan.gateway.publishInput.metadata.region, 'Singapore');
+    assert.strictEqual(plan.gateway.publishInput.metadata.city, 'Singapore');
+    assert.strictEqual(plan.gateway.publishInput.metadata.interactionSource, 'globe_click');
     assertNoSecretLeak(plan);
   }),
 
