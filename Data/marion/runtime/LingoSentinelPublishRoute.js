@@ -8,7 +8,7 @@
  * Purpose:
  * - Accept widget/API message requests.
  * - Keep Ably root API key out of the frontend.
- * - Pass traffic through LingoLinkGateway before publishing.
+ * - Pass traffic through LingoSentinelLinkGateway before publishing.
  * - Return safe telemetry to the widget.
  *
  * Mount example:
@@ -20,7 +20,7 @@
  */
 
 const express = require('express');
-const LingoLinkGateway = require('./LingoLinkGateway');
+const LingoSentinelLinkGateway = require('./LingoSentinelLinkGateway');
 const LingoSentinelEngine = require('./LingoSentinelEngine');
 
 const router = express.Router();
@@ -128,7 +128,7 @@ router.post('/publish', async (req, res) => {
       });
     }
 
-    const gatewayResult = LingoLinkGateway.prepareLingoSentinelPublish({
+    const gatewayResult = LingoSentinelLinkGateway.prepareLingoSentinelPublish({
       ...input,
       metadata: {
         ...input.metadata,
