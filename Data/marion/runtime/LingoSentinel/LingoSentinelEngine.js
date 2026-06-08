@@ -28,7 +28,7 @@
  * - LINGOSENTINEL_TIMEOUT_MS
  *
  * File path:
- * Data/marion/runtime/LingoSentinelEngine.js
+ * Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js
  */
 
 const DEFAULT_CLIENT_ID = 'marion-lingosentinel-engine';
@@ -108,7 +108,32 @@ function loadOptionalModule(path) {
 function getGateway() {
   if (cachedGateway) return cachedGateway;
 
-  cachedGateway = require('./LingoSentinelLinkGateway');
+  const candidates = [
+    './LingoSentinelLinkGateway',
+    '../LingoSentinelLinkGateway'
+  ];
+
+  let lastError = null;
+
+  for (const path of candidates) {
+    try {
+      cachedGateway = require(path);
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!cachedGateway) {
+    const error = new Error(
+      `Unable to load LingoSentinelLinkGateway from engine folder or parent runtime folder: ${
+        lastError && lastError.message ? lastError.message : 'No loader detail.'
+      }`
+    );
+    error.code = 'LINGOSENTINEL_GATEWAY_NOT_FOUND';
+    error.cause = lastError;
+    throw error;
+  }
 
   if (!cachedGateway || typeof cachedGateway.prepareLingoSentinelPublish !== 'function') {
     const error = new Error('LingoSentinelLinkGateway is missing prepareLingoSentinelPublish().');
