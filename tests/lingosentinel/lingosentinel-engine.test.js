@@ -3,12 +3,12 @@
 /**
  * lingosentinel-engine.test.js
  *
- * VERSION_MARKER: LINGOSENTINEL_ENGINE_TEST_V12_LIVE_LANE_FIX
+ * VERSION_MARKER: LINGOSENTINEL_ENGINE_TEST_V13_LIVE_EVENT_FIX
  *
  * Active adaptive contract:
  * - group_room:     ls:room:{roomId}       / lingosentinel.message.group
  * - one_to_one:     ls:direct:{roomId}     / lingosentinel.message.direct
- * - live_translate: ls:live:{sessionId}    / lingosentinel.message.translation
+ * - live_translate: ls:live:{sessionId}    / lingosentinel.message.live
  * - delivered:      ls:receipt:{threadId}  / lingosentinel.message.delivered
  *
  * fallbackRoute() remains the plain fallback helper:
@@ -30,7 +30,7 @@ const Engine = require('../../Data/marion/runtime/LingoSentinel/LingoSentinelEng
 const ACTIVE_EVENTS = Object.freeze({
   group_room: 'lingosentinel.message.group',
   one_to_one: 'lingosentinel.message.direct',
-  live_translate: 'lingosentinel.message.translation',
+  live_translate: 'lingosentinel.message.live',
   delivered: 'lingosentinel.message.delivered'
 });
 
@@ -135,8 +135,8 @@ function createMockAblyClient() {
 }
 
 runAll([
-  test('loaded v12 test file marker is present', () => {
-    assert.strictEqual('LINGOSENTINEL_ENGINE_TEST_V12_LIVE_LANE_FIX'.includes('V12'), true);
+  test('loaded v13 test file marker is present', () => {
+    assert.strictEqual('LINGOSENTINEL_ENGINE_TEST_V13_LIVE_EVENT_FIX'.includes('V13'), true);
   }),
 
   test('engine exposes expected public contract', () => {
