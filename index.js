@@ -46,7 +46,7 @@ const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./Data/marion/runtime/finalRenderTelemetry.js"); } catch (_) { return null; } })();
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
-const LINGOSENTINEL_GATEWAY_INDEX_VERSION = "nyx.lingosentinel.indexGateway/0.2";
+const LINGOSENTINEL_GATEWAY_INDEX_VERSION = "nyx.lingosentinel.indexGateway/0.3-link-gateway";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -2086,6 +2086,21 @@ const cbcRssRoutesMod = tryRequireMany([
   "./Routes/CBCRSS.js"
 ]);
 
+const lingoSentinelPublishRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelPublishRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelPublishRoute.js",
+  "./Data/marion/runtime/LingoSentinelPublishRoute",
+  "./Data/marion/runtime/LingoSentinelPublishRoute.js",
+  "./routes/LingoSentinelPublishRoute",
+  "./routes/LingoSentinelPublishRoute.js",
+  "./Routes/LingoSentinelPublishRoute",
+  "./Routes/LingoSentinelPublishRoute.js",
+  "./LingoSentinel/LingoSentinelPublishRoute",
+  "./LingoSentinel/LingoSentinelPublishRoute.js",
+  "./runtime/LingoSentinel/LingoSentinelPublishRoute",
+  "./runtime/LingoSentinel/LingoSentinelPublishRoute.js"
+]);
+
 function resolveExpressRouterFromModule(mod) {
   if (!mod) return null;
   if (typeof mod === "function" && typeof mod.use === "function") return mod;
@@ -2098,6 +2113,38 @@ function resolveExpressRouterFromModule(mod) {
     } catch (_) {}
   }
   return null;
+}
+
+function mountLingoSentinelPublishRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) {
+    appRef.use("/api/lingosentinel", router);
+    appRef.use("/api/lingosentinel/publish", router);
+    appRef.use("/api/lingosentinel/link", router);
+    return true;
+  }
+  const register =
+    (typeof mod.registerLingoSentinelPublishRoute === "function" && mod.registerLingoSentinelPublishRoute) ||
+    (typeof mod.mountLingoSentinelPublishRoute === "function" && mod.mountLingoSentinelPublishRoute) ||
+    (typeof mod.register === "function" && mod.register) ||
+    (typeof mod.mount === "function" && mod.mount) ||
+    (typeof mod.default === "function" && mod.default);
+  if (typeof register !== "function") return false;
+  try {
+    register(appRef, {
+      basePath: "/api/lingosentinel",
+      publishPath: "/api/lingosentinel/publish",
+      linkPath: "/api/lingosentinel/link",
+      version: LINGOSENTINEL_GATEWAY_INDEX_VERSION
+    });
+    return true;
+  } catch (err) {
+    console.log("[Sandblast][LingoSentinel] publish_route_register_failed", {
+      error: cleanText(err && (err.message || err) || "register_failed")
+    });
+    return false;
+  }
 }
 
 const marionBridgeMod = tryRequireMany([
@@ -2117,6 +2164,20 @@ const marionBridgeMod = tryRequireMany([
 ]);
 
 const lingoSentinelGatewayMod = tryRequireMany([
+  // LINGOSENTINEL LINK GATEWAY HOTFIX:
+  // The active gateway was renamed to LingoSentinelLinkGateway and lives inside
+  // Data/marion/runtime/LingoSentinel. Prefer that path before legacy aliases so
+  // index.js does not silently fall back to the retired gateway name.
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelLinkGateway",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelLinkGateway.js",
+  "./Data/marion/runtime/LingoSentinelLinkGateway",
+  "./Data/marion/runtime/LingoSentinelLinkGateway.js",
+  "./LingoSentinel/LingoSentinelLinkGateway",
+  "./LingoSentinel/LingoSentinelLinkGateway.js",
+  "./runtime/LingoSentinel/LingoSentinelLinkGateway",
+  "./runtime/LingoSentinel/LingoSentinelLinkGateway.js",
+  "./runtime/LingoSentinelLinkGateway",
+  "./runtime/LingoSentinelLinkGateway.js",
   "./Data/marion/runtime/MarionLingoSentinelGateway",
   "./Data/marion/runtime/MarionLingoSentinelGateway.js",
   "./MarionLingoSentinelGateway",
@@ -2134,7 +2195,22 @@ const lingoSentinelGatewayMod = tryRequireMany([
   "./runtime/LingoSentinelGateway",
   "./runtime/LingoSentinelGateway.js"
 ]);
-const runIndexLingoSentinelGateway = lingoSentinelGatewayMod && typeof lingoSentinelGatewayMod.runMarionLingoSentinelGateway === "function" ? lingoSentinelGatewayMod.runMarionLingoSentinelGateway.bind(lingoSentinelGatewayMod) : (lingoSentinelGatewayMod && typeof lingoSentinelGatewayMod.runLingoSentinelGateway === "function" ? lingoSentinelGatewayMod.runLingoSentinelGateway.bind(lingoSentinelGatewayMod) : null);
+function resolveIndexLingoSentinelGatewayRunner(mod) {
+  if (!mod) return null;
+  const candidates = [
+    mod.runMarionLingoSentinelLinkGateway,
+    mod.runLingoSentinelLinkGateway,
+    mod.runMarionLingoSentinelGateway,
+    mod.runLingoSentinelGateway,
+    mod.default
+  ];
+  for (const fn of candidates) {
+    if (typeof fn === "function") return fn.bind(mod);
+  }
+  if (typeof mod === "function") return mod;
+  return null;
+}
+const runIndexLingoSentinelGateway = resolveIndexLingoSentinelGatewayRunner(lingoSentinelGatewayMod);
 const buildIndexLingoSentinelMarionPayload = lingoSentinelGatewayMod && typeof lingoSentinelGatewayMod.buildMarionBridgePayload === "function" ? lingoSentinelGatewayMod.buildMarionBridgePayload.bind(lingoSentinelGatewayMod) : null;
 
 const composeMarionResponseMod = tryRequireMany([
@@ -6434,7 +6510,8 @@ async function applyIndexLingoSentinelGatewayToNorm(norm) {
       languageSphere: isObj(n.languageSphere) ? n.languageSphere : {},
       meta: { traceId: n.traceId, turnId: n.turnId, source: "index_transport_only" }
     }, { defaultTargetLanguage: "en", domain: cleanText(n.knowledgeDomain || n.domain || "general") }));
-    const patch = buildIndexLingoSentinelGatewayPatch(result, rawText, n);
+    const resultObj = safeObj(result);
+    const patch = buildIndexLingoSentinelGatewayPatch(resultObj, rawText, n);
     n.lingoSentinel = { ...(isObj(n.lingoSentinel) ? n.lingoSentinel : {}), ...patch.surface };
     n.languageMeta = patch.languageMeta;
     n.lingoInput = patch.lingoInput;
@@ -6448,11 +6525,11 @@ async function applyIndexLingoSentinelGatewayToNorm(norm) {
     n.lingoSentinelTelemetry = patch.telemetry;
     n.lingoSentinelResponse = patch.response;
     n.lingoSentinelAuthorityReview = patch.authorityReview;
-    n.inputHash = cleanText(result.inputHash || patch.gatewayMeta.requestId || n.inputHash || "");
-    n.gatewayHash = cleanText(result.gatewayHash || patch.gatewayMeta.requestId || n.gatewayHash || "");
-    n.stableHash = cleanText(result.stableHash || patch.gatewayMeta.requestId || n.stableHash || "");
-    n.correlationId = cleanText(result.correlationId || patch.gatewayMeta.requestId || n.correlationId || "");
-    n.traceId = cleanText(result.traceId || patch.gatewayMeta.requestId || n.traceId || "");
+    n.inputHash = cleanText(resultObj.inputHash || patch.gatewayMeta.requestId || n.inputHash || "");
+    n.gatewayHash = cleanText(resultObj.gatewayHash || patch.gatewayMeta.requestId || n.gatewayHash || "");
+    n.stableHash = cleanText(resultObj.stableHash || patch.gatewayMeta.requestId || n.stableHash || "");
+    n.correlationId = cleanText(resultObj.correlationId || patch.gatewayMeta.requestId || n.correlationId || "");
+    n.traceId = cleanText(resultObj.traceId || patch.gatewayMeta.requestId || n.traceId || "");
     n.notificationReady = !!(patch.gatewayMeta.notificationReady || patch.unknownLanguageAlert.notificationReady || patch.dormantScanner.notificationReady);
   } catch (err) {
     n.lingoSentinel = { version: LINGOSENTINEL_GATEWAY_INDEX_VERSION, available: false, active: false, authority: "marion", advisoryOnly: true, stage: "index-pre-marion", fallbackTriggered: true, error: "gateway-failed-safe", detail: cleanText(err && (err.message || err) || ""), noUserFacingDiagnostics: true };
@@ -10552,6 +10629,14 @@ if (newsCanadaRoutes && boolEnv("SB_ENABLE_NEWSCANADA_EXTERNAL_ROUTES", false)) 
   });
 }
 
+const lingoSentinelPublishMounted = mountLingoSentinelPublishRoute(app, lingoSentinelPublishRoutesMod);
+console.log("[Sandblast][LingoSentinel] publish_route_" + (lingoSentinelPublishMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel",
+  publish: "/api/lingosentinel/publish",
+  link: "/api/lingosentinel/link",
+  gateway: "LingoSentinelLinkGateway",
+  router: !!lingoSentinelPublishMounted
+});
 
 STATIC_PUBLIC_DIRS.forEach((dir) => {
   app.use(express.static(dir));
