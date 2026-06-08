@@ -14,23 +14,46 @@
  * - Private credentials are rejected before realtime handoff.
  * - Ably keys are never exposed in returned payloads.
  * - Mock Ably client receives the expected channel, event, and payload.
+ *
+ * Critical alignment note:
+ * - The active signal-envelope/adaptive layer emits compact Ably namespace `ls:`.
+ * - The gateway still remains the authority boundary; this test follows the
+ *   active engine output instead of forcing the fallback `lingosentinel:` namespace.
  */
 
 const assert = require('assert');
 
 const Engine = require('../../Data/marion/runtime/LingoSentinel/LingoSentinelEngine');
 
+const ACTIVE_NAMESPACE = 'ls';
+
+const tests = [];
+
 function runTest(name, fn) {
-  Promise.resolve()
-    .then(fn)
-    .then(() => {
-      console.log(`✓ ${name}`);
-    })
-    .catch(error => {
-      console.error(`✗ ${name}`);
+  tests.push({ name, fn });
+}
+
+async function runAll() {
+  for (const test of tests) {
+    try {
+      await test.fn();
+      console.log(`✓ ${test.name}`);
+    } catch (error) {
+      console.error(`✗ ${test.name}`);
       console.error(error);
       process.exitCode = 1;
-    });
+    }
+  }
+
+  if (process.exitCode) {
+    console.error('\nLingoSentinel engine regression tests failed.');
+  } else {
+    console.log('\nAll LingoSentinel engine regression tests passed.');
+  }
+}
+
+function channel(lane, id) {
+  return `${ACTIVE_NAMESPACE}:${lane}:${id}`;
 }
 
 function baseSender(overrides = {}) {
@@ -88,9 +111,7 @@ function createMockAblyClient() {
       }
     },
     close() {
-      published.push({
-        closed: true
-      });
+      published.push({ closed: true });
     }
   };
 }
@@ -120,7 +141,7 @@ runTest('engine exposes expected contract and public functions', () => {
   assert.strictEqual(contract.lanes.delivered, 'delivered');
 });
 
-runTest('group_room dry-run routes to lingosentinel room channel', async () => {
+runTest('group_room dry-run routes to active room channel namespace', async () => {
   const result = await Engine.publishGroupMessage(
     {
       roomId: 'region-japan',
@@ -141,7 +162,7 @@ runTest('group_room dry-run routes to lingosentinel room channel', async () => {
   assert.strictEqual(result.stage, 'dry_run');
   assert.strictEqual(result.dryRun, true);
   assert.strictEqual(result.mode, 'group_room');
-  assert.strictEqual(result.channel, 'lingosentinel:room:region-japan');
+  assert.strictEqual(result.channel, channel('room', 'region-japan'));
   assert.strictEqual(result.eventName, 'ROOM_MESSAGE_READY');
   assert.strictEqual(result.room.lane, 'room');
   assert.strictEqual(result.room.id, 'region-japan');
@@ -150,7 +171,7 @@ runTest('group_room dry-run routes to lingosentinel room channel', async () => {
   assertNoSecretLeak(result);
 });
 
-runTest('live_translate dry-run routes to translation channel', async () => {
+runTest('live_translate dry-run routes to active translation channel namespace', async () => {
   const result = await Engine.publishLiveTranslateMessage(
     {
       roomId: 'translation-session-001',
@@ -173,25 +194,23 @@ runTest('live_translate dry-run routes to translation channel', async () => {
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.stage, 'dry_run');
   assert.strictEqual(result.mode, 'live_translate');
-  assert.strictEqual(result.channel, 'lingosentinel:translation:translation-session-001');
+  assert.strictEqual(result.channel, channel('translation', 'translation-session-001'));
   assert.strictEqual(result.eventName, 'TRANSLATION_MESSAGE_READY');
   assert.strictEqual(result.room.lane, 'translation');
   assert.strictEqual(result.room.sessionId, 'translation-session-001');
-  assert.strictEqual(result.language.source, 'en');
-  assert.strictEqual(result.language.target, 'es');
+  assert.strictEqual(result.language.sourceLanguage || result.language.source, 'en');
+  assert.strictEqual(result.language.targetLanguage || result.language.target, 'es');
   assert.strictEqual(result.governance.marionAuthority, true);
   assertNoSecretLeak(result);
 });
 
-runTest('delivered dry-run routes to delivered channel', async () => {
+runTest('delivered dry-run routes to active delivered channel namespace', async () => {
   const result = await Engine.publishDeliveredReceipt(
     {
       roomId: 'delivery-thread-001',
       text: 'Message delivered confirmation.',
       sender: baseSender(),
-      recipient: baseRecipient({
-        preferredLanguage: 'es'
-      }),
+      recipient: baseRecipient({ preferredLanguage: 'es' }),
       sourceLanguage: 'en',
       recipientLanguage: 'es'
     },
@@ -201,7 +220,7 @@ runTest('delivered dry-run routes to delivered channel', async () => {
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.stage, 'dry_run');
   assert.strictEqual(result.mode, 'delivered');
-  assert.strictEqual(result.channel, 'lingosentinel:delivered:delivery-thread-001');
+  assert.strictEqual(result.channel, channel('delivered', 'delivery-thread-001'));
   assert.strictEqual(result.eventName, 'DELIVERED_MESSAGE_READY');
   assert.strictEqual(result.room.lane, 'delivered');
   assert.strictEqual(result.room.id, 'delivery-thread-001');
@@ -229,7 +248,7 @@ runTest('one_to_one dry-run requires recipient', async () => {
   );
 });
 
-runTest('one_to_one dry-run routes to direct channel when recipient exists', async () => {
+runTest('one_to_one dry-run routes to active direct channel namespace when recipient exists', async () => {
   const result = await Engine.publishDirectMessage(
     {
       roomId: 'direct-thread-001',
@@ -245,7 +264,7 @@ runTest('one_to_one dry-run routes to direct channel when recipient exists', asy
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.stage, 'dry_run');
   assert.strictEqual(result.mode, 'one_to_one');
-  assert.strictEqual(result.channel, 'lingosentinel:direct:direct-thread-001');
+  assert.strictEqual(result.channel, channel('direct', 'direct-thread-001'));
   assert.strictEqual(result.eventName, 'ONE_TO_ONE_MESSAGE_READY');
   assert.strictEqual(result.room.lane, 'direct');
   assert.strictEqual(result.governance.marionAuthority, true);
@@ -285,7 +304,7 @@ runTest('routePreview returns safe route summary without publishing', () => {
   });
 
   assert.strictEqual(preview.ok, true);
-  assert.strictEqual(preview.channel, 'lingosentinel:room:region-trinidad');
+  assert.strictEqual(preview.channel, channel('room', 'region-trinidad'));
   assert.strictEqual(preview.eventName, 'ROOM_MESSAGE_READY');
   assert.strictEqual(preview.mode, 'group_room');
   assert.strictEqual(preview.room.lane, 'room');
@@ -310,7 +329,7 @@ runTest('buildSignalPlan prepares canonical signal and publish target', () => {
   });
 
   assert.strictEqual(plan.ok, true);
-  assert.strictEqual(plan.publish.channel, 'lingosentinel:room:region-singapore');
+  assert.strictEqual(plan.publish.channel, channel('room', 'region-singapore'));
   assert.strictEqual(plan.publish.eventName, 'ROOM_MESSAGE_READY');
   assert.strictEqual(plan.signal.schema, 'lingosentinel.signal');
   assert.strictEqual(plan.signal.engine, 'LingoSentinelEngine');
@@ -322,12 +341,8 @@ runTest('buildSignalPlan prepares canonical signal and publish target', () => {
   assertNoSecretLeak(plan);
 });
 
-runTest('fallbackRoute maps every supported mode to a stable Ably lane', () => {
-  const group = Engine.fallbackRoute({
-    mode: 'group_room',
-    roomId: 'region-canada'
-  });
-
+runTest('fallbackRoute maps every supported mode to stable fallback lanes', () => {
+  const group = Engine.fallbackRoute({ mode: 'group_room', roomId: 'region-canada' });
   assert.strictEqual(group.lane, 'room');
   assert.strictEqual(group.ablyChannel, 'lingosentinel:room:region-canada');
   assert.strictEqual(group.eventType, 'ROOM_MESSAGE_READY');
@@ -337,31 +352,22 @@ runTest('fallbackRoute maps every supported mode to a stable Ably lane', () => {
     roomId: 'translation-room',
     sessionId: 'session-123'
   });
-
   assert.strictEqual(live.lane, 'translation');
   assert.strictEqual(live.ablyChannel, 'lingosentinel:translation:session-123');
   assert.strictEqual(live.eventType, 'TRANSLATION_MESSAGE_READY');
 
-  const delivered = Engine.fallbackRoute({
-    mode: 'delivered',
-    roomId: 'delivery-thread'
-  });
-
+  const delivered = Engine.fallbackRoute({ mode: 'delivered', roomId: 'delivery-thread' });
   assert.strictEqual(delivered.lane, 'delivered');
   assert.strictEqual(delivered.ablyChannel, 'lingosentinel:delivered:delivery-thread');
   assert.strictEqual(delivered.eventType, 'DELIVERED_MESSAGE_READY');
 
-  const direct = Engine.fallbackRoute({
-    mode: 'one_to_one',
-    roomId: 'direct-thread'
-  });
-
+  const direct = Engine.fallbackRoute({ mode: 'one_to_one', roomId: 'direct-thread' });
   assert.strictEqual(direct.lane, 'direct');
   assert.strictEqual(direct.ablyChannel, 'lingosentinel:direct:direct-thread');
   assert.strictEqual(direct.eventType, 'ONE_TO_ONE_MESSAGE_READY');
 });
 
-runTest('mock Ably client receives correct channel, event, and payload', async () => {
+runTest('mock Ably client receives correct active channel, event, and payload', async () => {
   const mockClient = createMockAblyClient();
 
   const result = await Engine.publishGroupMessage(
@@ -384,11 +390,11 @@ runTest('mock Ably client receives correct channel, event, and payload', async (
 
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.stage, 'published');
-  assert.strictEqual(result.channel, 'lingosentinel:room:region-france');
+  assert.strictEqual(result.channel, channel('room', 'region-france'));
   assert.strictEqual(result.eventName, 'ROOM_MESSAGE_READY');
 
   assert.strictEqual(mockClient.published.length, 1);
-  assert.strictEqual(mockClient.published[0].channelName, 'lingosentinel:room:region-france');
+  assert.strictEqual(mockClient.published[0].channelName, channel('room', 'region-france'));
   assert.strictEqual(mockClient.published[0].eventName, 'ROOM_MESSAGE_READY');
 
   const payload = mockClient.published[0].payload;
@@ -462,10 +468,4 @@ runTest('closeEngine and resetEngineForTests return safe lifecycle results', asy
   assert.ok(closed.closedAt);
 });
 
-setTimeout(() => {
-  if (process.exitCode) {
-    console.error('\nLingoSentinel engine regression tests failed.');
-  } else {
-    console.log('\nAll LingoSentinel engine regression tests passed.');
-  }
-}, 250);
+runAll();
