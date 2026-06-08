@@ -3,7 +3,7 @@
 /**
  * lingosentinel-engine.test.js
  *
- * VERSION_MARKER: LINGOSENTINEL_ENGINE_TEST_V10_PREVIEW_CONTRACT_FIX
+ * VERSION_MARKER: LINGOSENTINEL_ENGINE_TEST_V11_DELIVERED_RECEIPT_LANE_FIX
  *
  * Regression coverage for:
  * Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js
@@ -12,6 +12,9 @@
  * - Active engine path may use the adaptive SignalEnvelope layer:
  *     channels: ls:*
  *     events:   lingosentinel.message.*
+ * - Delivered receipts currently publish through the active `receipt` lane:
+ *     channel:  ls:receipt:{threadId}
+ *     event:    lingosentinel.message.delivered
  * - fallbackRoute() remains the plain fallback helper:
  *     channels: lingosentinel:*
  *     events:   *_MESSAGE_READY
@@ -40,8 +43,6 @@
  *     plan.publish.eventName
  *     plan.gateway.ok
  *     plan.gateway.publishInput
- *
- * This test intentionally avoids brittle adaptive internals.
  */
 
 const assert = require('assert');
@@ -156,8 +157,8 @@ function createMockAblyClient() {
 }
 
 runAll([
-  test('loaded v10 test file marker is present', () => {
-    assert.strictEqual('LINGOSENTINEL_ENGINE_TEST_V10_PREVIEW_CONTRACT_FIX'.includes('V10'), true);
+  test('loaded v11 test file marker is present', () => {
+    assert.strictEqual('LINGOSENTINEL_ENGINE_TEST_V11_DELIVERED_RECEIPT_LANE_FIX'.includes('V11'), true);
   }),
 
   test('engine exposes expected public contract', () => {
@@ -239,7 +240,7 @@ runAll([
     });
   }),
 
-  test('delivered dry-run returns stable public route contract', async () => {
+  test('delivered dry-run returns stable public receipt route contract', async () => {
     const result = await Engine.publishDeliveredReceipt(
       {
         roomId: 'delivery-thread-001',
@@ -256,7 +257,7 @@ runAll([
     assertPublicSuccess(result, {
       stage: 'dry_run',
       mode: 'delivered',
-      channel: activeChannel('delivered', 'delivery-thread-001'),
+      channel: activeChannel('receipt', 'delivery-thread-001'),
       eventName: ACTIVE_EVENTS.delivered
     });
   }),
