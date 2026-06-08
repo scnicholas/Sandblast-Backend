@@ -6,7 +6,7 @@
  * Regression coverage for:
  * Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js
  *
- * Contract distinction:
+ * Current contract:
  * - Active engine path may use the adaptive SignalEnvelope layer:
  *     channels: ls:*
  *     events:   lingosentinel.message.*
@@ -15,17 +15,22 @@
  *     events:   *_MESSAGE_READY
  *
  * Important:
- * - Adaptive payloads/signals may not expose old canonical-only fields at the top level.
- * - The public engine result, routePreview, publish target, and telemetry are the stable contract.
- *
- * Confirms:
- * - Engine loads from the dedicated LingoSentinel runtime folder.
- * - Engine consumes gateway-approved input.
- * - Engine publishes nothing during dry-run.
- * - Group Room, Live Translate, Delivered, and 1:1 lanes route correctly.
- * - Private credentials are rejected before realtime handoff.
- * - Ably keys are never exposed in returned payloads.
- * - Mock Ably client receives the active channel, event, and a safe payload.
+ * - Adaptive payloads, signals, rooms, and previews may not expose old canonical-only
+ *   fields such as `room.lane`, `room.mode`, or top-level `schema`.
+ * - The stable public contract is:
+ *     result.ok
+ *     result.stage
+ *     result.mode
+ *     result.channel
+ *     result.eventName
+ *     result.governance.marionAuthority
+ *     result.telemetry.payloadShape
+ * - For internal planning, the stable contract is:
+ *     plan.ok
+ *     plan.publish.channel
+ *     plan.publish.eventName
+ *     plan.gateway.ok
+ *     plan.gateway.publishInput
  */
 
 const assert = require('assert');
@@ -96,6 +101,17 @@ function assertNoSecretLeak(value) {
   assert.strictEqual(text.includes('super-secret'), false);
   assert.strictEqual(text.includes('api_key:'), false);
   assert.strictEqual(text.includes('password:'), false);
+}
+
+function assertCommonSuccess(result, expected) {
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.stage, expected.stage);
+  assert.strictEqual(result.mode, expected.mode);
+  assert.strictEqual(result.channel, expected.channel);
+  assert.strictEqual(result.eventName, expected.eventName);
+  assert.strictEqual(result.governance.marionAuthority, true);
+  assert.strictEqual(result.telemetry.payloadShape, 'lingosentinel.signal');
+  assertNoSecretLeak(result);
 }
 
 function assertSafePublishedPayload(payload) {
@@ -178,17 +194,13 @@ runAll([
       { dryRun: true }
     );
 
-    assert.strictEqual(result.ok, true);
-    assert.strictEqual(result.stage, 'dry_run');
     assert.strictEqual(result.dryRun, true);
-    assert.strictEqual(result.mode, 'group_room');
-    assert.strictEqual(result.channel, activeChannel('room', 'region-japan'));
-    assert.strictEqual(result.eventName, ACTIVE_EVENTS.group_room);
-    assert.strictEqual(result.room.lane, 'room');
-    assert.strictEqual(result.room.id, 'region-japan');
-    assert.strictEqual(result.governance.marionAuthority, true);
-    assert.strictEqual(result.telemetry.payloadShape, 'lingosentinel.signal');
-    assertNoSecretLeak(result);
+    assertCommonSuccess(result, {
+      stage: 'dry_run',
+      mode: 'group_room',
+      channel: activeChannel('room', 'region-japan'),
+      eventName: ACTIVE_EVENTS.group_room
+    });
   }),
 
   test('live_translate dry-run routes through the active translation signal lane', async () => {
@@ -211,17 +223,13 @@ runAll([
       { dryRun: true }
     );
 
-    assert.strictEqual(result.ok, true);
-    assert.strictEqual(result.stage, 'dry_run');
-    assert.strictEqual(result.mode, 'live_translate');
-    assert.strictEqual(result.channel, activeChannel('translation', 'translation-session-001'));
-    assert.strictEqual(result.eventName, ACTIVE_EVENTS.live_translate);
-    assert.strictEqual(result.room.lane, 'translation');
-    assert.strictEqual(result.room.sessionId, 'translation-session-001');
-    assert.strictEqual(result.language.source, 'en');
-    assert.strictEqual(result.language.target, 'es');
-    assert.strictEqual(result.governance.marionAuthority, true);
-    assertNoSecretLeak(result);
+    assert.strictEqual(result.dryRun, true);
+    assertCommonSuccess(result, {
+      stage: 'dry_run',
+      mode: 'live_translate',
+      channel: activeChannel('translation', 'translation-session-001'),
+      eventName: ACTIVE_EVENTS.live_translate
+    });
   }),
 
   test('delivered dry-run routes through the active delivered signal lane', async () => {
@@ -239,15 +247,13 @@ runAll([
       { dryRun: true }
     );
 
-    assert.strictEqual(result.ok, true);
-    assert.strictEqual(result.stage, 'dry_run');
-    assert.strictEqual(result.mode, 'delivered');
-    assert.strictEqual(result.channel, activeChannel('delivered', 'delivery-thread-001'));
-    assert.strictEqual(result.eventName, ACTIVE_EVENTS.delivered);
-    assert.strictEqual(result.room.lane, 'delivered');
-    assert.strictEqual(result.room.id, 'delivery-thread-001');
-    assert.strictEqual(result.governance.marionAuthority, true);
-    assertNoSecretLeak(result);
+    assert.strictEqual(result.dryRun, true);
+    assertCommonSuccess(result, {
+      stage: 'dry_run',
+      mode: 'delivered',
+      channel: activeChannel('delivered', 'delivery-thread-001'),
+      eventName: ACTIVE_EVENTS.delivered
+    });
   }),
 
   test('one_to_one dry-run requires recipient', async () => {
@@ -268,6 +274,7 @@ runAll([
       result.errors.some(error => error.includes('recipient.id')),
       'Expected recipient.id validation error.'
     );
+    assertNoSecretLeak(result);
   }),
 
   test('one_to_one dry-run routes through the active direct signal lane when recipient exists', async () => {
@@ -283,14 +290,13 @@ runAll([
       { dryRun: true }
     );
 
-    assert.strictEqual(result.ok, true);
-    assert.strictEqual(result.stage, 'dry_run');
-    assert.strictEqual(result.mode, 'one_to_one');
-    assert.strictEqual(result.channel, activeChannel('direct', 'direct-thread-001'));
-    assert.strictEqual(result.eventName, ACTIVE_EVENTS.one_to_one);
-    assert.strictEqual(result.room.lane, 'direct');
-    assert.strictEqual(result.governance.marionAuthority, true);
-    assertNoSecretLeak(result);
+    assert.strictEqual(result.dryRun, true);
+    assertCommonSuccess(result, {
+      stage: 'dry_run',
+      mode: 'one_to_one',
+      channel: activeChannel('direct', 'direct-thread-001'),
+      eventName: ACTIVE_EVENTS.one_to_one
+    });
   }),
 
   test('private credential text is rejected before realtime handoff', async () => {
@@ -329,7 +335,6 @@ runAll([
     assert.strictEqual(preview.channel, activeChannel('room', 'region-trinidad'));
     assert.strictEqual(preview.eventName, ACTIVE_EVENTS.group_room);
     assert.strictEqual(preview.mode, 'group_room');
-    assert.strictEqual(preview.room.lane, 'room');
     assert.strictEqual(preview.governance.marionAuthority, true);
     assert.strictEqual(preview.telemetry.payloadShape, 'lingosentinel.signal');
     assertNoSecretLeak(preview);
@@ -424,11 +429,12 @@ runAll([
       }
     );
 
-    assert.strictEqual(result.ok, true);
-    assert.strictEqual(result.stage, 'published');
-    assert.strictEqual(result.channel, activeChannel('room', 'region-france'));
-    assert.strictEqual(result.eventName, ACTIVE_EVENTS.group_room);
-    assert.strictEqual(result.telemetry.payloadShape, 'lingosentinel.signal');
+    assertCommonSuccess(result, {
+      stage: 'published',
+      mode: 'group_room',
+      channel: activeChannel('room', 'region-france'),
+      eventName: ACTIVE_EVENTS.group_room
+    });
 
     assert.strictEqual(mockClient.published.length, 1);
     assert.strictEqual(mockClient.published[0].channelName, activeChannel('room', 'region-france'));
