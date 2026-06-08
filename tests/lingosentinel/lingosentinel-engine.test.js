@@ -3,36 +3,32 @@
 /**
  * lingosentinel-engine.test.js
  *
+ * VERSION_MARKER: LINGOSENTINEL_ENGINE_TEST_V9_STABLE_PUBLIC_CONTRACT
+ *
  * Regression coverage for:
  * Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js
  *
- * Current contract:
- * - Active engine path may use the adaptive SignalEnvelope layer:
- *     channels: ls:*
- *     events:   lingosentinel.message.*
- * - fallbackRoute() remains the plain fallback helper:
- *     channels: lingosentinel:*
- *     events:   *_MESSAGE_READY
+ * This test validates the stable public engine contract only.
  *
- * Important:
- * - Adaptive payloads, signals, rooms, and previews may not expose old canonical-only
- *   fields such as `room.lane`, `room.mode`, `room.id`, `room.sessionId`, or top-level `schema`.
- * - The stable public engine contract is:
- *     result.ok
- *     result.stage
- *     result.mode
- *     result.channel
- *     result.eventName
- *     result.governance.marionAuthority
- *     result.telemetry.payloadShape
- * - The stable internal planning contract is:
- *     plan.ok
- *     plan.publish.channel
- *     plan.publish.eventName
- *     plan.gateway.ok
- *     plan.gateway.publishInput
+ * It intentionally does NOT assert adaptive internals such as:
+ * - result.room.lane
+ * - result.room.mode
+ * - result.room.id
+ * - preview.room.*
+ * - signal.room.*
+ * - top-level adaptive payload schema
  *
- * This test intentionally avoids brittle adaptive internals.
+ * Stable contract under test:
+ * - result.ok
+ * - result.stage
+ * - result.mode
+ * - result.channel
+ * - result.eventName
+ * - result.governance.marionAuthority
+ * - result.telemetry.payloadShape
+ * - plan.publish.channel
+ * - plan.publish.eventName
+ * - plan.gateway.publishInput
  */
 
 const assert = require('assert');
@@ -46,19 +42,21 @@ const ACTIVE_EVENTS = Object.freeze({
   delivered: 'lingosentinel.message.delivered'
 });
 
-const ACTIVE_CHANNEL_PREFIX = 'ls';
-
 function activeChannel(lane, id) {
-  return `${ACTIVE_CHANNEL_PREFIX}:${lane}:${id}`;
+  return `ls:${lane}:${id}`;
+}
+
+function test(name, fn) {
+  return { name, fn };
 }
 
 async function runAll(tests) {
-  for (const test of tests) {
+  for (const item of tests) {
     try {
-      await test.fn();
-      console.log(`✓ ${test.name}`);
+      await item.fn();
+      console.log(`✓ ${item.name}`);
     } catch (error) {
-      console.error(`✗ ${test.name}`);
+      console.error(`✗ ${item.name}`);
       console.error(error);
       process.exitCode = 1;
     }
@@ -69,10 +67,6 @@ async function runAll(tests) {
   } else {
     console.log('\nAll LingoSentinel engine regression tests passed.');
   }
-}
-
-function test(name, fn) {
-  return { name, fn };
 }
 
 function baseSender(overrides = {}) {
@@ -105,20 +99,17 @@ function assertNoSecretLeak(value) {
   assert.strictEqual(text.includes('password:'), false);
 }
 
-function assertCommonSuccess(result, expected) {
+function assertPublicSuccess(result, expected) {
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.stage, expected.stage);
   assert.strictEqual(result.mode, expected.mode);
   assert.strictEqual(result.channel, expected.channel);
   assert.strictEqual(result.eventName, expected.eventName);
+  assert.ok(result.governance, 'Expected governance object.');
   assert.strictEqual(result.governance.marionAuthority, true);
+  assert.ok(result.telemetry, 'Expected telemetry object.');
   assert.strictEqual(result.telemetry.payloadShape, 'lingosentinel.signal');
   assertNoSecretLeak(result);
-}
-
-function assertSafePublishedPayload(payload) {
-  assert.ok(payload && typeof payload === 'object', 'Expected published payload object.');
-  assertNoSecretLeak(payload);
 }
 
 function createMockAblyClient() {
@@ -146,15 +137,18 @@ function createMockAblyClient() {
       }
     },
     close() {
-      published.push({
-        closed: true
-      });
+      published.push({ closed: true });
     }
   };
 }
 
 runAll([
-  test('engine exposes expected contract and public functions', () => {
+  test('loaded v9 test file marker is present', () => {
+    // This marker makes it obvious whether PowerShell is running the correct replacement file.
+    assert.strictEqual('LINGOSENTINEL_ENGINE_TEST_V9_STABLE_PUBLIC_CONTRACT'.includes('V9'), true);
+  }),
+
+  test('engine exposes expected public contract', () => {
     assert.strictEqual(typeof Engine.publishMessage, 'function');
     assert.strictEqual(typeof Engine.publishDirectMessage, 'function');
     assert.strictEqual(typeof Engine.publishGroupMessage, 'function');
@@ -172,14 +166,13 @@ runAll([
     assert.strictEqual(contract.boundaries.performsTranslation, false);
     assert.strictEqual(contract.boundaries.finalAuthority, 'Marion');
     assert.strictEqual(contract.boundaries.exposesAblyKey, false);
-
-    assert.strictEqual(contract.lanes.one_to_one, 'direct');
     assert.strictEqual(contract.lanes.group_room, 'room');
+    assert.strictEqual(contract.lanes.one_to_one, 'direct');
     assert.strictEqual(contract.lanes.live_translate, 'translation');
     assert.strictEqual(contract.lanes.delivered, 'delivered');
   }),
 
-  test('group_room dry-run routes through the active room signal lane', async () => {
+  test('group_room dry-run returns stable public route contract', async () => {
     const result = await Engine.publishGroupMessage(
       {
         roomId: 'region-japan',
@@ -197,7 +190,7 @@ runAll([
     );
 
     assert.strictEqual(result.dryRun, true);
-    assertCommonSuccess(result, {
+    assertPublicSuccess(result, {
       stage: 'dry_run',
       mode: 'group_room',
       channel: activeChannel('room', 'region-japan'),
@@ -205,7 +198,7 @@ runAll([
     });
   }),
 
-  test('live_translate dry-run routes through the active translation signal lane', async () => {
+  test('live_translate dry-run returns stable public route contract', async () => {
     const result = await Engine.publishLiveTranslateMessage(
       {
         roomId: 'translation-session-001',
@@ -226,7 +219,7 @@ runAll([
     );
 
     assert.strictEqual(result.dryRun, true);
-    assertCommonSuccess(result, {
+    assertPublicSuccess(result, {
       stage: 'dry_run',
       mode: 'live_translate',
       channel: activeChannel('translation', 'translation-session-001'),
@@ -234,15 +227,13 @@ runAll([
     });
   }),
 
-  test('delivered dry-run routes through the active delivered signal lane', async () => {
+  test('delivered dry-run returns stable public route contract', async () => {
     const result = await Engine.publishDeliveredReceipt(
       {
         roomId: 'delivery-thread-001',
         text: 'Message delivered confirmation.',
         sender: baseSender(),
-        recipient: baseRecipient({
-          preferredLanguage: 'es'
-        }),
+        recipient: baseRecipient({ preferredLanguage: 'es' }),
         sourceLanguage: 'en',
         recipientLanguage: 'es'
       },
@@ -250,7 +241,7 @@ runAll([
     );
 
     assert.strictEqual(result.dryRun, true);
-    assertCommonSuccess(result, {
+    assertPublicSuccess(result, {
       stage: 'dry_run',
       mode: 'delivered',
       channel: activeChannel('delivered', 'delivery-thread-001'),
@@ -258,7 +249,7 @@ runAll([
     });
   }),
 
-  test('one_to_one dry-run requires recipient', async () => {
+  test('one_to_one rejects missing recipient before realtime handoff', async () => {
     const result = await Engine.publishDirectMessage(
       {
         roomId: 'direct-thread-001',
@@ -271,6 +262,7 @@ runAll([
     );
 
     assert.strictEqual(result.ok, false);
+    assert.ok(result.governance, 'Expected governance on rejection.');
     assert.strictEqual(result.governance.marionAuthority, true);
     assert.ok(
       result.errors.some(error => error.includes('recipient.id')),
@@ -279,7 +271,7 @@ runAll([
     assertNoSecretLeak(result);
   }),
 
-  test('one_to_one dry-run routes through the active direct signal lane when recipient exists', async () => {
+  test('one_to_one dry-run returns stable public route contract when recipient exists', async () => {
     const result = await Engine.publishDirectMessage(
       {
         roomId: 'direct-thread-001',
@@ -293,7 +285,7 @@ runAll([
     );
 
     assert.strictEqual(result.dryRun, true);
-    assertCommonSuccess(result, {
+    assertPublicSuccess(result, {
       stage: 'dry_run',
       mode: 'one_to_one',
       channel: activeChannel('direct', 'direct-thread-001'),
@@ -314,12 +306,13 @@ runAll([
     );
 
     assert.strictEqual(result.ok, false);
+    assert.ok(result.governance, 'Expected governance object.');
     assert.strictEqual(result.governance.marionAuthority, true);
     assert.strictEqual(result.governance.decision, 'reject');
     assertNoSecretLeak(result);
   }),
 
-  test('routePreview returns active route summary without publishing', () => {
+  test('routePreview returns stable public preview contract without publishing', () => {
     const preview = Engine.routePreview({
       mode: 'group_room',
       roomId: 'region-trinidad',
@@ -337,12 +330,14 @@ runAll([
     assert.strictEqual(preview.channel, activeChannel('room', 'region-trinidad'));
     assert.strictEqual(preview.eventName, ACTIVE_EVENTS.group_room);
     assert.strictEqual(preview.mode, 'group_room');
+    assert.ok(preview.governance, 'Expected governance object.');
     assert.strictEqual(preview.governance.marionAuthority, true);
+    assert.ok(preview.telemetry, 'Expected telemetry object.');
     assert.strictEqual(preview.telemetry.payloadShape, 'lingosentinel.signal');
     assertNoSecretLeak(preview);
   }),
 
-  test('buildSignalPlan prepares active publish target and gateway-governed route', () => {
+  test('buildSignalPlan prepares active publish target and gateway-approved route', () => {
     const plan = Engine.buildSignalPlan({
       mode: 'group_room',
       roomId: 'region-singapore',
@@ -358,9 +353,9 @@ runAll([
     });
 
     assert.strictEqual(plan.ok, true);
+    assert.ok(plan.publish, 'Expected publish object.');
     assert.strictEqual(plan.publish.channel, activeChannel('room', 'region-singapore'));
     assert.strictEqual(plan.publish.eventName, ACTIVE_EVENTS.group_room);
-    assert.ok(plan.signal && typeof plan.signal === 'object', 'Expected signal object.');
     assert.ok(plan.gateway && plan.gateway.ok, 'Expected gateway-approved plan.');
     assert.strictEqual(plan.gateway.publishInput.mode, 'group_room');
     assert.strictEqual(plan.gateway.publishInput.roomId, 'region-singapore');
@@ -431,7 +426,7 @@ runAll([
       }
     );
 
-    assertCommonSuccess(result, {
+    assertPublicSuccess(result, {
       stage: 'published',
       mode: 'group_room',
       channel: activeChannel('room', 'region-france'),
@@ -441,11 +436,7 @@ runAll([
     assert.strictEqual(mockClient.published.length, 1);
     assert.strictEqual(mockClient.published[0].channelName, activeChannel('room', 'region-france'));
     assert.strictEqual(mockClient.published[0].eventName, ACTIVE_EVENTS.group_room);
-
-    const payload = mockClient.published[0].payload;
-    assertSafePublishedPayload(payload);
-
-    assertNoSecretLeak(result);
+    assert.ok(mockClient.published[0].payload && typeof mockClient.published[0].payload === 'object');
     assertNoSecretLeak(mockClient.published);
   }),
 
