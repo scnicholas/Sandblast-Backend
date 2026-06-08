@@ -267,14 +267,19 @@ runTest('rejects missing sender id during validation', () => {
   );
 });
 
-runTest('detects private material in message body', () => {
+runTest('detects explicit private material in message body', () => {
   assert.strictEqual(
     detectPrivateMaterial('Here is my api_key: abc123'),
     true
   );
 
   assert.strictEqual(
-    detectPrivateMaterial('Use bearer abc.def.ghi for this request'),
+    detectPrivateMaterial('My password is hunter2.'),
+    true
+  );
+
+  assert.strictEqual(
+    detectPrivateMaterial('This contains a private_key reference.'),
     true
   );
 
@@ -301,11 +306,11 @@ runTest('assigns risk levels correctly', () => {
   );
 });
 
-runTest('rejects explicit private credential content before publish handoff', () => {
+runTest('rejects private token/API-key content before publish handoff', () => {
   const result = prepareLingoSentinelPublish({
     mode: 'group_room',
     roomId: 'region-security',
-    text: 'My api_key is abc123.',
+    text: 'My secret token is abc123.',
     sender: baseSender()
   });
 
@@ -315,7 +320,7 @@ runTest('rejects explicit private credential content before publish handoff', ()
   assert.strictEqual(result.governance.riskLevel, 'high');
   assert.strictEqual(result.governance.privateMaterial, true);
   assert.ok(
-    result.errors.some(error => /governance|rejected/i.test(error)),
+    result.errors.some(error => error.includes('governance')),
     'Expected governance rejection error.'
   );
 });
