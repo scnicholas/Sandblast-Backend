@@ -21,7 +21,7 @@
 
 const express = require('express');
 const LingoSentinelLinkGateway = require('./LingoSentinelLinkGateway');
-const LingoSentinelEngine = require('./LingoSentinelEngine');
+const LingoSentinelEngine = require('./LingoSentinel/LingoSentinelEngine');
 
 const router = express.Router();
 
