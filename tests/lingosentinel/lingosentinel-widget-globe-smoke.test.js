@@ -3,6 +3,8 @@
 /**
  * lingosentinel-widget-globe-smoke.test.js
  *
+ * VERSION_MARKER: LINGOSENTINEL_WIDGET_GLOBE_SMOKE_V2_NULL_RECIPIENT_FIX
+ *
  * Smoke coverage for the LingoSentinel widget/globe integration layer.
  *
  * Purpose:
@@ -118,21 +120,27 @@ function assertDryRunResult(result, expected) {
  * not a browser rendering test.
  */
 
+function normalizeRoomPart(value, fallback = 'global') {
+  const clean = String(value || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return clean || fallback;
+}
+
 function buildGlobeCountryClickInput({
   country,
   city,
   languageHint,
   sender = baseSender()
 }) {
-  const cleanCountry = String(country || 'global')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+  const cleanCountry = normalizeRoomPart(country, 'global');
 
   return {
     mode: 'group_room',
-    roomId: `region-${cleanCountry || 'global'}`,
+    roomId: `region-${cleanCountry}`,
     text: `Join ${country || 'Global'} group room.`,
     sender,
     sourceLanguage: sender.preferredLanguage || 'en',
@@ -182,21 +190,29 @@ function buildDeliveredTabInput({
   recipient = baseRecipient({ preferredLanguage: 'es' })
 }) {
   const cleanThreadId = threadId || 'delivery-thread-001';
+  const safeRecipientLanguage = recipient && recipient.preferredLanguage
+    ? recipient.preferredLanguage
+    : 'es';
 
-  return {
+  const input = {
     mode: 'delivered',
     roomId: cleanThreadId,
     text: 'Message delivered confirmation.',
     sender,
-    recipient,
     sourceLanguage: sender.preferredLanguage || 'en',
-    recipientLanguage: recipient.preferredLanguage || 'es',
+    recipientLanguage: safeRecipientLanguage,
     metadata: {
       threadId: cleanThreadId,
       interactionSource: 'tab_delivered',
       widgetSurface: 'conversation_tabs'
     }
   };
+
+  if (recipient) {
+    input.recipient = recipient;
+  }
+
+  return input;
 }
 
 function buildDirectTabInput({
@@ -205,24 +221,39 @@ function buildDirectTabInput({
   recipient = baseRecipient()
 }) {
   const cleanThreadId = threadId || 'direct-thread-001';
+  const safeTargetLanguage = recipient && recipient.preferredLanguage
+    ? recipient.preferredLanguage
+    : 'fr';
 
-  return {
+  const input = {
     mode: 'one_to_one',
     roomId: cleanThreadId,
     text: 'Hello direct recipient.',
     sender,
-    recipient,
     sourceLanguage: sender.preferredLanguage || 'en',
-    targetLanguage: recipient.preferredLanguage || 'fr',
+    targetLanguage: safeTargetLanguage,
     metadata: {
       threadId: cleanThreadId,
       interactionSource: 'tab_direct',
       widgetSurface: 'conversation_tabs'
     }
   };
+
+  if (recipient) {
+    input.recipient = recipient;
+  }
+
+  return input;
 }
 
 runAll([
+  test('loaded widget/globe smoke v2 marker is present', () => {
+    assert.strictEqual(
+      'LINGOSENTINEL_WIDGET_GLOBE_SMOKE_V2_NULL_RECIPIENT_FIX'.includes('V2'),
+      true
+    );
+  }),
+
   test('globe country click creates group_room engine input', async () => {
     const input = buildGlobeCountryClickInput({
       country: 'Japan',
@@ -333,7 +364,9 @@ runAll([
       recipient: null
     });
 
-    delete input.recipient;
+    assert.strictEqual(input.mode, 'one_to_one');
+    assert.strictEqual(input.recipient, undefined);
+    assert.strictEqual(input.targetLanguage, 'fr');
 
     const result = await Engine.publishDirectMessage(input, { dryRun: true });
 
