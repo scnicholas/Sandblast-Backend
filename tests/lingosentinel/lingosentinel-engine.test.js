@@ -16,8 +16,8 @@
  *
  * Important:
  * - Adaptive payloads, signals, rooms, and previews may not expose old canonical-only
- *   fields such as `room.lane`, `room.mode`, or top-level `schema`.
- * - The stable public contract is:
+ *   fields such as `room.lane`, `room.mode`, `room.id`, `room.sessionId`, or top-level `schema`.
+ * - The stable public engine contract is:
  *     result.ok
  *     result.stage
  *     result.mode
@@ -25,12 +25,14 @@
  *     result.eventName
  *     result.governance.marionAuthority
  *     result.telemetry.payloadShape
- * - For internal planning, the stable contract is:
+ * - The stable internal planning contract is:
  *     plan.ok
  *     plan.publish.channel
  *     plan.publish.eventName
  *     plan.gateway.ok
  *     plan.gateway.publishInput
+ *
+ * This test intentionally avoids brittle adaptive internals.
  */
 
 const assert = require('assert');
