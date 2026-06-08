@@ -1,9 +1,9 @@
 'use strict';
 
 /**
- * LingoLinkGateway
+ * LingoSentinelLinkGateway
  *
- * Marion authority gateway for LingoSentinel / LingoLink traffic.
+ * Marion authority gateway for LingoSentinel-to-LingoLink traffic.
  *
  * Purpose:
  * - Keep LingoSentinel traffic aligned with Marion's routing discipline.
@@ -52,7 +52,7 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function createTraceId(prefix = 'llg') {
+function createTraceId(prefix = 'lslg') {
   return `${prefix}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 }
 
@@ -214,7 +214,7 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
 
     metadata: {
       ...(input.metadata && typeof input.metadata === 'object' ? input.metadata : {}),
-      gateway: 'LingoLinkGateway',
+      gateway: 'LingoSentinelLinkGateway',
       governanceDecision: governance.decision,
       riskLevel: governance.riskLevel
     },
