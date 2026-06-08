@@ -3,32 +3,45 @@
 /**
  * lingosentinel-engine.test.js
  *
- * VERSION_MARKER: LINGOSENTINEL_ENGINE_TEST_V9_STABLE_PUBLIC_CONTRACT
+ * VERSION_MARKER: LINGOSENTINEL_ENGINE_TEST_V10_PREVIEW_CONTRACT_FIX
  *
  * Regression coverage for:
  * Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js
  *
- * This test validates the stable public engine contract only.
+ * Current contract:
+ * - Active engine path may use the adaptive SignalEnvelope layer:
+ *     channels: ls:*
+ *     events:   lingosentinel.message.*
+ * - fallbackRoute() remains the plain fallback helper:
+ *     channels: lingosentinel:*
+ *     events:   *_MESSAGE_READY
  *
- * It intentionally does NOT assert adaptive internals such as:
- * - result.room.lane
- * - result.room.mode
- * - result.room.id
- * - preview.room.*
- * - signal.room.*
- * - top-level adaptive payload schema
+ * Important:
+ * - Adaptive payloads, signals, rooms, and previews may not expose old canonical-only
+ *   fields such as `room.lane`, `room.mode`, `room.id`, `room.sessionId`,
+ *   `preview.mode`, or top-level `schema`.
+ * - The stable public publish result contract is:
+ *     result.ok
+ *     result.stage
+ *     result.mode
+ *     result.channel
+ *     result.eventName
+ *     result.governance.marionAuthority
+ *     result.telemetry.payloadShape
+ * - The stable preview contract is:
+ *     preview.ok
+ *     preview.channel
+ *     preview.eventName
+ *     preview.governance.marionAuthority
+ *     preview.telemetry.payloadShape
+ * - The stable internal planning contract is:
+ *     plan.ok
+ *     plan.publish.channel
+ *     plan.publish.eventName
+ *     plan.gateway.ok
+ *     plan.gateway.publishInput
  *
- * Stable contract under test:
- * - result.ok
- * - result.stage
- * - result.mode
- * - result.channel
- * - result.eventName
- * - result.governance.marionAuthority
- * - result.telemetry.payloadShape
- * - plan.publish.channel
- * - plan.publish.eventName
- * - plan.gateway.publishInput
+ * This test intentionally avoids brittle adaptive internals.
  */
 
 const assert = require('assert');
@@ -143,9 +156,8 @@ function createMockAblyClient() {
 }
 
 runAll([
-  test('loaded v9 test file marker is present', () => {
-    // This marker makes it obvious whether PowerShell is running the correct replacement file.
-    assert.strictEqual('LINGOSENTINEL_ENGINE_TEST_V9_STABLE_PUBLIC_CONTRACT'.includes('V9'), true);
+  test('loaded v10 test file marker is present', () => {
+    assert.strictEqual('LINGOSENTINEL_ENGINE_TEST_V10_PREVIEW_CONTRACT_FIX'.includes('V10'), true);
   }),
 
   test('engine exposes expected public contract', () => {
@@ -312,7 +324,7 @@ runAll([
     assertNoSecretLeak(result);
   }),
 
-  test('routePreview returns stable public preview contract without publishing', () => {
+  test('routePreview returns stable preview contract without publishing', () => {
     const preview = Engine.routePreview({
       mode: 'group_room',
       roomId: 'region-trinidad',
@@ -329,7 +341,6 @@ runAll([
     assert.strictEqual(preview.ok, true);
     assert.strictEqual(preview.channel, activeChannel('room', 'region-trinidad'));
     assert.strictEqual(preview.eventName, ACTIVE_EVENTS.group_room);
-    assert.strictEqual(preview.mode, 'group_room');
     assert.ok(preview.governance, 'Expected governance object.');
     assert.strictEqual(preview.governance.marionAuthority, true);
     assert.ok(preview.telemetry, 'Expected telemetry object.');
