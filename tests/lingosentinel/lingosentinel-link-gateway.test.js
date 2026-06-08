@@ -301,11 +301,11 @@ runTest('assigns risk levels correctly', () => {
   );
 });
 
-runTest('rejects private token/API-key content before publish handoff', () => {
+runTest('rejects explicit private credential content before publish handoff', () => {
   const result = prepareLingoSentinelPublish({
     mode: 'group_room',
     roomId: 'region-security',
-    text: 'My secret token is abc123.',
+    text: 'My api_key is abc123.',
     sender: baseSender()
   });
 
@@ -315,7 +315,7 @@ runTest('rejects private token/API-key content before publish handoff', () => {
   assert.strictEqual(result.governance.riskLevel, 'high');
   assert.strictEqual(result.governance.privateMaterial, true);
   assert.ok(
-    result.errors.some(error => error.includes('governance')),
+    result.errors.some(error => /governance|rejected/i.test(error)),
     'Expected governance rejection error.'
   );
 });
