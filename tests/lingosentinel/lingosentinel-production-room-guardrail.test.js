@@ -3,10 +3,11 @@
 /**
  * lingosentinel-production-room-guardrail.test.js
  *
- * VERSION_MARKER: LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V2_CONTROLLED_PRIVATE_ROOM
+ * VERSION_MARKER: LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V3_CONTROLLED_PRIVATE_ROOM_DIRECT_ABLY_FALLBACK
  *
  * Purpose:
  * - Production-room preflight guardrail test before real user rooms are opened.
+ * - V3 verifies controlled-private-room fallback posture when Ably SDK/router modules are unavailable.
  * - Confirms deployed backend readiness, token route, sandbox publish route, CORS posture,
  *   room naming discipline, and no secret leakage in public-facing responses.
  *
@@ -26,7 +27,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const VERSION_MARKER = 'LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V2_CONTROLLED_PRIVATE_ROOM';
+const VERSION_MARKER = 'LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V3_CONTROLLED_PRIVATE_ROOM_DIRECT_ABLY_FALLBACK';
 const BACKEND = String(process.env.LS_BACKEND || 'https://sandblast-backend.onrender.com').replace(/\/$/, '');
 const ROOM = String(process.env.LS_GUARDRAIL_ROOM || 'sandbox-healthcheck');
 const PRIVATE_ROOM = String(process.env.LS_PRIVATE_ROOM || 'private-mac-lingosentinel-alpha');
@@ -65,19 +66,26 @@ async function runAll(tests) {
   console.log(`Private room: ${PRIVATE_ROOM}`);
   console.log(`Strict: ${STRICT}`);
 
+  const failures = [];
   for (const item of tests) {
     try {
       await item.fn();
       console.log(`✓ ${item.name}`);
     } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      failures.push({ name: item.name, message });
       console.error(`✗ ${item.name}`);
-      console.error(error && error.message ? error.message : error);
+      console.error(message);
       process.exitCode = 1;
     }
   }
 
-  if (process.exitCode) {
+  if (failures.length) {
     console.error('\nLingoSentinel production room guardrail failed.');
+    console.error('Failure summary:');
+    failures.forEach((failure, index) => {
+      console.error(`${index + 1}. ${failure.name}: ${failure.message}`);
+    });
   } else {
     console.log('\nAll LingoSentinel production room guardrail tests passed.');
   }
@@ -174,7 +182,7 @@ function staticWidgetScan(filePath) {
 
 runAll([
   test('version marker is present', () => {
-    assert.strictEqual(VERSION_MARKER.includes('PRODUCTION_ROOM_GUARDRAIL_V2_CONTROLLED_PRIVATE_ROOM'), true);
+    assert.strictEqual(VERSION_MARKER.includes('PRODUCTION_ROOM_GUARDRAIL_V3_CONTROLLED_PRIVATE_ROOM_DIRECT_ABLY_FALLBACK'), true);
   }),
 
   test('production room naming discipline is safe', () => {
@@ -355,12 +363,18 @@ runAll([
       credentialRejectionRequired: true,
       controlledPrivateRoomRequired: true,
       privateRoomAllowlistRequired: true,
-      observerCannotPublish: true
+      observerCannotPublish: true,
+      directAblyFallbackRequired: true,
+      sdkMissingMustNotBreakPrivateToken: true,
+      engineMissingMustNotBreakPrivatePublish: true
     };
     assert.strictEqual(checklist.noRootKeyInBrowser, true);
     assert.strictEqual(checklist.marionAuthorityRequired, true);
     assert.strictEqual(checklist.nyxPublicSurfaceRequired, true);
     assert.strictEqual(checklist.controlledPrivateRoomRequired, true);
     assert.strictEqual(checklist.privateRoomAllowlistRequired, true);
+    assert.strictEqual(checklist.directAblyFallbackRequired, true);
+    assert.strictEqual(checklist.sdkMissingMustNotBreakPrivateToken, true);
+    assert.strictEqual(checklist.engineMissingMustNotBreakPrivatePublish, true);
   })
 ]);
