@@ -47,6 +47,7 @@ const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./Data/marion/runtime/finalRenderTelemetry.js"); } catch (_) { return null; } })();
 const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0";
 const LINGOSENTINEL_GATEWAY_INDEX_VERSION = "nyx.lingosentinel.indexGateway/0.3-link-gateway";
+const LINGOSENTINEL_ABLY_READINESS_VERSION = "nyx.lingosentinel.ablyReadiness/1.0";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -1958,6 +1959,8 @@ app.options([
   "/api/lingosentinel/",
   "/api/lingosentinel/token",
   "/api/lingosentinel/token/health",
+  "/api/lingosentinel/ably/readiness",
+  "/api/lingosentinel/readiness",
   "/api/lingosentinel/publish",
   "/api/lingosentinel/link"
 ], (req, res) => {
@@ -10734,9 +10737,57 @@ console.log("[Sandblast][LingoSentinel] subscribe_token_route_" + (lingoSentinel
   api: "/api/lingosentinel",
   token: "/api/lingosentinel/token",
   health: "/api/lingosentinel/token/health",
-  rootKeyVisible: !!(process.env.ABLY_ROOT_API_KEY || process.env.ABLY_API_KEY),
+  ablyConfigured: !!(process.env.ABLY_API_KEY || process.env.ABLY_ROOT_API_KEY),
   clientId: cleanText(process.env.LINGOSENTINEL_CLIENT_ID || "marion-lingosentinel-engine"),
   router: !!lingoSentinelSubscribeTokenMounted
+});
+
+function hasLingoSentinelAblyKeyConfigured() {
+  return !!(cleanText(process.env.ABLY_API_KEY || "") || cleanText(process.env.ABLY_ROOT_API_KEY || ""));
+}
+
+function buildLingoSentinelAblyReadiness(req) {
+  return {
+    ok: true,
+    service: "lingosentinel-ably",
+    version: LINGOSENTINEL_ABLY_READINESS_VERSION,
+    ablyConfigured: hasLingoSentinelAblyKeyConfigured(),
+    marionAuthority: true,
+    publicSurface: "Nyx",
+    routes: {
+      readiness: "/api/lingosentinel/ably/readiness",
+      readinessCompat: "/api/lingosentinel/readiness",
+      token: "/api/lingosentinel/token",
+      tokenHealth: "/api/lingosentinel/token/health",
+      publish: "/api/lingosentinel/publish",
+      link: "/api/lingosentinel/link"
+    },
+    mounted: {
+      publishRoute: !!lingoSentinelPublishMounted,
+      subscribeTokenRoute: !!lingoSentinelSubscribeTokenMounted,
+      gateway: !!runIndexLingoSentinelGateway
+    },
+    contract: {
+      group_room: { channel: "ls:room:{roomId}", eventName: "lingosentinel.message.group" },
+      one_to_one: { channel: "ls:direct:{roomId}", eventName: "lingosentinel.message.direct" },
+      live_translate: { channel: "ls:live:{sessionId}", eventName: "lingosentinel.message.live" },
+      delivered: { channel: "ls:receipt:{threadId}", eventName: "lingosentinel.message.delivered" }
+    },
+    safeguards: {
+      keyExposed: false,
+      keyPrefixExposed: false,
+      appIdExposed: false,
+      noStore: true
+    },
+    traceId: cleanText((req && req.sbTraceId) || (req && req.headers && req.headers["x-sb-trace-id"]) || makeTraceId("lsablyready")),
+    timestamp: new Date().toISOString()
+  };
+}
+
+app.get(["/api/lingosentinel/ably/readiness", "/api/lingosentinel/readiness"], (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(200).json(buildLingoSentinelAblyReadiness(req));
 });
 
 STATIC_PUBLIC_DIRS.forEach((dir) => {
