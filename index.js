@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -1973,6 +1973,366 @@ app.options([
   hardenCors(req, res);
   return res.status(204).end();
 });
+
+
+// LINGOSENTINEL-START-CONTACT-ROUTE-V1
+// Purpose: real Start-page intake capture for LingoSentinel.
+// The browser widget must POST here; this route validates the payload,
+// stores an audit copy, and sends the inquiry to Sandblast's inbox when
+// SMTP credentials are configured on Render.
+const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.0";
+const LINGOSENTINEL_CONTACT_DEFAULT_TO = "sandblastchannel@gmail.com";
+const lingosentinelContactRate = new Map();
+
+function contactConfig() {
+  const to = cleanText(process.env.SB_CONTACT_TO_EMAIL || process.env.LINGOSENTINEL_CONTACT_TO || LINGOSENTINEL_CONTACT_DEFAULT_TO);
+  const smtpUser = cleanText(process.env.SB_CONTACT_SMTP_USER || process.env.SMTP_USER || process.env.GMAIL_USER || "");
+  return {
+    enabled: process.env.SB_CONTACT_ROUTE_ENABLED !== "false",
+    to,
+    smtpHost: cleanText(process.env.SB_CONTACT_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com"),
+    smtpPort: clamp(Number(process.env.SB_CONTACT_SMTP_PORT || process.env.SMTP_PORT || 465), 1, 65535),
+    smtpSecure: process.env.SB_CONTACT_SMTP_SECURE !== "false",
+    smtpUser,
+    smtpPass: safeStr(process.env.SB_CONTACT_SMTP_PASS || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || ""),
+    from: cleanText(process.env.SB_CONTACT_FROM_EMAIL || process.env.SMTP_FROM || smtpUser || to),
+    subjectPrefix: cleanText(process.env.SB_CONTACT_SUBJECT_PREFIX || "LingoSentinel Interest"),
+    maxMessageChars: clamp(Number(process.env.SB_CONTACT_MAX_MESSAGE_CHARS || 1800), 120, 8000),
+    rateLimitWindowMs: clamp(Number(process.env.SB_CONTACT_RATE_WINDOW_MS || 15 * 60 * 1000), 60 * 1000, 60 * 60 * 1000),
+    rateLimitMax: clamp(Number(process.env.SB_CONTACT_RATE_MAX || 8), 1, 200)
+  };
+}
+
+function cleanContactInput(value, maxLen) {
+  const max = clamp(Number(maxLen || 240), 1, 10000);
+  return safeStr(value)
+    .replace(/\u0000/g, "")
+    .replace(/[<>]/g, "")
+    .replace(/[^\S\r\n]+/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .slice(0, max);
+}
+
+function cleanContactHeader(value, maxLen) {
+  return cleanContactInput(value, maxLen || 160).replace(/[\r\n]+/g, " ").trim();
+}
+
+function isValidContactEmail(value) {
+  const s = cleanText(value);
+  return !!s && s.length <= 254 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/i.test(s);
+}
+
+function contactClientKey(req) {
+  const forwarded = cleanText(req && req.headers && req.headers["x-forwarded-for"] || "");
+  const ip = cleanText((forwarded.split(",")[0] || "") || req.ip || (req.socket && req.socket.remoteAddress) || "unknown");
+  return ip || "unknown";
+}
+
+function checkContactRateLimit(req) {
+  const cfg = contactConfig();
+  const key = contactClientKey(req);
+  const t = now();
+  const current = lingosentinelContactRate.get(key) || { at: t, count: 0 };
+  if (t - current.at > cfg.rateLimitWindowMs) {
+    current.at = t;
+    current.count = 0;
+  }
+  current.count += 1;
+  lingosentinelContactRate.set(key, current);
+  if (lingosentinelContactRate.size > 1000) {
+    for (const [k, v] of lingosentinelContactRate.entries()) {
+      if (t - Number(v && v.at || 0) > cfg.rateLimitWindowMs * 2) lingosentinelContactRate.delete(k);
+    }
+  }
+  return current.count <= cfg.rateLimitMax;
+}
+
+function normalizeContactPayload(body) {
+  const cfg = contactConfig();
+  const src = isObj(body) ? body : {};
+  const out = {
+    name: cleanContactInput(src.name || src.fullName || src.senderName || "", 120),
+    email: cleanContactInput(src.email || src.senderEmail || src.fromEmail || "", 254).toLowerCase(),
+    interest: cleanContactInput(src.interest || src.primaryInterest || src.topic || "General inquiry", 160),
+    region: cleanContactInput(src.region || src.country || src.location || "", 160),
+    message: cleanContactInput(src.message || src.note || src.details || "", cfg.maxMessageChars),
+    consent: src.consent === true || src.consent === "true" || src.consent === "on" || src.consent === "yes",
+    source: cleanContactInput(src.source || src.page || "LingoSentinel Get Started", 160),
+    submittedAt: cleanContactInput(src.submittedAt || new Date().toISOString(), 80),
+    traceId: crypto.randomBytes(10).toString("hex")
+  };
+  return out;
+}
+
+function validateContactPayload(data) {
+  const errors = [];
+  if (!data.name) errors.push("name_required");
+  if (!isValidContactEmail(data.email)) errors.push("valid_email_required");
+  if (!data.interest) errors.push("interest_required");
+  if (!data.consent) errors.push("consent_required");
+  if (data.message && data.message.length > contactConfig().maxMessageChars) errors.push("message_too_long");
+  return errors;
+}
+
+function contactSubmissionFilePath() {
+  const dir = path.join(__dirname, "Data", "lingosentinel", "contact");
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+  return path.join(dir, "start-page-submissions.jsonl");
+}
+
+function writeContactAudit(data, status, extra) {
+  try {
+    const row = {
+      ...safeObj(data),
+      status: cleanText(status || "received"),
+      emailDelivered: status === "delivered",
+      meta: {
+        routeVersion: LINGOSENTINEL_CONTACT_ROUTE_VERSION,
+        at: new Date().toISOString(),
+        ...(isObj(extra) ? extra : {})
+      }
+    };
+    fs.appendFileSync(contactSubmissionFilePath(), JSON.stringify(row) + "\n", "utf8");
+    return true;
+  } catch (err) {
+    console.log("[Sandblast][contact:audit_write_error]", err && (err.stack || err.message || err));
+    return false;
+  }
+}
+
+function smtpEscapeBody(value) {
+  return safeStr(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").map((line) => line.startsWith(".") ? `.${line}` : line).join("\r\n");
+}
+
+function buildContactEmailText(data) {
+  return [
+    "New LingoSentinel Get Started inquiry",
+    "",
+    `Name: ${data.name}`,
+    `Email: ${data.email}`,
+    `Primary interest: ${data.interest}`,
+    `Region / country: ${data.region || "Not provided"}`,
+    "",
+    "Message:",
+    data.message || "Not provided",
+    "",
+    `Consent: ${data.consent ? "Yes" : "No"}`,
+    `Source: ${data.source}`,
+    `Submitted: ${data.submittedAt}`,
+    `Trace: ${data.traceId}`
+  ].join("\n");
+}
+
+function buildContactMimeMessage(data, cfg) {
+  const fromEmail = cleanContactHeader(cfg.from, 254);
+  const toEmail = cleanContactHeader(cfg.to, 254);
+  const replyTo = cleanContactHeader(data.email, 254);
+  const subject = cleanContactHeader(`${cfg.subjectPrefix} - ${data.name}`, 180);
+  const body = buildContactEmailText(data);
+  const idHost = (toEmail.split("@")[1] || "sandblast.channel").replace(/[^a-z0-9.-]/gi, "") || "sandblast.channel";
+  const msgId = `<${data.traceId}.${Date.now()}@${idHost}>`;
+  return [
+    `From: Sandblast LingoSentinel <${fromEmail}>`,
+    `To: ${toEmail}`,
+    `Reply-To: ${data.name.replace(/"/g, "")} <${replyTo}>`,
+    `Subject: ${subject}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: ${msgId}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    body
+  ].join("\r\n");
+}
+
+function smtpReadResponse(socket, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let buffer = "";
+    let timer = null;
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      socket.off("data", onData);
+      socket.off("error", onError);
+    };
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+    const onData = (chunk) => {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split(/\r?\n/).filter(Boolean);
+      const last = lines[lines.length - 1] || "";
+      if (/^\d{3}\s/.test(last)) {
+        cleanup();
+        const code = Number(last.slice(0, 3));
+        resolve({ code, text: buffer });
+      }
+    };
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("smtp_timeout"));
+    }, clamp(Number(timeoutMs || 12000), 2000, 30000));
+    socket.on("data", onData);
+    socket.on("error", onError);
+  });
+}
+
+function smtpWrite(socket, line) {
+  socket.write(line.endsWith("\r\n") ? line : `${line}\r\n`);
+}
+
+async function smtpExpect(socket, expected, line) {
+  if (line) smtpWrite(socket, line);
+  const response = await smtpReadResponse(socket, 15000);
+  const ok = (Array.isArray(expected) ? expected : [expected]).includes(response.code);
+  if (!ok) {
+    const err = new Error(`smtp_unexpected_${response.code}`);
+    err.smtpResponse = response.text;
+    throw err;
+  }
+  return response;
+}
+
+function smtpConnect(cfg) {
+  return new Promise((resolve, reject) => {
+    const tls = require("tls");
+    const socket = tls.connect({
+      host: cfg.smtpHost,
+      port: cfg.smtpPort,
+      servername: cfg.smtpHost,
+      rejectUnauthorized: process.env.SB_CONTACT_SMTP_REJECT_UNAUTHORIZED === "false" ? false : true
+    });
+    const timer = setTimeout(() => {
+      try { socket.destroy(new Error("smtp_connect_timeout")); } catch (_) {}
+    }, 15000);
+    socket.once("secureConnect", () => {
+      clearTimeout(timer);
+      resolve(socket);
+    });
+    socket.once("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+async function sendContactEmailViaSmtp(data) {
+  const cfg = contactConfig();
+  if (!cfg.enabled) {
+    const err = new Error("contact_route_disabled");
+    err.code = "CONTACT_DISABLED";
+    throw err;
+  }
+  if (!cfg.smtpUser || !cfg.smtpPass) {
+    const err = new Error("contact_smtp_not_configured");
+    err.code = "CONTACT_SMTP_NOT_CONFIGURED";
+    throw err;
+  }
+  if (!isValidContactEmail(cfg.to) || !isValidContactEmail(cfg.from)) {
+    const err = new Error("contact_email_config_invalid");
+    err.code = "CONTACT_EMAIL_CONFIG_INVALID";
+    throw err;
+  }
+
+  const socket = await smtpConnect(cfg);
+  try {
+    await smtpExpect(socket, 220);
+    await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
+    await smtpExpect(socket, 334, "AUTH LOGIN");
+    await smtpExpect(socket, 334, Buffer.from(cfg.smtpUser).toString("base64"));
+    await smtpExpect(socket, 235, Buffer.from(cfg.smtpPass).toString("base64"));
+    await smtpExpect(socket, 250, `MAIL FROM:<${cfg.from}>`);
+    await smtpExpect(socket, [250, 251], `RCPT TO:<${cfg.to}>`);
+    await smtpExpect(socket, 354, "DATA");
+    smtpWrite(socket, `${smtpEscapeBody(buildContactMimeMessage(data, cfg))}\r\n.`);
+    await smtpExpect(socket, 250);
+    try { await smtpExpect(socket, 221, "QUIT"); } catch (_) {}
+    return { ok: true, deliveredTo: cfg.to, provider: "smtp", host: cfg.smtpHost };
+  } finally {
+    try { socket.end(); } catch (_) {}
+    try { socket.destroy(); } catch (_) {}
+  }
+}
+
+app.options(["/api/contact", "/api/contact/health", "/api/lingosentinel/contact", "/api/lingosentinel/start/contact"], (req, res) => {
+  hardenCors(req, res);
+  return res.status(204).end();
+});
+
+app.get(["/api/contact/health", "/api/lingosentinel/contact/health", "/api/lingosentinel/start/contact/health"], (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  const cfg = contactConfig();
+  return res.json({
+    ok: true,
+    route: "/api/contact",
+    aliases: ["/api/lingosentinel/contact", "/api/lingosentinel/start/contact"],
+    version: LINGOSENTINEL_CONTACT_ROUTE_VERSION,
+    enabled: !!cfg.enabled,
+    deliveryConfigured: !!(cfg.smtpUser && cfg.smtpPass && isValidContactEmail(cfg.to)),
+    deliveredTo: cfg.to,
+    provider: "smtp",
+    requires: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS"],
+    note: "SMTP credentials must be configured on Render for automatic email deposit."
+  });
+});
+
+app.post(["/api/contact", "/api/lingosentinel/contact", "/api/lingosentinel/start/contact"], async (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+
+  if (!checkContactRateLimit(req)) {
+    return res.status(429).json({
+      ok: false,
+      emailDelivered: false,
+      error: "contact_rate_limited",
+      message: "Too many contact attempts. Please wait and try again."
+    });
+  }
+
+  const data = normalizeContactPayload(req.body);
+  const errors = validateContactPayload(data);
+  if (errors.length) {
+    writeContactAudit(data, "rejected", { errors });
+    return res.status(400).json({
+      ok: false,
+      emailDelivered: false,
+      error: "invalid_contact_payload",
+      errors
+    });
+  }
+
+  try {
+    const delivered = await sendContactEmailViaSmtp(data);
+    writeContactAudit(data, "delivered", { provider: delivered.provider, deliveredTo: delivered.deliveredTo });
+    return res.status(200).json({
+      ok: true,
+      emailDelivered: true,
+      deliveredTo: delivered.deliveredTo,
+      traceId: data.traceId,
+      message: "LingoSentinel inquiry delivered."
+    });
+  } catch (err) {
+    const code = cleanText(err && (err.code || err.message) || "contact_delivery_failed");
+    writeContactAudit(data, "stored_not_delivered", { error: code });
+    console.log("[Sandblast][contact:delivery_error]", code, err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "");
+    return res.status(code === "CONTACT_SMTP_NOT_CONFIGURED" ? 503 : 502).json({
+      ok: false,
+      emailDelivered: false,
+      stored: true,
+      deliveredTo: contactConfig().to,
+      traceId: data.traceId,
+      error: code,
+      message: code === "CONTACT_SMTP_NOT_CONFIGURED"
+        ? "Contact route received the form, but SMTP credentials are not configured on the backend."
+        : "Contact route received the form, but email delivery failed."
+    });
+  }
+});
+
 
 let lastMemorySweepAt = 0;
 
