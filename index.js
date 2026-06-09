@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -49,6 +49,7 @@ const LANGUAGE_SPHERE_INDEX_BRIDGE_VERSION = "nyx.languagesphere.indexBridge/1.0
 const LINGOSENTINEL_GATEWAY_INDEX_VERSION = "nyx.lingosentinel.indexGateway/0.3-link-gateway";
 const LINGOSENTINEL_ABLY_READINESS_VERSION = "nyx.lingosentinel.ablyReadiness/1.0";
 const LINGOSENTINEL_ABLY_SANDBOX_PUBLISH_VERSION = "nyx.lingosentinel.ablySandboxPublish/1.0";
+const LINGOSENTINEL_PRIVATE_ROOM_VERSION = "nyx.lingosentinel.controlledPrivateRoom/1.1-direct-ably-fallback";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -1963,6 +1964,9 @@ app.options([
   "/api/lingosentinel/ably/readiness",
   "/api/lingosentinel/readiness",
   "/api/lingosentinel/ably/sandbox-publish",
+  "/api/lingosentinel/private/health",
+  "/api/lingosentinel/private/token",
+  "/api/lingosentinel/private/publish",
   "/api/lingosentinel/publish",
   "/api/lingosentinel/link"
 ], (req, res) => {
@@ -10775,12 +10779,16 @@ function buildLingoSentinelAblyReadiness(req) {
       token: "/api/lingosentinel/token",
       tokenHealth: "/api/lingosentinel/token/health",
       sandboxPublish: "/api/lingosentinel/ably/sandbox-publish",
+      privateHealth: "/api/lingosentinel/private/health",
+      privateToken: "/api/lingosentinel/private/token",
+      privatePublish: "/api/lingosentinel/private/publish",
       publish: "/api/lingosentinel/publish",
       link: "/api/lingosentinel/link"
     },
     mounted: {
       publishRoute: !!lingoSentinelPublishMounted,
       sandboxPublishRoute: true,
+      privateRoomRoute: true,
       subscribeTokenRoute: !!lingoSentinelSubscribeTokenMounted,
       gateway: !!runIndexLingoSentinelGateway,
       engine: !!lingoSentinelEngineMod
@@ -10828,6 +10836,101 @@ function lingoSentinelSecretLeakCheck(value) {
   };
 }
 
+function parseLingoSentinelAblyKey() {
+  const raw = cleanText(process.env.ABLY_API_KEY || process.env.ABLY_ROOT_API_KEY || "");
+  const idx = raw.indexOf(":");
+  if (!raw || idx <= 0 || idx >= raw.length - 1) {
+    return { ok: false, error: "ably_key_invalid", raw: "", keyName: "", keySecret: "" };
+  }
+  const keyName = raw.slice(0, idx).trim();
+  const keySecret = raw.slice(idx + 1).trim();
+  if (!keyName || !keySecret || !/^[A-Za-z0-9._-]+$/.test(keyName)) {
+    return { ok: false, error: "ably_key_invalid", raw: "", keyName: "", keySecret: "" };
+  }
+  return { ok: true, raw, keyName, keySecret, error: "" };
+}
+
+function createLingoSentinelManualTokenRequest(params = {}) {
+  const parsed = parseLingoSentinelAblyKey();
+  if (!parsed.ok) return { ok: false, error: parsed.error, tokenRequest: null };
+  const ttl = clamp(Number(params.ttl || 10 * 60 * 1000), 60 * 1000, 60 * 60 * 1000);
+  const capability = typeof params.capability === "string" ? params.capability : JSON.stringify(safeObj(params.capability));
+  const clientId = cleanText(params.clientId || "lingosentinel-client").replace(/[^a-z0-9_.:@-]+/gi, "-").slice(0, 96) || "lingosentinel-client";
+  const timestamp = Date.now();
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const signText = [parsed.keyName, ttl, capability, clientId, timestamp, nonce].join("\n") + "\n";
+  const mac = crypto.createHmac("sha256", parsed.keySecret).update(signText).digest("base64");
+  return {
+    ok: true,
+    tokenRequest: { keyName: parsed.keyName, ttl, capability, clientId, timestamp, nonce, mac },
+    error: ""
+  };
+}
+
+async function createLingoSentinelTokenRequestSafe(params = {}) {
+  const rest = createLingoSentinelAblyRestClient();
+  if (rest.ok) {
+    try {
+      const tokenRequest = await createAblyTokenRequestSafe(rest.client, params);
+      return { ok: true, tokenRequest, provider: "ably_rest", error: "" };
+    } catch (err) {
+      const manual = createLingoSentinelManualTokenRequest(params);
+      if (manual.ok) return { ok: true, tokenRequest: manual.tokenRequest, provider: "manual_hmac", error: "" };
+      return { ok: false, tokenRequest: null, provider: "none", error: sanitizeLingoSentinelError(err) };
+    }
+  }
+  const manual = createLingoSentinelManualTokenRequest(params);
+  if (manual.ok) return { ok: true, tokenRequest: manual.tokenRequest, provider: "manual_hmac", error: "" };
+  return { ok: false, tokenRequest: null, provider: "none", error: rest.error || manual.error || "ably_unavailable" };
+}
+
+function directLingoSentinelAblyPublish(channel, eventName, data, traceId) {
+  return new Promise((resolve) => {
+    const parsed = parseLingoSentinelAblyKey();
+    if (!parsed.ok) {
+      resolve({ ok: false, status: 503, stage: "ably_key_invalid", error: parsed.error });
+      return;
+    }
+    const https = require("https");
+    const payload = JSON.stringify({ name: eventName, data: safeObj(data) });
+    const requestOptions = {
+      hostname: "rest.ably.io",
+      path: "/channels/" + encodeURIComponent(channel) + "/messages",
+      method: "POST",
+      headers: {
+        "Authorization": "Basic " + Buffer.from(parsed.raw).toString("base64"),
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload),
+        "User-Agent": "sandblast-lingosentinel-guardrail",
+        "x-sb-trace-id": cleanText(traceId || makeTraceId("lsdirectpublish"))
+      },
+      timeout: 12000
+    };
+    const req = https.request(requestOptions, (response) => {
+      let text = "";
+      response.on("data", (chunk) => { text += chunk; });
+      response.on("end", () => {
+        const status = Number(response.statusCode || 0);
+        resolve({
+          ok: status >= 200 && status < 300,
+          status: status || 502,
+          stage: status >= 200 && status < 300 ? "published" : "publish_rejected",
+          error: status >= 200 && status < 300 ? "" : sanitizeLingoSentinelError(text || ("ably_status_" + status)),
+          telemetry: { payloadShape: "lingosentinel.signal", traceId: cleanText(traceId || ""), publishedAt: new Date().toISOString(), transport: "direct_ably_rest" },
+          channel,
+          eventName
+        });
+      });
+    });
+    req.on("timeout", () => { req.destroy(new Error("ably_direct_publish_timeout")); });
+    req.on("error", (err) => {
+      resolve({ ok: false, status: 502, stage: "publish_exception", error: sanitizeLingoSentinelError(err) });
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
 function buildLingoSentinelSandboxPublishInput(req) {
   const body = safeObj(req && req.body);
   const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("lsablysandbox"));
@@ -10861,16 +10964,34 @@ async function publishLingoSentinelSandboxFromRender(req) {
     return { ok: false, status: 503, stage: "ably_key_missing", error: "ably_not_configured" };
   }
 
+  const input = buildLingoSentinelSandboxPublishInput(req);
+  const channel = "ls:room:sandbox-healthcheck";
+  const eventName = "lingosentinel.message.group";
+  let result = null;
   const engine = lingoSentinelEngineMod;
-  if (!engine || typeof engine.publishGroupMessage !== "function") {
-    return { ok: false, status: 503, stage: "engine_unavailable", error: "lingosentinel_engine_unavailable" };
+
+  if (engine && typeof engine.publishGroupMessage === "function") {
+    try {
+      result = await engine.publishGroupMessage(input, {
+        clientId: cleanText(process.env.LINGOSENTINEL_CLIENT_ID || "render-lingosentinel-sandbox-publisher"),
+        forceNewClient: true
+      });
+    } catch (err) {
+      result = { ok: false, stage: "engine_publish_exception", error: sanitizeLingoSentinelError(err) };
+    }
   }
 
-  const input = buildLingoSentinelSandboxPublishInput(req);
-  const result = await engine.publishGroupMessage(input, {
-    clientId: cleanText(process.env.LINGOSENTINEL_CLIENT_ID || "render-lingosentinel-sandbox-publisher"),
-    forceNewClient: true
-  });
+  if (!result || result.ok !== true) {
+    result = await directLingoSentinelAblyPublish(channel, eventName, {
+      mode: input.mode,
+      roomId: input.roomId,
+      text: input.text,
+      sender: input.sender,
+      sourceLanguage: input.sourceLanguage,
+      targetLanguage: input.targetLanguage,
+      metadata: input.metadata
+    }, input.traceId);
+  }
 
   const response = {
     ok: result && result.ok === true,
@@ -10879,8 +11000,8 @@ async function publishLingoSentinelSandboxFromRender(req) {
     stage: cleanText(result && result.stage || "publish_failed"),
     mode: "group_room",
     roomId: "sandbox-healthcheck",
-    channel: cleanText(result && result.channel || "ls:room:sandbox-healthcheck"),
-    eventName: cleanText(result && result.eventName || "lingosentinel.message.group"),
+    channel: cleanText(result && result.channel || channel),
+    eventName: cleanText(result && result.eventName || eventName),
     marionAuthority: true,
     publicSurface: "Nyx",
     safeguards: {
@@ -10892,7 +11013,8 @@ async function publishLingoSentinelSandboxFromRender(req) {
     telemetry: {
       payloadShape: cleanText(result && result.telemetry && result.telemetry.payloadShape || "lingosentinel.signal"),
       traceId: input.traceId,
-      publishedAt: cleanText(result && result.telemetry && result.telemetry.publishedAt || new Date().toISOString())
+      publishedAt: cleanText(result && result.telemetry && result.telemetry.publishedAt || new Date().toISOString()),
+      transport: cleanText(result && result.telemetry && result.telemetry.transport || (engine ? "engine_or_direct" : "direct_ably_rest"))
     },
     timestamp: new Date().toISOString()
   };
@@ -10906,8 +11028,9 @@ async function publishLingoSentinelSandboxFromRender(req) {
   response.safeguards.keyPrefixExposed = leak.keyPrefixExposed;
   response.safeguards.appIdExposed = leak.appIdExposed;
 
-  return { ok: response.ok, status: response.ok ? 200 : 502, response };
+  return { ok: response.ok, status: response.ok ? 200 : Number(result && result.status || 502), response };
 }
+
 
 app.post("/api/lingosentinel/ably/sandbox-publish", async (req, res) => {
   applyCors(req, res);
@@ -10941,6 +11064,354 @@ app.post("/api/lingosentinel/ably/sandbox-publish", async (req, res) => {
     });
   }
 });
+
+
+// LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-ACTIVATION-V2-DIRECT-ABLY-FALLBACK:
+// Private-room activation is intentionally separate from the existing public
+// token/publish compatibility routes. It adds a narrow allowlist, short token
+// TTL, role validation, Marion authority metadata, and no-secret responses
+// before any real public room exposure.
+const LINGOSENTINEL_PRIVATE_ROOM_DEFAULT = "private-mac-lingosentinel-alpha";
+const LINGOSENTINEL_PRIVATE_ROOM_ROLES = Object.freeze(["host", "participant", "observer"]);
+const LINGOSENTINEL_PRIVATE_TOKEN_TTL_MS = clampNumberEnv("LINGOSENTINEL_PRIVATE_TOKEN_TTL_MS", 10 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000);
+
+function cleanLingoSentinelRoomId(value) {
+  const room = cleanText(value || "").toLowerCase();
+  if (!room || room.length < 3 || room.length > 80) return "";
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(room)) return "";
+  if (/(?:ably|api|key|secret|token|password)/i.test(room)) return "";
+  return room;
+}
+
+function lingoSentinelPrivateRoomAllowlist() {
+  const configured = cleanText(process.env.LINGOSENTINEL_PRIVATE_ROOMS || process.env.LS_PRIVATE_ROOMS || "");
+  const rooms = configured ? configured.split(",") : [LINGOSENTINEL_PRIVATE_ROOM_DEFAULT];
+  return uniq(rooms.map(cleanLingoSentinelRoomId).filter(Boolean));
+}
+
+function isLingoSentinelPrivateRoomAllowed(roomId) {
+  const clean = cleanLingoSentinelRoomId(roomId);
+  return !!clean && lingoSentinelPrivateRoomAllowlist().includes(clean);
+}
+
+function cleanLingoSentinelPrivateRole(value) {
+  const role = cleanText(value || "").toLowerCase();
+  return LINGOSENTINEL_PRIVATE_ROOM_ROLES.includes(role) ? role : "";
+}
+
+function buildLingoSentinelPrivateDenied(res, status, stage, reason, traceId) {
+  hardenConversationNoStore(res);
+  return res.status(status).json({
+    ok: false,
+    service: "lingosentinel-private-room",
+    version: LINGOSENTINEL_PRIVATE_ROOM_VERSION,
+    stage: cleanText(stage || "rejected"),
+    reason: cleanText(reason || "private_room_rejected"),
+    marionAuthority: true,
+    publicSurface: "Nyx",
+    liveScope: "controlled_private",
+    safeguards: { keyExposed: false, keyPrefixExposed: false, appIdExposed: false, noStore: true },
+    traceId: cleanText(traceId || makeTraceId("lsprivate")),
+    timestamp: new Date().toISOString()
+  });
+}
+
+function lingoSentinelPrivateClientId(value, role) {
+  const raw = cleanText(value || "");
+  const base = raw.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+  return base || ("ls-private-" + cleanText(role || "observer") + "-" + Date.now());
+}
+
+function createLingoSentinelAblyRestClient() {
+  const key = cleanText(process.env.ABLY_API_KEY || process.env.ABLY_ROOT_API_KEY || "");
+  if (!key) return { ok: false, error: "ably_not_configured", client: null };
+  const Ably = tryRequireMany(["ably", "./node_modules/ably"]);
+  if (!Ably) return { ok: false, error: "ably_package_missing", client: null };
+  try {
+    if (Ably.Rest) return { ok: true, client: new Ably.Rest({ key }) };
+    if (Ably.default && Ably.default.Rest) return { ok: true, client: new Ably.default.Rest({ key }) };
+    if (typeof Ably === "function") return { ok: true, client: new Ably({ key }) };
+  } catch (err) {
+    return { ok: false, error: sanitizeLingoSentinelError(err), client: null };
+  }
+  return { ok: false, error: "ably_rest_unavailable", client: null };
+}
+
+function createAblyTokenRequestSafe(restClient, params) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (!restClient || !restClient.auth || typeof restClient.auth.createTokenRequest !== "function") {
+        reject(new Error("ably_create_token_request_unavailable"));
+        return;
+      }
+      let settled = false;
+      const done = (err, tokenRequest) => {
+        if (settled) return;
+        settled = true;
+        err ? reject(err) : resolve(tokenRequest);
+      };
+      const maybe = restClient.auth.createTokenRequest(params, done);
+      if (maybe && typeof maybe.then === "function") maybe.then((tokenRequest) => done(null, tokenRequest)).catch(done);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+if (!lingoSentinelSubscribeTokenMounted) {
+  app.get("/api/lingosentinel/token/health", (req, res) => {
+    applyCors(req, res);
+    hardenConversationNoStore(res);
+    return res.status(200).json({
+      ok: true,
+      service: "lingosentinel-subscribe-token",
+      version: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
+      ablyConfigured: hasLingoSentinelAblyKeyConfigured(),
+      marionAuthority: true,
+      publicSurface: "Nyx",
+      route: "/api/lingosentinel/token",
+      safeguards: { keyExposed: false, keyPrefixExposed: false, appIdExposed: false, noStore: true },
+      traceId: cleanText((req && req.sbTraceId) || makeTraceId("lstokenhealth")),
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  app.post("/api/lingosentinel/token", async (req, res) => {
+    applyCors(req, res);
+    hardenConversationNoStore(res);
+    const body = safeObj(req && req.body);
+    const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("lstoken"));
+    const mode = cleanText(body.mode || "group_room").toLowerCase();
+    const roomId = cleanLingoSentinelRoomId(body.roomId || "sandbox-healthcheck");
+    if (mode !== "group_room" || !roomId) {
+      return res.status(400).json({ ok: false, stage: "token_rejected", reason: "invalid_room_or_mode", marionAuthority: true, publicSurface: "Nyx", traceId });
+    }
+    const channel = "ls:room:" + roomId;
+    const capability = {};
+    capability[channel] = ["subscribe", "presence"];
+    const clientId = lingoSentinelPrivateClientId(body.clientId || "ls-listener", "listener");
+    const tokenBuilt = await createLingoSentinelTokenRequestSafe({
+      clientId,
+      ttl: clampNumberEnv("LINGOSENTINEL_PUBLIC_TOKEN_TTL_MS", 10 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000),
+      capability: JSON.stringify(capability)
+    });
+    if (!tokenBuilt.ok) {
+      return res.status(503).json({ ok: false, stage: "ably_unavailable", reason: cleanText(tokenBuilt.error || "ably_unavailable"), marionAuthority: true, publicSurface: "Nyx", traceId });
+    }
+    const response = {
+      ok: true,
+      service: "lingosentinel-subscribe-token",
+      version: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
+      stage: "token_ready",
+      mode: "group_room",
+      roomId,
+      channel,
+      eventName: "lingosentinel.message.group",
+      capability,
+      tokenRequest: tokenBuilt.tokenRequest,
+      marionAuthority: true,
+      publicSurface: "Nyx",
+      liveScope: "sandbox_group",
+      safeguards: { keyExposed: false, keyPrefixExposed: false, appIdExposed: false, noStore: true },
+      traceId,
+      timestamp: new Date().toISOString()
+    };
+    const leak = lingoSentinelSecretLeakCheck(response);
+    response.safeguards.keyExposed = leak.keyExposed;
+    response.safeguards.keyPrefixExposed = leak.keyPrefixExposed;
+    response.safeguards.appIdExposed = leak.appIdExposed;
+    return res.status(200).json(response);
+  });
+}
+
+app.get("/api/lingosentinel/private/health", (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = cleanText((req && req.sbTraceId) || (req && req.headers && req.headers["x-sb-trace-id"]) || makeTraceId("lsprivatehealth"));
+  return res.status(200).json({
+    ok: true,
+    service: "lingosentinel-private-room",
+    version: LINGOSENTINEL_PRIVATE_ROOM_VERSION,
+    ablyConfigured: hasLingoSentinelAblyKeyConfigured(),
+    privateRoomsConfigured: lingoSentinelPrivateRoomAllowlist().length,
+    tokenTtlMs: LINGOSENTINEL_PRIVATE_TOKEN_TTL_MS,
+    allowedRoles: LINGOSENTINEL_PRIVATE_ROOM_ROLES,
+    marionAuthority: true,
+    publicSurface: "Nyx",
+    liveScope: "controlled_private",
+    safeguards: { keyExposed: false, keyPrefixExposed: false, appIdExposed: false, noStore: true },
+    traceId,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.post("/api/lingosentinel/private/token", async (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("lsprivatetoken"));
+  const roomId = cleanLingoSentinelRoomId(body.roomId || LINGOSENTINEL_PRIVATE_ROOM_DEFAULT);
+  const role = cleanLingoSentinelPrivateRole(body.role || "observer");
+
+  if (!roomId || !isLingoSentinelPrivateRoomAllowed(roomId)) {
+    return buildLingoSentinelPrivateDenied(res, 403, "private_room_not_allowed", "room_not_allowlisted", traceId);
+  }
+  if (!role) {
+    return buildLingoSentinelPrivateDenied(res, 403, "private_role_rejected", "role_not_allowed", traceId);
+  }
+
+  const channel = "ls:room:" + roomId;
+  const eventName = "lingosentinel.message.group";
+  const clientId = lingoSentinelPrivateClientId(body.clientId, role);
+  const capability = {};
+  capability[channel] = role === "host" || role === "participant" ? ["subscribe", "presence", "publish"] : ["subscribe", "presence"];
+
+  try {
+    const tokenBuilt = await createLingoSentinelTokenRequestSafe({
+      clientId,
+      ttl: LINGOSENTINEL_PRIVATE_TOKEN_TTL_MS,
+      capability: JSON.stringify(capability)
+    });
+    if (!tokenBuilt.ok) {
+      return buildLingoSentinelPrivateDenied(res, 503, "ably_unavailable", tokenBuilt.error, traceId);
+    }
+    const tokenRequest = tokenBuilt.tokenRequest;
+    const response = {
+      ok: true,
+      service: "lingosentinel-private-room",
+      version: LINGOSENTINEL_PRIVATE_ROOM_VERSION,
+      stage: "token_ready",
+      roomId,
+      role,
+      clientId,
+      channel,
+      eventName,
+      tokenTtlMs: LINGOSENTINEL_PRIVATE_TOKEN_TTL_MS,
+      tokenRequest,
+      marionAuthority: true,
+      publicSurface: "Nyx",
+      liveScope: "controlled_private",
+      safeguards: { keyExposed: false, keyPrefixExposed: false, appIdExposed: false, noStore: true },
+      traceId,
+      timestamp: new Date().toISOString()
+    };
+    const leak = lingoSentinelSecretLeakCheck(response);
+    response.safeguards.keyExposed = leak.keyExposed;
+    response.safeguards.keyPrefixExposed = leak.keyPrefixExposed;
+    response.safeguards.appIdExposed = leak.appIdExposed;
+    return res.status(200).json(response);
+  } catch (err) {
+    return buildLingoSentinelPrivateDenied(res, 502, "token_exception", sanitizeLingoSentinelError(err), traceId);
+  }
+});
+
+function buildLingoSentinelPrivatePublishInput(req, roomId, role, traceId) {
+  const body = safeObj(req && req.body);
+  const sender = safeObj(body.sender);
+  const textValue = clipText(body.text || body.message || "Controlled private room activation test.", 900);
+  return {
+    mode: "group_room",
+    roomId,
+    text: textValue,
+    sender: {
+      id: cleanText(sender.id || body.senderId || "mac"),
+      name: cleanText(sender.name || body.senderName || "Mac"),
+      role,
+      preferredLanguage: cleanText(sender.preferredLanguage || body.sourceLanguage || "en").toLowerCase()
+    },
+    sourceLanguage: cleanText(body.sourceLanguage || "en").toLowerCase(),
+    targetLanguage: cleanText(body.targetLanguage || body.recipientLanguage || "multi").toLowerCase(),
+    traceId,
+    metadata: {
+      testType: "controlled_private_room_activation",
+      interactionSource: "render_backend_private_room",
+      widgetSurface: "webflow_lingosentinel",
+      liveScope: "controlled_private",
+      publicSurface: "Nyx",
+      marionAuthority: true,
+      role,
+      traceId
+    }
+  };
+}
+
+app.post("/api/lingosentinel/private/publish", async (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("lsprivatepublish"));
+  const roomId = cleanLingoSentinelRoomId(body.roomId || LINGOSENTINEL_PRIVATE_ROOM_DEFAULT);
+  const role = cleanLingoSentinelPrivateRole(body.role || safeObj(body.sender).role || "host");
+
+  if (!roomId || !isLingoSentinelPrivateRoomAllowed(roomId)) {
+    return buildLingoSentinelPrivateDenied(res, 403, "private_room_not_allowed", "room_not_allowlisted", traceId);
+  }
+  if (!role || role === "observer") {
+    return buildLingoSentinelPrivateDenied(res, 403, "private_role_rejected", "publish_role_not_allowed", traceId);
+  }
+  if (!hasLingoSentinelAblyKeyConfigured()) {
+    return buildLingoSentinelPrivateDenied(res, 503, "ably_key_missing", "ably_not_configured", traceId);
+  }
+  const engine = lingoSentinelEngineMod;
+
+  try {
+    const input = buildLingoSentinelPrivatePublishInput(req, roomId, role, traceId);
+    const channel = "ls:room:" + roomId;
+    const eventName = "lingosentinel.message.group";
+    let result = null;
+    if (engine && typeof engine.publishGroupMessage === "function") {
+      try {
+        result = await engine.publishGroupMessage(input, {
+          clientId: cleanText(process.env.LINGOSENTINEL_CLIENT_ID || "render-lingosentinel-private-publisher"),
+          forceNewClient: true
+        });
+      } catch (err) {
+        result = { ok: false, stage: "engine_publish_exception", error: sanitizeLingoSentinelError(err) };
+      }
+    }
+    if (!result || result.ok !== true) {
+      result = await directLingoSentinelAblyPublish(channel, eventName, {
+        mode: input.mode,
+        roomId: input.roomId,
+        text: input.text,
+        sender: input.sender,
+        sourceLanguage: input.sourceLanguage,
+        targetLanguage: input.targetLanguage,
+        metadata: input.metadata
+      }, traceId);
+    }
+    const response = {
+      ok: result && result.ok === true,
+      service: "lingosentinel-private-room",
+      version: LINGOSENTINEL_PRIVATE_ROOM_VERSION,
+      stage: cleanText(result && result.stage || "publish_failed"),
+      mode: "group_room",
+      roomId,
+      role,
+      channel: cleanText(result && result.channel || ("ls:room:" + roomId)),
+      eventName: cleanText(result && result.eventName || "lingosentinel.message.group"),
+      marionAuthority: true,
+      publicSurface: "Nyx",
+      liveScope: "controlled_private",
+      safeguards: { keyExposed: false, keyPrefixExposed: false, appIdExposed: false, noStore: true },
+      telemetry: {
+        payloadShape: cleanText(result && result.telemetry && result.telemetry.payloadShape || "lingosentinel.signal"),
+        traceId,
+        publishedAt: cleanText(result && result.telemetry && result.telemetry.publishedAt || new Date().toISOString())
+      },
+      timestamp: new Date().toISOString()
+    };
+    if (!response.ok) response.error = sanitizeLingoSentinelError(result && result.errors && result.errors[0] || result && result.error || "publish_failed");
+    const leak = lingoSentinelSecretLeakCheck(response);
+    response.safeguards.keyExposed = leak.keyExposed;
+    response.safeguards.keyPrefixExposed = leak.keyPrefixExposed;
+    response.safeguards.appIdExposed = leak.appIdExposed;
+    return res.status(response.ok ? 200 : 502).json(response);
+  } catch (err) {
+    return buildLingoSentinelPrivateDenied(res, 502, "publish_exception", sanitizeLingoSentinelError(err), traceId);
+  }
+});
+
 
 STATIC_PUBLIC_DIRS.forEach((dir) => {
   app.use(express.static(dir));
