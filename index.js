@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V8-ASYNC-SUBMIT-SMTP-QUEUE-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V9-BRLOGIC-PORT25-PLAIN-SMTP-VERIFY-TELEMETRY-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -352,10 +352,25 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, (req, res) => {
   });
 });
 
-app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, (req, res) => {
+app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, async (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   const cfg = contactConfig();
+  const verifyRequested = /^(?:1|true|yes|on)$/i.test(cleanText(req.query && (req.query.verify || req.query.live || req.query.test) || ""));
+  let verify = { requested: verifyRequested, ok: false, skipped: !verifyRequested };
+  if (verifyRequested) {
+    try {
+      const result = await verifyContactSmtpConfig();
+      verify = { requested: true, ok: true, result };
+    } catch (err) {
+      verify = {
+        requested: true,
+        ok: false,
+        error: smtpSafeErrorCode(err),
+        attempts: Array.isArray(err && err.smtpAttempts) ? err.smtpAttempts.slice(0, 8) : []
+      };
+    }
+  }
   return res.status(200).json({
     ok: true,
     service: "lingosentinel-start-contact-smtp",
@@ -364,6 +379,7 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, (req, res) => {
     version: LINGOSENTINEL_CONTACT_ROUTE_VERSION,
     canonicalRoute: "/api/lingosentinel/start/contact/smtp-health",
     diagnosticSafe: true,
+    verify,
     smtp: contactSmtpPublicDiagnostics(cfg),
     deliveryReady: isContactSmtpConfigDeliverable(cfg),
     aliases: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
@@ -2121,9 +2137,24 @@ app.options([
 // The browser widget must POST here; this route validates the payload,
 // stores an audit copy, and sends the inquiry to Sandblast's inbox when
 // SMTP credentials are configured on Render.
-const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.7-async-submit-smtp-queue-hardlock";
+const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.8-brlogic-port25-plain-smtp-verify-telemetry-hardlock";
 const LINGOSENTINEL_CONTACT_DEFAULT_TO = "sandblastchannel@gmail.com";
 const lingosentinelContactRate = new Map();
+const contactSmtpRuntimeState = {
+  lastAttemptAt: "",
+  lastAttemptMode: "",
+  lastAttemptLabel: "",
+  lastAttemptHost: "",
+  lastAttemptPort: 0,
+  lastAttemptSecure: false,
+  lastAttemptStartTls: false,
+  lastStatus: "never_attempted",
+  lastAccepted: false,
+  lastDeliveredTo: "",
+  lastError: "",
+  lastErrorDetail: "",
+  lastAttempts: []
+};
 
 function normalizeContactEmail(value) {
   const raw = cleanText(value || "");
@@ -2157,7 +2188,12 @@ function contactConfig() {
     smtpHost,
     smtpPort,
     smtpSecure,
-    smtpRequireTls: process.env.SB_CONTACT_SMTP_REQUIRE_TLS === "false" ? false : true,
+    // BRLOGIC/MailEnable publishes port 25 with SSL: No. For that contract, the
+    // backend must support plain SMTP AUTH without forcing STARTTLS. Explicit env
+    // still wins: set SB_CONTACT_SMTP_REQUIRE_TLS=true for STARTTLS on non-SSL ports.
+    smtpRequireTls: process.env.SB_CONTACT_SMTP_REQUIRE_TLS
+      ? !/^(?:false|0|no|off|plain)$/i.test(process.env.SB_CONTACT_SMTP_REQUIRE_TLS)
+      : !(smtpPort === 25 && !smtpSecure),
     smtpUser: normalizeContactEmail(rawSmtpUser),
     // Google App Passwords are often copied with spaces. SMTP AUTH must receive
     // the 16-character token without spaces/newlines.
@@ -2233,7 +2269,9 @@ function contactSmtpPublicDiagnostics(cfg) {
     commandTimeoutMs: Number(c.smtpCommandTimeoutMs || 0),
     socketTimeoutMs: Number(c.smtpSocketTimeoutMs || 0),
     family: Number(c.smtpFamily || 0),
-    preferredMode: c.smtpSecure ? "ssl" : "starttls",
+    requireTls: !!c.smtpRequireTls,
+    preferredMode: c.smtpSecure ? "ssl" : (c.smtpRequireTls ? "starttls" : "plain_smtp"),
+    brlogicPort25PlainReady: /brlogic\.com$/i.test(c.smtpHost || "") && Number(c.smtpPort) === 25 && !c.smtpSecure && !c.smtpRequireTls,
     fromEmailValid: isValidContactEmail(c.from),
     toEmailValid: isValidContactEmail(c.to),
     fromMatchesUser: !!c.from && !!c.smtpUser && c.from === c.smtpUser,
@@ -2245,6 +2283,14 @@ function contactSmtpPublicDiagnostics(cfg) {
       preferredOnRender: "587 STARTTLS",
       appPasswordNoSpaces: true
     },
+    expectedForBrlogicMailEnable: {
+      host: "webmail.brlogic.com",
+      port: 25,
+      secure: false,
+      requireTls: false,
+      mode: "plain_smtp_auth"
+    },
+    lastDeliveryAttempt: contactSmtpPublicState(),
     attempts: contactSmtpAttemptLabels(c)
   };
 }
@@ -2556,27 +2602,43 @@ function smtpSafeErrorCode(err) {
 
 function contactSmtpAttempts(cfg) {
   const host = cleanText(cfg.smtpHost || "smtp.gmail.com");
-  const primary = { host, port: cfg.smtpPort, secure: !!cfg.smtpSecure, family: cfg.smtpFamily, label: `primary-${cfg.smtpPort}-${cfg.smtpSecure ? "ssl" : "starttls"}` };
+  const port = clamp(Number(cfg.smtpPort || 587), 1, 65535);
+  const primaryStartTls = !cfg.smtpSecure && !!cfg.smtpRequireTls;
+  const primary = {
+    host,
+    port,
+    secure: !!cfg.smtpSecure,
+    starttls: primaryStartTls,
+    family: cfg.smtpFamily,
+    label: `primary-${port}-${cfg.smtpSecure ? "ssl" : primaryStartTls ? "starttls" : "plain"}`
+  };
   const attempts = [];
   const add = (a) => {
     if (!a || !a.host || !a.port) return;
-    attempts.push({ ...a, family: Number(a.family || cfg.smtpFamily || 0) || undefined });
+    const secure = !!a.secure;
+    const starttls = secure ? false : !!a.starttls;
+    attempts.push({ ...a, secure, starttls, family: Number(a.family || cfg.smtpFamily || 0) || undefined });
   };
 
-  // For Gmail on Render, prioritize STARTTLS/587 because implicit SSL/465 can hang
-  // on some egress paths. Keep the configured primary as an explicit candidate.
-  if (/smtp\.gmail\.com$/i.test(host)) {
-    add({ host, port: 587, secure: false, family: cfg.smtpFamily, label: "gmail-587-starttls-preferred" });
+  // BRLOGIC/MailEnable panel shows: server webmail.brlogic.com, port 25, SSL No.
+  // That means the first attempt must be plain SMTP AUTH on 25, not implicit SSL
+  // and not mandatory STARTTLS. Keep 587 STARTTLS and 465 SSL as controlled fallbacks.
+  if (/brlogic\.com$/i.test(host) || (port === 25 && !cfg.smtpSecure && !cfg.smtpRequireTls)) {
     add(primary);
-    add({ host, port: 465, secure: true, family: cfg.smtpFamily, label: "gmail-465-ssl-fallback" });
+    add({ host, port: 587, secure: false, starttls: true, family: cfg.smtpFamily, label: "generic-587-starttls-fallback" });
+    add({ host, port: 465, secure: true, starttls: false, family: cfg.smtpFamily, label: "generic-465-ssl-fallback" });
+  } else if (/smtp\.gmail\.com$/i.test(host)) {
+    add({ host, port: 587, secure: false, starttls: true, family: cfg.smtpFamily, label: "gmail-587-starttls-preferred" });
+    add(primary);
+    add({ host, port: 465, secure: true, starttls: false, family: cfg.smtpFamily, label: "gmail-465-ssl-fallback" });
   } else {
     add(primary);
-    add({ host, port: 587, secure: false, family: cfg.smtpFamily, label: "generic-587-starttls-fallback" });
+    add({ host, port: 587, secure: false, starttls: true, family: cfg.smtpFamily, label: "generic-587-starttls-fallback" });
   }
 
   const seen = new Set();
   return attempts.filter((a) => {
-    const key = `${a.host}:${a.port}:${a.secure}:${a.family || 0}`;
+    const key = `${a.host}:${a.port}:${a.secure}:${a.starttls}:${a.family || 0}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -2589,8 +2651,117 @@ function contactSmtpAttemptLabels(cfg) {
     host: a.host,
     port: a.port,
     secure: !!a.secure,
+    starttls: !!a.starttls,
+    mode: a.secure ? "ssl" : a.starttls ? "starttls" : "plain_smtp",
     family: Number(a.family || 0) || "auto"
   }));
+}
+
+function contactSmtpPublicState() {
+  return {
+    at: contactSmtpRuntimeState.lastAttemptAt,
+    status: contactSmtpRuntimeState.lastStatus,
+    accepted: !!contactSmtpRuntimeState.lastAccepted,
+    deliveredTo: contactSmtpRuntimeState.lastDeliveredTo,
+    label: contactSmtpRuntimeState.lastAttemptLabel,
+    host: contactSmtpRuntimeState.lastAttemptHost,
+    port: contactSmtpRuntimeState.lastAttemptPort,
+    secure: !!contactSmtpRuntimeState.lastAttemptSecure,
+    starttls: !!contactSmtpRuntimeState.lastAttemptStartTls,
+    mode: contactSmtpRuntimeState.lastAttemptMode,
+    error: contactSmtpRuntimeState.lastError,
+    detail: contactSmtpRuntimeState.lastErrorDetail,
+    attempts: Array.isArray(contactSmtpRuntimeState.lastAttempts) ? contactSmtpRuntimeState.lastAttempts.slice(0, 8) : []
+  };
+}
+
+function setContactSmtpRuntimeState(patch) {
+  const next = isObj(patch) ? patch : {};
+  Object.assign(contactSmtpRuntimeState, next);
+  if (Array.isArray(next.lastAttempts)) contactSmtpRuntimeState.lastAttempts = next.lastAttempts.slice(0, 8);
+  return contactSmtpPublicState();
+}
+
+function noteContactSmtpAttempt(attempt, status, extra) {
+  const a = isObj(attempt) ? attempt : {};
+  const e = isObj(extra) ? extra : {};
+  const mode = a.secure ? "ssl" : a.starttls ? "starttls" : "plain_smtp";
+  const row = {
+    at: new Date().toISOString(),
+    label: cleanText(a.label || ""),
+    host: cleanText(a.host || ""),
+    port: Number(a.port || 0),
+    secure: !!a.secure,
+    starttls: !!a.starttls,
+    mode,
+    status: cleanText(status || ""),
+    error: cleanText(e.error || ""),
+    detail: cleanText(e.detail || "").slice(0, 240)
+  };
+  const existing = Array.isArray(contactSmtpRuntimeState.lastAttempts) ? contactSmtpRuntimeState.lastAttempts.slice(-7) : [];
+  existing.push(row);
+  return setContactSmtpRuntimeState({
+    lastAttemptAt: row.at,
+    lastAttemptMode: row.mode,
+    lastAttemptLabel: row.label,
+    lastAttemptHost: row.host,
+    lastAttemptPort: row.port,
+    lastAttemptSecure: row.secure,
+    lastAttemptStartTls: row.starttls,
+    lastStatus: row.status,
+    lastAccepted: row.status === "delivered" || row.status === "verified",
+    lastDeliveredTo: cleanText(e.deliveredTo || contactSmtpRuntimeState.lastDeliveredTo || ""),
+    lastError: row.error,
+    lastErrorDetail: row.detail,
+    lastAttempts: existing
+  });
+}
+
+async function smtpVerifyWithAttempt(cfg, attempt) {
+  let socket = await smtpConnect(cfg, attempt);
+  try {
+    await smtpExpect(socket, 220);
+    await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
+    if (!attempt.secure && attempt.starttls) {
+      await smtpExpect(socket, 220, "STARTTLS");
+      socket = await smtpStartTls(socket, cfg);
+      await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
+    }
+    await smtpExpect(socket, 334, "AUTH LOGIN");
+    await smtpExpect(socket, 334, Buffer.from(cfg.smtpUser).toString("base64"));
+    await smtpExpect(socket, 235, Buffer.from(cfg.smtpPass).toString("base64"));
+    try { await smtpExpect(socket, 221, "QUIT"); } catch (_) {}
+    noteContactSmtpAttempt(attempt, "verified", { deliveredTo: cfg.to });
+    return { ok: true, verified: true, host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label };
+  } finally {
+    try { socket.end(); } catch (_) {}
+    try { socket.destroy(); } catch (_) {}
+  }
+}
+
+async function verifyContactSmtpConfig() {
+  const cfg = contactConfig();
+  if (!isContactSmtpConfigDeliverable(cfg)) {
+    const err = new Error("contact_email_config_invalid");
+    err.code = "CONTACT_EMAIL_CONFIG_INVALID";
+    throw err;
+  }
+  const failures = [];
+  for (const attempt of contactSmtpAttempts(cfg)) {
+    try {
+      return await smtpVerifyWithAttempt(cfg, attempt);
+    } catch (err) {
+      const safeCode = smtpSafeErrorCode(err);
+      const detail = err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "";
+      failures.push(`${attempt.label}:${safeCode}`);
+      noteContactSmtpAttempt(attempt, "verify_failed", { error: safeCode, detail });
+      console.log("[Sandblast][contact:smtp_verify_failed]", attempt.label, safeCode, detail);
+    }
+  }
+  const finalErr = new Error(failures.join("|") || "SMTP_VERIFY_FAILED");
+  finalErr.code = failures.some((x) => /SMTP_AUTH_FAILED/.test(x)) ? "SMTP_AUTH_FAILED" : "SMTP_VERIFY_FAILED";
+  finalErr.smtpAttempts = failures;
+  throw finalErr;
 }
 
 async function smtpDeliverWithAttempt(data, cfg, attempt) {
@@ -2598,7 +2769,7 @@ async function smtpDeliverWithAttempt(data, cfg, attempt) {
   try {
     await smtpExpect(socket, 220);
     await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
-    if (!attempt.secure) {
+    if (!attempt.secure && attempt.starttls) {
       await smtpExpect(socket, 220, "STARTTLS");
       socket = await smtpStartTls(socket, cfg);
       await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
@@ -2612,7 +2783,8 @@ async function smtpDeliverWithAttempt(data, cfg, attempt) {
     smtpWrite(socket, `${smtpEscapeBody(buildContactMimeMessage(data, cfg))}\r\n.`);
     await smtpExpect(socket, 250);
     try { await smtpExpect(socket, 221, "QUIT"); } catch (_) {}
-    return { ok: true, deliveredTo: cfg.to, provider: "smtp", host: attempt.host, port: attempt.port, secure: attempt.secure, attempt: attempt.label };
+    noteContactSmtpAttempt(attempt, "delivered", { deliveredTo: cfg.to });
+    return { ok: true, deliveredTo: cfg.to, provider: "smtp", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label };
   } finally {
     try { socket.end(); } catch (_) {}
     try { socket.destroy(); } catch (_) {}
@@ -2655,8 +2827,10 @@ async function sendContactEmailViaSmtp(data) {
       return delivered;
     } catch (err) {
       const safeCode = smtpSafeErrorCode(err);
+      const detail = err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "";
       failures.push(`${attempt.label}:${safeCode}`);
-      console.log("[Sandblast][contact:smtp_attempt_failed]", attempt.label, safeCode, err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "");
+      noteContactSmtpAttempt(attempt, "delivery_failed", { error: safeCode, detail });
+      console.log("[Sandblast][contact:smtp_attempt_failed]", attempt.label, safeCode, detail);
     }
   }
 
@@ -2731,10 +2905,25 @@ app.get(["/api/contact/health", "/api/lingosentinel/contact/health", "/api/lingo
   });
 });
 
-app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "/api/lingosentinel/start/contact/smtp-health", "/contact/smtp-health", "/lingosentinel/contact/smtp-health", "/lingosentinel/start/contact/smtp-health"], (req, res) => {
+app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "/api/lingosentinel/start/contact/smtp-health", "/contact/smtp-health", "/lingosentinel/contact/smtp-health", "/lingosentinel/start/contact/smtp-health"], async (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   const cfg = contactConfig();
+  const verifyRequested = /^(?:1|true|yes|on)$/i.test(cleanText(req.query && (req.query.verify || req.query.live || req.query.test) || ""));
+  let verify = { requested: verifyRequested, ok: false, skipped: !verifyRequested };
+  if (verifyRequested) {
+    try {
+      const result = await verifyContactSmtpConfig();
+      verify = { requested: true, ok: true, result };
+    } catch (err) {
+      verify = {
+        requested: true,
+        ok: false,
+        error: smtpSafeErrorCode(err),
+        attempts: Array.isArray(err && err.smtpAttempts) ? err.smtpAttempts.slice(0, 8) : []
+      };
+    }
+  }
   return res.json({
     ok: true,
     service: "lingosentinel-start-contact-smtp",
@@ -2742,6 +2931,7 @@ app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "
     version: LINGOSENTINEL_CONTACT_ROUTE_VERSION,
     canonicalRoute: "/api/lingosentinel/start/contact/smtp-health",
     diagnosticSafe: true,
+    verify,
     smtp: contactSmtpPublicDiagnostics(cfg),
     deliveryReady: isContactSmtpConfigDeliverable(cfg),
     meta: { v: INDEX_VERSION, t: now() }
