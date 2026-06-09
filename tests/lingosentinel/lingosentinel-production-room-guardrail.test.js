@@ -3,7 +3,7 @@
 /**
  * lingosentinel-production-room-guardrail.test.js
  *
- * VERSION_MARKER: LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V1
+ * VERSION_MARKER: LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V2_CONTROLLED_PRIVATE_ROOM
  *
  * Purpose:
  * - Production-room preflight guardrail test before real user rooms are opened.
@@ -26,15 +26,17 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const VERSION_MARKER = 'LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V1';
+const VERSION_MARKER = 'LINGOSENTINEL_PRODUCTION_ROOM_GUARDRAIL_V2_CONTROLLED_PRIVATE_ROOM';
 const BACKEND = String(process.env.LS_BACKEND || 'https://sandblast-backend.onrender.com').replace(/\/$/, '');
 const ROOM = String(process.env.LS_GUARDRAIL_ROOM || 'sandbox-healthcheck');
+const PRIVATE_ROOM = String(process.env.LS_PRIVATE_ROOM || 'private-mac-lingosentinel-alpha');
 const STRICT = /^true$/i.test(String(process.env.LS_REQUIRE_PRODUCTION_GUARDRAILS || ''));
 const WIDGET_HTML = String(process.env.LS_WIDGET_HTML || '').trim();
 const TIMEOUT_MS = Math.max(6000, Number(process.env.LS_GUARDRAIL_TIMEOUT_MS || 16000));
 
 const EXPECTED = Object.freeze({
   group_room: { channel: `ls:room:${ROOM}`, eventName: 'lingosentinel.message.group' },
+  private_group_room: { channel: `ls:room:${PRIVATE_ROOM}`, eventName: 'lingosentinel.message.group' },
   one_to_one: { channelPrefix: 'ls:direct:', eventName: 'lingosentinel.message.direct' },
   live_translate: { channelPrefix: 'ls:live:', eventName: 'lingosentinel.message.live' },
   delivered: { channelPrefix: 'ls:receipt:', eventName: 'lingosentinel.message.delivered' }
@@ -60,6 +62,7 @@ async function runAll(tests) {
   console.log(`Running ${VERSION_MARKER}`);
   console.log(`Backend: ${BACKEND}`);
   console.log(`Room: ${ROOM}`);
+  console.log(`Private room: ${PRIVATE_ROOM}`);
   console.log(`Strict: ${STRICT}`);
 
   for (const item of tests) {
@@ -171,7 +174,7 @@ function staticWidgetScan(filePath) {
 
 runAll([
   test('version marker is present', () => {
-    assert.strictEqual(VERSION_MARKER.includes('PRODUCTION_ROOM_GUARDRAIL_V1'), true);
+    assert.strictEqual(VERSION_MARKER.includes('PRODUCTION_ROOM_GUARDRAIL_V2_CONTROLLED_PRIVATE_ROOM'), true);
   }),
 
   test('production room naming discipline is safe', () => {
@@ -252,6 +255,94 @@ runAll([
     assert.strictEqual(/[\s/\\]/.test(channel), false, 'Token route must not preserve spaces or slashes in channel.');
   }),
 
+
+  test('controlled private room health route is safe and explicit', async () => {
+    const result = await request('GET', '/api/lingosentinel/private/health');
+    assert.strictEqual(result.status, 200, `Expected private health 200, got ${result.status}: ${result.text}`);
+    assert.ok(result.json, 'Expected private health JSON.');
+    assert.strictEqual(result.json.ok, true);
+    assert.strictEqual(result.json.marionAuthority, true);
+    assert.strictEqual(result.json.publicSurface, 'Nyx');
+    assert.strictEqual(result.json.liveScope, 'controlled_private');
+    assert.ok(Number(result.json.tokenTtlMs) >= 300000, 'Expected private token TTL >= 5 minutes.');
+    assert.ok(Number(result.json.tokenTtlMs) <= 900000, 'Expected private token TTL <= 15 minutes.');
+    assertNoSecretLeak(result.json, 'private health response');
+    assertNoStore(result.headers);
+  }),
+
+  test('controlled private room token uses allowlisted room and short TTL', async () => {
+    assertRoomNameDiscipline(PRIVATE_ROOM);
+    const result = await request('POST', '/api/lingosentinel/private/token', {
+      mode: 'group_room',
+      roomId: PRIVATE_ROOM,
+      clientId: `private-host-${Date.now()}`,
+      role: 'host'
+    });
+    assert.strictEqual(result.status, 200, `Expected private token 200, got ${result.status}: ${result.text}`);
+    assert.ok(result.json, 'Expected private token JSON.');
+    assert.strictEqual(result.json.ok, true);
+    assert.strictEqual(result.json.roomId, PRIVATE_ROOM);
+    assert.strictEqual(result.json.role, 'host');
+    assert.strictEqual(result.json.channel, EXPECTED.private_group_room.channel);
+    assert.strictEqual(result.json.eventName, EXPECTED.private_group_room.eventName);
+    assert.strictEqual(result.json.marionAuthority, true);
+    assert.strictEqual(result.json.publicSurface, 'Nyx');
+    assert.strictEqual(result.json.liveScope, 'controlled_private');
+    assert.ok(Number(result.json.tokenTtlMs) >= 300000, 'Expected token TTL >= 5 minutes.');
+    assert.ok(Number(result.json.tokenTtlMs) <= 900000, 'Expected token TTL <= 15 minutes.');
+    assert.ok(result.json.tokenRequest || result.json.token || result.json.auth, 'Expected listener credential payload.');
+    assertNoSecretLeak(result.json, 'private token response');
+    assertNoStore(result.headers);
+  }),
+
+  test('controlled private room rejects arbitrary public room token', async () => {
+    const result = await request('POST', '/api/lingosentinel/private/token', {
+      mode: 'group_room',
+      roomId: 'public-open-room',
+      clientId: `private-bad-${Date.now()}`,
+      role: 'host'
+    });
+    assert.ok(result.status === 403 || result.status === 400, `Expected private token rejection, got ${result.status}: ${result.text}`);
+    assertNoSecretLeak(result.text, 'private room rejection response');
+  }),
+
+  test('controlled private room publish route uses private contract safely', async () => {
+    const result = await request('POST', '/api/lingosentinel/private/publish', {
+      mode: 'group_room',
+      roomId: PRIVATE_ROOM,
+      role: 'host',
+      text: 'Controlled private room activation test.',
+      sender: { id: 'mac', name: 'Mac', role: 'host', preferredLanguage: 'en' }
+    });
+    assert.strictEqual(result.status, 200, `Expected private publish 200, got ${result.status}: ${result.text}`);
+    assert.ok(result.json, 'Expected private publish JSON.');
+    assert.strictEqual(result.json.ok, true);
+    assert.strictEqual(result.json.stage, 'published');
+    assert.strictEqual(result.json.mode, 'group_room');
+    assert.strictEqual(result.json.roomId, PRIVATE_ROOM);
+    assert.strictEqual(result.json.channel, EXPECTED.private_group_room.channel);
+    assert.strictEqual(result.json.eventName, EXPECTED.private_group_room.eventName);
+    assert.strictEqual(result.json.marionAuthority, true);
+    assert.strictEqual(result.json.publicSurface, 'Nyx');
+    assert.strictEqual(result.json.liveScope, 'controlled_private');
+    assert.ok(result.json.telemetry && result.json.telemetry.traceId, 'Expected private publish traceId telemetry.');
+    assertNoSecretLeak(result.json, 'private publish response');
+    assertCors(result.headers);
+    assertNoStore(result.headers);
+  }),
+
+  test('controlled private room observer cannot publish', async () => {
+    const result = await request('POST', '/api/lingosentinel/private/publish', {
+      mode: 'group_room',
+      roomId: PRIVATE_ROOM,
+      role: 'observer',
+      text: 'Observer should not publish.',
+      sender: { id: 'observer', name: 'Observer', role: 'observer', preferredLanguage: 'en' }
+    });
+    assert.ok(result.status === 403 || result.status === 400, `Expected observer publish rejection, got ${result.status}: ${result.text}`);
+    assertNoSecretLeak(result.text, 'observer rejection response');
+  }),
+
   test('production guardrail checklist remains explicit', () => {
     const checklist = {
       originAllowlist: ['https://www.sandblast.channel', 'https://sandblast.channel'],
@@ -261,10 +352,15 @@ runAll([
       marionAuthorityRequired: true,
       nyxPublicSurfaceRequired: true,
       traceIdRequired: true,
-      credentialRejectionRequired: true
+      credentialRejectionRequired: true,
+      controlledPrivateRoomRequired: true,
+      privateRoomAllowlistRequired: true,
+      observerCannotPublish: true
     };
     assert.strictEqual(checklist.noRootKeyInBrowser, true);
     assert.strictEqual(checklist.marionAuthorityRequired, true);
     assert.strictEqual(checklist.nyxPublicSurfaceRequired, true);
+    assert.strictEqual(checklist.controlledPrivateRoomRequired, true);
+    assert.strictEqual(checklist.privateRoomAllowlistRequired, true);
   })
 ]);
