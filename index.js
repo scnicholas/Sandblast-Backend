@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V6-SMTP-DIAGNOSTIC-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V7-SMTP-TIMEOUT-FALLBACK-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -286,7 +286,7 @@ if (compression) {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
-// LINGOSENTINEL-START-CONTACT-ROUTE-V6-SMTP-DIAGNOSTIC-HARDLOCK:
+// LINGOSENTINEL-START-CONTACT-ROUTE-V7-SMTP-TIMEOUT-FALLBACK-HARDLOCK:
 // Must mount before any later router, static handler, or not_found fallback.
 // These aliases intentionally cover both /api and non-/api Webflow/Render tests.
 const LINGOSENTINEL_START_CONTACT_EARLY_ROUTES = Object.freeze([
@@ -416,8 +416,9 @@ app.post(LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, async (req, res) => {
     });
   } catch (err) {
     const code = smtpSafeErrorCode(err);
-    writeContactAudit(data, "stored_not_delivered", { error: code, earlyMount: true });
-    console.log("[Sandblast][contact:delivery_error]", code, err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "");
+    const smtpAttempts = Array.isArray(err && err.smtpAttempts) ? err.smtpAttempts.slice(0, 6) : [];
+    writeContactAudit(data, "stored_not_delivered", { error: code, smtpAttempts, earlyMount: true });
+    console.log("[Sandblast][contact:delivery_error]", code, smtpAttempts.join(" | "), err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "");
     return res.status(202).json({
       ok: true,
       received: true,
@@ -427,6 +428,8 @@ app.post(LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, async (req, res) => {
       traceId: data.traceId,
       deliveryState: code === "CONTACT_SMTP_NOT_CONFIGURED" ? "stored_pending_smtp" : "stored_delivery_retry_needed",
       warning: code,
+      smtpAttempts,
+      smtpDiagnosticRoute: "/api/lingosentinel/start/contact/smtp-health",
       routeOrder: "early",
       message: code === "CONTACT_SMTP_NOT_CONFIGURED"
         ? "LingoSentinel inquiry received and stored. SMTP delivery is not configured yet."
@@ -2126,12 +2129,12 @@ app.options([
 });
 
 
-// LINGOSENTINEL-START-CONTACT-ROUTE-V6-SMTP-DIAGNOSTIC-HARDLOCK
+// LINGOSENTINEL-START-CONTACT-ROUTE-V7-SMTP-TIMEOUT-FALLBACK-HARDLOCK
 // Purpose: real Start-page intake capture for LingoSentinel.
 // The browser widget must POST here; this route validates the payload,
 // stores an audit copy, and sends the inquiry to Sandblast's inbox when
 // SMTP credentials are configured on Render.
-const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.5-smtp-diagnostic-hardlock";
+const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.6-smtp-timeout-fallback-hardlock";
 const LINGOSENTINEL_CONTACT_DEFAULT_TO = "sandblastchannel@gmail.com";
 const lingosentinelContactRate = new Map();
 
@@ -2153,7 +2156,9 @@ function contactConfig() {
   const rawFrom = process.env.SB_CONTACT_FROM_EMAIL || process.env.SMTP_FROM || rawSmtpUser || rawTo;
   const smtpHost = cleanText(process.env.SB_CONTACT_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com").toLowerCase();
   const rawPort = cleanText(process.env.SB_CONTACT_SMTP_PORT || process.env.SMTP_PORT || "");
-  const defaultPort = /smtp\.gmail\.com$/i.test(smtpHost) ? 465 : 587;
+  // Gmail on Render has shown timeout behavior on implicit SSL/465 in some deploys.
+  // Default Gmail to STARTTLS/587 unless the environment explicitly pins a port.
+  const defaultPort = /smtp\.gmail\.com$/i.test(smtpHost) ? 587 : 587;
   const smtpPort = clamp(Number(rawPort || defaultPort), 1, 65535);
   const secureEnv = cleanText(process.env.SB_CONTACT_SMTP_SECURE || process.env.SMTP_SECURE || "");
   const smtpSecure = secureEnv ? !/^(?:false|0|no|off|starttls)$/i.test(secureEnv) : smtpPort === 465;
@@ -2177,8 +2182,12 @@ function contactConfig() {
     maxMessageChars: clamp(Number(process.env.SB_CONTACT_MAX_MESSAGE_CHARS || 1800), 120, 8000),
     rateLimitWindowMs: clamp(Number(process.env.SB_CONTACT_RATE_WINDOW_MS || 15 * 60 * 1000), 60 * 1000, 60 * 60 * 1000),
     rateLimitMax: clamp(Number(process.env.SB_CONTACT_RATE_MAX || 8), 1, 200),
-    smtpConnectTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_CONNECT_TIMEOUT_MS || 30000), 5000, 90000),
-    smtpCommandTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 30000), 5000, 90000),
+    // Longer timeouts prevent Render/Gmail handshake latency from being misread as config failure.
+    smtpConnectTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_CONNECT_TIMEOUT_MS || 60000), 5000, 120000),
+    smtpCommandTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 45000), 5000, 120000),
+    smtpSocketTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_SOCKET_TIMEOUT_MS || 90000), 10000, 180000),
+    // Force IPv4 by default for SMTP; this avoids occasional IPv6 egress hangs on hosted runtimes.
+    smtpFamily: clamp(Number(process.env.SB_CONTACT_SMTP_FAMILY || 4), 0, 6),
     smtpDebug: process.env.SB_CONTACT_SMTP_DEBUG === "true"
   };
 }
@@ -2233,6 +2242,11 @@ function contactSmtpPublicDiagnostics(cfg) {
     smtpPassWhitespaceRemoved: !!c.smtpPassHadWhitespace,
     smtpPassLengthBucket: passLen ? (passLen === 16 ? "16" : passLen < 16 ? "under_16" : "over_16") : "missing",
     smtpPassLooksLikeGmailAppPassword: likelyGmail ? passLen === 16 : passLen > 0,
+    connectTimeoutMs: Number(c.smtpConnectTimeoutMs || 0),
+    commandTimeoutMs: Number(c.smtpCommandTimeoutMs || 0),
+    socketTimeoutMs: Number(c.smtpSocketTimeoutMs || 0),
+    family: Number(c.smtpFamily || 0),
+    preferredMode: c.smtpSecure ? "ssl" : "starttls",
     fromEmailValid: isValidContactEmail(c.from),
     toEmailValid: isValidContactEmail(c.to),
     fromMatchesUser: !!c.from && !!c.smtpUser && c.from === c.smtpUser,
@@ -2241,8 +2255,10 @@ function contactSmtpPublicDiagnostics(cfg) {
       host: "smtp.gmail.com",
       sslPort: 465,
       startTlsPort: 587,
+      preferredOnRender: "587 STARTTLS",
       appPasswordNoSpaces: true
-    }
+    },
+    attempts: contactSmtpAttemptLabels(c)
   };
 }
 
@@ -2395,8 +2411,10 @@ function smtpReadResponse(socket, timeoutMs) {
     };
     timer = setTimeout(() => {
       cleanup();
-      reject(new Error("smtp_timeout"));
-    }, clamp(Number(timeoutMs || 30000), 5000, 90000));
+      const err = new Error("smtp_command_timeout");
+      err.code = "SMTP_COMMAND_TIMEOUT";
+      reject(err);
+    }, clamp(Number(timeoutMs || 45000), 5000, 120000));
     socket.on("data", onData);
     socket.on("error", onError);
   });
@@ -2408,7 +2426,7 @@ function smtpWrite(socket, line) {
 
 async function smtpExpect(socket, expected, line) {
   if (line) smtpWrite(socket, line);
-  const response = await smtpReadResponse(socket, Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 30000));
+  const response = await smtpReadResponse(socket, Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 45000));
   const ok = (Array.isArray(expected) ? expected : [expected]).includes(response.code);
   if (!ok) {
     const err = new Error(`smtp_unexpected_${response.code}`);
@@ -2435,23 +2453,36 @@ function smtpConnect(cfg, override) {
       if (err) return reject(err);
       return resolve(socket);
     };
+    const family = Number(mode.family || cfg.smtpFamily || 0) || undefined;
     const socket = secure
       ? tls.connect({
           host,
           port,
+          family,
           servername: host,
           rejectUnauthorized: process.env.SB_CONTACT_SMTP_REJECT_UNAUTHORIZED === "false" ? false : true
         })
-      : net.connect({ host, port });
+      : net.connect({ host, port, family });
+
+    if (typeof socket.setTimeout === "function") {
+      socket.setTimeout(clamp(Number(cfg.smtpSocketTimeoutMs || 90000), 10000, 180000), () => {
+        const err = new Error("smtp_socket_timeout");
+        err.code = `SMTP_SOCKET_TIMEOUT_${port}`;
+        err.smtpHost = host;
+        err.smtpPort = port;
+        try { socket.destroy(err); } catch (_) {}
+        finish(err);
+      });
+    }
 
     timer = setTimeout(() => {
       const err = new Error("smtp_connect_timeout");
-      err.code = "SMTP_CONNECT_TIMEOUT";
+      err.code = `SMTP_CONNECT_TIMEOUT_${port}`;
       err.smtpHost = host;
       err.smtpPort = port;
       try { socket.destroy(err); } catch (_) {}
       finish(err);
-    }, clamp(Number(cfg.smtpConnectTimeoutMs || 30000), 5000, 90000));
+    }, clamp(Number(cfg.smtpConnectTimeoutMs || 60000), 5000, 120000));
 
     socket.once(secure ? "secureConnect" : "connect", () => finish(null, socket));
     socket.once("error", (err) => {
@@ -2477,7 +2508,7 @@ function smtpStartTls(socket, cfg) {
       err.code = "SMTP_STARTTLS_TIMEOUT";
       try { tlsSocket.destroy(err); } catch (_) {}
       reject(err);
-    }, clamp(Number(cfg.smtpConnectTimeoutMs || 30000), 5000, 90000));
+    }, clamp(Number(cfg.smtpConnectTimeoutMs || 60000), 5000, 120000));
     tlsSocket.once("secureConnect", () => {
       clearTimeout(timer);
       resolve(tlsSocket);
@@ -2492,6 +2523,7 @@ function smtpStartTls(socket, cfg) {
 
 function smtpSafeErrorCode(err) {
   const raw = cleanText(err && (err.code || err.message) || "SMTP_DELIVERY_FAILED").toUpperCase();
+  if (/SMTP_(?:CONNECT|SOCKET|COMMAND)_TIMEOUT_?\d*/.test(raw)) return raw.replace(/[^A-Z0-9_]+/g, "_").slice(0, 80);
   if (/TIMEDOUT|TIMEOUT/.test(raw)) return "SMTP_TIMEOUT";
   if (/CONTACT_SMTP_USER_INVALID|CONTACT_TO_EMAIL_INVALID|CONTACT_FROM_EMAIL_INVALID|CONTACT_EMAIL_CONFIG_INVALID/.test(raw)) return raw;
   if (/EAUTH|AUTH|535|534/.test(raw)) return "SMTP_AUTH_FAILED";
@@ -2505,19 +2537,41 @@ function smtpSafeErrorCode(err) {
 
 function contactSmtpAttempts(cfg) {
   const host = cleanText(cfg.smtpHost || "smtp.gmail.com");
-  const primary = { host, port: cfg.smtpPort, secure: !!cfg.smtpSecure, label: `primary-${cfg.smtpPort}-${cfg.smtpSecure ? "ssl" : "starttls"}` };
-  const attempts = [primary];
+  const primary = { host, port: cfg.smtpPort, secure: !!cfg.smtpSecure, family: cfg.smtpFamily, label: `primary-${cfg.smtpPort}-${cfg.smtpSecure ? "ssl" : "starttls"}` };
+  const attempts = [];
+  const add = (a) => {
+    if (!a || !a.host || !a.port) return;
+    attempts.push({ ...a, family: Number(a.family || cfg.smtpFamily || 0) || undefined });
+  };
+
+  // For Gmail on Render, prioritize STARTTLS/587 because implicit SSL/465 can hang
+  // on some egress paths. Keep the configured primary as an explicit candidate.
   if (/smtp\.gmail\.com$/i.test(host)) {
-    attempts.push({ host, port: 587, secure: false, label: "gmail-587-starttls" });
-    attempts.push({ host, port: 465, secure: true, label: "gmail-465-ssl" });
+    add({ host, port: 587, secure: false, family: cfg.smtpFamily, label: "gmail-587-starttls-preferred" });
+    add(primary);
+    add({ host, port: 465, secure: true, family: cfg.smtpFamily, label: "gmail-465-ssl-fallback" });
+  } else {
+    add(primary);
+    add({ host, port: 587, secure: false, family: cfg.smtpFamily, label: "generic-587-starttls-fallback" });
   }
+
   const seen = new Set();
   return attempts.filter((a) => {
-    const key = `${a.host}:${a.port}:${a.secure}`;
+    const key = `${a.host}:${a.port}:${a.secure}:${a.family || 0}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+function contactSmtpAttemptLabels(cfg) {
+  return contactSmtpAttempts(isObj(cfg) ? cfg : contactConfig()).map((a) => ({
+    label: a.label,
+    host: a.host,
+    port: a.port,
+    secure: !!a.secure,
+    family: Number(a.family || 0) || "auto"
+  }));
 }
 
 async function smtpDeliverWithAttempt(data, cfg, attempt) {
@@ -2588,8 +2642,9 @@ async function sendContactEmailViaSmtp(data) {
   }
 
   const finalErr = new Error(failures.join("|") || "SMTP_DELIVERY_FAILED");
+  const timeoutHit = failures.find((x) => /SMTP_(?:CONNECT|SOCKET|COMMAND)_TIMEOUT|SMTP_TIMEOUT/.test(x));
   finalErr.code = failures.some((x) => /SMTP_AUTH_FAILED/.test(x)) ? "SMTP_AUTH_FAILED"
-    : failures.some((x) => /SMTP_TIMEOUT/.test(x)) ? "SMTP_TIMEOUT"
+    : timeoutHit ? (timeoutHit.split(":").pop() || "SMTP_TIMEOUT")
     : "SMTP_DELIVERY_FAILED";
   finalErr.smtpAttempts = failures;
   throw finalErr;
