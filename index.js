@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V5-SMTP-STARTTLS-FALLBACK";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V6-SMTP-DIAGNOSTIC-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -286,7 +286,7 @@ if (compression) {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
-// LINGOSENTINEL-START-CONTACT-ROUTE-V5-SMTP-STARTTLS-FALLBACK:
+// LINGOSENTINEL-START-CONTACT-ROUTE-V6-SMTP-DIAGNOSTIC-HARDLOCK:
 // Must mount before any later router, static handler, or not_found fallback.
 // These aliases intentionally cover both /api and non-/api Webflow/Render tests.
 const LINGOSENTINEL_START_CONTACT_EARLY_ROUTES = Object.freeze([
@@ -307,7 +307,16 @@ const LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES = Object.freeze([
   "/lingosentinel/start/contact/health"
 ]);
 
-app.options([...LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES], (req, res) => {
+const LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES = Object.freeze([
+  "/api/contact/smtp-health",
+  "/api/lingosentinel/contact/smtp-health",
+  "/api/lingosentinel/start/contact/smtp-health",
+  "/contact/smtp-health",
+  "/lingosentinel/contact/smtp-health",
+  "/lingosentinel/start/contact/smtp-health"
+]);
+
+app.options([...LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES], (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   return res.status(204).end();
@@ -328,17 +337,37 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, (req, res) => {
     acceptsSubmissions: true,
     storageFallback: true,
     deliveredTo: cfg.to,
-    emailDeliveryConfigured: !!(cfg.smtpUser && cfg.smtpPass && isValidContactEmail(cfg.to)),
-    smtp: { host: cfg.smtpHost, port: cfg.smtpPort, secure: cfg.smtpSecure, startTlsFallback: true },
-    requiredEnvForEmail: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS", "SB_CONTACT_TO_EMAIL"],
+    emailDeliveryConfigured: isContactSmtpConfigDeliverable(cfg),
+    smtp: contactSmtpPublicDiagnostics(cfg),
+    requiredEnvForEmail: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS", "SB_CONTACT_TO_EMAIL", "SB_CONTACT_FROM_EMAIL", "SB_CONTACT_SMTP_HOST", "SB_CONTACT_SMTP_PORT", "SB_CONTACT_SMTP_SECURE"],
     aliases: {
       health: LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES,
+      smtpHealth: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
       post: LINGOSENTINEL_START_CONTACT_EARLY_ROUTES
     },
     meta: {
       v: INDEX_VERSION,
       t: now()
     }
+  });
+});
+
+app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  const cfg = contactConfig();
+  return res.status(200).json({
+    ok: true,
+    service: "lingosentinel-start-contact-smtp",
+    routeMounted: true,
+    routeOrder: "early",
+    version: LINGOSENTINEL_CONTACT_ROUTE_VERSION,
+    canonicalRoute: "/api/lingosentinel/start/contact/smtp-health",
+    diagnosticSafe: true,
+    smtp: contactSmtpPublicDiagnostics(cfg),
+    deliveryReady: isContactSmtpConfigDeliverable(cfg),
+    aliases: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
+    meta: { v: INDEX_VERSION, t: now() }
   });
 });
 
@@ -2097,36 +2126,53 @@ app.options([
 });
 
 
-// LINGOSENTINEL-START-CONTACT-ROUTE-V5-SMTP-STARTTLS-FALLBACK
+// LINGOSENTINEL-START-CONTACT-ROUTE-V6-SMTP-DIAGNOSTIC-HARDLOCK
 // Purpose: real Start-page intake capture for LingoSentinel.
 // The browser widget must POST here; this route validates the payload,
 // stores an audit copy, and sends the inquiry to Sandblast's inbox when
 // SMTP credentials are configured on Render.
-const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.4-smtp-starttls-fallback";
+const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.5-smtp-diagnostic-hardlock";
 const LINGOSENTINEL_CONTACT_DEFAULT_TO = "sandblastchannel@gmail.com";
 const lingosentinelContactRate = new Map();
 
+function normalizeContactEmail(value) {
+  const raw = cleanText(value || "");
+  if (!raw) return "";
+  const bracket = raw.match(/<\s*([^<>\s@]+@[^<>\s@]+\.[^<>\s@]{2,})\s*>/i);
+  const candidate = bracket ? bracket[1] : raw;
+  return cleanText(candidate).replace(/^mailto:/i, "").replace(/[;,]+$/g, "").toLowerCase();
+}
+
+function contactEnvRaw(name) {
+  return safeStr(process.env[name] || "");
+}
+
 function contactConfig() {
-  const to = cleanText(process.env.SB_CONTACT_TO_EMAIL || process.env.LINGOSENTINEL_CONTACT_TO || LINGOSENTINEL_CONTACT_DEFAULT_TO);
-  const smtpUser = cleanText(process.env.SB_CONTACT_SMTP_USER || process.env.SMTP_USER || process.env.GMAIL_USER || "");
-  const smtpHost = cleanText(process.env.SB_CONTACT_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com");
+  const rawTo = process.env.SB_CONTACT_TO_EMAIL || process.env.LINGOSENTINEL_CONTACT_TO || LINGOSENTINEL_CONTACT_DEFAULT_TO;
+  const rawSmtpUser = process.env.SB_CONTACT_SMTP_USER || process.env.SMTP_USER || process.env.GMAIL_USER || "";
+  const rawFrom = process.env.SB_CONTACT_FROM_EMAIL || process.env.SMTP_FROM || rawSmtpUser || rawTo;
+  const smtpHost = cleanText(process.env.SB_CONTACT_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com").toLowerCase();
   const rawPort = cleanText(process.env.SB_CONTACT_SMTP_PORT || process.env.SMTP_PORT || "");
-  const defaultPort = /smtp\.gmail\.com$/i.test(smtpHost) ? 587 : 465;
+  const defaultPort = /smtp\.gmail\.com$/i.test(smtpHost) ? 465 : 587;
   const smtpPort = clamp(Number(rawPort || defaultPort), 1, 65535);
   const secureEnv = cleanText(process.env.SB_CONTACT_SMTP_SECURE || process.env.SMTP_SECURE || "");
-  const smtpSecure = secureEnv ? !/^(?:false|0|no|off)$/i.test(secureEnv) : smtpPort === 465;
+  const smtpSecure = secureEnv ? !/^(?:false|0|no|off|starttls)$/i.test(secureEnv) : smtpPort === 465;
+  const rawPass = contactEnvRaw("SB_CONTACT_SMTP_PASS") || contactEnvRaw("SMTP_PASS") || contactEnvRaw("GMAIL_APP_PASSWORD") || "";
+  const passNoWhitespace = safeStr(rawPass).replace(/[\s\u00a0]+/g, "");
   return {
     enabled: process.env.SB_CONTACT_ROUTE_ENABLED !== "false",
-    to,
+    to: normalizeContactEmail(rawTo),
     smtpHost,
     smtpPort,
     smtpSecure,
     smtpRequireTls: process.env.SB_CONTACT_SMTP_REQUIRE_TLS === "false" ? false : true,
-    smtpUser,
+    smtpUser: normalizeContactEmail(rawSmtpUser),
     // Google App Passwords are often copied with spaces. SMTP AUTH must receive
     // the 16-character token without spaces/newlines.
-    smtpPass: safeStr(process.env.SB_CONTACT_SMTP_PASS || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, ""),
-    from: cleanText(process.env.SB_CONTACT_FROM_EMAIL || process.env.SMTP_FROM || smtpUser || to),
+    smtpPass: passNoWhitespace,
+    smtpPassHadWhitespace: /[\s\u00a0]/.test(safeStr(rawPass)),
+    smtpPassSource: process.env.SB_CONTACT_SMTP_PASS ? "SB_CONTACT_SMTP_PASS" : process.env.SMTP_PASS ? "SMTP_PASS" : process.env.GMAIL_APP_PASSWORD ? "GMAIL_APP_PASSWORD" : "",
+    from: normalizeContactEmail(rawFrom),
     subjectPrefix: cleanText(process.env.SB_CONTACT_SUBJECT_PREFIX || "LingoSentinel Interest"),
     maxMessageChars: clamp(Number(process.env.SB_CONTACT_MAX_MESSAGE_CHARS || 1800), 120, 8000),
     rateLimitWindowMs: clamp(Number(process.env.SB_CONTACT_RATE_WINDOW_MS || 15 * 60 * 1000), 60 * 1000, 60 * 60 * 1000),
@@ -2136,7 +2182,6 @@ function contactConfig() {
     smtpDebug: process.env.SB_CONTACT_SMTP_DEBUG === "true"
   };
 }
-
 function cleanContactInput(value, maxLen) {
   const max = clamp(Number(maxLen || 240), 1, 10000);
   return safeStr(value)
@@ -2154,8 +2199,51 @@ function cleanContactHeader(value, maxLen) {
 }
 
 function isValidContactEmail(value) {
-  const s = cleanText(value);
+  const s = normalizeContactEmail(value);
   return !!s && s.length <= 254 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/i.test(s);
+}
+
+function isContactSmtpConfigDeliverable(cfg) {
+  const c = isObj(cfg) ? cfg : contactConfig();
+  return !!(
+    c.enabled &&
+    c.smtpHost &&
+    Number(c.smtpPort) > 0 &&
+    c.smtpUser &&
+    c.smtpPass &&
+    isValidContactEmail(c.smtpUser) &&
+    isValidContactEmail(c.from) &&
+    isValidContactEmail(c.to)
+  );
+}
+
+function contactSmtpPublicDiagnostics(cfg) {
+  const c = isObj(cfg) ? cfg : contactConfig();
+  const passLen = safeStr(c.smtpPass || "").length;
+  const likelyGmail = /smtp\.gmail\.com$/i.test(c.smtpHost || "") || /gmail\.com$/i.test(c.smtpUser || "");
+  return {
+    host: cleanText(c.smtpHost || ""),
+    port: Number(c.smtpPort || 0),
+    secure: !!c.smtpSecure,
+    startTlsFallback: true,
+    enabled: !!c.enabled,
+    smtpUserPresent: !!c.smtpUser,
+    smtpUserValid: isValidContactEmail(c.smtpUser),
+    smtpPassPresent: !!c.smtpPass,
+    smtpPassWhitespaceRemoved: !!c.smtpPassHadWhitespace,
+    smtpPassLengthBucket: passLen ? (passLen === 16 ? "16" : passLen < 16 ? "under_16" : "over_16") : "missing",
+    smtpPassLooksLikeGmailAppPassword: likelyGmail ? passLen === 16 : passLen > 0,
+    fromEmailValid: isValidContactEmail(c.from),
+    toEmailValid: isValidContactEmail(c.to),
+    fromMatchesUser: !!c.from && !!c.smtpUser && c.from === c.smtpUser,
+    deliveryReady: isContactSmtpConfigDeliverable(c),
+    expectedForGmail: {
+      host: "smtp.gmail.com",
+      sslPort: 465,
+      startTlsPort: 587,
+      appPasswordNoSpaces: true
+    }
+  };
 }
 
 function contactClientKey(req) {
@@ -2405,7 +2493,8 @@ function smtpStartTls(socket, cfg) {
 function smtpSafeErrorCode(err) {
   const raw = cleanText(err && (err.code || err.message) || "SMTP_DELIVERY_FAILED").toUpperCase();
   if (/TIMEDOUT|TIMEOUT/.test(raw)) return "SMTP_TIMEOUT";
-  if (/EAUTH|AUTH|535|534|INVALID/.test(raw)) return "SMTP_AUTH_FAILED";
+  if (/CONTACT_SMTP_USER_INVALID|CONTACT_TO_EMAIL_INVALID|CONTACT_FROM_EMAIL_INVALID|CONTACT_EMAIL_CONFIG_INVALID/.test(raw)) return raw;
+  if (/EAUTH|AUTH|535|534/.test(raw)) return "SMTP_AUTH_FAILED";
   if (/ECONNREFUSED|REFUSED/.test(raw)) return "SMTP_CONNECTION_REFUSED";
   if (/ENOTFOUND|EAI_AGAIN|DNS/.test(raw)) return "SMTP_DNS_FAILED";
   if (/STARTTLS/.test(raw)) return "SMTP_STARTTLS_FAILED";
@@ -2469,9 +2558,19 @@ async function sendContactEmailViaSmtp(data) {
     err.code = "CONTACT_SMTP_NOT_CONFIGURED";
     throw err;
   }
-  if (!isValidContactEmail(cfg.to) || !isValidContactEmail(cfg.from)) {
-    const err = new Error("contact_email_config_invalid");
-    err.code = "CONTACT_EMAIL_CONFIG_INVALID";
+  if (!isValidContactEmail(cfg.smtpUser)) {
+    const err = new Error("contact_smtp_user_invalid");
+    err.code = "CONTACT_SMTP_USER_INVALID";
+    throw err;
+  }
+  if (!isValidContactEmail(cfg.to)) {
+    const err = new Error("contact_to_email_invalid");
+    err.code = "CONTACT_TO_EMAIL_INVALID";
+    throw err;
+  }
+  if (!isValidContactEmail(cfg.from)) {
+    const err = new Error("contact_from_email_invalid");
+    err.code = "CONTACT_FROM_EMAIL_INVALID";
     throw err;
   }
 
@@ -2500,16 +2599,22 @@ async function sendContactEmailViaSmtp(data) {
 app.options([
   "/api/contact",
   "/api/contact/health",
+  "/api/contact/smtp-health",
   "/api/lingosentinel/contact",
   "/api/lingosentinel/contact/health",
+  "/api/lingosentinel/contact/smtp-health",
   "/api/lingosentinel/start/contact",
   "/api/lingosentinel/start/contact/health",
+  "/api/lingosentinel/start/contact/smtp-health",
   "/contact",
   "/contact/health",
+  "/contact/smtp-health",
   "/lingosentinel/contact",
   "/lingosentinel/contact/health",
+  "/lingosentinel/contact/smtp-health",
   "/lingosentinel/start/contact",
-  "/lingosentinel/start/contact/health"
+  "/lingosentinel/start/contact/health",
+  "/lingosentinel/start/contact/smtp-health"
 ], (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
@@ -2544,11 +2649,28 @@ app.get(["/api/contact/health", "/api/lingosentinel/contact/health", "/api/lingo
     acceptsSubmissions: true,
     storageFallback: true,
     deliveryConfigured: !!(cfg.smtpUser && cfg.smtpPass && isValidContactEmail(cfg.to)),
-    smtp: { host: cfg.smtpHost, port: cfg.smtpPort, secure: cfg.smtpSecure, startTlsFallback: true },
+    smtp: contactSmtpPublicDiagnostics(cfg),
     deliveredTo: cfg.to,
     provider: "smtp",
     requires: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS"],
     note: "The route accepts and stores submissions even when SMTP delivery is not configured."
+  });
+});
+
+app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "/api/lingosentinel/start/contact/smtp-health", "/contact/smtp-health", "/lingosentinel/contact/smtp-health", "/lingosentinel/start/contact/smtp-health"], (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  const cfg = contactConfig();
+  return res.json({
+    ok: true,
+    service: "lingosentinel-start-contact-smtp",
+    routeMounted: true,
+    version: LINGOSENTINEL_CONTACT_ROUTE_VERSION,
+    canonicalRoute: "/api/lingosentinel/start/contact/smtp-health",
+    diagnosticSafe: true,
+    smtp: contactSmtpPublicDiagnostics(cfg),
+    deliveryReady: isContactSmtpConfigDeliverable(cfg),
+    meta: { v: INDEX_VERSION, t: now() }
   });
 });
 
