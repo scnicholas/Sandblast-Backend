@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V4-EARLY-MOUNT";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V5-SMTP-STARTTLS-FALLBACK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -286,7 +286,7 @@ if (compression) {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
-// LINGOSENTINEL-START-CONTACT-ROUTE-V4-EARLY-MOUNT:
+// LINGOSENTINEL-START-CONTACT-ROUTE-V5-SMTP-STARTTLS-FALLBACK:
 // Must mount before any later router, static handler, or not_found fallback.
 // These aliases intentionally cover both /api and non-/api Webflow/Render tests.
 const LINGOSENTINEL_START_CONTACT_EARLY_ROUTES = Object.freeze([
@@ -329,6 +329,7 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, (req, res) => {
     storageFallback: true,
     deliveredTo: cfg.to,
     emailDeliveryConfigured: !!(cfg.smtpUser && cfg.smtpPass && isValidContactEmail(cfg.to)),
+    smtp: { host: cfg.smtpHost, port: cfg.smtpPort, secure: cfg.smtpSecure, startTlsFallback: true },
     requiredEnvForEmail: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS", "SB_CONTACT_TO_EMAIL"],
     aliases: {
       health: LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES,
@@ -385,7 +386,7 @@ app.post(LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, async (req, res) => {
       message: "LingoSentinel inquiry delivered."
     });
   } catch (err) {
-    const code = cleanText(err && (err.code || err.message) || "contact_delivery_failed");
+    const code = smtpSafeErrorCode(err);
     writeContactAudit(data, "stored_not_delivered", { error: code, earlyMount: true });
     console.log("[Sandblast][contact:delivery_error]", code, err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "");
     return res.status(202).json({
@@ -2096,31 +2097,43 @@ app.options([
 });
 
 
-// LINGOSENTINEL-START-CONTACT-ROUTE-V4-EARLY-MOUNT
+// LINGOSENTINEL-START-CONTACT-ROUTE-V5-SMTP-STARTTLS-FALLBACK
 // Purpose: real Start-page intake capture for LingoSentinel.
 // The browser widget must POST here; this route validates the payload,
 // stores an audit copy, and sends the inquiry to Sandblast's inbox when
 // SMTP credentials are configured on Render.
-const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.3-early-mount-route-order-hardlock";
+const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.4-smtp-starttls-fallback";
 const LINGOSENTINEL_CONTACT_DEFAULT_TO = "sandblastchannel@gmail.com";
 const lingosentinelContactRate = new Map();
 
 function contactConfig() {
   const to = cleanText(process.env.SB_CONTACT_TO_EMAIL || process.env.LINGOSENTINEL_CONTACT_TO || LINGOSENTINEL_CONTACT_DEFAULT_TO);
   const smtpUser = cleanText(process.env.SB_CONTACT_SMTP_USER || process.env.SMTP_USER || process.env.GMAIL_USER || "");
+  const smtpHost = cleanText(process.env.SB_CONTACT_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com");
+  const rawPort = cleanText(process.env.SB_CONTACT_SMTP_PORT || process.env.SMTP_PORT || "");
+  const defaultPort = /smtp\.gmail\.com$/i.test(smtpHost) ? 587 : 465;
+  const smtpPort = clamp(Number(rawPort || defaultPort), 1, 65535);
+  const secureEnv = cleanText(process.env.SB_CONTACT_SMTP_SECURE || process.env.SMTP_SECURE || "");
+  const smtpSecure = secureEnv ? !/^(?:false|0|no|off)$/i.test(secureEnv) : smtpPort === 465;
   return {
     enabled: process.env.SB_CONTACT_ROUTE_ENABLED !== "false",
     to,
-    smtpHost: cleanText(process.env.SB_CONTACT_SMTP_HOST || process.env.SMTP_HOST || "smtp.gmail.com"),
-    smtpPort: clamp(Number(process.env.SB_CONTACT_SMTP_PORT || process.env.SMTP_PORT || 465), 1, 65535),
-    smtpSecure: process.env.SB_CONTACT_SMTP_SECURE !== "false",
+    smtpHost,
+    smtpPort,
+    smtpSecure,
+    smtpRequireTls: process.env.SB_CONTACT_SMTP_REQUIRE_TLS === "false" ? false : true,
     smtpUser,
-    smtpPass: safeStr(process.env.SB_CONTACT_SMTP_PASS || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || ""),
+    // Google App Passwords are often copied with spaces. SMTP AUTH must receive
+    // the 16-character token without spaces/newlines.
+    smtpPass: safeStr(process.env.SB_CONTACT_SMTP_PASS || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, ""),
     from: cleanText(process.env.SB_CONTACT_FROM_EMAIL || process.env.SMTP_FROM || smtpUser || to),
     subjectPrefix: cleanText(process.env.SB_CONTACT_SUBJECT_PREFIX || "LingoSentinel Interest"),
     maxMessageChars: clamp(Number(process.env.SB_CONTACT_MAX_MESSAGE_CHARS || 1800), 120, 8000),
     rateLimitWindowMs: clamp(Number(process.env.SB_CONTACT_RATE_WINDOW_MS || 15 * 60 * 1000), 60 * 1000, 60 * 60 * 1000),
-    rateLimitMax: clamp(Number(process.env.SB_CONTACT_RATE_MAX || 8), 1, 200)
+    rateLimitMax: clamp(Number(process.env.SB_CONTACT_RATE_MAX || 8), 1, 200),
+    smtpConnectTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_CONNECT_TIMEOUT_MS || 30000), 5000, 90000),
+    smtpCommandTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 30000), 5000, 90000),
+    smtpDebug: process.env.SB_CONTACT_SMTP_DEBUG === "true"
   };
 }
 
@@ -2295,7 +2308,7 @@ function smtpReadResponse(socket, timeoutMs) {
     timer = setTimeout(() => {
       cleanup();
       reject(new Error("smtp_timeout"));
-    }, clamp(Number(timeoutMs || 12000), 2000, 30000));
+    }, clamp(Number(timeoutMs || 30000), 5000, 90000));
     socket.on("data", onData);
     socket.on("error", onError);
   });
@@ -2307,7 +2320,7 @@ function smtpWrite(socket, line) {
 
 async function smtpExpect(socket, expected, line) {
   if (line) smtpWrite(socket, line);
-  const response = await smtpReadResponse(socket, 15000);
+  const response = await smtpReadResponse(socket, Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 30000));
   const ok = (Array.isArray(expected) ? expected : [expected]).includes(response.code);
   if (!ok) {
     const err = new Error(`smtp_unexpected_${response.code}`);
@@ -2317,27 +2330,131 @@ async function smtpExpect(socket, expected, line) {
   return response;
 }
 
-function smtpConnect(cfg) {
+function smtpConnect(cfg, override) {
+  const mode = { ...(isObj(override) ? override : {}) };
+  const host = cleanText(mode.host || cfg.smtpHost);
+  const port = clamp(Number(mode.port || cfg.smtpPort), 1, 65535);
+  const secure = typeof mode.secure === "boolean" ? mode.secure : !!cfg.smtpSecure;
   return new Promise((resolve, reject) => {
     const tls = require("tls");
-    const socket = tls.connect({
-      host: cfg.smtpHost,
-      port: cfg.smtpPort,
-      servername: cfg.smtpHost,
+    const net = require("net");
+    let settled = false;
+    let timer = null;
+    const finish = (err, socket) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      if (err) return reject(err);
+      return resolve(socket);
+    };
+    const socket = secure
+      ? tls.connect({
+          host,
+          port,
+          servername: host,
+          rejectUnauthorized: process.env.SB_CONTACT_SMTP_REJECT_UNAUTHORIZED === "false" ? false : true
+        })
+      : net.connect({ host, port });
+
+    timer = setTimeout(() => {
+      const err = new Error("smtp_connect_timeout");
+      err.code = "SMTP_CONNECT_TIMEOUT";
+      err.smtpHost = host;
+      err.smtpPort = port;
+      try { socket.destroy(err); } catch (_) {}
+      finish(err);
+    }, clamp(Number(cfg.smtpConnectTimeoutMs || 30000), 5000, 90000));
+
+    socket.once(secure ? "secureConnect" : "connect", () => finish(null, socket));
+    socket.once("error", (err) => {
+      if (!err.code) err.code = secure ? "SMTP_TLS_CONNECT_ERROR" : "SMTP_CONNECT_ERROR";
+      err.smtpHost = host;
+      err.smtpPort = port;
+      finish(err);
+    });
+  });
+}
+
+function smtpStartTls(socket, cfg) {
+  return new Promise((resolve, reject) => {
+    const tls = require("tls");
+    const host = cleanText(cfg.smtpHost || "smtp.gmail.com");
+    const tlsSocket = tls.connect({
+      socket,
+      servername: host,
       rejectUnauthorized: process.env.SB_CONTACT_SMTP_REJECT_UNAUTHORIZED === "false" ? false : true
     });
     const timer = setTimeout(() => {
-      try { socket.destroy(new Error("smtp_connect_timeout")); } catch (_) {}
-    }, 15000);
-    socket.once("secureConnect", () => {
+      const err = new Error("smtp_starttls_timeout");
+      err.code = "SMTP_STARTTLS_TIMEOUT";
+      try { tlsSocket.destroy(err); } catch (_) {}
+      reject(err);
+    }, clamp(Number(cfg.smtpConnectTimeoutMs || 30000), 5000, 90000));
+    tlsSocket.once("secureConnect", () => {
       clearTimeout(timer);
-      resolve(socket);
+      resolve(tlsSocket);
     });
-    socket.once("error", (err) => {
+    tlsSocket.once("error", (err) => {
       clearTimeout(timer);
+      if (!err.code) err.code = "SMTP_STARTTLS_ERROR";
       reject(err);
     });
   });
+}
+
+function smtpSafeErrorCode(err) {
+  const raw = cleanText(err && (err.code || err.message) || "SMTP_DELIVERY_FAILED").toUpperCase();
+  if (/TIMEDOUT|TIMEOUT/.test(raw)) return "SMTP_TIMEOUT";
+  if (/EAUTH|AUTH|535|534|INVALID/.test(raw)) return "SMTP_AUTH_FAILED";
+  if (/ECONNREFUSED|REFUSED/.test(raw)) return "SMTP_CONNECTION_REFUSED";
+  if (/ENOTFOUND|EAI_AGAIN|DNS/.test(raw)) return "SMTP_DNS_FAILED";
+  if (/STARTTLS/.test(raw)) return "SMTP_STARTTLS_FAILED";
+  if (/CERT|TLS|SSL/.test(raw)) return "SMTP_TLS_FAILED";
+  if (/CONFIG/.test(raw)) return raw;
+  return raw.replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "SMTP_DELIVERY_FAILED";
+}
+
+function contactSmtpAttempts(cfg) {
+  const host = cleanText(cfg.smtpHost || "smtp.gmail.com");
+  const primary = { host, port: cfg.smtpPort, secure: !!cfg.smtpSecure, label: `primary-${cfg.smtpPort}-${cfg.smtpSecure ? "ssl" : "starttls"}` };
+  const attempts = [primary];
+  if (/smtp\.gmail\.com$/i.test(host)) {
+    attempts.push({ host, port: 587, secure: false, label: "gmail-587-starttls" });
+    attempts.push({ host, port: 465, secure: true, label: "gmail-465-ssl" });
+  }
+  const seen = new Set();
+  return attempts.filter((a) => {
+    const key = `${a.host}:${a.port}:${a.secure}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function smtpDeliverWithAttempt(data, cfg, attempt) {
+  let socket = await smtpConnect(cfg, attempt);
+  try {
+    await smtpExpect(socket, 220);
+    await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
+    if (!attempt.secure) {
+      await smtpExpect(socket, 220, "STARTTLS");
+      socket = await smtpStartTls(socket, cfg);
+      await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
+    }
+    await smtpExpect(socket, 334, "AUTH LOGIN");
+    await smtpExpect(socket, 334, Buffer.from(cfg.smtpUser).toString("base64"));
+    await smtpExpect(socket, 235, Buffer.from(cfg.smtpPass).toString("base64"));
+    await smtpExpect(socket, 250, `MAIL FROM:<${cfg.from}>`);
+    await smtpExpect(socket, [250, 251], `RCPT TO:<${cfg.to}>`);
+    await smtpExpect(socket, 354, "DATA");
+    smtpWrite(socket, `${smtpEscapeBody(buildContactMimeMessage(data, cfg))}\r\n.`);
+    await smtpExpect(socket, 250);
+    try { await smtpExpect(socket, 221, "QUIT"); } catch (_) {}
+    return { ok: true, deliveredTo: cfg.to, provider: "smtp", host: attempt.host, port: attempt.port, secure: attempt.secure, attempt: attempt.label };
+  } finally {
+    try { socket.end(); } catch (_) {}
+    try { socket.destroy(); } catch (_) {}
+  }
 }
 
 async function sendContactEmailViaSmtp(data) {
@@ -2358,25 +2475,27 @@ async function sendContactEmailViaSmtp(data) {
     throw err;
   }
 
-  const socket = await smtpConnect(cfg);
-  try {
-    await smtpExpect(socket, 220);
-    await smtpExpect(socket, 250, `EHLO ${cleanContactHeader(process.env.RENDER_EXTERNAL_HOSTNAME || "sandblast-backend", 80) || "sandblast-backend"}`);
-    await smtpExpect(socket, 334, "AUTH LOGIN");
-    await smtpExpect(socket, 334, Buffer.from(cfg.smtpUser).toString("base64"));
-    await smtpExpect(socket, 235, Buffer.from(cfg.smtpPass).toString("base64"));
-    await smtpExpect(socket, 250, `MAIL FROM:<${cfg.from}>`);
-    await smtpExpect(socket, [250, 251], `RCPT TO:<${cfg.to}>`);
-    await smtpExpect(socket, 354, "DATA");
-    smtpWrite(socket, `${smtpEscapeBody(buildContactMimeMessage(data, cfg))}\r\n.`);
-    await smtpExpect(socket, 250);
-    try { await smtpExpect(socket, 221, "QUIT"); } catch (_) {}
-    return { ok: true, deliveredTo: cfg.to, provider: "smtp", host: cfg.smtpHost };
-  } finally {
-    try { socket.end(); } catch (_) {}
-    try { socket.destroy(); } catch (_) {}
+  const failures = [];
+  for (const attempt of contactSmtpAttempts(cfg)) {
+    try {
+      const delivered = await smtpDeliverWithAttempt(data, cfg, attempt);
+      if (cfg.smtpDebug) console.log("[Sandblast][contact:smtp_delivered]", attempt.label, attempt.host, attempt.port, attempt.secure);
+      return delivered;
+    } catch (err) {
+      const safeCode = smtpSafeErrorCode(err);
+      failures.push(`${attempt.label}:${safeCode}`);
+      console.log("[Sandblast][contact:smtp_attempt_failed]", attempt.label, safeCode, err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "");
+    }
   }
+
+  const finalErr = new Error(failures.join("|") || "SMTP_DELIVERY_FAILED");
+  finalErr.code = failures.some((x) => /SMTP_AUTH_FAILED/.test(x)) ? "SMTP_AUTH_FAILED"
+    : failures.some((x) => /SMTP_TIMEOUT/.test(x)) ? "SMTP_TIMEOUT"
+    : "SMTP_DELIVERY_FAILED";
+  finalErr.smtpAttempts = failures;
+  throw finalErr;
 }
+
 
 app.options([
   "/api/contact",
@@ -2425,6 +2544,7 @@ app.get(["/api/contact/health", "/api/lingosentinel/contact/health", "/api/lingo
     acceptsSubmissions: true,
     storageFallback: true,
     deliveryConfigured: !!(cfg.smtpUser && cfg.smtpPass && isValidContactEmail(cfg.to)),
+    smtp: { host: cfg.smtpHost, port: cfg.smtpPort, secure: cfg.smtpSecure, startTlsFallback: true },
     deliveredTo: cfg.to,
     provider: "smtp",
     requires: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS"],
@@ -2471,7 +2591,7 @@ app.post(["/api/contact", "/api/lingosentinel/contact", "/api/lingosentinel/star
       message: "LingoSentinel inquiry delivered."
     });
   } catch (err) {
-    const code = cleanText(err && (err.code || err.message) || "contact_delivery_failed");
+    const code = smtpSafeErrorCode(err);
     writeContactAudit(data, "stored_not_delivered", { error: code });
     console.log("[Sandblast][contact:delivery_error]", code, err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "");
     return res.status(202).json({
