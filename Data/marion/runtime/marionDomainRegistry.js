@@ -17,7 +17,7 @@ const fs = require("fs");
 const path = require("path");
 const domainConfidenceMod = (() => { try { return require("./domainConfidence.js"); } catch (_) { return null; } })();
 
-const VERSION = "marionDomainRegistry v1.6.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.6.1 SIX-DOMAIN-AUTHORITY-MAP + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -343,6 +343,7 @@ const MARION_DOMAINS = Object.freeze({
 });
 
 
+const SIX_KNOWLEDGE_DOMAINS = Object.freeze(["psychology", "english", "ai", "cyber", "law", "finance"]);
 const KNOWLEDGE_DOMAIN_PRIORITY = Object.freeze([
   "psychology",
   "english",
@@ -1035,6 +1036,7 @@ function getHealth() {
     domainCount: keys.length,
     domains: keys,
     knowledgeDomains: KNOWLEDGE_DOMAIN_PRIORITY,
+    sixKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS,
     knowledgeWiring,
     intentCoverage: Object.keys(INTENT_TO_DOMAIN).length,
     missingIntentDomains: missing,
@@ -1150,6 +1152,7 @@ module.exports = {
   MARION_DOMAINS,
   KNOWLEDGE_DOMAINS,
   KNOWLEDGE_DOMAIN_PRIORITY,
+  SIX_KNOWLEDGE_DOMAINS,
   DOMAIN_ALIASES,
   INTENT_TO_DOMAIN,
   getDomainConfig,
