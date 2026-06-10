@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.4 SHORT-FOLLOWUP-CONTINUITY-HOTFIX + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.16.5 FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -263,11 +263,14 @@ function normalizeContinuityCarry(value = {}) {
   );
   const resolvedText = boundedOneLine(src.resolvedText || src.continuityResolvedText || prior.resolvedText || "", 260);
   const originalText = boundedOneLine(src.originalText || src.continuityResolvedOriginalText || prior.originalText || "", 220);
+  const followupAction = boundedOneLine(src.followupAction || src.continuityAction || prior.followupAction || prior.continuityAction || classifyContinuityFollowupStateAction(originalText || resolvedText), 64);
   const out = {
     active: src.active === true || prior.active === true || !!topic || src.resolvedFollowup === true || prior.resolvedFollowup === true,
     topic,
     lastTopic: boundedOneLine(src.lastTopic || prior.lastTopic || topic, 120),
     resolvedFollowup: !!(src.resolvedFollowup || prior.resolvedFollowup || (topic && resolvedText)),
+    followupAction,
+    continuityAction: followupAction,
     originalText,
     resolvedText,
     source: boundedOneLine(src.source || prior.source || "stateSpine.continuityCarry.hotfix", 80)
@@ -280,6 +283,41 @@ function isShortContinuityFollowupStateText(value = "") {
   if (!t) return false;
   return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|example|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
     (/\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically)\b/i.test(t));
+}
+
+function classifyContinuityFollowupStateAction(value = "") {
+  const t = oneLine(value).replace(/[.?!]+$/g, "").toLowerCase();
+  if (!t) return "";
+  if (/\b(example|scenario|show me|for instance)\b/i.test(t) || /^(?:example|give me an example)$/i.test(t)) return "example";
+  if (/\b(why|important|matter|value|purpose|significance)\b/i.test(t)) return "importance";
+  if (/\b(apply|application|small business|business use|real world|practical|practically|use case|scenario)\b/i.test(t)) return "application";
+  if (/\b(risk|risks|danger|downside|problem|failure|warning)\b/i.test(t)) return "risk";
+  if (/\b(benefit|benefits|upside|advantage|advantages|useful)\b/i.test(t)) return "benefit";
+  if (/\b(compare|comparison|versus|vs\.?|difference|different from)\b/i.test(t)) return "compare";
+  if (/\b(how|work|works|mechanism|process)\b/i.test(t)) return "mechanism";
+  if (/\b(continue|tell me more|expand|go deeper|break that down|elaborate)\b/i.test(t)) return "expand";
+  if (/\b(mean|means|definition|define)\b/i.test(t)) return "meaning";
+  return isShortContinuityFollowupStateText(t) ? "followup" : "";
+}
+
+function buildStateContinuityResolvedQuestion(text = "", topic = "", action = "") {
+  const raw = oneLine(text);
+  const subject = boundedOneLine(topic, 160);
+  if (!raw || !subject) return raw;
+  if (raw.toLowerCase().includes(subject.toLowerCase())) return raw;
+  const a = oneLine(action || classifyContinuityFollowupStateAction(raw));
+  switch (a) {
+    case "example": return `Give me a concrete example of ${subject}.`;
+    case "importance": return `Why is ${subject} important?`;
+    case "application": return /small business/i.test(raw) ? `Apply ${subject} to a small business.` : `Apply ${subject} to a practical business scenario.`;
+    case "risk": return `What are the main risks or failure points related to ${subject}?`;
+    case "benefit": return `What are the main benefits of ${subject}?`;
+    case "compare": return `Compare ${subject} with the closest alternative or opposite concept.`;
+    case "mechanism": return `How does ${subject} work in practice?`;
+    case "expand": return `Continue explaining ${subject} with one new layer of detail.`;
+    case "meaning": return `What does ${subject} mean in practical terms?`;
+    default: return `${raw} about ${subject}`;
+  }
 }
 
 function continuityTopicFromState(prev = {}, inbound = {}, memoryPatch = {}, normalizedUserIntent = "") {
@@ -2432,6 +2470,10 @@ function finalizeTurn(params = {}) {
 
   const nextTurnDepth = trustedFinalCompletion ? Math.max(1, clampInt(memoryPatch.turnDepth, 0, 0, 999999) || (deepeningInbound ? clampInt(prev.turnDepth, 0, 0, 999999) + 1 : 1)) : clampInt(prev.turnDepth, 0, 0, 999999);
   const nextTopic = continuityTopicFromState(prev, inbound, memoryPatch, normalizedUserIntent);
+  const inboundFollowupAction = classifyContinuityFollowupStateAction(rawUserText || inboundText || normalizedUserIntent);
+  const continuityResolvedQuestion = inboundFollowupAction && nextTopic
+    ? buildStateContinuityResolvedQuestion(rawUserText || inboundText || normalizedUserIntent, nextTopic, inboundFollowupAction)
+    : "";
   const nextCarryForwardSummary = trustedFinalCompletion ? buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain: composerDomain, lane }) : prev.carryForwardSummary;
   const nextConversationSummary = trustedFinalCompletion ? compactStateSummary(nextCarryForwardSummary, 760) : prev.conversationSummary;
   const inputSource = canonicalTurnInputSource(inbound, { ...params, inputSource: memoryPatch.inputSource });
@@ -2462,9 +2504,17 @@ function finalizeTurn(params = {}) {
       active: !!boundedOneLine(nextTopic, 320),
       topic: boundedOneLine(nextTopic, 320),
       lastTopic: boundedOneLine(nextTopic, 320),
-      resolvedFollowup: false,
-      source: "stateSpine.finalizeTurn.topicBinding"
+      resolvedFollowup: !!inboundFollowupAction,
+      followupAction: inboundFollowupAction,
+      continuityAction: inboundFollowupAction,
+      originalText: rawUserText || inboundText || "",
+      resolvedText: continuityResolvedQuestion,
+      source: "stateSpine.finalizeTurn.followupIntentExpansionCarry"
     }),
+    followupAction: inboundFollowupAction,
+    continuityAction: inboundFollowupAction,
+    continuityResolvedText: continuityResolvedQuestion,
+    continuityResolvedOriginalText: rawUserText || inboundText || "",
     conversationSummary: boundedOneLine(nextConversationSummary, MAX_STATE_SUMMARY),
     carryForwardSummary: boundedOneLine(nextCarryForwardSummary, MAX_STATE_SUMMARY),
     turnDepth: nextTurnDepth,
@@ -2811,6 +2861,8 @@ module.exports = {
   FINAL_RENDER_TELEMETRY_VERSION,
   normalizeContinuityCarry,
   isShortContinuityFollowupStateText,
+  classifyContinuityFollowupStateAction,
+  buildStateContinuityResolvedQuestion,
   continuityTopicFromState
 };
 module.exports.default = module.exports;
