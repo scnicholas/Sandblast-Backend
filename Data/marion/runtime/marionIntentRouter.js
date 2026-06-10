@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.5.3 SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.5.4 FOLLOWUP-INTENT-EXPANSION-HARDLOCK + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -287,22 +287,55 @@ function isResolvedShortContinuityPrompt(input = {}, text = "") {
   return isShortContinuityFollowupText(t);
 }
 
+function classifyContinuityFollowupAction(text = "") {
+  const raw = safeStr(text).replace(/\s+/g, " ").trim();
+  const t = lower(raw).replace(/[.?!]+$/g, "").trim();
+  if (!t) return "";
+  if (/\b(example|scenario|show me|for instance)\b/i.test(t) || /^(?:example|give me an example)$/i.test(t)) return "example";
+  if (/\b(why|important|matter|value|purpose|significance)\b/i.test(t)) return "importance";
+  if (/\b(apply|application|small business|business use|real world|practical|practically|use case|scenario)\b/i.test(t)) return "application";
+  if (/\b(risk|risks|danger|downside|problem|failure|warning)\b/i.test(t)) return "risk";
+  if (/\b(benefit|benefits|upside|advantage|advantages|useful)\b/i.test(t)) return "benefit";
+  if (/\b(compare|comparison|versus|vs\.?|difference|different from)\b/i.test(t)) return "compare";
+  if (/\b(how|work|works|mechanism|process)\b/i.test(t)) return "mechanism";
+  if (/\b(continue|tell me more|expand|go deeper|break that down|elaborate)\b/i.test(t)) return "expand";
+  if (/\b(mean|means|definition|define)\b/i.test(t)) return "meaning";
+  return "followup";
+}
+
 function buildContinuityResolvedQuestion(text = "", carry = {}) {
   const topic = normalizeContinuityTopic(carry.topic || carry.lastTopic || "");
   const raw = safeStr(text).replace(/\s+/g, " ").trim();
   if (!topic || !raw) return raw;
   if (lower(raw).includes(lower(topic))) return raw;
 
-  if (/^why\s+(?:is\s+that\s+important|does\s+that\s+matter|is\s+it\s+important|does\s+it\s+matter)?\??$/i.test(raw) || /^why\b/i.test(raw)) {
-    return `Why is ${topic} important?`;
+  const action = safeStr(carry.followupAction || carry.continuityAction || classifyContinuityFollowupAction(raw));
+  switch (action) {
+    case "example":
+      return `Give me a concrete example of ${topic}.`;
+    case "importance":
+      return `Why is ${topic} important?`;
+    case "application":
+      if (/small business/i.test(raw)) return `Apply ${topic} to a small business.`;
+      return `Apply ${topic} to a practical business scenario.`;
+    case "risk":
+      return `What are the main risks or failure points related to ${topic}?`;
+    case "benefit":
+      return `What are the main benefits of ${topic}?`;
+    case "compare":
+      return `Compare ${topic} with the closest alternative or opposite concept.`;
+    case "mechanism":
+      return `How does ${topic} work in practice?`;
+    case "expand":
+      return `Continue explaining ${topic} with one new layer of detail.`;
+    case "meaning":
+      return `What does ${topic} mean in practical terms?`;
+    default:
+      if (/^why\b/i.test(raw)) return `Why is ${topic} important?`;
+      if (/\bexample\b/i.test(raw)) return `Give me a concrete example of ${topic}.`;
+      if (/\bapply\b/i.test(raw)) return `Apply ${topic} to a practical business scenario.`;
+      return `${raw} about ${topic}`;
   }
-  if (/^(?:how so|explain why)\??$/i.test(raw)) return `Explain why ${topic} matters.`;
-  if (/\bexample\b/i.test(raw)) return `Give me an example of ${topic}.`;
-  if (/\bapply\b/i.test(raw)) return `Apply ${topic} to this context.`;
-  if (/\bsmall business\b/i.test(raw)) return `Apply ${topic} to a small business.`;
-  if (/\bcontinue|tell me more|expand|go deeper|break that down\b/i.test(raw)) return `Continue explaining ${topic}.`;
-  if (/\bwhat does that mean|what does it mean\b/i.test(raw)) return `What does ${topic} mean in practical terms?`;
-  return `${raw} about ${topic}`;
 }
 
 function clamp01(v, fallback = 0) {
@@ -1813,18 +1846,32 @@ function routeMarionIntent(packet = {}) {
   const existingIntent = extractExistingIntent(src);
   const continuityCarry = extractContinuityCarry(src);
   const continuityResolved = isResolvedShortContinuityPrompt(src, rawText);
+  const continuityFollowupAction = continuityResolved ? classifyContinuityFollowupAction(rawText) : "";
   const continuityResolvedText = continuityResolved
-    ? buildContinuityResolvedQuestion(rawText, continuityCarry)
+    ? buildContinuityResolvedQuestion(rawText, { ...continuityCarry, followupAction: continuityFollowupAction })
     : "";
-  const questionShape = normalizeQuestionShape(continuityResolvedText || rawText);
-  const text = questionShape.normalizedText || continuityResolvedText || rawText;
+  const questionShape = continuityResolved && continuityResolvedText
+    ? {
+        version: QUESTION_SHAPE_NORMALIZATION_VERSION,
+        rawText,
+        normalizedText: continuityResolvedText,
+        normalizedUserIntent: continuityResolvedText,
+        questionShape: "short_followup_expanded",
+        changed: continuityResolvedText !== rawText,
+        reason: `continuity_${continuityFollowupAction || "followup"}_expansion`,
+        source: "marionIntentRouter.shortFollowupIntentExpansion"
+      }
+    : normalizeQuestionShape(rawText);
+  const text = continuityResolvedText || questionShape.normalizedText || rawText;
   const continuityExistingIntent = continuityResolved
     ? {
         intent: "domain_question",
         confidence: Math.max(clamp01(existingIntent.confidence, 0), 0.91),
         reason: "short_followup_continuity_resolved",
         source: "marionIntentRouter.shortFollowupContinuity",
-        continuityCarry
+        continuityCarry,
+        followupAction: continuityFollowupAction,
+        continuityAction: continuityFollowupAction
       }
     : {};
 
@@ -1846,17 +1893,23 @@ function routeMarionIntent(packet = {}) {
       topic: continuityCarry.topic || normalizeContinuityTopic(text),
       lastTopic: continuityCarry.topic || normalizeContinuityTopic(text),
       resolvedFollowup: !!continuityResolved,
+      followupAction: continuityFollowupAction,
+      continuityAction: continuityFollowupAction,
       originalText: continuityCarry.originalText || rawText,
       resolvedText: continuityResolvedText || text,
-      source: "marionIntentRouter.shortFollowupContinuityReferenceBinding"
+      source: "marionIntentRouter.shortFollowupIntentExpansionHardlock"
     };
     routing.continuity = boundContinuityCarry;
     routing.followUpReference = boundContinuityCarry;
     routing.shortFollowupContinuityResolved = !!continuityResolved;
+    routing.followupAction = continuityFollowupAction;
+    routing.continuityAction = continuityFollowupAction;
     routing.previousTopic = boundContinuityCarry.topic || "";
     routing.normalizedUserIntent = continuityResolvedText || routing.normalizedUserIntent;
     marionIntent.continuityCarry = boundContinuityCarry;
     marionIntent.shortFollowupContinuityResolved = !!continuityResolved;
+    marionIntent.followupAction = continuityFollowupAction;
+    marionIntent.continuityAction = continuityFollowupAction;
     marionIntent.normalizedUserIntent = continuityResolvedText || marionIntent.normalizedUserIntent;
     marionIntent.reason = continuityResolved ? "short_followup_continuity_reference_bound" : marionIntent.reason;
   }
@@ -1895,6 +1948,10 @@ function routeMarionIntent(packet = {}) {
       continuity: (continuityCarry.active || continuityResolved) ? (boundContinuityCarry || continuityCarry) : undefined,
       followUpReference: (continuityCarry.active || continuityResolved) ? (boundContinuityCarry || continuityCarry) : undefined,
       shortFollowupContinuityResolved: !!continuityResolved,
+      followupAction: continuityFollowupAction,
+      continuityAction: continuityFollowupAction,
+      continuityResolvedText,
+      continuityResolvedOriginalText: rawText,
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
@@ -1931,6 +1988,10 @@ function routeMarionIntent(packet = {}) {
       continuity: (continuityCarry.active || continuityResolved) ? (routing.continuity || continuityCarry) : undefined,
       followUpReference: (continuityCarry.active || continuityResolved) ? (routing.followUpReference || continuityCarry) : undefined,
       shortFollowupContinuityResolved: !!continuityResolved,
+      followupAction: continuityFollowupAction,
+      continuityAction: continuityFollowupAction,
+      continuityResolvedText,
+      continuityResolvedOriginalText: rawText,
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
@@ -2029,6 +2090,8 @@ module.exports = {
     turnContinuityHash,
     extractContinuityCarry,
     isResolvedShortContinuityPrompt,
+    classifyContinuityFollowupAction,
+    buildContinuityResolvedQuestion,
     routerForensicNormalizationStatus,
     classifyFailureSignature,
     buildFailureSignatureAudit,
