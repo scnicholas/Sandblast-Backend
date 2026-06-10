@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.1 RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.16.2 SHORT-FOLLOWUP-CONTINUITY-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -247,6 +247,23 @@ function extractQuestionShapeCarry(params = {}, inbound = {}, memoryPatch = {}) 
     raw
   );
   return normalizeQuestionShapeCarry({ rawText: raw, normalizedText: normalized, normalizedUserIntent: normalized, questionShape: normalized && raw && normalized !== raw ? "topic_request" : "direct_or_unknown" });
+}
+
+
+
+function normalizeContinuityCarry(value = {}) {
+  const src = isPlainObject(value) ? value : {};
+  const topic = boundedOneLine(src.topic || src.lastTopic || src.subject || "", 120);
+  const out = {
+    active: src.active === true || !!topic || src.resolvedFollowup === true,
+    topic,
+    lastTopic: boundedOneLine(src.lastTopic || topic, 120),
+    resolvedFollowup: !!src.resolvedFollowup,
+    originalText: boundedOneLine(src.originalText || src.continuityResolvedOriginalText || "", 220),
+    resolvedText: boundedOneLine(src.resolvedText || src.continuityResolvedText || "", 220),
+    source: boundedOneLine(src.source || "stateSpine.continuityCarry", 80)
+  };
+  return out.active ? out : {};
 }
 
 
@@ -2748,6 +2765,7 @@ module.exports = {
   PARALLEL_LANE_RECENCY_VERSION,
   normalizeParallelLaneRecencyCarry,
   extractParallelLaneRecencyCarry,
-  FINAL_RENDER_TELEMETRY_VERSION
+  FINAL_RENDER_TELEMETRY_VERSION,
+  normalizeContinuityCarry
 };
 module.exports.default = module.exports;
