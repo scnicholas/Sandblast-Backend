@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.29sb TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.30sb SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -6578,6 +6578,94 @@ function getLastTurn(sessionId) {
   return memory.lastBySession.get(sessionId) || null;
 }
 
+
+function normalizeContinuityTopicText(value) {
+  let text = cleanText(value || "");
+  if (!text) return "";
+  text = text
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .replace(/[.?!]+$/g, "")
+    .replace(/^(?:nyx\s*,?\s*)?(?:please\s*)?(?:explain|define|describe|break\s+down|tell\s+me\s+about|what\s+is|what\s+are|give\s+me\s+an\s+overview\s+of|help\s+me\s+understand)\s+/i, "")
+    .replace(/^(?:the|a|an)\s+/i, "")
+    .trim();
+  if (!text || text.length > 96) return "";
+  if (/^(?:why|what|how|when|where|who|that|this|it|they|them|those|these)\b/i.test(text)) return "";
+  return text;
+}
+
+function extractContinuityTopicFromTurn(turn) {
+  const src = isObj(turn) ? turn : {};
+  const continuity = isObj(src.continuity) ? src.continuity : {};
+  const candidates = [
+    continuity.topic,
+    continuity.lastTopic,
+    continuity.subject,
+    src.topic,
+    src.lastTopic,
+    src.normalizedTopic,
+    src.userText,
+    src.rawUserText,
+    src.originalUserText
+  ];
+  for (const candidate of candidates) {
+    const topic = normalizeContinuityTopicText(candidate);
+    if (topic) return topic;
+  }
+  const reply = cleanText(src.reply || src.text || src.answer || "");
+  const match = reply.match(/^([A-Z][A-Za-z0-9\s\-]{2,80})\s+(?:is|are|refers to|means)\b/i);
+  if (match) {
+    const topic = normalizeContinuityTopicText(match[1]);
+    if (topic) return topic;
+  }
+  return "";
+}
+
+function isShortContinuityFollowupText(value) {
+  const text = cleanText(value || "").replace(/[.?!]+$/g, "").toLowerCase();
+  if (!text) return false;
+  if (text.length > 140) return false;
+  return /^(?:why|how|what|when|where)\s+(?:is|are|does|do|would|could|should)\s+(?:that|this|it|they|them|those|these)\b/.test(text) ||
+    /^(?:why\s+is\s+that\s+important|why\s+does\s+that\s+matter|how\s+does\s+that\s+work|what\s+does\s+that\s+mean|what\s+about\s+that)$/i.test(text) ||
+    /^(?:give|show)\s+me\s+(?:an?\s+)?example\b/i.test(text) ||
+    /^(?:apply|use)\s+(?:that|this|it)\b/i.test(text) ||
+    /^(?:make|put)\s+(?:that|this|it)\s+(?:practical|simple|clear)\b/i.test(text);
+}
+
+function resolveShortContinuityFollowupText(currentText, priorTurn) {
+  const source = cleanText(currentText || "");
+  if (!source || !isShortContinuityFollowupText(source)) return { resolved: source, changed: false, topic: "", reason: "" };
+  const topic = extractContinuityTopicFromTurn(priorTurn);
+  if (!topic) return { resolved: source, changed: false, topic: "", reason: "missing_prior_topic" };
+
+  const lowerSource = source.replace(/[.?!]+$/g, "").toLowerCase();
+  let resolved = "";
+  if (/^why\s+(?:is|does|do|are|would|could|should)\s+(?:that|this|it|they|them|those|these)\b/.test(lowerSource) || /important|matter/.test(lowerSource)) {
+    resolved = `Why is ${topic} important?`;
+  } else if (/^(?:give|show)\s+me\s+(?:an?\s+)?example\b/i.test(source)) {
+    resolved = `Give me an example of ${topic}.`;
+  } else if (/^(?:apply|use)\s+(?:that|this|it)\b/i.test(source)) {
+    resolved = source.replace(/\b(that|this|it)\b/i, topic);
+    if (resolved === source) resolved = `Apply ${topic} in practical terms.`;
+  } else if (/^what\s+(?:does|is)\s+(?:that|this|it)\b/.test(lowerSource)) {
+    resolved = `What does ${topic} mean in this context?`;
+  } else if (/^how\s+(?:does|do|is|are)\s+(?:that|this|it)\b/.test(lowerSource)) {
+    resolved = `How does ${topic} work?`;
+  } else {
+    resolved = `Regarding ${topic}: ${source}`;
+  }
+
+  resolved = cleanText(resolved);
+  if (!resolved || resolved === source) return { resolved: source, changed: false, topic, reason: "no_rewrite_needed" };
+  return {
+    resolved,
+    changed: true,
+    topic,
+    reason: "short_followup_continuity_resolved",
+    originalText: source
+  };
+}
+
+
 function summarizeTurnForMemory(prev, patch) {
   const base = isObj(prev) ? prev : {};
   const next = isObj(patch) ? patch : {};
@@ -6594,6 +6682,10 @@ function summarizeTurnForMemory(prev, patch) {
     reply: cleanText(next.reply || base.reply || "").slice(0, 280),
     emotionLabel: cleanText(next.emotionLabel || base.emotionLabel || "").slice(0, 80),
     continuity: isObj(next.continuity) ? next.continuity : (isObj(base.continuity) ? base.continuity : {}),
+    topic: cleanText(next.topic || (isObj(next.continuity) ? next.continuity.topic : "") || base.topic || (isObj(base.continuity) ? base.continuity.topic : "") || "").slice(0, 120),
+    lastTopic: cleanText(next.lastTopic || next.topic || base.lastTopic || base.topic || "").slice(0, 120),
+    knowledgeDomain: cleanText(next.knowledgeDomain || base.knowledgeDomain || "").slice(0, 80),
+    resolvedFollowupFrom: cleanText(next.resolvedFollowupFrom || base.resolvedFollowupFrom || "").slice(0, 180),
     at: now()
   };
 }
@@ -11355,6 +11447,19 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   norm.staleCarryBypass = shouldBypassPriorMemoryForCurrentTurn(norm, req);
   norm.languageSphereDirectTranslation = shouldUseLanguageSphereDirectTranslation(norm);
   const priorTurn = (resetConversation || norm.staleCarryBypass) ? null : getLastTurn(sessionId);
+  const continuityResolution = resolveShortContinuityFollowupText(norm.text, priorTurn);
+  if (continuityResolution.changed) {
+    norm.originalText = cleanText(norm.originalText || norm.rawText || norm.userText || norm.message || norm.text);
+    norm.rawUserText = cleanText(norm.rawUserText || norm.originalText);
+    norm.continuityResolvedOriginalText = continuityResolution.originalText;
+    norm.continuityResolvedText = continuityResolution.resolved;
+    norm.continuityTopic = continuityResolution.topic;
+    norm.shortFollowupContinuityResolved = true;
+    norm.text = continuityResolution.resolved;
+    norm.query = continuityResolution.resolved;
+    norm.userQuery = continuityResolution.resolved;
+    norm.message = continuityResolution.resolved;
+  }
   const trace = {
     traceId: norm.traceId,
     sessionId,
@@ -11546,6 +11651,26 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     requestedDomain: norm.domainHint || (norm.marionRouting && norm.marionRouting.domain) || "general",
     intent: (norm.marionIntent && norm.marionIntent.intent) || norm.intentHint || "simple_chat",
     originalText: cleanText(norm.originalText || norm.text),
+    rawUserText: cleanText(norm.rawUserText || norm.originalText || norm.text),
+    continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || ""),
+    continuityResolvedText: cleanText(norm.continuityResolvedText || ""),
+    shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved,
+    followUpReference: {
+      active: !!norm.shortFollowupContinuityResolved,
+      topic: cleanText(norm.continuityTopic || ""),
+      originalText: cleanText(norm.continuityResolvedOriginalText || ""),
+      resolvedText: cleanText(norm.continuityResolvedText || ""),
+      previousUserText: cleanText(priorTurn && priorTurn.userText || ""),
+      previousReply: cleanText(priorTurn && priorTurn.reply || ""),
+      previousRoute: cleanText(priorTurn && (priorTurn.route || priorTurn.lane) || "")
+    },
+    continuity: {
+      active: !!norm.shortFollowupContinuityResolved,
+      topic: cleanText(norm.continuityTopic || extractContinuityTopicFromTurn(priorTurn) || ""),
+      lastTopic: cleanText(norm.continuityTopic || extractContinuityTopicFromTurn(priorTurn) || ""),
+      resolvedFollowup: !!norm.shortFollowupContinuityResolved,
+      source: "index.shortFollowupContinuity"
+    },
     sourceLanguage: norm.sourceLanguage || "auto",
     targetLanguage: norm.targetLanguage || "",
     outputLanguage: norm.outputLanguage || norm.targetLanguage || "",
@@ -11606,7 +11731,11 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       lingoSentinelGatewayAvailable: !!runIndexLingoSentinelGateway,
       resetConversation: !!norm.resetConversation,
       staleCarryBypass: !!norm.staleCarryBypass,
-      languageSphereDirectTranslation: !!norm.languageSphereDirectTranslation
+      languageSphereDirectTranslation: !!norm.languageSphereDirectTranslation,
+      shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved,
+      continuityTopic: cleanText(norm.continuityTopic || ""),
+      continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || ""),
+      continuityResolvedText: cleanText(norm.continuityResolvedText || "")
     }
   };
 
@@ -12087,10 +12216,23 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     route: norm.lane || "general",
     loopStatus: "transport_only_clear",
     finalized: true,
-    userText: norm.text,
+    userText: cleanText(norm.originalText || norm.rawUserText || norm.text),
+    resolvedUserText: cleanText(norm.text),
     reply,
     emotionLabel: "",
-    continuity: isObj(selected.payload && selected.payload.continuity) ? selected.payload.continuity : {},
+    topic: cleanText(norm.continuityTopic || extractContinuityTopicFromTurn({ userText: norm.originalText || norm.rawUserText || norm.text, reply }) || ""),
+    lastTopic: cleanText(norm.continuityTopic || extractContinuityTopicFromTurn({ userText: norm.originalText || norm.rawUserText || norm.text, reply }) || ""),
+    knowledgeDomain: cleanText(norm.marionRouting && (norm.marionRouting.knowledgeDomain || norm.marionRouting.domain) || selected.marionRouting && (selected.marionRouting.knowledgeDomain || selected.marionRouting.domain) || ""),
+    resolvedFollowupFrom: cleanText(norm.continuityResolvedOriginalText || ""),
+    continuity: {
+      ...(isObj(selected.payload && selected.payload.continuity) ? selected.payload.continuity : {}),
+      active: true,
+      topic: cleanText(norm.continuityTopic || extractContinuityTopicFromTurn({ userText: norm.originalText || norm.rawUserText || norm.text, reply }) || ""),
+      lastTopic: cleanText(norm.continuityTopic || extractContinuityTopicFromTurn({ userText: norm.originalText || norm.rawUserText || norm.text, reply }) || ""),
+      resolvedFollowup: !!norm.shortFollowupContinuityResolved,
+      previousUserText: cleanText(priorTurn && priorTurn.userText || ""),
+      previousReply: cleanText(priorTurn && priorTurn.reply || "")
+    },
     memoryPatch: isObj(selected.memoryPatch) ? selected.memoryPatch : (isObj(selected.sessionPatch && selected.sessionPatch.memoryPatch) ? selected.sessionPatch.memoryPatch : {}),
     sessionPatch: isObj(selected.sessionPatch) ? selected.sessionPatch : {},
     packetPreclassification: isObj(norm.packetPreclassification) ? norm.packetPreclassification : {}
