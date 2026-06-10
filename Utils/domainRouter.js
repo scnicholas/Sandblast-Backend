@@ -22,7 +22,7 @@
 
 const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
 
-const ROUTER_VERSION = "domainRouter v1.5.3 CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.4 SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -275,6 +275,26 @@ const DEFAULT_DOMAIN_ORDER = Object.freeze([
   DOMAIN_ENUM.EN,
   DOMAIN_ENUM.CORE,
 ]);
+const SIX_KNOWLEDGE_DOMAINS = Object.freeze([DOMAIN_ENUM.PSY, DOMAIN_ENUM.EN, DOMAIN_ENUM.AI, DOMAIN_ENUM.CYBER, DOMAIN_ENUM.LAW, DOMAIN_ENUM.FIN]);
+
+function buildSixDomainCoverage(scores = {}, domainConfidence = {}) {
+  const dc = safeObj(domainConfidence);
+  const candidates = Array.isArray(dc.candidates) ? dc.candidates : [];
+  return SIX_KNOWLEDGE_DOMAINS.map((domain) => {
+    const candidate = candidates.find((item) => safeObj(item).domain === domain || safeObj(item).selectedDomain === domain) || {};
+    const score = Number.isFinite(Number(scores[domain])) ? Number(scores[domain]) : 0;
+    const confidence = Number.isFinite(Number(candidate.confidence)) ? Number(candidate.confidence) : clamp01(score);
+    return {
+      domain,
+      score: Number(score.toFixed ? score.toFixed(4) : score),
+      confidence: Number(clamp01(confidence).toFixed(4)),
+      selected: dc.primaryDomain === domain || dc.selectedDomain === domain || dc.knowledgeDomain === domain,
+      secondary: Array.isArray(dc.secondaryDomains) && dc.secondaryDomains.includes(domain),
+      accessible: true
+    };
+  });
+}
+
 
 // -------------------------
 // keyword maps (lightweight)
@@ -639,6 +659,7 @@ function scoreDomains(norm, session, cog, opts = {}) {
 
   const normalized = normalizeScores(scores);
   const domainConfidence = domainConfidenceProfile(normalized.scores, n.text || n.query || n.message || "", o);
+  const sixDomainCoverage = buildSixDomainCoverage(normalized.scores, domainConfidence);
 
   return {
     ok: true,
@@ -646,6 +667,8 @@ function scoreDomains(norm, session, cog, opts = {}) {
     scores: normalized.scores,
     confidence: normalized.confidence,
     domainConfidence,
+    sixDomainCoverage,
+    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
     signals: uniq(signals, 10),
     stateSpinePatch: {
       source: "domainRouter",
@@ -654,6 +677,8 @@ function scoreDomains(norm, session, cog, opts = {}) {
       domainScores: normalized.scores,
       confidence: normalized.confidence,
       domainConfidence,
+      sixDomainCoverage,
+      allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
       inputSource,
       turnHash,
       micTextParity: true,
@@ -664,58 +689,68 @@ function scoreDomains(norm, session, cog, opts = {}) {
 
 function routeDomain(norm, session, cog, opts = {}) {
   const n = isPlainObject(norm) ? norm : {};
-  const scored = scoreDomains(n, session, cog, opts);
-  const domainConfidence = scored.domainConfidence || domainConfidenceProfile(scored.scores, n.text || n.query || n.message || "", opts);
-  const crossDomainProfile = crossDomainSecondaryLaneProfile(n.text || n.query || n.message || "");
-  const pick = (crossDomainProfile && crossDomainProfile.primary) ? { primary: crossDomainProfile.primary, secondary: crossDomainProfile.secondary || [] } : (domainConfidence.ambiguous ? { primary: domainConfidence.fallbackDomain, secondary: [] } : pickTopDomains(scored.scores, {
-    maxSecondary: Number.isFinite(Number(opts.maxSecondary)) ? Number(opts.maxSecondary) : 2,
-    minSecondaryScore: Number.isFinite(Number(opts.minSecondaryScore)) ? Number(opts.minSecondaryScore) : 1.6,
-  }));
+  const o = isPlainObject(opts) ? opts : {};
+  const scored = scoreDomains(n, session, cog, o);
+  const text = n.text || n.query || n.message || "";
+  const domainConfidence = scored.domainConfidence || domainConfidenceProfile(scored.scores, text, o);
+  const crossDomainProfile = crossDomainSecondaryLaneProfile(text);
+  const maxSecondary = Number.isFinite(Number(o.maxSecondary)) ? Number(o.maxSecondary) : 5;
+  const pick = (crossDomainProfile && crossDomainProfile.primary)
+    ? { primary: crossDomainProfile.primary, secondary: crossDomainProfile.secondary || [] }
+    : (domainConfidence.ambiguous
+      ? { primary: domainConfidence.fallbackDomain || DOMAIN_ENUM.CORE, secondary: [] }
+      : pickTopDomains(scored.scores, {
+          maxSecondary,
+          minSecondaryScore: Number.isFinite(Number(o.minSecondaryScore)) ? Number(o.minSecondaryScore) : 1.6,
+        }));
 
-  // reason (compact)
+  const primary = canonicalizeDomain(pick.primary);
+  const secondary = uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter((d) => d && d !== primary), maxSecondary);
   const inputSource = normalizeInputSource(n.inputSource || n.source || safeObj(n.session).inputSource || "text");
-  const turnHash = continuityHash(n.text || n.query || n.message || "");
+  const turnHash = continuityHash(text);
+  const sixDomainCoverage = scored.sixDomainCoverage || buildSixDomainCoverage(scored.scores, domainConfidence);
 
   const reason = {
-    primary: canonicalizeDomain(pick.primary),
-    secondary: uniq((pick.secondary || []).map((d) => canonicalizeDomain(d)).filter(Boolean), 3),
-    confidence: scored.confidence ? scored.confidence[pick.primary] : 0,
+    primary,
+    secondary,
+    confidence: scored.confidence ? scored.confidence[primary] || 0 : 0,
     signals: scored.signals,
     inputSource,
     turnHash,
     continuity: { fiveTurnReady: true, micTextParity: true },
-    domainConfidence
+    domainConfidence,
+    sixDomainCoverage,
+    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice()
   };
 
-  const base = {
-    version: "nyx.marion.domainConfidence/1.2",
-    confidence,
-    confidenceScore: confidence,
-    band,
-    confidenceBand: band,
-    margin,
-    ambiguous,
-    routeLocked,
+  return {
+    ok: true,
+    routerVersion: ROUTER_VERSION,
     primary,
     primaryDomain: primary,
     selectedDomain: primary,
     secondary,
-    secondaryDomains: secondary ? [secondary] : [],
-    candidates: entries.slice(0, 6).map(([domain, score]) => ({ domain, confidence: clamp01(score), reasons: ["domain_router_score"] })),
-    answerMode: failClosed ? "fail_closed" : (ambiguous ? "clarify" : (confidence >= 0.82 ? "direct" : "grounded")),
-    needsClarifier: ambiguous && !failClosed,
-    failClosed,
-    fallbackReason: failClosed ? "domain_router_confidence_fail_closed" : (ambiguous ? "domain_router_confidence_ambiguous" : ""),
-    reason: infrastructure ? "infrastructure_continuity_route_lock" : (ambiguous ? "domain_confidence_ambiguous" : "domain_confidence_scored"),
-    noCrossDomainBleed: true,
-    noUserFacingDiagnostics: true
+    secondaryDomains: secondary,
+    reason,
+    signals: scored.signals,
+    scores: scored.scores,
+    confidence: scored.confidence,
+    domainConfidence,
+    sixDomainCoverage,
+    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+    crossDomainProfile: crossDomainProfile || null,
+    answerMode: crossDomainProfile && crossDomainProfile.answerMode ? crossDomainProfile.answerMode : (domainConfidence.answerMode || (domainConfidence.ambiguous ? "clarify" : "grounded")),
+    stateSpinePatch: {
+      ...safeObj(scored.stateSpinePatch),
+      source: "domainRouter",
+      shouldAdvanceState: false,
+      selectedDomain: primary,
+      secondaryDomains: secondary,
+      sixDomainCoverage,
+      allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+      noCrossDomainBleed: true
+    }
   };
-  if (domainConfidenceMod && typeof domainConfidenceMod.normalizeDomainConfidenceProfile === "function") {
-    try {
-      return domainConfidenceMod.normalizeDomainConfidenceProfile(base, { rawText: text, candidates: base.candidates, confidence });
-    } catch (_err) {}
-  }
-  return base;
 }
 
 module.exports = {
@@ -724,6 +759,8 @@ module.exports = {
   FAILURE_SIGNATURE_AUDIT_VERSION,
   DOMAIN_ENUM,
   DEFAULT_DOMAIN_ORDER,
+  SIX_KNOWLEDGE_DOMAINS,
+  buildSixDomainCoverage,
   canonicalizeDomain,
   scoreDomains,
   routeDomain,
