@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.30sb SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.31sb CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -915,6 +915,9 @@ function buildSixDomainPublicKnowledgeAnswer(value=""){
   const source=String(value==null?"":value).replace(/\s+/g," ").trim();
   const t=source.toLowerCase();
   if(!t)return "";
+  if(/\bcash[- ]?flow\b/.test(t) && /\bexample|for instance|show me\b/.test(t))return "Example: a business invoices $5,000 today but will not receive that money for 30 days. If rent, payroll, and supplies are due this week, the business can be profitable on paper but still have a cash-flow problem because the money has not arrived yet.";
+  if(/\bcash[- ]?flow\b/.test(t) && /\bimportant|matter|why\b/.test(t))return "Cash flow is important because it determines whether a business can pay bills on time, handle slow sales periods, avoid unnecessary debt, and make growth decisions without running out of operating money.";
+  if(/\bcash[- ]?flow\b/.test(t) && /\bapply|small business|practical\b/.test(t))return "For a small business, cash flow means watching when money actually arrives versus when expenses are due. The practical rule is to price, collect, spend, and hire based on available cash timing, not just total sales.";
   if(/\bcash[- ]?flow\b/.test(t))return "Cash flow is the movement of money into and out of a business over a period of time. Healthy cash flow means the business can pay expenses, manage timing gaps, and keep operating without constant pressure.";
   if(/\bauditing\b|\baudit process\b|\bfinancial audit\b|\boperational audit\b|\baudit\b/.test(t))return "Auditing is a structured review of records, systems, finances, or work against a standard. The goal is to find gaps, confirm accuracy, reduce risk, and improve accountability.";
   if(/\bcognitive\b|\bcognition\b|\bcognitive process\b/.test(t))return "Cognitive refers to mental processes like attention, memory, learning, reasoning, problem-solving, and decision-making. It is about how information is taken in, processed, and used.";
@@ -6665,6 +6668,63 @@ function resolveShortContinuityFollowupText(currentText, priorTurn) {
   };
 }
 
+function continuityEffectivePromptFromNorm(norm) {
+  const n = isObj(norm) ? norm : {};
+  return cleanText(
+    n.continuityResolvedText ||
+    n.resolvedQuestion ||
+    n.resolvedPrompt ||
+    n.effectivePrompt ||
+    n.finalPrompt ||
+    n.userQuery ||
+    n.query ||
+    n.message ||
+    n.text ||
+    ""
+  );
+}
+
+function applyContinuityEffectivePromptToNorm(norm, sourceTag) {
+  if (!isObj(norm)) return norm;
+  const resolved = cleanText(norm.continuityResolvedText || norm.resolvedQuestion || norm.resolvedPrompt || "");
+  if (!resolved) return norm;
+  const original = cleanText(norm.continuityResolvedOriginalText || norm.originalText || norm.rawUserText || norm.text || "");
+  const topic = cleanText(norm.continuityTopic || "");
+  norm.effectivePrompt = resolved;
+  norm.finalPrompt = resolved;
+  norm.resolvedQuestion = resolved;
+  norm.resolvedPrompt = resolved;
+  norm.publicUserQuery = resolved;
+  norm.text = resolved;
+  norm.query = resolved;
+  norm.userQuery = resolved;
+  norm.message = resolved;
+  norm.shortFollowupContinuityResolved = true;
+  norm.continuityHandoffHardlock = true;
+  norm.continuityEffectivePromptSource = cleanText(sourceTag || "index.continuityEffectivePrompt");
+  norm.originalText = cleanText(norm.originalText || original || resolved);
+  norm.rawUserText = cleanText(norm.rawUserText || original || norm.originalText || resolved);
+  if (isObj(norm.payload)) {
+    norm.payload = {
+      ...norm.payload,
+      text: resolved,
+      message: resolved,
+      query: resolved,
+      userQuery: resolved,
+      publicUserQuery: resolved,
+      effectivePrompt: resolved,
+      finalPrompt: resolved,
+      resolvedQuestion: resolved,
+      resolvedPrompt: resolved,
+      continuityResolvedText: resolved,
+      continuityResolvedOriginalText: original,
+      continuityTopic: topic,
+      shortFollowupContinuityResolved: true
+    };
+  }
+  return norm;
+}
+
 
 function summarizeTurnForMemory(prev, patch) {
   const base = isObj(prev) ? prev : {};
@@ -11459,7 +11519,13 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     norm.query = continuityResolution.resolved;
     norm.userQuery = continuityResolution.resolved;
     norm.message = continuityResolution.resolved;
+    norm.effectivePrompt = continuityResolution.resolved;
+    norm.finalPrompt = continuityResolution.resolved;
+    norm.resolvedQuestion = continuityResolution.resolved;
+    norm.resolvedPrompt = continuityResolution.resolved;
+    norm.publicUserQuery = continuityResolution.resolved;
   }
+  applyContinuityEffectivePromptToNorm(norm, "index.after-short-followup-resolution");
   const trace = {
     traceId: norm.traceId,
     sessionId,
@@ -11574,6 +11640,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     norm.userQuery = norm.text;
     norm.inputNormalizedForMarion = true;
   }
+  applyContinuityEffectivePromptToNorm(norm, "index.after-language-sphere-normalization");
 
   if (norm.languageSphereDirectTranslation === true) {
     const directLanguageSphereResponse = await buildLanguageSphereDirectTranslationResponse(norm, sessionId, startedAt);
@@ -11608,14 +11675,23 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     }
   }
 
+  applyContinuityEffectivePromptToNorm(norm, "index.before-packet-bridge");
+  const effectiveMarionText = continuityEffectivePromptFromNorm(norm);
   const prePacketBridge = norm.staleCarryBypass ? {} : resolveNyxPacketBridge(norm, null, null, priorTurn);
   const prePacketIntent = applyPacketBridgePreclassification(norm, prePacketBridge);
 
   const marionCommandPacket = marionCommandNormalizerMod && typeof marionCommandNormalizerMod.normalizeCommand === "function"
     ? marionCommandNormalizerMod.normalizeCommand({
-        text: norm.text,
-        userQuery: norm.text,
-        query: norm.text,
+        text: effectiveMarionText,
+        userQuery: effectiveMarionText,
+        query: effectiveMarionText,
+        message: effectiveMarionText,
+        effectivePrompt: effectiveMarionText,
+        finalPrompt: effectiveMarionText,
+        resolvedQuestion: cleanText(norm.resolvedQuestion || norm.continuityResolvedText || ""),
+        continuityResolvedText: cleanText(norm.continuityResolvedText || ""),
+        continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || ""),
+        shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved,
         lane: norm.lane,
         sessionId,
         turnId: norm.turnId,
@@ -11630,16 +11706,39 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     : null;
 
   const marionInput = {
-    text: norm.text,
-    query: norm.text,
-    userQuery: norm.text,
+    text: effectiveMarionText,
+    query: effectiveMarionText,
+    userQuery: effectiveMarionText,
+    message: effectiveMarionText,
+    prompt: effectiveMarionText,
+    effectivePrompt: effectiveMarionText,
+    finalPrompt: effectiveMarionText,
+    resolvedQuestion: cleanText(norm.resolvedQuestion || norm.continuityResolvedText || ""),
+    resolvedPrompt: cleanText(norm.resolvedPrompt || norm.continuityResolvedText || ""),
+    publicUserQuery: effectiveMarionText,
     lane: norm.lane,
     year: norm.year,
     mode: norm.mode,
     traceId: norm.traceId,
     sessionId,
     turnId: norm.turnId,
-    payload: { ...(isObj(norm.payload) ? norm.payload : {}), packetPreclassification: isObj(norm.packetPreclassification) ? norm.packetPreclassification : undefined },
+    payload: {
+      ...(isObj(norm.payload) ? norm.payload : {}),
+      text: effectiveMarionText,
+      message: effectiveMarionText,
+      query: effectiveMarionText,
+      userQuery: effectiveMarionText,
+      publicUserQuery: effectiveMarionText,
+      effectivePrompt: effectiveMarionText,
+      finalPrompt: effectiveMarionText,
+      resolvedQuestion: cleanText(norm.resolvedQuestion || norm.continuityResolvedText || ""),
+      resolvedPrompt: cleanText(norm.resolvedPrompt || norm.continuityResolvedText || ""),
+      continuityResolvedText: cleanText(norm.continuityResolvedText || ""),
+      continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || ""),
+      continuityTopic: cleanText(norm.continuityTopic || ""),
+      shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved,
+      packetPreclassification: isObj(norm.packetPreclassification) ? norm.packetPreclassification : undefined
+    },
     source: norm.source,
     inputSource: norm.inputSource,
     marionIntent: norm.marionIntent,
@@ -11687,7 +11786,19 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     lingoSentinelGatewayMeta: isObj(norm.lingoSentinelGatewayMeta) ? norm.lingoSentinelGatewayMeta : {},
     lingoSentinelTelemetry: isObj(norm.lingoSentinelTelemetry) ? norm.lingoSentinelTelemetry : {},
     previousMemory: norm.staleCarryBypass ? {} : (isObj(priorTurn) ? priorTurn : {}),
-    commandPacket: isObj(marionCommandPacket) ? marionCommandPacket : {},
+    commandPacket: isObj(marionCommandPacket) ? {
+      ...marionCommandPacket,
+      text: effectiveMarionText,
+      message: effectiveMarionText,
+      query: effectiveMarionText,
+      userQuery: effectiveMarionText,
+      effectivePrompt: effectiveMarionText,
+      finalPrompt: effectiveMarionText,
+      resolvedQuestion: cleanText(norm.resolvedQuestion || norm.continuityResolvedText || ""),
+      continuityResolvedText: cleanText(norm.continuityResolvedText || ""),
+      continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || ""),
+      shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved
+    } : {},
     state: isObj(marionCommandPacket && marionCommandPacket.state) ? marionCommandPacket.state : {},
     session: isObj(norm.body && norm.body.session) ? norm.body.session : {},
     meta: {
@@ -11733,6 +11844,10 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       staleCarryBypass: !!norm.staleCarryBypass,
       languageSphereDirectTranslation: !!norm.languageSphereDirectTranslation,
       shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved,
+      effectivePrompt: effectiveMarionText,
+      finalPrompt: effectiveMarionText,
+      resolvedQuestion: cleanText(norm.resolvedQuestion || norm.continuityResolvedText || ""),
+      continuityHandoffHardlock: !!norm.shortFollowupContinuityResolved,
       continuityTopic: cleanText(norm.continuityTopic || ""),
       continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || ""),
       continuityResolvedText: cleanText(norm.continuityResolvedText || "")
