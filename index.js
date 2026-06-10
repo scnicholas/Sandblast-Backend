@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V9-BRLOGIC-PORT25-PLAIN-SMTP-VERIFY-TELEMETRY-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V10-GMAIL-STARTTLS-DIAGNOSTIC-SEND-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -316,7 +316,16 @@ const LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES = Object.freeze([
   "/lingosentinel/start/contact/smtp-health"
 ]);
 
-app.options([...LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES], (req, res) => {
+const LINGOSENTINEL_START_CONTACT_EARLY_SMTP_SEND_TEST_ROUTES = Object.freeze([
+  "/api/contact/smtp-send-test",
+  "/api/lingosentinel/contact/smtp-send-test",
+  "/api/lingosentinel/start/contact/smtp-send-test",
+  "/contact/smtp-send-test",
+  "/lingosentinel/contact/smtp-send-test",
+  "/lingosentinel/start/contact/smtp-send-test"
+]);
+
+app.options([...LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, ...LINGOSENTINEL_START_CONTACT_EARLY_SMTP_SEND_TEST_ROUTES], (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   return res.status(204).end();
@@ -343,6 +352,7 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, (req, res) => {
     aliases: {
       health: LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES,
       smtpHealth: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
+      smtpSendTest: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_SEND_TEST_ROUTES,
       post: LINGOSENTINEL_START_CONTACT_EARLY_ROUTES
     },
     meta: {
@@ -382,9 +392,67 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, async (req, res) =
     verify,
     smtp: contactSmtpPublicDiagnostics(cfg),
     deliveryReady: isContactSmtpConfigDeliverable(cfg),
+    sendTestRoute: "/api/lingosentinel/start/contact/smtp-send-test",
     aliases: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
     meta: { v: INDEX_VERSION, t: now() }
   });
+});
+
+app.all(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_SEND_TEST_ROUTES, async (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+
+  const auth = checkContactDiagnosticAccess(req);
+  if (!auth.ok) {
+    return res.status(403).json({
+      ok: false,
+      service: "lingosentinel-start-contact-smtp-send-test",
+      error: auth.error,
+      message: "SMTP diagnostic send route is locked. Set SB_CONTACT_DIAGNOSTIC_TOKEN and pass ?token=... or x-sb-contact-diagnostic-token."
+    });
+  }
+
+  const cfg = contactConfig();
+  const data = normalizeContactPayload({
+    name: "SMTP Diagnostic",
+    email: cfg.from || cfg.smtpUser || cfg.to,
+    interest: "SMTP diagnostic",
+    region: "Render",
+    message: "Forced SMTP diagnostic send from LingoSentinel backend.",
+    consent: true,
+    source: "LingoSentinel SMTP diagnostic route"
+  });
+
+  try {
+    const delivered = await sendContactEmailViaSmtp(data, { diagnostic: true, forceSynchronous: true });
+    writeContactAudit(data, "diagnostic_delivered", { provider: delivered.provider, deliveredTo: delivered.deliveredTo, diagnostic: true, earlyMount: true });
+    return res.status(200).json({
+      ok: true,
+      service: "lingosentinel-start-contact-smtp-send-test",
+      delivered: true,
+      deliveredTo: delivered.deliveredTo,
+      traceId: data.traceId,
+      result: delivered,
+      smtp: contactSmtpPublicDiagnostics(cfg),
+      routeOrder: "early",
+      message: "SMTP diagnostic email delivered."
+    });
+  } catch (err) {
+    const code = smtpSafeErrorCode(err);
+    const attempts = Array.isArray(err && err.smtpAttempts) ? err.smtpAttempts.slice(0, 8) : [];
+    writeContactAudit(data, "diagnostic_failed", { error: code, smtpAttempts: attempts, diagnostic: true, earlyMount: true });
+    return res.status(200).json({
+      ok: false,
+      service: "lingosentinel-start-contact-smtp-send-test",
+      delivered: false,
+      error: code,
+      attempts,
+      traceId: data.traceId,
+      smtp: contactSmtpPublicDiagnostics(cfg),
+      routeOrder: "early",
+      message: "SMTP diagnostic send failed before delivery."
+    });
+  }
 });
 
 app.post(LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, (req, res) => {
@@ -2137,7 +2205,7 @@ app.options([
 // The browser widget must POST here; this route validates the payload,
 // stores an audit copy, and sends the inquiry to Sandblast's inbox when
 // SMTP credentials are configured on Render.
-const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.8-brlogic-port25-plain-smtp-verify-telemetry-hardlock";
+const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.9-gmail-starttls-diagnostic-send-hardlock";
 const LINGOSENTINEL_CONTACT_DEFAULT_TO = "sandblastchannel@gmail.com";
 const lingosentinelContactRate = new Map();
 const contactSmtpRuntimeState = {
@@ -2206,9 +2274,9 @@ function contactConfig() {
     rateLimitWindowMs: clamp(Number(process.env.SB_CONTACT_RATE_WINDOW_MS || 15 * 60 * 1000), 60 * 1000, 60 * 60 * 1000),
     rateLimitMax: clamp(Number(process.env.SB_CONTACT_RATE_MAX || 8), 1, 200),
     // Longer timeouts prevent Render/Gmail handshake latency from being misread as config failure.
-    smtpConnectTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_CONNECT_TIMEOUT_MS || 60000), 5000, 120000),
-    smtpCommandTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 45000), 5000, 120000),
-    smtpSocketTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_SOCKET_TIMEOUT_MS || 90000), 10000, 180000),
+    smtpConnectTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_CONNECT_TIMEOUT_MS || 20000), 5000, 120000),
+    smtpCommandTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_COMMAND_TIMEOUT_MS || 20000), 5000, 120000),
+    smtpSocketTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_SOCKET_TIMEOUT_MS || 30000), 10000, 180000),
     // Force IPv4 by default for SMTP; this avoids occasional IPv6 egress hangs on hosted runtimes.
     smtpFamily: clamp(Number(process.env.SB_CONTACT_SMTP_FAMILY || 4), 0, 6),
     smtpDebug: process.env.SB_CONTACT_SMTP_DEBUG === "true"
@@ -2276,6 +2344,8 @@ function contactSmtpPublicDiagnostics(cfg) {
     toEmailValid: isValidContactEmail(c.to),
     fromMatchesUser: !!c.from && !!c.smtpUser && c.from === c.smtpUser,
     deliveryReady: isContactSmtpConfigDeliverable(c),
+    nodemailerAvailable: !!contactNodemailerModule(),
+    diagnosticSendRoute: "/api/lingosentinel/start/contact/smtp-send-test",
     expectedForGmail: {
       host: "smtp.gmail.com",
       sslPort: 465,
@@ -2404,6 +2474,91 @@ function queueContactEmailDelivery(data) {
   return true;
 }
 
+
+function contactDiagnosticToken() {
+  return cleanText(process.env.SB_CONTACT_DIAGNOSTIC_TOKEN || process.env.CONTACT_DIAGNOSTIC_TOKEN || "");
+}
+
+function checkContactDiagnosticAccess(req) {
+  const required = contactDiagnosticToken();
+  if (!required) return { ok: true, open: true };
+  const supplied = cleanText(
+    (req && req.query && req.query.token) ||
+    (req && req.headers && (req.headers["x-sb-contact-diagnostic-token"] || req.headers["x-contact-diagnostic-token"])) ||
+    ""
+  );
+  return supplied && supplied === required ? { ok: true, open: false } : { ok: false, error: "diagnostic_token_required" };
+}
+
+function contactNodemailerModule() {
+  try { return require("nodemailer"); } catch (_) {}
+  try { return require("./node_modules/nodemailer"); } catch (_) {}
+  return null;
+}
+
+function contactNodemailerTransportOptions(cfg, attempt) {
+  const a = isObj(attempt) ? attempt : {};
+  const host = cleanText(a.host || cfg.smtpHost);
+  const port = clamp(Number(a.port || cfg.smtpPort), 1, 65535);
+  const secure = typeof a.secure === "boolean" ? a.secure : !!cfg.smtpSecure;
+  const starttls = !secure && (typeof a.starttls === "boolean" ? a.starttls : !!cfg.smtpRequireTls);
+  return {
+    host,
+    port,
+    secure,
+    requireTLS: !!starttls,
+    ignoreTLS: !secure && !starttls,
+    auth: { user: cfg.smtpUser, pass: cfg.smtpPass },
+    connectionTimeout: clamp(Number(cfg.smtpConnectTimeoutMs || 20000), 5000, 120000),
+    greetingTimeout: clamp(Number(cfg.smtpCommandTimeoutMs || 20000), 5000, 120000),
+    socketTimeout: clamp(Number(cfg.smtpSocketTimeoutMs || 30000), 10000, 180000),
+    family: Number(a.family || cfg.smtpFamily || 0) || undefined,
+    tls: {
+      servername: host,
+      rejectUnauthorized: process.env.SB_CONTACT_SMTP_REJECT_UNAUTHORIZED === "false" ? false : true
+    }
+  };
+}
+
+async function smtpVerifyWithNodemailerAttempt(cfg, attempt) {
+  const nodemailer = contactNodemailerModule();
+  if (!nodemailer || typeof nodemailer.createTransport !== "function") {
+    const err = new Error("nodemailer_not_available");
+    err.code = "NODEMAILER_NOT_AVAILABLE";
+    throw err;
+  }
+  const transport = nodemailer.createTransport(contactNodemailerTransportOptions(cfg, attempt));
+  try {
+    await transport.verify();
+    noteContactSmtpAttempt(attempt, "verified", { deliveredTo: cfg.to, detail: "nodemailer" });
+    return { ok: true, verified: true, provider: "nodemailer", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label };
+  } finally {
+    try { transport.close(); } catch (_) {}
+  }
+}
+
+async function smtpDeliverWithNodemailerAttempt(data, cfg, attempt) {
+  const nodemailer = contactNodemailerModule();
+  if (!nodemailer || typeof nodemailer.createTransport !== "function") {
+    const err = new Error("nodemailer_not_available");
+    err.code = "NODEMAILER_NOT_AVAILABLE";
+    throw err;
+  }
+  const transport = nodemailer.createTransport(contactNodemailerTransportOptions(cfg, attempt));
+  try {
+    const info = await transport.sendMail({
+      from: `Sandblast LingoSentinel <${cfg.from}>`,
+      to: cfg.to,
+      replyTo: `${cleanContactHeader(data.name || "Contact", 80)} <${cleanContactHeader(data.email || cfg.from, 254)}>`,
+      subject: cleanContactHeader(`${cfg.subjectPrefix} - ${data.name || "Inquiry"}`, 180),
+      text: buildContactEmailText(data)
+    });
+    noteContactSmtpAttempt(attempt, "delivered", { deliveredTo: cfg.to, detail: cleanText(info && (info.messageId || info.response) || "nodemailer").slice(0, 240) });
+    return { ok: true, deliveredTo: cfg.to, provider: "nodemailer", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label, messageId: cleanText(info && info.messageId || "") };
+  } finally {
+    try { transport.close(); } catch (_) {}
+  }
+}
 
 function smtpEscapeBody(value) {
   return safeStr(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").map((line) => line.startsWith(".") ? `.${line}` : line).join("\r\n");
@@ -2590,6 +2745,7 @@ function smtpSafeErrorCode(err) {
   const raw = cleanText(err && (err.code || err.message) || "SMTP_DELIVERY_FAILED").toUpperCase();
   if (/SMTP_(?:CONNECT|SOCKET|COMMAND)_TIMEOUT_?\d*/.test(raw)) return raw.replace(/[^A-Z0-9_]+/g, "_").slice(0, 80);
   if (/TIMEDOUT|TIMEOUT/.test(raw)) return "SMTP_TIMEOUT";
+  if (/NODEMAILER_NOT_AVAILABLE/.test(raw)) return "NODEMAILER_NOT_AVAILABLE";
   if (/CONTACT_SMTP_USER_INVALID|CONTACT_TO_EMAIL_INVALID|CONTACT_FROM_EMAIL_INVALID|CONTACT_EMAIL_CONFIG_INVALID/.test(raw)) return raw;
   if (/EAUTH|AUTH|535|534/.test(raw)) return "SMTP_AUTH_FAILED";
   if (/ECONNREFUSED|REFUSED/.test(raw)) return "SMTP_CONNECTION_REFUSED";
@@ -2748,14 +2904,27 @@ async function verifyContactSmtpConfig() {
   }
   const failures = [];
   for (const attempt of contactSmtpAttempts(cfg)) {
+    const useNodemailerFirst = /smtp\.gmail\.com$/i.test(attempt.host || cfg.smtpHost);
+    if (useNodemailerFirst) {
+      try {
+        return await smtpVerifyWithNodemailerAttempt(cfg, attempt);
+      } catch (err) {
+        const safeCode = smtpSafeErrorCode(err);
+        const detail = err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "";
+        if (safeCode !== "NODEMAILER_NOT_AVAILABLE") failures.push(`${attempt.label}:nodemailer:${safeCode}`);
+        noteContactSmtpAttempt(attempt, "verify_failed", { error: safeCode, detail: detail || "nodemailer" });
+        console.log("[Sandblast][contact:smtp_verify_failed]", attempt.label, "nodemailer", safeCode, detail);
+        if (/SMTP_AUTH_FAILED|SMTP_DNS_FAILED/.test(safeCode)) continue;
+      }
+    }
     try {
       return await smtpVerifyWithAttempt(cfg, attempt);
     } catch (err) {
       const safeCode = smtpSafeErrorCode(err);
       const detail = err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "";
-      failures.push(`${attempt.label}:${safeCode}`);
+      failures.push(`${attempt.label}:manual:${safeCode}`);
       noteContactSmtpAttempt(attempt, "verify_failed", { error: safeCode, detail });
-      console.log("[Sandblast][contact:smtp_verify_failed]", attempt.label, safeCode, detail);
+      console.log("[Sandblast][contact:smtp_verify_failed]", attempt.label, "manual", safeCode, detail);
     }
   }
   const finalErr = new Error(failures.join("|") || "SMTP_VERIFY_FAILED");
@@ -2821,16 +2990,31 @@ async function sendContactEmailViaSmtp(data) {
 
   const failures = [];
   for (const attempt of contactSmtpAttempts(cfg)) {
+    const useNodemailerFirst = /smtp\.gmail\.com$/i.test(attempt.host || cfg.smtpHost);
+    if (useNodemailerFirst) {
+      try {
+        const delivered = await smtpDeliverWithNodemailerAttempt(data, cfg, attempt);
+        if (cfg.smtpDebug) console.log("[Sandblast][contact:smtp_delivered]", attempt.label, "nodemailer", attempt.host, attempt.port, attempt.secure);
+        return delivered;
+      } catch (err) {
+        const safeCode = smtpSafeErrorCode(err);
+        const detail = err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "";
+        if (safeCode !== "NODEMAILER_NOT_AVAILABLE") failures.push(`${attempt.label}:nodemailer:${safeCode}`);
+        noteContactSmtpAttempt(attempt, "delivery_failed", { error: safeCode, detail: detail || "nodemailer" });
+        console.log("[Sandblast][contact:smtp_attempt_failed]", attempt.label, "nodemailer", safeCode, detail);
+        if (/SMTP_AUTH_FAILED|SMTP_DNS_FAILED/.test(safeCode)) continue;
+      }
+    }
     try {
       const delivered = await smtpDeliverWithAttempt(data, cfg, attempt);
-      if (cfg.smtpDebug) console.log("[Sandblast][contact:smtp_delivered]", attempt.label, attempt.host, attempt.port, attempt.secure);
+      if (cfg.smtpDebug) console.log("[Sandblast][contact:smtp_delivered]", attempt.label, "manual", attempt.host, attempt.port, attempt.secure);
       return delivered;
     } catch (err) {
       const safeCode = smtpSafeErrorCode(err);
       const detail = err && err.smtpResponse ? String(err.smtpResponse).slice(0, 240) : "";
-      failures.push(`${attempt.label}:${safeCode}`);
+      failures.push(`${attempt.label}:manual:${safeCode}`);
       noteContactSmtpAttempt(attempt, "delivery_failed", { error: safeCode, detail });
-      console.log("[Sandblast][contact:smtp_attempt_failed]", attempt.label, safeCode, detail);
+      console.log("[Sandblast][contact:smtp_attempt_failed]", attempt.label, "manual", safeCode, detail);
     }
   }
 
@@ -2848,21 +3032,27 @@ app.options([
   "/api/contact",
   "/api/contact/health",
   "/api/contact/smtp-health",
+  "/api/contact/smtp-send-test",
   "/api/lingosentinel/contact",
   "/api/lingosentinel/contact/health",
   "/api/lingosentinel/contact/smtp-health",
+  "/api/lingosentinel/contact/smtp-send-test",
   "/api/lingosentinel/start/contact",
   "/api/lingosentinel/start/contact/health",
   "/api/lingosentinel/start/contact/smtp-health",
+  "/api/lingosentinel/start/contact/smtp-send-test",
   "/contact",
   "/contact/health",
   "/contact/smtp-health",
+  "/contact/smtp-send-test",
   "/lingosentinel/contact",
   "/lingosentinel/contact/health",
   "/lingosentinel/contact/smtp-health",
+  "/lingosentinel/contact/smtp-send-test",
   "/lingosentinel/start/contact",
   "/lingosentinel/start/contact/health",
-  "/lingosentinel/start/contact/smtp-health"
+  "/lingosentinel/start/contact/smtp-health",
+  "/lingosentinel/start/contact/smtp-send-test"
 ], (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
@@ -2936,6 +3126,38 @@ app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "
     deliveryReady: isContactSmtpConfigDeliverable(cfg),
     meta: { v: INDEX_VERSION, t: now() }
   });
+});
+
+app.all(["/api/contact/smtp-send-test", "/api/lingosentinel/contact/smtp-send-test", "/api/lingosentinel/start/contact/smtp-send-test", "/contact/smtp-send-test", "/lingosentinel/contact/smtp-send-test", "/lingosentinel/start/contact/smtp-send-test"], async (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+
+  const auth = checkContactDiagnosticAccess(req);
+  if (!auth.ok) {
+    return res.status(403).json({ ok: false, service: "lingosentinel-start-contact-smtp-send-test", error: auth.error });
+  }
+
+  const cfg = contactConfig();
+  const data = normalizeContactPayload({
+    name: "SMTP Diagnostic",
+    email: cfg.from || cfg.smtpUser || cfg.to,
+    interest: "SMTP diagnostic",
+    region: "Render",
+    message: "Forced SMTP diagnostic send from LingoSentinel backend.",
+    consent: true,
+    source: "LingoSentinel SMTP diagnostic route"
+  });
+
+  try {
+    const delivered = await sendContactEmailViaSmtp(data, { diagnostic: true, forceSynchronous: true });
+    writeContactAudit(data, "diagnostic_delivered", { provider: delivered.provider, deliveredTo: delivered.deliveredTo, diagnostic: true });
+    return res.status(200).json({ ok: true, service: "lingosentinel-start-contact-smtp-send-test", delivered: true, deliveredTo: delivered.deliveredTo, traceId: data.traceId, result: delivered, smtp: contactSmtpPublicDiagnostics(cfg), message: "SMTP diagnostic email delivered." });
+  } catch (err) {
+    const code = smtpSafeErrorCode(err);
+    const attempts = Array.isArray(err && err.smtpAttempts) ? err.smtpAttempts.slice(0, 8) : [];
+    writeContactAudit(data, "diagnostic_failed", { error: code, smtpAttempts: attempts, diagnostic: true });
+    return res.status(200).json({ ok: false, service: "lingosentinel-start-contact-smtp-send-test", delivered: false, error: code, attempts, traceId: data.traceId, smtp: contactSmtpPublicDiagnostics(cfg), message: "SMTP diagnostic send failed before delivery." });
+  }
 });
 
 app.post(["/api/contact", "/api/lingosentinel/contact", "/api/lingosentinel/start/contact", "/contact", "/lingosentinel/contact", "/lingosentinel/start/contact"], async (req, res) => {
