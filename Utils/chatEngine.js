@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.4 CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "ChatEngine v3.9.5 SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -194,6 +194,22 @@ function firstText() {
     if (value) return value;
   }
   return "";
+}
+
+
+function compactContinuityCarryForTransport(value = {}) {
+  const src = safeObj(value);
+  const topic = cleanText(src.topic || src.lastTopic || src.subject || "");
+  const out = {
+    active: src.active === true || !!topic || src.resolvedFollowup === true,
+    topic: topic.slice(0, 120),
+    lastTopic: cleanText(src.lastTopic || topic).slice(0, 120),
+    resolvedFollowup: !!src.resolvedFollowup,
+    originalText: cleanText(src.originalText || src.continuityResolvedOriginalText || "").slice(0, 220),
+    resolvedText: cleanText(src.resolvedText || src.continuityResolvedText || "").slice(0, 220),
+    source: cleanText(src.source || "chatEngine.continuityCarry")
+  };
+  return out.active ? out : {};
 }
 
 function isPrimitivePublicReplyValue(value) {
@@ -2074,10 +2090,18 @@ async function normalizeInputForMarion(input = {}, options = {}) {
     normalizedUserText: normalizedText,
     languageSphere,
     universalTranslator: languageSphere,
+    continuity: compactContinuityCarryForTransport(src.continuity || safeObj(src.meta).continuity || safeObj(src.payload).continuity || {}),
+    followUpReference: compactContinuityCarryForTransport(src.followUpReference || safeObj(src.meta).followUpReference || safeObj(src.payload).followUpReference || {}),
+    shortFollowupContinuityResolved: !!(src.shortFollowupContinuityResolved || safeObj(src.meta).shortFollowupContinuityResolved),
+    continuityResolvedOriginalText: cleanText(src.continuityResolvedOriginalText || safeObj(src.meta).continuityResolvedOriginalText || ""),
+    continuityResolvedText: cleanText(src.continuityResolvedText || safeObj(src.meta).continuityResolvedText || ""),
     meta: {
       ...safeObj(src.meta),
       languageSphere,
-      universalTranslator: languageSphere
+      universalTranslator: languageSphere,
+      continuity: compactContinuityCarryForTransport(src.continuity || safeObj(src.meta).continuity || safeObj(src.payload).continuity || {}),
+      followUpReference: compactContinuityCarryForTransport(src.followUpReference || safeObj(src.meta).followUpReference || safeObj(src.payload).followUpReference || {}),
+      shortFollowupContinuityResolved: !!(src.shortFollowupContinuityResolved || safeObj(src.meta).shortFollowupContinuityResolved)
     }
   };
 
