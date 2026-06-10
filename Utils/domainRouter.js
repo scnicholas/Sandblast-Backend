@@ -22,7 +22,7 @@
 
 const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
 
-const ROUTER_VERSION = "domainRouter v1.5.4 SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.5 SIX-DOMAIN-DEFINITION-SCORE-AUTHORITY + SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -622,7 +622,12 @@ function scoreDomains(norm, session, cog, opts = {}) {
     signals.push(`cross_domain:${crossDomainProfile.reason}`);
   }
   const definitionDomain = definitionKnowledgeDomainFromText(n.text || n.query || n.message || "");
-  if (definitionDomain) signals.push(`definition:${definitionDomain}`);
+  if (definitionDomain) {
+    scores[definitionDomain] += 4.4;
+    scores[DOMAIN_ENUM.CORE] = Math.max(0, scores[DOMAIN_ENUM.CORE] - 0.4);
+    signals.push(`definition:${definitionDomain}`);
+    signals.push("precedence:six_domain_definition_authority");
+  }
   applyIntentMode(scores, c, s);
   applyRiskClamp(scores, c);
 
@@ -710,6 +715,23 @@ function routeDomain(norm, session, cog, opts = {}) {
   const turnHash = continuityHash(text);
   const sixDomainCoverage = scored.sixDomainCoverage || buildSixDomainCoverage(scored.scores, domainConfidence);
 
+  const answerMode = crossDomainProfile && crossDomainProfile.answerMode ? crossDomainProfile.answerMode : (domainConfidence.answerMode || (domainConfidence.ambiguous ? "clarify" : "grounded"));
+  const routing = {
+    intent: safeStr(safeObj(cog).intent || n.intent || "domain_question") || "domain_question",
+    domain: primary,
+    knowledgeDomain: SIX_KNOWLEDGE_DOMAINS.includes(primary) ? primary : "",
+    primaryDomain: primary,
+    selectedDomain: primary,
+    secondaryDomains: secondary,
+    endpoint: safeStr(o.endpoint || "marion://routeMarion.primary") || "marion://routeMarion.primary",
+    answerMode,
+    domainConfidence,
+    sixDomainCoverage,
+    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+    noCrossDomainBleed: true,
+    finalAuthorityExpected: "marionFinalEnvelope"
+  };
+
   const reason = {
     primary,
     secondary,
@@ -720,12 +742,14 @@ function routeDomain(norm, session, cog, opts = {}) {
     continuity: { fiveTurnReady: true, micTextParity: true },
     domainConfidence,
     sixDomainCoverage,
-    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice()
+    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+    finalAuthorityExpected: "marionFinalEnvelope"
   };
 
   return {
     ok: true,
     routerVersion: ROUTER_VERSION,
+    routing,
     primary,
     primaryDomain: primary,
     selectedDomain: primary,
@@ -739,7 +763,8 @@ function routeDomain(norm, session, cog, opts = {}) {
     sixDomainCoverage,
     allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
     crossDomainProfile: crossDomainProfile || null,
-    answerMode: crossDomainProfile && crossDomainProfile.answerMode ? crossDomainProfile.answerMode : (domainConfidence.answerMode || (domainConfidence.ambiguous ? "clarify" : "grounded")),
+    answerMode,
+    finalAuthorityExpected: "marionFinalEnvelope",
     stateSpinePatch: {
       ...safeObj(scored.stateSpinePatch),
       source: "domainRouter",
