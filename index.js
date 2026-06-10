@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V10-GMAIL-STARTTLS-DIAGNOSTIC-SEND-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -346,7 +346,7 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, (req, res) => {
     acceptsSubmissions: true,
     storageFallback: true,
     deliveredTo: cfg.to,
-    emailDeliveryConfigured: isContactSmtpConfigDeliverable(cfg),
+    emailDeliveryConfigured: isContactDeliveryConfigured(cfg),
     smtp: contactSmtpPublicDiagnostics(cfg),
     requiredEnvForEmail: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS", "SB_CONTACT_TO_EMAIL", "SB_CONTACT_FROM_EMAIL", "SB_CONTACT_SMTP_HOST", "SB_CONTACT_SMTP_PORT", "SB_CONTACT_SMTP_SECURE"],
     aliases: {
@@ -391,7 +391,7 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, async (req, res) =
     diagnosticSafe: true,
     verify,
     smtp: contactSmtpPublicDiagnostics(cfg),
-    deliveryReady: isContactSmtpConfigDeliverable(cfg),
+    deliveryReady: isContactDeliveryConfigured(cfg),
     sendTestRoute: "/api/lingosentinel/start/contact/smtp-send-test",
     aliases: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
     meta: { v: INDEX_VERSION, t: now() }
@@ -2205,7 +2205,7 @@ app.options([
 // The browser widget must POST here; this route validates the payload,
 // stores an audit copy, and sends the inquiry to Sandblast's inbox when
 // SMTP credentials are configured on Render.
-const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/1.9-gmail-starttls-diagnostic-send-hardlock";
+const LINGOSENTINEL_CONTACT_ROUTE_VERSION = "nyx.lingosentinel.startContactRoute/2.0-http-email-api-first-hardlock";
 const LINGOSENTINEL_CONTACT_DEFAULT_TO = "sandblastchannel@gmail.com";
 const lingosentinelContactRate = new Map();
 const contactSmtpRuntimeState = {
@@ -2250,6 +2250,14 @@ function contactConfig() {
   const smtpSecure = secureEnv ? !/^(?:false|0|no|off|starttls)$/i.test(secureEnv) : smtpPort === 465;
   const rawPass = contactEnvRaw("SB_CONTACT_SMTP_PASS") || contactEnvRaw("SMTP_PASS") || contactEnvRaw("GMAIL_APP_PASSWORD") || "";
   const passNoWhitespace = safeStr(rawPass).replace(/[\s\u00a0]+/g, "");
+  const resendKey = contactEnvRaw("SB_RESEND_API_KEY") || contactEnvRaw("RESEND_API_KEY") || "";
+  const brevoKey = contactEnvRaw("SB_BREVO_API_KEY") || contactEnvRaw("BREVO_API_KEY") || contactEnvRaw("SENDINBLUE_API_KEY") || "";
+  const sendgridKey = contactEnvRaw("SB_SENDGRID_API_KEY") || contactEnvRaw("SENDGRID_API_KEY") || "";
+  const mailgunKey = contactEnvRaw("SB_MAILGUN_API_KEY") || contactEnvRaw("MAILGUN_API_KEY") || "";
+  const mailgunDomain = cleanText(process.env.SB_MAILGUN_DOMAIN || process.env.MAILGUN_DOMAIN || "").toLowerCase();
+  const explicitProvider = cleanText(process.env.SB_CONTACT_EMAIL_PROVIDER || process.env.CONTACT_EMAIL_PROVIDER || "").toLowerCase();
+  const autoProvider = resendKey ? "resend" : brevoKey ? "brevo" : sendgridKey ? "sendgrid" : (mailgunKey && mailgunDomain) ? "mailgun" : "smtp";
+  const emailProvider = /^(?:resend|brevo|sendgrid|mailgun|smtp)$/i.test(explicitProvider) ? explicitProvider : autoProvider;
   return {
     enabled: process.env.SB_CONTACT_ROUTE_ENABLED !== "false",
     to: normalizeContactEmail(rawTo),
@@ -2279,7 +2287,18 @@ function contactConfig() {
     smtpSocketTimeoutMs: clamp(Number(process.env.SB_CONTACT_SMTP_SOCKET_TIMEOUT_MS || 30000), 10000, 180000),
     // Force IPv4 by default for SMTP; this avoids occasional IPv6 egress hangs on hosted runtimes.
     smtpFamily: clamp(Number(process.env.SB_CONTACT_SMTP_FAMILY || 4), 0, 6),
-    smtpDebug: process.env.SB_CONTACT_SMTP_DEBUG === "true"
+    smtpDebug: process.env.SB_CONTACT_SMTP_DEBUG === "true",
+    emailProvider,
+    api: {
+      provider: emailProvider,
+      resendKey: safeStr(resendKey).trim(),
+      brevoKey: safeStr(brevoKey).trim(),
+      sendgridKey: safeStr(sendgridKey).trim(),
+      mailgunKey: safeStr(mailgunKey).trim(),
+      mailgunDomain,
+      timeoutMs: clamp(Number(process.env.SB_CONTACT_EMAIL_API_TIMEOUT_MS || 20000), 5000, 120000),
+      fromName: cleanContactHeader(process.env.SB_CONTACT_FROM_NAME || "Sandblast LingoSentinel", 100)
+    }
   };
 }
 function cleanContactInput(value, maxLen) {
@@ -2303,6 +2322,18 @@ function isValidContactEmail(value) {
   return !!s && s.length <= 254 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/i.test(s);
 }
 
+function isContactEmailApiConfigDeliverable(cfg) {
+  const c = isObj(cfg) ? cfg : contactConfig();
+  const api = safeObj(c.api);
+  const provider = cleanText(c.emailProvider || api.provider || "smtp").toLowerCase();
+  if (!c.enabled || !isValidContactEmail(c.from) || !isValidContactEmail(c.to)) return false;
+  if (provider === "resend") return !!api.resendKey;
+  if (provider === "brevo") return !!api.brevoKey;
+  if (provider === "sendgrid") return !!api.sendgridKey;
+  if (provider === "mailgun") return !!api.mailgunKey && !!api.mailgunDomain;
+  return false;
+}
+
 function isContactSmtpConfigDeliverable(cfg) {
   const c = isObj(cfg) ? cfg : contactConfig();
   return !!(
@@ -2315,6 +2346,11 @@ function isContactSmtpConfigDeliverable(cfg) {
     isValidContactEmail(c.from) &&
     isValidContactEmail(c.to)
   );
+}
+
+function isContactDeliveryConfigured(cfg) {
+  const c = isObj(cfg) ? cfg : contactConfig();
+  return isContactEmailApiConfigDeliverable(c) || isContactSmtpConfigDeliverable(c);
 }
 
 function contactSmtpPublicDiagnostics(cfg) {
@@ -2343,7 +2379,11 @@ function contactSmtpPublicDiagnostics(cfg) {
     fromEmailValid: isValidContactEmail(c.from),
     toEmailValid: isValidContactEmail(c.to),
     fromMatchesUser: !!c.from && !!c.smtpUser && c.from === c.smtpUser,
-    deliveryReady: isContactSmtpConfigDeliverable(c),
+    deliveryReady: isContactDeliveryConfigured(c),
+    smtpDeliveryReady: isContactSmtpConfigDeliverable(c),
+    emailApiDeliveryReady: isContactEmailApiConfigDeliverable(c),
+    emailProvider: cleanText(c.emailProvider || "smtp"),
+    emailApi: contactEmailApiPublicDiagnostics(c),
     nodemailerAvailable: !!contactNodemailerModule(),
     diagnosticSendRoute: "/api/lingosentinel/start/contact/smtp-send-test",
     expectedForGmail: {
@@ -2363,6 +2403,187 @@ function contactSmtpPublicDiagnostics(cfg) {
     lastDeliveryAttempt: contactSmtpPublicState(),
     attempts: contactSmtpAttemptLabels(c)
   };
+}
+
+
+function contactEmailApiPublicDiagnostics(cfg) {
+  const c = isObj(cfg) ? cfg : contactConfig();
+  const api = safeObj(c.api);
+  const provider = cleanText(c.emailProvider || api.provider || "smtp").toLowerCase();
+  return {
+    provider,
+    enabled: provider !== "smtp",
+    resendKeyPresent: !!api.resendKey,
+    brevoKeyPresent: !!api.brevoKey,
+    sendgridKeyPresent: !!api.sendgridKey,
+    mailgunKeyPresent: !!api.mailgunKey,
+    mailgunDomainPresent: !!api.mailgunDomain,
+    fromEmailValid: isValidContactEmail(c.from),
+    toEmailValid: isValidContactEmail(c.to),
+    deliveryReady: isContactEmailApiConfigDeliverable(c),
+    timeoutMs: Number(api.timeoutMs || 0),
+    priority: ["http_email_api", "smtp_fallback", "audit_storage"]
+  };
+}
+
+function contactEmailApiEndpoint(cfg) {
+  const provider = cleanText(cfg.emailProvider || safeObj(cfg.api).provider || "smtp").toLowerCase();
+  if (provider === "resend") return "https://api.resend.com/emails";
+  if (provider === "brevo") return "https://api.brevo.com/v3/smtp/email";
+  if (provider === "sendgrid") return "https://api.sendgrid.com/v3/mail/send";
+  if (provider === "mailgun") return `https://api.mailgun.net/v3/${encodeURIComponent(safeObj(cfg.api).mailgunDomain || "")}/messages`;
+  return "";
+}
+
+function contactEmailApiHeaders(cfg) {
+  const api = safeObj(cfg.api);
+  const provider = cleanText(cfg.emailProvider || api.provider || "smtp").toLowerCase();
+  if (provider === "resend") return { Authorization: `Bearer ${api.resendKey}`, "Content-Type": "application/json" };
+  if (provider === "brevo") return { "api-key": api.brevoKey, "Content-Type": "application/json" };
+  if (provider === "sendgrid") return { Authorization: `Bearer ${api.sendgridKey}`, "Content-Type": "application/json" };
+  if (provider === "mailgun") return { Authorization: `Basic ${Buffer.from(`api:${api.mailgunKey}`).toString("base64")}`, "Content-Type": "application/x-www-form-urlencoded" };
+  return {};
+}
+
+function contactDisplayFrom(cfg) {
+  const name = cleanContactHeader(safeObj(cfg.api).fromName || "Sandblast LingoSentinel", 100);
+  return name ? `${name} <${cfg.from}>` : cfg.from;
+}
+
+function buildContactEmailApiPayload(data, cfg) {
+  const provider = cleanText(cfg.emailProvider || safeObj(cfg.api).provider || "smtp").toLowerCase();
+  const subject = cleanContactHeader(`${cfg.subjectPrefix} - ${data.name || "Inquiry"}`, 180);
+  const text = buildContactEmailText(data);
+  const replyTo = isValidContactEmail(data.email) ? data.email : cfg.from;
+  if (provider === "resend") {
+    return { from: contactDisplayFrom(cfg), to: [cfg.to], reply_to: replyTo, subject, text };
+  }
+  if (provider === "brevo") {
+    return {
+      sender: { name: safeObj(cfg.api).fromName || "Sandblast LingoSentinel", email: cfg.from },
+      to: [{ email: cfg.to }],
+      replyTo: { email: replyTo, name: cleanContactHeader(data.name || "Contact", 80) || "Contact" },
+      subject,
+      textContent: text
+    };
+  }
+  if (provider === "sendgrid") {
+    return {
+      personalizations: [{ to: [{ email: cfg.to }] }],
+      from: { email: cfg.from, name: safeObj(cfg.api).fromName || "Sandblast LingoSentinel" },
+      reply_to: { email: replyTo, name: cleanContactHeader(data.name || "Contact", 80) || "Contact" },
+      subject,
+      content: [{ type: "text/plain", value: text }]
+    };
+  }
+  if (provider === "mailgun") {
+    const params = new URLSearchParams();
+    params.set("from", contactDisplayFrom(cfg));
+    params.set("to", cfg.to);
+    params.set("h:Reply-To", `${cleanContactHeader(data.name || "Contact", 80)} <${replyTo}>`);
+    params.set("subject", subject);
+    params.set("text", text);
+    return params.toString();
+  }
+  return null;
+}
+
+function contactHttpsRequestJson(url, headers, body, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let parsed;
+    try { parsed = new URL(url); } catch (err) { err.code = "EMAIL_API_URL_INVALID"; reject(err); return; }
+    if (parsed.protocol !== "https:") {
+      const err = new Error("email_api_requires_https");
+      err.code = "EMAIL_API_REQUIRES_HTTPS";
+      reject(err);
+      return;
+    }
+    const https = require("https");
+    const payload = typeof body === "string" ? body : JSON.stringify(body || {});
+    const req = https.request({
+      method: "POST",
+      hostname: parsed.hostname,
+      path: `${parsed.pathname}${parsed.search || ""}`,
+      headers: {
+        ...(isObj(headers) ? headers : {}),
+        "Content-Length": Buffer.byteLength(payload),
+        "User-Agent": "Sandblast-LingoSentinel-Contact/2.0"
+      },
+      timeout: clamp(Number(timeoutMs || 20000), 5000, 120000)
+    }, (resp) => {
+      let raw = "";
+      resp.setEncoding("utf8");
+      resp.on("data", (chunk) => { raw += chunk; if (raw.length > 20000) raw = raw.slice(0, 20000); });
+      resp.on("end", () => {
+        let parsedBody = null;
+        try { parsedBody = raw ? JSON.parse(raw) : null; } catch (_) { parsedBody = raw; }
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+          resolve({ statusCode: resp.statusCode, body: parsedBody, rawBody: raw, headers: resp.headers });
+          return;
+        }
+        const err = new Error(`email_api_http_${resp.statusCode}`);
+        err.code = `EMAIL_API_HTTP_${resp.statusCode}`;
+        err.statusCode = resp.statusCode;
+        err.responseBody = raw.slice(0, 800);
+        reject(err);
+      });
+    });
+    req.on("timeout", () => {
+      const err = new Error("email_api_timeout");
+      err.code = "EMAIL_API_TIMEOUT";
+      try { req.destroy(err); } catch (_) {}
+    });
+    req.on("error", (err) => {
+      if (!err.code) err.code = "EMAIL_API_REQUEST_FAILED";
+      reject(err);
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
+function emailApiSafeErrorCode(err) {
+  const raw = cleanText(err && (err.code || err.message) || "EMAIL_API_DELIVERY_FAILED").toUpperCase();
+  if (/EMAIL_API_HTTP_401|EMAIL_API_HTTP_403|UNAUTHORIZED|FORBIDDEN|API_KEY/.test(raw)) return "EMAIL_API_AUTH_FAILED";
+  if (/EMAIL_API_HTTP_400|BAD_REQUEST|VALIDATION/.test(raw)) return "EMAIL_API_BAD_REQUEST";
+  if (/EMAIL_API_HTTP_429|RATE/.test(raw)) return "EMAIL_API_RATE_LIMITED";
+  if (/TIMEOUT|ETIMEDOUT/.test(raw)) return "EMAIL_API_TIMEOUT";
+  if (/ENOTFOUND|EAI_AGAIN|DNS/.test(raw)) return "EMAIL_API_DNS_FAILED";
+  if (/ECONNREFUSED|REFUSED/.test(raw)) return "EMAIL_API_CONNECTION_REFUSED";
+  return raw.replace(/[^A-Z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "EMAIL_API_DELIVERY_FAILED";
+}
+
+async function sendContactEmailViaHttpApi(data, cfg) {
+  const c = isObj(cfg) ? cfg : contactConfig();
+  const provider = cleanText(c.emailProvider || safeObj(c.api).provider || "smtp").toLowerCase();
+  if (provider === "smtp") {
+    const err = new Error("contact_email_api_not_selected");
+    err.code = "CONTACT_EMAIL_API_NOT_SELECTED";
+    throw err;
+  }
+  if (!isContactEmailApiConfigDeliverable(c)) {
+    const err = new Error("contact_email_api_not_configured");
+    err.code = "CONTACT_EMAIL_API_NOT_CONFIGURED";
+    throw err;
+  }
+  const endpoint = contactEmailApiEndpoint(c);
+  const payload = buildContactEmailApiPayload(data, c);
+  const headers = contactEmailApiHeaders(c);
+  try {
+    const result = await contactHttpsRequestJson(endpoint, headers, payload, safeObj(c.api).timeoutMs);
+    const providerId = cleanText(
+      (isObj(result.body) && (result.body.id || result.body.messageId || result.body.message_id)) ||
+      result.headers && (result.headers["x-message-id"] || result.headers["x-request-id"]) ||
+      ""
+    );
+    noteContactSmtpAttempt({ label: `${provider}-http-api`, host: endpoint, port: 443, secure: true, starttls: false }, "delivered", { deliveredTo: c.to, detail: providerId || `http_${result.statusCode}` });
+    return { ok: true, deliveredTo: c.to, provider: `${provider}-http-api`, endpoint, statusCode: result.statusCode, messageId: providerId };
+  } catch (err) {
+    const code = emailApiSafeErrorCode(err);
+    noteContactSmtpAttempt({ label: `${provider}-http-api`, host: endpoint, port: 443, secure: true, starttls: false }, "delivery_failed", { error: code, detail: cleanText(err && (err.responseBody || err.message) || "").slice(0, 240) });
+    err.code = code;
+    throw err;
+  }
 }
 
 function contactClientKey(req) {
@@ -2743,6 +2964,7 @@ function smtpStartTls(socket, cfg) {
 
 function smtpSafeErrorCode(err) {
   const raw = cleanText(err && (err.code || err.message) || "SMTP_DELIVERY_FAILED").toUpperCase();
+  if (/EMAIL_API|CONTACT_EMAIL_API/.test(raw)) return emailApiSafeErrorCode(err);
   if (/SMTP_(?:CONNECT|SOCKET|COMMAND)_TIMEOUT_?\d*/.test(raw)) return raw.replace(/[^A-Z0-9_]+/g, "_").slice(0, 80);
   if (/TIMEDOUT|TIMEOUT/.test(raw)) return "SMTP_TIMEOUT";
   if (/NODEMAILER_NOT_AVAILABLE/.test(raw)) return "NODEMAILER_NOT_AVAILABLE";
@@ -2967,16 +3189,6 @@ async function sendContactEmailViaSmtp(data) {
     err.code = "CONTACT_DISABLED";
     throw err;
   }
-  if (!cfg.smtpUser || !cfg.smtpPass) {
-    const err = new Error("contact_smtp_not_configured");
-    err.code = "CONTACT_SMTP_NOT_CONFIGURED";
-    throw err;
-  }
-  if (!isValidContactEmail(cfg.smtpUser)) {
-    const err = new Error("contact_smtp_user_invalid");
-    err.code = "CONTACT_SMTP_USER_INVALID";
-    throw err;
-  }
   if (!isValidContactEmail(cfg.to)) {
     const err = new Error("contact_to_email_invalid");
     err.code = "CONTACT_TO_EMAIL_INVALID";
@@ -2989,6 +3201,38 @@ async function sendContactEmailViaSmtp(data) {
   }
 
   const failures = [];
+  const provider = cleanText(cfg.emailProvider || safeObj(cfg.api).provider || "smtp").toLowerCase();
+  if (provider !== "smtp") {
+    try {
+      return await sendContactEmailViaHttpApi(data, cfg);
+    } catch (err) {
+      const code = emailApiSafeErrorCode(err);
+      failures.push(`${provider}:http-api:${code}`);
+      console.log("[Sandblast][contact:email_api_failed]", provider, code, err && err.responseBody ? String(err.responseBody).slice(0, 240) : "");
+      const hardApiFailure = /EMAIL_API_AUTH_FAILED|EMAIL_API_BAD_REQUEST|EMAIL_API_RATE_LIMITED/.test(code);
+      const smtpFallbackDisabled = process.env.SB_CONTACT_SMTP_FALLBACK_DISABLED === "true";
+      if (hardApiFailure || smtpFallbackDisabled) {
+        const finalErr = new Error(failures.join("|") || code);
+        finalErr.code = code;
+        finalErr.smtpAttempts = failures;
+        throw finalErr;
+      }
+    }
+  }
+
+  if (!cfg.smtpUser || !cfg.smtpPass) {
+    const err = new Error("contact_smtp_not_configured");
+    err.code = "CONTACT_SMTP_NOT_CONFIGURED";
+    err.smtpAttempts = failures;
+    throw err;
+  }
+  if (!isValidContactEmail(cfg.smtpUser)) {
+    const err = new Error("contact_smtp_user_invalid");
+    err.code = "CONTACT_SMTP_USER_INVALID";
+    err.smtpAttempts = failures;
+    throw err;
+  }
+
   for (const attempt of contactSmtpAttempts(cfg)) {
     const useNodemailerFirst = /smtp\.gmail\.com$/i.test(attempt.host || cfg.smtpHost);
     if (useNodemailerFirst) {
@@ -3086,11 +3330,11 @@ app.get(["/api/contact/health", "/api/lingosentinel/contact/health", "/api/lingo
     enabled: !!cfg.enabled,
     acceptsSubmissions: true,
     storageFallback: true,
-    deliveryConfigured: !!(cfg.smtpUser && cfg.smtpPass && isValidContactEmail(cfg.to)),
+    deliveryConfigured: isContactDeliveryConfigured(cfg),
     smtp: contactSmtpPublicDiagnostics(cfg),
     deliveredTo: cfg.to,
-    provider: "smtp",
-    requires: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS"],
+    provider: cfg.emailProvider || "smtp",
+    requires: ["SB_CONTACT_EMAIL_PROVIDER + provider API key", "or SB_CONTACT_SMTP_USER + SB_CONTACT_SMTP_PASS fallback"],
     note: "The route accepts and stores submissions even when SMTP delivery is not configured."
   });
 });
@@ -3123,7 +3367,7 @@ app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "
     diagnosticSafe: true,
     verify,
     smtp: contactSmtpPublicDiagnostics(cfg),
-    deliveryReady: isContactSmtpConfigDeliverable(cfg),
+    deliveryReady: isContactDeliveryConfigured(cfg),
     meta: { v: INDEX_VERSION, t: now() }
   });
 });
