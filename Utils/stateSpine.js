@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.3 SHORT-FOLLOWUP-CONTINUITY-TOPIC-BINDING + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.16.4 SHORT-FOLLOWUP-CONTINUITY-HOTFIX + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -253,18 +253,53 @@ function extractQuestionShapeCarry(params = {}, inbound = {}, memoryPatch = {}) 
 
 function normalizeContinuityCarry(value = {}) {
   const src = isPlainObject(value) ? value : {};
-  const topic = boundedOneLine(src.topic || src.lastTopic || src.subject || "", 120);
+  const prev = safeObj(src.prevState || src.previousState || src.state || src.stateSpine || src.conversationState);
+  const prior = safeObj(src.continuity || prev.continuity);
+  const topic = boundedOneLine(
+    src.topic || src.lastTopic || src.subject ||
+    prior.topic || prior.lastTopic || prior.subject ||
+    prev.lastTopic || prev.topic || prev.normalizedUserIntent || "",
+    120
+  );
+  const resolvedText = boundedOneLine(src.resolvedText || src.continuityResolvedText || prior.resolvedText || "", 260);
+  const originalText = boundedOneLine(src.originalText || src.continuityResolvedOriginalText || prior.originalText || "", 220);
   const out = {
-    active: src.active === true || !!topic || src.resolvedFollowup === true,
+    active: src.active === true || prior.active === true || !!topic || src.resolvedFollowup === true || prior.resolvedFollowup === true,
     topic,
-    lastTopic: boundedOneLine(src.lastTopic || topic, 120),
-    resolvedFollowup: !!src.resolvedFollowup,
-    originalText: boundedOneLine(src.originalText || src.continuityResolvedOriginalText || "", 220),
-    resolvedText: boundedOneLine(src.resolvedText || src.continuityResolvedText || "", 220),
-    source: boundedOneLine(src.source || "stateSpine.continuityCarry", 80)
+    lastTopic: boundedOneLine(src.lastTopic || prior.lastTopic || topic, 120),
+    resolvedFollowup: !!(src.resolvedFollowup || prior.resolvedFollowup || (topic && resolvedText)),
+    originalText,
+    resolvedText,
+    source: boundedOneLine(src.source || prior.source || "stateSpine.continuityCarry.hotfix", 80)
   };
   return out.active ? out : {};
 }
+
+function isShortContinuityFollowupStateText(value = "") {
+  const t = oneLine(value).replace(/[.?!]+$/g, "").toLowerCase();
+  if (!t) return false;
+  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|example|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
+    (/\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically)\b/i.test(t));
+}
+
+function continuityTopicFromState(prev = {}, inbound = {}, memoryPatch = {}, normalizedUserIntent = "") {
+  const p = isPlainObject(prev) ? prev : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const meta = safeObj(src.meta);
+  const payload = safeObj(src.payload);
+  const continuity = normalizeContinuityCarry(mp.continuity || src.continuity || meta.continuity || payload.continuity || p.continuity || p);
+  const candidate = boundedOneLine(
+    continuity.topic || continuity.lastTopic ||
+    mp.lastTopic || safeObj(mp.stateBridge).lastTopic ||
+    p.lastTopic || safeObj(p.continuity).topic || safeObj(p.continuity).lastTopic ||
+    "",
+    320
+  );
+  if (candidate && isShortContinuityFollowupStateText(normalizedUserIntent)) return candidate;
+  return boundedOneLine(mp.lastTopic || normalizedUserIntent || deriveStateTopic(inbound, memoryPatch, safeStr(src.lane || p.lane || "general")) || p.lastTopic, 320);
+}
+
 
 
 function boundedOneLine(value, max = MAX_STATE_TEXT) {
@@ -2396,7 +2431,7 @@ function finalizeTurn(params = {}) {
   };
 
   const nextTurnDepth = trustedFinalCompletion ? Math.max(1, clampInt(memoryPatch.turnDepth, 0, 0, 999999) || (deepeningInbound ? clampInt(prev.turnDepth, 0, 0, 999999) + 1 : 1)) : clampInt(prev.turnDepth, 0, 0, 999999);
-  const nextTopic = firstNonEmpty(memoryPatch.lastTopic, normalizedUserIntent, deriveStateTopic(inbound, memoryPatch, lane), prev.lastTopic);
+  const nextTopic = continuityTopicFromState(prev, inbound, memoryPatch, normalizedUserIntent);
   const nextCarryForwardSummary = trustedFinalCompletion ? buildStateCarryForwardSummary({ prev, inbound, memoryPatch, speak, intent, domain: composerDomain, lane }) : prev.carryForwardSummary;
   const nextConversationSummary = trustedFinalCompletion ? compactStateSummary(nextCarryForwardSummary, 760) : prev.conversationSummary;
   const inputSource = canonicalTurnInputSource(inbound, { ...params, inputSource: memoryPatch.inputSource });
@@ -2774,6 +2809,8 @@ module.exports = {
   normalizeParallelLaneRecencyCarry,
   extractParallelLaneRecencyCarry,
   FINAL_RENDER_TELEMETRY_VERSION,
-  normalizeContinuityCarry
+  normalizeContinuityCarry,
+  isShortContinuityFollowupStateText,
+  continuityTopicFromState
 };
 module.exports.default = module.exports;
