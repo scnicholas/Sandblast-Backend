@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.27sb SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.28sb PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -1219,20 +1219,70 @@ function buildPublicChatResponse(packet, reply) {
   const playbackSrc = safeObj(src.playback);
   const ttsSrc = safeObj(src.tts);
   const lingoSentinelAnswer = buildLingoSentinelPublicAnswerFromPacket(src);
-  let safeReply = cleanReplyForUser(reply || src.displayReply || src.reply || src.response || src.text || src.answer || payload.displayReply || payload.reply || finalEnvelope.displayReply || finalEnvelope.reply || "");
-  // Do not inject last-mile progression replies here. Public chat rendering must
-  // display only a cleaned Marion/Nyx answer or an approved deterministic
-  // non-workflow recovery.
+
+  let safeReply = cleanReplyForUser(
+    reply ||
+    src.displayReply ||
+    src.reply ||
+    src.response ||
+    src.text ||
+    src.answer ||
+    payload.displayReply ||
+    payload.reply ||
+    finalEnvelope.displayReply ||
+    finalEnvelope.reply ||
+    ""
+  );
+
+  // PUBLIC-FINAL-PROJECTION-HARDLOCK:
+  // The /api/chat public response must never expose runtime/advisory objects
+  // such as contextPassport, speech, playback, tts, diagnostics, telemetry, or
+  // bridge/composer envelopes as top-level public fields. The browser-facing
+  // contract is one clean final answer plus primitive route metadata only.
+  // Internal voice/context objects can still exist upstream; they are collapsed
+  // here into safe primitive text fields so PowerShell, Webflow, and the widget
+  // cannot render the runtime envelope as the user-facing answer.
   if (lingoSentinelAnswer && (!safeReply || isGenericGreetingStatusReply(safeReply))) safeReply = lingoSentinelAnswer;
   if (!safeReply) safeReply = lingoSentinelAnswer;
   if (!safeReply) safeReply = buildLastMileRecoveryReply(src);
-  if (!safeReply || isPrimitivePlaceholderReplyValue(safeReply)) return buildSuppressedPublicChatResponse(src, "blank_or_unsafe_public_reply");
-  const spokenText = cleanReplyForUser(src.spokenText || src.textSpeak || speechSrc.textSpeak || speechSrc.spokenText || payload.spokenText || safeReply) || safeReply;
-  const textSpeak = cleanReplyForUser(src.textSpeak || speechSrc.textSpeak || payload.textSpeak || spokenText || safeReply) || spokenText || safeReply;
-  const textDisplay = cleanReplyForUser(src.textDisplay || speechSrc.textDisplay || payload.textDisplay || safeReply) || safeReply;
+  if (!safeReply || isPrimitivePlaceholderReplyValue(safeReply)) {
+    return buildSuppressedPublicChatResponse(src, "blank_or_unsafe_public_reply");
+  }
+
+  const spokenText = cleanReplyForUser(
+    src.spokenText ||
+    src.textSpeak ||
+    speechSrc.textSpeak ||
+    speechSrc.spokenText ||
+    payload.spokenText ||
+    safeReply
+  ) || safeReply;
+
+  const textSpeak = cleanReplyForUser(
+    src.textSpeak ||
+    speechSrc.textSpeak ||
+    payload.textSpeak ||
+    spokenText ||
+    safeReply
+  ) || spokenText || safeReply;
+
+  const textDisplay = cleanReplyForUser(
+    src.textDisplay ||
+    speechSrc.textDisplay ||
+    payload.textDisplay ||
+    safeReply
+  ) || safeReply;
+
   const marionFinal = src.marionFinal === true || finalEnvelope.marionFinal === true || payload.marionFinal === true;
   const authority = marionFinal ? "marionFinalEnvelope" : cleanText(finalEnvelope.authority || src.authority || "marion");
-  const out = {
+  const requestId = cleanText(src.requestId || payload.requestId || "") || undefined;
+  const sessionId = cleanText(src.sessionId || payload.sessionId || "") || undefined;
+  const traceId = cleanText(src.traceId || payload.traceId || "") || undefined;
+  const inputSource = cleanText(src.inputSource || payload.inputSource || "text") || "text";
+  const lane = cleanText(src.lane || src.laneId || src.sessionLane || payload.lane || "general") || "general";
+  const voiceRoute = cleanPublicVoiceRoute(src.voiceRoute || payload.voiceRoute || playbackSrc.route || "");
+
+  return {
     ok: src.ok !== false,
     final: true,
     marionFinal,
@@ -1241,35 +1291,42 @@ function buildPublicChatResponse(packet, reply) {
     suppressUserFacingReply: false,
     emit: true,
     blocked: false,
+
+    // Public answer aliases retained for widget compatibility.
     reply: safeReply,
+    message: safeReply,
     text: safeReply,
     short: safeReply,
     answer: safeReply,
     output: safeReply,
     response: safeReply,
     displayReply: safeReply,
+    textDisplay,
     spokenText,
     textSpeak,
-    textDisplay,
-    detail: cleanReplyForUser(src.detail || payload.detail || safeReply) || safeReply,
+
     source: "marion",
     authority,
-    requestId: cleanText(src.requestId || payload.requestId || "") || undefined,
-    sessionId: cleanText(src.sessionId || payload.sessionId || "") || undefined,
-    traceId: cleanText(src.traceId || payload.traceId || "") || undefined,
-    inputSource: cleanText(src.inputSource || payload.inputSource || "text") || "text",
-    lane: cleanText(src.lane || src.laneId || src.sessionLane || payload.lane || "general") || "general",
+    requestId,
+    sessionId,
+    traceId,
+    inputSource,
+    lane,
+    voiceRoute: voiceRoute || undefined,
+
+    // Keep compatibility envelopes, but only with public-safe scalar answer
+    // fields. Do not pass through source runtime objects.
     payload: {
       reply: safeReply,
-      text: safeReply,
       message: safeReply,
+      text: safeReply,
       answer: safeReply,
       output: safeReply,
       response: safeReply,
       displayReply: safeReply,
+      textDisplay,
       spokenText,
       textSpeak,
-      textDisplay,
       final: true,
       finalized: true,
       marionFinal,
@@ -1289,39 +1346,15 @@ function buildPublicChatResponse(packet, reply) {
       handled: true,
       authority,
       contractVersion: marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0"
+    },
+
+    publicSurface: {
+      version: "nyx.index.publicFinalProjection/1.0",
+      clean: true,
+      runtimeEnvelopeSuppressed: true,
+      noUserFacingDiagnostics: true
     }
   };
-  const contextPassport = buildPublicContextPassportFromPacket(src);
-  if (contextPassport) out.contextPassport = contextPassport;
-  const speech = scrubPublicObject({
-    enabled: speechSrc.enabled,
-    speak: speechSrc.speak,
-    text: safeReply,
-    textDisplay,
-    textSpeak,
-    provider: cleanText(speechSrc.provider || "") || undefined,
-    presenceProfile: cleanText(speechSrc.presenceProfile || "") || undefined,
-    nyxStateHint: cleanText(speechSrc.nyxStateHint || "") || undefined
-  });
-  if (speech) out.speech = speech;
-  const playback = scrubPublicObject({
-    ready: playbackSrc.ready,
-    autoPlay: playbackSrc.autoPlay,
-    route: cleanPublicVoiceRoute(playbackSrc.route || "/api/tts"),
-    health: cleanPublicVoiceRoute(playbackSrc.health || "/api/tts/health"),
-    textSpeak,
-    provider: cleanText(playbackSrc.provider || ttsSrc.provider || "") || undefined
-  });
-  if (playback) out.playback = playback;
-  const tts = scrubPublicObject({
-    ready: ttsSrc.ready,
-    textSpeak,
-    provider: cleanText(ttsSrc.provider || playbackSrc.provider || "") || undefined
-  });
-  if (tts) out.tts = tts;
-  const voiceRoute = cleanPublicVoiceRoute(src.voiceRoute || payload.voiceRoute || "");
-  if (voiceRoute) out.voiceRoute = voiceRoute;
-  return out;
 }
 
 function applyPublicReplyHygieneToResponse(packet) {
