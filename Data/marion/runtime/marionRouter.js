@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionRouter v1.4.0 STATE-SPINE-COHESION-HARDENED";
+const VERSION = "marionRouter v1.4.1 SIX-DOMAIN-COVERAGE-CARRY + STATE-SPINE-COHESION-HARDENED";
 const DEBUG_TAG = "[MARION] marionRouter patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
 
@@ -180,13 +180,13 @@ function _canonicalizeDomain(value) {
     core: "general",
     fin: "finance",
     en: "english",
-    cyber: "cybersecurity",
+    cyber: "cyber",
+    cybersecurity: "cyber",
     psychology: "psychology",
     psych: "psychology",
     strat: "strategy",
     mkt: "marketing",
     strategy: "strategy",
-    cybersecurity: "cybersecurity",
     legal: "law",
     law: "law",
     english: "english",
@@ -334,7 +334,7 @@ function routeMarion(input = {}) {
           { text, lane: input.requestedDomain || input.domain || "", action: input.action || "" },
           _safeObj(input.session),
           { intent: _trim(input.intent || _safeArray(classified.domainCandidates)[0] || "general"), riskTier: _safeObj(classified.classifications).crisis ? "high" : "low" },
-          { maxSecondary: 3 }
+          { maxSecondary: 5 }
         );
       } catch (_e) {
         routed = null;
@@ -342,7 +342,9 @@ function routeMarion(input = {}) {
     }
 
     const primaryDomain = _choosePrimaryDomain(classified, psychology, routed);
-    const secondaryDomains = _safeArray(routed && routed.secondary).map(_canonicalizeDomain).filter((d) => d && d !== primaryDomain);
+    const secondaryDomains = _safeArray((routed && (routed.secondaryDomains || routed.secondary)) || []).map(_canonicalizeDomain).filter((d) => d && d !== primaryDomain).slice(0, 5);
+    const sixDomainCoverage = _safeArray(routed && (routed.sixDomainCoverage || _safeObj(routed.reason).sixDomainCoverage)).map((item) => ({ ..._safeObj(item), domain: _canonicalizeDomain(_safeObj(item).domain) })).filter((item) => item.domain).slice(0, 6);
+    const allKnowledgeDomains = _safeArray(routed && (routed.allKnowledgeDomains || _safeObj(routed.reason).allKnowledgeDomains)).map(_canonicalizeDomain).filter(Boolean).slice(0, 6);
     const blendProfile = _buildBlendProfile(primaryEmotion, emotion);
     const stateDrift = _buildStateDrift(primaryEmotion, previousMemory);
     const inferredIntent = _inferMarionIntentFromDomain(primaryDomain, classified, text);
@@ -357,6 +359,8 @@ function routeMarion(input = {}) {
       marionIntent: { activate: inferredIntent !== 'simple_chat', intent: inferredIntent, confidence: _clamp(_safeObj(classified).confidence || _safeObj(classified.classifications).confidence || 0.72, 0, 1), reason: 'marionRouter_domain_intent_alignment', source: 'marionRouter' },
       routing,
       secondaryDomains,
+      sixDomainCoverage,
+      allKnowledgeDomains,
       classified: {
         ...classified,
         domainCandidates: _safeArray(classified.domainCandidates).map(_canonicalizeDomain).filter(Boolean)
@@ -387,7 +391,7 @@ function routeMarion(input = {}) {
         domainCandidates: _safeArray(classified.domainCandidates).map(_canonicalizeDomain).filter(Boolean),
         usedPsychology: !!(psychology && psychology.matched),
         supportFlagCount: Object.keys(finalSupportFlags).length,
-        routed: routed ? { primary: _canonicalizeDomain(routed.primary), secondary: secondaryDomains } : null,
+        routed: routed ? { primary: _canonicalizeDomain(routed.primary), secondary: secondaryDomains, sixDomainCoverage, allKnowledgeDomains } : null,
         blockedInternalEmission: !!(psychology && psychology.blockedInternalEmission),
         softFallback: false,
         bridgeCompatible: true,
