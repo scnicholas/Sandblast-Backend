@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.2 SHORT-FOLLOWUP-CONTINUITY-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.16.3 SHORT-FOLLOWUP-CONTINUITY-TOPIC-BINDING + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -1328,6 +1328,7 @@ function createState(seed = {}) {
     lastAssistantReply: "",
     lastKnowledgeDomain: "",
     lastTopic: "",
+    continuity: {},
     conversationSummary: "",
     carryForwardSummary: "",
     turnDepth: 0,
@@ -2422,6 +2423,13 @@ function finalizeTurn(params = {}) {
     activeKnowledgeDomain: activeKnowledgeDomainCarry || prev.activeKnowledgeDomain || "",
     lastActivatedKnowledgeDomain: activeKnowledgeDomainCarry || prev.lastActivatedKnowledgeDomain || prev.lastKnowledgeDomain || "",
     lastTopic: boundedOneLine(nextTopic, 320),
+    continuity: normalizeContinuityCarry({
+      active: !!boundedOneLine(nextTopic, 320),
+      topic: boundedOneLine(nextTopic, 320),
+      lastTopic: boundedOneLine(nextTopic, 320),
+      resolvedFollowup: false,
+      source: "stateSpine.finalizeTurn.topicBinding"
+    }),
     conversationSummary: boundedOneLine(nextConversationSummary, MAX_STATE_SUMMARY),
     carryForwardSummary: boundedOneLine(nextCarryForwardSummary, MAX_STATE_SUMMARY),
     turnDepth: nextTurnDepth,
