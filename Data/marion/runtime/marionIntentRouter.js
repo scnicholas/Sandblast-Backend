@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.5.0 ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.5.1 SHORT-FOLLOWUP-CONTINUITY-BYPASS + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -202,6 +202,44 @@ function safeObj(v) {
 }
 function safeArray(v) {
   return Array.isArray(v) ? v : [];
+}
+
+
+function normalizeContinuityTopic(value) {
+  return safeStr(value)
+    .replace(/[.?!]+$/g, "")
+    .replace(/^(?:explain|define|describe|break\s+down|tell\s+me\s+about|what\s+is|what\s+are)\s+/i, "")
+    .replace(/^(?:the|a|an)\s+/i, "")
+    .trim()
+    .slice(0, 120);
+}
+
+function extractContinuityCarry(input = {}) {
+  const src = safeObj(input);
+  const meta = safeObj(src.meta);
+  const payload = safeObj(src.payload);
+  const previousMemory = safeObj(src.previousMemory);
+  const previousContinuity = safeObj(previousMemory.continuity);
+  const direct = safeObj(src.continuity);
+  const ref = safeObj(src.followUpReference);
+  const topic = normalizeContinuityTopic(
+    ref.topic || direct.topic || direct.lastTopic || meta.continuityTopic || payload.continuityTopic ||
+    previousContinuity.topic || previousContinuity.lastTopic || previousMemory.topic || previousMemory.lastTopic || previousMemory.userText
+  );
+  return {
+    active: !!(topic || ref.active || direct.active || src.shortFollowupContinuityResolved || meta.shortFollowupContinuityResolved),
+    topic,
+    resolvedFollowup: !!(src.shortFollowupContinuityResolved || ref.active || direct.resolvedFollowup || meta.shortFollowupContinuityResolved),
+    originalText: safeStr(src.continuityResolvedOriginalText || ref.originalText || meta.continuityResolvedOriginalText || ""),
+    resolvedText: safeStr(src.continuityResolvedText || ref.resolvedText || meta.continuityResolvedText || "")
+  };
+}
+
+function isResolvedShortContinuityPrompt(input = {}, text = "") {
+  const carry = extractContinuityCarry(input);
+  if (!carry.resolvedFollowup || !carry.topic) return false;
+  const t = lower(text);
+  return !!t && t.includes(lower(carry.topic));
 }
 
 function clamp01(v, fallback = 0) {
@@ -1712,8 +1750,18 @@ function routeMarionIntent(packet = {}) {
   const text = questionShape.normalizedText || rawText;
   const src = safeObj(packet);
   const existingIntent = extractExistingIntent(src);
+  const continuityCarry = extractContinuityCarry(src);
+  const continuityExistingIntent = isResolvedShortContinuityPrompt(src, text)
+    ? {
+        intent: "domain_question",
+        confidence: Math.max(clamp01(existingIntent.confidence, 0), 0.91),
+        reason: "short_followup_continuity_resolved",
+        source: "marionIntentRouter.shortFollowupContinuity",
+        continuityCarry
+      }
+    : {};
 
-  const marionIntent = normalizeIntent({...existingIntent, questionShape}, text);
+  const marionIntent = normalizeIntent({...existingIntent, ...continuityExistingIntent, questionShape}, text);
   marionIntent.rawTurnText = rawText;
   marionIntent.normalizedUserIntent = questionShape.normalizedUserIntent || text;
   marionIntent.questionShape = questionShape;
@@ -1723,6 +1771,12 @@ function routeMarionIntent(packet = {}) {
   routing.questionShape = questionShape;
   routing.rawTurnText = rawText;
   routing.normalizedUserIntent = questionShape.normalizedUserIntent || text;
+  if (continuityCarry.active) {
+    routing.continuity = continuityCarry;
+    routing.followUpReference = continuityCarry;
+    routing.shortFollowupContinuityResolved = !!continuityCarry.resolvedFollowup;
+    routing.previousTopic = continuityCarry.topic || "";
+  }
   const inputSource = normalizeInputSource(src.inputSource || safeObj(src.session).inputSource || marionIntent.inputSource || "text");
   const turnHash = turnContinuityHash(text);
 
@@ -1752,6 +1806,9 @@ function routeMarionIntent(packet = {}) {
       rawUserText: rawText,
       normalizedUserIntent: questionShape.normalizedUserIntent || text,
       questionShape,
+      continuity: continuityCarry.active ? continuityCarry : undefined,
+      followUpReference: continuityCarry.active ? continuityCarry : undefined,
+      shortFollowupContinuityResolved: !!continuityCarry.resolvedFollowup,
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
@@ -1881,6 +1938,8 @@ module.exports = {
     isInfrastructureContinuityPrompt,
     isAnswerableTopicRequest,
     turnContinuityHash,
+    extractContinuityCarry,
+    isResolvedShortContinuityPrompt,
     routerForensicNormalizationStatus,
     classifyFailureSignature,
     buildFailureSignatureAudit,
