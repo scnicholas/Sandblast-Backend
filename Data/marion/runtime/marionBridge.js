@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.13 SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.14 CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -1953,6 +1953,81 @@ function extractTurnId(input={}){const src=safeObj(input),body=safeObj(src.body)
 function extractPreviousMemory(input={}){const src=safeObj(input),body=safeObj(src.body),session=safeObj(src.session||body.session),meta=safeObj(src.meta||body.meta);return safeObj(src.previousMemory||src.turnMemory||src.memory||body.previousMemory||body.turnMemory||body.memory||session.previousMemory||session.turnMemory||session.memory||meta.previousMemory||{});}
 function extractMarionIntentPacket(input={}){const src=safeObj(input),body=safeObj(src.body),session=safeObj(src.session||body.session),meta=safeObj(src.meta||body.meta);return safeObj(src.marionIntent||src.intentPacket||body.marionIntent||body.intentPacket||session.marionIntent||meta.marionIntent||{});}
 function extractRequestedDomain(input={}){const src=safeObj(input),body=safeObj(src.body),meta=safeObj(src.meta||body.meta),packet=safeObj(src.packet),routing=safeObj(packet.routing);return firstText(src.requestedDomain,src.domain,body.requestedDomain,body.domain,meta.requestedDomain,meta.domain,meta.preferredDomain,routing.domain,"general")||"general";}
+
+function normalizeBridgeContinuityTopic(value){
+  return safeStr(value)
+    .replace(/[.?!]+$/g,"")
+    .replace(/^(?:please\s+)?(?:can you\s+|could you\s+|would you\s+)?(?:explain|define|describe|break\s+down|tell\s+me\s+about|what\s+is|what\s+are|give me an overview of)\s+/i,"")
+    .replace(/^(?:the|a|an)\s+/i,"")
+    .replace(/\s+/g," ")
+    .trim()
+    .slice(0,120);
+}
+function isBridgeShortFollowupIntentText(value=""){
+  const t=lower(value).replace(/[.?!]+$/g,"").trim();
+  if(!t)return false;
+  if(t.length>140)return false;
+  if(/\b(file|zip|download|resend|update|patch|fix|audit|autopsy|backend|frontend|widget|script|code|api\/chat|marionbridge|chatengine|state spine|statespine|intent router)\b/i.test(t))return false;
+  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|example|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
+    (/\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically)\b/i.test(t));
+}
+function extractBridgeContinuityTopicFromMemory(memory={},source={}){
+  const m=safeObj(memory), s=safeObj(source), body=safeObj(s.body), session=safeObj(s.session||body.session), meta=safeObj(s.meta||body.meta), payload=safeObj(s.payload||body.payload);
+  const state=safeObj(m.stateSpine||m.conversationState||m.state||session.stateSpine||session.conversationState||meta.stateSpine||payload.stateSpine);
+  const continuity=safeObj(m.continuity||state.continuity||session.continuity||meta.continuity||payload.continuity);
+  const stateBridge=safeObj(m.stateBridge||state.stateBridge||session.stateBridge||meta.stateBridge||payload.stateBridge);
+  const vector=safeObj(m.conversationVector||state.conversationVector||session.conversationVector||meta.conversationVector||payload.conversationVector);
+  const lastTopics=safeArray(m.lastTopics||state.lastTopics||continuity.lastTopics||stateBridge.lastTopics||vector.lastTopics);
+  const candidates=[
+    continuity.resolvedTopic,continuity.topic,continuity.lastTopic,continuity.subject,
+    stateBridge.resolvedTopic,stateBridge.topic,stateBridge.lastTopic,stateBridge.subject,
+    vector.topic,vector.lastTopic,vector.activeTopic,
+    m.resolvedTopic,m.topic,m.lastTopic,m.activeTopic,m.normalizedUserIntent,m.lastUserText,m.userText,
+    state.resolvedTopic,state.topic,state.lastTopic,state.activeTopic,state.normalizedUserIntent,state.lastUserText,
+    lastTopics[0],
+    session.lastTopic,meta.lastTopic,payload.lastTopic
+  ];
+  for(const item of candidates){
+    const topic=normalizeBridgeContinuityTopic(item);
+    if(topic && !isBridgeShortFollowupIntentText(topic) && !/\b(why|that|this|it|example|apply|continue|important)\b/i.test(topic))return topic;
+  }
+  return "";
+}
+function buildBridgeContinuityResolvedQuestion(text="",topic=""){
+  const raw=safeStr(text).replace(/\s+/g," ").trim();
+  const t=lower(raw).replace(/[.?!]+$/g,"").trim();
+  const subject=normalizeBridgeContinuityTopic(topic);
+  if(!raw||!subject)return raw;
+  if(lower(raw).includes(lower(subject)))return raw;
+  if(/^why\b/i.test(raw)||/\bimportant|matter\b/i.test(t))return `Why is ${subject} important?`;
+  if(/\bexample\b/i.test(t))return `Give me an example of ${subject}.`;
+  if(/\bsmall business\b/i.test(t))return `Apply ${subject} to a small business.`;
+  if(/\bapply\b/i.test(t))return `Apply ${subject} to this context.`;
+  if(/\brisk\b/i.test(t))return `What are the risks associated with ${subject}?`;
+  if(/\bbenefit\b/i.test(t))return `What are the benefits of ${subject}?`;
+  if(/\bwhat does (?:that|it|this) mean\b/i.test(t))return `What does ${subject} mean in practical terms?`;
+  if(/\bcontinue|tell me more|expand|go deeper|break that down|how would that work|how so\b/i.test(t))return `Continue explaining ${subject}.`;
+  return `${raw} about ${subject}`;
+}
+function buildBridgeContinuityCarryForInbound(rawText="",memory={},source={}){
+  const original=safeStr(rawText);
+  const topic=extractBridgeContinuityTopicFromMemory(memory,source);
+  const shortFollowup=isBridgeShortFollowupIntentText(original);
+  const resolvedText=shortFollowup&&topic?buildBridgeContinuityResolvedQuestion(original,topic):"";
+  return {
+    version:"nyx.marion.bridgeContinuityPromptResolution/1.0",
+    active:!!(shortFollowup&&topic),
+    shortFollowup,
+    topic,
+    lastTopic:topic,
+    resolvedFollowup:!!resolvedText,
+    originalText:original,
+    resolvedText,
+    promptRewritten:!!(resolvedText&&resolvedText!==original),
+    source:"marionBridge.normalizeInbound"
+  };
+}
+
 function normalizeInbound(input={}){
   let source=safeObj(input),commandPacket={};
   if(commandNormalizerMod&&typeof commandNormalizerMod.normalizeCommand==="function"){
@@ -1968,8 +2043,13 @@ function normalizeInbound(input={}){
   const publicUserQueryRaw=normalizePublicNyxAddress(rawUserQuery);
   const spokenAliasRecovery=normalizeSpokenProjectAliases(publicUserQueryRaw);
   const publicUserQuery=firstText(spokenAliasRecovery.text,publicUserQueryRaw);
-  const userQuery=normalizeParityText(publicUserQuery);
+  let userQuery=normalizeParityText(publicUserQuery);
   const previousMemory=extractPreviousMemory(source);
+  const originalUserQueryForContinuity=userQuery;
+  const continuityCarry=buildBridgeContinuityCarryForInbound(originalUserQueryForContinuity,previousMemory,source);
+  if(continuityCarry.resolvedFollowup&&continuityCarry.resolvedText){
+    userQuery=normalizeParityText(continuityCarry.resolvedText);
+  }
   const memoryText=activeProjectTextFromMemory(previousMemory);
   const lane=extractLane(source);
   const requestedDomain=extractRequestedDomain(source);
@@ -1982,7 +2062,7 @@ function normalizeInbound(input={}){
   if(!userQuery)issues.push("user_query_missing");
   const turnId=extractTurnId(source)||`marion_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   const sessionId=firstText(source.sessionId,source.body&&source.body.sessionId,source.meta&&source.meta.sessionId,"public")||"public";
-  return{ok:issues.length===0,issues,original:source,commandPacket,userQuery,text:userQuery,query:userQuery,rawUserQuery,publicUserQuery,inputSource,source:inputSource,spokenAliasRecovery,phaseAnchor,phaseAnchorInstruction,voiceTextParity:{active:inputSource==="voice"||rawUserQuery!==userQuery||spokenAliasRecovery.changed,source:inputSource,normalizedText:userQuery,rawHash:hashText(rawUserQuery),normalizedHash:hashText(userQuery),parityLock:true,spokenAliasRecovery,phaseAnchor},technicalTargetLock,knowledgeDomain:bareKnowledgeDomain||activeKnowledgeDomain,activeKnowledgeDomain,lastActivatedKnowledgeDomain:activeKnowledgeDomain,knowledgeDomainExplicit:!!bareKnowledgeDomain,knowledgeDomainReason:bareKnowledgeDomain?"bare_domain_activation":(activeKnowledgeDomain&&isShortConceptFollowup(userQuery)?"active_domain_short_concept_carry":""),targetFile:firstText(safeObj(technicalTargetLock).targetFile,""),targetPath:firstText(safeObj(technicalTargetLock).targetPath,""),targetName:firstText(safeObj(technicalTargetLock).targetName,""),continuityTurnKey:buildContinuityTurnKey(userQuery,sessionId,turnId),lane,requestedDomain,domain:requestedDomain,previousMemory,marionIntent:extractMarionIntentPacket(source),publicDomainAccess:source.publicDomainAccess===true||safeObj(source.ui).domainAccess===true,forceDomainAnswer:source.forceDomainAnswer===true||safeObj(source.ui).hardRetry===true,requireMarionFinal:source.requireMarionFinal===true,domainAccess:safeArray(source.domainAccess),turnId,sessionId};
+  return{ok:issues.length===0,issues,original:source,commandPacket,userQuery,text:userQuery,query:userQuery,rawUserQuery,publicUserQuery,inputSource,source:inputSource,spokenAliasRecovery,phaseAnchor,phaseAnchorInstruction,continuity:continuityCarry,followUpReference:continuityCarry,continuityResolvedText:continuityCarry.resolvedText,continuityResolvedOriginalText:continuityCarry.originalText,shortFollowupContinuityResolved:continuityCarry.resolvedFollowup===true,effectivePrompt:userQuery,originalUserQuery:originalUserQueryForContinuity,voiceTextParity:{active:inputSource==="voice"||rawUserQuery!==userQuery||spokenAliasRecovery.changed||continuityCarry.promptRewritten===true,source:inputSource,normalizedText:userQuery,rawHash:hashText(rawUserQuery),normalizedHash:hashText(userQuery),parityLock:true,spokenAliasRecovery,phaseAnchor,continuityCarry},technicalTargetLock,knowledgeDomain:bareKnowledgeDomain||activeKnowledgeDomain,activeKnowledgeDomain,lastActivatedKnowledgeDomain:activeKnowledgeDomain,knowledgeDomainExplicit:!!bareKnowledgeDomain,knowledgeDomainReason:bareKnowledgeDomain?"bare_domain_activation":(activeKnowledgeDomain&&isShortConceptFollowup(userQuery)?"active_domain_short_concept_carry":""),targetFile:firstText(safeObj(technicalTargetLock).targetFile,""),targetPath:firstText(safeObj(technicalTargetLock).targetPath,""),targetName:firstText(safeObj(technicalTargetLock).targetName,""),continuityTurnKey:buildContinuityTurnKey(userQuery,sessionId,turnId),lane,requestedDomain,domain:requestedDomain,previousMemory,marionIntent:extractMarionIntentPacket(source),publicDomainAccess:source.publicDomainAccess===true||safeObj(source.ui).domainAccess===true,forceDomainAnswer:source.forceDomainAnswer===true||safeObj(source.ui).hardRetry===true,requireMarionFinal:source.requireMarionFinal===true,domainAccess:safeArray(source.domainAccess),turnId,sessionId};
 }
 function isDefinitionQuery(text=""){const t=lower(text);return!!t&&(/\b(what\s+is|what\s+are|define|definition\s+of|meaning\s+of|explain|explain\s+the\s+term|explain\s+the\s+word|describe)\b/i.test(t)||/\?$/.test(t));}
 
@@ -2203,7 +2283,7 @@ function normalizeComposeInput(normalized,routed,resolvedEmotionPacket={}){
   const routing=safeObj(routed.routing),marionIntent=safeObj(routed.marionIntent),domainConcierge=compactDomainConciergeForBridge(safeObj(routed).domainConcierge||routing.domainConcierge||normalized.domainConcierge);
   const statePatch=safeObj(safeObj(safeObj(routed).domainConciergeRaw||{}).stateSpinePatch||safeObj(normalized.domainConcierge).stateSpinePatch);
   return{
-    userQuery:normalized.userQuery,text:normalized.userQuery,query:normalized.userQuery,rawUserQuery:normalized.rawUserQuery,inputSource:normalized.inputSource,source:normalized.inputSource,voiceTextParity:safeObj(normalized.voiceTextParity),spokenAliasRecovery:safeObj(normalized.spokenAliasRecovery),phaseAnchor:safeObj(normalized.phaseAnchor),phaseAnchorInstruction:safeStr(normalized.phaseAnchorInstruction),continuityTurnKey:normalized.continuityTurnKey,
+    userQuery:normalized.userQuery,text:normalized.userQuery,query:normalized.userQuery,rawUserQuery:normalized.rawUserQuery,inputSource:normalized.inputSource,source:normalized.inputSource,voiceTextParity:safeObj(normalized.voiceTextParity),spokenAliasRecovery:safeObj(normalized.spokenAliasRecovery),phaseAnchor:safeObj(normalized.phaseAnchor),phaseAnchorInstruction:safeStr(normalized.phaseAnchorInstruction),continuityTurnKey:normalized.continuityTurnKey,continuity:safeObj(normalized.continuity),followUpReference:safeObj(normalized.followUpReference),continuityResolvedText:safeStr(normalized.continuityResolvedText),continuityResolvedOriginalText:safeStr(normalized.continuityResolvedOriginalText),shortFollowupContinuityResolved:normalized.shortFollowupContinuityResolved===true,effectivePrompt:firstText(normalized.effectivePrompt,normalized.userQuery),originalUserQuery:safeStr(normalized.originalUserQuery),
     domain:safeStr(routing.domain||domainConcierge.route||normalized.domain||"general")||"general",requestedDomain:safeStr(routing.domain||domainConcierge.route||normalized.requestedDomain||"general")||"general",intent:safeStr(routing.intent||domainConcierge.intent||marionIntent.intent||"simple_chat")||"simple_chat",
     knowledgeDomain:firstText(routing.knowledgeDomain,domainConcierge.knowledgeDomain,normalized.knowledgeDomain,normalized.activeKnowledgeDomain),activeKnowledgeDomain:firstText(normalized.activeKnowledgeDomain,routing.knowledgeDomain,domainConcierge.knowledgeDomain),lastActivatedKnowledgeDomain:firstText(normalized.lastActivatedKnowledgeDomain,normalized.activeKnowledgeDomain,routing.knowledgeDomain,domainConcierge.knowledgeDomain),
     marionIntent,routing:{...routing,domainConcierge},domainConcierge,concierge:domainConcierge,domainConfidence:safeObj(routing.domainConfidence||safeObj(safeObj(routed).domainConciergeRaw).domainConfidence),questionShape:safeObj(safeObj(safeObj(routed).domainConciergeRaw).questionShape),
