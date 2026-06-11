@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.5 SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "ChatEngine v3.9.6 LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -199,17 +199,39 @@ function firstText() {
 
 function compactContinuityCarryForTransport(value = {}) {
   const src = safeObj(value);
-  const topic = cleanText(src.topic || src.lastTopic || src.subject || "");
+  const nested = safeObj(src.continuity || src.followUpReference || src.stateBridge);
+  const topic = cleanText(src.topic || src.lastTopic || src.subject || nested.topic || nested.lastTopic || nested.subject || "");
+  const resolvedText = cleanText(src.resolvedText || src.continuityResolvedText || src.resolvedQuestion || src.effectivePrompt || nested.resolvedText || nested.continuityResolvedText || "");
+  const originalText = cleanText(src.originalText || src.continuityResolvedOriginalText || src.rawUserText || nested.originalText || nested.continuityResolvedOriginalText || "");
+  const followupAction = cleanText(src.followupAction || src.continuityAction || src.action || nested.followupAction || nested.continuityAction || "");
   const out = {
-    active: src.active === true || !!topic || src.resolvedFollowup === true,
+    active: src.active === true || nested.active === true || !!topic || src.resolvedFollowup === true || nested.resolvedFollowup === true || !!resolvedText,
     topic: topic.slice(0, 120),
-    lastTopic: cleanText(src.lastTopic || topic).slice(0, 120),
-    resolvedFollowup: !!src.resolvedFollowup,
-    originalText: cleanText(src.originalText || src.continuityResolvedOriginalText || "").slice(0, 220),
-    resolvedText: cleanText(src.resolvedText || src.continuityResolvedText || "").slice(0, 220),
-    source: cleanText(src.source || "chatEngine.continuityCarry")
+    lastTopic: cleanText(src.lastTopic || nested.lastTopic || topic).slice(0, 120),
+    resolvedFollowup: !!(src.resolvedFollowup || nested.resolvedFollowup || (topic && resolvedText)),
+    followupAction: followupAction.slice(0, 64),
+    continuityAction: followupAction.slice(0, 64),
+    originalText: originalText.slice(0, 220),
+    resolvedText: resolvedText.slice(0, 260),
+    source: cleanText(src.source || nested.source || "chatEngine.continuityCarry")
   };
   return out.active ? out : {};
+}
+
+function mergeContinuityCarryForTransport() {
+  const merged = {};
+  for (const item of Array.from(arguments)) {
+    const c = compactContinuityCarryForTransport(item);
+    if (!Object.keys(c).length) continue;
+    Object.assign(merged, c);
+    if (!merged.topic && c.topic) merged.topic = c.topic;
+    if (!merged.lastTopic && c.lastTopic) merged.lastTopic = c.lastTopic;
+    if (!merged.resolvedText && c.resolvedText) merged.resolvedText = c.resolvedText;
+    if (!merged.originalText && c.originalText) merged.originalText = c.originalText;
+    if (!merged.followupAction && c.followupAction) merged.followupAction = c.followupAction;
+    if (!merged.continuityAction && c.continuityAction) merged.continuityAction = c.continuityAction;
+  }
+  return compactContinuityCarryForTransport(merged);
 }
 
 function isPrimitivePublicReplyValue(value) {
@@ -2084,24 +2106,58 @@ async function normalizeInputForMarion(input = {}, options = {}) {
     translationMeta: compactTranslationMeta(safeObj(normalized && normalized.translationMeta))
   };
 
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const sessionPatch = safeObj(src.sessionPatch || src.memoryPatch || payload.sessionPatch || payload.memoryPatch || meta.sessionPatch || meta.memoryPatch);
+  const continuityCarry = mergeContinuityCarryForTransport(
+    src.continuity,
+    src.followUpReference,
+    meta.continuity,
+    meta.followUpReference,
+    payload.continuity,
+    payload.followUpReference,
+    sessionPatch.continuity,
+    sessionPatch.followUpReference,
+    sessionPatch.stateBridge
+  );
+  const followUpReference = mergeContinuityCarryForTransport(
+    src.followUpReference,
+    meta.followUpReference,
+    payload.followUpReference,
+    continuityCarry
+  );
+  const resolvedText = firstText(src.continuityResolvedText, meta.continuityResolvedText, payload.continuityResolvedText, followUpReference.resolvedText, continuityCarry.resolvedText);
+  const resolvedOriginalText = firstText(src.continuityResolvedOriginalText, meta.continuityResolvedOriginalText, payload.continuityResolvedOriginalText, followUpReference.originalText, continuityCarry.originalText);
+  const shortFollowupResolved = !!(src.shortFollowupContinuityResolved || meta.shortFollowupContinuityResolved || payload.shortFollowupContinuityResolved || followUpReference.resolvedFollowup || continuityCarry.resolvedFollowup);
+
   const out = {
     ...src,
     originalUserText: firstText(src.originalUserText, userText),
     normalizedUserText: normalizedText,
     languageSphere,
     universalTranslator: languageSphere,
-    continuity: compactContinuityCarryForTransport(src.continuity || safeObj(src.meta).continuity || safeObj(src.payload).continuity || {}),
-    followUpReference: compactContinuityCarryForTransport(src.followUpReference || safeObj(src.meta).followUpReference || safeObj(src.payload).followUpReference || {}),
-    shortFollowupContinuityResolved: !!(src.shortFollowupContinuityResolved || safeObj(src.meta).shortFollowupContinuityResolved),
-    continuityResolvedOriginalText: cleanText(src.continuityResolvedOriginalText || safeObj(src.meta).continuityResolvedOriginalText || ""),
-    continuityResolvedText: cleanText(src.continuityResolvedText || safeObj(src.meta).continuityResolvedText || ""),
+    continuity: continuityCarry,
+    followUpReference,
+    shortFollowupContinuityResolved: shortFollowupResolved,
+    continuityResolvedOriginalText: resolvedOriginalText,
+    continuityResolvedText: resolvedText,
+    payload: {
+      ...payload,
+      continuity: continuityCarry,
+      followUpReference,
+      shortFollowupContinuityResolved: shortFollowupResolved,
+      continuityResolvedOriginalText: resolvedOriginalText,
+      continuityResolvedText: resolvedText
+    },
     meta: {
-      ...safeObj(src.meta),
+      ...meta,
       languageSphere,
       universalTranslator: languageSphere,
-      continuity: compactContinuityCarryForTransport(src.continuity || safeObj(src.meta).continuity || safeObj(src.payload).continuity || {}),
-      followUpReference: compactContinuityCarryForTransport(src.followUpReference || safeObj(src.meta).followUpReference || safeObj(src.payload).followUpReference || {}),
-      shortFollowupContinuityResolved: !!(src.shortFollowupContinuityResolved || safeObj(src.meta).shortFollowupContinuityResolved)
+      continuity: continuityCarry,
+      followUpReference,
+      shortFollowupContinuityResolved: shortFollowupResolved,
+      continuityResolvedOriginalText: resolvedOriginalText,
+      continuityResolvedText: resolvedText
     }
   };
 
@@ -2115,7 +2171,7 @@ async function normalizeInputForMarion(input = {}, options = {}) {
     out.message = normalizedText;
     out.userQuery = normalizedText;
     out.payload = {
-      ...safeObj(src.payload),
+      ...safeObj(out.payload),
       text: normalizedText,
       query: normalizedText,
       message: normalizedText,
@@ -2271,9 +2327,15 @@ class ChatEngine {
       domainConciergeAction: cleanText(safeObj(result.domainConcierge).action || ""),
       domainConciergeRoute: cleanText(safeObj(result.domainConcierge).route || ""),
       domainConciergeConfidence: clampNumber(safeObj(result.domainConcierge).confidence, 0, 0, 1),
+      continuity: mergeContinuityCarryForTransport(input.continuity, input.followUpReference, safeObj(input.meta).continuity, safeObj(input.payload).continuity),
+      followUpReference: mergeContinuityCarryForTransport(input.followUpReference, safeObj(input.meta).followUpReference, safeObj(input.payload).followUpReference),
+      lastAssistantReply: cleanText(result.reply || ""),
       timestamp: Date.now()
     };
 
+    this.state.lastContinuity = entry.continuity;
+    this.state.lastFollowUpReference = entry.followUpReference;
+    this.state.lastAssistantReply = entry.lastAssistantReply;
     this.state.lastUserInput = entry.input;
     this.state.memory.push(entry);
 
@@ -2438,6 +2500,8 @@ if (typeof module !== "undefined") {
       compactCreativeCognitiveCarry,
       extractCreativeCognitiveCarryFromPatch,
       compactStateBridgeForTransport,
+      compactContinuityCarryForTransport,
+      mergeContinuityCarryForTransport,
       stableTurnKey,
       hasTrustedBridgeOrComposerMarker,
       sanitizeFinalUserFacingReplyForCohesion,
@@ -2448,6 +2512,8 @@ if (typeof module !== "undefined") {
       extractConversationalPackBridge,
       extractDomainConcierge,
       compactDomainConciergeForTransport,
+      compactContinuityCarryForTransport,
+      mergeContinuityCarryForTransport,
       normalizeConversationalPackBridge,
       conversationPackCohesionProfile,
       normalizeInputForMarion,
