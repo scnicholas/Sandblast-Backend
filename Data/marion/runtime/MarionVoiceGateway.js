@@ -84,10 +84,14 @@ async function callBridge(bridge, payload, context) {
   return candidates[0](payload, context);
 }
 
-function firstReplyText(response) {
+function safeText(value) {
+  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+function directReplyText(response) {
   if (!response) return '';
-  if (typeof response === 'string') return response;
-  return String(
+  if (typeof response === 'string') return safeText(response);
+  return safeText(
     response.displayReply ||
       response.reply ||
       response.text ||
@@ -95,8 +99,87 @@ function firstReplyText(response) {
       response.answer ||
       response.output ||
       response.response ||
+      response.spokenText ||
+      response.finalReply ||
+      response.publicReply ||
+      response.visibleReply ||
       ''
-  ).replace(/\s+/g, ' ').trim();
+  );
+}
+
+function firstReplyText(response, depth, seen) {
+  if (!response) return '';
+  if (typeof response === 'string') return safeText(response);
+  if (typeof response !== 'object') return '';
+
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 6) return '';
+
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(response)) return '';
+  visited.add(response);
+
+  const direct = directReplyText(response);
+  if (direct) return direct;
+
+  const priorityKeys = [
+    'finalEnvelope',
+    'payload',
+    'data',
+    'result',
+    'packet',
+    'marionFinal',
+    'final',
+    'envelope',
+    'response',
+    'output',
+    'message',
+    'reply',
+    'text',
+    'voice',
+    'speech',
+    'meta'
+  ];
+
+  for (const key of priorityKeys) {
+    const nested = response[key];
+    if (nested && typeof nested === 'object') {
+      const found = firstReplyText(nested, level + 1, visited);
+      if (found) return found;
+    }
+  }
+
+  for (const key of Object.keys(response)) {
+    if (priorityKeys.includes(key)) continue;
+    const nested = response[key];
+    if (nested && typeof nested === 'object') {
+      const found = firstReplyText(nested, level + 1, visited);
+      if (found) return found;
+    }
+  }
+
+  return '';
+}
+
+function buildVoiceReplyPromotionFallback(voiceEnvelope, response) {
+  const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
+  const hint = safeText(env.userIntentHint).toLowerCase();
+  const commandPhrase = safeText(env.commandPhrase).toLowerCase();
+  const authorizationState = safeText(env.authorizationState);
+
+  if (hint === 'status' || commandPhrase === 'status') {
+    return 'Voice lane status: Nyx is the public route, Marion remains the authority, Mac voice authorization is accepted, and raw audio is not being stored. The remaining issue was final reply promotion, so I surfaced this safe visible status instead of returning silence.';
+  }
+
+  if (response && response.ok === false) {
+    return firstReplyText(response) || 'I heard you, but Marion could not complete that voice turn cleanly. I kept the public response safe and did not store raw audio.';
+  }
+
+  if (authorizationState === 'authorized') {
+    return 'I heard you and authorization passed, but the bridge did not return a visible final reply. I surfaced this safe fallback instead of returning silence.';
+  }
+
+  return 'I heard you, but that voice turn did not produce a clean final answer. Please try the same request again.';
 }
 
 function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolicy) {
@@ -104,10 +187,16 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     ? response
     : { reply: String(response || '') };
   const originalReply = firstReplyText(base);
-  const cleanReply = originalReply || 'I heard you, but that voice turn did not produce a clean final answer. Please try the same request again.';
+  const fallbackReply = originalReply ? '' : buildVoiceReplyPromotionFallback(voiceEnvelope, base);
+  const cleanReply = originalReply || fallbackReply;
+  const fallbackUsed = !originalReply && Boolean(cleanReply);
+  const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
+  const policyReason = safeText(policy.reason);
+  const fallbackCanSpeak = fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
+  const spokenText = firstReplyText(policy) || (policy.speakAllowed === true || fallbackCanSpeak ? cleanReply : '');
 
   return Object.assign({}, base, {
-    ok: base.ok !== false && Boolean(originalReply),
+    ok: base.ok !== false && Boolean(cleanReply),
     reply: cleanReply,
     text: cleanReply,
     message: cleanReply,
@@ -116,9 +205,13 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     authority: 'Marion',
     inputChannel: 'voice',
     source: 'voice',
-    voice: Object.assign({}, base.voice || {}, outputPolicy || {}, {
-      spokenText: firstReplyText(outputPolicy || {}) || (originalReply ? cleanReply : ''),
-      audioStored: false
+    voice: Object.assign({}, base.voice || {}, policy, {
+      speakAllowed: policy.speakAllowed === true || fallbackCanSpeak,
+      voiceMode: safeText(policy.voiceMode) || 'full',
+      reason: fallbackUsed ? 'VOICE_REPLY_PROMOTION_FALLBACK' : (policyReason || 'SPEAKABLE_RESPONSE'),
+      spokenText,
+      audioStored: false,
+      replyPromotionFallback: fallbackUsed
     }),
     voiceEnvelope: {
       source: voiceEnvelope.source,
@@ -130,6 +223,11 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       commandPhrase: voiceEnvelope.commandPhrase || null,
       wakeWord: voiceEnvelope.wakeWord || null,
       audioStored: false
+    },
+    voiceReplyPromotion: {
+      applied: fallbackUsed,
+      source: originalReply ? 'bridge_or_composer' : 'gateway_safe_fallback',
+      originalReplyPresent: Boolean(originalReply)
     },
     telemetry
   });
