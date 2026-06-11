@@ -1,90 +1,140 @@
 'use strict';
 
 /**
- * MarionVoiceInputEnvelope
- * Creates a strict voice-input contract before any spoken transcript reaches Marion.
- * No raw audio is stored here. Transcript-only envelope.
+ * MarionVoiceOutputPolicy
+ * Determines whether Nyx should speak the final answer aloud.
+ * Long code, sensitive details, and operational instructions default to text.
  */
 
-const VOICE_SOURCE = 'voice';
-const DEFAULT_LOCALE = 'en-CA';
-const MIN_CONFIDENCE = 0;
-const MAX_CONFIDENCE = 1;
+const DEFAULT_MAX_SPOKEN_CHARS = 700;
 
-function clampConfidence(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  if (n < MIN_CONFIDENCE) return MIN_CONFIDENCE;
-  if (n > MAX_CONFIDENCE) return MAX_CONFIDENCE;
-  return n;
-}
+const SENSITIVE_PATTERNS = [
+  /\bapi[_-]?key\b/i,
+  /\bsecret\b/i,
+  /\bpassword\b/i,
+  /\btoken\b/i,
+  /\bprivate key\b/i,
+  /\bcredential\b/i,
+  /\bsmtp\b/i,
+  /\b.env\b/i
+];
 
-function cleanTranscript(value) {
-  return String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+const CODE_PATTERNS = [
+  /```/,
+  /\bmodule\.exports\b/,
+  /\bfunction\s+\w+\s*\(/,
+  /\bconst\s+\w+\s*=/,
+  /\blet\s+\w+\s*=/,
+  /\bclass\s+\w+/,
+  /<\/?[a-z][\s\S]*>/i
+];
 
-function detectIntentHint(transcript) {
-  const text = String(transcript || '').toLowerCase();
+function getReplyText(response) {
+  if (!response) return '';
 
-  if (!text) return 'empty';
-  if (/\b(stop|cancel|nevermind|never mind|abort)\b/.test(text)) return 'cancel';
-  if (/\b(open|launch|start|run|execute|deploy|delete|remove|send|publish)\b/.test(text)) return 'command';
-  if (/\b(status|where are we|update|report|summary|diagnose|autopsy)\b/.test(text)) return 'status';
-  if (/\b(create|build|generate|write|draft|make)\b/.test(text)) return 'creation';
-  if (/\bexplain|what is|why|how\b/.test(text)) return 'inquiry';
+  if (typeof response === 'string') return response;
 
-  return 'conversation';
-}
-
-function createVoiceInputEnvelope(input) {
-  const payload = input && typeof input === 'object' ? input : {};
-  const transcript = cleanTranscript(payload.transcript);
-  const confidence = clampConfidence(payload.confidence);
-
-  return {
-    ok: transcript.length > 0,
-    source: VOICE_SOURCE,
-    inputChannel: VOICE_SOURCE,
-    transcript,
-    confidence,
-    locale: payload.locale || payload.language || DEFAULT_LOCALE,
-    receivedAt: payload.receivedAt || new Date().toISOString(),
-    userIntentHint: payload.userIntentHint || detectIntentHint(transcript),
-    authorizationState: payload.authorizationState || 'unchecked',
-    speakerHint: payload.speakerHint || payload.speaker || null,
-    sessionId: payload.sessionId || null,
-    requestId: payload.requestId || null,
-    rawMeta: {
-      provider: payload.provider || 'browser-native',
-      client: payload.client || null,
-      userAgent: payload.userAgent || null,
-      interim: Boolean(payload.interim),
-      final: payload.final !== false,
-      audioStored: false
-    },
-    warnings: transcript.length > 0 ? [] : ['EMPTY_TRANSCRIPT']
-  };
-}
-
-function isVoiceInputEnvelope(value) {
-  return Boolean(
-    value &&
-    typeof value === 'object' &&
-    value.source === VOICE_SOURCE &&
-    value.inputChannel === VOICE_SOURCE &&
-    typeof value.transcript === 'string' &&
-    typeof value.receivedAt === 'string'
+  return String(
+    response.reply ||
+    response.text ||
+    response.message ||
+    response.output ||
+    response.final ||
+    ''
   );
 }
 
+function containsPattern(text, patterns) {
+  return patterns.some((pattern) => pattern.test(String(text || '')));
+}
+
+function evaluateVoiceOutputPolicy(response, options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const text = getReplyText(response);
+  const maxChars = Number.isFinite(Number(opts.maxSpokenChars))
+    ? Number(opts.maxSpokenChars)
+    : DEFAULT_MAX_SPOKEN_CHARS;
+
+  if (opts.forceSilent === true) {
+    return {
+      speakAllowed: false,
+      voiceMode: 'silent',
+      reason: 'FORCED_SILENT'
+    };
+  }
+
+  if (!text.trim()) {
+    return {
+      speakAllowed: false,
+      voiceMode: 'silent',
+      reason: 'EMPTY_RESPONSE'
+    };
+  }
+
+  if (containsPattern(text, SENSITIVE_PATTERNS)) {
+    return {
+      speakAllowed: false,
+      voiceMode: 'silent',
+      reason: 'SENSITIVE_CONTENT'
+    };
+  }
+
+  if (containsPattern(text, CODE_PATTERNS)) {
+    return {
+      speakAllowed: false,
+      voiceMode: 'silent',
+      reason: 'CODE_OR_MARKUP_CONTENT'
+    };
+  }
+
+  if (text.length > maxChars) {
+    return {
+      speakAllowed: true,
+      voiceMode: 'brief',
+      reason: 'LONG_RESPONSE_BRIEF_MODE',
+      spokenText: createBriefSpokenSummary(text)
+    };
+  }
+
+  return {
+    speakAllowed: true,
+    voiceMode: 'full',
+    reason: 'SPEAKABLE_RESPONSE',
+    spokenText: text
+  };
+}
+
+function createBriefSpokenSummary(text) {
+  const value = String(text || '').replace(/\s+/g, ' ').trim();
+  if (value.length <= DEFAULT_MAX_SPOKEN_CHARS) return value;
+
+  const firstSentence = value.match(/^(.+?[.!?])\s/);
+  if (firstSentence && firstSentence[1]) {
+    return `${firstSentence[1]} I’ve placed the full details on screen.`;
+  }
+
+  return `${value.slice(0, 220).trim()}... I’ve placed the full details on screen.`;
+}
+
+function applyVoiceOutputPolicy(response, options) {
+  const policy = evaluateVoiceOutputPolicy(response, options);
+
+  if (response && typeof response === 'object') {
+    return Object.assign({}, response, {
+      voice: Object.assign({}, response.voice || {}, policy)
+    });
+  }
+
+  return {
+    reply: String(response || ''),
+    voice: policy
+  };
+}
+
 module.exports = {
-  VOICE_SOURCE,
-  DEFAULT_LOCALE,
-  createVoiceInputEnvelope,
-  isVoiceInputEnvelope,
-  detectIntentHint,
-  cleanTranscript,
-  clampConfidence
+  DEFAULT_MAX_SPOKEN_CHARS,
+  evaluateVoiceOutputPolicy,
+  applyVoiceOutputPolicy,
+  createBriefSpokenSummary,
+  getReplyText
 };
