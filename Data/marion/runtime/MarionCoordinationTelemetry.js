@@ -20,7 +20,7 @@
  * - Produces diagnostic telemetry only.
  */
 
-const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3.2+productionMonitoringShield+releaseReadinessRollbackSafety";
+const MARION_COORDINATION_TELEMETRY_VERSION = "nyx.marion.coordinationTelemetry/0.3.3+voiceLaneTelemetry+productionMonitoringShield+releaseReadinessRollbackSafety";
 
 const DEFAULT_COORDINATION_TELEMETRY_CONFIG = Object.freeze({
   enabled: true,
@@ -97,6 +97,7 @@ function normalizeLaneName(value) {
   if (lane === "risk" || lane === "real_world_risk") return "risk_classifier";
   if (lane === "thalon" || lane === "thalon_readiness") return "thalon_review";
   if (lane === "strategic" || lane === "strategy" || lane === "strategic_review") return "strategic_advisory";
+  if (lane === "voice" || lane === "speech" || lane === "mic" || lane === "microphone" || lane === "voice_input" || lane === "voice_lane") return "voice";
   return lane;
 }
 
@@ -170,6 +171,15 @@ function buildLaneRecencySnapshot(payload = {}, maxAgeMs = 5 * 60 * 1000, now = 
       carriedTimestamps.strategic_advisory,
       strategicTrack.updatedAt,
       thalon.updatedAt
+    ),
+    voice: newestTimestamp(
+      carriedTimestamps.voice,
+      safeObject(p.voice).updatedAt,
+      safeObject(p.voiceEnvelope).updatedAt,
+      safeObject(p.voiceTrack).updatedAt,
+      safeObject(p.voiceLane).updatedAt,
+      p.voiceReceivedAt,
+      p.receivedAt
     )
   };
 
@@ -318,6 +328,25 @@ function detectThalonReviewRecommended(payload = {}) {
   );
 }
 
+
+function detectVoiceLaneActive(payload = {}) {
+  const p = safeObject(payload);
+  const voice = safeObject(p.voice || p.voiceEnvelope || p.voiceTrack || p.voiceLane);
+  const rawSource = safeString(p.inputChannel || p.source || p.inputSource || voice.inputChannel || voice.source).toLowerCase();
+  const rawTranscript = safeString(p.transcript || p.normalizedTranscript || p.originalTranscript || voice.transcript || voice.normalizedTranscript || voice.originalTranscript);
+
+  return Boolean(
+    voice.active === true ||
+      voice.source === "voice" ||
+      voice.inputChannel === "voice" ||
+      rawSource === "voice" ||
+      rawSource === "speech" ||
+      rawSource === "mic" ||
+      rawSource === "microphone" ||
+      rawTranscript
+  );
+}
+
 function detectStrategicAdvisoryActive(payload = {}) {
   const p = safeObject(payload);
   const strategicTrack = safeObject(p.strategicTrack);
@@ -392,6 +421,7 @@ function buildLaneSummary(payload = {}) {
   const ethicalGate = safeObject(p.ethicalGate || p.ethicalGatekeeper);
   const risk = safeObject(p.riskClassification || p.riskClassifier || p.realWorldRisk);
   const thalon = safeObject(p.thalonReadiness || p.thalon || p.thalonReview);
+  const voice = safeObject(p.voice || p.voiceEnvelope || p.voiceTrack || p.voiceLane);
 
   return {
     language: {
@@ -449,6 +479,16 @@ function buildLaneSummary(payload = {}) {
       decisionPressureIndex: clamp01(safeObject(p.strategicTrack).decisionPressureIndex || thalon.decisionPressureIndex || thalon.pressureIndex, 0),
       requiresHumanReview: safeObject(p.strategicTrack).requiresHumanReview === true || thalon.requiresHumanReview === true || thalon.humanReviewRecommended === true,
       advisoryOnly: true
+    },
+    voice: {
+      active: detectVoiceLaneActive(p),
+      inputChannel: safeString(p.inputChannel || p.source || voice.inputChannel || voice.source || ""),
+      authorizationState: safeString(voice.authorizationState || safeObject(voice.authorization).authorizationState || p.authorizationState || ""),
+      confidence: clamp01(voice.confidence || p.confidence, 0),
+      speakAllowed: voice.speakAllowed === true,
+      voiceMode: safeString(voice.voiceMode || ""),
+      audioStored: false,
+      advisoryOnly: true
     }
   };
 }
@@ -472,6 +512,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
       riskClassifierActive: false,
       thalonReviewRecommended: false,
       strategicAdvisoryActive: false,
+      voiceLaneActive: false,
       activeLanes: [],
       rawActiveLanes: [],
       activeLaneCount: 0,
@@ -507,6 +548,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
   const riskClassifierActive = detectRiskClassifierActive(p);
   const thalonReviewRecommended = detectThalonReviewRecommended(p);
   const strategicAdvisoryActive = detectStrategicAdvisoryActive(p);
+  const voiceLaneActive = detectVoiceLaneActive(p);
 
   const activeLanes = [];
   if (lingoLinkActive) activeLanes.push("lingolink");
@@ -517,6 +559,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
   if (riskClassifierActive) activeLanes.push("risk_classifier");
   if (thalonReviewRecommended) activeLanes.push("thalon_review");
   if (strategicAdvisoryActive) activeLanes.push("strategic_advisory");
+  if (voiceLaneActive) activeLanes.push("voice");
 
   const freshActiveLanes = filterFreshActiveLanes(activeLanes, laneRecency);
 
@@ -528,7 +571,8 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
       safeObject(p.realWorldTrack).requiresHumanReview ||
       safeObject(p.ethicalGate).requiresHumanReview ||
       safeObject(p.riskClassification).requiresHumanReview ||
-      safeObject(p.thalonReadiness).strategicReviewRequired
+      safeObject(p.thalonReadiness).strategicReviewRequired ||
+      voiceLaneActive === true
   );
 
   const requiresHumanReview = Boolean(
@@ -536,7 +580,8 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
       safeObject(p.realWorldTrack).requiresHumanReview ||
       safeObject(p.ethicalGate).requiresHumanReview ||
       safeObject(p.riskClassification).requiresHumanReview ||
-      safeObject(p.thalonReadiness).strategicReviewRequired
+      safeObject(p.thalonReadiness).strategicReviewRequired ||
+      voiceLaneActive === true
   );
 
   return {
@@ -551,6 +596,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
     riskClassifierActive,
     thalonReviewRecommended,
     strategicAdvisoryActive,
+    voiceLaneActive,
 
     freshLingoLinkActive: freshActiveLanes.includes("lingolink"),
     freshUnknownLanguageAlertActive: freshActiveLanes.includes("unknown_language_alert"),
@@ -560,6 +606,7 @@ function buildMarionCoordinationTelemetry(payload = {}, options = {}) {
     freshRiskClassifierActive: freshActiveLanes.includes("risk_classifier"),
     freshThalonReviewRecommended: freshActiveLanes.includes("thalon_review"),
     freshStrategicAdvisoryActive: freshActiveLanes.includes("strategic_advisory"),
+    freshVoiceLaneActive: freshActiveLanes.includes("voice"),
 
     notificationReady,
     requiresHumanReview,
@@ -616,6 +663,8 @@ function summarizeCoordinationTelemetry(telemetry = {}) {
     staleLanes: safeArray(t.staleLanes || safeObject(t.laneRecency).staleLanes),
     laneRecency: safeObject(t.laneRecency),
     freshActiveLanes: safeArray(t.activeLanes),
+    voiceLaneActive: t.voiceLaneActive === true,
+    freshVoiceLaneActive: safeArray(t.activeLanes).includes("voice"),
     notificationReady: t.notificationReady === true,
     requiresHumanReview: t.requiresHumanReview === true,
     marionFinalAuthorityPreserved: t.marionFinalAuthorityPreserved !== false,
@@ -643,6 +692,7 @@ module.exports = {
   detectRiskClassifierActive,
   detectThalonReviewRecommended,
   detectStrategicAdvisoryActive,
+  detectVoiceLaneActive,
   buildLaneRecencySnapshot,
   filterFreshActiveLanes,
   normalizeLaneName,
