@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.6 FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.16.7 FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -1430,7 +1430,7 @@ function buildFiveTurnContinuityState({ prev = {}, inbound = {}, memoryPatch = {
   const window = Array.isArray(prior.window) ? prior.window.slice(-4) : [];
   const fiveTurnContract=extractFiveTurnContractState(prev,memoryPatch,inbound);
   const technicalTargetLock=extractTechnicalTargetLockState(prev,memoryPatch,inbound);
-  const marker = { at: nowMs(), technicalTargetLock, source: canonicalTurnInputSource(inbound, { inputSource: memoryPatch.inputSource }), userHash: boundedSignature(userHash), replyHash: boundedSignature(assistantHash || memoryPatch.replyStateSignature || memoryPatch.replySignature), depth: clampInt(nextTurnDepth, 0, 0, 999999), trustedFinal: !!trustedFinalCompletion, topic: boundedOneLine(memoryPatch.lastTopic || "", 160), regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective };
+  const marker = { at: nowMs(), technicalTargetLock, source: canonicalTurnInputSource(inbound, { inputSource: memoryPatch.inputSource }), userHash: boundedSignature(userHash), replyHash: boundedSignature(assistantHash || memoryPatch.replyStateSignature || memoryPatch.replySignature), depth: clampInt(nextTurnDepth, 0, 0, 999999), trustedFinal: !!trustedFinalCompletion, topic: boundedOneLine(memoryPatch.lastTopic || prev.lastTopic || safeObj(prev.continuity).topic || "", 160), regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective };
   if (trustedFinalCompletion) window.push(marker);
   return { version: "nyx.stateSpine.fiveTurnContinuity/1.1", active: true, depth: clampInt(nextTurnDepth, 0, 0, 999999), window: window.slice(-5), windowSize: Math.min(5, window.length), inputSource: marker.source, parityLock: true, lastUserHash: marker.userHash, lastAssistantHash: marker.replyHash, regressionTarget: fiveTurnContract.regressionTarget, turnObjective: fiveTurnContract.turnObjective, parityTarget: fiveTurnContract.parityTarget, fiveTurnContract, technicalTargetLock, updatedAt: nowMs() };
 }
@@ -1452,6 +1452,11 @@ function createState(seed = {}) {
     lastKnowledgeDomain: "",
     lastTopic: "",
     continuity: {},
+    followUpReference: {},
+    followupAction: "",
+    continuityAction: "",
+    continuityResolvedText: "",
+    continuityResolvedOriginalText: "",
     conversationSummary: "",
     carryForwardSummary: "",
     turnDepth: 0,
@@ -1596,6 +1601,12 @@ function coerceState(input) {
     lastAssistantReply: boundedOneLine(src.lastAssistantReply || base.lastAssistantReply || "", MAX_STATE_TEXT),
     lastKnowledgeDomain: safeStr(src.lastKnowledgeDomain || base.lastKnowledgeDomain || ""),
     lastTopic: boundedOneLine(src.lastTopic || base.lastTopic || "", 320),
+    continuity: normalizeContinuityCarry(src.continuity || base.continuity || {}),
+    followUpReference: normalizeContinuityCarry(src.followUpReference || src.continuity || base.followUpReference || {}),
+    followupAction: boundedOneLine(src.followupAction || src.continuityAction || "", 64),
+    continuityAction: boundedOneLine(src.continuityAction || src.followupAction || "", 64),
+    continuityResolvedText: boundedOneLine(src.continuityResolvedText || safeObj(src.continuity).resolvedText || "", 260),
+    continuityResolvedOriginalText: boundedOneLine(src.continuityResolvedOriginalText || safeObj(src.continuity).originalText || "", 220),
     conversationSummary: boundedOneLine(src.conversationSummary || base.conversationSummary || "", MAX_STATE_SUMMARY),
     carryForwardSummary: boundedOneLine(src.carryForwardSummary || base.carryForwardSummary || "", MAX_STATE_SUMMARY),
     turnDepth: clampInt(src.turnDepth, base.turnDepth || 0, 0, 999999),
@@ -2511,11 +2522,15 @@ function finalizeTurn(params = {}) {
 
   const activeKnowledgeDomainCarry = extractActiveKnowledgeDomainCarry(prev, memoryPatch, params, inbound);
 
+  const provisionalFollowupText = rawUserText || inboundText || normalizedUserIntent;
+  const provisionalFollowup = isShortContinuityFollowupStateText(provisionalFollowupText);
+  const provisionalTopic = continuityTopicFromState(prev, inbound, memoryPatch, normalizedUserIntent);
+
   const continuityThread = {
     depthLevel: Math.max(1, Math.max(clampInt(memoryPatch.turnDepth, 0, 0, 999999), repetition.sameStageCount + 1, repetition.sameIntentCount + 1, repetition.sameEmotionCount + 1)),
     threadContinuation: (loopBreakTrustedFinal || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? true : !!((sameLane || sameIntent || sameUser) && !sameAssistant || support.lockActive || repetition.noProgressCount > 0),
     unresolvedSignals: boundedArray([safeStr(emo.emotionKey || ""), safeStr(emo.emotionCluster || ""), safeStr(greeting.intent || ""), safeStr(greeting.tone || ""), safeStr(decision.rationale || ""), safeStr(creativeCognitive.lastIntent || "")], 6, 160),
-    lastTopics: boundedArray([safeStr(memoryPatch.lastTopic || ""), safeStr(normalizedUserIntent || ""), safeStr(activeKnowledgeDomainCarry || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || ""), safeStr(creativeCognitive.lastMode || "")], 6, 160),
+    lastTopics: boundedArray([safeStr(provisionalTopic || ""), safeStr(memoryPatch.lastTopic || ""), safeStr(prev.lastTopic || ""), safeStr(normalizedUserIntent || ""), safeStr(activeKnowledgeDomainCarry || ""), safeStr(inbound?.lane || lane || ""), safeStr(intent || ""), safeStr(greeting.intent || ""), safeStr(creativeCognitive.lastMode || "")], 8, 160),
     responseMode: safeStr(emo.supportMode || (greeting.matched ? "greeting_intent" : "") || plannerMode || decision.move || "steady") || "steady",
     marionFinalObserved: marionFinalSignal,
     finalEnvelopeTrusted: trustedFinalEnvelope || trustedFinalShape,
@@ -2524,9 +2539,11 @@ function finalizeTurn(params = {}) {
     updatedAt: nowMs()
   };
 
-  const nextTurnDepth = trustedFinalCompletion ? Math.max(1, clampInt(memoryPatch.turnDepth, 0, 0, 999999) || (deepeningInbound ? clampInt(prev.turnDepth, 0, 0, 999999) + 1 : 1)) : clampInt(prev.turnDepth, 0, 0, 999999);
-  const nextTopic = continuityTopicFromState(prev, inbound, memoryPatch, normalizedUserIntent);
-  const inboundFollowupAction = classifyContinuityFollowupStateAction(rawUserText || inboundText || normalizedUserIntent);
+  const previousTurnDepth = clampInt(prev.turnDepth, 0, 0, 999999);
+  const memoryTurnDepth = clampInt(memoryPatch.turnDepth, 0, 0, 999999);
+  const nextTurnDepth = trustedFinalCompletion ? Math.max(1, memoryTurnDepth || previousTurnDepth + 1) : previousTurnDepth;
+  const nextTopic = provisionalTopic || continuityTopicFromState(prev, inbound, memoryPatch, normalizedUserIntent);
+  const inboundFollowupAction = classifyContinuityFollowupStateAction(provisionalFollowupText);
   const continuityResolvedQuestion = inboundFollowupAction && nextTopic
     ? buildStateContinuityResolvedQuestion(rawUserText || inboundText || normalizedUserIntent, nextTopic, inboundFollowupAction)
     : "";
@@ -2560,12 +2577,23 @@ function finalizeTurn(params = {}) {
       active: !!boundedOneLine(nextTopic, 320),
       topic: boundedOneLine(nextTopic, 320),
       lastTopic: boundedOneLine(nextTopic, 320),
-      resolvedFollowup: !!inboundFollowupAction,
+      resolvedFollowup: !!(provisionalFollowup && inboundFollowupAction),
       followupAction: inboundFollowupAction,
       continuityAction: inboundFollowupAction,
-      originalText: rawUserText || inboundText || "",
+      originalText: provisionalFollowupText,
       resolvedText: continuityResolvedQuestion,
       source: "stateSpine.finalizeTurn.followupIntentExpansionCarry"
+    }),
+    followUpReference: normalizeContinuityCarry({
+      active: !!(provisionalFollowup && nextTopic),
+      topic: boundedOneLine(nextTopic, 320),
+      lastTopic: boundedOneLine(nextTopic, 320),
+      resolvedFollowup: !!(provisionalFollowup && inboundFollowupAction),
+      followupAction: inboundFollowupAction,
+      continuityAction: inboundFollowupAction,
+      originalText: provisionalFollowupText,
+      resolvedText: continuityResolvedQuestion,
+      source: "stateSpine.finalizeTurn.followUpReference"
     }),
     followupAction: inboundFollowupAction,
     continuityAction: inboundFollowupAction,
@@ -2919,6 +2947,8 @@ module.exports = {
   isShortContinuityFollowupStateText,
   classifyContinuityFollowupStateAction,
   buildStateContinuityResolvedQuestion,
+  inferContinuityTopicFromAssistantText,
+  chooseContinuityTopicCandidate,
   continuityTopicFromState
 };
 module.exports.default = module.exports;
