@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.5.5 FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.5.6 UNRESOLVED-FOLLOWUP-DEADEND-BYPASS + FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -306,7 +306,17 @@ function collectContinuityCandidateTexts(input = {}) {
       const role = lower(item.role || item.sender || item.author || item.source || "");
       const candidate = item.text || item.message || item.reply || item.content || item.displayReply || "";
       if (!candidate) continue;
-      if (!role || /assistant|nyx|marion|system/.test(role)) historyCandidates.push(candidate);
+      // UNRESOLVED-FOLLOWUP-DEADEND-BYPASS:
+      // Only assistant-visible prior replies should seed public continuity topics.
+      // System/runtime records can contain "awaitingMarion", finalEnvelope, or other
+      // transport markers that poison topic inference and create blank blocked packets.
+      if (!role || /assistant|nyx|marion/.test(role)) {
+        const cleanCandidate = safeStr(candidate);
+        if (
+          cleanCandidate &&
+          !/\b(awaitingMarion|finalEnvelope|suppressUserFacingReply|runtimeTelemetry|diagnostics|routeKind|marionFinal)\b/i.test(cleanCandidate)
+        ) historyCandidates.push(cleanCandidate);
+      }
     }
   }
 
@@ -356,7 +366,7 @@ function extractContinuityCarry(input = {}) {
 function isShortContinuityFollowupText(value = "") {
   const t = lower(value).replace(/[.?!]+$/g, "").trim();
   if (!t) return false;
-  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|give me example|show me an example|show me example|example|use case|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
+  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|give me example|show me an example|show me example|show another example|another example|example|use case|apply it|apply that|what about that|what happens next|what next|then what|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
     /\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically)\b/i.test(t);
 }
 
@@ -382,6 +392,7 @@ function buildContinuityResolvedQuestion(text = "", carry = {}) {
   if (/\bexample\b/i.test(raw)) return `Give me an example of ${topic}.`;
   if (/\bsmall business\b/i.test(raw)) return `Apply ${topic} to a small business.`;
   if (/\bapply\b/i.test(raw)) return `Apply ${topic} to this context.`;
+  if (/\bwhat happens next|next step|what next|then what\b/i.test(raw)) return `What happens next with ${topic} in practice?`;
   if (/\bcontinue|tell me more|expand|go deeper|break that down\b/i.test(raw)) return `Continue explaining ${topic}.`;
   if (/\bwhat does that mean|what does it mean\b/i.test(raw)) return `What does ${topic} mean in practical terms?`;
   return `${raw} about ${topic}`;
