@@ -84,18 +84,42 @@ async function callBridge(bridge, payload, context) {
   return candidates[0](payload, context);
 }
 
+function firstReplyText(response) {
+  if (!response) return '';
+  if (typeof response === 'string') return response;
+  return String(
+    response.displayReply ||
+      response.reply ||
+      response.text ||
+      response.message ||
+      response.answer ||
+      response.output ||
+      response.response ||
+      ''
+  ).replace(/\s+/g, ' ').trim();
+}
+
 function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolicy) {
   const base = response && typeof response === 'object'
     ? response
     : { reply: String(response || '') };
+  const originalReply = firstReplyText(base);
+  const cleanReply = originalReply || 'I heard you, but that voice turn did not produce a clean final answer. Please try the same request again.';
 
   return Object.assign({}, base, {
-    ok: base.ok !== false,
+    ok: base.ok !== false && Boolean(originalReply),
+    reply: cleanReply,
+    text: cleanReply,
+    message: cleanReply,
+    displayReply: cleanReply,
     publicAgent: 'Nyx',
     authority: 'Marion',
     inputChannel: 'voice',
     source: 'voice',
-    voice: Object.assign({}, base.voice || {}, outputPolicy || {}),
+    voice: Object.assign({}, base.voice || {}, outputPolicy || {}, {
+      spokenText: firstReplyText(outputPolicy || {}) || (originalReply ? cleanReply : ''),
+      audioStored: false
+    }),
     voiceEnvelope: {
       source: voiceEnvelope.source,
       inputChannel: voiceEnvelope.inputChannel,
@@ -145,6 +169,10 @@ async function handleVoiceTranscript(input, options) {
 
   const bridgePayload = {
     input: envelope.transcript,
+    text: envelope.transcript,
+    userQuery: envelope.transcript,
+    query: envelope.transcript,
+    message: envelope.transcript,
     transcript: envelope.transcript,
     originalTranscript: envelope.originalTranscript || envelope.transcript,
     inputChannel: 'voice',
@@ -157,7 +185,10 @@ async function handleVoiceTranscript(input, options) {
     voice: {
       envelope,
       wakeWord: envelope.wakeWord || null,
-      commandPhrase: envelope.commandPhrase || null
+      commandPhrase: envelope.commandPhrase || null,
+      source: 'voice',
+      inputChannel: 'voice',
+      audioStored: false
     }
   };
 
@@ -198,5 +229,6 @@ async function handleVoiceTranscript(input, options) {
 module.exports = {
   handleVoiceTranscript,
   makeNyxBoundaryResponse,
+  firstReplyText,
   loadMarionBridge
 };
