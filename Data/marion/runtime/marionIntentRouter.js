@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.5.4 FOLLOWUP-INTENT-EXPANSION-HARDLOCK + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.5.4 FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -214,6 +214,42 @@ function normalizeContinuityTopic(value) {
     .slice(0, 120);
 }
 
+
+function inferContinuityTopicFromAssistantText(value = "") {
+  const t = safeStr(value).replace(/[“”"']/g, "");
+  const lowerT = lower(t);
+  if (!t) return "";
+  const directTopics = [
+    { rx: /\bcash[-\s]?flow\b/i, topic: "cash flow" },
+    { rx: /\bleast privilege\b/i, topic: "least privilege" },
+    { rx: /\bphishing\b/i, topic: "phishing" },
+    { rx: /\bcognitive bias\b/i, topic: "cognitive bias" },
+    { rx: /\bmachine learning\b|\bML\b/, topic: "machine learning" },
+    { rx: /\bconsideration\b.*\bcontract law\b|\bcontract law\b.*\bconsideration\b/i, topic: "consideration in contract law" },
+    { rx: /\bartificial intelligence\b|\bAI\b/, topic: "artificial intelligence" }
+  ];
+  for (const item of directTopics) {
+    if (item.rx.test(t)) return item.topic;
+  }
+  let m = t.match(/^([A-Z][A-Za-z0-9\s\-]{2,80})\s+is\s+(?:a|an|the)\b/);
+  if (m && m[1]) return normalizeContinuityTopic(m[1]);
+  m = lowerT.match(/^([a-z][a-z0-9\s\-]{2,80})\s+(?:is|means|refers to)\b/);
+  if (m && m[1]) return normalizeContinuityTopic(m[1]);
+  return "";
+}
+
+function chooseContinuityTopicCandidate(candidates = []) {
+  for (const item of Array.isArray(candidates) ? candidates : []) {
+    const direct = normalizeContinuityTopic(item);
+    if (!direct) continue;
+    if (isShortContinuityFollowupText(direct)) continue;
+    const inferred = inferContinuityTopicFromAssistantText(item) || direct;
+    const topic = normalizeContinuityTopic(inferred);
+    if (topic && !isShortContinuityFollowupText(topic)) return topic;
+  }
+  return "";
+}
+
 function extractContinuityCarry(input = {}) {
   const src = safeObj(input);
   const meta = safeObj(src.meta);
@@ -237,24 +273,25 @@ function extractContinuityCarry(input = {}) {
     prevState.topic, prevState.lastTopic, prevState.activeTopic,
     previousMemory.normalizedUserIntent, prevState.normalizedUserIntent,
     previousMemory.userText, prevState.lastUserText,
-    lastTopics[0]
+    lastTopics[0],
+    src.lastAssistantReply, meta.lastAssistantReply, payload.lastAssistantReply,
+    previousMemory.lastAssistantReply, prevState.lastAssistantReply,
+    previousMemory.carryForwardSummary, prevState.carryForwardSummary,
+    previousMemory.conversationSummary, prevState.conversationSummary
   ];
-  let topic = "";
-  for (const item of topicCandidates) {
-    const normalized = normalizeContinuityTopic(item);
-    if (normalized && !isShortContinuityFollowupText(normalized) && !/\bwhy\b|\bthat\b|\bit\b|\bthis\b/i.test(normalized)) {
-      topic = normalized;
-      break;
-    }
-  }
+  let topic = chooseContinuityTopicCandidate(topicCandidates);
   if (!topic) {
-    for (const item of topicCandidates) {
-      const normalized = normalizeContinuityTopic(item);
-      if (normalized) {
-        topic = normalized;
-        break;
-      }
-    }
+    topic = chooseContinuityTopicCandidate([
+      src.lastAssistantReply,
+      meta.lastAssistantReply,
+      payload.lastAssistantReply,
+      previousMemory.lastAssistantReply,
+      prevState.lastAssistantReply,
+      previousMemory.carryForwardSummary,
+      prevState.carryForwardSummary,
+      previousMemory.conversationSummary,
+      prevState.conversationSummary
+    ]);
   }
   const originalText = safeStr(src.continuityResolvedOriginalText || ref.originalText || direct.originalText || meta.continuityResolvedOriginalText || "");
   const resolvedText = safeStr(src.continuityResolvedText || ref.resolvedText || direct.resolvedText || meta.continuityResolvedText || "");
@@ -274,7 +311,7 @@ function extractContinuityCarry(input = {}) {
 function isShortContinuityFollowupText(value = "") {
   const t = lower(value).replace(/[.?!]+$/g, "").trim();
   if (!t) return false;
-  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|example|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
+  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|give me example|show me an example|show me example|example|use case|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
     /\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically)\b/i.test(t);
 }
 
@@ -287,55 +324,22 @@ function isResolvedShortContinuityPrompt(input = {}, text = "") {
   return isShortContinuityFollowupText(t);
 }
 
-function classifyContinuityFollowupAction(text = "") {
-  const raw = safeStr(text).replace(/\s+/g, " ").trim();
-  const t = lower(raw).replace(/[.?!]+$/g, "").trim();
-  if (!t) return "";
-  if (/\b(example|scenario|show me|for instance)\b/i.test(t) || /^(?:example|give me an example)$/i.test(t)) return "example";
-  if (/\b(why|important|matter|value|purpose|significance)\b/i.test(t)) return "importance";
-  if (/\b(apply|application|small business|business use|real world|practical|practically|use case|scenario)\b/i.test(t)) return "application";
-  if (/\b(risk|risks|danger|downside|problem|failure|warning)\b/i.test(t)) return "risk";
-  if (/\b(benefit|benefits|upside|advantage|advantages|useful)\b/i.test(t)) return "benefit";
-  if (/\b(compare|comparison|versus|vs\.?|difference|different from)\b/i.test(t)) return "compare";
-  if (/\b(how|work|works|mechanism|process)\b/i.test(t)) return "mechanism";
-  if (/\b(continue|tell me more|expand|go deeper|break that down|elaborate)\b/i.test(t)) return "expand";
-  if (/\b(mean|means|definition|define)\b/i.test(t)) return "meaning";
-  return "followup";
-}
-
 function buildContinuityResolvedQuestion(text = "", carry = {}) {
   const topic = normalizeContinuityTopic(carry.topic || carry.lastTopic || "");
   const raw = safeStr(text).replace(/\s+/g, " ").trim();
   if (!topic || !raw) return raw;
   if (lower(raw).includes(lower(topic))) return raw;
 
-  const action = safeStr(carry.followupAction || carry.continuityAction || classifyContinuityFollowupAction(raw));
-  switch (action) {
-    case "example":
-      return `Give me a concrete example of ${topic}.`;
-    case "importance":
-      return `Why is ${topic} important?`;
-    case "application":
-      if (/small business/i.test(raw)) return `Apply ${topic} to a small business.`;
-      return `Apply ${topic} to a practical business scenario.`;
-    case "risk":
-      return `What are the main risks or failure points related to ${topic}?`;
-    case "benefit":
-      return `What are the main benefits of ${topic}?`;
-    case "compare":
-      return `Compare ${topic} with the closest alternative or opposite concept.`;
-    case "mechanism":
-      return `How does ${topic} work in practice?`;
-    case "expand":
-      return `Continue explaining ${topic} with one new layer of detail.`;
-    case "meaning":
-      return `What does ${topic} mean in practical terms?`;
-    default:
-      if (/^why\b/i.test(raw)) return `Why is ${topic} important?`;
-      if (/\bexample\b/i.test(raw)) return `Give me a concrete example of ${topic}.`;
-      if (/\bapply\b/i.test(raw)) return `Apply ${topic} to a practical business scenario.`;
-      return `${raw} about ${topic}`;
+  if (/^why\s+(?:is\s+that\s+important|does\s+that\s+matter|is\s+it\s+important|does\s+it\s+matter)?\??$/i.test(raw) || /^why\b/i.test(raw)) {
+    return `Why is ${topic} important?`;
   }
+  if (/^(?:how so|explain why)\??$/i.test(raw)) return `Explain why ${topic} matters.`;
+  if (/\bexample\b/i.test(raw)) return `Give me an example of ${topic}.`;
+  if (/\bapply\b/i.test(raw)) return `Apply ${topic} to this context.`;
+  if (/\bsmall business\b/i.test(raw)) return `Apply ${topic} to a small business.`;
+  if (/\bcontinue|tell me more|expand|go deeper|break that down\b/i.test(raw)) return `Continue explaining ${topic}.`;
+  if (/\bwhat does that mean|what does it mean\b/i.test(raw)) return `What does ${topic} mean in practical terms?`;
+  return `${raw} about ${topic}`;
 }
 
 function clamp01(v, fallback = 0) {
@@ -1846,32 +1850,18 @@ function routeMarionIntent(packet = {}) {
   const existingIntent = extractExistingIntent(src);
   const continuityCarry = extractContinuityCarry(src);
   const continuityResolved = isResolvedShortContinuityPrompt(src, rawText);
-  const continuityFollowupAction = continuityResolved ? classifyContinuityFollowupAction(rawText) : "";
   const continuityResolvedText = continuityResolved
-    ? buildContinuityResolvedQuestion(rawText, { ...continuityCarry, followupAction: continuityFollowupAction })
+    ? buildContinuityResolvedQuestion(rawText, continuityCarry)
     : "";
-  const questionShape = continuityResolved && continuityResolvedText
-    ? {
-        version: QUESTION_SHAPE_NORMALIZATION_VERSION,
-        rawText,
-        normalizedText: continuityResolvedText,
-        normalizedUserIntent: continuityResolvedText,
-        questionShape: "short_followup_expanded",
-        changed: continuityResolvedText !== rawText,
-        reason: `continuity_${continuityFollowupAction || "followup"}_expansion`,
-        source: "marionIntentRouter.shortFollowupIntentExpansion"
-      }
-    : normalizeQuestionShape(rawText);
-  const text = continuityResolvedText || questionShape.normalizedText || rawText;
+  const questionShape = normalizeQuestionShape(continuityResolvedText || rawText);
+  const text = questionShape.normalizedText || continuityResolvedText || rawText;
   const continuityExistingIntent = continuityResolved
     ? {
         intent: "domain_question",
         confidence: Math.max(clamp01(existingIntent.confidence, 0), 0.91),
         reason: "short_followup_continuity_resolved",
         source: "marionIntentRouter.shortFollowupContinuity",
-        continuityCarry,
-        followupAction: continuityFollowupAction,
-        continuityAction: continuityFollowupAction
+        continuityCarry
       }
     : {};
 
@@ -1893,24 +1883,24 @@ function routeMarionIntent(packet = {}) {
       topic: continuityCarry.topic || normalizeContinuityTopic(text),
       lastTopic: continuityCarry.topic || normalizeContinuityTopic(text),
       resolvedFollowup: !!continuityResolved,
-      followupAction: continuityFollowupAction,
-      continuityAction: continuityFollowupAction,
       originalText: continuityCarry.originalText || rawText,
       resolvedText: continuityResolvedText || text,
-      source: "marionIntentRouter.shortFollowupIntentExpansionHardlock"
+      source: "marionIntentRouter.shortFollowupContinuityReferenceBinding"
     };
     routing.continuity = boundContinuityCarry;
     routing.followUpReference = boundContinuityCarry;
     routing.shortFollowupContinuityResolved = !!continuityResolved;
-    routing.followupAction = continuityFollowupAction;
-    routing.continuityAction = continuityFollowupAction;
     routing.previousTopic = boundContinuityCarry.topic || "";
     routing.normalizedUserIntent = continuityResolvedText || routing.normalizedUserIntent;
+    routing.effectivePrompt = continuityResolvedText || routing.normalizedUserIntent;
+    routing.resolvedQuestion = continuityResolvedText || "";
+    routing.continuityResolvedText = continuityResolvedText || "";
     marionIntent.continuityCarry = boundContinuityCarry;
     marionIntent.shortFollowupContinuityResolved = !!continuityResolved;
-    marionIntent.followupAction = continuityFollowupAction;
-    marionIntent.continuityAction = continuityFollowupAction;
     marionIntent.normalizedUserIntent = continuityResolvedText || marionIntent.normalizedUserIntent;
+    marionIntent.effectivePrompt = continuityResolvedText || marionIntent.normalizedUserIntent;
+    marionIntent.resolvedQuestion = continuityResolvedText || "";
+    marionIntent.continuityResolvedText = continuityResolvedText || "";
     marionIntent.reason = continuityResolved ? "short_followup_continuity_reference_bound" : marionIntent.reason;
   }
   const inputSource = normalizeInputSource(src.inputSource || safeObj(src.session).inputSource || marionIntent.inputSource || "text");
@@ -1930,6 +1920,10 @@ function routeMarionIntent(packet = {}) {
     questionShape,
     rawUserText: rawText,
     normalizedUserIntent: continuityResolvedText || questionShape.normalizedUserIntent || text,
+    effectivePrompt: continuityResolvedText || questionShape.normalizedUserIntent || text,
+    resolvedQuestion: continuityResolvedText || "",
+    continuityResolvedText: continuityResolvedText || "",
+    continuityResolvedOriginalText: continuityResolved ? rawText : "",
     continuity: (continuityCarry.active || continuityResolved) ? (routing.continuity || boundContinuityCarry || continuityCarry) : undefined,
     followUpReference: (continuityCarry.active || continuityResolved) ? (routing.followUpReference || boundContinuityCarry || continuityCarry) : undefined,
     shortFollowupContinuityResolved: !!continuityResolved,
@@ -1948,10 +1942,6 @@ function routeMarionIntent(packet = {}) {
       continuity: (continuityCarry.active || continuityResolved) ? (boundContinuityCarry || continuityCarry) : undefined,
       followUpReference: (continuityCarry.active || continuityResolved) ? (boundContinuityCarry || continuityCarry) : undefined,
       shortFollowupContinuityResolved: !!continuityResolved,
-      followupAction: continuityFollowupAction,
-      continuityAction: continuityFollowupAction,
-      continuityResolvedText,
-      continuityResolvedOriginalText: rawText,
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
@@ -1988,10 +1978,6 @@ function routeMarionIntent(packet = {}) {
       continuity: (continuityCarry.active || continuityResolved) ? (routing.continuity || continuityCarry) : undefined,
       followUpReference: (continuityCarry.active || continuityResolved) ? (routing.followUpReference || continuityCarry) : undefined,
       shortFollowupContinuityResolved: !!continuityResolved,
-      followupAction: continuityFollowupAction,
-      continuityAction: continuityFollowupAction,
-      continuityResolvedText,
-      continuityResolvedOriginalText: rawText,
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
@@ -2089,9 +2075,11 @@ module.exports = {
     isAnswerableTopicRequest,
     turnContinuityHash,
     extractContinuityCarry,
-    isResolvedShortContinuityPrompt,
-    classifyContinuityFollowupAction,
+    inferContinuityTopicFromAssistantText,
+    chooseContinuityTopicCandidate,
     buildContinuityResolvedQuestion,
+    isShortContinuityFollowupText,
+    isResolvedShortContinuityPrompt,
     routerForensicNormalizationStatus,
     classifyFailureSignature,
     buildFailureSignatureAudit,
