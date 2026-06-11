@@ -292,12 +292,87 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 // NYX-VOICE-TRANSCRIPT-ROUTE:
 // Public voice entrypoint stays Nyx-facing while Marion remains the hidden authority.
 // This route accepts transcript-only payloads. Raw audio must never be stored here.
-const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.0-marionAuthority";
+const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.1-finalReplyPromotionHardlock";
 
 const NYX_VOICE_TRANSCRIPT_ROUTES = Object.freeze([
   "/api/nyx/voice/transcript",
   "/nyx/voice/transcript"
 ]);
+
+
+function nyxVoiceRouteReplyText(value, depth, seen) {
+  if (!value) return "";
+  if (typeof value === "string") return cleanReplyForUser(value);
+  if (!isObj(value)) return "";
+
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 6) return "";
+
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+
+  const direct = cleanReplyForUser(
+    value.displayReply ||
+    value.reply ||
+    value.text ||
+    value.message ||
+    value.answer ||
+    value.output ||
+    value.response ||
+    value.spokenText ||
+    value.finalReply ||
+    value.publicReply ||
+    value.visibleReply ||
+    ""
+  );
+  if (direct) return direct;
+
+  const priorityKeys = [
+    "finalEnvelope", "payload", "data", "result", "packet", "marionFinal",
+    "final", "envelope", "response", "output", "message", "reply", "text", "voice", "speech", "meta"
+  ];
+
+  for (const key of priorityKeys) {
+    const nested = value[key];
+    if (nested && typeof nested === "object") {
+      const found = nyxVoiceRouteReplyText(nested, level + 1, visited);
+      if (found) return found;
+    }
+  }
+
+  for (const key of Object.keys(value)) {
+    if (priorityKeys.includes(key)) continue;
+    const nested = value[key];
+    if (nested && typeof nested === "object") {
+      const found = nyxVoiceRouteReplyText(nested, level + 1, visited);
+      if (found) return found;
+    }
+  }
+
+  return "";
+}
+
+function nyxVoiceRouteFallbackReply(packet, body) {
+  const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
+  const hint = cleanText(voiceEnvelope.userIntentHint || "").toLowerCase();
+  const commandPhrase = cleanText(voiceEnvelope.commandPhrase || "").toLowerCase();
+  const authorizationState = cleanText(voiceEnvelope.authorizationState || "");
+
+  if (hint === "status" || commandPhrase === "status") {
+    return "Voice lane status: Nyx is the public route, Marion remains the authority, Mac voice authorization is accepted, and raw audio is not being stored. The final-reply promotion fallback is active so the route does not return silence.";
+  }
+
+  if (packet && packet.ok === false) {
+    return "I heard you, but Marion could not complete that voice turn cleanly. I kept the public response safe and did not store raw audio.";
+  }
+
+  if (authorizationState === "authorized" || cleanText(body && body.speakerHint).toLowerCase() === "mac") {
+    return "I heard you and authorization passed, but the bridge did not return a visible final reply. I surfaced this safe fallback instead of returning silence.";
+  }
+
+  return "I heard you, but that voice turn did not produce a clean final answer.";
+}
 
 app.options(NYX_VOICE_TRANSCRIPT_ROUTES, (req, res) => {
   hardenCors(req, res);
@@ -381,18 +456,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
 
     const voice = isObj(packet && packet.voice) ? packet.voice : {};
     const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
-    const reply = cleanReplyForUser(
-      packet && (
-        packet.displayReply ||
-        packet.reply ||
-        packet.text ||
-        packet.message ||
-        packet.answer ||
-        packet.output ||
-        packet.response ||
-        voice.spokenText
-      ) || ""
-    );
+    const promotedReply = nyxVoiceRouteReplyText(packet) || nyxVoiceRouteReplyText(voice);
+    const reply = cleanReplyForUser(promotedReply || nyxVoiceRouteFallbackReply(packet, body));
+    const voiceReplyPromotionFallback = !promotedReply && Boolean(reply);
 
     return res.status(packet && packet.ok === false ? 202 : 200).json({
       ok: !(packet && packet.ok === false),
@@ -409,11 +475,12 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       route: "/api/nyx/voice/transcript",
       version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
       voice: {
-        speakAllowed: voice.speakAllowed === true,
-        voiceMode: cleanText(voice.voiceMode || ""),
-        reason: cleanText(voice.reason || ""),
-        spokenText: cleanReplyForUser(voice.spokenText || ""),
-        audioStored: false
+        speakAllowed: voice.speakAllowed === true || voiceReplyPromotionFallback,
+        voiceMode: cleanText(voice.voiceMode || "full"),
+        reason: voiceReplyPromotionFallback ? "VOICE_ROUTE_REPLY_PROMOTION_FALLBACK" : cleanText(voice.reason || ""),
+        spokenText: cleanReplyForUser(voice.spokenText || reply || ""),
+        audioStored: false,
+        replyPromotionFallback: voice.replyPromotionFallback === true || voiceReplyPromotionFallback
       },
       voiceEnvelope: {
         source: "voice",
@@ -430,7 +497,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         traceId,
         latencyMs: now() - startedAt,
         routeAuthority: "Nyx public route -> MarionVoiceGateway -> MarionBridge",
-        noRawAudioStored: true
+        noRawAudioStored: true,
+        voiceReplyPromotionFallback,
+        promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.1"
       }
     });
   } catch (err) {
