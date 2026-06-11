@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.5 FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.16.6 FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -281,7 +281,7 @@ function normalizeContinuityCarry(value = {}) {
 function isShortContinuityFollowupStateText(value = "") {
   const t = oneLine(value).replace(/[.?!]+$/g, "").toLowerCase();
   if (!t) return false;
-  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|example|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
+  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|give me example|show me an example|show me example|example|use case|apply it|apply that|what about that|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
     (/\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically)\b/i.test(t));
 }
 
@@ -320,22 +320,72 @@ function buildStateContinuityResolvedQuestion(text = "", topic = "", action = ""
   }
 }
 
+
+function inferContinuityTopicFromAssistantText(value = "") {
+  const t = oneLine(value).replace(/[“”"']/g, "");
+  const lowerT = t.toLowerCase();
+  if (!t) return "";
+  const directTopics = [
+    { rx: /\bcash[-\s]?flow\b/i, topic: "cash flow" },
+    { rx: /\bleast privilege\b/i, topic: "least privilege" },
+    { rx: /\bphishing\b/i, topic: "phishing" },
+    { rx: /\bcognitive bias\b/i, topic: "cognitive bias" },
+    { rx: /\bmachine learning\b|\bML\b/, topic: "machine learning" },
+    { rx: /\bconsideration\b.*\bcontract law\b|\bcontract law\b.*\bconsideration\b/i, topic: "consideration in contract law" },
+    { rx: /\bartificial intelligence\b|\bAI\b/, topic: "artificial intelligence" }
+  ];
+  for (const item of directTopics) {
+    if (item.rx.test(t)) return item.topic;
+  }
+  let m = t.match(/^([A-Z][A-Za-z0-9\s\-]{2,80})\s+is\s+(?:a|an|the)\b/);
+  if (m && m[1]) return boundedOneLine(m[1].replace(/^(?:The|A|An)\s+/i, ""), 120).toLowerCase();
+  m = lowerT.match(/^([a-z][a-z0-9\s\-]{2,80})\s+(?:is|means|refers to)\b/);
+  if (m && m[1]) return boundedOneLine(m[1].replace(/^(?:the|a|an)\s+/i, ""), 120);
+  return "";
+}
+
+function chooseContinuityTopicCandidate(candidates = []) {
+  for (const item of Array.isArray(candidates) ? candidates : []) {
+    const direct = boundedOneLine(item, 180);
+    if (!direct) continue;
+    if (isShortContinuityFollowupStateText(direct)) continue;
+    const inferred = inferContinuityTopicFromAssistantText(direct) || direct;
+    const topic = boundedOneLine(inferred, 120);
+    if (topic && !isShortContinuityFollowupStateText(topic)) return topic;
+  }
+  return "";
+}
+
 function continuityTopicFromState(prev = {}, inbound = {}, memoryPatch = {}, normalizedUserIntent = "") {
   const p = isPlainObject(prev) ? prev : {};
   const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
   const src = isPlainObject(inbound) ? inbound : {};
   const meta = safeObj(src.meta);
   const payload = safeObj(src.payload);
-  const continuity = normalizeContinuityCarry(mp.continuity || src.continuity || meta.continuity || payload.continuity || p.continuity || p);
-  const candidate = boundedOneLine(
-    continuity.topic || continuity.lastTopic ||
-    mp.lastTopic || safeObj(mp.stateBridge).lastTopic ||
-    p.lastTopic || safeObj(p.continuity).topic || safeObj(p.continuity).lastTopic ||
-    "",
-    320
-  );
-  if (candidate && isShortContinuityFollowupStateText(normalizedUserIntent)) return candidate;
-  return boundedOneLine(mp.lastTopic || normalizedUserIntent || deriveStateTopic(inbound, memoryPatch, safeStr(src.lane || p.lane || "general")) || p.lastTopic, 320);
+  const stateBridge = safeObj(mp.stateBridge || src.stateBridge || meta.stateBridge || payload.stateBridge);
+  const continuity = normalizeContinuityCarry(mp.continuity || src.continuity || meta.continuity || payload.continuity || stateBridge.continuity || p.continuity || p);
+  const isFollowup = isShortContinuityFollowupStateText(normalizedUserIntent || extractInboundText(src) || mp.lastUserText || "");
+  const candidate = chooseContinuityTopicCandidate([
+    continuity.topic,
+    continuity.lastTopic,
+    mp.lastTopic,
+    stateBridge.lastTopic,
+    stateBridge.topic,
+    p.lastTopic,
+    safeObj(p.continuity).topic,
+    safeObj(p.continuity).lastTopic,
+    safeObj(p.followUpReference).topic,
+    safeObj(p.followUpReference).lastTopic,
+    safeObj(p.continuityThread).lastTopics && safeObj(p.continuityThread).lastTopics[0],
+    mp.lastAssistantReply,
+    p.lastAssistantReply,
+    mp.carryForwardSummary,
+    p.carryForwardSummary,
+    p.conversationSummary,
+    deriveStateTopic(inbound, memoryPatch, safeStr(src.lane || p.lane || "general"))
+  ]);
+  if (isFollowup) return boundedOneLine(candidate, 320);
+  return boundedOneLine(candidate || mp.lastTopic || normalizedUserIntent || deriveStateTopic(inbound, memoryPatch, safeStr(src.lane || p.lane || "general")) || p.lastTopic, 320);
 }
 
 
@@ -2223,12 +2273,18 @@ function isProgressionRegressionInboundText(text = "") {
 }
 
 function deriveStateTopic(inbound = {}, memoryPatch = {}, lane = "general") {
-  const text = `${extractInboundText(inbound)} ${memoryPatch.lastTopic || ""} ${memoryPatch.carryForwardSummary || ""}`.toLowerCase();
+  const text = `${extractInboundText(inbound)} ${memoryPatch.lastTopic || ""} ${memoryPatch.carryForwardSummary || ""} ${memoryPatch.lastAssistantReply || ""}`.toLowerCase();
+  if (/\bcash[-\s]?flow\b/.test(text)) return "cash flow";
+  if (/\bleast privilege\b/.test(text)) return "least privilege";
+  if (/\bphishing\b/.test(text)) return "phishing";
+  if (/\bcognitive bias\b/.test(text)) return "cognitive bias";
+  if (/\bmachine learning\b|\bml\b/.test(text)) return "machine learning";
+  if (/\bconsideration\b.*\bcontract law\b|\bcontract law\b.*\bconsideration\b/.test(text)) return "consideration in contract law";
   if (/sandblast|user engagement|conversion path|roku|sponsor|investor|business value|premium|pitch|progression shaping|active users|first move|make it sharper|user-facing/.test(text)) return "Sandblast engagement and Roku conversion path";
   if (/nyx|nexus|marion|ai media|interface|emotionally aware|intelligent/.test(text)) return "AI media interface continuity";
-  if (/cash flow|profit|finance/.test(text)) return "finance";
+  if (/profit|finance/.test(text)) return "finance";
   if (/legal|law/.test(text)) return "law";
-  if (/least privilege|cyber|security/.test(text)) return "cyber";
+  if (/cyber|security/.test(text)) return "cyber";
   if (/tool routing|ai agent/.test(text)) return "AI agents";
   return oneLine(memoryPatch.lastTopic || lane || "conversation");
 }
