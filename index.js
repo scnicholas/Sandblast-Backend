@@ -292,13 +292,13 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 // NYX-VOICE-TRANSCRIPT-ROUTE:
 // Public voice entrypoint stays Nyx-facing while Marion remains the hidden authority.
 // This route accepts transcript-only payloads. Raw audio must never be stored here.
-const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.2-nonEmptyReplyPromotionHardlock";
+// V1.3 hardens the projection layer against transcript echo promotion.
+const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.3-echoSuppressionReplyPromotionHardlock";
 
 const NYX_VOICE_TRANSCRIPT_ROUTES = Object.freeze([
   "/api/nyx/voice/transcript",
   "/nyx/voice/transcript"
 ]);
-
 
 function nyxVoiceRouteReplyText(value, depth, seen) {
   if (!value) return "";
@@ -320,17 +320,17 @@ function nyxVoiceRouteReplyText(value, depth, seen) {
     value.answer ||
     value.output ||
     value.response ||
-    value.spokenText ||
     value.finalReply ||
     value.publicReply ||
     value.visibleReply ||
+    value.spokenText ||
     ""
   );
   if (direct) return direct;
 
   const priorityKeys = [
     "finalEnvelope", "payload", "data", "result", "packet", "marionFinal",
-    "final", "envelope", "response", "output", "message", "reply", "text", "voice", "speech", "meta"
+    "final", "envelope", "response", "output", "message", "reply", "text", "speech", "voice", "meta"
   ];
 
   for (const key of priorityKeys) {
@@ -360,7 +360,7 @@ function nyxVoiceRouteFallbackReply(packet, body) {
   const authorizationState = cleanText(voiceEnvelope.authorizationState || "");
 
   if (hint === "status" || commandPhrase === "status") {
-    return "Voice lane status: the Nyx voice route is active, Mac authorization passed, transcript-only processing is live, and raw audio is not being stored.";
+    return "Voice lane status: Nyx is the public route, Marion remains the authority, Mac voice authorization is accepted, transcript-only processing is live, and raw audio is not being stored.";
   }
 
   if (packet && packet.ok === false) {
@@ -368,7 +368,7 @@ function nyxVoiceRouteFallbackReply(packet, body) {
   }
 
   if (authorizationState === "authorized" || cleanText(body && body.speakerHint).toLowerCase() === "mac") {
-    return "I heard you and authorization passed. The voice route stayed active, and raw audio was not stored.";
+    return "I heard you and authorization passed. The voice route stayed active, the response stayed safe, and raw audio was not stored.";
   }
 
   return "I heard you, but that voice turn did not produce a clean final answer.";
@@ -376,17 +376,17 @@ function nyxVoiceRouteFallbackReply(packet, body) {
 
 function nyxVoiceRouteSafePublicReply(value) {
   const cleaned = cleanReplyForUser(value);
-  if (cleaned) return cleaned;
+  if (cleaned && !isPrimitivePlaceholderReplyValue(cleaned)) return cleaned;
   let text = cleanText(value || "");
   if (!text || isPrimitivePlaceholderReplyValue(text)) return "";
   text = stripUserVisibleDebugLeak(text);
   text = stripPublicReplyScaffold(text);
   text = text
-    .replace(/backend/ig, "system")
-    .replace(/MarionBridge/g, "the voice bridge")
-    .replace(/MarionVoiceGateway/g, "the voice gateway")
-    .replace(/MARION::FINAL::[^\s.;,]+/gi, "")
-    .replace(/nyx\.voiceReplyPromotionHardlock\/[0-9.]+/gi, "")
+    .replace(/\bbackend\b/ig, "system")
+    .replace(/\bMarionBridge\b/g, "the voice bridge")
+    .replace(/\bMarionVoiceGateway\b/g, "the voice gateway")
+    .replace(/\bMARION::FINAL::[^\s.;,]+/gi, "")
+    .replace(/\bnyx\.voiceReplyPromotionHardlock\/[0-9.]+\b/gi, "")
     .replace(/\s+([,.!?;:])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -394,9 +394,52 @@ function nyxVoiceRouteSafePublicReply(value) {
   return text;
 }
 
+function nyxVoiceRouteNormalizeEchoText(value) {
+  return cleanText(value || "")
+    .toLowerCase()
+    .replace(/^\s*(?:vera|nyx|marion)\s*[,:\-]?\s*/i, "")
+    .replace(/[“”"'`]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function nyxVoiceRouteCollectEchoSources(packet, body) {
+  const p = isObj(packet) ? packet : {};
+  const b = isObj(body) ? body : {};
+  const voice = isObj(p.voice) ? p.voice : {};
+  const voiceEnvelope = isObj(p.voiceEnvelope) ? p.voiceEnvelope : {};
+  const normalization = isObj(voiceEnvelope.normalization) ? voiceEnvelope.normalization : {};
+  return [
+    b.transcript,
+    b.text,
+    b.message,
+    b.query,
+    p.transcript,
+    p.originalTranscript,
+    p.normalizedTranscript,
+    voice.transcript,
+    voice.originalTranscript,
+    voice.normalizedTranscript,
+    voiceEnvelope.transcript,
+    voiceEnvelope.originalTranscript,
+    voiceEnvelope.normalizedTranscript,
+    normalization.originalTranscript,
+    normalization.normalizedTranscript
+  ].map(nyxVoiceRouteNormalizeEchoText).filter(Boolean);
+}
+
+function nyxVoiceRouteIsInputEchoReply(candidate, packet, body) {
+  const reply = nyxVoiceRouteNormalizeEchoText(candidate);
+  if (!reply) return false;
+  const echoes = nyxVoiceRouteCollectEchoSources(packet, body);
+  if (!echoes.length) return false;
+  return echoes.some((echo) => reply === echo || (reply.length >= 12 && echo.length >= 12 && (reply.includes(echo) || echo.includes(reply))));
+}
+
 function nyxVoiceRouteEnsureNonEmptyReply(candidate, packet, body) {
   const promoted = nyxVoiceRouteSafePublicReply(candidate);
-  if (promoted) return promoted;
+  if (promoted && !nyxVoiceRouteIsInputEchoReply(promoted, packet, body)) return promoted;
 
   const fallback = nyxVoiceRouteSafePublicReply(nyxVoiceRouteFallbackReply(packet, body));
   if (fallback) return fallback;
@@ -486,10 +529,14 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
 
     const voice = isObj(packet && packet.voice) ? packet.voice : {};
     const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
-    const promotedReply = nyxVoiceRouteReplyText(packet) || nyxVoiceRouteReplyText(voice);
+    const rawPromotedReply = nyxVoiceRouteReplyText(packet) || nyxVoiceRouteReplyText(voice);
+    const promotedReply = nyxVoiceRouteIsInputEchoReply(rawPromotedReply, packet, body) ? "" : rawPromotedReply;
     const reply = nyxVoiceRouteEnsureNonEmptyReply(promotedReply, packet, body);
-    const voiceReplyPromotionFallback = !nyxVoiceRouteSafePublicReply(promotedReply) && Boolean(reply);
-    const spokenText = nyxVoiceRouteSafePublicReply(voice.spokenText || reply) || reply;
+    const promotedSafe = nyxVoiceRouteSafePublicReply(promotedReply);
+    const voiceEchoSuppressed = Boolean(rawPromotedReply && !promotedReply) || nyxVoiceRouteIsInputEchoReply(voice.spokenText, packet, body);
+    const voiceReplyPromotionFallback = (!promotedSafe && Boolean(reply)) || voiceEchoSuppressed;
+    const spokenCandidate = voiceEchoSuppressed ? "" : voice.spokenText;
+    const spokenText = nyxVoiceRouteSafePublicReply(spokenCandidate) || reply;
 
     return res.status(packet && packet.ok === false ? 202 : 200).json({
       ok: !(packet && packet.ok === false),
@@ -508,10 +555,11 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       voice: {
         speakAllowed: voice.speakAllowed === true || voiceReplyPromotionFallback,
         voiceMode: cleanText(voice.voiceMode || "full"),
-        reason: voiceReplyPromotionFallback ? "VOICE_ROUTE_REPLY_PROMOTION_FALLBACK" : cleanText(voice.reason || ""),
+        reason: voiceEchoSuppressed ? "VOICE_ROUTE_ECHO_SUPPRESSED_FALLBACK" : voiceReplyPromotionFallback ? "VOICE_ROUTE_REPLY_PROMOTION_FALLBACK" : cleanText(voice.reason || ""),
         spokenText,
         audioStored: false,
         replyPromotionFallback: voice.replyPromotionFallback === true || voiceReplyPromotionFallback,
+        echoSuppressed: voiceEchoSuppressed,
         nonEmptyReplyHardlock: true
       },
       voiceEnvelope: {
@@ -531,8 +579,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         routeAuthority: "Nyx public route -> MarionVoiceGateway -> MarionBridge",
         noRawAudioStored: true,
         voiceReplyPromotionFallback,
+        voiceEchoSuppressed,
         nonEmptyReplyHardlock: true,
-        promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.2"
+        promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.3"
       }
     });
   } catch (err) {
