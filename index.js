@@ -31,7 +31,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.34sb INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const INDEX_VERSION = "index.js v2.18.35sb INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -915,6 +915,9 @@ function buildSixDomainPublicKnowledgeAnswer(value=""){
   const source=String(value==null?"":value).replace(/\s+/g," ").trim();
   const t=source.toLowerCase();
   if(!t)return "";
+  if(/cash[- ]?flow/.test(t) && /what happens next|what next|then what|next step|next steps|comes next/.test(t))return "Next, the business has to manage the timing gap: collect the invoice, delay nonessential spending, cover payroll and rent, or use reserves or financing until the cash actually arrives.";
+  if(/cash[- ]?flow/.test(t) && /another example|show another|second example/.test(t))return "Another example: a contractor pays $2,000 for materials today but the client pays after the job is finished. Until that payment arrives, the contractor has a cash-flow gap even if the job is profitable.";
+  if(/cash[- ]?flow/.test(t) && /continue|tell me more|go deeper|expand|break down/.test(t))return "The next layer is timing: profit tells you whether the work makes money overall, but cash flow tells you whether the money is available when bills are due.";
   if(/\bcash[- ]?flow\b/.test(t) && /\bexample|for instance|show me\b/.test(t))return "Example: a business invoices $5,000 today but will not receive that money for 30 days. If rent, payroll, and supplies are due this week, the business can be profitable on paper but still have a cash-flow problem because the money has not arrived yet.";
   if(/\bcash[- ]?flow\b/.test(t) && /\bimportant|matter|why\b/.test(t))return "Cash flow is important because it determines whether a business can pay bills on time, handle slow sales periods, avoid unnecessary debt, and make growth decisions without running out of operating money.";
   if(/\bcash[- ]?flow\b/.test(t) && /\bapply|small business|practical\b/.test(t))return "For a small business, cash flow means watching when money actually arrives versus when expenses are due. The practical rule is to price, collect, spend, and hire based on available cash timing, not just total sales.";
@@ -1140,7 +1143,11 @@ function forcePublicReply(packet, reply, metaPatch) {
     displayReply: safeReply,
     spokenText,
     final: true,
+    finalized: true,
+    marionFinal: true,
     handled: true,
+    authority: "marionFinalEnvelope",
+    contractVersion: "nyx.marion.final/1.0",
     qualityPass: true
   };
   const publicVoiceSurface = buildPublicVoiceSurfaceFromReply(safeReply, safeObj(out.playback).route || safeObj(out.payload).voiceRoute || out.voiceRoute || "");
@@ -6664,10 +6671,13 @@ function extractContinuityTopicFromTurn(turn) {
 function isShortContinuityFollowupText(value) {
   const text = cleanText(value || "").replace(/[.?!]+$/g, "").toLowerCase();
   if (!text) return false;
-  if (text.length > 140) return false;
+  if (text.length > 160) return false;
   return /^(?:why|how|what|when|where)\s+(?:is|are|does|do|would|could|should)\s+(?:that|this|it|they|them|those|these)\b/.test(text) ||
-    /^(?:why\s+is\s+that\s+important|why\s+does\s+that\s+matter|how\s+does\s+that\s+work|what\s+does\s+that\s+mean|what\s+about\s+that)$/i.test(text) ||
-    /^(?:give|show)\s+me\s+(?:an?\s+)?example\b/i.test(text) ||
+    /^(?:why\s+is\s+that\s+important|why\s+does\s+that\s+matter|why\s+does\s+it\s+matter|why\s+is\s+it\s+important|how\s+does\s+that\s+work|what\s+does\s+that\s+mean|what\s+about\s+that)$/i.test(text) ||
+    /^(?:give|show)\s+me\s+(?:an?\s+)?(?:another\s+)?example\b/i.test(text) ||
+    /^(?:another\s+example|example|use\s+case|show\s+another\s+one)$/i.test(text) ||
+    /^(?:what\s+happens\s+next|what\s+next|then\s+what|what\s+comes\s+next|next\s+step|next\s+steps)$/i.test(text) ||
+    /^(?:tell\s+me\s+more|continue|go\s+deeper|expand\s+on\s+that|break\s+that\s+down)$/i.test(text) ||
     /^(?:apply|use)\s+(?:that|this|it)\b/i.test(text) ||
     /^(?:make|put)\s+(?:that|this|it)\s+(?:practical|simple|clear)\b/i.test(text);
 }
@@ -6682,8 +6692,12 @@ function resolveShortContinuityFollowupText(currentText, priorTurn) {
   let resolved = "";
   if (/^why\s+(?:is|does|do|are|would|could|should)\s+(?:that|this|it|they|them|those|these)\b/.test(lowerSource) || /important|matter/.test(lowerSource)) {
     resolved = `Why is ${topic} important?`;
-  } else if (/^(?:give|show)\s+me\s+(?:an?\s+)?example\b/i.test(source)) {
-    resolved = `Give me an example of ${topic}.`;
+  } else if (/^(?:give|show)\s+me\s+(?:an?\s+)?(?:another\s+)?example\b/i.test(source) || /^(?:another\s+example|example|use\s+case|show\s+another\s+one)$/i.test(lowerSource)) {
+    resolved = /another|show\s+another/i.test(source) ? `Show another example of ${topic}.` : `Give me an example of ${topic}.`;
+  } else if (/\bwhat\s+happens\s+next|what\s+next|then\s+what|what\s+comes\s+next|next\s+steps?\b/i.test(lowerSource)) {
+    resolved = `What happens next with ${topic} in practice?`;
+  } else if (/\bcontinue|tell\s+me\s+more|expand|go\s+deeper|break\s+that\s+down\b/i.test(lowerSource)) {
+    resolved = `Continue explaining ${topic} with one practical next layer.`;
   } else if (/^(?:apply|use)\s+(?:that|this|it)\b/i.test(source)) {
     resolved = source.replace(/\b(that|this|it)\b/i, topic);
     if (resolved === source) resolved = `Apply ${topic} in practical terms.`;
@@ -12266,7 +12280,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   selected.final = trustedFinalForOutput;
   selected.finalized = trustedFinalForOutput;
   selected.handled = true;
-  selected.marionFinal = trustedFinalForOutput && (authority === "marion_bridge" || authority === "marion_bridge_legacy_reply");
+  selected.marionFinal = trustedFinalForOutput && (selected.marionFinal !== false || authority === "marion_bridge" || authority === "marion_bridge_legacy_reply" || authority === "marion_six_domain_public_knowledge_recovery" || authority === "index_authority_sanitization_reply_salvage");
   selected.awaitingMarion = !trustedFinalForOutput;
   selected.suppressUserFacingReply = !trustedFinalForOutput;
   selected.emit = trustedFinalForOutput;
@@ -12279,11 +12293,68 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   selected.bridge = selected.bridge || marion || null;
   selected.marionIntent = norm.marionIntent;
   selected.marionRouting = norm.marionRouting;
+  if (trustedFinalForOutput) {
+    selected.payload = {
+      ...(isObj(selected.payload) ? selected.payload : {}),
+      reply,
+      text: reply,
+      message: reply,
+      displayReply: reply,
+      spokenText: cleanText(selected.spokenText || reply),
+      final: true,
+      finalized: true,
+      marionFinal: true,
+      handled: true,
+      emit: true,
+      blocked: false,
+      awaitingMarion: false,
+      suppressUserFacingReply: false
+    };
+    selected.finalEnvelope = {
+      ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}),
+      reply,
+      text: reply,
+      displayReply: reply,
+      spokenText: cleanText(selected.spokenText || reply),
+      final: true,
+      finalized: true,
+      marionFinal: true,
+      handled: true,
+      authority: "marionFinalEnvelope",
+      contractVersion: "nyx.marion.final/1.0",
+      qualityPass: true
+    };
+  }
 
   const packetBridge = (isObj(prePacketBridge) && prePacketBridge.ok !== false && cleanText(prePacketBridge.matchedPacketId || prePacketBridge.packetId || prePacketBridge.packet || ""))
     ? prePacketBridge
     : (norm.staleCarryBypass ? {} : resolveNyxPacketBridge(norm, selected, marion, priorTurn));
   selected = applyPacketBridgeToSelected(selected, packetBridge, norm);
+
+  // INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK:
+  // Packet bridge and hygiene layers may preserve a structured blocked shell from
+  // an earlier awaiting-Marion state. If the current turn already has a clean
+  // Marion/continuity reply, reassert the public final contract before later
+  // safety gates inspect selected.awaitingMarion/blocked and accidentally emit
+  // a blank authority packet.
+  const cleanReplyAfterPacketBridge = cleanReplyForUser(reply);
+  if (cleanReplyAfterPacketBridge && !hasUserVisibleDebugLeak(cleanReplyAfterPacketBridge) && !isPublicWorkflowStateLeak(cleanReplyAfterPacketBridge) && !isBlockedLoopingSupportReply(cleanReplyAfterPacketBridge)) {
+    reply = finalizeRenderableReply(cleanReplyAfterPacketBridge, norm, authority || "marion_bridge", "index_final_promotion_reassertion_hardlock");
+    selected = forcePublicReply(selected, reply, {
+      indexFinalPromotionReassertionHardlock: true,
+      replyAuthority: authority || "marion_bridge",
+      semanticAuthority: "marion",
+      noUserFacingDiagnostics: true
+    });
+    selected.marionFinal = true;
+    selected.final = true;
+    selected.finalized = true;
+    selected.handled = true;
+    selected.awaitingMarion = false;
+    selected.suppressUserFacingReply = false;
+    selected.emit = true;
+    selected.blocked = false;
+  }
 
   if (isBlockedLoopingSupportReply(reply) || isConversationDiagnosticFallbackReply(reply) || isInternalMarionBlockerReply(reply) || isPublicWorkflowStateLeak(reply)) {
     const repaired = finalizeRenderableReply(buildIndexLoopBreakReply(norm, reply, authority, { repeated: true, stage: "post_packet_bridge" }), norm, authority, "post_packet_bridge_loop_break");
