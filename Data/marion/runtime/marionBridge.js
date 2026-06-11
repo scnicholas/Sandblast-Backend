@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.14 CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.15 AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -1563,6 +1563,9 @@ function buildDeterministicLastMilePublicReplyFromText(text=""){
     if(/\bthank you\b/i.test(source)&&/\bspanish\b/i.test(source))return "Thank you in Spanish is: Gracias.";
     if(/\bthank you\b/i.test(source)&&/\bfrench\b/i.test(source))return "Thank you in French is: Merci.";
   }
+  if(/\bcash[- ]?flow\b/i.test(source)&&/\b(example|for instance|show me|another example|scenario|use case)\b/i.test(source))return "Example: a business invoices $5,000 today but will not receive that money for 30 days. If rent, payroll, and supplies are due this week, the business can be profitable on paper but still have a cash-flow problem because the money has not arrived yet.";
+  if(/\bcash[- ]?flow\b/i.test(source)&&/\b(why|important|matter|matters)\b/i.test(source))return "Cash flow is important because it determines whether a business can pay bills on time, handle slow sales periods, avoid unnecessary debt, and make growth decisions without running out of operating money.";
+  if(/\bcash[- ]?flow\b/i.test(source)&&/\b(what happens next|next step|then what|what next)\b/i.test(source))return "Next, the business should compare incoming cash dates against outgoing expense dates, then decide whether to collect faster, delay spending, use reserves, or arrange short-term financing before the gap becomes operational pressure.";
   if(/\bcash[- ]?flow\b/i.test(source))return "Cash flow is the movement of money into and out of a business over a specific period. Positive cash flow means more money is coming in than going out; negative cash flow means the business may need reserves, faster collections, or tighter spending even if sales look strong.";
   if(/\bauditing\b|\baudit process\b|\bfinancial audit\b|\boperational audit\b/i.test(source))return "Auditing is a structured review that checks records, systems, finances, operations, or decisions against a standard so gaps can be found and corrected.";
   if(/\bcognitive\b|\bcognition\b/i.test(source))return "Cognitive refers to the mental processes involved in learning, remembering, reasoning, attention, problem-solving, and decision-making.";
@@ -1843,24 +1846,61 @@ function hasFinalFailureShape(value, depth = 0) {
   return Object.keys(value).some((key) => hasFinalFailureShape(value[key], depth + 1));
 }
 
+
+function bridgeContinuationRecoveryPrompt(packet = {}) {
+  const p = safeObj(packet);
+  const payload = safeObj(p.payload);
+  const meta = safeObj(p.meta);
+  const finalEnvelope = safeObj(p.finalEnvelope);
+  const candidates = [
+    p.continuityResolvedText, p.resolvedQuestion, p.effectivePrompt, p.userQuery, p.rawUserQuery, p.originalUserQuery,
+    payload.continuityResolvedText, payload.resolvedQuestion, payload.effectivePrompt, payload.userQuery, payload.rawUserQuery, payload.originalUserQuery,
+    meta.continuityResolvedText, meta.resolvedQuestion, meta.effectivePrompt, meta.userQuery, meta.rawUserQuery, meta.originalUserQuery,
+    finalEnvelope.continuityResolvedText, finalEnvelope.resolvedQuestion
+  ].map(safeStr).filter(Boolean);
+  const carry = safeObj(p.continuity || p.followUpReference || payload.continuity || payload.followUpReference || meta.continuity || meta.followUpReference);
+  const topic = firstText(carry.topic, carry.lastTopic, p.continuityTopic, payload.continuityTopic, meta.continuityTopic);
+  const original = firstText(carry.originalText, p.continuityResolvedOriginalText, payload.continuityResolvedOriginalText, p.rawUserQuery, p.originalUserQuery);
+  const resolved = firstText(carry.resolvedText, p.continuityResolvedText, payload.continuityResolvedText);
+  if (resolved) candidates.unshift(resolved);
+  if (topic && original) {
+    if (/\b(example|show me|for instance|another example)\b/i.test(original)) candidates.unshift(`Give me an example of ${topic}.`);
+    if (/\b(why|important|matter)\b/i.test(original)) candidates.unshift(`Why is ${topic} important?`);
+    if (/\b(what happens next|next step|then what|what next)\b/i.test(original)) candidates.unshift(`What happens next with ${topic} in practice?`);
+  }
+  return firstText(...candidates);
+}
+
+function bridgeRecoverPublicReplyFromPacket(packet = {}) {
+  const p = safeObj(packet);
+  const direct = stripPublicReplyScaffold(readPublicReplyCandidate(p) || extractReply(p) || safeStr(safeObj(p.finalEnvelope).reply));
+  if (direct && !isInvalidPublicReplyValue(direct) && !isPrimitivePublicReply(direct) && !isThinPlaceholderText(direct) && !isDiagnosticText(direct)) return direct;
+  const prompt = bridgeContinuationRecoveryPrompt(p);
+  const deterministic = buildDeterministicLastMilePublicReplyFromText(prompt);
+  const clean = stripPublicReplyScaffold(deterministic);
+  return clean && !isInvalidPublicReplyValue(clean) && !isThinPlaceholderText(clean) && !isDiagnosticText(clean) ? clean : "";
+}
+
 function transportSafePacket(packet = {}) {
   const out = jsonSafe(packet);
   if (!isObj(out)) return out;
-  const reply = stripPublicReplyScaffold(extractReply(out) || safeStr(safeObj(out.finalEnvelope).reply));
+  const recoveredReply = bridgeRecoverPublicReplyFromPacket(out);
+  const reply = stripPublicReplyScaffold(recoveredReply || extractReply(out) || safeStr(safeObj(out.finalEnvelope).reply));
   const trustedFinal = hasTrustedBridgeFinalPacket(out);
-  const hasReply = !!reply && trustedFinal && !isPrimitivePublicReply(reply) && !isThinPlaceholderText(reply) && !isDiagnosticText(reply);
+  const continuityRecovery = !!recoveredReply && !trustedFinal;
+  const hasReply = !!reply && (trustedFinal || continuityRecovery) && !isPrimitivePublicReply(reply) && !isThinPlaceholderText(reply) && !isDiagnosticText(reply);
   if (hasReply) {
     out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply; out.spokenText = safeStr(out.spokenText || reply);
-    out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
+    out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, displayReply: reply, spokenText: safeStr(out.spokenText || reply), final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
   } else {
     out.reply = ""; out.text = ""; out.answer = ""; out.output = ""; out.response = ""; out.message = "";
     out.payload = { ...safeObj(out.payload), reply: "", text: "", message: "", answer: "", output: "", response: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true };
   }
   out.ok = hasReply && out.ok !== false; out.final = !!hasReply; out.marionFinal = !!hasReply; out.handled = true; out.awaitingMarion = !hasReply; out.terminal = hasReply ? out.terminal : false; out.suppressUserFacingReply = !hasReply; out.emit = hasReply; out.blocked = !hasReply; out.transportSafe = true; out.socketReconnect = false;
   if (out.memoryPatch) out.memoryPatch = compactPatchForTransport(out.memoryPatch); if (out.sessionPatch) out.sessionPatch = compactPatchForTransport(out.sessionPatch); if (out.payload && out.payload.memoryPatch) out.payload.memoryPatch = compactPatchForTransport(out.payload.memoryPatch); if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactPatchForTransport(out.payload.sessionPatch);
-  out.finalEnvelope = { ...safeObj(out.finalEnvelope), reply: hasReply ? reply : "", spokenText: hasReply ? stripPublicReplyScaffold(safeObj(out.finalEnvelope).spokenText || out.spokenText || reply) : "", final: hasReply, marionFinal: hasReply, handled: true, contractVersion: safeStr(safeObj(out.finalEnvelope).contractVersion || FINAL_ENVELOPE_CONTRACT), qualityPass: hasReply, responseDepthShaped: hasReply };
-  out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", finalDeliveryTiming: "single_terminal_packet", conversationQualityGate: true, responseDepthShaped: hasReply, trustedFinalEnvelope: trustedFinal, suppressUserFacingReply: !hasReply, emit: hasReply, blocked: !hasReply };
-  out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, jsonSanitized: true, finalDeliveryTiming: "single_terminal_packet", trustedFinalEnvelope: trustedFinal, suppressedUserFacingReply: !hasReply };
+  out.finalEnvelope = { ...safeObj(out.finalEnvelope), reply: hasReply ? reply : "", text: hasReply ? reply : "", displayReply: hasReply ? reply : "", spokenText: hasReply ? stripPublicReplyScaffold(safeObj(out.finalEnvelope).spokenText || out.spokenText || reply) : "", final: hasReply, marionFinal: hasReply, handled: true, contractVersion: safeStr(safeObj(out.finalEnvelope).contractVersion || FINAL_ENVELOPE_CONTRACT), signature: hasReply ? firstText(safeObj(out.finalEnvelope).signature, FINAL_SIGNATURE) : safeStr(safeObj(out.finalEnvelope).signature), authority: hasReply ? firstText(safeObj(out.finalEnvelope).authority, "marionFinalEnvelope") : safeStr(safeObj(out.finalEnvelope).authority), qualityPass: hasReply, responseDepthShaped: hasReply };
+  out.meta = { ...safeObj(out.meta), transportSafe: true, socketReconnect: false, emitOrder: "finalEnvelope:beforeSessionPatch", finalDeliveryTiming: "single_terminal_packet", conversationQualityGate: true, responseDepthShaped: hasReply, trustedFinalEnvelope: trustedFinal || continuityRecovery, continuityAuthorityRecovery: continuityRecovery, suppressUserFacingReply: !hasReply, emit: hasReply, blocked: !hasReply };
+  out.diagnostics = { ...safeObj(out.diagnostics), transportSafe: true, jsonSanitized: true, finalDeliveryTiming: "single_terminal_packet", trustedFinalEnvelope: trustedFinal || continuityRecovery, continuityAuthorityRecovery: continuityRecovery, suppressedUserFacingReply: !hasReply };
   return out;
 }
 
