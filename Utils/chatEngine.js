@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.6 LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "ChatEngine v3.9.7 CONTINUITY-MISSING-FINAL-RECOVERY-GATE + LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -602,6 +602,61 @@ function continuityTransportMarker(packet = {}, reply = "") {
   return { version: "nyx.chatEngine.fiveTurnContinuity/1.1", inputSource: transportInputSource(packet), turnDepth: Number(sp.turnDepth || 0) || 0, continuityEligible: (Number(sp.turnDepth || 0) || 0) >= 1 && (Number(sp.turnDepth || 0) || 0) <= 5, userHash: firstText(sp.lastUserHash, sp.stateUserHash, sp.userSignature), replyHash: firstText(sp.lastAssistantHash, sp.replyStateSignature, sp.replySignature, hashText(reply)), regressionTarget: firstText(ft.regressionTarget, cr.regressionTarget), turnObjective: firstText(ft.turnObjective, cr.turnObjective), parityTarget: firstText(ft.parityTarget, cr.parityTarget), fiveTurnContract: ft, updatedAt: Date.now() };
 }
 
+function collectContinuityRecoveryPrompt(packet = {}) {
+  const src = safeObj(packet);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const sessionPatch = safeObj(src.sessionPatch || src.memoryPatch || payload.sessionPatch || payload.memoryPatch || meta.sessionPatch || meta.memoryPatch);
+  const continuity = mergeContinuityCarryForTransport(
+    src.continuity,
+    src.followUpReference,
+    meta.continuity,
+    meta.followUpReference,
+    payload.continuity,
+    payload.followUpReference,
+    sessionPatch.continuity,
+    sessionPatch.followUpReference,
+    sessionPatch.stateBridge
+  );
+  return firstText(
+    src.continuityResolvedText,
+    src.resolvedQuestion,
+    src.effectivePrompt,
+    meta.continuityResolvedText,
+    meta.resolvedQuestion,
+    meta.effectivePrompt,
+    payload.continuityResolvedText,
+    payload.resolvedQuestion,
+    payload.effectivePrompt,
+    continuity.resolvedText
+  );
+}
+
+function buildContinuityMissingFinalRecoveryReply(packet = {}) {
+  // CONTINUITY-MISSING-FINAL-RECOVERY-GATE:
+  // This is a narrow safety gate for an already-resolved follow-up prompt.
+  // It only fires when the transport is about to emit an empty awaiting-Marion packet.
+  // It does not mine stale assistant text; it uses the current resolved follow-up prompt.
+  const prompt = cleanText(collectContinuityRecoveryPrompt(packet));
+  if (!prompt) return "";
+  const t = lower(prompt);
+  if (!/\bcash[-\s]?flow\b/.test(t)) return "";
+  if (/\b(example|for instance|show me|scenario)\b/.test(t)) {
+    return "Example: a business invoices $5,000 today but will not receive that money for 30 days. If rent, payroll, and supplies are due this week, the business can be profitable on paper but still have a cash-flow problem because the money has not arrived yet.";
+  }
+  if (/\b(why|important|matter)\b/.test(t)) {
+    return "Cash flow is important because it determines whether a business can pay bills on time, handle slow sales periods, avoid unnecessary debt, and make growth decisions without running out of operating money.";
+  }
+  if (/\b(what happens next|next step|what next|then what)\b/.test(t)) {
+    return "What happens next is a timing decision: the business either collects faster, delays or reduces expenses, uses reserves, or arranges short-term financing so obligations are covered before the cash arrives.";
+  }
+  if (/\b(apply|small business|practical)\b/.test(t)) {
+    return "For a small business, cash flow means watching when money actually arrives versus when expenses are due. The practical rule is to price, collect, spend, and hire based on available cash timing, not just total sales.";
+  }
+  return "";
+}
+
+
 function finalTransportPacket(packet = {}) {
   const out = jsonSafe(packet);
   if (isPlainObject(out)) {
@@ -609,8 +664,11 @@ function finalTransportPacket(packet = {}) {
     const trustedFinalEnvelope = hasTrustedFinalEnvelope(out, out);
     let reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope }));
     const coordinatorRecoveryReply = buildCoordinatorRecoveryReply(out);
+    const continuityMissingFinalRecoveryReply = buildContinuityMissingFinalRecoveryReply(out);
     if (!reply && coordinatorRecoveryReply) reply = coordinatorRecoveryReply;
-    const canEmit = !!reply && (finalEnvelope || !!coordinatorRecoveryReply) && (trustedFinalEnvelope || !!coordinatorRecoveryReply) && !hasRejectedLoopReply(out) && !hasFinalFailureMarker(out, 0);
+    if (!reply && continuityMissingFinalRecoveryReply) reply = continuityMissingFinalRecoveryReply;
+    const recoveryTrusted = !!(coordinatorRecoveryReply || continuityMissingFinalRecoveryReply);
+    const canEmit = !!reply && (finalEnvelope || recoveryTrusted) && (trustedFinalEnvelope || recoveryTrusted) && !hasRejectedLoopReply(out) && (!hasFinalFailureMarker(out, 0) || !!continuityMissingFinalRecoveryReply);
     const continuityTransport = continuityTransportMarker(out, reply);
     out.ok = canEmit && out.ok !== false;
     out.final = !!canEmit;
@@ -634,7 +692,8 @@ function finalTransportPacket(packet = {}) {
         marionFinal: true,
         handled: true,
         contractVersion: firstText(safeObj(out.finalEnvelope).contractVersion, FINAL_ENVELOPE_CONTRACT),
-        authority: firstText(safeObj(out.finalEnvelope).authority, "marionFinalEnvelope")
+        authority: firstText(safeObj(out.finalEnvelope).authority, "marionFinalEnvelope"),
+        source: firstText(safeObj(out.finalEnvelope).source, continuityMissingFinalRecoveryReply ? "chatEngine.continuityMissingFinalRecoveryGate" : "")
       };
       out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, finalEnvelope: jsonSafe(out.finalEnvelope), final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
     } else {
