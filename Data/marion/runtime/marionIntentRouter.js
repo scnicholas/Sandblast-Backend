@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.5.4 FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.5.5 FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -250,6 +250,74 @@ function chooseContinuityTopicCandidate(candidates = []) {
   return "";
 }
 
+
+function collectContinuityCandidateTexts(input = {}) {
+  const src = safeObj(input);
+  const meta = safeObj(src.meta);
+  const payload = safeObj(src.payload);
+  const session = safeObj(src.session);
+  const body = safeObj(src.body);
+  const memoryPatch = safeObj(src.memoryPatch || payload.memoryPatch || meta.memoryPatch || session.memoryPatch);
+  const stateBridge = safeObj(src.stateBridge || memoryPatch.stateBridge || payload.stateBridge || meta.stateBridge);
+  const prevState = safeObj(src.prevState || src.previousState || src.state || src.stateSpine || src.conversationState || session.prevState || session.previousState || session.state || session.stateSpine || meta.prevState || meta.previousState || payload.prevState || payload.previousState);
+  const previousMemory = safeObj(src.previousMemory || src.memory || session.memory || meta.previousMemory || payload.previousMemory || prevState);
+  const previousContinuity = safeObj(previousMemory.continuity || prevState.continuity || stateBridge.continuity);
+  const direct = safeObj(src.continuity || meta.continuity || payload.continuity || stateBridge.continuity);
+  const ref = safeObj(src.followUpReference || meta.followUpReference || payload.followUpReference || stateBridge.followUpReference);
+  const lastTopics = safeArray(previousMemory.lastTopics || prevState.lastTopics || safeObj(prevState.continuityThread).lastTopics || safeObj(previousMemory.continuityThread).lastTopics);
+
+  const directCandidates = [
+    ref.topic, ref.lastTopic, ref.subject,
+    direct.topic, direct.lastTopic, direct.subject,
+    meta.continuityTopic, payload.continuityTopic, stateBridge.continuityTopic,
+    stateBridge.topic, stateBridge.lastTopic,
+    previousContinuity.topic, previousContinuity.lastTopic, previousContinuity.subject,
+    previousMemory.topic, previousMemory.lastTopic, previousMemory.activeTopic,
+    prevState.topic, prevState.lastTopic, prevState.activeTopic,
+    previousMemory.normalizedUserIntent, prevState.normalizedUserIntent,
+    previousMemory.userText, prevState.lastUserText,
+    lastTopics[0]
+  ];
+
+  const assistantCandidates = [
+    src.lastAssistantReply, src.previousAssistantReply, src.assistantReply,
+    meta.lastAssistantReply, meta.previousAssistantReply, meta.assistantReply,
+    payload.lastAssistantReply, payload.previousAssistantReply, payload.assistantReply,
+    body.lastAssistantReply, body.previousAssistantReply, body.assistantReply,
+    previousMemory.lastAssistantReply, previousMemory.previousAssistantReply,
+    prevState.lastAssistantReply, prevState.previousAssistantReply,
+    previousMemory.carryForwardSummary, prevState.carryForwardSummary,
+    previousMemory.conversationSummary, prevState.conversationSummary
+  ];
+
+  const historyCandidates = [];
+  const historySources = [
+    src.conversationHistory, src.history, src.messages, src.turns,
+    payload.conversationHistory, payload.history, payload.messages, payload.turns,
+    body.conversationHistory, body.history, body.messages, body.turns,
+    session.conversationHistory, session.history, session.messages, session.turns,
+    previousMemory.conversationHistory, previousMemory.history, previousMemory.messages, previousMemory.turns,
+    prevState.conversationHistory, prevState.history, prevState.messages, prevState.turns
+  ];
+  for (const list of historySources) {
+    if (!Array.isArray(list)) continue;
+    for (let i = list.length - 1; i >= 0 && historyCandidates.length < 12; i -= 1) {
+      const item = safeObj(list[i]);
+      const role = lower(item.role || item.sender || item.author || item.source || "");
+      const candidate = item.text || item.message || item.reply || item.content || item.displayReply || "";
+      if (!candidate) continue;
+      if (!role || /assistant|nyx|marion|system/.test(role)) historyCandidates.push(candidate);
+    }
+  }
+
+  return {
+    directCandidates,
+    assistantCandidates,
+    historyCandidates,
+    allCandidates: [...directCandidates, ...assistantCandidates, ...historyCandidates]
+  };
+}
+
 function extractContinuityCarry(input = {}) {
   const src = safeObj(input);
   const meta = safeObj(src.meta);
@@ -263,40 +331,17 @@ function extractContinuityCarry(input = {}) {
   const direct = safeObj(src.continuity || meta.continuity || payload.continuity || stateBridge.continuity);
   const ref = safeObj(src.followUpReference || meta.followUpReference || payload.followUpReference || stateBridge.followUpReference);
   const lastTopics = safeArray(previousMemory.lastTopics || prevState.lastTopics || safeObj(prevState.continuityThread).lastTopics || safeObj(previousMemory.continuityThread).lastTopics);
-  const topicCandidates = [
-    ref.topic, ref.lastTopic, ref.subject,
-    direct.topic, direct.lastTopic, direct.subject,
-    meta.continuityTopic, payload.continuityTopic, stateBridge.continuityTopic,
-    stateBridge.topic, stateBridge.lastTopic,
-    previousContinuity.topic, previousContinuity.lastTopic, previousContinuity.subject,
-    previousMemory.topic, previousMemory.lastTopic, previousMemory.activeTopic,
-    prevState.topic, prevState.lastTopic, prevState.activeTopic,
-    previousMemory.normalizedUserIntent, prevState.normalizedUserIntent,
-    previousMemory.userText, prevState.lastUserText,
-    lastTopics[0],
-    src.lastAssistantReply, meta.lastAssistantReply, payload.lastAssistantReply,
-    previousMemory.lastAssistantReply, prevState.lastAssistantReply,
-    previousMemory.carryForwardSummary, prevState.carryForwardSummary,
-    previousMemory.conversationSummary, prevState.conversationSummary
-  ];
-  let topic = chooseContinuityTopicCandidate(topicCandidates);
-  if (!topic) {
-    topic = chooseContinuityTopicCandidate([
-      src.lastAssistantReply,
-      meta.lastAssistantReply,
-      payload.lastAssistantReply,
-      previousMemory.lastAssistantReply,
-      prevState.lastAssistantReply,
-      previousMemory.carryForwardSummary,
-      prevState.carryForwardSummary,
-      previousMemory.conversationSummary,
-      prevState.conversationSummary
-    ]);
-  }
+  const continuityCandidates = collectContinuityCandidateTexts(src);
+  let topic = chooseContinuityTopicCandidate(continuityCandidates.directCandidates);
+  if (!topic) topic = chooseContinuityTopicCandidate(continuityCandidates.assistantCandidates);
+  if (!topic) topic = chooseContinuityTopicCandidate(continuityCandidates.historyCandidates);
+  if (!topic) topic = chooseContinuityTopicCandidate(continuityCandidates.allCandidates);
   const originalText = safeStr(src.continuityResolvedOriginalText || ref.originalText || direct.originalText || meta.continuityResolvedOriginalText || "");
   const resolvedText = safeStr(src.continuityResolvedText || ref.resolvedText || direct.resolvedText || meta.continuityResolvedText || "");
-  const active = !!(topic || ref.active || direct.active || previousContinuity.active || src.shortFollowupContinuityResolved || meta.shortFollowupContinuityResolved);
-  const resolvedFollowup = !!(src.shortFollowupContinuityResolved || ref.resolvedFollowup || ref.active || direct.resolvedFollowup || meta.shortFollowupContinuityResolved || (topic && resolvedText));
+  const currentText = extractText(src);
+  const currentLooksLikeFollowup = isShortContinuityFollowupText(currentText);
+  const active = !!(topic || ref.active || direct.active || previousContinuity.active || src.shortFollowupContinuityResolved || meta.shortFollowupContinuityResolved || (currentLooksLikeFollowup && topic));
+  const resolvedFollowup = !!(src.shortFollowupContinuityResolved || ref.resolvedFollowup || ref.active || direct.resolvedFollowup || meta.shortFollowupContinuityResolved || (topic && (resolvedText || currentLooksLikeFollowup)));
   return {
     active,
     topic,
@@ -335,8 +380,8 @@ function buildContinuityResolvedQuestion(text = "", carry = {}) {
   }
   if (/^(?:how so|explain why)\??$/i.test(raw)) return `Explain why ${topic} matters.`;
   if (/\bexample\b/i.test(raw)) return `Give me an example of ${topic}.`;
-  if (/\bapply\b/i.test(raw)) return `Apply ${topic} to this context.`;
   if (/\bsmall business\b/i.test(raw)) return `Apply ${topic} to a small business.`;
+  if (/\bapply\b/i.test(raw)) return `Apply ${topic} to this context.`;
   if (/\bcontinue|tell me more|expand|go deeper|break that down\b/i.test(raw)) return `Continue explaining ${topic}.`;
   if (/\bwhat does that mean|what does it mean\b/i.test(raw)) return `What does ${topic} mean in practical terms?`;
   return `${raw} about ${topic}`;
@@ -1854,7 +1899,8 @@ function routeMarionIntent(packet = {}) {
     ? buildContinuityResolvedQuestion(rawText, continuityCarry)
     : "";
   const questionShape = normalizeQuestionShape(continuityResolvedText || rawText);
-  const text = questionShape.normalizedText || continuityResolvedText || rawText;
+  const text = continuityResolvedText || questionShape.normalizedText || rawText;
+  const effectivePrompt = continuityResolvedText || questionShape.normalizedUserIntent || questionShape.normalizedText || rawText;
   const continuityExistingIntent = continuityResolved
     ? {
         intent: "domain_question",
@@ -1865,23 +1911,34 @@ function routeMarionIntent(packet = {}) {
       }
     : {};
 
-  const marionIntent = normalizeIntent({...existingIntent, ...continuityExistingIntent, questionShape}, text);
+  const marionIntent = normalizeIntent({...existingIntent, ...continuityExistingIntent, questionShape}, effectivePrompt);
   marionIntent.rawTurnText = rawText;
-  marionIntent.normalizedUserIntent = questionShape.normalizedUserIntent || text;
-  marionIntent.questionShape = questionShape;
+  marionIntent.turnText = effectivePrompt;
+  marionIntent.message = effectivePrompt;
+  marionIntent.text = effectivePrompt;
+  marionIntent.userText = effectivePrompt;
+  marionIntent.normalizedUserIntent = effectivePrompt;
+  marionIntent.effectivePrompt = effectivePrompt;
+  marionIntent.questionShape = {
+    ...questionShape,
+    normalizedText: effectivePrompt,
+    normalizedUserIntent: effectivePrompt
+  };
   const routing = buildRouting(marionIntent);
-  const domainConciergeSeed = buildDomainConciergeSeed({ ...routing, rawTurnText: rawText, normalizedUserIntent: questionShape.normalizedUserIntent || text, questionShape }, marionIntent, questionShape);
+  const domainConciergeSeed = buildDomainConciergeSeed({ ...routing, rawTurnText: rawText, normalizedUserIntent: effectivePrompt, effectivePrompt, questionShape: marionIntent.questionShape }, marionIntent, marionIntent.questionShape);
   routing.domainConciergeSeed = domainConciergeSeed;
-  routing.questionShape = questionShape;
+  routing.questionShape = marionIntent.questionShape;
   routing.rawTurnText = rawText;
-  routing.normalizedUserIntent = questionShape.normalizedUserIntent || text;
+  routing.normalizedUserIntent = effectivePrompt;
+  routing.effectivePrompt = effectivePrompt;
+  routing.resolvedQuestion = continuityResolvedText || "";
   let boundContinuityCarry = {};
   if (continuityCarry.active || continuityResolved) {
     boundContinuityCarry = {
       ...continuityCarry,
       active: true,
-      topic: continuityCarry.topic || normalizeContinuityTopic(text),
-      lastTopic: continuityCarry.topic || normalizeContinuityTopic(text),
+      topic: continuityCarry.topic || inferContinuityTopicFromAssistantText(effectivePrompt) || normalizeContinuityTopic(effectivePrompt),
+      lastTopic: continuityCarry.topic || inferContinuityTopicFromAssistantText(effectivePrompt) || normalizeContinuityTopic(effectivePrompt),
       resolvedFollowup: !!continuityResolved,
       originalText: continuityCarry.originalText || rawText,
       resolvedText: continuityResolvedText || text,
@@ -1904,7 +1961,7 @@ function routeMarionIntent(packet = {}) {
     marionIntent.reason = continuityResolved ? "short_followup_continuity_reference_bound" : marionIntent.reason;
   }
   const inputSource = normalizeInputSource(src.inputSource || safeObj(src.session).inputSource || marionIntent.inputSource || "text");
-  const turnHash = turnContinuityHash(text);
+  const turnHash = turnContinuityHash(effectivePrompt);
 
   return {
     ok: true,
@@ -1917,10 +1974,14 @@ function routeMarionIntent(packet = {}) {
     routing,
     domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
     domainConciergeSeed,
-    questionShape,
+    questionShape: marionIntent.questionShape,
     rawUserText: rawText,
-    normalizedUserIntent: continuityResolvedText || questionShape.normalizedUserIntent || text,
-    effectivePrompt: continuityResolvedText || questionShape.normalizedUserIntent || text,
+    message: effectivePrompt,
+    text: effectivePrompt,
+    userText: effectivePrompt,
+    query: effectivePrompt,
+    normalizedUserIntent: effectivePrompt,
+    effectivePrompt,
     resolvedQuestion: continuityResolvedText || "",
     continuityResolvedText: continuityResolvedText || "",
     continuityResolvedOriginalText: continuityResolved ? rawText : "",
@@ -1937,8 +1998,11 @@ function routeMarionIntent(packet = {}) {
       inputSource,
       turnHash,
       rawUserText: rawText,
-      normalizedUserIntent: continuityResolvedText || questionShape.normalizedUserIntent || text,
-      questionShape,
+      normalizedUserIntent: effectivePrompt,
+      effectivePrompt,
+      resolvedQuestion: continuityResolvedText || "",
+      continuityResolvedText: continuityResolvedText || "",
+      questionShape: marionIntent.questionShape,
       continuity: (continuityCarry.active || continuityResolved) ? (boundContinuityCarry || continuityCarry) : undefined,
       followUpReference: (continuityCarry.active || continuityResolved) ? (boundContinuityCarry || continuityCarry) : undefined,
       shortFollowupContinuityResolved: !!continuityResolved,
@@ -1973,8 +2037,11 @@ function routeMarionIntent(packet = {}) {
       inputSource,
       turnHash,
       rawUserText: rawText,
-      normalizedUserIntent: continuityResolvedText || questionShape.normalizedUserIntent || text,
-      questionShape,
+      normalizedUserIntent: effectivePrompt,
+      effectivePrompt,
+      resolvedQuestion: continuityResolvedText || "",
+      continuityResolvedText: continuityResolvedText || "",
+      questionShape: marionIntent.questionShape,
       continuity: (continuityCarry.active || continuityResolved) ? (routing.continuity || continuityCarry) : undefined,
       followUpReference: (continuityCarry.active || continuityResolved) ? (routing.followUpReference || continuityCarry) : undefined,
       shortFollowupContinuityResolved: !!continuityResolved,
