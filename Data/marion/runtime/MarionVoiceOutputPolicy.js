@@ -3,9 +3,15 @@
 /**
  * MarionVoiceOutputPolicy
  * Determines whether Nyx should speak the final answer aloud.
- * Long code, sensitive details, and operational instructions default to text.
+ *
+ * Admin-only voice delivery hardlock:
+ * - Public transcript routing may still return safe text.
+ * - Audible Marion voice delivery requires a trusted admin proof.
+ * - Sensitive/code/operational content remains silent even for admin unless
+ *   another private layer explicitly overrides it later.
  */
 
+const VERSION = 'marion.voiceOutputPolicy/2.0-admin-only-delivery';
 const DEFAULT_MAX_SPOKEN_CHARS = 700;
 
 const SENSITIVE_PATTERNS = [
@@ -35,10 +41,15 @@ function getReplyText(response) {
   if (typeof response === 'string') return response;
 
   return String(
+    response.displayReply ||
     response.reply ||
     response.text ||
     response.message ||
     response.output ||
+    response.response ||
+    response.finalReply ||
+    response.publicReply ||
+    response.visibleReply ||
     response.final ||
     ''
   );
@@ -48,43 +59,66 @@ function containsPattern(text, patterns) {
   return patterns.some((pattern) => pattern.test(String(text || '')));
 }
 
+function hasAdminVoiceDeliveryProof(options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  return opts.adminVoiceVerified === true ||
+    opts.adminVoiceTokenVerified === true ||
+    opts.adminVoiceDeliveryAllowed === true;
+}
+
+function silentPolicy(reason, extra) {
+  return Object.assign({
+    speakAllowed: false,
+    voiceMode: 'silent',
+    reason: reason || 'SILENT',
+    spokenText: '',
+    adminOnlyVoiceDelivery: true,
+    adminVoiceDeliveryAllowed: false
+  }, extra || {});
+}
+
 function evaluateVoiceOutputPolicy(response, options) {
   const opts = options && typeof options === 'object' ? options : {};
-  const text = getReplyText(response);
+  const text = getReplyText(response).replace(/\s+/g, ' ').trim();
   const maxChars = Number.isFinite(Number(opts.maxSpokenChars))
     ? Number(opts.maxSpokenChars)
     : DEFAULT_MAX_SPOKEN_CHARS;
+  const adminOnlyVoiceDelivery = opts.adminOnlyVoiceDelivery !== false && opts.adminOnly !== false;
+  const adminVoiceDeliveryAllowed = hasAdminVoiceDeliveryProof(opts);
 
   if (opts.forceSilent === true) {
-    return {
-      speakAllowed: false,
-      voiceMode: 'silent',
-      reason: 'FORCED_SILENT'
-    };
+    return silentPolicy('FORCED_SILENT', {
+      adminOnlyVoiceDelivery,
+      adminVoiceDeliveryAllowed
+    });
   }
 
-  if (!text.trim()) {
-    return {
-      speakAllowed: false,
-      voiceMode: 'silent',
-      reason: 'EMPTY_RESPONSE'
-    };
+  if (adminOnlyVoiceDelivery && !adminVoiceDeliveryAllowed) {
+    return silentPolicy('ADMIN_ONLY_VOICE_DELIVERY_REQUIRED', {
+      adminOnlyVoiceDelivery,
+      adminVoiceDeliveryAllowed
+    });
+  }
+
+  if (!text) {
+    return silentPolicy('EMPTY_RESPONSE', {
+      adminOnlyVoiceDelivery,
+      adminVoiceDeliveryAllowed
+    });
   }
 
   if (containsPattern(text, SENSITIVE_PATTERNS)) {
-    return {
-      speakAllowed: false,
-      voiceMode: 'silent',
-      reason: 'SENSITIVE_CONTENT'
-    };
+    return silentPolicy('SENSITIVE_CONTENT', {
+      adminOnlyVoiceDelivery,
+      adminVoiceDeliveryAllowed
+    });
   }
 
   if (containsPattern(text, CODE_PATTERNS)) {
-    return {
-      speakAllowed: false,
-      voiceMode: 'silent',
-      reason: 'CODE_OR_MARKUP_CONTENT'
-    };
+    return silentPolicy('CODE_OR_MARKUP_CONTENT', {
+      adminOnlyVoiceDelivery,
+      adminVoiceDeliveryAllowed
+    });
   }
 
   if (text.length > maxChars) {
@@ -92,7 +126,9 @@ function evaluateVoiceOutputPolicy(response, options) {
       speakAllowed: true,
       voiceMode: 'brief',
       reason: 'LONG_RESPONSE_BRIEF_MODE',
-      spokenText: createBriefSpokenSummary(text)
+      spokenText: createBriefSpokenSummary(text),
+      adminOnlyVoiceDelivery,
+      adminVoiceDeliveryAllowed
     };
   }
 
@@ -100,7 +136,9 @@ function evaluateVoiceOutputPolicy(response, options) {
     speakAllowed: true,
     voiceMode: 'full',
     reason: 'SPEAKABLE_RESPONSE',
-    spokenText: text
+    spokenText: text,
+    adminOnlyVoiceDelivery,
+    adminVoiceDeliveryAllowed
   };
 }
 
@@ -132,9 +170,11 @@ function applyVoiceOutputPolicy(response, options) {
 }
 
 module.exports = {
+  VERSION,
   DEFAULT_MAX_SPOKEN_CHARS,
   evaluateVoiceOutputPolicy,
   applyVoiceOutputPolicy,
   createBriefSpokenSummary,
-  getReplyText
+  getReplyText,
+  hasAdminVoiceDeliveryProof
 };
