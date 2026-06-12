@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.42sb BACKEND-ROOT-CLEANUP-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.43sb BACKEND-PUBLIC-HEALTH-REDACTION-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -552,7 +552,7 @@ app.get([...NYX_VOICE_TRANSCRIPT_ROUTES, ...NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES],
   let MarionVoiceGateway = null;
   try {
     MarionVoiceGateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
-  } catch (err) {
+  } catch (_) {
     MarionVoiceGateway = null;
   }
 
@@ -566,10 +566,6 @@ app.get([...NYX_VOICE_TRANSCRIPT_ROUTES, ...NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES],
     requiredMethodForVoiceTurns: "POST",
     canonicalPostRoute: "/api/nyx/voice/transcript",
     canonicalHealthRoute: "/api/nyx/voice/transcript/health",
-    aliases: {
-      post: NYX_VOICE_TRANSCRIPT_ROUTES,
-      health: NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES
-    },
     publicAgent: "Nyx",
     authority: "Marion",
     inputChannel: "voice",
@@ -578,27 +574,17 @@ app.get([...NYX_VOICE_TRANSCRIPT_ROUTES, ...NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES],
     adminOnlyVoiceDelivery: true,
     adminVoiceTokenConfigured: marionAdminVoiceEnvTokens().length > 0,
     version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
-    adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION,
-    deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
     gateway: {
       available: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleVoiceTranscript === "function")
     },
-    runtimeFiles: nyxVoiceRequiredRuntimeDiagnostics(),
     runtimeFilesReady: nyxVoiceRuntimeFilesReady(),
+    diagnosticsRedacted: true,
     meta: {
       v: PUBLIC_INDEX_VERSION,
       t: now(),
-      routeAuthority: "Nyx public route -> MarionVoiceGateway -> MarionBridge",
       noRawAudioStored: true,
-      promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.3",
-      deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
-      readme: "README.md",
-      renderDeployParityRequired: true,
-      echoSuppressionHardlock: true,
-      getAliasNotFoundShield: true,
-      adminOnlyVoiceDelivery: true,
       publicSpeakerHintTrusted: false,
-      adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION
+      adminOnlyVoiceDelivery: true
     }
   });
 });
@@ -7095,18 +7081,11 @@ function isConversationRoutePath(req) {
 
 
 function getPublicMarionRuntimeSummary() {
+  const bridgeReady = !!(marionBridgeMod && (typeof marionBridgeMod.route === "function" || typeof marionBridgeMod.handle === "function" || typeof marionBridgeMod.processWithMarion === "function" || typeof marionBridgeMod.default === "function"));
   return {
-    marionBridgeLoaded: !!marionBridgeMod,
-    marionBridgeReady: !!(marionBridgeMod && (typeof marionBridgeMod.route === "function" || typeof marionBridgeMod.handle === "function" || typeof marionBridgeMod.processWithMarion === "function" || typeof marionBridgeMod.default === "function")),
-    chatEngineLoaded: !!chatEngineMod,
-    lingoSentinelGatewayLoaded: !!lingoSentinelGatewayMod,
-    marionEmotionRuntimeLoaded: !!marionEmotionRuntimeMod,
-    nyxPacketRuntimeAdapterLoaded: !!nyxPackRuntimeAdapterMod,
-    marionDomainRegistryLoaded: !!marionDomainRegistryMod,
-    marionDomainRetrieverLoaded: !!marionDomainRetrieverMod,
-    marionDomainRouterLoaded: !!marionDomainRouterMod,
-    siteBridgeLoaded: !!siteBridgeMod,
-    s2sLoaded: !!s2sMod,
+    ready: bridgeReady,
+    chatReady: !!chatEngineMod,
+    lingoSentinelReady: !!lingoSentinelGatewayMod,
     diagnosticsRedacted: true
   };
 }
@@ -11357,6 +11336,88 @@ app.get(["/api/newscanada/rss", "/newscanada/rss"], async (req, res) => {
   return res.status(out.ok ? 200 : 503).json(out);
 });
 
+
+function publicBoolean(value) {
+  return value === true;
+}
+
+function summarizeTtsPublicHealth(health) {
+  const h = safeObj(health);
+  const env = safeObj(h.env);
+  const integrity = safeObj(h.voiceIntegrity);
+  const configured = h.configured === true || env.hasToken === true || integrity.configured === true;
+  const provider = cleanText(h.provider || (configured ? "configured" : ""));
+  const circuitOpen = h.circuitOpen === true;
+  return {
+    ok: h.ok !== false && configured && !circuitOpen,
+    configured: !!configured,
+    provider: provider || "unavailable",
+    ready: h.ok !== false && configured && !circuitOpen,
+    degraded: circuitOpen || h.degraded === true
+  };
+}
+
+function summarizeNewsCanadaPublicHealth(health) {
+  const h = safeObj(health);
+  return {
+    ok: h.ok === true,
+    degraded: h.degraded === true,
+    mode: cleanText(h.mode || "rss"),
+    storyCount: Number.isFinite(Number(h.storyCount || h.itemCount)) ? Number(h.storyCount || h.itemCount) : 0
+  };
+}
+
+function summarizeMusicPublicHealth() {
+  return {
+    bridgeEnabled: !!musicBridgeHandlerFromModule(musicLaneMod),
+    degraded: !!(app.locals.musicMeta && app.locals.musicMeta.degraded),
+    availableMoments: Array.isArray(app.locals.musicTopMoments) ? app.locals.musicTopMoments.length : 0
+  };
+}
+
+function summarizeMarionRuntimePublicHealth() {
+  const s = safeObj(getPublicMarionRuntimeSummary());
+  return {
+    ready: !!(s.ready || s.marionBridgeReady || s.marionBridgeLoaded),
+    chatReady: !!(s.chatReady || s.chatEngineLoaded),
+    lingoSentinelReady: !!(s.lingoSentinelReady || s.lingoSentinelGatewayLoaded),
+    diagnosticsRedacted: true
+  };
+}
+
+function buildPublicHealthPayload(req) {
+  const ttsHealth = ttsHealthFromModule(ttsMod);
+  let tts = null;
+  try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
+  let newsHealth = null;
+  try {
+    newsHealth = newsCanadaFeedService && typeof newsCanadaFeedService.health === "function"
+      ? newsCanadaFeedService.health()
+      : null;
+  } catch (_) {}
+
+  return {
+    ok: true,
+    version: PUBLIC_INDEX_VERSION,
+    traceId: cleanText(req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"])) || makeTraceId("health")),
+    upMs: now() - SERVER_BOOT_AT,
+    tts: summarizeTtsPublicHealth(tts),
+    marionRuntime: summarizeMarionRuntimePublicHealth(),
+    voiceRouteEnabled: !!CFG.voiceRouteEnabled,
+    auth: {
+      tokenConfigured: !!CFG.apiToken,
+      protected: !!CFG.apiToken
+    },
+    backendPublicBase: getBackendPublicBase(),
+    audioContract: {
+      version: "audio-first-v1",
+      ready: !!ttsHandlerFromModule(ttsMod)
+    },
+    newsCanada: summarizeNewsCanadaPublicHealth(newsHealth),
+    music: summarizeMusicPublicHealth()
+  };
+}
+
 app.get(["/api/newscanada/diagnostics", "/newscanada/diagnostics"], async (req, res) => {
   applyCors(req, res);
   let health = null;
@@ -11364,33 +11425,16 @@ app.get(["/api/newscanada/diagnostics", "/newscanada/diagnostics"], async (req, 
     health = newsCanadaFeedService && typeof newsCanadaFeedService.health === "function"
       ? await Promise.resolve(newsCanadaFeedService.health())
       : null;
-  } catch (err) {
-    health = {
-      ok: false,
-      source: "health_error",
-      degraded: true,
-      detail: cleanText(err && (err.message || err) || "health_error")
-    };
+  } catch (_) {
+    health = { ok: false, degraded: true, mode: "rss", storyCount: 0 };
   }
 
   return res.status(200).json({
     ok: !!newsCanadaFeedService,
     route: "/api/newscanada/diagnostics",
-    moduleLoaded: !!newsCanadaFeedServiceMod,
-    moduleKeys: isObj(newsCanadaFeedServiceMod)
-      ? Object.keys(newsCanadaFeedServiceMod).slice(0, 20)
-      : [],
-    serviceMethods: newsCanadaFeedService
-      ? {
-          fetchRSS: typeof newsCanadaFeedService.fetchRSS === "function",
-          getEditorsPicks: typeof newsCanadaFeedService.getEditorsPicks === "function",
-          getStory: typeof newsCanadaFeedService.getStory === "function",
-          prime: typeof newsCanadaFeedService.prime === "function",
-          health: typeof newsCanadaFeedService.health === "function"
-        }
-      : null,
-    feedUrl: resolveNewsCanadaFeedUrl(),
-    health,
+    serviceReady: !!(newsCanadaFeedService && typeof newsCanadaFeedService.fetchRSS === "function"),
+    health: summarizeNewsCanadaPublicHealth(health),
+    diagnosticsRedacted: true,
     meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
@@ -11873,15 +11917,13 @@ async function dispatchMusicBridge(req, res) {
 
 app.get(["/api/music/bridge/health", "/music/bridge/health", "/api/music/bridge/health/", "/music/bridge/health/"], enforceMusicBridgeAccess, (req, res) => {
   applyCors(req, res);
-  const caps = musicKnowledgeCapabilitiesFromModule(musicKnowledgeMod);
+  const music = summarizeMusicPublicHealth();
   return res.status(200).json({
-    ok: !!musicBridgeHandlerFromModule(musicLaneMod),
-    enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
-    endpoint: routeUrl("/api/music/bridge"),
-    moduleBound: !!musicLaneMod,
-    resolverBound: !!musicResolverHandlerFromModule(musicResolverMod),
-    knowledgeBound: !!musicKnowledgeMod,
-    capabilities: caps || null,
+    ok: !!music.bridgeEnabled,
+    enabled: !!music.bridgeEnabled,
+    degraded: !!music.degraded,
+    availableMoments: music.availableMoments,
+    diagnosticsRedacted: true,
     version: PUBLIC_INDEX_VERSION,
     meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
@@ -11895,128 +11937,24 @@ app.all(["/api/music/bridge", "/music/bridge", "/api/music/bridge/", "/music/bri
 app.get(["/api/marion/emotion/health", "/api/marion/emotion/health/"], (req, res) => {
   applyCors(req, res);
   const health = getMarionEmotionRuntimeHealth();
-  return res.status(health.ok ? 200 : 503).json({
-    ...health,
+  return res.status(health && health.ok ? 200 : 503).json({
+    ok: !!(health && health.ok),
+    service: "marion-emotion",
+    ready: !!(health && health.ok),
+    diagnosticsRedacted: true,
     version: PUBLIC_INDEX_VERSION,
-    traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("emotionhealth")),
-    note: "index.js exposes diagnostics only; emotion resolution remains inside MarionBridge/emotionRuntime"
+    traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("emotionhealth"))
   });
 });
 
 app.get("/health", (req, res) => {
   applyCors(req, res);
-  const ttsHealth = ttsHealthFromModule(ttsMod);
-  let tts = null;
-  try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
-  return res.status(200).json({
-    ok: true,
-    version: PUBLIC_INDEX_VERSION,
-    upMs: now() - SERVER_BOOT_AT,
-    bootAt: SERVER_BOOT_AT,
-    modules: {
-      chatEngine: !!chatEngineMod,
-      marionBridge: !!marionBridgeMod,
-      marionEmotionRuntime: !!marionEmotionRuntimeMod,
-      supportResponse: !!supportResponseMod,
-      affectEngine: !!affectEngineMod,
-      voiceRoute: !!voiceRouteMod,
-      tts: !!ttsMod,
-      stateSpine: !!stateSpineMod,
-      siteBridge: !!siteBridgeMod,
-      s2s: !!s2sMod
-    },
-    runtimeDeps: {
-      express: moduleAvailable("express"),
-      compression: moduleAvailable("compression"),
-      dotenv: moduleAvailable("dotenv")
-    },
-    bindings: {
-      marionEmotionRuntimeHealth: !!(marionEmotionRuntimeMod && typeof marionEmotionRuntimeMod.getHealth === "function"),
-      voiceRouteHandler: !!voiceRouteHandlerFromModule(voiceRouteMod),
-      voiceRouteHealth: !!voiceHealthFromModule(voiceRouteMod),
-      ttsHandler: !!ttsHandlerFromModule(ttsMod),
-      ttsHealth: !!ttsHealthFromModule(ttsMod),
-      siteBridgeBuild: !!(siteBridgeMod && typeof siteBridgeMod.build === "function"),
-      s2sRun: !!(s2sMod && typeof s2sMod.runLocalChat === "function")
-    },
-    voiceRouteEnabled: !!CFG.voiceRouteEnabled,
-    preserveMixerVoice: !!CFG.preserveMixerVoice,
-    tts
-  });
+  return res.status(200).json(buildPublicHealthPayload(req));
 });
 
 app.get("/api/health", (req, res) => {
   applyCors(req, res);
-  const ttsHealth = ttsHealthFromModule(ttsMod);
-  let tts = null;
-  try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
-  return res.status(200).json({
-    ok: true,
-    version: PUBLIC_INDEX_VERSION,
-    traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("health")),
-    upMs: now() - SERVER_BOOT_AT,
-    tts,
-    marionRuntime: getPublicMarionRuntimeSummary(),
-    voiceRouteEnabled: !!CFG.voiceRouteEnabled,
-    requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
-    auth: {
-      tokenConfigured: !!CFG.apiToken,
-      tokenHeader: CFG.apiTokenHeader,
-      acceptedTokenHeaders: tokenCandidateNames(),
-      conversationOriginBypass: !!CFG.conversationOriginBypass
-    },
-    backendPublicBase: getBackendPublicBase(),
-    audioContract: {
-      version: "audio-first-v1",
-      endpoint: routeUrl("/api/tts"),
-      endpointCompat: routeUrl("/tts"),
-      healthEndpoint: routeUrl("/api/tts/health"),
-    compatibilityHealthEndpoint: routeUrl("/tts/health"),
-      healthEndpointCompat: routeUrl("/tts/health"),
-      deterministicAudio: true
-    },
-    newsCanada: newsCanadaFeedService && typeof newsCanadaFeedService.health === "function"
-      ? newsCanadaFeedService.health()
-      : {
-          ok: false,
-          source: "service_unavailable",
-          degraded: true,
-          mode: "rss",
-          feedUrl: cleanText(process.env.NEWS_CANADA_RSS_FEED_URL || process.env.SB_NEWSCANADA_RSS_FEED_URL || ""),
-          stableRoutes: {
-            rss: "/api/newscanada/rss",
-            manualCompat: "/api/newscanada/manual",
-            editorsPicks: "/api/newscanada/editors-picks",
-            editorsPicksMeta: "/api/newscanada/editors-picks/meta",
-            story: "/api/newscanada/story",
-        refresh: "/api/newscanada/rss"
-          }
-        },
-    memory: {
-      sessionsTracked: memory.lastBySession.size,
-      supportLocks: memory.supportBySession.size,
-      transportEntries: memory.transportBySession.size,
-      ttlMs: CFG.memoryTtlMs
-    },
-    music: {
-      file: app.locals.musicMeta?.file || resolveMusicDataFile(),
-      availableMoments: Array.isArray(app.locals.musicTopMoments) ? app.locals.musicTopMoments.length : 0,
-      loadedAt: app.locals.musicMeta?.loadedAt || 0,
-      source: app.locals.musicMeta?.source || "music_runtime",
-      degraded: !!app.locals.musicMeta?.degraded,
-      stableRoutes: {
-        topMoments: "/api/music/top-moments",
-        sources: "/api/music/sources",
-        bridge: "/api/music/bridge",
-        bridgeHealth: "/api/music/bridge/health"
-      },
-      bridge: {
-        enabled: !!musicBridgeHandlerFromModule(musicLaneMod),
-        endpoint: routeUrl("/api/music/bridge"),
-        healthEndpoint: routeUrl("/api/music/bridge/health")
-      }
-    }
-  });
+  return res.status(200).json(buildPublicHealthPayload(req));
 });
 
 app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], enforceVoiceRouteAccess, async (req, res) => {
@@ -12026,26 +11964,29 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
     return res.status(200).json({
       ok: false,
       enabled: false,
-      error: "tts_health_unavailable",
+      tts: summarizeTtsPublicHealth(null),
+      diagnosticsRedacted: true,
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
       meta: { v: PUBLIC_INDEX_VERSION, t: now() }
     });
   }
   try {
     const health = await Promise.resolve(handler());
-    return res.status(200).json({
-      ok: !!(health && health.ok !== false),
+    const tts = summarizeTtsPublicHealth(health);
+    return res.status(tts.ok ? 200 : 503).json({
+      ok: !!tts.ok,
       enabled: true,
-      health,
+      tts,
+      diagnosticsRedacted: true,
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
       meta: { v: PUBLIC_INDEX_VERSION, t: now() }
     });
-  } catch (err) {
+  } catch (_) {
     return res.status(503).json({
       ok: false,
       enabled: true,
-      error: "tts_health_failed",
-      detail: cleanText(err && (err.message || err) || "tts health failed"),
+      tts: summarizeTtsPublicHealth(null),
+      diagnosticsRedacted: true,
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
       meta: { v: PUBLIC_INDEX_VERSION, t: now() }
     });
