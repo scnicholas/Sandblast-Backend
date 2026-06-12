@@ -1,6 +1,6 @@
 {
-  "version": "packets_v1.4-D-commercial-hardened-greeting-bridge-anti-loop-scoped",
-  "updated": "2026-05-03",
+  "version": "packets_v1.4-D-commercial-hardened-greeting-bridge-anti-loop-scoped+nyx-face-interface-audit-v1",
+  "updated": "2026-06-12",
   "source": "nyx_phrasepack_v1.2 + nyx_marion_greeting_intents_v1 merged into packets_v1_3",
   "voice": {
     "persona": "Nyx",
@@ -753,8 +753,8 @@
           "send": "run test"
         },
         {
-          "label": "Debug",
-          "send": "debug"
+          "label": "Inspect",
+          "send": "inspect issue"
         }
       ],
       "sessionPatch": {
@@ -836,8 +836,8 @@
           "send": "run test"
         },
         {
-          "label": "Debug",
-          "send": "debug"
+          "label": "Inspect",
+          "send": "inspect issue"
         }
       ],
       "sessionPatch": {
@@ -1273,8 +1273,8 @@
           "send": "run test"
         },
         {
-          "label": "Debug",
-          "send": "debug"
+          "label": "Inspect",
+          "send": "inspect issue"
         }
       ],
       "sessionPatch": {
@@ -2294,13 +2294,15 @@
         "we need to debug",
         "let's find the bug",
         "lets find the bug",
-        "let’s find the bug"
+        "let’s find the bug",
+        "inspect issue",
+        "nyx inspect issue"
       ],
       "intent": "debug_request",
       "tone": "technical",
       "energy": "high",
       "templates": [
-        "Debug mode. Give me the symptom, file, route, or screenshot. We’ll isolate it cleanly."
+        "Inspection mode. Give me the symptom, file, route, or screenshot. We’ll isolate it cleanly."
       ],
       "stateTemplates": {
         "cold": [
@@ -2323,8 +2325,8 @@
           "send": "run test"
         },
         {
-          "label": "Debug",
-          "send": "debug"
+          "label": "Inspect",
+          "send": "inspect issue"
         }
       ],
       "sessionPatch": {
