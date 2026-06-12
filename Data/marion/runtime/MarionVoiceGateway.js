@@ -12,6 +12,11 @@
  * → MarionBridge
  * → VoiceOutputPolicy
  * → Nyx-facing final envelope
+ *
+ * Admin-only delivery hardlock:
+ * - Public/browser speaker hints cannot authorize Marion voice.
+ * - Marion voice audio is allowed only when the server marks the request
+ *   as admin-verified before it reaches this gateway.
  */
 
 const {
@@ -33,6 +38,8 @@ const {
 const {
   createVoiceTelemetryEvent
 } = require('./MarionVoiceTelemetry');
+
+const VERSION = 'marion.voiceGateway/2.0-admin-only-delivery';
 
 function safeRequire(path) {
   try {
@@ -57,7 +64,7 @@ async function callBridge(bridge, payload, context) {
   if (!bridge) {
     return {
       ok: false,
-      reply: 'Voice input was received, but MarionBridge is not available in the runtime folder.',
+      reply: 'Voice input was received, but the protected voice bridge is not available yet.',
       error: 'MARION_BRIDGE_NOT_FOUND'
     };
   }
@@ -76,7 +83,7 @@ async function callBridge(bridge, payload, context) {
   if (candidates.length === 0) {
     return {
       ok: false,
-      reply: 'Voice input was received, but MarionBridge does not expose a compatible handler.',
+      reply: 'Voice input was received, but the protected voice bridge does not expose a compatible handler.',
       error: 'MARION_BRIDGE_HANDLER_NOT_FOUND'
     };
   }
@@ -161,39 +168,54 @@ function firstReplyText(response, depth, seen) {
   return '';
 }
 
+function isAdminVoiceDeliveryAllowed(voiceEnvelope, outputPolicy) {
+  const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
+  const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
+  return policy.adminVoiceDeliveryAllowed === true ||
+    env.adminVoiceDeliveryAllowed === true ||
+    (env.authorizationState === 'authorized' && env.adminVoiceVerified === true);
+}
+
 function buildVoiceReplyPromotionFallback(voiceEnvelope, response) {
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const hint = safeText(env.userIntentHint).toLowerCase();
   const commandPhrase = safeText(env.commandPhrase).toLowerCase();
   const authorizationState = safeText(env.authorizationState);
+  const adminVoiceDeliveryAllowed = env.adminVoiceDeliveryAllowed === true;
 
   if (hint === 'status' || commandPhrase === 'status') {
-    return 'Voice lane status: Nyx is the public route, Marion remains the authority, Mac voice authorization is accepted, and raw audio is not being stored. The remaining issue was final reply promotion, so I surfaced this safe visible status instead of returning silence.';
+    return adminVoiceDeliveryAllowed
+      ? 'Protected voice lane status: admin authorization is verified, transcript-only processing is live, and raw audio is not being stored.'
+      : 'Protected voice lane status: admin voice delivery is locked. Transcript-only processing is live, and raw audio is not being stored.';
   }
 
   if (response && response.ok === false) {
-    return firstReplyText(response) || 'I heard you, but Marion could not complete that voice turn cleanly. I kept the public response safe and did not store raw audio.';
+    return firstReplyText(response) || 'I heard you, but that protected voice turn could not complete cleanly. The response stayed safe and raw audio was not stored.';
   }
 
-  if (authorizationState === 'authorized') {
-    return 'I heard you and authorization passed, but the bridge did not return a visible final reply. I surfaced this safe fallback instead of returning silence.';
+  if (authorizationState === 'authorized' && adminVoiceDeliveryAllowed) {
+    return 'I heard you and admin authorization passed, but the bridge did not return a visible final reply.';
   }
 
-  return 'I heard you, but that voice turn did not produce a clean final answer. Please try the same request again.';
+  return 'I heard you, but protected voice delivery needs admin authorization before I can continue.';
 }
 
 function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolicy) {
   const base = response && typeof response === 'object'
     ? response
     : { reply: String(response || '') };
+  const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const originalReply = firstReplyText(base);
-  const fallbackReply = originalReply ? '' : buildVoiceReplyPromotionFallback(voiceEnvelope, base);
+  const fallbackReply = originalReply ? '' : buildVoiceReplyPromotionFallback(env, base);
   const cleanReply = originalReply || fallbackReply;
   const fallbackUsed = !originalReply && Boolean(cleanReply);
   const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
   const policyReason = safeText(policy.reason);
-  const fallbackCanSpeak = fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
-  const spokenText = firstReplyText(policy) || (policy.speakAllowed === true || fallbackCanSpeak ? cleanReply : '');
+  const adminVoiceDeliveryAllowed = isAdminVoiceDeliveryAllowed(env, policy);
+  const fallbackCanSpeak = adminVoiceDeliveryAllowed && fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
+  const policySpokenText = firstReplyText(policy);
+  const speakAllowed = adminVoiceDeliveryAllowed && Boolean(policySpokenText || (fallbackCanSpeak && cleanReply)) && (policy.speakAllowed === true || fallbackCanSpeak);
+  const spokenText = speakAllowed ? (policySpokenText || cleanReply) : '';
 
   return Object.assign({}, base, {
     ok: base.ok !== false && Boolean(cleanReply),
@@ -205,23 +227,29 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     authority: 'Marion',
     inputChannel: 'voice',
     source: 'voice',
+    adminOnlyVoiceDelivery: true,
     voice: Object.assign({}, base.voice || {}, policy, {
-      speakAllowed: policy.speakAllowed === true || fallbackCanSpeak,
-      voiceMode: safeText(policy.voiceMode) || 'full',
-      reason: fallbackUsed ? 'VOICE_REPLY_PROMOTION_FALLBACK' : (policyReason || 'SPEAKABLE_RESPONSE'),
+      speakAllowed,
+      voiceMode: speakAllowed ? (safeText(policy.voiceMode) || 'full') : 'silent',
+      reason: speakAllowed ? (fallbackUsed ? 'VOICE_REPLY_PROMOTION_FALLBACK' : (policyReason || 'SPEAKABLE_RESPONSE')) : (policyReason || 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED'),
       spokenText,
       audioStored: false,
+      adminOnlyVoiceDelivery: true,
+      adminVoiceDeliveryAllowed,
       replyPromotionFallback: fallbackUsed
     }),
     voiceEnvelope: {
-      source: voiceEnvelope.source,
-      inputChannel: voiceEnvelope.inputChannel,
-      locale: voiceEnvelope.locale,
-      confidence: voiceEnvelope.confidence,
-      authorizationState: voiceEnvelope.authorizationState,
-      userIntentHint: voiceEnvelope.userIntentHint,
-      commandPhrase: voiceEnvelope.commandPhrase || null,
-      wakeWord: voiceEnvelope.wakeWord || null,
+      source: env.source,
+      inputChannel: env.inputChannel,
+      locale: env.locale,
+      confidence: env.confidence,
+      authorizationState: env.authorizationState,
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: env.adminVoiceVerified === true,
+      adminVoiceDeliveryAllowed,
+      userIntentHint: env.userIntentHint,
+      commandPhrase: env.commandPhrase || null,
+      wakeWord: env.wakeWord || null,
       audioStored: false
     },
     voiceReplyPromotion: {
@@ -237,21 +265,34 @@ async function handleVoiceTranscript(input, options) {
   const opts = options && typeof options === 'object' ? options : {};
   const telemetryEvents = [];
 
-  let envelope = createVoiceInputEnvelope(input);
+  let envelope = createVoiceInputEnvelope(Object.assign({}, input || {}, {
+    adminOnlyVoiceDelivery: true
+  }));
   telemetryEvents.push(createVoiceTelemetryEvent('voice.envelope.created', envelope));
 
-  const authResult = applyVoiceAuthorization(envelope, opts.authorization || opts);
+  const authOptions = Object.assign({
+    adminOnlyVoiceDelivery: true,
+    allowConversationalWhenUnknown: false,
+    trustSpeakerHint: false
+  }, opts.authorization || opts);
+
+  const authResult = applyVoiceAuthorization(envelope, authOptions);
   envelope = authResult.envelope;
   telemetryEvents.push(createVoiceTelemetryEvent('voice.authorization.checked', envelope, authResult.authorization));
 
   if (!authResult.authorization.allowed) {
     const blockedResponse = {
       ok: false,
-      reply: 'I heard you, but that voice request needs authorization before I can continue.',
+      reply: 'I heard you, but protected voice delivery needs admin authorization before I can continue.',
       reason: authResult.authorization.reason
     };
 
-    const withPolicy = applyVoiceOutputPolicy(blockedResponse, opts.output || opts);
+    const withPolicy = applyVoiceOutputPolicy(blockedResponse, Object.assign({}, opts.output || opts, {
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: false,
+      adminVoiceDeliveryAllowed: false,
+      forceSilent: true
+    }));
     const outputPolicy = withPolicy.voice;
 
     telemetryEvents.push(createVoiceTelemetryEvent('voice.blocked', envelope, authResult.authorization));
@@ -280,13 +321,18 @@ async function handleVoiceTranscript(input, options) {
     locale: envelope.locale,
     confidence: envelope.confidence,
     authorizationState: envelope.authorizationState,
+    adminOnlyVoiceDelivery: true,
+    adminVoiceVerified: envelope.adminVoiceVerified === true,
+    adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true,
     voice: {
       envelope,
       wakeWord: envelope.wakeWord || null,
       commandPhrase: envelope.commandPhrase || null,
       source: 'voice',
       inputChannel: 'voice',
-      audioStored: false
+      audioStored: false,
+      adminOnlyVoiceDelivery: true,
+      adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true
     }
   };
 
@@ -296,7 +342,10 @@ async function handleVoiceTranscript(input, options) {
     publicAgent: 'Nyx',
     authority: 'Marion',
     sessionId: envelope.sessionId,
-    requestId: envelope.requestId
+    requestId: envelope.requestId,
+    adminOnlyVoiceDelivery: true,
+    adminVoiceVerified: envelope.adminVoiceVerified === true,
+    adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true
   });
 
   let bridgeResponse;
@@ -307,7 +356,7 @@ async function handleVoiceTranscript(input, options) {
   } catch (error) {
     bridgeResponse = {
       ok: false,
-      reply: 'Voice input reached the Marion bridge, but the bridge failed during processing.',
+      reply: 'Voice input reached the protected voice bridge, but the bridge failed during processing.',
       error: error && error.message ? error.message : 'MARION_BRIDGE_ERROR'
     };
 
@@ -316,7 +365,11 @@ async function handleVoiceTranscript(input, options) {
     }));
   }
 
-  const withPolicy = applyVoiceOutputPolicy(bridgeResponse, opts.output || opts);
+  const withPolicy = applyVoiceOutputPolicy(bridgeResponse, Object.assign({}, opts.output || opts, {
+    adminOnlyVoiceDelivery: true,
+    adminVoiceVerified: envelope.adminVoiceVerified === true,
+    adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true
+  }));
   const outputPolicy = withPolicy.voice;
 
   telemetryEvents.push(createVoiceTelemetryEvent('voice.output.policy.checked', envelope, outputPolicy));
@@ -325,8 +378,10 @@ async function handleVoiceTranscript(input, options) {
 }
 
 module.exports = {
+  VERSION,
   handleVoiceTranscript,
   makeNyxBoundaryResponse,
   firstReplyText,
-  loadMarionBridge
+  loadMarionBridge,
+  isAdminVoiceDeliveryAllowed
 };
