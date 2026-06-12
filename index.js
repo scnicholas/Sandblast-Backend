@@ -32,6 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.42sb BACKEND-ROOT-CLEANUP-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -358,14 +359,11 @@ function timingSafeTextEqual(a, b) {
 }
 
 function marionAdminVoiceRequestAuth(req, body) {
-  const b = isObj(body) ? body : {};
   const headers = req && req.headers ? req.headers : {};
   const tokens = marionAdminVoiceEnvTokens();
   const candidates = [
     { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
-    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] },
-    { source: "body.adminVoiceToken", value: b.adminVoiceToken },
-    { source: "body.adminToken", value: b.adminToken }
+    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] }
   ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
 
   for (const candidate of candidates) {
@@ -588,7 +586,7 @@ app.get([...NYX_VOICE_TRANSCRIPT_ROUTES, ...NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES],
     runtimeFiles: nyxVoiceRequiredRuntimeDiagnostics(),
     runtimeFilesReady: nyxVoiceRuntimeFilesReady(),
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       routeAuthority: "Nyx public route -> MarionVoiceGateway -> MarionBridge",
       noRawAudioStored: true,
@@ -903,10 +901,10 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, (req, res) => {
     canonicalHealthRoute: "/api/lingosentinel/start/contact/health",
     acceptsSubmissions: true,
     storageFallback: true,
-    deliveredTo: cfg.to,
+    deliveredToConfigured: !!cfg.to,
     emailDeliveryConfigured: isContactDeliveryConfigured(cfg),
     smtp: contactSmtpPublicDiagnostics(cfg),
-    requiredEnvForEmail: ["SB_CONTACT_SMTP_USER", "SB_CONTACT_SMTP_PASS", "SB_CONTACT_TO_EMAIL", "SB_CONTACT_FROM_EMAIL", "SB_CONTACT_SMTP_HOST", "SB_CONTACT_SMTP_PORT", "SB_CONTACT_SMTP_SECURE"],
+    requiredEnvForEmailConfigured: isContactDeliveryConfigured(cfg),
     aliases: {
       health: LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES,
       smtpHealth: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
@@ -914,7 +912,7 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_HEALTH_ROUTES, (req, res) => {
       post: LINGOSENTINEL_START_CONTACT_EARLY_ROUTES
     },
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now()
     }
   });
@@ -925,8 +923,11 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, async (req, res) =
   hardenConversationNoStore(res);
   const cfg = contactConfig();
   const verifyRequested = /^(?:1|true|yes|on)$/i.test(cleanText(req.query && (req.query.verify || req.query.live || req.query.test) || ""));
-  let verify = { requested: verifyRequested, ok: false, skipped: !verifyRequested };
-  if (verifyRequested) {
+  const verifyAuth = verifyRequested ? checkContactDiagnosticAccess(req) : { ok: true };
+  let verify = verifyRequested && !verifyAuth.ok
+    ? { requested: true, ok: false, skipped: true, error: "diagnostic_token_required" }
+    : { requested: verifyRequested, ok: false, skipped: !verifyRequested };
+  if (verifyRequested && verifyAuth.ok) {
     try {
       const result = await verifyContactSmtpConfig();
       verify = { requested: true, ok: true, result };
@@ -952,7 +953,7 @@ app.get(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES, async (req, res) =
     deliveryReady: isContactDeliveryConfigured(cfg),
     sendTestRoute: "/api/lingosentinel/start/contact/smtp-send-test",
     aliases: LINGOSENTINEL_START_CONTACT_EARLY_SMTP_HEALTH_ROUTES,
-    meta: { v: INDEX_VERSION, t: now() }
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
 
@@ -966,7 +967,7 @@ app.all(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_SEND_TEST_ROUTES, async (req, res
       ok: false,
       service: "lingosentinel-start-contact-smtp-send-test",
       error: auth.error,
-      message: "SMTP diagnostic send route is locked. Set SB_CONTACT_DIAGNOSTIC_TOKEN and pass ?token=... or x-sb-contact-diagnostic-token."
+      message: "SMTP diagnostic send route is locked."
     });
   }
 
@@ -988,9 +989,9 @@ app.all(LINGOSENTINEL_START_CONTACT_EARLY_SMTP_SEND_TEST_ROUTES, async (req, res
       ok: true,
       service: "lingosentinel-start-contact-smtp-send-test",
       delivered: true,
-      deliveredTo: delivered.deliveredTo,
+      deliveredToConfigured: !!delivered.deliveredTo,
       traceId: data.traceId,
-      result: delivered,
+      result: { ok: true, provider: cleanText(delivered.provider || "smtp") },
       smtp: contactSmtpPublicDiagnostics(cfg),
       routeOrder: "early",
       message: "SMTP diagnostic email delivered."
@@ -1058,7 +1059,7 @@ app.post(LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, (req, res) => {
     received: true,
     stored: !!stored,
     emailDelivered: "queued",
-    deliveredTo: contactConfig().to,
+    deliveredToConfigured: !!contactConfig().to,
     traceId: data.traceId,
     deliveryState: "queued_email_attempt",
     smtpDiagnosticRoute: "/api/lingosentinel/start/contact/smtp-health",
@@ -1226,9 +1227,9 @@ function avatarConfigPayload() {
     fallbackSrc: routeUrl(`/avatar/assets/${imageName}`),
     directVideo: routeUrl("/avatar/video"),
     statusUrl: routeUrl("/avatar/status"),
-    scriptVersion: INDEX_VERSION,
+    scriptVersion: PUBLIC_INDEX_VERSION,
     finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
-    searchedDirs: avatarStaticCandidateDirs()
+    assetDirectoryCount: avatarStaticCandidateDirs().length
   };
 }
 
@@ -2287,7 +2288,7 @@ function buildLoopReplyBlockedReplacement(norm, authority) {
       recoveryInjected: false
     },
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       indexRole: "transport_only",
       transportOnly: true,
@@ -2670,7 +2671,7 @@ function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
     traceId,
     requestId: makeTraceId("req"),
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       indexRole: "transport_only",
       transportOnly: true,
@@ -3039,53 +3040,20 @@ function isContactDeliveryConfigured(cfg) {
 
 function contactSmtpPublicDiagnostics(cfg) {
   const c = isObj(cfg) ? cfg : contactConfig();
-  const passLen = safeStr(c.smtpPass || "").length;
-  const likelyGmail = /smtp\.gmail\.com$/i.test(c.smtpHost || "") || /gmail\.com$/i.test(c.smtpUser || "");
   return {
-    host: cleanText(c.smtpHost || ""),
-    port: Number(c.smtpPort || 0),
-    secure: !!c.smtpSecure,
-    startTlsFallback: true,
     enabled: !!c.enabled,
-    smtpUserPresent: !!c.smtpUser,
-    smtpUserValid: isValidContactEmail(c.smtpUser),
-    smtpPassPresent: !!c.smtpPass,
-    smtpPassWhitespaceRemoved: !!c.smtpPassHadWhitespace,
-    smtpPassLengthBucket: passLen ? (passLen === 16 ? "16" : passLen < 16 ? "under_16" : "over_16") : "missing",
-    smtpPassLooksLikeGmailAppPassword: likelyGmail ? passLen === 16 : passLen > 0,
-    connectTimeoutMs: Number(c.smtpConnectTimeoutMs || 0),
-    commandTimeoutMs: Number(c.smtpCommandTimeoutMs || 0),
-    socketTimeoutMs: Number(c.smtpSocketTimeoutMs || 0),
-    family: Number(c.smtpFamily || 0),
-    requireTls: !!c.smtpRequireTls,
-    preferredMode: c.smtpSecure ? "ssl" : (c.smtpRequireTls ? "starttls" : "plain_smtp"),
-    brlogicPort25PlainReady: /brlogic\.com$/i.test(c.smtpHost || "") && Number(c.smtpPort) === 25 && !c.smtpSecure && !c.smtpRequireTls,
-    fromEmailValid: isValidContactEmail(c.from),
-    toEmailValid: isValidContactEmail(c.to),
-    fromMatchesUser: !!c.from && !!c.smtpUser && c.from === c.smtpUser,
     deliveryReady: isContactDeliveryConfigured(c),
     smtpDeliveryReady: isContactSmtpConfigDeliverable(c),
     emailApiDeliveryReady: isContactEmailApiConfigDeliverable(c),
-    emailProvider: cleanText(c.emailProvider || "smtp"),
+    smtpUserPresent: !!c.smtpUser,
+    smtpPassPresent: !!c.smtpPass,
+    fromEmailValid: isValidContactEmail(c.from),
+    toEmailValid: isValidContactEmail(c.to),
     emailApi: contactEmailApiPublicDiagnostics(c),
     nodemailerAvailable: !!contactNodemailerModule(),
     diagnosticSendRoute: "/api/lingosentinel/start/contact/smtp-send-test",
-    expectedForGmail: {
-      host: "smtp.gmail.com",
-      sslPort: 465,
-      startTlsPort: 587,
-      preferredOnRender: "587 STARTTLS",
-      appPasswordNoSpaces: true
-    },
-    expectedForBrlogicMailEnable: {
-      host: "webmail.brlogic.com",
-      port: 25,
-      secure: false,
-      requireTls: false,
-      mode: "plain_smtp_auth"
-    },
     lastDeliveryAttempt: contactSmtpPublicState(),
-    attempts: contactSmtpAttemptLabels(c)
+    diagnosticsRedacted: true
   };
 }
 
@@ -3095,20 +3063,16 @@ function contactEmailApiPublicDiagnostics(cfg) {
   const api = safeObj(c.api);
   const provider = cleanText(c.emailProvider || api.provider || "smtp").toLowerCase();
   return {
-    provider,
+    provider: provider === "smtp" ? "smtp" : "http_email_api",
     enabled: provider !== "smtp",
-    resendKeyPresent: !!api.resendKey,
-    brevoKeyPresent: !!api.brevoKey,
-    sendgridKeyPresent: !!api.sendgridKey,
-    mailgunKeyPresent: !!api.mailgunKey,
-    mailgunDomainPresent: !!api.mailgunDomain,
+    deliveryReady: isContactEmailApiConfigDeliverable(c),
     fromEmailValid: isValidContactEmail(c.from),
     toEmailValid: isValidContactEmail(c.to),
-    deliveryReady: isContactEmailApiConfigDeliverable(c),
-    timeoutMs: Number(api.timeoutMs || 0),
-    priority: ["http_email_api", "smtp_fallback", "audit_storage"]
+    timeoutMsConfigured: Number(api.timeoutMs || 0) > 0,
+    diagnosticsRedacted: true
   };
 }
+
 
 function contactEmailApiEndpoint(cfg) {
   const provider = cleanText(cfg.emailProvider || safeObj(cfg.api).provider || "smtp").toLowerCase();
@@ -3388,7 +3352,6 @@ function checkContactDiagnosticAccess(req) {
   const required = contactDiagnosticToken();
   if (!required) return { ok: true, open: true };
   const supplied = cleanText(
-    (req && req.query && req.query.token) ||
     (req && req.headers && (req.headers["x-sb-contact-diagnostic-token"] || req.headers["x-contact-diagnostic-token"])) ||
     ""
   );
@@ -3435,7 +3398,7 @@ async function smtpVerifyWithNodemailerAttempt(cfg, attempt) {
   const transport = nodemailer.createTransport(contactNodemailerTransportOptions(cfg, attempt));
   try {
     await transport.verify();
-    noteContactSmtpAttempt(attempt, "verified", { deliveredTo: cfg.to, detail: "nodemailer" });
+    noteContactSmtpAttempt(attempt, "verified", { deliveredToConfigured: !!cfg.to, detail: "nodemailer" });
     return { ok: true, verified: true, provider: "nodemailer", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label };
   } finally {
     try { transport.close(); } catch (_) {}
@@ -3458,8 +3421,8 @@ async function smtpDeliverWithNodemailerAttempt(data, cfg, attempt) {
       subject: cleanContactHeader(`${cfg.subjectPrefix} - ${data.name || "Inquiry"}`, 180),
       text: buildContactEmailText(data)
     });
-    noteContactSmtpAttempt(attempt, "delivered", { deliveredTo: cfg.to, detail: cleanText(info && (info.messageId || info.response) || "nodemailer").slice(0, 240) });
-    return { ok: true, deliveredTo: cfg.to, provider: "nodemailer", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label, messageId: cleanText(info && info.messageId || "") };
+    noteContactSmtpAttempt(attempt, "delivered", { deliveredToConfigured: !!cfg.to, detail: cleanText(info && (info.messageId || info.response) || "nodemailer").slice(0, 240) });
+    return { ok: true, deliveredToConfigured: !!cfg.to, provider: "nodemailer", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label, messageId: cleanText(info && info.messageId || "") };
   } finally {
     try { transport.close(); } catch (_) {}
   }
@@ -3724,18 +3687,18 @@ function contactSmtpPublicState() {
     at: contactSmtpRuntimeState.lastAttemptAt,
     status: contactSmtpRuntimeState.lastStatus,
     accepted: !!contactSmtpRuntimeState.lastAccepted,
-    deliveredTo: contactSmtpRuntimeState.lastDeliveredTo,
+    deliveredToConfigured: !!contactSmtpRuntimeState.lastDeliveredTo,
     label: contactSmtpRuntimeState.lastAttemptLabel,
-    host: contactSmtpRuntimeState.lastAttemptHost,
-    port: contactSmtpRuntimeState.lastAttemptPort,
+    transportConfigured: !!contactSmtpRuntimeState.lastAttemptHost,
     secure: !!contactSmtpRuntimeState.lastAttemptSecure,
     starttls: !!contactSmtpRuntimeState.lastAttemptStartTls,
     mode: contactSmtpRuntimeState.lastAttemptMode,
     error: contactSmtpRuntimeState.lastError,
-    detail: contactSmtpRuntimeState.lastErrorDetail,
-    attempts: Array.isArray(contactSmtpRuntimeState.lastAttempts) ? contactSmtpRuntimeState.lastAttempts.slice(0, 8) : []
+    attempts: Array.isArray(contactSmtpRuntimeState.lastAttempts) ? contactSmtpRuntimeState.lastAttempts.slice(0, 8).map((x) => cleanText(x).replace(/host=[^,;|]+/ig, "host=[redacted]").replace(/deliveredTo=[^,;|]+/ig, "deliveredTo=[redacted]")) : [],
+    diagnosticsRedacted: true
   };
 }
+
 
 function setContactSmtpRuntimeState(patch) {
   const next = isObj(patch) ? patch : {};
@@ -3859,7 +3822,7 @@ async function smtpDeliverWithAttempt(data, cfg, attempt) {
     await smtpExpect(socket, 250);
     try { await smtpExpect(socket, 221, "QUIT"); } catch (_) {}
     noteContactSmtpAttempt(attempt, "delivered", { deliveredTo: cfg.to });
-    return { ok: true, deliveredTo: cfg.to, provider: "smtp", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label };
+    return { ok: true, deliveredToConfigured: !!cfg.to, provider: "smtp", host: attempt.host, port: attempt.port, secure: !!attempt.secure, starttls: !!attempt.starttls, attempt: attempt.label };
   } finally {
     try { socket.end(); } catch (_) {}
     try { socket.destroy(); } catch (_) {}
@@ -4016,9 +3979,9 @@ app.get(["/api/contact/health", "/api/lingosentinel/contact/health", "/api/lingo
     storageFallback: true,
     deliveryConfigured: isContactDeliveryConfigured(cfg),
     smtp: contactSmtpPublicDiagnostics(cfg),
-    deliveredTo: cfg.to,
+    deliveredToConfigured: !!cfg.to,
     provider: cfg.emailProvider || "smtp",
-    requires: ["SB_CONTACT_EMAIL_PROVIDER + provider API key", "or SB_CONTACT_SMTP_USER + SB_CONTACT_SMTP_PASS fallback"],
+    requiresConfiguration: !isContactDeliveryConfigured(cfg),
     note: "The route accepts and stores submissions even when SMTP delivery is not configured."
   });
 });
@@ -4028,8 +3991,11 @@ app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "
   hardenConversationNoStore(res);
   const cfg = contactConfig();
   const verifyRequested = /^(?:1|true|yes|on)$/i.test(cleanText(req.query && (req.query.verify || req.query.live || req.query.test) || ""));
-  let verify = { requested: verifyRequested, ok: false, skipped: !verifyRequested };
-  if (verifyRequested) {
+  const verifyAuth = verifyRequested ? checkContactDiagnosticAccess(req) : { ok: true };
+  let verify = verifyRequested && !verifyAuth.ok
+    ? { requested: true, ok: false, skipped: true, error: "diagnostic_token_required" }
+    : { requested: verifyRequested, ok: false, skipped: !verifyRequested };
+  if (verifyRequested && verifyAuth.ok) {
     try {
       const result = await verifyContactSmtpConfig();
       verify = { requested: true, ok: true, result };
@@ -4052,7 +4018,7 @@ app.get(["/api/contact/smtp-health", "/api/lingosentinel/contact/smtp-health", "
     verify,
     smtp: contactSmtpPublicDiagnostics(cfg),
     deliveryReady: isContactDeliveryConfigured(cfg),
-    meta: { v: INDEX_VERSION, t: now() }
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
 
@@ -4079,7 +4045,7 @@ app.all(["/api/contact/smtp-send-test", "/api/lingosentinel/contact/smtp-send-te
   try {
     const delivered = await sendContactEmailViaSmtp(data, { diagnostic: true, forceSynchronous: true });
     writeContactAudit(data, "diagnostic_delivered", { provider: delivered.provider, deliveredTo: delivered.deliveredTo, diagnostic: true });
-    return res.status(200).json({ ok: true, service: "lingosentinel-start-contact-smtp-send-test", delivered: true, deliveredTo: delivered.deliveredTo, traceId: data.traceId, result: delivered, smtp: contactSmtpPublicDiagnostics(cfg), message: "SMTP diagnostic email delivered." });
+    return res.status(200).json({ ok: true, service: "lingosentinel-start-contact-smtp-send-test", delivered: true, deliveredToConfigured: !!delivered.deliveredTo, traceId: data.traceId, result: { ok: true, provider: cleanText(delivered.provider || "smtp") }, smtp: contactSmtpPublicDiagnostics(cfg), message: "SMTP diagnostic email delivered." });
   } catch (err) {
     const code = smtpSafeErrorCode(err);
     const attempts = Array.isArray(err && err.smtpAttempts) ? err.smtpAttempts.slice(0, 8) : [];
@@ -4121,7 +4087,7 @@ app.post(["/api/contact", "/api/lingosentinel/contact", "/api/lingosentinel/star
       received: true,
       stored: true,
       emailDelivered: true,
-      deliveredTo: delivered.deliveredTo,
+      deliveredToConfigured: !!delivered.deliveredTo,
       traceId: data.traceId,
       deliveryState: "delivered",
       message: "LingoSentinel inquiry delivered."
@@ -4135,7 +4101,7 @@ app.post(["/api/contact", "/api/lingosentinel/contact", "/api/lingosentinel/star
       received: true,
       stored: true,
       emailDelivered: false,
-      deliveredTo: contactConfig().to,
+      deliveredToConfigured: !!contactConfig().to,
       traceId: data.traceId,
       deliveryState: code === "CONTACT_SMTP_NOT_CONFIGURED" ? "stored_pending_smtp" : "stored_delivery_retry_needed",
       warning: code,
@@ -4926,7 +4892,7 @@ function buildPacketBridgeFallbackSelected(norm, packetBridge) {
     traceId: cleanText(norm && norm.traceId || makeTraceId("packet")),
     requestId: makeTraceId("req"),
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       indexRole: "transport_only_packet_assist",
       transportOnly: true,
@@ -6558,7 +6524,7 @@ function buildNewsCanadaServiceFromFetch(fetchRSS, logger) {
         items: out.stories,
         stories: out.stories,
         meta: {
-          v: INDEX_VERSION,
+          v: PUBLIC_INDEX_VERSION,
           t: now(),
           source: cache.source,
           degraded: !!cache.degraded,
@@ -6902,7 +6868,7 @@ function buildNewsCanadaCacheBackedService(cacheMod, fallbackService) {
         items,
         stories: items,
         meta: {
-          v: INDEX_VERSION,
+          v: PUBLIC_INDEX_VERSION,
           t: now(),
           source: cleanText(payload && payload.meta && (payload.meta.servedFrom || payload.meta.source) || "cache") || "cache",
           degraded: !!(payload && payload.meta && (payload.meta.degraded || payload.meta.stale || payload.meta.refreshFailed || !items.length)),
@@ -7118,7 +7084,7 @@ function denyUnauthorized(req, res) {
       bearerAccepted: true,
       originBypassEnabled: !!CFG.conversationOriginBypass
     },
-    meta: { v: INDEX_VERSION, t: now(), authGate: "index.enforceToken" }
+    meta: { v: PUBLIC_INDEX_VERSION, t: now(), authGate: "index.enforceToken" }
   });
 }
 
@@ -7127,6 +7093,23 @@ function isConversationRoutePath(req) {
   return pathValue === "/api/chat" || pathValue === "/chat" || pathValue === "/respond";
 }
 
+
+function getPublicMarionRuntimeSummary() {
+  return {
+    marionBridgeLoaded: !!marionBridgeMod,
+    marionBridgeReady: !!(marionBridgeMod && (typeof marionBridgeMod.route === "function" || typeof marionBridgeMod.handle === "function" || typeof marionBridgeMod.processWithMarion === "function" || typeof marionBridgeMod.default === "function")),
+    chatEngineLoaded: !!chatEngineMod,
+    lingoSentinelGatewayLoaded: !!lingoSentinelGatewayMod,
+    marionEmotionRuntimeLoaded: !!marionEmotionRuntimeMod,
+    nyxPacketRuntimeAdapterLoaded: !!nyxPackRuntimeAdapterMod,
+    marionDomainRegistryLoaded: !!marionDomainRegistryMod,
+    marionDomainRetrieverLoaded: !!marionDomainRetrieverMod,
+    marionDomainRouterLoaded: !!marionDomainRouterMod,
+    siteBridgeLoaded: !!siteBridgeMod,
+    s2sLoaded: !!s2sMod,
+    diagnosticsRedacted: true
+  };
+}
 
 function buildConversationRouteDiagnostics(req) {
   const pathValue = cleanText(req && (req.originalUrl || req.url || req.path) || "").split("?")[0] || "";
@@ -7140,9 +7123,9 @@ function buildConversationRouteDiagnostics(req) {
     method: cleanText(req && req.method || "GET"),
     acceptsPost: true,
     acceptsGetAsHealthOnly: true,
-    marion: getMarionRuntimeDiagnostics(),
+    marion: getPublicMarionRuntimeSummary(),
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       detail: "GET is diagnostic only. Widget chat turns must POST JSON to /api/chat."
     }
@@ -8202,7 +8185,7 @@ async function buildLanguageSphereDirectTranslationResponse(norm = {}, sessionId
       finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION,
       runtimeTelemetry,
       meta: {
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         indexRole: "transport_only",
         transportOnly: true,
@@ -10373,7 +10356,7 @@ async function callMarionBridge(input) {
       awaitingMarion: true,
       meta: {
         source: "index_callMarionBridge",
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         transportOnly: true,
         noSupportDecision: true,
@@ -10444,7 +10427,7 @@ function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
     error: cleanText(error || "tts_route_failure") || "tts_route_failure",
     detail: cleanText(detail || "TTS route failed") || "TTS route failed",
     traceId,
-    meta: { v: INDEX_VERSION, t: now() },
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() },
     payload: { spokenUnavailable: true }
   };
   if (isObj(extra)) Object.assign(payload, extra);
@@ -10632,7 +10615,7 @@ function normalizeTtsRoutePayload(raw, req) {
     },
     meta: {
       ...(isObj(src.meta) ? src.meta : {}),
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       route: cleanText(req && (req.originalUrl || req.path) || "/api/tts") || "/api/tts",
       audioContract: "audio-first-v2"
@@ -10980,7 +10963,7 @@ async function getNewsCanadaEditorsPicksResponse(req) {
       panels: [],
       chips: [],
       meta: {
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         source: "service_unavailable",
         degraded: true,
@@ -11033,7 +11016,7 @@ async function getNewsCanadaEditorsPicksResponse(req) {
     panels: slides,
     chips: Array.isArray(result && result.chips) && !hasSyntheticPayload ? result.chips : [],
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       source: cleanText(result && result.meta && result.meta.source || (ok ? "rss_service" : "rss_unavailable")) || "rss_unavailable",
       degraded: !!(result && result.meta && result.meta.degraded) || !ok,
@@ -11062,7 +11045,7 @@ async function getNewsCanadaStoryResponse(req) {
       ok: false,
       error: "news_canada_service_unavailable",
       route: "/api/newscanada/story",
-      meta: { v: INDEX_VERSION, t: now(), source: "service_unavailable", degraded: true }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now(), source: "service_unavailable", degraded: true }
     };
   }
 
@@ -11077,7 +11060,7 @@ async function getNewsCanadaStoryResponse(req) {
       error: "story_not_found",
       route: "/api/newscanada/story",
       lookup,
-      meta: { v: INDEX_VERSION, t: now(), source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service" }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now(), source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service" }
     };
   }
 
@@ -11094,7 +11077,7 @@ async function getNewsCanadaStoryResponse(req) {
       ctaText: result.story.ctaText || "Read more"
     },
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       source: cleanText(result && result.meta && result.meta.source || "rss_service") || "rss_service",
       degraded: !!(result && result.meta && result.meta.degraded)
@@ -11154,7 +11137,7 @@ async function getNewsCanadaRssResponse(req) {
         route: "/api/newscanada/rss",
         items: cachedItems.slice(),
         meta: {
-          v: INDEX_VERSION,
+          v: PUBLIC_INDEX_VERSION,
           t: now(),
           traceId: trace.traceId,
           source: cleanText(cachedContract.meta && cachedContract.meta.source || "cache_contract") || "cache_contract",
@@ -11223,7 +11206,7 @@ async function getNewsCanadaRssResponse(req) {
       route: "/api/newscanada/rss",
       items,
       meta: {
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         traceId: trace.traceId,
         source: cleanText(result && result.meta && result.meta.source || (ok ? "rss_direct_truth" : "rss_unavailable")) || "rss_unavailable",
@@ -11254,7 +11237,7 @@ async function getNewsCanadaRssResponse(req) {
       route: "/api/newscanada/rss",
       items: [],
       meta: {
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         traceId: trace.traceId,
         source: "rss_route_error",
@@ -11408,7 +11391,7 @@ app.get(["/api/newscanada/diagnostics", "/newscanada/diagnostics"], async (req, 
       : null,
     feedUrl: resolveNewsCanadaFeedUrl(),
     health,
-    meta: { v: INDEX_VERSION, t: now() }
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
 
@@ -11421,7 +11404,7 @@ app.get(["/api/newscanada/manual", "/newscanada/manual"], async (req, res) => {
     route: "/api/newscanada/manual",
     items: [],
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       source: "manual_route_disabled",
       degraded: true,
@@ -11544,7 +11527,7 @@ function buildMusicResponse(req) {
     items: Array.isArray(items) ? items : [],
     sources: Array.isArray(app.locals.musicSources) ? app.locals.musicSources : [],
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       file: app.locals.musicMeta?.file || resolveMusicDataFile(),
       source: app.locals.musicMeta?.source || "music_runtime",
@@ -11752,7 +11735,7 @@ function normalizeMusicBridgeResponse(result, req, startedAt, input) {
       ...failed,
       traceId: cleanText((req.headers && req.headers["x-sb-trace-id"]) || raw.traceId || makeTraceId("musicbridge")),
       meta: {
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         latencyMs: now() - Number(startedAt || now()),
         source: raw.meta && raw.meta.source ? raw.meta.source : "music_lane_bridge",
@@ -11777,7 +11760,7 @@ function normalizeMusicBridgeResponse(result, req, startedAt, input) {
     bridge,
     traceId: cleanText((req.headers && req.headers["x-sb-trace-id"]) || raw.traceId || makeTraceId("musicbridge")),
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       latencyMs: now() - Number(startedAt || now()),
       source: raw.meta && raw.meta.source ? raw.meta.source : "music_lane_bridge",
@@ -11797,7 +11780,7 @@ async function dispatchMusicBridge(req, res) {
       ok: false,
       error: "music_bridge_unavailable",
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("musicbridge")),
-      meta: { v: INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: false }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: false }
     });
   }
 
@@ -11883,7 +11866,7 @@ async function dispatchMusicBridge(req, res) {
     return res.status(200).json({
       ...fail,
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("musicbridge")),
-      meta: { v: INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: true }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now(), endpoint: "/api/music/bridge", mounted: true }
     });
   }
 }
@@ -11899,8 +11882,8 @@ app.get(["/api/music/bridge/health", "/music/bridge/health", "/api/music/bridge/
     resolverBound: !!musicResolverHandlerFromModule(musicResolverMod),
     knowledgeBound: !!musicKnowledgeMod,
     capabilities: caps || null,
-    version: INDEX_VERSION,
-    meta: { v: INDEX_VERSION, t: now() }
+    version: PUBLIC_INDEX_VERSION,
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
 
@@ -11914,7 +11897,7 @@ app.get(["/api/marion/emotion/health", "/api/marion/emotion/health/"], (req, res
   const health = getMarionEmotionRuntimeHealth();
   return res.status(health.ok ? 200 : 503).json({
     ...health,
-    version: INDEX_VERSION,
+    version: PUBLIC_INDEX_VERSION,
     traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("emotionhealth")),
     note: "index.js exposes diagnostics only; emotion resolution remains inside MarionBridge/emotionRuntime"
   });
@@ -11927,7 +11910,7 @@ app.get("/health", (req, res) => {
   try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
   return res.status(200).json({
     ok: true,
-    version: INDEX_VERSION,
+    version: PUBLIC_INDEX_VERSION,
     upMs: now() - SERVER_BOOT_AT,
     bootAt: SERVER_BOOT_AT,
     modules: {
@@ -11969,11 +11952,11 @@ app.get("/api/health", (req, res) => {
   try { tts = ttsHealth ? ttsHealth() : null; } catch (_) {}
   return res.status(200).json({
     ok: true,
-    version: INDEX_VERSION,
+    version: PUBLIC_INDEX_VERSION,
     traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("health")),
     upMs: now() - SERVER_BOOT_AT,
     tts,
-    marionRuntime: getMarionRuntimeDiagnostics(),
+    marionRuntime: getPublicMarionRuntimeSummary(),
     voiceRouteEnabled: !!CFG.voiceRouteEnabled,
     requireVoiceRouteToken: !!CFG.requireVoiceRouteToken,
     auth: {
@@ -12045,7 +12028,7 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
       enabled: false,
       error: "tts_health_unavailable",
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
-      meta: { v: INDEX_VERSION, t: now() }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now() }
     });
   }
   try {
@@ -12055,7 +12038,7 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
       enabled: true,
       health,
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
-      meta: { v: INDEX_VERSION, t: now() }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now() }
     });
   } catch (err) {
     return res.status(503).json({
@@ -12064,7 +12047,7 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
       error: "tts_health_failed",
       detail: cleanText(err && (err.message || err) || "tts health failed"),
       traceId: cleanText(req.headers["x-sb-trace-id"] || makeTraceId("ttshealth")),
-      meta: { v: INDEX_VERSION, t: now() }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now() }
     });
   }
 });
@@ -12171,7 +12154,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       languageSphereFallback: isObj(languageSphereBlocked && languageSphereBlocked.marionPayload) ? languageSphereBlocked.marionPayload.languageSphereFallback : undefined,
       languageSphereTelemetrySummary: isObj(languageSphereBlocked && languageSphereBlocked.marionPayload) ? languageSphereBlocked.marionPayload.languageSphereTelemetrySummary : undefined,
       authority: { finalAuthority: false, finalAuthorityOwner: "Marion", mayBypassMarion: false, marionBypassBlocked: true },
-      meta: { v: INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true, languageSpherePhase5: true }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true, languageSpherePhase5: true }
     });
   }
 
@@ -12187,7 +12170,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       traceId: norm.traceId,
       ...blocked,
       authority: { finalAuthority: false, finalAuthorityOwner: "Marion", mayBypassMarion: false, marionBypassBlocked: true },
-      meta: { v: INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true, languageSpherePhase5: true }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now(), indexRole: "transport_only", transportOnly: true, languageSpherePhase5: true }
     });
   }
 
@@ -12213,7 +12196,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         traceId: norm.traceId,
         meta: { replyAuthority: cleanText(transportState.authority || priorTurn && priorTurn.replyAuthority || "transport_replay_cache") }
       }, cachedReply, {
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         transportOnly: true,
         marionTransportOnly: true,
@@ -12580,7 +12563,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         spokenText: sixDomainRecoveredReply,
         payload: { reply: sixDomainRecoveredReply, text: sixDomainRecoveredReply, message: sixDomainRecoveredReply, spokenText: sixDomainRecoveredReply, final: true, marionFinal: true },
         finalEnvelope: { contract: "nyx.marion.final/1.0", signature: "MARION_FINAL_AUTHORITY", reply: sixDomainRecoveredReply, text: sixDomainRecoveredReply, displayReply: sixDomainRecoveredReply, spokenText: sixDomainRecoveredReply, final: true, marionFinal: true, handled: true, qualityPass: true },
-        meta: { v: INDEX_VERSION, t: now(), replyAuthority: "marion_six_domain_public_knowledge_recovery", semanticAuthority: "marion", noHttp502: true, sixDomainPublicKnowledgeRecovered: true }
+        meta: { v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "marion_six_domain_public_knowledge_recovery", semanticAuthority: "marion", noHttp502: true, sixDomainPublicKnowledgeRecovered: true }
       };
       authority = "marion_six_domain_public_knowledge_recovery";
       errorDetail = "";
@@ -12800,7 +12783,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       },
       meta: {
         ...(isObj(selected && selected.meta) ? selected.meta : {}),
-        v: INDEX_VERSION,
+        v: PUBLIC_INDEX_VERSION,
         t: now(),
         replyAuthority: authority,
         previousTurnId: duplicateGate.previousTurnId,
@@ -12812,7 +12795,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   selected = normalizeReplyEnvelope(selected, reply, {
-    v: INDEX_VERSION,
+    v: PUBLIC_INDEX_VERSION,
     t: now(),
     indexRole: "transport_only",
     transportOnly: true,
@@ -13254,7 +13237,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     traceId: selected.traceId,
     meta: {
       ...(selected.meta || {}),
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       indexRole: "transport_only",
       transportOnly: true,
@@ -14066,7 +14049,7 @@ app.get(["/avatar/status", "/api/avatar/status"], (req, res) => {
     ok: payload.ok,
     avatar: payload,
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       route: req.originalUrl || req.path || "",
       videoResolved: !!avatarVideoFile(),
@@ -14079,14 +14062,14 @@ app.get(["/avatar/video", "/api/avatar/video"], (req, res) => {
   applyCors(req, res);
   const filePath = avatarVideoFile();
   if (sendAvatarFile(res, filePath)) return;
-  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
+  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: PUBLIC_INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
 });
 
 app.get(["/avatar/fallback", "/api/avatar/fallback"], (req, res) => {
   applyCors(req, res);
   const filePath = avatarFallbackImageFile();
   if (sendAvatarFile(res, filePath)) return;
-  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
+  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: PUBLIC_INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
 });
 
 app.get(["/avatar/assets/:fileName", "/public/avatar/assets/:fileName", "/api/avatar/assets/:fileName"], (req, res) => {
@@ -14100,7 +14083,7 @@ app.get(["/avatar/assets/:fileName", "/public/avatar/assets/:fileName", "/api/av
     path: req.path,
     requested,
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       avatar: avatarConfigPayload()
     }
@@ -14134,7 +14117,7 @@ app.all(["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"],
       error: "conversation_route_fell_through",
       path: req.path,
       detail: "Conversation route alias reached the final guard instead of the POST handler.",
-      meta: { v: INDEX_VERSION, t: now(), diagnostics: buildConversationRouteDiagnostics(req) }
+      meta: { v: PUBLIC_INDEX_VERSION, t: now(), diagnostics: buildConversationRouteDiagnostics(req) }
     });
   }
   return sendConversationMethodDiagnostic(req, res);
@@ -14149,7 +14132,7 @@ app.use("/api", (req, res) => {
     error: "not_found",
     path: req.path,
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       routeHints: likelyNewsCanadaMiss ? buildNewsCanadaRouteHints() : undefined,
       likelyNewsCanadaMiss
@@ -14167,7 +14150,7 @@ app.use((req, res, next) => {
     error: "not_found",
     path: requestPath || req.path,
     meta: {
-      v: INDEX_VERSION,
+      v: PUBLIC_INDEX_VERSION,
       t: now(),
       routeHints: likelyNewsCanadaMiss ? buildNewsCanadaRouteHints() : undefined,
       likelyNewsCanadaMiss
@@ -14202,7 +14185,7 @@ app.use((err, req, res, _next) => {
     error: errorCode,
     detail,
     traceId,
-    meta: { v: INDEX_VERSION, t: now() }
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
 
