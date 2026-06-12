@@ -6,6 +6,7 @@
  * No raw audio is stored here. Transcript-only envelope.
  */
 
+const VERSION = 'marion.voiceInputEnvelope/2.0-admin-only-delivery';
 const VOICE_SOURCE = 'voice';
 const DEFAULT_LOCALE = 'en-CA';
 const MIN_CONFIDENCE = 0;
@@ -25,6 +26,14 @@ function cleanTranscript(value) {
     .trim();
 }
 
+function cleanPublicHint(value) {
+  return String(value || '')
+    .replace(/[^\w\s.@-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
 function detectIntentHint(transcript) {
   const text = String(transcript || '').toLowerCase();
 
@@ -42,9 +51,11 @@ function createVoiceInputEnvelope(input) {
   const payload = input && typeof input === 'object' ? input : {};
   const transcript = cleanTranscript(payload.transcript);
   const confidence = clampConfidence(payload.confidence);
+  const adminVoiceVerified = payload.adminVoiceVerified === true || payload.adminVoiceTokenVerified === true || payload.adminVoiceDeliveryAllowed === true;
 
   return {
     ok: transcript.length > 0,
+    version: VERSION,
     source: VOICE_SOURCE,
     inputChannel: VOICE_SOURCE,
     transcript,
@@ -53,9 +64,13 @@ function createVoiceInputEnvelope(input) {
     receivedAt: payload.receivedAt || new Date().toISOString(),
     userIntentHint: payload.userIntentHint || detectIntentHint(transcript),
     authorizationState: payload.authorizationState || 'unchecked',
-    speakerHint: payload.speakerHint || payload.speaker || null,
+    speakerHint: cleanPublicHint(payload.speakerHint || payload.speaker || ''),
     sessionId: payload.sessionId || null,
     requestId: payload.requestId || null,
+    adminOnlyVoiceDelivery: payload.adminOnlyVoiceDelivery !== false,
+    adminVoiceVerified,
+    adminVoiceAuthSource: cleanPublicHint(payload.adminVoiceAuthSource || ''),
+    adminVoiceDeliveryAllowed: adminVoiceVerified,
     rawMeta: {
       provider: payload.provider || 'browser-native',
       client: payload.client || null,
@@ -80,6 +95,7 @@ function isVoiceInputEnvelope(value) {
 }
 
 module.exports = {
+  VERSION,
   VOICE_SOURCE,
   DEFAULT_LOCALE,
   createVoiceInputEnvelope,
