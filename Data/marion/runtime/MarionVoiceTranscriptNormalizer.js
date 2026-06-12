@@ -1,5 +1,7 @@
 'use strict';
 
+const VERSION = 'marion.voiceTranscriptNormalizer/1.1-admin-only-compatible';
+
 /**
  * MarionVoiceTranscriptNormalizer
  * Converts messy speech-recognition text into a cleaner Marion-safe transcript.
@@ -134,6 +136,7 @@ function applyTranscriptNormalization(envelope, options) {
 }
 
 module.exports = {
+  VERSION,
   normalizeVoiceTranscript,
   applyTranscriptNormalization,
   stripFillerWords,
