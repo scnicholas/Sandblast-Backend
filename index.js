@@ -397,7 +397,7 @@ function nyxVoiceRouteFallbackReply(packet, body) {
   const authorizationState = cleanText(voiceEnvelope.authorizationState || "");
 
   if (hint === "status" || commandPhrase === "status") {
-    return "Voice lane status: Nyx is the public route, Marion remains the authority, Mac voice authorization is accepted, transcript-only processing is live, and raw audio is not being stored.";
+    return "Voice lane status: Nyx is the public route, protected routing is active, admin voice authorization is accepted, transcript-only processing is live, and raw audio is not being stored.";
   }
 
   if (packet && packet.ok === false) {
@@ -581,9 +581,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
   if (!MarionVoiceGateway || typeof MarionVoiceGateway.handleVoiceTranscript !== "function") {
     return res.status(503).json({
       ok: false,
-      reply: "Voice transcript routing is mounted, but the Marion voice gateway is not available yet.",
-      text: "Voice transcript routing is mounted, but the Marion voice gateway is not available yet.",
-      message: "Voice transcript routing is mounted, but the Marion voice gateway is not available yet.",
+      reply: "Voice transcript routing is mounted, but the protected voice gateway is not available yet.",
+      text: "Voice transcript routing is mounted, but the protected voice gateway is not available yet.",
+      message: "Voice transcript routing is mounted, but the protected voice gateway is not available yet.",
       publicAgent: "Nyx",
       authority: "Marion",
       inputChannel: "voice",
