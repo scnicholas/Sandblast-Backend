@@ -202,6 +202,7 @@ export class NyxStateController {
     this.speechOpen = 0;
     this.speechJaw = 0;
     this.queuedState = null;
+    this._speechToken = 0;
 
     this._rafId = null;
     this._boundTick = this.tick.bind(this);
@@ -278,11 +279,13 @@ export class NyxStateController {
 
     const stateProfile = NYX_STATES[this.currentState] || NYX_STATES.neutral;
     const delay = stateProfile.preSpeechDelayMs || 0;
+    const speechToken = ++this._speechToken;
 
     this.isSpeechActive = true;
     this.#emitSpeechCue('prestart');
 
     const run = () => {
+      if (speechToken !== this._speechToken || !this.isSpeechActive) return;
       this.#emitSpeechCue('eyes_lock');
       this.isEyesLocked = true;
 
@@ -299,6 +302,7 @@ export class NyxStateController {
   }
 
   safeStopSpeech(returnToNeutral = true) {
+    this._speechToken++;
     this.isSpeechActive = false;
     this.speechOpen = 0;
     this.speechJaw = 0;
@@ -338,7 +342,7 @@ export class NyxStateController {
       this.options.callbacks.onStateValues(values);
     }
 
-    if (this._rafId != null || typeof requestAnimationFrame !== 'undefined') {
+    if (this._rafId != null && typeof requestAnimationFrame !== 'undefined') {
       this._rafId = requestAnimationFrame(this._boundTick);
     }
 
@@ -533,7 +537,7 @@ export class NyxStateController {
 export default NyxStateController;
 
 
-const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v1.0.1 PIPELINE-NORMALIZED";
+const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v1.0.2 FACE-SPEECH-CANCEL-RAF-GUARD";
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = NyxStateController;
