@@ -293,7 +293,8 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 // Public voice entrypoint stays Nyx-facing while Marion remains the hidden authority.
 // This route accepts transcript-only payloads. Raw audio must never be stored here.
 // V1.3 hardens the projection layer against transcript echo promotion.
-const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.3-echoSuppressionReplyPromotionHardlock";
+const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.4-adminOnlyDeliveryHardlock";
+const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
 
 const NYX_VOICE_TRANSCRIPT_ROUTES = Object.freeze([
   "/api/nyx/voice/transcript",
@@ -335,6 +336,55 @@ function nyxVoiceRequiredRuntimeDiagnostics() {
 
 function nyxVoiceRuntimeFilesReady() {
   return nyxVoiceRequiredRuntimeDiagnostics().every((item) => item.exists);
+}
+
+function marionAdminVoiceEnvTokens() {
+  return [
+    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
+    process.env.SB_ADMIN_VOICE_TOKEN,
+    process.env.MARION_ADMIN_VOICE_TOKEN
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+}
+
+function timingSafeTextEqual(a, b) {
+  const left = Buffer.from(String(a || ""));
+  const right = Buffer.from(String(b || ""));
+  if (!left.length || !right.length || left.length !== right.length) return false;
+  try {
+    return crypto.timingSafeEqual(left, right);
+  } catch (_) {
+    return false;
+  }
+}
+
+function marionAdminVoiceRequestAuth(req, body) {
+  const b = isObj(body) ? body : {};
+  const headers = req && req.headers ? req.headers : {};
+  const tokens = marionAdminVoiceEnvTokens();
+  const candidates = [
+    { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
+    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] },
+    { source: "body.adminVoiceToken", value: b.adminVoiceToken },
+    { source: "body.adminToken", value: b.adminToken }
+  ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
+
+  for (const candidate of candidates) {
+    if (tokens.some((token) => timingSafeTextEqual(candidate.value, token))) {
+      return {
+        verified: true,
+        configured: tokens.length > 0,
+        provided: true,
+        source: candidate.source
+      };
+    }
+  }
+
+  return {
+    verified: false,
+    configured: tokens.length > 0,
+    provided: candidates.length > 0,
+    source: candidates.length ? "invalid" : "none"
+  };
 }
 
 function nyxVoiceRouteReplyText(value, depth, seen) {
@@ -396,19 +446,23 @@ function nyxVoiceRouteFallbackReply(packet, body) {
   const commandPhrase = cleanText(voiceEnvelope.commandPhrase || "").toLowerCase();
   const authorizationState = cleanText(voiceEnvelope.authorizationState || "");
 
+  const adminVoiceDeliveryAllowed = voiceEnvelope.adminVoiceDeliveryAllowed === true || voiceEnvelope.adminVoiceVerified === true;
+
   if (hint === "status" || commandPhrase === "status") {
-    return "Voice lane status: Nyx is the public route, protected routing is active, admin voice authorization is accepted, transcript-only processing is live, and raw audio is not being stored.";
+    return adminVoiceDeliveryAllowed
+      ? "Protected voice lane status: admin authorization is verified, transcript-only processing is live, and raw audio is not being stored."
+      : "Protected voice lane status: admin voice delivery is locked. Transcript-only processing is live, and raw audio is not being stored.";
   }
 
   if (packet && packet.ok === false) {
     return "I heard you, but that voice turn could not complete cleanly. The response stayed safe, and raw audio was not stored.";
   }
 
-  if (authorizationState === "authorized" || cleanText(body && body.speakerHint).toLowerCase() === "mac") {
-    return "I heard you and authorization passed. The voice route stayed active, the response stayed safe, and raw audio was not stored.";
+  if (authorizationState === "authorized" && adminVoiceDeliveryAllowed) {
+    return "I heard you and admin authorization passed. The voice route stayed active, the response stayed safe, and raw audio was not stored.";
   }
 
-  return "I heard you, but that voice turn did not produce a clean final answer.";
+  return "I heard you, but protected voice delivery needs admin authorization before I can continue.";
 }
 
 function nyxVoiceRouteSafePublicReply(value) {
@@ -523,7 +577,10 @@ app.get([...NYX_VOICE_TRANSCRIPT_ROUTES, ...NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES],
     inputChannel: "voice",
     transcriptOnly: true,
     audioStored: false,
+    adminOnlyVoiceDelivery: true,
+    adminVoiceTokenConfigured: marionAdminVoiceEnvTokens().length > 0,
     version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
+    adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION,
     deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
     gateway: {
       available: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleVoiceTranscript === "function")
@@ -540,7 +597,10 @@ app.get([...NYX_VOICE_TRANSCRIPT_ROUTES, ...NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES],
       readme: "README.md",
       renderDeployParityRequired: true,
       echoSuppressionHardlock: true,
-      getAliasNotFoundShield: true
+      getAliasNotFoundShield: true,
+      adminOnlyVoiceDelivery: true,
+      publicSpeakerHintTrusted: false,
+      adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION
     }
   });
 });
@@ -553,6 +613,7 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
   const body = isObj(req.body) ? req.body : {};
   const transcript = cleanText(body.transcript || body.text || body.message || body.query || "");
   const traceId = cleanText(req.headers["x-sb-trace-id"] || body.traceId || body.requestId || `voice_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const adminVoiceAuth = marionAdminVoiceRequestAuth(req, body);
 
   if (!transcript) {
     return res.status(400).json({
@@ -567,7 +628,17 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       error: "empty_voice_transcript",
       route: "/api/nyx/voice/transcript",
       version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
-      meta: { traceId, latencyMs: now() - startedAt }
+      adminOnlyVoiceDelivery: true,
+      voice: {
+        speakAllowed: false,
+        voiceMode: "silent",
+        reason: "EMPTY_TRANSCRIPT",
+        spokenText: "",
+        audioStored: false,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed: false
+      },
+      meta: { traceId, latencyMs: now() - startedAt, adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION }
     });
   }
 
@@ -592,6 +663,16 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       route: "/api/nyx/voice/transcript",
       version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
       deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
+      adminOnlyVoiceDelivery: true,
+      voice: {
+        speakAllowed: false,
+        voiceMode: "silent",
+        reason: "MARION_VOICE_GATEWAY_UNAVAILABLE",
+        spokenText: "",
+        audioStored: false,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed: false
+      },
       runtimeFiles: nyxVoiceRequiredRuntimeDiagnostics(),
       runtimeFilesReady: nyxVoiceRuntimeFilesReady(),
       meta: {
@@ -609,21 +690,43 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       confidence: body.confidence,
       locale: cleanText(body.locale || body.language || "en-CA"),
       provider: cleanText(body.provider || "browser-native"),
-      speakerHint: cleanText(body.speakerHint || body.speaker || body.user || ""),
+      speakerHint: adminVoiceAuth.verified ? cleanText(body.speakerHint || body.speaker || body.user || "") : "",
       sessionId: cleanText(body.sessionId || "public"),
       requestId: traceId,
       userAgent: cleanText(req.headers["user-agent"] || ""),
       client: cleanText(body.client || "web"),
       final: body.final !== false,
-      interim: body.interim === true
+      interim: body.interim === true,
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: adminVoiceAuth.verified,
+      adminVoiceTokenVerified: adminVoiceAuth.verified,
+      adminVoiceAuthSource: adminVoiceAuth.verified ? adminVoiceAuth.source : ""
     }, {
+      authorization: {
+        adminOnlyVoiceDelivery: true,
+        allowConversationalWhenUnknown: false,
+        trustSpeakerHint: adminVoiceAuth.verified,
+        adminVoiceVerified: adminVoiceAuth.verified,
+        adminVoiceTokenVerified: adminVoiceAuth.verified,
+        adminVoiceDeliveryAllowed: adminVoiceAuth.verified
+      },
+      output: {
+        adminOnlyVoiceDelivery: true,
+        adminVoiceVerified: adminVoiceAuth.verified,
+        adminVoiceTokenVerified: adminVoiceAuth.verified,
+        adminVoiceDeliveryAllowed: adminVoiceAuth.verified,
+        forceSilent: !adminVoiceAuth.verified
+      },
       context: {
         sessionId: cleanText(body.sessionId || "public"),
         requestId: traceId,
         inputChannel: "voice",
         source: "voice",
         publicAgent: "Nyx",
-        authority: "Marion"
+        authority: "Marion",
+        adminOnlyVoiceDelivery: true,
+        adminVoiceVerified: adminVoiceAuth.verified,
+        adminVoiceDeliveryAllowed: adminVoiceAuth.verified
       }
     });
 
@@ -635,8 +738,14 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
     const promotedSafe = nyxVoiceRouteSafePublicReply(promotedReply);
     const voiceEchoSuppressed = Boolean(rawPromotedReply && !promotedReply) || nyxVoiceRouteIsInputEchoReply(voice.spokenText, packet, body);
     const voiceReplyPromotionFallback = (!promotedSafe && Boolean(reply)) || voiceEchoSuppressed;
-    const spokenCandidate = voiceEchoSuppressed ? "" : voice.spokenText;
-    const spokenText = nyxVoiceRouteSafePublicReply(spokenCandidate) || reply;
+    const adminVoiceDeliveryAllowed = adminVoiceAuth.verified === true && (
+      voice.adminVoiceDeliveryAllowed === true ||
+      voiceEnvelope.adminVoiceDeliveryAllowed === true ||
+      cleanText(voiceEnvelope.authorizationState || "") === "authorized"
+    );
+    const routeSpeakAllowed = adminVoiceDeliveryAllowed && voice.speakAllowed === true && !voiceEchoSuppressed;
+    const spokenCandidate = routeSpeakAllowed ? voice.spokenText : "";
+    const spokenText = routeSpeakAllowed ? (nyxVoiceRouteSafePublicReply(spokenCandidate) || reply) : "";
 
     return res.status(packet && packet.ok === false ? 202 : 200).json({
       ok: !(packet && packet.ok === false),
@@ -653,11 +762,13 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       route: "/api/nyx/voice/transcript",
       version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
       voice: {
-        speakAllowed: voice.speakAllowed === true || voiceReplyPromotionFallback,
-        voiceMode: cleanText(voice.voiceMode || "full"),
-        reason: voiceEchoSuppressed ? "VOICE_ROUTE_ECHO_SUPPRESSED_FALLBACK" : voiceReplyPromotionFallback ? "VOICE_ROUTE_REPLY_PROMOTION_FALLBACK" : cleanText(voice.reason || ""),
+        speakAllowed: routeSpeakAllowed,
+        voiceMode: routeSpeakAllowed ? cleanText(voice.voiceMode || "full") : "silent",
+        reason: !adminVoiceDeliveryAllowed ? "ADMIN_ONLY_VOICE_DELIVERY_REQUIRED" : voiceEchoSuppressed ? "VOICE_ROUTE_ECHO_SUPPRESSED_FALLBACK" : voiceReplyPromotionFallback ? "VOICE_ROUTE_REPLY_PROMOTION_FALLBACK" : cleanText(voice.reason || ""),
         spokenText,
         audioStored: false,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed,
         replyPromotionFallback: voice.replyPromotionFallback === true || voiceReplyPromotionFallback,
         echoSuppressed: voiceEchoSuppressed,
         nonEmptyReplyHardlock: true
@@ -668,6 +779,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         locale: cleanText(voiceEnvelope.locale || body.locale || "en-CA"),
         confidence: Number.isFinite(Number(voiceEnvelope.confidence)) ? Number(voiceEnvelope.confidence) : null,
         authorizationState: cleanText(voiceEnvelope.authorizationState || ""),
+        adminOnlyVoiceDelivery: true,
+        adminVoiceVerified: adminVoiceAuth.verified === true,
+        adminVoiceDeliveryAllowed,
         userIntentHint: cleanText(voiceEnvelope.userIntentHint || ""),
         commandPhrase: cleanText(voiceEnvelope.commandPhrase || ""),
         wakeWord: cleanText(voiceEnvelope.wakeWord || ""),
@@ -680,6 +794,11 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         noRawAudioStored: true,
         voiceReplyPromotionFallback,
         voiceEchoSuppressed,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceTokenConfigured: adminVoiceAuth.configured === true,
+        adminVoiceTokenProvided: adminVoiceAuth.provided === true,
+        adminVoiceDeliveryAllowed,
+        adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION,
         nonEmptyReplyHardlock: true,
         promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.3",
         deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
@@ -703,6 +822,16 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       route: "/api/nyx/voice/transcript",
       version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
       deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
+      adminOnlyVoiceDelivery: true,
+      voice: {
+        speakAllowed: false,
+        voiceMode: "silent",
+        reason: "VOICE_TRANSCRIPT_ROUTE_FAILED",
+        spokenText: "",
+        audioStored: false,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed: false
+      },
       meta: {
         traceId,
         latencyMs: now() - startedAt,
