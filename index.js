@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.47sb MARION-ADMIN-CONSOLE-GATEWAY-CORS-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.48sb MARION-ADMIN-CONSOLE-SHORT-LIVED-SESSION-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -2816,6 +2816,7 @@ function applyCors(req, res) {
     "x-sb-widget-token",
     CFG.apiTokenHeader,
     "x-sb-marion-admin-console-token",
+    "x-sb-marion-admin-session-token",
     "x-sb-marion-admin-console-mfa-token",
     "x-sb-marion-admin-token",
     "x-marion-admin-token",
@@ -14281,10 +14282,160 @@ const MARION_ADMIN_CONSOLE_ROUTES = Object.freeze({
   command: Object.freeze(["/api/private/marion/admin/command", "/private/marion/admin/command"]),
   approve: Object.freeze(["/api/private/marion/admin/approve", "/private/marion/admin/approve"]),
   deny: Object.freeze(["/api/private/marion/admin/deny", "/private/marion/admin/deny"]),
-  emergency: Object.freeze(["/api/private/marion/admin/emergency", "/private/marion/admin/emergency"])
+  emergency: Object.freeze(["/api/private/marion/admin/emergency", "/private/marion/admin/emergency"]),
+  sessionIssue: Object.freeze(["/api/private/marion/admin/session/issue", "/private/marion/admin/session/issue"]),
+  sessionCheck: Object.freeze(["/api/private/marion/admin/session/check", "/private/marion/admin/session/check"]),
+  sessionRevoke: Object.freeze(["/api/private/marion/admin/session/revoke", "/private/marion/admin/session/revoke"])
 });
 
 const MARION_ADMIN_CONSOLE_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_ADMIN_CONSOLE_ROUTES).reduce((acc, key) => acc.concat(MARION_ADMIN_CONSOLE_ROUTES[key]), [])));
+
+
+const MARION_ADMIN_CONSOLE_SESSION_VERSION = "marion.adminConsole.session/1.0-short-lived-hardlock";
+const MARION_ADMIN_CONSOLE_SESSION_HEADER = "x-sb-marion-admin-session-token";
+const MARION_ADMIN_CONSOLE_SESSION_TTL_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_TTL_MS", 15 * 60 * 1000, 60 * 1000, 60 * 60 * 1000);
+const MARION_ADMIN_CONSOLE_SESSION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_IDLE_MS", 5 * 60 * 1000, 30 * 1000, 30 * 60 * 1000);
+const MARION_ADMIN_CONSOLE_SESSION_MAX = clampNumberEnv("SB_MARION_ADMIN_SESSION_MAX", 25, 1, 250);
+const marionAdminConsoleSessions = new Map();
+let marionAdminConsoleSessionLastSweepAt = 0;
+
+function marionAdminConsoleBase64Url(bytes) {
+  return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function marionAdminConsoleSha256(value) {
+  return crypto.createHash("sha256").update(String(value || "")).digest("hex");
+}
+
+function marionAdminConsoleNewSessionToken() {
+  return "mas_" + marionAdminConsoleBase64Url(crypto.randomBytes(32));
+}
+
+function marionAdminConsoleSessionFingerprint(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const ua = clipText(headers["user-agent"] || "", 240);
+  const lang = clipText(headers["accept-language"] || "", 120);
+  return marionAdminConsoleSha256([ua, lang].join("|"));
+}
+
+function marionAdminConsoleClientHint(req) {
+  const headers = req && req.headers ? req.headers : {};
+  return {
+    userAgentHash: marionAdminConsoleSha256(clipText(headers["user-agent"] || "", 240)).slice(0, 16),
+    acceptLanguageHash: marionAdminConsoleSha256(clipText(headers["accept-language"] || "", 120)).slice(0, 16)
+  };
+}
+
+function marionAdminConsoleSweepSessions(force) {
+  const t = now();
+  if (!force && t - marionAdminConsoleSessionLastSweepAt < 30000) return;
+  marionAdminConsoleSessionLastSweepAt = t;
+  for (const [hash, entry] of marionAdminConsoleSessions.entries()) {
+    if (!entry || Number(entry.expiresAt || 0) <= t || Number(entry.idleExpiresAt || 0) <= t || entry.revoked === true) {
+      marionAdminConsoleSessions.delete(hash);
+    }
+  }
+  if (marionAdminConsoleSessions.size > MARION_ADMIN_CONSOLE_SESSION_MAX) {
+    const entries = Array.from(marionAdminConsoleSessions.entries()).sort((a, b) => Number(a[1].lastSeenAt || 0) - Number(b[1].lastSeenAt || 0));
+    while (marionAdminConsoleSessions.size > MARION_ADMIN_CONSOLE_SESSION_MAX && entries.length) {
+      const [hash] = entries.shift();
+      marionAdminConsoleSessions.delete(hash);
+    }
+  }
+}
+
+function marionAdminConsoleSessionTokenFromRequest(req) {
+  const headers = req && req.headers ? req.headers : {};
+  return cleanText(headers[MARION_ADMIN_CONSOLE_SESSION_HEADER] || headers["x-marion-admin-session-token"] || "");
+}
+
+function marionAdminConsolePublicSession(entry) {
+  if (!entry) return null;
+  const t = now();
+  return {
+    id: cleanText(entry.id || ""),
+    version: MARION_ADMIN_CONSOLE_SESSION_VERSION,
+    active: true,
+    issuedAt: Number(entry.issuedAt || 0),
+    lastSeenAt: Number(entry.lastSeenAt || 0),
+    expiresAt: Number(entry.expiresAt || 0),
+    idleExpiresAt: Number(entry.idleExpiresAt || 0),
+    expiresInMs: Math.max(0, Number(entry.expiresAt || 0) - t),
+    idleExpiresInMs: Math.max(0, Number(entry.idleExpiresAt || 0) - t),
+    ttlMs: MARION_ADMIN_CONSOLE_SESSION_TTL_MS,
+    idleTtlMs: MARION_ADMIN_CONSOLE_SESSION_IDLE_MS,
+    authSource: cleanText(entry.authSource || ""),
+    client: isObj(entry.client) ? entry.client : {}
+  };
+}
+
+function marionAdminConsoleValidateSession(req) {
+  marionAdminConsoleSweepSessions(false);
+  const token = marionAdminConsoleSessionTokenFromRequest(req);
+  if (!token) {
+    return { verified: false, provided: false, source: "none", reason: "session_token_missing" };
+  }
+  if (!/^mas_[A-Za-z0-9_-]{32,}$/.test(token)) {
+    return { verified: false, provided: true, source: "invalid", reason: "session_token_malformed" };
+  }
+  const hash = marionAdminConsoleSha256(token);
+  const entry = marionAdminConsoleSessions.get(hash);
+  const t = now();
+  if (!entry) {
+    return { verified: false, provided: true, source: "invalid", reason: "session_not_found_or_expired" };
+  }
+  if (entry.revoked === true || Number(entry.expiresAt || 0) <= t || Number(entry.idleExpiresAt || 0) <= t) {
+    marionAdminConsoleSessions.delete(hash);
+    return { verified: false, provided: true, source: "expired", reason: "session_expired" };
+  }
+  const fingerprint = marionAdminConsoleSessionFingerprint(req);
+  if (entry.fingerprint && fingerprint && entry.fingerprint !== fingerprint) {
+    marionAdminConsoleSessions.delete(hash);
+    return { verified: false, provided: true, source: "fingerprint_mismatch", reason: "session_client_binding_mismatch" };
+  }
+  entry.lastSeenAt = t;
+  entry.idleExpiresAt = Math.min(Number(entry.expiresAt || t), t + MARION_ADMIN_CONSOLE_SESSION_IDLE_MS);
+  marionAdminConsoleSessions.set(hash, entry);
+  return {
+    verified: true,
+    provided: true,
+    source: "session",
+    reason: "session_verified",
+    sessionId: entry.id,
+    session: marionAdminConsolePublicSession(entry)
+  };
+}
+
+function marionAdminConsoleCreateSession(req, auth) {
+  marionAdminConsoleSweepSessions(true);
+  const token = marionAdminConsoleNewSessionToken();
+  const hash = marionAdminConsoleSha256(token);
+  const t = now();
+  const entry = {
+    id: "mas_" + crypto.randomBytes(8).toString("hex"),
+    issuedAt: t,
+    lastSeenAt: t,
+    expiresAt: t + MARION_ADMIN_CONSOLE_SESSION_TTL_MS,
+    idleExpiresAt: t + Math.min(MARION_ADMIN_CONSOLE_SESSION_IDLE_MS, MARION_ADMIN_CONSOLE_SESSION_TTL_MS),
+    authSource: cleanText(auth && auth.source || "master"),
+    fingerprint: marionAdminConsoleSessionFingerprint(req),
+    client: marionAdminConsoleClientHint(req),
+    revoked: false
+  };
+  marionAdminConsoleSessions.set(hash, entry);
+  marionAdminConsoleSweepSessions(true);
+  return { token, entry, publicSession: marionAdminConsolePublicSession(entry) };
+}
+
+function marionAdminConsoleRevokeSession(req) {
+  const token = marionAdminConsoleSessionTokenFromRequest(req);
+  if (!token) return { ok: false, provided: false, reason: "session_token_missing" };
+  const hash = marionAdminConsoleSha256(token);
+  const entry = marionAdminConsoleSessions.get(hash);
+  if (!entry) return { ok: false, provided: true, reason: "session_not_found_or_expired" };
+  marionAdminConsoleSessions.delete(hash);
+  return { ok: true, provided: true, session: marionAdminConsolePublicSession(entry) };
+}
 
 function marionAdminConsoleEnvTokens() {
   return uniq([
@@ -14313,7 +14464,7 @@ function marionAdminConsoleBearerValue(req) {
   return match ? cleanText(match[1]) : "";
 }
 
-function marionAdminConsoleRequestAuth(req) {
+function marionAdminConsoleMasterRequestAuth(req) {
   const headers = req && req.headers ? req.headers : {};
   const tokens = marionAdminConsoleEnvTokens();
   const mfaTokens = marionAdminConsoleMfaTokens();
@@ -14329,7 +14480,7 @@ function marionAdminConsoleRequestAuth(req) {
   ].map((item) => ({ source: item.source, value: cleanText(item.value || "") })).filter((item) => item.value);
 
   const verifiedCandidate = candidates.find((candidate) => tokens.some((token) => timingSafeTextEqual(candidate.value, token)));
-  const mfaCandidate = cleanText(headers["x-sb-marion-admin-mfa-token"] || headers["x-marion-admin-mfa-token"] || "");
+  const mfaCandidate = cleanText(headers["x-sb-marion-admin-mfa-token"] || headers["x-sb-marion-admin-console-mfa-token"] || headers["x-marion-admin-mfa-token"] || "");
   const mfaRequired = mfaTokens.length > 0;
   const mfaVerified = !mfaRequired || mfaTokens.some((token) => timingSafeTextEqual(mfaCandidate, token));
 
@@ -14340,7 +14491,43 @@ function marionAdminConsoleRequestAuth(req) {
     source: verifiedCandidate ? verifiedCandidate.source : (candidates.length ? "invalid" : "none"),
     mfaRequired,
     mfaProvided: !!mfaCandidate,
-    mfaVerified
+    mfaVerified,
+    sessionVerified: false,
+    sessionProvided: false,
+    authMode: verifiedCandidate ? "master" : "none"
+  };
+}
+
+function marionAdminConsoleRequestAuth(req) {
+  const master = marionAdminConsoleMasterRequestAuth(req);
+  if (master.verified) return master;
+
+  const session = marionAdminConsoleValidateSession(req);
+  if (session.verified) {
+    const mfaTokens = marionAdminConsoleMfaTokens();
+    return {
+      verified: true,
+      configured: marionAdminConsoleEnvTokens().length > 0,
+      provided: true,
+      source: "x-sb-marion-admin-session-token",
+      mfaRequired: mfaTokens.length > 0,
+      mfaProvided: false,
+      mfaVerified: true,
+      sessionVerified: true,
+      sessionProvided: true,
+      sessionId: session.sessionId,
+      session: session.session,
+      authMode: "session"
+    };
+  }
+
+  return {
+    ...master,
+    provided: master.provided || session.provided,
+    sessionVerified: false,
+    sessionProvided: !!session.provided,
+    sessionReason: cleanText(session.reason || ""),
+    authMode: master.provided ? "master_failed" : (session.provided ? "session_failed" : "none")
   };
 }
 
@@ -14359,6 +14546,10 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     adminRequired: true,
     adminTokenConfigured: configured,
     adminTokenProvided: !!(auth && auth.provided),
+    sessionTokenProvided: !!(auth && auth.sessionProvided),
+    sessionVerified: !!(auth && auth.sessionVerified),
+    sessionReason: cleanText(auth && auth.sessionReason || ""),
+    authMode: cleanText(auth && auth.authMode || ""),
     mfaRequired: !!(auth && auth.mfaRequired),
     mfaProvided: !!(auth && auth.mfaProvided),
     publicSurface: "Nyx",
@@ -14520,6 +14711,9 @@ function marionAdminConsoleContext(req, traceId, auth) {
     method: cleanText(req && req.method || ""),
     adminVerified: !!(auth && auth.verified),
     adminAuthSource: cleanText(auth && auth.source || ""),
+    authMode: cleanText(auth && auth.authMode || ""),
+    sessionVerified: !!(auth && auth.sessionVerified),
+    sessionId: cleanText(auth && auth.sessionId || ""),
     mfaVerified: !!(auth && auth.mfaVerified),
     publicSurface: "Nyx",
     authority: "Marion",
@@ -14564,6 +14758,10 @@ function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
     adminRequired: true,
     adminVerified: !!(auth && auth.verified),
     adminTokenConfigured: !!(auth && auth.configured),
+    sessionRequired: false,
+    sessionVerified: !!(auth && auth.sessionVerified),
+    sessionId: cleanText(auth && auth.sessionId || ""),
+    authMode: cleanText(auth && auth.authMode || ""),
     mfaRequired: !!(auth && auth.mfaRequired),
     mfaVerified: !!(auth && auth.mfaVerified),
     gatewayReady: !!status.available,
@@ -14576,6 +14774,120 @@ function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
     meta: { v: PUBLIC_INDEX_VERSION, t: now() },
     ...safeObj(extra)
   };
+}
+
+
+function marionAdminConsoleSessionBaseResponse(action, traceId, auth, extra) {
+  return marionAdminConsoleBaseResponse(action, traceId, auth, {
+    sessionVersion: MARION_ADMIN_CONSOLE_SESSION_VERSION,
+    sessionHeader: MARION_ADMIN_CONSOLE_SESSION_HEADER,
+    sessionTtlMs: MARION_ADMIN_CONSOLE_SESSION_TTL_MS,
+    sessionIdleMs: MARION_ADMIN_CONSOLE_SESSION_IDLE_MS,
+    ...safeObj(extra)
+  });
+}
+
+async function handleMarionAdminConsoleSessionIssue(req, res) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionadminsession"));
+  const auth = marionAdminConsoleMasterRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+
+  const issued = marionAdminConsoleCreateSession(req, auth);
+  return res.status(201).json(marionAdminConsoleSessionBaseResponse("session.issue", traceId, {
+    ...auth,
+    sessionVerified: true,
+    sessionProvided: true,
+    sessionId: issued.publicSession && issued.publicSession.id,
+    session: issued.publicSession,
+    authMode: "master_to_session"
+  }, {
+    ok: true,
+    stage: "admin_session_issued",
+    privateControlPlane: true,
+    sessionIssued: true,
+    sessionToken: issued.token,
+    session: issued.publicSession,
+    expiresInMs: issued.publicSession.expiresInMs,
+    idleExpiresInMs: issued.publicSession.idleExpiresInMs,
+    longLivedTokenReuseDiscouraged: true,
+    instructions: {
+      useHeader: MARION_ADMIN_CONSOLE_SESSION_HEADER,
+      clearMasterTokenFromBrowser: true,
+      storeSessionTokenInMemoryOnly: true
+    }
+  }));
+}
+
+async function handleMarionAdminConsoleSessionCheck(req, res) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = cleanText((req && req.sbTraceId) || makeTraceId("marionadminsession"));
+  const session = marionAdminConsoleValidateSession(req);
+  if (!session.verified) {
+    return res.status(session.provided ? 401 : 400).json(marionAdminConsoleSessionBaseResponse("session.check", traceId, {
+      verified: false,
+      configured: marionAdminConsoleEnvTokens().length > 0,
+      provided: session.provided,
+      source: session.source,
+      mfaRequired: false,
+      mfaVerified: true,
+      sessionVerified: false,
+      sessionProvided: !!session.provided,
+      sessionReason: cleanText(session.reason || ""),
+      authMode: "session_failed"
+    }, {
+      ok: false,
+      stage: "admin_session_invalid",
+      reason: cleanText(session.reason || "session_invalid"),
+      sessionActive: false
+    }));
+  }
+
+  return res.status(200).json(marionAdminConsoleSessionBaseResponse("session.check", traceId, {
+    verified: true,
+    configured: marionAdminConsoleEnvTokens().length > 0,
+    provided: true,
+    source: MARION_ADMIN_CONSOLE_SESSION_HEADER,
+    mfaRequired: false,
+    mfaVerified: true,
+    sessionVerified: true,
+    sessionProvided: true,
+    sessionId: session.sessionId,
+    session: session.session,
+    authMode: "session"
+  }, {
+    ok: true,
+    stage: "admin_session_active",
+    sessionActive: true,
+    session: session.session
+  }));
+}
+
+async function handleMarionAdminConsoleSessionRevoke(req, res) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = cleanText((req && req.sbTraceId) || makeTraceId("marionadminsession"));
+  const revoked = marionAdminConsoleRevokeSession(req);
+  return res.status(revoked.ok ? 200 : 400).json(marionAdminConsoleSessionBaseResponse("session.revoke", traceId, {
+    verified: revoked.ok,
+    configured: marionAdminConsoleEnvTokens().length > 0,
+    provided: revoked.provided,
+    source: MARION_ADMIN_CONSOLE_SESSION_HEADER,
+    mfaRequired: false,
+    mfaVerified: true,
+    sessionVerified: false,
+    sessionProvided: !!revoked.provided,
+    authMode: revoked.ok ? "session_revoked" : "session_failed"
+  }, {
+    ok: revoked.ok,
+    stage: revoked.ok ? "admin_session_revoked" : "admin_session_revoke_failed",
+    reason: cleanText(revoked.reason || ""),
+    sessionRevoked: revoked.ok,
+    session: revoked.session || null
+  }));
 }
 
 async function handleMarionAdminConsoleAction(req, res, action) {
@@ -14637,6 +14949,10 @@ app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
   return res.status(204).end();
 });
 
+app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionIssue, async (req, res) => handleMarionAdminConsoleSessionIssue(req, res));
+app.get(MARION_ADMIN_CONSOLE_ROUTES.sessionCheck, async (req, res) => handleMarionAdminConsoleSessionCheck(req, res));
+app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionRevoke, async (req, res) => handleMarionAdminConsoleSessionRevoke(req, res));
+
 app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
   applyCors(req, res);
   hardenConversationNoStore(res);
@@ -14654,7 +14970,10 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
       command: MARION_ADMIN_CONSOLE_ROUTES.command[0],
       approve: MARION_ADMIN_CONSOLE_ROUTES.approve[0],
       deny: MARION_ADMIN_CONSOLE_ROUTES.deny[0],
-      emergency: MARION_ADMIN_CONSOLE_ROUTES.emergency[0]
+      emergency: MARION_ADMIN_CONSOLE_ROUTES.emergency[0],
+      sessionIssue: MARION_ADMIN_CONSOLE_ROUTES.sessionIssue[0],
+      sessionCheck: MARION_ADMIN_CONSOLE_ROUTES.sessionCheck[0],
+      sessionRevoke: MARION_ADMIN_CONSOLE_ROUTES.sessionRevoke[0]
     }
   }));
 });
