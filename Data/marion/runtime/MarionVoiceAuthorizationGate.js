@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.0-admin-only-delivery';
+const VERSION = 'marion.voiceAuthorizationGate/2.1-lingosentinel-private-voice-delivery';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -55,15 +55,34 @@ function hasTrustedAdminVoiceProof(envelope, options) {
   const opts = options && typeof options === 'object' ? options : {};
   const auth = env.authorization && typeof env.authorization === 'object' ? env.authorization : {};
 
-  return opts.adminVoiceVerified === true ||
+  // SECURITY HARDLOCK:
+  // - Options are server-side/contextual and may carry verified admin proof.
+  // - Envelope flags are not trusted by default because they may originate from
+  //   request bodies in weaker callers.
+  // - Envelope proof is accepted only when the server explicitly marks that
+  //   envelope as trusted.
+  const optionProof =
+    opts.adminVoiceVerified === true ||
     opts.adminVoiceTokenVerified === true ||
     opts.adminVoiceDeliveryAllowed === true ||
+    opts.serverSideAdminVoiceAuth === true ||
+    opts.trustedServerAuth === true;
+
+  const envelopeProofTrusted =
+    opts.trustEnvelopeAdminVoiceProof === true ||
+    opts.allowEnvelopeAdminVoiceProof === true ||
+    opts.serverSideAdminVoiceAuth === true ||
+    opts.trustedServerAuth === true;
+
+  const envelopeProof =
     env.adminVoiceVerified === true ||
     env.adminVoiceTokenVerified === true ||
     env.adminVoiceDeliveryAllowed === true ||
     auth.adminVoiceVerified === true ||
     auth.adminVoiceTokenVerified === true ||
     auth.adminVoiceDeliveryAllowed === true;
+
+  return optionProof || (envelopeProofTrusted && envelopeProof);
 }
 
 function isSpeakerAuthorized(speakerHint, options) {
