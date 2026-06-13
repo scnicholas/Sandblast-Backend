@@ -66,6 +66,14 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function hardenNoStore(res) {
+  try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  } catch (_) {}
+}
+
 function normalizeMode(mode) {
   const raw = safeString(mode || 'one_to_one');
   return MODE_ALIASES[raw] || 'one_to_one';
@@ -193,18 +201,25 @@ async function createTokenRequest(input = {}) {
 }
 
 function safeErrorResponse(error, stage = 'token_failed') {
+  const code = error?.code || 'LINGOSENTINEL_TOKEN_FAILED';
+  const publicError =
+    code === 'ABLY_KEY_MISSING' ? 'ably_not_configured' :
+    code === 'ABLY_PACKAGE_MISSING' ? 'ably_unavailable' :
+    'token_request_failed';
   return {
     ok: false,
     stage,
-    errors: [error?.message || 'Unknown LingoSentinel token route error.'],
+    errors: [publicError],
+    diagnosticsRedacted: true,
     telemetry: {
       failedAt: nowIso(),
-      code: error?.code || 'LINGOSENTINEL_TOKEN_FAILED'
+      code
     }
   };
 }
 
 router.post('/token', async (req, res) => {
+  hardenNoStore(res);
   const requestedAt = nowIso();
 
   try {
@@ -250,10 +265,13 @@ router.post('/token', async (req, res) => {
 });
 
 router.get('/token/health', (req, res) => {
+  hardenNoStore(res);
   res.json({
     ok: true,
     service: 'LingoSentinelSubscribeTokenRoute',
     status: 'ready',
+    diagnosticsRedacted: true,
+    routeMounted: true,
     timestamp: nowIso()
   });
 });
