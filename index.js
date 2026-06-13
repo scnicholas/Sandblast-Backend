@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.45sb LINGOSENTINEL-MARION-PRIVATE-DELIVERY-CONFLICT-PURGE-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.46sb MARION-ADMIN-CONSOLE-GATEWAY-INDEX-MOUNT-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -14253,6 +14253,402 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
 });
 
 
+// MARION-ADMIN-CONSOLE-GATEWAY-INDEX-MOUNT-HARDLOCK-V1:
+// Private admin console control plane. This must mount before static handlers
+// and the /api not_found guard so the protected Webflow/admin interface does
+// not fall through to 404. Body/query tokens are intentionally ignored.
+const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.0";
+const MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH = "Data/marion/runtime/MarionAdminConsoleGateway.js";
+const MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH = "./" + MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH;
+
+const MARION_ADMIN_CONSOLE_ROUTES = Object.freeze({
+  health: Object.freeze(["/api/private/marion/admin/health", "/private/marion/admin/health"]),
+  status: Object.freeze(["/api/private/marion/admin/status", "/private/marion/admin/status"]),
+  command: Object.freeze(["/api/private/marion/admin/command", "/private/marion/admin/command"]),
+  approve: Object.freeze(["/api/private/marion/admin/approve", "/private/marion/admin/approve"]),
+  deny: Object.freeze(["/api/private/marion/admin/deny", "/private/marion/admin/deny"]),
+  emergency: Object.freeze(["/api/private/marion/admin/emergency", "/private/marion/admin/emergency"])
+});
+
+const MARION_ADMIN_CONSOLE_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_ADMIN_CONSOLE_ROUTES).reduce((acc, key) => acc.concat(MARION_ADMIN_CONSOLE_ROUTES[key]), [])));
+
+function marionAdminConsoleEnvTokens() {
+  return uniq([
+    process.env.MARION_ADMIN_TOKEN,
+    process.env.SB_MARION_ADMIN_TOKEN,
+    process.env.SB_MARION_ADMIN_CONSOLE_TOKEN,
+    process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN,
+    process.env.SB_MARION_ADMIN_DELIVERY_TOKEN,
+    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
+    process.env.SB_ADMIN_VOICE_TOKEN,
+    process.env.MARION_ADMIN_VOICE_TOKEN
+  ].map((item) => cleanText(item || "")).filter(Boolean));
+}
+
+function marionAdminConsoleMfaTokens() {
+  return uniq([
+    process.env.SB_MARION_ADMIN_MFA_TOKEN,
+    process.env.SB_MARION_ADMIN_CONSOLE_MFA_TOKEN,
+    process.env.MARION_ADMIN_MFA_TOKEN
+  ].map((item) => cleanText(item || "")).filter(Boolean));
+}
+
+function marionAdminConsoleBearerValue(req) {
+  const raw = cleanText(req && req.headers && req.headers.authorization || "");
+  const match = raw.match(/^Bearer\s+(.+)$/i);
+  return match ? cleanText(match[1]) : "";
+}
+
+function marionAdminConsoleRequestAuth(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const tokens = marionAdminConsoleEnvTokens();
+  const mfaTokens = marionAdminConsoleMfaTokens();
+  const candidates = [
+    { source: "authorization", value: marionAdminConsoleBearerValue(req) },
+    { source: "x-sb-marion-admin-token", value: headers["x-sb-marion-admin-token"] },
+    { source: "x-sb-marion-admin-console-token", value: headers["x-sb-marion-admin-console-token"] },
+    { source: "x-marion-admin-token", value: headers["x-marion-admin-token"] },
+    { source: "x-sb-lingosentinel-marion-admin-token", value: headers["x-sb-lingosentinel-marion-admin-token"] },
+    { source: "x-sb-marion-admin-delivery-token", value: headers["x-sb-marion-admin-delivery-token"] },
+    { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
+    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] }
+  ].map((item) => ({ source: item.source, value: cleanText(item.value || "") })).filter((item) => item.value);
+
+  const verifiedCandidate = candidates.find((candidate) => tokens.some((token) => timingSafeTextEqual(candidate.value, token)));
+  const mfaCandidate = cleanText(headers["x-sb-marion-admin-mfa-token"] || headers["x-marion-admin-mfa-token"] || "");
+  const mfaRequired = mfaTokens.length > 0;
+  const mfaVerified = !mfaRequired || mfaTokens.some((token) => timingSafeTextEqual(mfaCandidate, token));
+
+  return {
+    verified: !!verifiedCandidate && mfaVerified,
+    configured: tokens.length > 0,
+    provided: candidates.length > 0,
+    source: verifiedCandidate ? verifiedCandidate.source : (candidates.length ? "invalid" : "none"),
+    mfaRequired,
+    mfaProvided: !!mfaCandidate,
+    mfaVerified
+  };
+}
+
+function marionAdminConsoleAuthRequired(res, traceId, auth) {
+  const configured = auth && auth.configured === true;
+  const mfaBlocked = configured && auth && auth.mfaRequired === true && auth.mfaVerified !== true;
+  const status = configured ? 403 : 503;
+  return res.status(status).json({
+    ok: false,
+    service: "marion-admin-console",
+    version: MARION_ADMIN_CONSOLE_INDEX_VERSION,
+    stage: configured ? "admin_authorization_required" : "admin_token_not_configured",
+    reason: mfaBlocked ? "admin_mfa_required" : (configured ? "admin_token_required" : "admin_token_not_configured"),
+    routeMounted: true,
+    privateControlPlane: true,
+    adminRequired: true,
+    adminTokenConfigured: configured,
+    adminTokenProvided: !!(auth && auth.provided),
+    mfaRequired: !!(auth && auth.mfaRequired),
+    mfaProvided: !!(auth && auth.mfaProvided),
+    publicSurface: "Nyx",
+    authority: "Marion",
+    diagnosticsRedacted: true,
+    traceId: cleanText(traceId || makeTraceId("marionadmin")),
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
+  });
+}
+
+function marionAdminConsoleGatewayStatus() {
+  try {
+    const resolvedPath = require.resolve(MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH);
+    const mod = require(resolvedPath);
+    const gateway = mod && (mod.MarionAdminConsoleGateway || mod.default || mod);
+    const available = !!gateway && (typeof gateway === "function" || typeof gateway === "object");
+    return {
+      ok: available,
+      available,
+      mod,
+      gateway,
+      runtimePath: MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH,
+      resolved: true,
+      version: cleanText((gateway && gateway.VERSION) || (mod && mod.VERSION) || "")
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      available: false,
+      mod: null,
+      gateway: null,
+      runtimePath: MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH,
+      resolved: false,
+      error: cleanText(err && (err.code || err.message) || "gateway_unavailable").slice(0, 120),
+      version: ""
+    };
+  }
+}
+
+function marionAdminConsoleRedacted(value, depth, seen) {
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 6) return "[truncated]";
+  if (value == null) return value;
+  if (typeof value === "string") {
+    return clipText(value
+      .replace(/(Bearer\s+)[A-Za-z0-9._~+\-/]+=*/gi, "$1[redacted]")
+      .replace(/([?&](?:token|key|secret|password)=)[^&\s]+/gi, "$1[redacted]"), 2400);
+  }
+  if (typeof value !== "object") return value;
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "[circular]";
+  visited.add(value);
+  if (Array.isArray(value)) return value.slice(0, 40).map((item) => marionAdminConsoleRedacted(item, level + 1, visited));
+  const out = {};
+  for (const key of Object.keys(value).slice(0, 80)) {
+    if (/(?:token|secret|password|api[_-]?key|authorization|cookie|session|credential)/i.test(key)) {
+      out[key] = "[redacted]";
+    } else {
+      out[key] = marionAdminConsoleRedacted(value[key], level + 1, visited);
+    }
+  }
+  return out;
+}
+
+function marionAdminConsoleMethodNames(action) {
+  const map = {
+    status: ["getStatus", "status", "health", "getHealth", "diagnostics", "getDiagnostics", "handleStatus"],
+    command: ["handleCommand", "dispatchCommand", "executeCommand", "routeCommand", "command", "handleAdminCommand"],
+    approve: ["approve", "approveCommand", "handleApproval", "handleApprove"],
+    deny: ["deny", "denyCommand", "handleDenial", "handleDeny"],
+    emergency: ["emergency", "handleEmergency", "triggerEmergency", "enterSafeMode", "safeMode"]
+  };
+  return uniq([...(map[action] || []), "handleAdminConsoleAction", "handle", "process"]);
+}
+
+async function invokeMarionAdminConsoleGateway(action, envelope, context) {
+  const status = marionAdminConsoleGatewayStatus();
+  if (!status.available) {
+    if (action === "status") {
+      return {
+        ok: true,
+        stage: "index_route_mounted_gateway_pending",
+        gatewayReady: false,
+        runtimePath: status.runtimePath,
+        routeMounted: true
+      };
+    }
+    return {
+      ok: false,
+      statusCode: 503,
+      stage: "marion_admin_console_gateway_unavailable",
+      reason: "runtime_gateway_missing_or_unloadable",
+      gatewayReady: false,
+      runtimePath: status.runtimePath
+    };
+  }
+
+  const candidates = uniq([status.gateway, status.mod, status.mod && status.mod.MarionAdminConsoleGateway, status.mod && status.mod.default].filter(Boolean));
+  const methodNames = marionAdminConsoleMethodNames(action);
+  const gatewayEnvelope = {
+    action,
+    ...safeObj(envelope),
+    adminConsole: true,
+    privateControlPlane: true,
+    publicSurface: "Nyx",
+    authority: "Marion"
+  };
+
+  for (const candidate of candidates) {
+    for (const method of methodNames) {
+      if (candidate && typeof candidate[method] === "function") {
+        const result = await Promise.resolve(candidate[method](gatewayEnvelope, context));
+        return { ok: true, stage: "gateway_invoked", method, gatewayReady: true, result };
+      }
+    }
+  }
+
+  if (typeof status.gateway === "function") {
+    try {
+      const result = await Promise.resolve(status.gateway(gatewayEnvelope, context));
+      return { ok: true, stage: "gateway_function_invoked", method: "function", gatewayReady: true, result };
+    } catch (err) {
+      if (!/class constructor/i.test(cleanText(err && err.message || ""))) throw err;
+      const instance = new status.gateway();
+      for (const method of methodNames) {
+        if (instance && typeof instance[method] === "function") {
+          const result = await Promise.resolve(instance[method](gatewayEnvelope, context));
+          return { ok: true, stage: "gateway_instance_invoked", method, gatewayReady: true, result };
+        }
+      }
+    }
+  }
+
+  if (action === "status") {
+    return {
+      ok: true,
+      stage: "gateway_loaded_no_status_method",
+      gatewayReady: true,
+      runtimePath: status.runtimePath,
+      gatewayVersion: status.version
+    };
+  }
+
+  return {
+    ok: false,
+    statusCode: 501,
+    stage: "marion_admin_console_method_unavailable",
+    reason: action + "_handler_not_exported",
+    gatewayReady: true,
+    runtimePath: status.runtimePath,
+    gatewayVersion: status.version
+  };
+}
+
+function marionAdminConsoleContext(req, traceId, auth) {
+  return {
+    traceId,
+    route: cleanText(req && (req.originalUrl || req.path) || ""),
+    method: cleanText(req && req.method || ""),
+    adminVerified: !!(auth && auth.verified),
+    adminAuthSource: cleanText(auth && auth.source || ""),
+    mfaVerified: !!(auth && auth.mfaVerified),
+    publicSurface: "Nyx",
+    authority: "Marion",
+    noStore: true,
+    requestedAt: new Date().toISOString()
+  };
+}
+
+function buildMarionAdminConsoleEnvelope(req, action) {
+  const body = safeObj(req && req.body);
+  const command = safeObj(body.command);
+  const payload = safeObj(body.payload);
+  const commandType = cleanText(body.commandType || body.type || command.type || action);
+  const commandId = cleanText(body.commandId || body.id || command.id || makeTraceId("admincmd"));
+  return {
+    action,
+    commandId,
+    commandType,
+    command: Object.keys(command).length ? command : {
+      type: commandType,
+      target: cleanText(body.target || ""),
+      intent: cleanText(body.intent || body.message || body.text || ""),
+      riskLevel: cleanText(body.riskLevel || body.risk || "review")
+    },
+    payload,
+    reason: clipText(body.reason || body.note || "", 600),
+    requestedBy: clipText(body.requestedBy || body.admin || "admin", 120),
+    traceId: cleanText(body.traceId || (req && req.sbTraceId) || makeTraceId("marionadmin")),
+    requestedAt: new Date().toISOString()
+  };
+}
+
+function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
+  const status = marionAdminConsoleGatewayStatus();
+  return {
+    ok: true,
+    service: "marion-admin-console",
+    version: MARION_ADMIN_CONSOLE_INDEX_VERSION,
+    action,
+    routeMounted: true,
+    privateControlPlane: true,
+    adminRequired: true,
+    adminVerified: !!(auth && auth.verified),
+    adminTokenConfigured: !!(auth && auth.configured),
+    mfaRequired: !!(auth && auth.mfaRequired),
+    mfaVerified: !!(auth && auth.mfaVerified),
+    gatewayReady: !!status.available,
+    runtimePath: MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH,
+    gatewayVersion: status.version,
+    authority: "Marion",
+    publicSurface: "Nyx",
+    diagnosticsRedacted: true,
+    traceId,
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() },
+    ...safeObj(extra)
+  };
+}
+
+async function handleMarionAdminConsoleAction(req, res, action) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionadmin"));
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+
+  const envelope = buildMarionAdminConsoleEnvelope(req, action);
+  if (action === "command") {
+    const hasCommandIntent = cleanText(envelope.commandType || "") || cleanText(envelope.command && envelope.command.intent || "") || Object.keys(safeObj(envelope.payload)).length;
+    if (!hasCommandIntent) {
+      return res.status(400).json(marionAdminConsoleBaseResponse(action, traceId, auth, { ok: false, stage: "admin_command_missing", reason: "command_type_or_payload_required" }));
+    }
+  }
+  if ((action === "approve" || action === "deny") && !cleanText(envelope.commandId || "")) {
+    return res.status(400).json(marionAdminConsoleBaseResponse(action, traceId, auth, { ok: false, stage: "admin_command_id_missing", reason: "command_id_required" }));
+  }
+  if (action === "emergency") {
+    const confirm = body.confirm === true || cleanText(body.confirmation || body.confirmPhrase || "") === "CONFIRM_MARION_EMERGENCY" || cleanText(req && req.headers && req.headers["x-sb-marion-emergency-confirm"] || "") === "CONFIRM_MARION_EMERGENCY";
+    if (!confirm) {
+      return res.status(400).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
+        ok: false,
+        stage: "emergency_confirmation_required",
+        reason: "CONFIRM_MARION_EMERGENCY_required",
+        emergencyTriggered: false
+      }));
+    }
+  }
+
+  try {
+    const invocation = await invokeMarionAdminConsoleGateway(action, envelope, marionAdminConsoleContext(req, traceId, auth));
+    const safeInvocation = marionAdminConsoleRedacted(invocation);
+    const ok = invocation && invocation.ok !== false;
+    return res.status(ok ? 200 : clamp(Number(invocation.statusCode || 502), 400, 599)).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
+      ok,
+      stage: cleanText(invocation && invocation.stage || (ok ? "admin_console_action_complete" : "admin_console_action_failed")),
+      gatewayReady: !!(invocation && invocation.gatewayReady),
+      result: safeInvocation && safeInvocation.result !== undefined ? safeInvocation.result : safeInvocation,
+      emergencyTriggered: action === "emergency" && ok
+    }));
+  } catch (err) {
+    return res.status(502).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
+      ok: false,
+      stage: "admin_console_gateway_exception",
+      reason: cleanText(err && (err.code || err.message) || "gateway_exception").slice(0, 160)
+    }));
+  }
+}
+
+app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
+
+app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = cleanText((req && req.sbTraceId) || makeTraceId("marionadminhealth"));
+  const auth = marionAdminConsoleRequestAuth(req);
+  const gateway = marionAdminConsoleGatewayStatus();
+  return res.status(200).json(marionAdminConsoleBaseResponse("health", traceId, auth, {
+    ok: true,
+    stage: "admin_console_route_mounted",
+    adminVerified: !!auth.verified,
+    gatewayReady: !!gateway.available,
+    runtimePath: MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH,
+    routes: {
+      status: MARION_ADMIN_CONSOLE_ROUTES.status[0],
+      command: MARION_ADMIN_CONSOLE_ROUTES.command[0],
+      approve: MARION_ADMIN_CONSOLE_ROUTES.approve[0],
+      deny: MARION_ADMIN_CONSOLE_ROUTES.deny[0],
+      emergency: MARION_ADMIN_CONSOLE_ROUTES.emergency[0]
+    }
+  }));
+});
+
+app.get(MARION_ADMIN_CONSOLE_ROUTES.status, async (req, res) => handleMarionAdminConsoleAction(req, res, "status"));
+app.post(MARION_ADMIN_CONSOLE_ROUTES.command, async (req, res) => handleMarionAdminConsoleAction(req, res, "command"));
+app.post(MARION_ADMIN_CONSOLE_ROUTES.approve, async (req, res) => handleMarionAdminConsoleAction(req, res, "approve"));
+app.post(MARION_ADMIN_CONSOLE_ROUTES.deny, async (req, res) => handleMarionAdminConsoleAction(req, res, "deny"));
+app.post(MARION_ADMIN_CONSOLE_ROUTES.emergency, async (req, res) => handleMarionAdminConsoleAction(req, res, "emergency"));
+
+
 
 STATIC_PUBLIC_DIRS.forEach((dir) => {
   app.use(express.static(dir));
@@ -14735,5 +15131,11 @@ module.exports = {
   applyLanguageSphereApiMiddlewareToNorm,
   buildIndexRuntimeTelemetry,
   buildLastMileRecoveryReply,
+  MARION_ADMIN_CONSOLE_INDEX_VERSION,
+  MARION_ADMIN_CONSOLE_ROUTES,
+  marionAdminConsoleEnvTokens,
+  marionAdminConsoleRequestAuth,
+  marionAdminConsoleGatewayStatus,
+  invokeMarionAdminConsoleGateway,
   applyPublicReplyHygieneToResponse
 };
