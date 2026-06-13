@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'marion.voiceTranscriptNormalizer/1.1-admin-only-compatible';
+const VERSION = 'marion.voiceTranscriptNormalizer/1.2-lingosentinel-private-voice-compatible';
 
 /**
  * MarionVoiceTranscriptNormalizer
@@ -18,7 +18,7 @@ const FILLER_PATTERNS = [
 ];
 
 const WAKE_WORD_PATTERNS = [
-  /^\s*(vera|nyx|marion)[,\s]+/i
+  /^\s*(vera|nyx|marion|lingosentinel|lingo sentinel)[,\s]+/i
 ];
 
 function collapseRepeatedWords(text) {
@@ -77,7 +77,7 @@ function detectCommandPhrase(text) {
 
   if (/\b(stop listening|mute voice|voice off)\b/.test(value)) return 'voice_stop';
   if (/\b(start listening|voice on|enable voice)\b/.test(value)) return 'voice_start';
-  if (/\bstatus update|where are we|what is the status\b/.test(value)) return 'status';
+  if (/\b(status update|where are we|what is the status|private voice status|voice lane status)\b/.test(value)) return 'status';
   if (/\bnext step|next steps|move forward\b/.test(value)) return 'next_steps';
   if (/\bcreate|build|generate|draft|write\b/.test(value)) return 'creation';
   if (/\bdelete|remove|deploy|publish|send|execute|run\b/.test(value)) return 'restricted_command';
