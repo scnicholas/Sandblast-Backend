@@ -58,7 +58,7 @@ const DEFAULT_GATEWAY_CONFIG = {
     name: "LingoSentinel",
     phase: "gateway-orchestration-alert-scanner-carry",
     mode: "advisory",
-    version: "0.3.0"
+    version: "0.3.1-private-voice-delivery"
   },
   supportedLanguages: ["en", "fr", "es"],
   defaultLanguage: "en",
@@ -854,10 +854,79 @@ function buildMarionPrivateDeliveryPayload(payload, options = {}) {
 }
 
 
+
+function buildMarionPrivateVoiceDeliveryPayload(payload, options = {}) {
+  const opts = safeObject(options);
+  const p = safeObject(payload);
+  const transcript = safeString(
+    p.transcript ||
+      p.text ||
+      p.message ||
+      p.query ||
+      p.input ||
+      ""
+  );
+
+  const gatewayPackage = runLingoSentinelGateway({
+    ...p,
+    message: transcript,
+    input: transcript,
+    text: transcript,
+    originalInput: transcript
+  }, {
+    ...opts,
+    telemetry: {
+      ...safeObject(opts.telemetry),
+      includeCorrelation: true
+    }
+  });
+
+  const privateDelivery = {
+    version: "nyx.lingosentinel.marionPrivateVoiceDeliveryPayload/1.0",
+    enabled: true,
+    adminOnlyDelivery: true,
+    privateSignal: true,
+    publicSurface: "Nyx",
+    authority: ensureAuthority(),
+    noRawAudioStored: true,
+    transcriptOnly: true,
+    inputChannel: "voice",
+    deliveryChannel: safeString(opts.deliveryChannel || "lingosentinel_private_voice"),
+    roomId: safeString(opts.roomId || ""),
+    role: safeString(opts.role || "host"),
+    traceId: safeString(opts.traceId || gatewayPackage.traceId || "")
+  };
+
+  return {
+    ...buildMarionBridgePayload({
+      ...p,
+      message: transcript,
+      input: transcript,
+      text: transcript,
+      originalInput: transcript
+    }, opts),
+    transcript,
+    inputChannel: "voice",
+    source: "lingosentinel-private-admin-voice",
+    privateDelivery,
+    adminOnlyDelivery: true,
+    privateSignal: true,
+    privateVoiceDelivery: true,
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    marionAuthority: true,
+    finalAuthority: "Marion",
+    publicSurface: "Nyx"
+  };
+}
+
+
 module.exports = {
   runLingoSentinelGateway,
   buildMarionBridgePayload,
   buildMarionPrivateDeliveryPayload,
+  buildMarionPrivateVoiceDeliveryPayload,
   extractInput,
   mergeGatewayConfig,
   stableHash,
