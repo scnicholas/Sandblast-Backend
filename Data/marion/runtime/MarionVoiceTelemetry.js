@@ -6,7 +6,7 @@
  * Does not store raw audio or admin tokens.
  */
 
-const VERSION = 'marion.voiceTelemetry/2.0-admin-only-delivery';
+const VERSION = 'marion.voiceTelemetry/2.1-lingosentinel-private-voice-delivery';
 
 function safeLength(value) {
   return String(value || '').length;
@@ -41,8 +41,19 @@ function createVoiceTelemetryEvent(type, envelope, detail) {
   };
 }
 
+function sanitizeSensitiveString(value) {
+  const text = String(value || '');
+  if (!text) return text;
+  if (/token|secret|password|cookie|authorization|api[_-]?key|x-sb-/i.test(text)) {
+    return '[redacted]';
+  }
+  return text.length > 300 ? `${text.slice(0, 300)}...` : text;
+}
+
 function sanitizeTelemetryDetail(detail) {
-  if (!detail || typeof detail !== 'object') return detail || null;
+  if (!detail || typeof detail !== 'object') {
+    return typeof detail === 'string' ? sanitizeSensitiveString(detail) : (detail || null);
+  }
 
   const blockedKeys = new Set([
     'rawAudio',
@@ -64,12 +75,12 @@ function sanitizeTelemetryDetail(detail) {
 
   Object.keys(detail).forEach((key) => {
     if (blockedKeys.has(key)) return;
-    if (/token|secret|password|cookie|authorization/i.test(key)) return;
+    if (/token|secret|password|cookie|authorization|api[_-]?key/i.test(key)) return;
 
     const value = detail[key];
 
-    if (typeof value === 'string' && value.length > 300) {
-      out[key] = `${value.slice(0, 300)}...`;
+    if (typeof value === 'string') {
+      out[key] = sanitizeSensitiveString(value);
       return;
     }
 
@@ -106,5 +117,6 @@ module.exports = {
   VERSION,
   createVoiceTelemetryEvent,
   createVoiceTelemetrySummary,
-  sanitizeTelemetryDetail
+  sanitizeTelemetryDetail,
+  sanitizeSensitiveString
 };
