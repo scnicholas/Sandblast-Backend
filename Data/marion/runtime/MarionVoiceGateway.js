@@ -368,6 +368,8 @@ async function handleVoiceTranscript(input, options) {
 
   const bridge = opts.bridge || loadMarionBridge();
 
+  const deliveryMeta = voiceDeliveryMetaFromEnvelope(envelope, {});
+
   const bridgePayload = {
     input: envelope.transcript,
     text: envelope.transcript,
