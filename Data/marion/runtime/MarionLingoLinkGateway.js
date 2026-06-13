@@ -215,8 +215,8 @@ function createUnavailableRuntimeResult({
   startedAt
 }) {
   const warnings = [
-    'LingoLink runtime files are unavailable or missing required exports.',
-    'Expected local runtime files: ./LingoLinkRequestEnvelope and ./LingoLinkCoreAdapter.'
+    'Language runtime is unavailable or missing required exports.',
+    'Private delivery remains safe while the language runtime is unavailable.'
   ];
 
   telemetryEvents.push(createHandoffFallback({
@@ -242,7 +242,7 @@ function createUnavailableRuntimeResult({
     finalText: '',
     confidence: 0,
     marionFinalAuthority: true,
-    reason: 'LingoLink runtime files are unavailable or incomplete.',
+    reason: 'Language runtime files are unavailable or incomplete.',
     warnings,
     telemetry: safeTelemetryBundle(telemetryEvents)
   };
@@ -543,10 +543,52 @@ async function runMarionLingoLinkGateway(input = {}, options = {}) {
   }
 }
 
+
+function createPrivateDeliveryGatewayResult(input = {}) {
+  const data = asInputObject(input);
+  const requestId = normalizeText(data.requestId) || generateRequestId('marion_ls_private');
+  const text = normalizeText(data.text || data.message || data.prompt || '');
+  const finalText = normalizeText(data.finalText || data.reply || data.response || '');
+  return {
+    ok: Boolean(finalText),
+    gateway: 'marion-lingolink',
+    requestId,
+    routed: false,
+    route: ROUTES.MARION_ONLY,
+    sourceLanguage: normalizeText(data.sourceLanguage || 'auto'),
+    targetLanguage: normalizeText(data.targetLanguage || 'en'),
+    originalText: text,
+    finalText,
+    confidence: Number.isFinite(Number(data.confidence)) ? Number(data.confidence) : 1,
+    marionFinalAuthority: true,
+    privateDelivery: true,
+    adminOnlyDelivery: true,
+    publicSurface: 'Nyx',
+    noRawAudioStored: true,
+    reason: finalText ? 'Marion private delivery prepared.' : 'Marion private delivery did not include final text.',
+    warnings: normalizeWarnings(data.warnings),
+    telemetry: safeTelemetryBundle([
+      createHandoffCompleted({
+        requestId,
+        route: ROUTES.MARION_ONLY,
+        sourceLanguage: normalizeText(data.sourceLanguage || 'auto'),
+        targetLanguage: normalizeText(data.targetLanguage || 'en'),
+        confidence: 1,
+        approvedByMarion: true,
+        fallbackUsed: false,
+        latencyMs: 0,
+        metadata: { privateDelivery: true, adminOnlyDelivery: true }
+      })
+    ])
+  };
+}
+
+
 module.exports = {
   runMarionLingoLinkGateway,
   createFallbackGatewayResult,
   mapRouteToMode,
   hasRequiredRuntime,
-  normalizeLingoLinkResponse
+  normalizeLingoLinkResponse,
+  createPrivateDeliveryGatewayResult
 };
