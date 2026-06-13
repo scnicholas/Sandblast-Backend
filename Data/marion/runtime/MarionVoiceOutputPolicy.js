@@ -11,7 +11,7 @@
  *   another private layer explicitly overrides it later.
  */
 
-const VERSION = 'marion.voiceOutputPolicy/2.0-admin-only-delivery';
+const VERSION = 'marion.voiceOutputPolicy/2.1-lingosentinel-private-voice-delivery';
 const DEFAULT_MAX_SPOKEN_CHARS = 700;
 
 const SENSITIVE_PATTERNS = [
@@ -21,6 +21,8 @@ const SENSITIVE_PATTERNS = [
   /\btoken\b/i,
   /\bprivate key\b/i,
   /\bcredential\b/i,
+  /\bauthorization\b/i,
+  /\bx-sb-[a-z0-9_-]+\b/i,
   /\bsmtp\b/i,
   /\b.env\b/i
 ];
