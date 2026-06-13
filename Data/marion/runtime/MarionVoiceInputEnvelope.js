@@ -6,7 +6,7 @@
  * No raw audio is stored here. Transcript-only envelope.
  */
 
-const VERSION = 'marion.voiceInputEnvelope/2.0-admin-only-delivery';
+const VERSION = 'marion.voiceInputEnvelope/2.1-lingosentinel-private-voice-delivery';
 const VOICE_SOURCE = 'voice';
 const DEFAULT_LOCALE = 'en-CA';
 const MIN_CONFIDENCE = 0;
@@ -26,12 +26,42 @@ function cleanTranscript(value) {
     .trim();
 }
 
-function cleanPublicHint(value) {
+function cleanPublicHint(value, maxLength = 120) {
+  const max = Number.isFinite(Number(maxLength)) ? Math.max(8, Math.min(Number(maxLength), 500)) : 120;
   return String(value || '')
-    .replace(/[^\w\s.@-]/g, '')
+    .replace(/[^\w\s.@:/_-]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 120);
+    .slice(0, max);
+}
+
+function firstTranscript(payload) {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  return cleanTranscript(
+    p.transcript ||
+      p.text ||
+      p.message ||
+      p.query ||
+      p.input ||
+      p.userQuery ||
+      ''
+  );
+}
+
+function hasTrustedServerAdminVoiceProof(payload) {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const trusted =
+    p.serverSideAdminVoiceAuth === true ||
+    p.trustedServerAuth === true ||
+    p.adminVoiceProofTrusted === true ||
+    p.trustedAdminVoiceProof === true;
+
+  if (!trusted) return false;
+
+  return p.adminVoiceVerified === true ||
+    p.adminVoiceTokenVerified === true ||
+    p.adminVoiceDeliveryAllowed === true ||
+    p.adminVerified === true;
 }
 
 function detectIntentHint(transcript) {
@@ -49,9 +79,10 @@ function detectIntentHint(transcript) {
 
 function createVoiceInputEnvelope(input) {
   const payload = input && typeof input === 'object' ? input : {};
-  const transcript = cleanTranscript(payload.transcript);
+  const transcript = firstTranscript(payload);
   const confidence = clampConfidence(payload.confidence);
-  const adminVoiceVerified = payload.adminVoiceVerified === true || payload.adminVoiceTokenVerified === true || payload.adminVoiceDeliveryAllowed === true;
+  const adminVoiceVerified = hasTrustedServerAdminVoiceProof(payload);
+  const privateDelivery = payload.privateDelivery === true || payload.privateVoiceDelivery === true;
 
   return {
     ok: transcript.length > 0,
@@ -60,24 +91,29 @@ function createVoiceInputEnvelope(input) {
     inputChannel: VOICE_SOURCE,
     transcript,
     confidence,
-    locale: payload.locale || payload.language || DEFAULT_LOCALE,
+    locale: cleanPublicHint(payload.locale || payload.language || DEFAULT_LOCALE, 40) || DEFAULT_LOCALE,
     receivedAt: payload.receivedAt || new Date().toISOString(),
     userIntentHint: payload.userIntentHint || detectIntentHint(transcript),
     authorizationState: payload.authorizationState || 'unchecked',
     speakerHint: cleanPublicHint(payload.speakerHint || payload.speaker || ''),
-    sessionId: payload.sessionId || null,
-    requestId: payload.requestId || null,
+    sessionId: cleanPublicHint(payload.sessionId || '', 160) || null,
+    requestId: cleanPublicHint(payload.requestId || '', 160) || null,
     adminOnlyVoiceDelivery: payload.adminOnlyVoiceDelivery !== false,
     adminVoiceVerified,
-    adminVoiceAuthSource: cleanPublicHint(payload.adminVoiceAuthSource || ''),
+    adminVoiceAuthSource: adminVoiceVerified ? cleanPublicHint(payload.adminVoiceAuthSource || '', 80) : '',
     adminVoiceDeliveryAllowed: adminVoiceVerified,
+    privateDelivery,
+    privateVoiceDelivery: privateDelivery,
+    deliveryChannel: cleanPublicHint(payload.deliveryChannel || (privateDelivery ? 'lingosentinel_private_voice' : ''), 80),
     rawMeta: {
-      provider: payload.provider || 'browser-native',
-      client: payload.client || null,
-      userAgent: payload.userAgent || null,
+      provider: cleanPublicHint(payload.provider || 'browser-native', 80),
+      client: cleanPublicHint(payload.client || '', 80) || null,
+      userAgent: cleanPublicHint(payload.userAgent || '', 220) || null,
       interim: Boolean(payload.interim),
       final: payload.final !== false,
-      audioStored: false
+      audioStored: false,
+      rawAudioAccepted: false,
+      transcriptOnly: true
     },
     warnings: transcript.length > 0 ? [] : ['EMPTY_TRANSCRIPT']
   };
@@ -102,5 +138,8 @@ module.exports = {
   isVoiceInputEnvelope,
   detectIntentHint,
   cleanTranscript,
+  cleanPublicHint,
+  firstTranscript,
+  hasTrustedServerAdminVoiceProof,
   clampConfidence
 };
