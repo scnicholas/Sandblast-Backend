@@ -39,7 +39,7 @@ const {
   createVoiceTelemetryEvent
 } = require('./MarionVoiceTelemetry');
 
-const VERSION = 'marion.voiceGateway/2.0-admin-only-delivery';
+const VERSION = 'marion.voiceGateway/2.1-lingosentinel-private-voice-delivery';
 
 function safeRequire(path) {
   try {
@@ -93,6 +93,39 @@ async function callBridge(bridge, payload, context) {
 
 function safeText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+function hasOptionAdminVoiceProof(options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  return opts.adminVoiceVerified === true ||
+    opts.adminVoiceTokenVerified === true ||
+    opts.adminVoiceDeliveryAllowed === true ||
+    opts.adminVerified === true ||
+    opts.serverSideAdminVoiceAuth === true ||
+    opts.trustedServerAuth === true;
+}
+
+function safeErrorCode(error, fallback = 'MARION_BRIDGE_ERROR') {
+  const raw = safeText(error && (error.code || error.name || error.message) || fallback)
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (!raw || /TOKEN|SECRET|PASSWORD|COOKIE|AUTHORIZATION|X_SB/.test(raw)) return fallback;
+  return raw.slice(0, 80) || fallback;
+}
+
+function voiceDeliveryMetaFromEnvelope(env, base) {
+  const envelope = env && typeof env === 'object' ? env : {};
+  const response = base && typeof base === 'object' ? base : {};
+  const privateDelivery = envelope.privateDelivery === true || response.privateDelivery === true || response.privateVoiceDelivery === true;
+  return {
+    privateDelivery,
+    privateVoiceDelivery: privateDelivery,
+    deliveryChannel: envelope.deliveryChannel || response.deliveryChannel || (privateDelivery ? 'lingosentinel_private_voice' : ''),
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false
+  };
 }
 
 function directReplyText(response) {
@@ -205,6 +238,7 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     ? response
     : { reply: String(response || '') };
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
+  const deliveryMeta = voiceDeliveryMetaFromEnvelope(env, base);
   const originalReply = firstReplyText(base);
   const fallbackReply = originalReply ? '' : buildVoiceReplyPromotionFallback(env, base);
   const cleanReply = originalReply || fallbackReply;
@@ -228,12 +262,21 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     inputChannel: 'voice',
     source: 'voice',
     adminOnlyVoiceDelivery: true,
+    privateDelivery: deliveryMeta.privateDelivery,
+    privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
+    deliveryChannel: deliveryMeta.deliveryChannel,
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
     voice: Object.assign({}, base.voice || {}, policy, {
       speakAllowed,
       voiceMode: speakAllowed ? (safeText(policy.voiceMode) || 'full') : 'silent',
       reason: speakAllowed ? (fallbackUsed ? 'VOICE_REPLY_PROMOTION_FALLBACK' : (policyReason || 'SPEAKABLE_RESPONSE')) : (policyReason || 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED'),
       spokenText,
       audioStored: false,
+      noRawAudioStored: true,
+      transcriptOnly: true,
+      privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
       adminOnlyVoiceDelivery: true,
       adminVoiceDeliveryAllowed,
       replyPromotionFallback: fallbackUsed
@@ -250,7 +293,11 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       userIntentHint: env.userIntentHint,
       commandPhrase: env.commandPhrase || null,
       wakeWord: env.wakeWord || null,
-      audioStored: false
+      audioStored: false,
+      noRawAudioStored: true,
+      transcriptOnly: true,
+      privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
+      deliveryChannel: deliveryMeta.deliveryChannel
     },
     voiceReplyPromotion: {
       applied: fallbackUsed,
@@ -264,16 +311,31 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
 async function handleVoiceTranscript(input, options) {
   const opts = options && typeof options === 'object' ? options : {};
   const telemetryEvents = [];
+  const inputObj = input && typeof input === 'object' ? input : {};
+  const optionAdminVoiceVerified =
+    hasOptionAdminVoiceProof(opts.authorization || {}) ||
+    hasOptionAdminVoiceProof(opts.output || {}) ||
+    hasOptionAdminVoiceProof(opts);
 
-  let envelope = createVoiceInputEnvelope(Object.assign({}, input || {}, {
-    adminOnlyVoiceDelivery: true
+  let envelope = createVoiceInputEnvelope(Object.assign({}, inputObj, {
+    adminOnlyVoiceDelivery: true,
+    serverSideAdminVoiceAuth: optionAdminVoiceVerified,
+    trustedServerAuth: optionAdminVoiceVerified,
+    adminVoiceVerified: optionAdminVoiceVerified,
+    adminVoiceTokenVerified: optionAdminVoiceVerified,
+    adminVoiceDeliveryAllowed: optionAdminVoiceVerified
   }));
   telemetryEvents.push(createVoiceTelemetryEvent('voice.envelope.created', envelope));
 
   const authOptions = Object.assign({
     adminOnlyVoiceDelivery: true,
     allowConversationalWhenUnknown: false,
-    trustSpeakerHint: false
+    trustSpeakerHint: false,
+    serverSideAdminVoiceAuth: optionAdminVoiceVerified,
+    trustedServerAuth: optionAdminVoiceVerified,
+    adminVoiceVerified: optionAdminVoiceVerified,
+    adminVoiceTokenVerified: optionAdminVoiceVerified,
+    adminVoiceDeliveryAllowed: optionAdminVoiceVerified
   }, opts.authorization || opts);
 
   const authResult = applyVoiceAuthorization(envelope, authOptions);
@@ -324,6 +386,11 @@ async function handleVoiceTranscript(input, options) {
     adminOnlyVoiceDelivery: true,
     adminVoiceVerified: envelope.adminVoiceVerified === true,
     adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true,
+    privateDelivery: envelope.privateDelivery === true,
+    privateVoiceDelivery: envelope.privateVoiceDelivery === true,
+    deliveryChannel: envelope.deliveryChannel || '',
+    transcriptOnly: true,
+    noRawAudioStored: true,
     voice: {
       envelope,
       wakeWord: envelope.wakeWord || null,
@@ -331,6 +398,9 @@ async function handleVoiceTranscript(input, options) {
       source: 'voice',
       inputChannel: 'voice',
       audioStored: false,
+      noRawAudioStored: true,
+      transcriptOnly: true,
+      privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
       adminOnlyVoiceDelivery: true,
       adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true
     }
@@ -345,7 +415,12 @@ async function handleVoiceTranscript(input, options) {
     requestId: envelope.requestId,
     adminOnlyVoiceDelivery: true,
     adminVoiceVerified: envelope.adminVoiceVerified === true,
-    adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true
+    adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true,
+    privateDelivery: envelope.privateDelivery === true,
+    privateVoiceDelivery: envelope.privateVoiceDelivery === true,
+    deliveryChannel: envelope.deliveryChannel || '',
+    transcriptOnly: true,
+    noRawAudioStored: true
   });
 
   let bridgeResponse;
@@ -357,7 +432,7 @@ async function handleVoiceTranscript(input, options) {
     bridgeResponse = {
       ok: false,
       reply: 'Voice input reached the protected voice bridge, but the bridge failed during processing.',
-      error: error && error.message ? error.message : 'MARION_BRIDGE_ERROR'
+      error: safeErrorCode(error)
     };
 
     telemetryEvents.push(createVoiceTelemetryEvent('voice.marion.bridge.failed', envelope, {
@@ -377,11 +452,86 @@ async function handleVoiceTranscript(input, options) {
   return makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy);
 }
 
+
+async function handleLingoSentinelPrivateVoiceDelivery(input, options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const adminVerified =
+    opts.adminVerified === true ||
+    opts.adminVoiceVerified === true ||
+    opts.adminVoiceTokenVerified === true ||
+    opts.adminVoiceDeliveryAllowed === true ||
+    hasOptionAdminVoiceProof(opts.authorization || {}) ||
+    hasOptionAdminVoiceProof(opts.output || {});
+
+  const payload = input && typeof input === 'object' ? input : { transcript: String(input || '') };
+  const transcript = payload.transcript || payload.text || payload.message || payload.query || payload.input || '';
+
+  const result = await handleVoiceTranscript(Object.assign({}, payload, {
+    transcript,
+    inputChannel: 'voice',
+    source: 'lingosentinel-private-admin-voice',
+    publicAgent: 'Nyx',
+    authority: 'Marion',
+    privateDelivery: true,
+    privateVoiceDelivery: true,
+    deliveryChannel: 'lingosentinel_private_voice',
+    adminOnlyVoiceDelivery: true
+  }), Object.assign({}, opts, {
+    serverSideAdminVoiceAuth: adminVerified,
+    trustedServerAuth: adminVerified,
+    authorization: Object.assign({}, opts.authorization || {}, {
+      adminOnlyVoiceDelivery: true,
+      allowConversationalWhenUnknown: false,
+      trustSpeakerHint: adminVerified,
+      serverSideAdminVoiceAuth: adminVerified,
+      trustedServerAuth: adminVerified,
+      adminVoiceVerified: adminVerified,
+      adminVoiceTokenVerified: adminVerified,
+      adminVoiceDeliveryAllowed: adminVerified
+    }),
+    output: Object.assign({}, opts.output || {}, {
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: adminVerified,
+      adminVoiceTokenVerified: adminVerified,
+      adminVoiceDeliveryAllowed: adminVerified,
+      forceSilent: !adminVerified
+    }),
+    context: Object.assign({}, opts.context || {}, {
+      inputChannel: 'voice',
+      source: 'lingosentinel-private-admin-voice',
+      publicAgent: 'Nyx',
+      authority: 'Marion',
+      privateDelivery: true,
+      privateVoiceDelivery: true,
+      deliveryChannel: 'lingosentinel_private_voice',
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: adminVerified,
+      adminVoiceDeliveryAllowed: adminVerified
+    })
+  }));
+
+  return Object.assign({}, result, {
+    route: '/api/lingosentinel/private/marion/voice',
+    source: 'lingosentinel-private-admin-voice',
+    publicAgent: 'Nyx',
+    authority: 'Marion',
+    privateDelivery: adminVerified && result.ok !== false,
+    privateVoiceDelivery: true,
+    deliveryChannel: 'lingosentinel_private_voice',
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    adminVoiceDeliveryAllowed: adminVerified && result.voice && result.voice.adminVoiceDeliveryAllowed === true
+  });
+}
+
 module.exports = {
   VERSION,
   handleVoiceTranscript,
+  handleLingoSentinelPrivateVoiceDelivery,
   makeNyxBoundaryResponse,
   firstReplyText,
   loadMarionBridge,
+  hasOptionAdminVoiceProof,
   isAdminVoiceDeliveryAllowed
 };
