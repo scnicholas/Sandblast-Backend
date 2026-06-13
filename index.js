@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.48sb MARION-ADMIN-CONSOLE-SHORT-LIVED-SESSION-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.49sb MARION-ADMIN-CONSOLE-CONTROLLED-ESCALATION-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -2817,6 +2817,11 @@ function applyCors(req, res) {
     CFG.apiTokenHeader,
     "x-sb-marion-admin-console-token",
     "x-sb-marion-admin-session-token",
+    "x-sb-marion-admin-escalation-token",
+    "x-sb-marion-admin-escalation-secret",
+    "x-sb-marion-admin-escalation-action",
+    "x-marion-admin-escalation-token",
+    "x-marion-admin-escalation-secret",
     "x-sb-marion-admin-console-mfa-token",
     "x-sb-marion-admin-token",
     "x-marion-admin-token",
@@ -14285,7 +14290,10 @@ const MARION_ADMIN_CONSOLE_ROUTES = Object.freeze({
   emergency: Object.freeze(["/api/private/marion/admin/emergency", "/private/marion/admin/emergency"]),
   sessionIssue: Object.freeze(["/api/private/marion/admin/session/issue", "/private/marion/admin/session/issue"]),
   sessionCheck: Object.freeze(["/api/private/marion/admin/session/check", "/private/marion/admin/session/check"]),
-  sessionRevoke: Object.freeze(["/api/private/marion/admin/session/revoke", "/private/marion/admin/session/revoke"])
+  sessionRevoke: Object.freeze(["/api/private/marion/admin/session/revoke", "/private/marion/admin/session/revoke"]),
+  escalationIssue: Object.freeze(["/api/private/marion/admin/escalation/issue", "/private/marion/admin/escalation/issue"]),
+  escalationCheck: Object.freeze(["/api/private/marion/admin/escalation/check", "/private/marion/admin/escalation/check"]),
+  escalationRevoke: Object.freeze(["/api/private/marion/admin/escalation/revoke", "/private/marion/admin/escalation/revoke"])
 });
 
 const MARION_ADMIN_CONSOLE_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_ADMIN_CONSOLE_ROUTES).reduce((acc, key) => acc.concat(MARION_ADMIN_CONSOLE_ROUTES[key]), [])));
@@ -14299,6 +14307,17 @@ const MARION_ADMIN_CONSOLE_SESSION_MAX = clampNumberEnv("SB_MARION_ADMIN_SESSION
 const marionAdminConsoleSessions = new Map();
 let marionAdminConsoleSessionLastSweepAt = 0;
 
+const MARION_ADMIN_CONSOLE_ESCALATION_VERSION = "marion.adminConsole.escalation/1.0-controlled-hardlock";
+const MARION_ADMIN_CONSOLE_ESCALATION_HEADER = "x-sb-marion-admin-escalation-token";
+const MARION_ADMIN_CONSOLE_ESCALATION_SECRET_HEADER = "x-sb-marion-admin-escalation-secret";
+const MARION_ADMIN_CONSOLE_ESCALATION_TTL_MS = clampNumberEnv("SB_MARION_ADMIN_ESCALATION_TTL_MS", 90 * 1000, 15 * 1000, 5 * 60 * 1000);
+const MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_ESCALATION_IDLE_MS", 60 * 1000, 10 * 1000, 2 * 60 * 1000);
+const MARION_ADMIN_CONSOLE_ESCALATION_MAX = clampNumberEnv("SB_MARION_ADMIN_ESCALATION_MAX", 10, 1, 100);
+const MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE = process.env.SB_MARION_ADMIN_ESCALATION_SINGLE_USE !== "false";
+const MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS = Object.freeze(["emergency"]);
+const marionAdminConsoleEscalations = new Map();
+let marionAdminConsoleEscalationLastSweepAt = 0;
+
 function marionAdminConsoleBase64Url(bytes) {
   return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
@@ -14309,6 +14328,10 @@ function marionAdminConsoleSha256(value) {
 
 function marionAdminConsoleNewSessionToken() {
   return "mas_" + marionAdminConsoleBase64Url(crypto.randomBytes(32));
+}
+
+function marionAdminConsoleNewEscalationToken() {
+  return "mae_" + marionAdminConsoleBase64Url(crypto.randomBytes(32));
 }
 
 function marionAdminConsoleSessionFingerprint(req) {
@@ -14435,6 +14458,177 @@ function marionAdminConsoleRevokeSession(req) {
   if (!entry) return { ok: false, provided: true, reason: "session_not_found_or_expired" };
   marionAdminConsoleSessions.delete(hash);
   return { ok: true, provided: true, session: marionAdminConsolePublicSession(entry) };
+}
+
+function marionAdminConsoleEscalationAction(value) {
+  const raw = cleanText(value || "").toLowerCase().replace(/[^a-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS.includes(raw) ? raw : "emergency";
+}
+
+function marionAdminConsoleEscalationTokenFromRequest(req) {
+  const headers = req && req.headers ? req.headers : {};
+  return cleanText(headers[MARION_ADMIN_CONSOLE_ESCALATION_HEADER] || headers["x-marion-admin-escalation-token"] || "");
+}
+
+function marionAdminConsoleEscalationSecretFromRequest(req) {
+  const headers = req && req.headers ? req.headers : {};
+  return cleanText(headers[MARION_ADMIN_CONSOLE_ESCALATION_SECRET_HEADER] || headers["x-marion-admin-escalation-secret"] || "");
+}
+
+function marionAdminConsoleEscalationEnvTokens() {
+  return uniq([
+    process.env.SB_MARION_ADMIN_ESCALATION_TOKEN,
+    process.env.SB_MARION_ADMIN_CONSOLE_ESCALATION_TOKEN,
+    process.env.MARION_ADMIN_ESCALATION_TOKEN
+  ].map((item) => cleanText(item || "")).filter(Boolean));
+}
+
+function marionAdminConsoleEscalationSecretAuth(req) {
+  const tokens = marionAdminConsoleEscalationEnvTokens();
+  const candidate = marionAdminConsoleEscalationSecretFromRequest(req);
+  const verified = !!candidate && tokens.some((token) => timingSafeTextEqual(candidate, token));
+  return {
+    verified,
+    configured: tokens.length > 0,
+    provided: !!candidate,
+    source: candidate ? MARION_ADMIN_CONSOLE_ESCALATION_SECRET_HEADER : "none",
+    reason: verified ? "escalation_secret_verified" : (tokens.length ? "escalation_secret_required" : "escalation_secret_not_configured")
+  };
+}
+
+function marionAdminConsoleSweepEscalations(force) {
+  const t = now();
+  if (!force && t - marionAdminConsoleEscalationLastSweepAt < 15000) return;
+  marionAdminConsoleEscalationLastSweepAt = t;
+  for (const [hash, entry] of marionAdminConsoleEscalations.entries()) {
+    if (!entry || Number(entry.expiresAt || 0) <= t || Number(entry.idleExpiresAt || 0) <= t || entry.revoked === true || entry.used === true) {
+      marionAdminConsoleEscalations.delete(hash);
+    }
+  }
+  if (marionAdminConsoleEscalations.size > MARION_ADMIN_CONSOLE_ESCALATION_MAX) {
+    const entries = Array.from(marionAdminConsoleEscalations.entries()).sort((a, b) => Number(a[1].lastSeenAt || 0) - Number(b[1].lastSeenAt || 0));
+    while (marionAdminConsoleEscalations.size > MARION_ADMIN_CONSOLE_ESCALATION_MAX && entries.length) {
+      const [hash] = entries.shift();
+      marionAdminConsoleEscalations.delete(hash);
+    }
+  }
+}
+
+function marionAdminConsolePublicEscalation(entry) {
+  if (!entry) return null;
+  const t = now();
+  return {
+    id: cleanText(entry.id || ""),
+    version: MARION_ADMIN_CONSOLE_ESCALATION_VERSION,
+    active: entry.revoked !== true && entry.used !== true && Number(entry.expiresAt || 0) > t && Number(entry.idleExpiresAt || 0) > t,
+    action: marionAdminConsoleEscalationAction(entry.action || "emergency"),
+    singleUse: MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE,
+    issuedAt: Number(entry.issuedAt || 0),
+    lastSeenAt: Number(entry.lastSeenAt || 0),
+    expiresAt: Number(entry.expiresAt || 0),
+    idleExpiresAt: Number(entry.idleExpiresAt || 0),
+    expiresInMs: Math.max(0, Number(entry.expiresAt || 0) - t),
+    idleExpiresInMs: Math.max(0, Number(entry.idleExpiresAt || 0) - t),
+    ttlMs: MARION_ADMIN_CONSOLE_ESCALATION_TTL_MS,
+    idleTtlMs: MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS,
+    sessionId: cleanText(entry.sessionId || ""),
+    client: isObj(entry.client) ? entry.client : {}
+  };
+}
+
+function marionAdminConsoleCreateEscalation(req, auth, action) {
+  marionAdminConsoleSweepEscalations(true);
+  const token = marionAdminConsoleNewEscalationToken();
+  const hash = marionAdminConsoleSha256(token);
+  const t = now();
+  const entry = {
+    id: "mae_" + crypto.randomBytes(8).toString("hex"),
+    action: marionAdminConsoleEscalationAction(action),
+    issuedAt: t,
+    lastSeenAt: t,
+    expiresAt: t + MARION_ADMIN_CONSOLE_ESCALATION_TTL_MS,
+    idleExpiresAt: t + Math.min(MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS, MARION_ADMIN_CONSOLE_ESCALATION_TTL_MS),
+    sessionId: cleanText(auth && auth.sessionId || ""),
+    fingerprint: marionAdminConsoleSessionFingerprint(req),
+    client: marionAdminConsoleClientHint(req),
+    revoked: false,
+    used: false
+  };
+  marionAdminConsoleEscalations.set(hash, entry);
+  marionAdminConsoleSweepEscalations(true);
+  return { token, entry, publicEscalation: marionAdminConsolePublicEscalation(entry) };
+}
+
+function marionAdminConsoleValidateEscalation(req, auth, options) {
+  marionAdminConsoleSweepEscalations(false);
+  const opts = isObj(options) ? options : {};
+  const expectedAction = marionAdminConsoleEscalationAction(opts.action || "emergency");
+  const token = marionAdminConsoleEscalationTokenFromRequest(req);
+  if (!token) return { verified: false, provided: false, source: "none", reason: "escalation_token_missing" };
+  if (!/^mae_[A-Za-z0-9_-]{32,}$/.test(token)) return { verified: false, provided: true, source: "invalid", reason: "escalation_token_malformed" };
+  const hash = marionAdminConsoleSha256(token);
+  const entry = marionAdminConsoleEscalations.get(hash);
+  const t = now();
+  if (!entry) return { verified: false, provided: true, source: "invalid", reason: "escalation_not_found_or_expired" };
+  if (entry.revoked === true || entry.used === true || Number(entry.expiresAt || 0) <= t || Number(entry.idleExpiresAt || 0) <= t) {
+    marionAdminConsoleEscalations.delete(hash);
+    return { verified: false, provided: true, source: "expired", reason: entry.used === true ? "escalation_already_used" : "escalation_expired" };
+  }
+  if (marionAdminConsoleEscalationAction(entry.action) !== expectedAction) {
+    return { verified: false, provided: true, source: "wrong_action", reason: "escalation_action_mismatch" };
+  }
+  if (!auth || auth.sessionVerified !== true || !cleanText(auth.sessionId || "")) {
+    return { verified: false, provided: true, source: "session_required", reason: "verified_session_required_for_escalation" };
+  }
+  if (cleanText(entry.sessionId || "") !== cleanText(auth.sessionId || "")) {
+    marionAdminConsoleEscalations.delete(hash);
+    return { verified: false, provided: true, source: "session_mismatch", reason: "escalation_session_binding_mismatch" };
+  }
+  const fingerprint = marionAdminConsoleSessionFingerprint(req);
+  if (entry.fingerprint && fingerprint && entry.fingerprint !== fingerprint) {
+    marionAdminConsoleEscalations.delete(hash);
+    return { verified: false, provided: true, source: "fingerprint_mismatch", reason: "escalation_client_binding_mismatch" };
+  }
+  if (opts.consume === true && MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE) {
+    entry.used = true;
+    entry.lastSeenAt = t;
+    marionAdminConsoleEscalations.delete(hash);
+    return {
+      verified: true,
+      provided: true,
+      source: MARION_ADMIN_CONSOLE_ESCALATION_HEADER,
+      reason: "escalation_verified_consumed",
+      consumed: true,
+      escalationId: entry.id,
+      escalation: marionAdminConsolePublicEscalation(entry)
+    };
+  }
+  entry.lastSeenAt = t;
+  entry.idleExpiresAt = Math.min(Number(entry.expiresAt || t), t + MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS);
+  marionAdminConsoleEscalations.set(hash, entry);
+  return {
+    verified: true,
+    provided: true,
+    source: MARION_ADMIN_CONSOLE_ESCALATION_HEADER,
+    reason: "escalation_verified",
+    consumed: false,
+    escalationId: entry.id,
+    escalation: marionAdminConsolePublicEscalation(entry)
+  };
+}
+
+function marionAdminConsoleRevokeEscalation(req, auth) {
+  const token = marionAdminConsoleEscalationTokenFromRequest(req);
+  if (!token) return { ok: false, provided: false, reason: "escalation_token_missing" };
+  const hash = marionAdminConsoleSha256(token);
+  const entry = marionAdminConsoleEscalations.get(hash);
+  if (!entry) return { ok: false, provided: true, reason: "escalation_not_found_or_expired" };
+  if (auth && auth.sessionVerified === true && cleanText(entry.sessionId || "") !== cleanText(auth.sessionId || "")) {
+    marionAdminConsoleEscalations.delete(hash);
+    return { ok: false, provided: true, reason: "escalation_session_binding_mismatch" };
+  }
+  marionAdminConsoleEscalations.delete(hash);
+  return { ok: true, provided: true, escalation: marionAdminConsolePublicEscalation(entry) };
 }
 
 function marionAdminConsoleEnvTokens() {
@@ -14764,6 +14958,10 @@ function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
     authMode: cleanText(auth && auth.authMode || ""),
     mfaRequired: !!(auth && auth.mfaRequired),
     mfaVerified: !!(auth && auth.mfaVerified),
+    escalationVersion: MARION_ADMIN_CONSOLE_ESCALATION_VERSION,
+    escalationRequired: MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS.includes(cleanText(action || "").toLowerCase()),
+    escalationConfigured: marionAdminConsoleEscalationEnvTokens().length > 0,
+    escalationVerified: false,
     gatewayReady: !!status.available,
     runtimePath: MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH,
     gatewayVersion: status.version,
@@ -14785,6 +14983,116 @@ function marionAdminConsoleSessionBaseResponse(action, traceId, auth, extra) {
     sessionIdleMs: MARION_ADMIN_CONSOLE_SESSION_IDLE_MS,
     ...safeObj(extra)
   });
+}
+
+function marionAdminConsoleEscalationBaseResponse(action, traceId, auth, extra) {
+  return marionAdminConsoleBaseResponse(action, traceId, auth, {
+    escalationVersion: MARION_ADMIN_CONSOLE_ESCALATION_VERSION,
+    escalationHeader: MARION_ADMIN_CONSOLE_ESCALATION_HEADER,
+    escalationSecretHeader: MARION_ADMIN_CONSOLE_ESCALATION_SECRET_HEADER,
+    escalationTtlMs: MARION_ADMIN_CONSOLE_ESCALATION_TTL_MS,
+    escalationIdleMs: MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS,
+    escalationSingleUse: MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE,
+    dangerousActions: MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS,
+    ...safeObj(extra)
+  });
+}
+
+async function handleMarionAdminConsoleEscalationIssue(req, res) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionadminescalation"));
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+  if (auth.sessionVerified !== true) {
+    return res.status(403).json(marionAdminConsoleEscalationBaseResponse("escalation.issue", traceId, auth, {
+      ok: false,
+      stage: "admin_escalation_session_required",
+      reason: "short_lived_admin_session_required",
+      escalationIssued: false,
+      escalationVerified: false
+    }));
+  }
+
+  const secret = marionAdminConsoleEscalationSecretAuth(req);
+  if (!secret.verified) {
+    return res.status(secret.configured ? 403 : 503).json(marionAdminConsoleEscalationBaseResponse("escalation.issue", traceId, auth, {
+      ok: false,
+      stage: secret.configured ? "admin_escalation_secret_required" : "admin_escalation_secret_not_configured",
+      reason: cleanText(secret.reason || "escalation_secret_required"),
+      escalationConfigured: !!secret.configured,
+      escalationSecretProvided: !!secret.provided,
+      escalationIssued: false,
+      escalationVerified: false
+    }));
+  }
+
+  const action = marionAdminConsoleEscalationAction(body.action || (req && req.headers && req.headers["x-sb-marion-admin-escalation-action"]) || "emergency");
+  const issued = marionAdminConsoleCreateEscalation(req, auth, action);
+  return res.status(201).json(marionAdminConsoleEscalationBaseResponse("escalation.issue", traceId, auth, {
+    ok: true,
+    stage: "admin_escalation_issued",
+    escalationConfigured: true,
+    escalationIssued: true,
+    escalationVerified: true,
+    escalationToken: issued.token,
+    escalation: issued.publicEscalation,
+    action,
+    expiresInMs: issued.publicEscalation.expiresInMs,
+    idleExpiresInMs: issued.publicEscalation.idleExpiresInMs,
+    singleUse: MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE,
+    instructions: {
+      useHeader: MARION_ADMIN_CONSOLE_ESCALATION_HEADER,
+      clearEscalationSecretFromBrowser: true,
+      storeEscalationTokenInMemoryOnly: true,
+      validForDangerousActionsOnly: true
+    }
+  }));
+}
+
+async function handleMarionAdminConsoleEscalationCheck(req, res) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = cleanText((req && req.sbTraceId) || makeTraceId("marionadminescalation"));
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+  if (auth.sessionVerified !== true) {
+    return res.status(403).json(marionAdminConsoleEscalationBaseResponse("escalation.check", traceId, auth, {
+      ok: false,
+      stage: "admin_escalation_session_required",
+      reason: "short_lived_admin_session_required",
+      escalationActive: false,
+      escalationVerified: false
+    }));
+  }
+  const escalation = marionAdminConsoleValidateEscalation(req, auth, { action: "emergency", consume: false });
+  return res.status(escalation.verified ? 200 : (escalation.provided ? 401 : 400)).json(marionAdminConsoleEscalationBaseResponse("escalation.check", traceId, auth, {
+    ok: escalation.verified,
+    stage: escalation.verified ? "admin_escalation_active" : "admin_escalation_invalid",
+    reason: cleanText(escalation.reason || ""),
+    escalationActive: escalation.verified,
+    escalationVerified: escalation.verified,
+    escalationTokenProvided: !!escalation.provided,
+    escalation: escalation.escalation || null
+  }));
+}
+
+async function handleMarionAdminConsoleEscalationRevoke(req, res) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = cleanText((req && req.sbTraceId) || makeTraceId("marionadminescalation"));
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+  const revoked = marionAdminConsoleRevokeEscalation(req, auth);
+  return res.status(revoked.ok ? 200 : 400).json(marionAdminConsoleEscalationBaseResponse("escalation.revoke", traceId, auth, {
+    ok: revoked.ok,
+    stage: revoked.ok ? "admin_escalation_revoked" : "admin_escalation_revoke_failed",
+    reason: cleanText(revoked.reason || ""),
+    escalationRevoked: revoked.ok,
+    escalationVerified: false,
+    escalation: revoked.escalation || null
+  }));
 }
 
 async function handleMarionAdminConsoleSessionIssue(req, res) {
@@ -14908,6 +15216,7 @@ async function handleMarionAdminConsoleAction(req, res, action) {
   if ((action === "approve" || action === "deny") && !cleanText(envelope.commandId || "")) {
     return res.status(400).json(marionAdminConsoleBaseResponse(action, traceId, auth, { ok: false, stage: "admin_command_id_missing", reason: "command_id_required" }));
   }
+  let emergencyEscalation = null;
   if (action === "emergency") {
     const confirm = body.confirm === true ||
       cleanText(body.confirmation || body.confirmPhrase || "") === "CONFIRM_MARION_EMERGENCY" ||
@@ -14918,7 +15227,32 @@ async function handleMarionAdminConsoleAction(req, res, action) {
         ok: false,
         stage: "emergency_confirmation_required",
         reason: "CONFIRM_MARION_EMERGENCY_required",
-        emergencyTriggered: false
+        emergencyTriggered: false,
+        escalationRequired: true,
+        escalationVerified: false
+      }));
+    }
+    if (auth.sessionVerified !== true) {
+      return res.status(403).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
+        ok: false,
+        stage: "emergency_session_required",
+        reason: "short_lived_admin_session_required_for_emergency",
+        emergencyTriggered: false,
+        escalationRequired: true,
+        escalationVerified: false
+      }));
+    }
+    emergencyEscalation = marionAdminConsoleValidateEscalation(req, auth, { action: "emergency", consume: true });
+    if (!emergencyEscalation.verified) {
+      return res.status(403).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
+        ok: false,
+        stage: "emergency_escalation_required",
+        reason: cleanText(emergencyEscalation.reason || "fresh_escalation_token_required"),
+        emergencyTriggered: false,
+        escalationRequired: true,
+        escalationConfigured: marionAdminConsoleEscalationEnvTokens().length > 0,
+        escalationTokenProvided: !!emergencyEscalation.provided,
+        escalationVerified: false
       }));
     }
   }
@@ -14932,7 +15266,10 @@ async function handleMarionAdminConsoleAction(req, res, action) {
       stage: cleanText(invocation && invocation.stage || (ok ? "admin_console_action_complete" : "admin_console_action_failed")),
       gatewayReady: !!(invocation && invocation.gatewayReady),
       result: safeInvocation && safeInvocation.result !== undefined ? safeInvocation.result : safeInvocation,
-      emergencyTriggered: action === "emergency" && ok
+      emergencyTriggered: action === "emergency" && ok,
+      escalationRequired: action === "emergency",
+      escalationVerified: action === "emergency" ? !!(emergencyEscalation && emergencyEscalation.verified) : false,
+      escalationConsumed: action === "emergency" ? !!(emergencyEscalation && emergencyEscalation.consumed) : false
     }));
   } catch (err) {
     return res.status(502).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
@@ -14952,6 +15289,9 @@ app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
 app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionIssue, async (req, res) => handleMarionAdminConsoleSessionIssue(req, res));
 app.get(MARION_ADMIN_CONSOLE_ROUTES.sessionCheck, async (req, res) => handleMarionAdminConsoleSessionCheck(req, res));
 app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionRevoke, async (req, res) => handleMarionAdminConsoleSessionRevoke(req, res));
+app.post(MARION_ADMIN_CONSOLE_ROUTES.escalationIssue, async (req, res) => handleMarionAdminConsoleEscalationIssue(req, res));
+app.get(MARION_ADMIN_CONSOLE_ROUTES.escalationCheck, async (req, res) => handleMarionAdminConsoleEscalationCheck(req, res));
+app.post(MARION_ADMIN_CONSOLE_ROUTES.escalationRevoke, async (req, res) => handleMarionAdminConsoleEscalationRevoke(req, res));
 
 app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
   applyCors(req, res);
@@ -14973,7 +15313,19 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
       emergency: MARION_ADMIN_CONSOLE_ROUTES.emergency[0],
       sessionIssue: MARION_ADMIN_CONSOLE_ROUTES.sessionIssue[0],
       sessionCheck: MARION_ADMIN_CONSOLE_ROUTES.sessionCheck[0],
-      sessionRevoke: MARION_ADMIN_CONSOLE_ROUTES.sessionRevoke[0]
+      sessionRevoke: MARION_ADMIN_CONSOLE_ROUTES.sessionRevoke[0],
+      escalationIssue: MARION_ADMIN_CONSOLE_ROUTES.escalationIssue[0],
+      escalationCheck: MARION_ADMIN_CONSOLE_ROUTES.escalationCheck[0],
+      escalationRevoke: MARION_ADMIN_CONSOLE_ROUTES.escalationRevoke[0]
+    },
+    escalation: {
+      version: MARION_ADMIN_CONSOLE_ESCALATION_VERSION,
+      configured: marionAdminConsoleEscalationEnvTokens().length > 0,
+      header: MARION_ADMIN_CONSOLE_ESCALATION_HEADER,
+      ttlMs: MARION_ADMIN_CONSOLE_ESCALATION_TTL_MS,
+      idleMs: MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS,
+      singleUse: MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE,
+      dangerousActions: MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS
     }
   }));
 });
@@ -15470,7 +15822,9 @@ module.exports = {
   MARION_ADMIN_CONSOLE_INDEX_VERSION,
   MARION_ADMIN_CONSOLE_ROUTES,
   marionAdminConsoleEnvTokens,
+  marionAdminConsoleEscalationEnvTokens,
   marionAdminConsoleRequestAuth,
+  marionAdminConsoleValidateEscalation,
   marionAdminConsoleGatewayStatus,
   invokeMarionAdminConsoleGateway,
   applyPublicReplyHygieneToResponse
