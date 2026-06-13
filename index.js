@@ -14141,6 +14141,9 @@ app.post("/api/lingosentinel/private/publish", async (req, res) => {
 });
 
 
+const LingoSentinelPrivateMarionVoiceRoute = require("./Data/marion/runtime/LingoSentinelPrivateMarionVoiceRoute");
+app.use("/api/lingosentinel/private/marion", LingoSentinelPrivateMarionVoiceRoute);
+
 app.options("/api/lingosentinel/private/marion/text", (req, res) => {
   applyCors(req, res);
   hardenConversationNoStore(res);
