@@ -817,9 +817,47 @@ function buildMarionBridgePayload(payload, options = {}) {
   };
 }
 
+
+function buildMarionPrivateDeliveryPayload(payload, options = {}) {
+  const gatewayPackage = runLingoSentinelGateway(payload, {
+    ...safeObject(options),
+    telemetry: {
+      ...safeObject(safeObject(options).telemetry),
+      includeCorrelation: true
+    }
+  });
+  const opts = safeObject(options);
+  const privateDelivery = {
+    version: "nyx.lingosentinel.marionPrivateDeliveryPayload/1.0",
+    enabled: true,
+    adminOnlyDelivery: true,
+    privateSignal: true,
+    publicSurface: "Nyx",
+    authority: ensureAuthority(),
+    noRawAudioStored: true,
+    deliveryChannel: safeString(opts.deliveryChannel || "lingosentinel_private_text"),
+    roomId: safeString(opts.roomId || ""),
+    role: safeString(opts.role || "host"),
+    traceId: safeString(opts.traceId || gatewayPackage.traceId || "")
+  };
+
+  return {
+    ...buildMarionBridgePayload(payload, options),
+    privateDelivery,
+    adminOnlyDelivery: true,
+    privateSignal: true,
+    noRawAudioStored: true,
+    marionAuthority: true,
+    finalAuthority: "Marion",
+    publicSurface: "Nyx"
+  };
+}
+
+
 module.exports = {
   runLingoSentinelGateway,
   buildMarionBridgePayload,
+  buildMarionPrivateDeliveryPayload,
   extractInput,
   mergeGatewayConfig,
   stableHash,
