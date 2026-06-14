@@ -32,11 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-<<<<<<< HEAD
 const PUBLIC_INDEX_VERSION = "index.js v2.18.50sb MARION-ADMIN-CONSOLE-EMERGENCY-CONFIRMATION-BRIDGE-HARDLOCK";
-=======
-const PUBLIC_INDEX_VERSION = "index.js v2.18.47sb MARION-ADMIN-CONSOLE-GATEWAY-CORS-HARDLOCK";
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -2820,15 +2816,12 @@ function applyCors(req, res) {
     "x-sb-widget-token",
     CFG.apiTokenHeader,
     "x-sb-marion-admin-console-token",
-<<<<<<< HEAD
     "x-sb-marion-admin-session-token",
     "x-sb-marion-admin-escalation-token",
     "x-sb-marion-admin-escalation-secret",
     "x-sb-marion-admin-escalation-action",
     "x-marion-admin-escalation-token",
     "x-marion-admin-escalation-secret",
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     "x-sb-marion-admin-console-mfa-token",
     "x-sb-marion-admin-token",
     "x-marion-admin-token",
@@ -14294,7 +14287,6 @@ const MARION_ADMIN_CONSOLE_ROUTES = Object.freeze({
   command: Object.freeze(["/api/private/marion/admin/command", "/private/marion/admin/command"]),
   approve: Object.freeze(["/api/private/marion/admin/approve", "/private/marion/admin/approve"]),
   deny: Object.freeze(["/api/private/marion/admin/deny", "/private/marion/admin/deny"]),
-<<<<<<< HEAD
   emergency: Object.freeze(["/api/private/marion/admin/emergency", "/private/marion/admin/emergency"]),
   sessionIssue: Object.freeze(["/api/private/marion/admin/session/issue", "/private/marion/admin/session/issue"]),
   sessionCheck: Object.freeze(["/api/private/marion/admin/session/check", "/private/marion/admin/session/check"]),
@@ -14302,14 +14294,10 @@ const MARION_ADMIN_CONSOLE_ROUTES = Object.freeze({
   escalationIssue: Object.freeze(["/api/private/marion/admin/escalation/issue", "/private/marion/admin/escalation/issue"]),
   escalationCheck: Object.freeze(["/api/private/marion/admin/escalation/check", "/private/marion/admin/escalation/check"]),
   escalationRevoke: Object.freeze(["/api/private/marion/admin/escalation/revoke", "/private/marion/admin/escalation/revoke"])
-=======
-  emergency: Object.freeze(["/api/private/marion/admin/emergency", "/private/marion/admin/emergency"])
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
 });
 
 const MARION_ADMIN_CONSOLE_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_ADMIN_CONSOLE_ROUTES).reduce((acc, key) => acc.concat(MARION_ADMIN_CONSOLE_ROUTES[key]), [])));
 
-<<<<<<< HEAD
 
 const MARION_ADMIN_CONSOLE_SESSION_VERSION = "marion.adminConsole.session/1.0-short-lived-hardlock";
 const MARION_ADMIN_CONSOLE_SESSION_HEADER = "x-sb-marion-admin-session-token";
@@ -14647,8 +14635,6 @@ function marionAdminConsoleRevokeEscalation(req, auth) {
   return { ok: true, provided: true, escalation: marionAdminConsolePublicEscalation(entry) };
 }
 
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
 function marionAdminConsoleEnvTokens() {
   return uniq([
     process.env.MARION_ADMIN_TOKEN,
@@ -14676,11 +14662,7 @@ function marionAdminConsoleBearerValue(req) {
   return match ? cleanText(match[1]) : "";
 }
 
-<<<<<<< HEAD
 function marionAdminConsoleMasterRequestAuth(req) {
-=======
-function marionAdminConsoleRequestAuth(req) {
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
   const headers = req && req.headers ? req.headers : {};
   const tokens = marionAdminConsoleEnvTokens();
   const mfaTokens = marionAdminConsoleMfaTokens();
@@ -14696,11 +14678,7 @@ function marionAdminConsoleRequestAuth(req) {
   ].map((item) => ({ source: item.source, value: cleanText(item.value || "") })).filter((item) => item.value);
 
   const verifiedCandidate = candidates.find((candidate) => tokens.some((token) => timingSafeTextEqual(candidate.value, token)));
-<<<<<<< HEAD
   const mfaCandidate = cleanText(headers["x-sb-marion-admin-mfa-token"] || headers["x-sb-marion-admin-console-mfa-token"] || headers["x-marion-admin-mfa-token"] || "");
-=======
-  const mfaCandidate = cleanText(headers["x-sb-marion-admin-mfa-token"] || headers["x-marion-admin-mfa-token"] || "");
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
   const mfaRequired = mfaTokens.length > 0;
   const mfaVerified = !mfaRequired || mfaTokens.some((token) => timingSafeTextEqual(mfaCandidate, token));
 
@@ -14711,7 +14689,6 @@ function marionAdminConsoleRequestAuth(req) {
     source: verifiedCandidate ? verifiedCandidate.source : (candidates.length ? "invalid" : "none"),
     mfaRequired,
     mfaProvided: !!mfaCandidate,
-<<<<<<< HEAD
     mfaVerified,
     sessionVerified: false,
     sessionProvided: false,
@@ -14749,9 +14726,6 @@ function marionAdminConsoleRequestAuth(req) {
     sessionProvided: !!session.provided,
     sessionReason: cleanText(session.reason || ""),
     authMode: master.provided ? "master_failed" : (session.provided ? "session_failed" : "none")
-=======
-    mfaVerified
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
   };
 }
 
@@ -14770,13 +14744,10 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     adminRequired: true,
     adminTokenConfigured: configured,
     adminTokenProvided: !!(auth && auth.provided),
-<<<<<<< HEAD
     sessionTokenProvided: !!(auth && auth.sessionProvided),
     sessionVerified: !!(auth && auth.sessionVerified),
     sessionReason: cleanText(auth && auth.sessionReason || ""),
     authMode: cleanText(auth && auth.authMode || ""),
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     mfaRequired: !!(auth && auth.mfaRequired),
     mfaProvided: !!(auth && auth.mfaProvided),
     publicSurface: "Nyx",
@@ -14931,7 +14902,6 @@ async function invokeMarionAdminConsoleGateway(action, envelope, context) {
   };
 }
 
-<<<<<<< HEAD
 function marionAdminConsoleGatewayHeaders(req) {
   const headers = req && req.headers ? req.headers : {};
   return {
@@ -14974,31 +14944,22 @@ function marionAdminConsoleEmergencyConfirmed(req, body) {
 
 function marionAdminConsoleContext(req, traceId, auth) {
   const confirmation = marionAdminConsoleEmergencyConfirmationFromRequest(req);
-=======
-function marionAdminConsoleContext(req, traceId, auth) {
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
   return {
     traceId,
     route: cleanText(req && (req.originalUrl || req.path) || ""),
     method: cleanText(req && req.method || ""),
     adminVerified: !!(auth && auth.verified),
     adminAuthSource: cleanText(auth && auth.source || ""),
-<<<<<<< HEAD
     authMode: cleanText(auth && auth.authMode || ""),
     sessionVerified: !!(auth && auth.sessionVerified),
     sessionId: cleanText(auth && auth.sessionId || ""),
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     mfaVerified: !!(auth && auth.mfaVerified),
     publicSurface: "Nyx",
     authority: "Marion",
     noStore: true,
-<<<<<<< HEAD
     headers: marionAdminConsoleGatewayHeaders(req),
     confirmationPhrase: confirmation,
     emergencyConfirmation: confirmation,
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     requestedAt: new Date().toISOString()
   };
 }
@@ -15009,7 +14970,6 @@ function buildMarionAdminConsoleEnvelope(req, action) {
   const payload = safeObj(body.payload);
   const commandType = cleanText(body.commandType || body.type || command.type || action);
   const commandId = cleanText(body.commandId || body.id || command.id || makeTraceId("admincmd"));
-<<<<<<< HEAD
   const confirmation = marionAdminConsoleEmergencyConfirmationFromRequest(req, body);
   const defaultCommand = {
     type: commandType,
@@ -15031,13 +14991,10 @@ function buildMarionAdminConsoleEnvelope(req, action) {
     normalizedPayload.emergencyConfirmation = cleanText(normalizedPayload.emergencyConfirmation || confirmation);
   }
 
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
   return {
     action,
     commandId,
     commandType,
-<<<<<<< HEAD
     command: normalizedCommand,
     payload: normalizedPayload,
     headers: marionAdminConsoleGatewayHeaders(req),
@@ -15045,15 +15002,6 @@ function buildMarionAdminConsoleEnvelope(req, action) {
     confirmationPhrase: confirmation,
     confirmPhrase: confirmation,
     emergencyConfirmation: confirmation,
-=======
-    command: Object.keys(command).length ? command : {
-      type: commandType,
-      target: cleanText(body.target || ""),
-      intent: cleanText(body.intent || body.message || body.text || ""),
-      riskLevel: cleanText(body.riskLevel || body.risk || "review")
-    },
-    payload,
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     reason: clipText(body.reason || body.note || "", 600),
     requestedBy: clipText(body.requestedBy || body.admin || "admin", 120),
     traceId: cleanText(body.traceId || (req && req.sbTraceId) || makeTraceId("marionadmin")),
@@ -15061,7 +15009,6 @@ function buildMarionAdminConsoleEnvelope(req, action) {
   };
 }
 
-<<<<<<< HEAD
 function marionAdminConsoleInvocationInnerResult(invocation) {
   return isObj(invocation && invocation.result) ? invocation.result : {};
 }
@@ -15084,8 +15031,6 @@ function marionAdminConsoleInvocationStage(invocation, ok) {
   return cleanText(result.stage || (invocation && invocation.stage) || (ok ? "admin_console_action_complete" : "admin_console_action_failed"));
 }
 
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
 function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
   const status = marionAdminConsoleGatewayStatus();
   return {
@@ -15098,7 +15043,6 @@ function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
     adminRequired: true,
     adminVerified: !!(auth && auth.verified),
     adminTokenConfigured: !!(auth && auth.configured),
-<<<<<<< HEAD
     sessionRequired: false,
     sessionVerified: !!(auth && auth.sessionVerified),
     sessionId: cleanText(auth && auth.sessionId || ""),
@@ -15109,10 +15053,6 @@ function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
     escalationRequired: MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS.includes(cleanText(action || "").toLowerCase()),
     escalationConfigured: marionAdminConsoleEscalationEnvTokens().length > 0,
     escalationVerified: false,
-=======
-    mfaRequired: !!(auth && auth.mfaRequired),
-    mfaVerified: !!(auth && auth.mfaVerified),
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     gatewayReady: !!status.available,
     runtimePath: MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH,
     gatewayVersion: status.version,
@@ -15125,7 +15065,6 @@ function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
   };
 }
 
-<<<<<<< HEAD
 
 function marionAdminConsoleSessionBaseResponse(action, traceId, auth, extra) {
   return marionAdminConsoleBaseResponse(action, traceId, auth, {
@@ -15350,8 +15289,6 @@ async function handleMarionAdminConsoleSessionRevoke(req, res) {
   }));
 }
 
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
 async function handleMarionAdminConsoleAction(req, res, action) {
   applyCors(req, res);
   hardenConversationNoStore(res);
@@ -15370,23 +15307,13 @@ async function handleMarionAdminConsoleAction(req, res, action) {
   if ((action === "approve" || action === "deny") && !cleanText(envelope.commandId || "")) {
     return res.status(400).json(marionAdminConsoleBaseResponse(action, traceId, auth, { ok: false, stage: "admin_command_id_missing", reason: "command_id_required" }));
   }
-<<<<<<< HEAD
   let emergencyEscalation = null;
   if (action === "emergency") {
     if (!marionAdminConsoleEmergencyConfirmed(req, body)) {
-=======
-  if (action === "emergency") {
-    const confirm = body.confirm === true ||
-      cleanText(body.confirmation || body.confirmPhrase || "") === "CONFIRM_MARION_EMERGENCY" ||
-      cleanText(req && req.headers && req.headers["x-sb-marion-emergency-confirm"] || "") === "CONFIRM_MARION_EMERGENCY" ||
-      cleanText(req && req.headers && req.headers["x-sb-marion-admin-console-confirm"] || "") === "CONFIRM_MARION_EMERGENCY";
-    if (!confirm) {
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
       return res.status(400).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
         ok: false,
         stage: "emergency_confirmation_required",
         reason: "CONFIRM_MARION_EMERGENCY_required",
-<<<<<<< HEAD
         emergencyTriggered: false,
         escalationRequired: true,
         escalationVerified: false
@@ -15413,9 +15340,6 @@ async function handleMarionAdminConsoleAction(req, res, action) {
         escalationConfigured: marionAdminConsoleEscalationEnvTokens().length > 0,
         escalationTokenProvided: !!emergencyEscalation.provided,
         escalationVerified: false
-=======
-        emergencyTriggered: false
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
       }));
     }
   }
@@ -15423,7 +15347,6 @@ async function handleMarionAdminConsoleAction(req, res, action) {
   try {
     const invocation = await invokeMarionAdminConsoleGateway(action, envelope, marionAdminConsoleContext(req, traceId, auth));
     const safeInvocation = marionAdminConsoleRedacted(invocation);
-<<<<<<< HEAD
     const rawInnerResult = marionAdminConsoleInvocationInnerResult(invocation);
     const ok = marionAdminConsoleInvocationOk(invocation);
     const responseStatus = marionAdminConsoleInvocationStatusCode(invocation, ok);
@@ -15438,15 +15361,6 @@ async function handleMarionAdminConsoleAction(req, res, action) {
       escalationRequired: action === "emergency",
       escalationVerified: action === "emergency" ? !!(emergencyEscalation && emergencyEscalation.verified) : false,
       escalationConsumed: action === "emergency" ? !!(emergencyEscalation && emergencyEscalation.consumed) : false
-=======
-    const ok = invocation && invocation.ok !== false;
-    return res.status(ok ? 200 : clamp(Number(invocation.statusCode || 502), 400, 599)).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
-      ok,
-      stage: cleanText(invocation && invocation.stage || (ok ? "admin_console_action_complete" : "admin_console_action_failed")),
-      gatewayReady: !!(invocation && invocation.gatewayReady),
-      result: safeInvocation && safeInvocation.result !== undefined ? safeInvocation.result : safeInvocation,
-      emergencyTriggered: action === "emergency" && ok
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     }));
   } catch (err) {
     return res.status(502).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
@@ -15463,7 +15377,6 @@ app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
   return res.status(204).end();
 });
 
-<<<<<<< HEAD
 app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionIssue, async (req, res) => handleMarionAdminConsoleSessionIssue(req, res));
 app.get(MARION_ADMIN_CONSOLE_ROUTES.sessionCheck, async (req, res) => handleMarionAdminConsoleSessionCheck(req, res));
 app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionRevoke, async (req, res) => handleMarionAdminConsoleSessionRevoke(req, res));
@@ -15471,8 +15384,6 @@ app.post(MARION_ADMIN_CONSOLE_ROUTES.escalationIssue, async (req, res) => handle
 app.get(MARION_ADMIN_CONSOLE_ROUTES.escalationCheck, async (req, res) => handleMarionAdminConsoleEscalationCheck(req, res));
 app.post(MARION_ADMIN_CONSOLE_ROUTES.escalationRevoke, async (req, res) => handleMarionAdminConsoleEscalationRevoke(req, res));
 
-=======
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
 app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
   applyCors(req, res);
   hardenConversationNoStore(res);
@@ -15490,7 +15401,6 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
       command: MARION_ADMIN_CONSOLE_ROUTES.command[0],
       approve: MARION_ADMIN_CONSOLE_ROUTES.approve[0],
       deny: MARION_ADMIN_CONSOLE_ROUTES.deny[0],
-<<<<<<< HEAD
       emergency: MARION_ADMIN_CONSOLE_ROUTES.emergency[0],
       sessionIssue: MARION_ADMIN_CONSOLE_ROUTES.sessionIssue[0],
       sessionCheck: MARION_ADMIN_CONSOLE_ROUTES.sessionCheck[0],
@@ -15507,9 +15417,6 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
       idleMs: MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS,
       singleUse: MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE,
       dangerousActions: MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS
-=======
-      emergency: MARION_ADMIN_CONSOLE_ROUTES.emergency[0]
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
     }
   }));
 });
@@ -16006,13 +15913,9 @@ module.exports = {
   MARION_ADMIN_CONSOLE_INDEX_VERSION,
   MARION_ADMIN_CONSOLE_ROUTES,
   marionAdminConsoleEnvTokens,
-<<<<<<< HEAD
   marionAdminConsoleEscalationEnvTokens,
   marionAdminConsoleRequestAuth,
   marionAdminConsoleValidateEscalation,
-=======
-  marionAdminConsoleRequestAuth,
->>>>>>> 6e068527 (Harden Marion admin console CORS headers)
   marionAdminConsoleGatewayStatus,
   invokeMarionAdminConsoleGateway,
   applyPublicReplyHygieneToResponse
