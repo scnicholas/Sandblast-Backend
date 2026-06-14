@@ -39,7 +39,15 @@ const {
   createVoiceTelemetryEvent
 } = require('./MarionVoiceTelemetry');
 
-const VERSION = 'marion.voiceGateway/2.1-lingosentinel-private-voice-delivery';
+const voiceDeliveryStabilizer = (() => {
+  try {
+    return require('./NyxVoiceDeliveryStabilizer');
+  } catch (_) {
+    return null;
+  }
+})();
+
+const VERSION = 'marion.voiceGateway/2.2-final-envelope-delivery-stabilized';
 
 function safeRequire(path) {
   try {
@@ -241,15 +249,26 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
   const deliveryMeta = voiceDeliveryMetaFromEnvelope(env, base);
   const originalReply = firstReplyText(base);
   const fallbackReply = originalReply ? '' : buildVoiceReplyPromotionFallback(env, base);
-  const cleanReply = originalReply || fallbackReply;
-  const fallbackUsed = !originalReply && Boolean(cleanReply);
   const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
   const policyReason = safeText(policy.reason);
-  const adminVoiceDeliveryAllowed = isAdminVoiceDeliveryAllowed(env, policy);
+  const stabilizer = voiceDeliveryStabilizer && typeof voiceDeliveryStabilizer.stabilizeNyxVoiceDelivery === 'function'
+    ? voiceDeliveryStabilizer.stabilizeNyxVoiceDelivery({
+      response: base,
+      voiceEnvelope: env,
+      outputPolicy: policy,
+      candidateReply: originalReply || fallbackReply
+    })
+    : null;
+  const cleanReply = safeText(stabilizer && stabilizer.displayReply) || originalReply || fallbackReply;
+  const fallbackUsed = !originalReply && Boolean(cleanReply);
+  const adminVoiceDeliveryAllowed = stabilizer ? stabilizer.adminVoiceDeliveryAllowed === true : isAdminVoiceDeliveryAllowed(env, policy);
   const fallbackCanSpeak = adminVoiceDeliveryAllowed && fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
   const policySpokenText = firstReplyText(policy);
-  const speakAllowed = adminVoiceDeliveryAllowed && Boolean(policySpokenText || (fallbackCanSpeak && cleanReply)) && (policy.speakAllowed === true || fallbackCanSpeak);
-  const spokenText = speakAllowed ? (policySpokenText || cleanReply) : '';
+  const speakAllowed = stabilizer
+    ? stabilizer.speakAllowed === true
+    : adminVoiceDeliveryAllowed && Boolean(policySpokenText || (fallbackCanSpeak && cleanReply)) && (policy.speakAllowed === true || fallbackCanSpeak);
+  const spokenText = stabilizer ? safeText(stabilizer.spokenText) : (speakAllowed ? (policySpokenText || cleanReply) : '');
+  const voiceReason = stabilizer ? safeText(stabilizer.reason) : '';
 
   return Object.assign({}, base, {
     ok: base.ok !== false && Boolean(cleanReply),
@@ -271,7 +290,7 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     voice: Object.assign({}, base.voice || {}, policy, {
       speakAllowed,
       voiceMode: speakAllowed ? (safeText(policy.voiceMode) || 'full') : 'silent',
-      reason: speakAllowed ? (fallbackUsed ? 'VOICE_REPLY_PROMOTION_FALLBACK' : (policyReason || 'SPEAKABLE_RESPONSE')) : (policyReason || 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED'),
+      reason: voiceReason || (speakAllowed ? (fallbackUsed ? 'VOICE_REPLY_PROMOTION_FALLBACK' : (policyReason || 'SPEAKABLE_RESPONSE')) : (policyReason || 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED')),
       spokenText,
       audioStored: false,
       noRawAudioStored: true,
@@ -279,7 +298,16 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
       adminOnlyVoiceDelivery: true,
       adminVoiceDeliveryAllowed,
-      replyPromotionFallback: fallbackUsed
+      replyPromotionFallback: fallbackUsed,
+      finalEnvelopeOnly: stabilizer ? stabilizer.finalEnvelopeOnly === true : false,
+      finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
+      finalReplySource: stabilizer ? safeText(stabilizer.finalReplySource) : '',
+      duplicateSuppressed: stabilizer ? stabilizer.duplicateSuppressed === true : false,
+      echoSuppressed: stabilizer ? stabilizer.echoSuppressed === true : false,
+      replyHash: stabilizer ? safeText(stabilizer.replyHash) : '',
+      ttsFallbackSafe: stabilizer ? stabilizer.ttsFallbackSafe === true : true,
+      textFallbackAvailable: stabilizer ? stabilizer.textFallbackAvailable === true : Boolean(cleanReply),
+      stabilizerVersion: voiceDeliveryStabilizer && voiceDeliveryStabilizer.VERSION ? voiceDeliveryStabilizer.VERSION : ''
     }),
     voiceEnvelope: {
       source: env.source,
@@ -302,7 +330,12 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     voiceReplyPromotion: {
       applied: fallbackUsed,
       source: originalReply ? 'bridge_or_composer' : 'gateway_safe_fallback',
-      originalReplyPresent: Boolean(originalReply)
+      originalReplyPresent: Boolean(originalReply),
+      finalEnvelopeOnly: stabilizer ? stabilizer.finalEnvelopeOnly === true : false,
+      finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
+      duplicateSuppressed: stabilizer ? stabilizer.duplicateSuppressed === true : false,
+      echoSuppressed: stabilizer ? stabilizer.echoSuppressed === true : false,
+      stabilizerVersion: voiceDeliveryStabilizer && voiceDeliveryStabilizer.VERSION ? voiceDeliveryStabilizer.VERSION : ''
     },
     telemetry
   });
@@ -535,5 +568,6 @@ module.exports = {
   firstReplyText,
   loadMarionBridge,
   hasOptionAdminVoiceProof,
-  isAdminVoiceDeliveryAllowed
+  isAdminVoiceDeliveryAllowed,
+  voiceDeliveryStabilizer
 };
