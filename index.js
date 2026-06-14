@@ -294,7 +294,7 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 // Public voice entrypoint stays Nyx-facing while Marion remains the hidden authority.
 // This route accepts transcript-only payloads. Raw audio must never be stored here.
 // V1.3 hardens the projection layer against transcript echo promotion.
-const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.4-adminOnlyDeliveryHardlock";
+const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.5-finalEnvelopeDeliveryStabilizer";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
 
 const NYX_VOICE_TRANSCRIPT_ROUTES = Object.freeze([
@@ -315,7 +315,8 @@ const NYX_VOICE_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceAuthorizationGate.js",
   "Data/marion/runtime/MarionVoiceOutputPolicy.js",
   "Data/marion/runtime/MarionVoiceTelemetry.js",
-  "Data/marion/runtime/MarionVoiceTranscriptNormalizer.js"
+  "Data/marion/runtime/MarionVoiceTranscriptNormalizer.js",
+  "Data/marion/runtime/NyxVoiceDeliveryStabilizer.js"
 ]);
 
 function nyxVoiceRequiredRuntimeDiagnostics() {
@@ -763,7 +764,13 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         adminVoiceDeliveryAllowed,
         replyPromotionFallback: voice.replyPromotionFallback === true || voiceReplyPromotionFallback,
         echoSuppressed: voiceEchoSuppressed,
-        nonEmptyReplyHardlock: true
+        nonEmptyReplyHardlock: true,
+        finalEnvelopeOnly: voice.finalEnvelopeOnly === true,
+        finalApproved: voice.finalApproved === true,
+        duplicateSuppressed: voice.duplicateSuppressed === true,
+        stabilizerVersion: cleanText(voice.stabilizerVersion || ""),
+        ttsFallbackSafe: voice.ttsFallbackSafe !== false,
+        textFallbackAvailable: voice.textFallbackAvailable !== false
       },
       voiceEnvelope: {
         source: "voice",
@@ -792,7 +799,11 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         adminVoiceDeliveryAllowed,
         adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION,
         nonEmptyReplyHardlock: true,
-        promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.3",
+        finalEnvelopeOnly: voice.finalEnvelopeOnly === true,
+        finalApproved: voice.finalApproved === true,
+        duplicateSuppressed: voice.duplicateSuppressed === true,
+        stabilizerVersion: cleanText(voice.stabilizerVersion || ""),
+        promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.4",
         deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
         readme: "README.md",
         renderDeployParityRequired: true
