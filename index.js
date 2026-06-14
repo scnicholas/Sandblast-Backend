@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.49sb MARION-ADMIN-CONSOLE-CONTROLLED-ESCALATION-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.50sb MARION-ADMIN-CONSOLE-EMERGENCY-CONFIRMATION-BRIDGE-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -14315,6 +14315,7 @@ const MARION_ADMIN_CONSOLE_ESCALATION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_
 const MARION_ADMIN_CONSOLE_ESCALATION_MAX = clampNumberEnv("SB_MARION_ADMIN_ESCALATION_MAX", 10, 1, 100);
 const MARION_ADMIN_CONSOLE_ESCALATION_SINGLE_USE = process.env.SB_MARION_ADMIN_ESCALATION_SINGLE_USE !== "false";
 const MARION_ADMIN_CONSOLE_DANGEROUS_ACTIONS = Object.freeze(["emergency"]);
+const MARION_ADMIN_CONSOLE_EMERGENCY_CONFIRMATION = "CONFIRM_MARION_EMERGENCY";
 const marionAdminConsoleEscalations = new Map();
 let marionAdminConsoleEscalationLastSweepAt = 0;
 
@@ -14479,7 +14480,10 @@ function marionAdminConsoleEscalationEnvTokens() {
   return uniq([
     process.env.SB_MARION_ADMIN_ESCALATION_TOKEN,
     process.env.SB_MARION_ADMIN_CONSOLE_ESCALATION_TOKEN,
-    process.env.MARION_ADMIN_ESCALATION_TOKEN
+    process.env.MARION_ADMIN_ESCALATION_TOKEN,
+    process.env.SB_MARION_ADMIN_ESCALATION_SECRET,
+    process.env.SB_MARION_ADMIN_CONSOLE_ESCALATION_SECRET,
+    process.env.MARION_ADMIN_ESCALATION_SECRET
   ].map((item) => cleanText(item || "")).filter(Boolean));
 }
 
@@ -14898,7 +14902,48 @@ async function invokeMarionAdminConsoleGateway(action, envelope, context) {
   };
 }
 
+function marionAdminConsoleGatewayHeaders(req) {
+  const headers = req && req.headers ? req.headers : {};
+  return {
+    "x-sb-marion-admin-console-confirm": cleanText(headers["x-sb-marion-admin-console-confirm"] || ""),
+    "x-sb-marion-emergency-confirm": cleanText(headers["x-sb-marion-emergency-confirm"] || "")
+  };
+}
+
+function marionAdminConsoleEmergencyConfirmationFromRequest(req, bodyValue) {
+  const body = safeObj(bodyValue || (req && req.body));
+  const payload = safeObj(body.payload);
+  const command = safeObj(body.command);
+  const headers = marionAdminConsoleGatewayHeaders(req);
+  const confirmedByBoolean = body.confirm === true ? MARION_ADMIN_CONSOLE_EMERGENCY_CONFIRMATION : "";
+  return firstString([
+    confirmedByBoolean,
+    body.confirmation,
+    body.confirmationPhrase,
+    body.confirmPhrase,
+    body.emergencyConfirmation,
+    body.emergencyConfirm,
+    payload.confirmation,
+    payload.confirmationPhrase,
+    payload.confirmPhrase,
+    payload.emergencyConfirmation,
+    payload.emergencyConfirm,
+    command.confirmation,
+    command.confirmationPhrase,
+    command.confirmPhrase,
+    command.emergencyConfirmation,
+    command.emergencyConfirm,
+    headers["x-sb-marion-admin-console-confirm"],
+    headers["x-sb-marion-emergency-confirm"]
+  ]);
+}
+
+function marionAdminConsoleEmergencyConfirmed(req, body) {
+  return marionAdminConsoleEmergencyConfirmationFromRequest(req, body) === MARION_ADMIN_CONSOLE_EMERGENCY_CONFIRMATION;
+}
+
 function marionAdminConsoleContext(req, traceId, auth) {
+  const confirmation = marionAdminConsoleEmergencyConfirmationFromRequest(req);
   return {
     traceId,
     route: cleanText(req && (req.originalUrl || req.path) || ""),
@@ -14912,6 +14957,9 @@ function marionAdminConsoleContext(req, traceId, auth) {
     publicSurface: "Nyx",
     authority: "Marion",
     noStore: true,
+    headers: marionAdminConsoleGatewayHeaders(req),
+    confirmationPhrase: confirmation,
+    emergencyConfirmation: confirmation,
     requestedAt: new Date().toISOString()
   };
 }
@@ -14922,22 +14970,65 @@ function buildMarionAdminConsoleEnvelope(req, action) {
   const payload = safeObj(body.payload);
   const commandType = cleanText(body.commandType || body.type || command.type || action);
   const commandId = cleanText(body.commandId || body.id || command.id || makeTraceId("admincmd"));
+  const confirmation = marionAdminConsoleEmergencyConfirmationFromRequest(req, body);
+  const defaultCommand = {
+    type: commandType,
+    target: cleanText(body.target || ""),
+    intent: cleanText(body.intent || body.message || body.text || ""),
+    riskLevel: cleanText(body.riskLevel || body.risk || "review")
+  };
+  const normalizedCommand = Object.keys(command).length ? { ...command } : defaultCommand;
+  const normalizedPayload = { ...payload };
+
+  if (action === "emergency" && confirmation) {
+    normalizedCommand.confirmation = cleanText(normalizedCommand.confirmation || confirmation);
+    normalizedCommand.confirmPhrase = cleanText(normalizedCommand.confirmPhrase || confirmation);
+    normalizedCommand.confirmationPhrase = cleanText(normalizedCommand.confirmationPhrase || confirmation);
+    normalizedCommand.emergencyConfirmation = cleanText(normalizedCommand.emergencyConfirmation || confirmation);
+    normalizedPayload.confirmation = cleanText(normalizedPayload.confirmation || confirmation);
+    normalizedPayload.confirmPhrase = cleanText(normalizedPayload.confirmPhrase || confirmation);
+    normalizedPayload.confirmationPhrase = cleanText(normalizedPayload.confirmationPhrase || confirmation);
+    normalizedPayload.emergencyConfirmation = cleanText(normalizedPayload.emergencyConfirmation || confirmation);
+  }
+
   return {
     action,
     commandId,
     commandType,
-    command: Object.keys(command).length ? command : {
-      type: commandType,
-      target: cleanText(body.target || ""),
-      intent: cleanText(body.intent || body.message || body.text || ""),
-      riskLevel: cleanText(body.riskLevel || body.risk || "review")
-    },
-    payload,
+    command: normalizedCommand,
+    payload: normalizedPayload,
+    headers: marionAdminConsoleGatewayHeaders(req),
+    confirmation: confirmation,
+    confirmationPhrase: confirmation,
+    confirmPhrase: confirmation,
+    emergencyConfirmation: confirmation,
     reason: clipText(body.reason || body.note || "", 600),
     requestedBy: clipText(body.requestedBy || body.admin || "admin", 120),
     traceId: cleanText(body.traceId || (req && req.sbTraceId) || makeTraceId("marionadmin")),
     requestedAt: new Date().toISOString()
   };
+}
+
+function marionAdminConsoleInvocationInnerResult(invocation) {
+  return isObj(invocation && invocation.result) ? invocation.result : {};
+}
+
+function marionAdminConsoleInvocationOk(invocation) {
+  if (!invocation || invocation.ok === false) return false;
+  const result = marionAdminConsoleInvocationInnerResult(invocation);
+  if (Object.keys(result).length && result.ok === false) return false;
+  return true;
+}
+
+function marionAdminConsoleInvocationStatusCode(invocation, ok) {
+  if (ok) return 200;
+  const result = marionAdminConsoleInvocationInnerResult(invocation);
+  return clamp(Number(result.statusCode || result.status || (invocation && invocation.statusCode) || 502), 400, 599);
+}
+
+function marionAdminConsoleInvocationStage(invocation, ok) {
+  const result = marionAdminConsoleInvocationInnerResult(invocation);
+  return cleanText(result.stage || (invocation && invocation.stage) || (ok ? "admin_console_action_complete" : "admin_console_action_failed"));
 }
 
 function marionAdminConsoleBaseResponse(action, traceId, auth, extra) {
@@ -15218,11 +15309,7 @@ async function handleMarionAdminConsoleAction(req, res, action) {
   }
   let emergencyEscalation = null;
   if (action === "emergency") {
-    const confirm = body.confirm === true ||
-      cleanText(body.confirmation || body.confirmPhrase || "") === "CONFIRM_MARION_EMERGENCY" ||
-      cleanText(req && req.headers && req.headers["x-sb-marion-emergency-confirm"] || "") === "CONFIRM_MARION_EMERGENCY" ||
-      cleanText(req && req.headers && req.headers["x-sb-marion-admin-console-confirm"] || "") === "CONFIRM_MARION_EMERGENCY";
-    if (!confirm) {
+    if (!marionAdminConsoleEmergencyConfirmed(req, body)) {
       return res.status(400).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
         ok: false,
         stage: "emergency_confirmation_required",
@@ -15260,13 +15347,17 @@ async function handleMarionAdminConsoleAction(req, res, action) {
   try {
     const invocation = await invokeMarionAdminConsoleGateway(action, envelope, marionAdminConsoleContext(req, traceId, auth));
     const safeInvocation = marionAdminConsoleRedacted(invocation);
-    const ok = invocation && invocation.ok !== false;
-    return res.status(ok ? 200 : clamp(Number(invocation.statusCode || 502), 400, 599)).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
+    const rawInnerResult = marionAdminConsoleInvocationInnerResult(invocation);
+    const ok = marionAdminConsoleInvocationOk(invocation);
+    const responseStatus = marionAdminConsoleInvocationStatusCode(invocation, ok);
+    const innerEmergencyTriggered = rawInnerResult && rawInnerResult.emergencyTriggered === true;
+    return res.status(responseStatus).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
       ok,
-      stage: cleanText(invocation && invocation.stage || (ok ? "admin_console_action_complete" : "admin_console_action_failed")),
+      stage: marionAdminConsoleInvocationStage(invocation, ok),
+      gatewayStage: cleanText(invocation && invocation.stage || ""),
       gatewayReady: !!(invocation && invocation.gatewayReady),
       result: safeInvocation && safeInvocation.result !== undefined ? safeInvocation.result : safeInvocation,
-      emergencyTriggered: action === "emergency" && ok,
+      emergencyTriggered: action === "emergency" ? !!(ok && innerEmergencyTriggered) : false,
       escalationRequired: action === "emergency",
       escalationVerified: action === "emergency" ? !!(emergencyEscalation && emergencyEscalation.verified) : false,
       escalationConsumed: action === "emergency" ? !!(emergencyEscalation && emergencyEscalation.consumed) : false
