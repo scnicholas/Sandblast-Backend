@@ -21,6 +21,7 @@
  */
 
 const DEFAULT_NAMESPACE = 'lingosentinel';
+const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.realtimeBridge.userBoundarySilentOversight/2.0';
 
 const CHANNELS = Object.freeze({
   presence: 'presence',
@@ -69,6 +70,65 @@ const DEFAULT_LIMITS = Object.freeze({
   maxRoomIdLength: 96,
   maxSessionIdLength: 96
 });
+
+
+function normalizeBoundaryText(value) {
+  return safeString(value || '', 180).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isReservedMarionIdentity(value) {
+  const text = normalizeBoundaryText(value);
+  return !!text && (/^(?:marion|marion ai|marion authority|marion admin|marion overseer|marion system)$/.test(text) || /\bmarion\b/.test(text));
+}
+
+function participantSpoofsMarion(value) {
+  if (!isObject(value)) return false;
+  return isReservedMarionIdentity(value.id) ||
+    isReservedMarionIdentity(value.userId) ||
+    isReservedMarionIdentity(value.clientId) ||
+    isReservedMarionIdentity(value.name) ||
+    isReservedMarionIdentity(value.displayName) ||
+    isReservedMarionIdentity(value.handle) ||
+    isReservedMarionIdentity(value.role) ||
+    isReservedMarionIdentity(value.publicAgent) ||
+    isReservedMarionIdentity(value.visibleAgent) ||
+    isReservedMarionIdentity(value.speaker) ||
+    isReservedMarionIdentity(value.speakerName);
+}
+
+function eventHasPublicMarionIdentity(input = {}) {
+  const event = isObject(input) ? input : {};
+  return participantSpoofsMarion(event.sender) || participantSpoofsMarion(event.from) ||
+    participantSpoofsMarion(event.recipient) || participantSpoofsMarion(event.to) ||
+    participantSpoofsMarion(event.participant) || participantSpoofsMarion(event.user) ||
+    isReservedMarionIdentity(event.senderId) || isReservedMarionIdentity(event.userId) ||
+    isReservedMarionIdentity(event.clientId) || isReservedMarionIdentity(event.senderName) ||
+    isReservedMarionIdentity(event.displayName) || isReservedMarionIdentity(event.name) ||
+    isReservedMarionIdentity(event.speaker) || isReservedMarionIdentity(event.speakerName) ||
+    isReservedMarionIdentity(event.publicAgent) || isReservedMarionIdentity(event.visibleAgent) ||
+    isReservedMarionIdentity(event.roomId) || isReservedMarionIdentity(event.channelId) ||
+    isReservedMarionIdentity(event.conversationId) || isReservedMarionIdentity(event.sessionId) ||
+    isReservedMarionIdentity(event.deliveryId);
+}
+
+function phase2bBoundary() {
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: 'Marion',
+    publicFacingAgent: 'LingoSentinel/Nyx',
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    marionPublicChannelAllowed: false,
+    visibleToUsers: false
+  };
+}
 
 function now() {
   return Date.now();
@@ -143,6 +203,7 @@ function sanitizeEvent(input, limits) {
   const type = safeString(input.type, 80);
 
   if (!ALLOWED_EVENT_TYPES.has(type)) return null;
+  if (eventHasPublicMarionIdentity(input)) return null;
 
   const base = {
     type,
@@ -174,7 +235,8 @@ function sanitizeEvent(input, limits) {
         roomId: sanitizeChannelPart(input.roomId, 'global'),
         region: safeString(input.region, limits.maxRegionLength),
         languageHint: safeString(input.languageHint, 16).toLowerCase(),
-        anonymous: input.anonymous !== false
+        anonymous: input.anonymous !== false,
+        ...phase2bBoundary()
       };
 
     case EVENT_TYPES.ONE_TO_ONE_MESSAGE_READY:
@@ -187,7 +249,12 @@ function sanitizeEvent(input, limits) {
         sourceLanguage: safeString(input.sourceLanguage, 16).toLowerCase(),
         targetLanguage: safeString(input.targetLanguage, 16).toLowerCase(),
         silentOversight: true,
+        userToUserBoundary: true,
         marionVisibleParticipant: false,
+        marionRenderedAsSpeaker: false,
+        marionCanPublishToRoom: false,
+        marionCanAppearInUserRoster: false,
+        publicUsersMayAddressMarion: false,
         visibleToUsers: false
       };
 
@@ -198,7 +265,8 @@ function sanitizeEvent(input, limits) {
         roomId: sanitizeChannelPart(input.roomId, 'global'),
         message: safeString(input.message, limits.maxMessageLength),
         languageHint: safeString(input.languageHint, 16).toLowerCase(),
-        anonymous: input.anonymous !== false
+        anonymous: input.anonymous !== false,
+        ...phase2bBoundary()
       };
 
     case EVENT_TYPES.TRANSLATION_SESSION_STARTED:
@@ -216,7 +284,8 @@ function sanitizeEvent(input, limits) {
         sessionId: sanitizeChannelPart(input.sessionId, 'session'),
         message: safeString(input.message, limits.maxMessageLength),
         languagePair: normalizeLanguagePair(input.languagePair),
-        direction: safeString(input.direction, 24).toLowerCase()
+        direction: safeString(input.direction, 24).toLowerCase(),
+        ...phase2bBoundary()
       };
 
     case EVENT_TYPES.DELIVERED_MESSAGE_READY:
@@ -229,7 +298,12 @@ function sanitizeEvent(input, limits) {
         sourceLanguage: safeString(input.sourceLanguage, 16).toLowerCase(),
         targetLanguage: safeString(input.targetLanguage, 16).toLowerCase(),
         silentOversight: true,
+        userToUserBoundary: true,
         marionVisibleParticipant: false,
+        marionRenderedAsSpeaker: false,
+        marionCanPublishToRoom: false,
+        marionCanAppearInUserRoster: false,
+        publicUsersMayAddressMarion: false,
         visibleToUsers: false
       };
 
@@ -246,7 +320,8 @@ function sanitizeEvent(input, limits) {
         status: safeString(input.status || 'active', 40),
         region: safeString(input.region, limits.maxRegionLength),
         languageHint: safeString(input.languageHint, 16).toLowerCase(),
-        anonymous: true
+        anonymous: true,
+        ...phase2bBoundary()
       };
 
     case EVENT_TYPES.TELEMETRY_EVENT:
@@ -254,7 +329,8 @@ function sanitizeEvent(input, limits) {
         ...base,
         name: safeString(input.name, 80),
         lane: safeString(input.lane || 'ui', 40),
-        anonymous: true
+        anonymous: true,
+        ...phase2bBoundary()
       };
 
     case EVENT_TYPES.CONNECTION_READY:
@@ -416,7 +492,8 @@ class LingoSentinelRealtimeBridge {
       clientId: this.clientId,
       connected: safeBoolean(this.connected),
       fallback: safeBoolean(this.fallback),
-      destroyed: safeBoolean(this.destroyed)
+      destroyed: safeBoolean(this.destroyed),
+      boundary: phase2bBoundary()
     };
   }
 
@@ -553,6 +630,7 @@ class LingoSentinelRealtimeBridge {
   }
 
   async publishApprovedMessage(publishInput = {}) {
+    if (eventHasPublicMarionIdentity(publishInput) || eventHasPublicMarionIdentity(publishInput.sender) || eventHasPublicMarionIdentity(publishInput.recipient)) return false;
     const mode = safeString(publishInput.mode || 'one_to_one', 40);
     const roomId = publishInput.roomId || publishInput.route?.roomId || 'global';
     const message = publishInput.text || publishInput.message || '';
@@ -653,6 +731,7 @@ class LingoSentinelRealtimeBridge {
   }
 
   async publishPresence(metadata = {}) {
+    if (eventHasPublicMarionIdentity(metadata)) return false;
     if (this.shouldThrottle(CHANNELS.presence, this.limits.presencePublishMs)) {
       return false;
     }
@@ -870,5 +949,9 @@ module.exports = {
   EVENT_TYPES,
   CHANNELS,
   sanitizeEvent,
-  buildChannelName
+  buildChannelName,
+  phase2bBoundary,
+  eventHasPublicMarionIdentity,
+  isReservedMarionIdentity,
+  PHASE2B_USER_BOUNDARY_VERSION
 };
