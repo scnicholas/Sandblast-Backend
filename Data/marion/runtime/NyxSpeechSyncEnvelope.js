@@ -15,7 +15,39 @@ const { mapTextToVisemes } = require('./NyxVisemeMapper');
 const { buildSpeechTiming } = require('./NyxSpeechTimingAdapter');
 const { buildAvatarSpeechState } = require('./NyxAvatarSpeechState');
 
-const VERSION = 'nyx.speechSyncEnvelope/1.1-phase2-integrity-hardlock';
+const expressionController = (() => {
+  try {
+    return require('./NyxAvatarExpressionController');
+  } catch (_) {
+    return null;
+  }
+})();
+
+const emotionMotionBridge = (() => {
+  try {
+    return require('./NyxEmotionMotionBridge');
+  } catch (_) {
+    return null;
+  }
+})();
+
+const animationEngineAdapter = (() => {
+  try {
+    return require('./NyxAnimationEngineAdapter');
+  } catch (_) {
+    return null;
+  }
+})();
+
+const motionTelemetryMod = (() => {
+  try {
+    return require('./NyxAvatarMotionTelemetry');
+  } catch (_) {
+    return null;
+  }
+})();
+
+const VERSION = 'nyx.speechSyncEnvelope/1.2-phase3b-animation-metadata-bridge';
 const SPEECH_SYNC_CONTRACT = 'nyx.avatar.speechSync/1.0';
 
 function safeText(value) {
@@ -43,6 +75,7 @@ function hasRawAudioInput(src) {
 }
 
 function disabledSpeechSync(reason) {
+  const disabledAvatar = buildAvatarSpeechState({ speakAllowed: false });
   return {
     version: VERSION,
     contract: SPEECH_SYNC_CONTRACT,
@@ -56,9 +89,100 @@ function disabledSpeechSync(reason) {
     visemeCount: 0,
     timing: null,
     mouthTimeline: [],
-    avatar: buildAvatarSpeechState({ speakAllowed: false })
+    avatar: disabledAvatar,
+    expression: null,
+    motion: null,
+    animation: null,
+    avatarAnimation: null,
+    avatarExpression: '',
+    avatarMotionTelemetry: null,
+    avatarAnimationEnabled: false,
+    phase3AnimationMetadataBridge: false
   };
 }
+
+function buildPhase3AvatarMetadata(input) {
+  const src = safeObj(input);
+  const spokenText = safeText(src.spokenText);
+  const timing = safeObj(src.timing);
+  const avatar = safeObj(src.avatar);
+  const visemes = Array.isArray(src.visemes) ? src.visemes : [];
+  const reducedMotion = src.reducedMotion === true || avatar.reducedMotion === true;
+
+  const expression = expressionController && typeof expressionController.buildNyxAvatarExpression === 'function'
+    ? expressionController.buildNyxAvatarExpression({
+      spokenText,
+      speakAllowed: src.speakAllowed === true,
+      finalApproved: src.finalApproved === true,
+      adminVoiceDeliveryAllowed: src.adminVoiceDeliveryAllowed === true,
+      expressionHint: src.expressionHint,
+      intentHint: src.intentHint,
+      userIntentHint: src.userIntentHint,
+      commandPhrase: src.commandPhrase,
+      intensity: src.intensity,
+      reducedMotion
+    })
+    : null;
+
+  const motion = emotionMotionBridge && typeof emotionMotionBridge.buildNyxEmotionMotion === 'function'
+    ? emotionMotionBridge.buildNyxEmotionMotion({
+      enabled: src.speakAllowed === true,
+      expression,
+      timing,
+      visemes,
+      avatar,
+      intensity: src.intensity,
+      reducedMotion
+    })
+    : null;
+
+  const animation = animationEngineAdapter && typeof animationEngineAdapter.buildNyxAnimationEnginePacket === 'function'
+    ? animationEngineAdapter.buildNyxAnimationEnginePacket({
+      enabled: src.speakAllowed === true,
+      engine: src.animationEngine || 'custom_dom',
+      expression,
+      motion,
+      timing,
+      avatar,
+      visemes
+    })
+    : null;
+
+  const avatarMotionTelemetry = motionTelemetryMod && typeof motionTelemetryMod.createNyxAvatarMotionTelemetry === 'function'
+    ? motionTelemetryMod.createNyxAvatarMotionTelemetry({
+      enabled: src.speakAllowed === true,
+      spokenText,
+      expression,
+      motion,
+      animation,
+      timing,
+      visemeCount: visemes.length
+    })
+    : null;
+
+  const phase3Ready = Boolean(expression && motion && animation && expression.frontendReady === true && motion.frontendReady === true && animation.frontendReady === true);
+  const avatarV3 = Object.assign({}, avatar, {
+    phase: 'phase3b_animation_metadata_bridge',
+    animationEnabled: phase3Ready,
+    engine: animation ? safeText(animation.engine || 'custom_dom') : 'custom_dom',
+    expression: expression ? safeText(expression.expression || '') : '',
+    expressionState: expression ? safeText(expression.expressionState || expression.expression || '') : '',
+    motionProfile: motion ? motion.motionProfile : null,
+    animation: animation || null,
+    motion: motion || null,
+    reducedMotionSafe: true
+  });
+
+  return {
+    expression,
+    motion,
+    animation,
+    avatarMotionTelemetry,
+    avatar: avatarV3,
+    phase3Ready
+  };
+}
+
 
 function buildSpeechSyncEnvelope(input) {
   const src = safeObj(input);
@@ -68,6 +192,9 @@ function buildSpeechSyncEnvelope(input) {
   const speakAllowed = src.speakAllowed === true || voice.speakAllowed === true;
   const finalApproved = src.finalApproved === true || voice.finalApproved === true || voice.finalEnvelopeOnly === true;
   const adminVoiceDeliveryAllowed = src.adminVoiceDeliveryAllowed === true || voice.adminVoiceDeliveryAllowed === true || voiceEnvelope.adminVoiceDeliveryAllowed === true;
+  const expressionHint = safeText(src.expressionHint || voice.expressionHint || voiceEnvelope.expressionHint || '');
+  const intentHint = safeText(src.intentHint || voice.intentHint || voiceEnvelope.userIntentHint || '');
+  const commandPhrase = safeText(src.commandPhrase || voice.commandPhrase || voiceEnvelope.commandPhrase || '');
 
   if (hasRawAudioInput(src) || hasRawAudioInput(voice) || hasRawAudioInput(voiceEnvelope)) return disabledSpeechSync('RAW_AUDIO_INPUT_REJECTED');
   if (!speakAllowed) return disabledSpeechSync('SPEAK_NOT_ALLOWED');
@@ -88,6 +215,21 @@ function buildSpeechSyncEnvelope(input) {
     reducedMotion: src.reducedMotion === true
   });
   const voiceMode = normalizeVoiceMode(src.voiceMode || voice.voiceMode || 'full', true, spokenText);
+  const phase3 = buildPhase3AvatarMetadata({
+    spokenText,
+    speakAllowed: true,
+    finalApproved: true,
+    adminVoiceDeliveryAllowed,
+    timing,
+    visemes: mapped.visemes,
+    avatar,
+    expressionHint,
+    intentHint,
+    commandPhrase,
+    intensity: src.intensity,
+    reducedMotion: src.reducedMotion === true,
+    animationEngine: src.animationEngine || voice.animationEngine || 'custom_dom'
+  });
 
   return {
     version: VERSION,
@@ -117,14 +259,23 @@ function buildSpeechSyncEnvelope(input) {
     visemeCount: mapped.count,
     visemeFrameMs: mapped.frameMs,
     timingAligned: mapped.timingAligned === true,
-    mouthState: avatar.mouthState,
-    speechState: avatar.speechState,
-    avatarSpeechState: avatar.avatarState,
-    avatar,
+    mouthState: phase3.avatar.mouthState,
+    speechState: phase3.avatar.speechState,
+    avatarSpeechState: phase3.avatar.avatarState,
+    avatar: phase3.avatar,
+    expression: phase3.expression,
+    motion: phase3.motion,
+    animation: phase3.animation,
+    avatarAnimation: phase3.animation,
+    avatarExpression: phase3.expression ? safeText(phase3.expression.expression || '') : '',
+    avatarMotionTelemetry: phase3.avatarMotionTelemetry,
+    avatarAnimationEnabled: phase3.phase3Ready,
+    phase3AnimationMetadataBridge: phase3.phase3Ready,
+    phase2SpeechSyncCompatible: true,
     transcriptOnly: true,
     noRawAudioStored: true,
     audioStored: false,
-    phase: 'phase2_speech_sync_preparation'
+    phase: 'phase3b_animation_metadata_bridge'
   };
 }
 
@@ -132,6 +283,7 @@ module.exports = {
   VERSION,
   SPEECH_SYNC_CONTRACT,
   buildSpeechSyncEnvelope,
+  buildPhase3AvatarMetadata,
   disabledSpeechSync,
   normalizeVoiceMode
 };
