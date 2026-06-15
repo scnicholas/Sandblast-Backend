@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'marion.voiceTranscriptNormalizer/1.2-lingosentinel-private-voice-compatible';
+const VERSION = 'marion.voiceTranscriptNormalizer/1.3-phase2-speech-sync-compatible';
 
 /**
  * MarionVoiceTranscriptNormalizer
@@ -77,7 +77,8 @@ function detectCommandPhrase(text) {
 
   if (/\b(stop listening|mute voice|voice off)\b/.test(value)) return 'voice_stop';
   if (/\b(start listening|voice on|enable voice)\b/.test(value)) return 'voice_start';
-  if (/\b(status update|where are we|what is the status|private voice status|voice lane status)\b/.test(value)) return 'status';
+  if (/\b(status update|where are we|what is the status|private voice status|voice lane status|protected voice status|protected voice status summary)\b/.test(value)) return 'status';
+  if (/\b(speech sync|speech-sync|avatar sync|mouth sync|viseme|visemes|animation timing)\b/.test(value)) return 'speech_sync_status';
   if (/\bnext step|next steps|move forward\b/.test(value)) return 'next_steps';
   if (/\bcreate|build|generate|draft|write\b/.test(value)) return 'creation';
   if (/\bdelete|remove|deploy|publish|send|execute|run\b/.test(value)) return 'restricted_command';
