@@ -27,7 +27,9 @@ const CHANNELS = Object.freeze({
   globe: 'globe',
   telemetry: 'telemetry',
   room: 'room',
-  translation: 'translation'
+  direct: 'direct',
+  translation: 'translation',
+  delivered: 'delivered'
 });
 
 const EVENT_TYPES = Object.freeze({
@@ -37,10 +39,14 @@ const EVENT_TYPES = Object.freeze({
   ROOM_JOINED: 'ROOM_JOINED',
   ROOM_LEFT: 'ROOM_LEFT',
   ROOM_MESSAGE_SENT: 'ROOM_MESSAGE_SENT',
+  ONE_TO_ONE_MESSAGE_READY: 'ONE_TO_ONE_MESSAGE_READY',
+  ROOM_MESSAGE_READY: 'ROOM_MESSAGE_READY',
 
   TRANSLATION_SESSION_STARTED: 'TRANSLATION_SESSION_STARTED',
   TRANSLATION_MESSAGE_SENT: 'TRANSLATION_MESSAGE_SENT',
+  TRANSLATION_MESSAGE_READY: 'TRANSLATION_MESSAGE_READY',
   TRANSLATION_SESSION_ENDED: 'TRANSLATION_SESSION_ENDED',
+  DELIVERED_MESSAGE_READY: 'DELIVERED_MESSAGE_READY',
 
   USER_PRESENCE_UPDATED: 'USER_PRESENCE_UPDATED',
   TELEMETRY_EVENT: 'TELEMETRY_EVENT',
@@ -171,6 +177,21 @@ function sanitizeEvent(input, limits) {
         anonymous: input.anonymous !== false
       };
 
+    case EVENT_TYPES.ONE_TO_ONE_MESSAGE_READY:
+      return {
+        ...base,
+        roomId: sanitizeChannelPart(input.roomId || input.conversationId, 'global'),
+        message: safeString(input.message || input.text, limits.maxMessageLength),
+        languageHint: safeString(input.languageHint || input.sourceLanguage, 16).toLowerCase(),
+        anonymous: input.anonymous !== false,
+        sourceLanguage: safeString(input.sourceLanguage, 16).toLowerCase(),
+        targetLanguage: safeString(input.targetLanguage, 16).toLowerCase(),
+        silentOversight: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false
+      };
+
+    case EVENT_TYPES.ROOM_MESSAGE_READY:
     case EVENT_TYPES.ROOM_MESSAGE_SENT:
       return {
         ...base,
@@ -188,6 +209,7 @@ function sanitizeEvent(input, limits) {
         region: safeString(input.region, limits.maxRegionLength)
       };
 
+    case EVENT_TYPES.TRANSLATION_MESSAGE_READY:
     case EVENT_TYPES.TRANSLATION_MESSAGE_SENT:
       return {
         ...base,
@@ -195,6 +217,20 @@ function sanitizeEvent(input, limits) {
         message: safeString(input.message, limits.maxMessageLength),
         languagePair: normalizeLanguagePair(input.languagePair),
         direction: safeString(input.direction, 24).toLowerCase()
+      };
+
+    case EVENT_TYPES.DELIVERED_MESSAGE_READY:
+      return {
+        ...base,
+        roomId: sanitizeChannelPart(input.roomId || input.deliveryId, 'delivered'),
+        message: safeString(input.message || input.text, limits.maxMessageLength),
+        languageHint: safeString(input.languageHint || input.sourceLanguage, 16).toLowerCase(),
+        anonymous: true,
+        sourceLanguage: safeString(input.sourceLanguage, 16).toLowerCase(),
+        targetLanguage: safeString(input.targetLanguage, 16).toLowerCase(),
+        silentOversight: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false
       };
 
     case EVENT_TYPES.TRANSLATION_SESSION_ENDED:
@@ -240,7 +276,11 @@ function isPublishableEvent(event) {
 
   if (
     event.type === EVENT_TYPES.ROOM_MESSAGE_SENT ||
-    event.type === EVENT_TYPES.TRANSLATION_MESSAGE_SENT
+    event.type === EVENT_TYPES.ROOM_MESSAGE_READY ||
+    event.type === EVENT_TYPES.ONE_TO_ONE_MESSAGE_READY ||
+    event.type === EVENT_TYPES.TRANSLATION_MESSAGE_SENT ||
+    event.type === EVENT_TYPES.TRANSLATION_MESSAGE_READY ||
+    event.type === EVENT_TYPES.DELIVERED_MESSAGE_READY
   ) {
     return Boolean(event.message);
   }
@@ -480,12 +520,63 @@ class LingoSentinelRealtimeBridge {
     return this.publish(channel, sanitized.type, sanitized);
   }
 
+  async publishDirectMessage(roomId, message, metadata = {}) {
+    const cleanRoomId = sanitizeChannelPart(roomId, 'global');
+    const channel = this.getChannel(CHANNELS.direct, cleanRoomId);
+
+    return this.publish(channel, EVENT_TYPES.ONE_TO_ONE_MESSAGE_READY, {
+      type: EVENT_TYPES.ONE_TO_ONE_MESSAGE_READY,
+      roomId: cleanRoomId,
+      message,
+      languageHint: metadata.languageHint || metadata.sourceLanguage,
+      sourceLanguage: metadata.sourceLanguage,
+      targetLanguage: metadata.targetLanguage,
+      anonymous: metadata.anonymous !== false,
+      timestamp: now()
+    });
+  }
+
+  async publishDeliveredMessage(roomId, message, metadata = {}) {
+    const cleanRoomId = sanitizeChannelPart(roomId, 'delivered');
+    const channel = this.getChannel(CHANNELS.delivered, cleanRoomId);
+
+    return this.publish(channel, EVENT_TYPES.DELIVERED_MESSAGE_READY, {
+      type: EVENT_TYPES.DELIVERED_MESSAGE_READY,
+      roomId: cleanRoomId,
+      message,
+      languageHint: metadata.languageHint || metadata.sourceLanguage,
+      sourceLanguage: metadata.sourceLanguage,
+      targetLanguage: metadata.targetLanguage,
+      anonymous: true,
+      timestamp: now()
+    });
+  }
+
+  async publishApprovedMessage(publishInput = {}) {
+    const mode = safeString(publishInput.mode || 'one_to_one', 40);
+    const roomId = publishInput.roomId || publishInput.route?.roomId || 'global';
+    const message = publishInput.text || publishInput.message || '';
+    const metadata = {
+      languageHint: publishInput.sourceLanguage,
+      sourceLanguage: publishInput.sourceLanguage,
+      targetLanguage: publishInput.targetLanguage,
+      languagePair: publishInput.languagePair,
+      region: publishInput.route?.globeContext?.region,
+      direction: publishInput.sourceLanguage && publishInput.targetLanguage ? `${publishInput.sourceLanguage}_to_${publishInput.targetLanguage}` : ''
+    };
+
+    if (mode === 'group_room') return this.publishRoomMessage(roomId, message, metadata);
+    if (mode === 'live_translate') return this.publishTranslationMessage(publishInput.route?.sessionId || roomId, message, metadata);
+    if (mode === 'delivered') return this.publishDeliveredMessage(roomId, message, metadata);
+    return this.publishDirectMessage(roomId, message, metadata);
+  }
+
   async publishRoomMessage(roomId, message, metadata = {}) {
     const cleanRoomId = sanitizeChannelPart(roomId, 'global');
     const channel = this.getChannel(CHANNELS.room, cleanRoomId);
 
-    return this.publish(channel, EVENT_TYPES.ROOM_MESSAGE_SENT, {
-      type: EVENT_TYPES.ROOM_MESSAGE_SENT,
+    return this.publish(channel, EVENT_TYPES.ROOM_MESSAGE_READY, {
+      type: EVENT_TYPES.ROOM_MESSAGE_READY,
       roomId: cleanRoomId,
       message,
       languageHint: metadata.languageHint,
@@ -539,8 +630,8 @@ class LingoSentinelRealtimeBridge {
     const cleanSessionId = sanitizeChannelPart(sessionId, 'session');
     const channel = this.getChannel(CHANNELS.translation, cleanSessionId);
 
-    return this.publish(channel, EVENT_TYPES.TRANSLATION_MESSAGE_SENT, {
-      type: EVENT_TYPES.TRANSLATION_MESSAGE_SENT,
+    return this.publish(channel, EVENT_TYPES.TRANSLATION_MESSAGE_READY, {
+      type: EVENT_TYPES.TRANSLATION_MESSAGE_READY,
       sessionId: cleanSessionId,
       message,
       languagePair: metadata.languagePair,
@@ -617,6 +708,14 @@ class LingoSentinelRealtimeBridge {
 
   async subscribeGlobe(callback) {
     return this.subscribe(CHANNELS.globe, null, callback);
+  }
+
+  async subscribeDirect(roomId, callback) {
+    return this.subscribe(CHANNELS.direct, sanitizeChannelPart(roomId, 'global'), callback);
+  }
+
+  async subscribeDelivered(roomId, callback) {
+    return this.subscribe(CHANNELS.delivered, sanitizeChannelPart(roomId, 'delivered'), callback);
   }
 
   async subscribeRoom(roomId, callback) {
