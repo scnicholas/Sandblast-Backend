@@ -32,11 +32,72 @@ const LingoSentinelEngine = (() => {
 const router = express.Router();
 
 const DEFAULT_LIMIT_BYTES = 8000;
+const ROUTE_VERSION = 'nyx.lingosentinel.publishRoute/1.2-phase2b-user-boundary-hardlock';
+const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 
 function safeString(value, fallback = '') {
   if (typeof value === 'string') return value.trim();
   if (value === null || value === undefined) return fallback;
   return String(value).trim();
+}
+
+
+function normalizeBoundaryText(value) {
+  return safeString(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isReservedMarionIdentity(value) {
+  const text = normalizeBoundaryText(value);
+  return !!text && (/^(?:marion|marion ai|marion authority|marion admin|marion overseer|marion system)$/.test(text) || /\bmarion\b/.test(text));
+}
+
+function participantSpoofsMarion(value) {
+  if (!value || typeof value !== 'object') return false;
+  return isReservedMarionIdentity(value.id) ||
+    isReservedMarionIdentity(value.userId) ||
+    isReservedMarionIdentity(value.clientId) ||
+    isReservedMarionIdentity(value.name) ||
+    isReservedMarionIdentity(value.displayName) ||
+    isReservedMarionIdentity(value.handle) ||
+    isReservedMarionIdentity(value.role) ||
+    isReservedMarionIdentity(value.publicAgent) ||
+    isReservedMarionIdentity(value.visibleAgent) ||
+    isReservedMarionIdentity(value.speaker) ||
+    isReservedMarionIdentity(value.speakerName);
+}
+
+function hasPublicMarionSpoof(body = {}, input = {}) {
+  const b = body && typeof body === 'object' ? body : {};
+  const i = input && typeof input === 'object' ? input : {};
+  return participantSpoofsMarion(b.sender) || participantSpoofsMarion(b.from) ||
+    participantSpoofsMarion(b.recipient) || participantSpoofsMarion(b.to) ||
+    participantSpoofsMarion(i.sender) || participantSpoofsMarion(i.recipient) ||
+    isReservedMarionIdentity(b.senderId) || isReservedMarionIdentity(b.userId) ||
+    isReservedMarionIdentity(b.clientId) || isReservedMarionIdentity(b.senderName) ||
+    isReservedMarionIdentity(b.name) || isReservedMarionIdentity(b.recipientId) ||
+    isReservedMarionIdentity(b.toId) || isReservedMarionIdentity(b.publicAgent) ||
+    isReservedMarionIdentity(b.visibleAgent) || isReservedMarionIdentity(b.speaker) ||
+    isReservedMarionIdentity(b.speakerName) ||
+    isReservedMarionIdentity(i.sender && i.sender.id) || isReservedMarionIdentity(i.sender && i.sender.name) ||
+    isReservedMarionIdentity(i.recipient && i.recipient.id) || isReservedMarionIdentity(i.recipient && i.recipient.name);
+}
+
+function phase2bBoundary() {
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: 'Marion',
+    publicFacingAgent: 'LingoSentinel/Nyx',
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    visibleToUsers: false
+  };
 }
 
 function nowIso() {
@@ -87,9 +148,12 @@ function sanitizeBody(body = {}) {
     targetLanguage: safeString(body.targetLanguage || body.targetLang),
     recipientLanguage: safeString(body.recipientLanguage || body.toLanguage || body.targetLanguage || body.targetLang),
 
+    publicMarionSpoofAttempt: hasPublicMarionSpoof(body, body),
+
     metadata: {
       ...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
-      source: 'lingosentinel-publish-route'
+      source: 'lingosentinel-publish-route',
+      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION
     }
   };
 }
@@ -104,6 +168,9 @@ function validateRequestBody(input = {}) {
 
   if (!input.roomId) errors.push('roomId is required.');
   if (!input.sender?.id) errors.push('sender.id is required.');
+  if (hasPublicMarionSpoof({}, input) || input.publicMarionSpoofAttempt === true) {
+    errors.push('Marion is private authority only and cannot be used as a public sender, recipient, speaker, visible agent, roster member, or publish identity.');
+  }
 
   if (
     input.mode === 'one_to_one' &&
@@ -122,7 +189,9 @@ function safeErrorResponse(error, stage = 'route_failed') {
   return {
     ok: false,
     stage,
-    errors: [error?.message || 'Unknown LingoSentinel route error.'],
+    errors: [safeString(error && error.message || 'Unknown LingoSentinel route error.').replace(/token|secret|password|authorization|cookie|api[_-]?key/ig, '[redacted]')],
+    diagnosticsRedacted: true,
+    boundary: phase2bBoundary(),
     telemetry: {
       failedAt: nowIso(),
       code: error?.code || 'LINGOSENTINEL_ROUTE_FAILED'
@@ -142,6 +211,7 @@ router.post('/publish', async (req, res) => {
         ok: false,
         stage: 'request_validation',
         errors: validation.errors,
+        boundary: phase2bBoundary(),
         telemetry: {
           receivedAt,
           clientIp: readClientIp(req)
@@ -165,6 +235,7 @@ router.post('/publish', async (req, res) => {
         stage: 'gateway_rejected',
         errors: gatewayResult.errors,
         governance: gatewayResult.governance,
+        boundary: phase2bBoundary(),
         telemetry: gatewayResult.telemetry
       });
     }
@@ -178,6 +249,7 @@ router.post('/publish', async (req, res) => {
         dryRun: true,
         publishInput: gatewayResult.publishInput,
         governance: gatewayResult.governance,
+        boundary: phase2bBoundary(),
         telemetry: {
           ...gatewayResult.telemetry,
           routeReceivedAt: receivedAt,
@@ -199,6 +271,7 @@ router.post('/publish', async (req, res) => {
         stage: 'engine_unavailable',
         errors: ['LingoSentinelEngine publishMessage handler is unavailable.'],
         governance: gatewayResult.governance,
+        boundary: phase2bBoundary(),
         diagnosticsRedacted: true,
         telemetry: {
           gatewayTraceId: gatewayResult.telemetry?.traceId,
@@ -230,6 +303,7 @@ router.post('/publish', async (req, res) => {
       delivery: publishResult.delivery,
       language: publishResult.language,
       governance: publishResult.governance,
+      boundary: phase2bBoundary(),
       errors: publishResult.errors || [],
       telemetry: {
         ...publishResult.telemetry,
@@ -251,6 +325,8 @@ router.get('/health', (req, res) => {
     ok: true,
     service: 'LingoSentinelPublishRoute',
     status: 'ready',
+    version: ROUTE_VERSION,
+    boundary: phase2bBoundary(),
     gatewayPath: 'Data/marion/runtime/LingoSentinelLinkGateway.js',
     enginePath: 'Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js',
     engineAvailable: !!(LingoSentinelEngine && typeof LingoSentinelEngine.publishMessage === 'function'),
@@ -261,4 +337,7 @@ router.get('/health', (req, res) => {
   });
 });
 
+router.VERSION = ROUTE_VERSION;
+router.phase2bBoundary = phase2bBoundary;
+router.hasPublicMarionSpoof = hasPublicMarionSpoof;
 module.exports = router;
