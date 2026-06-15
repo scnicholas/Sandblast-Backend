@@ -11,7 +11,7 @@
  *   another private layer explicitly overrides it later.
  */
 
-const VERSION = 'marion.voiceOutputPolicy/2.1-lingosentinel-private-voice-delivery';
+const VERSION = 'marion.voiceOutputPolicy/2.2-speakable-final-status-hardlock';
 const DEFAULT_MAX_SPOKEN_CHARS = 700;
 
 const SENSITIVE_PATTERNS = [
@@ -36,6 +36,22 @@ const CODE_PATTERNS = [
   /\bclass\s+\w+/,
   /<\/?[a-z][\s\S]*>/i
 ];
+
+const SAFE_PROTECTED_STATUS_PATTERNS = [
+  /\bnyx\s+is\s+connected\s+through\s+marion\b/i,
+  /\bprotected\s+voice\s+lane\s+status\b/i,
+  /\badmin\s+voice\s+delivery\s+is\s+authorized\b/i,
+  /\braw\s+audio\s+is\s+not\s+being\s+stored\b/i,
+  /\btranscript[-\s]+only\s+processing\s+is\s+live\b/i
+];
+
+function isSafeProtectedVoiceStatusText(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return false;
+  if (!SAFE_PROTECTED_STATUS_PATTERNS.some((pattern) => pattern.test(text))) return false;
+  if (/\b(api[_-]?key|secret|password|private\s+key|credential|x-sb-[a-z0-9_-]+|\.env|bearer\s+[a-z0-9._-]+)\b/i.test(text)) return false;
+  return true;
+}
 
 function getReplyText(response) {
   if (!response) return '';
@@ -109,7 +125,7 @@ function evaluateVoiceOutputPolicy(response, options) {
     });
   }
 
-  if (containsPattern(text, SENSITIVE_PATTERNS)) {
+  if (containsPattern(text, SENSITIVE_PATTERNS) && !isSafeProtectedVoiceStatusText(text)) {
     return silentPolicy('SENSITIVE_CONTENT', {
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed
@@ -178,5 +194,6 @@ module.exports = {
   applyVoiceOutputPolicy,
   createBriefSpokenSummary,
   getReplyText,
+  isSafeProtectedVoiceStatusText,
   hasAdminVoiceDeliveryProof
 };
