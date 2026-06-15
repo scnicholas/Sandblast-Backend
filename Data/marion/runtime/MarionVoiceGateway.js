@@ -61,7 +61,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/2.4-phase2-speech-sync-envelope';
+const VERSION = 'marion.voiceGateway/2.5-phase2-speech-sync-integrity-projection';
 
 function safeRequire(path) {
   try {
@@ -360,7 +360,11 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       sessionId: env.sessionId,
       requestId: env.requestId,
       locale: env.locale,
-      source: 'MarionVoiceGateway'
+      source: 'MarionVoiceGateway',
+      timing: base.speechTiming || (base.voice && base.voice.speechTiming) || {},
+      viseme: base.viseme || (base.voice && base.voice.viseme) || {},
+      intensity: base.intensity || (base.voice && base.voice.intensity),
+      reducedMotion: base.reducedMotion === true || (base.voice && base.voice.reducedMotion === true)
     })
     : {
       enabled: false,
@@ -387,6 +391,11 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     transcriptOnly: true,
     noRawAudioStored: true,
     audioStored: false,
+    speechSync,
+    speechSyncEnabled: speechSync && speechSync.enabled === true,
+    avatar: speechSync && typeof speechSync === 'object' ? speechSync.avatar : null,
+    avatarSpeechState: safeText(speechSync && (speechSync.avatarSpeechState || speechSync.speechState || '')),
+    phase2SpeechSyncPrepared: speechSync && speechSync.enabled === true,
     voice: Object.assign({}, base.voice || {}, policy, {
       speakAllowed,
       voiceMode: projectedVoiceMode,
@@ -414,7 +423,11 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       speechSyncEnabled: speechSync && speechSync.enabled === true,
       speechSyncVersion: safeText(speechSync && speechSync.version),
       avatarSpeechState: safeText(speechSync && (speechSync.avatarSpeechState || speechSync.speechState || '')),
-      phase2SpeechSyncPrepared: speechSync && speechSync.enabled === true
+      phase2SpeechSyncPrepared: speechSync && speechSync.enabled === true,
+      speechSyncFrontendReady: speechSync && speechSync.frontendReady === true,
+      speechSyncContract: safeText(speechSync && speechSync.contract),
+      visemeCount: Number(speechSync && speechSync.visemeCount || 0) || 0,
+      estimatedSpeechDurationMs: Number(speechSync && speechSync.estimatedDurationMs || 0) || 0
     }),
     voiceEnvelope: {
       source: env.source,
