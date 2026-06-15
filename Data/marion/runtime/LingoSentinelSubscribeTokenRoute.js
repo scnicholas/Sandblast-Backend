@@ -27,8 +27,9 @@ const router = express.Router();
 const DEFAULT_CLIENT_ID = 'lingosentinel-widget';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const CHANNEL_NAMESPACE = 'lingosentinel';
-const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/1.1-phase2a-channel-alignment';
+const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/1.2-phase2b-user-boundary-hardlock';
 const DEFAULT_TTL_MS = 1000 * 60 * 30; // 30 minutes
+const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 
 const VALID_MODES = Object.freeze([
   'one_to_one',
@@ -61,6 +62,35 @@ const MODE_ALIASES = Object.freeze({
   delivery: 'delivered',
   receipt: 'delivered'
 });
+
+
+function normalizeBoundaryText(value) {
+  return safeString(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isReservedMarionIdentity(value) {
+  const text = normalizeBoundaryText(value);
+  return !!text && (/^(?:marion|marion ai|marion authority|marion admin|marion overseer|marion system)$/.test(text) || /\bmarion\b/.test(text));
+}
+
+function phase2bBoundary() {
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: 'Marion',
+    publicFacingAgent: 'LingoSentinel/Nyx',
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    marionPublicChannelAllowed: false,
+    visibleToUsers: false
+  };
+}
 
 function safeString(value, fallback = '') {
   if (typeof value === 'string') return value.trim();
@@ -172,6 +202,10 @@ function validateTokenInput(input = {}) {
     errors.push('clientId is required.');
   }
 
+  if (isReservedMarionIdentity(input.clientId) || isReservedMarionIdentity(input.roomId)) {
+    errors.push('Public LingoSentinel tokens cannot be minted for Marion identities, Marion rooms, Marion clients, or Marion-visible channels.');
+  }
+
   return {
     ok: errors.length === 0,
     errors
@@ -219,6 +253,7 @@ function safeErrorResponse(error, stage = 'token_failed') {
     stage,
     errors: [publicError],
     diagnosticsRedacted: true,
+    boundary: phase2bBoundary(),
     telemetry: {
       failedAt: nowIso(),
       code
@@ -244,6 +279,7 @@ router.post('/token', async (req, res) => {
         ok: false,
         stage: 'token_validation',
         errors: validation.errors,
+        boundary: phase2bBoundary(),
         telemetry: {
           requestedAt
         }
@@ -263,6 +299,7 @@ router.post('/token', async (req, res) => {
       roomId: input.roomId,
       clientId: input.clientId,
       ttlMs: input.ttl,
+      boundary: phase2bBoundary(),
       telemetry: {
         requestedAt,
         issuedAt: nowIso(),
@@ -291,6 +328,11 @@ router.get('/token/health', (req, res) => {
     channelNamespace: CHANNEL_NAMESPACE,
     version: ROUTE_VERSION,
     supportedModes: VALID_MODES,
+    boundary: phase2bBoundary(),
+    publicUsersMayAddressMarion: false,
+    marionVisibleParticipant: false,
+    marionCanAppearInUserRoster: false,
+    marionPublicChannelAllowed: false,
     channelExamples: {
       one_to_one: channelForMode('one_to_one', DEFAULT_ROOM_ID),
       group_room: channelForMode('group_room', DEFAULT_ROOM_ID),
@@ -305,4 +347,6 @@ router.VERSION = ROUTE_VERSION;
 router.channelForMode = channelForMode;
 router.buildCapability = buildCapability;
 router.sanitizeTokenInput = sanitizeTokenInput;
+router.phase2bBoundary = phase2bBoundary;
+router.isReservedMarionIdentity = isReservedMarionIdentity;
 module.exports = router;
