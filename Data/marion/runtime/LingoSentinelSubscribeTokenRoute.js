@@ -27,10 +27,11 @@ const router = express.Router();
 const DEFAULT_CLIENT_ID = 'lingosentinel-widget';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const CHANNEL_NAMESPACE = 'lingosentinel';
-const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/1.3-phase2d-channel-namespace-roundtrip-hardlock';
+const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/1.4-phase2e-live-ably-roundtrip';
 const DEFAULT_TTL_MS = 1000 * 60 * 30; // 30 minutes
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
+const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.subscribeTokenRoute.liveAblyRoundtrip/2.0';
 
 const VALID_MODES = Object.freeze([
   'one_to_one',
@@ -90,6 +91,26 @@ function phase2bBoundary() {
     marionCanAppearInUserRoster: false,
     marionPublicChannelAllowed: false,
     visibleToUsers: false
+  };
+}
+
+
+function buildPhase2ETokenReadiness(mode, roomId) {
+  const channelAlignment = buildChannelAlignment(mode, roomId);
+  return {
+    ...phase2bBoundary(),
+    version: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+    tokenCreated: false,
+    canonicalChannel: channelAlignment.canonicalChannel,
+    clientSubscribeReady: true,
+    clientSubscribed: false,
+    publishOk: false,
+    messageReceivedByClient: false,
+    receivedEventType: channelAlignment.mode === 'live_translate' ? 'TRANSLATION_MESSAGE_READY' : '',
+    channelNamespaceAligned: true,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: true
   };
 }
 
@@ -335,9 +356,12 @@ router.post('/token', async (req, res) => {
       tokenChannelMatchesPublishChannel: true,
       realtimeBridgeChannelMatchesToken: true,
       roundtripReady: true,
+      phase2eLiveRoundtrip: { ...buildPhase2ETokenReadiness(input.mode, input.roomId), tokenCreated: true },
+      clientSubscribeReady: true,
       capability: result.capability,
       channelNamespace: CHANNEL_NAMESPACE,
       phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
       mode: input.mode,
       roomId: input.roomId,
       clientId: input.clientId,
@@ -370,6 +394,7 @@ router.get('/token/health', (req, res) => {
     routeMounted: true,
     channelNamespace: CHANNEL_NAMESPACE,
       phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
     version: ROUTE_VERSION,
     supportedModes: VALID_MODES,
     boundary: phase2bBoundary(),
@@ -378,6 +403,7 @@ router.get('/token/health', (req, res) => {
     marionCanAppearInUserRoster: false,
     marionPublicChannelAllowed: false,
     channelAlignment: buildChannelAlignment('live_translate', DEFAULT_ROOM_ID),
+    phase2eLiveRoundtrip: buildPhase2ETokenReadiness('live_translate', DEFAULT_ROOM_ID),
     channelExamples: {
       one_to_one: channelForMode('one_to_one', DEFAULT_ROOM_ID),
       group_room: channelForMode('group_room', DEFAULT_ROOM_ID),
@@ -392,6 +418,7 @@ router.VERSION = ROUTE_VERSION;
 router.channelForMode = channelForMode;
 router.buildCapability = buildCapability;
 router.buildChannelAlignment = buildChannelAlignment;
+router.buildPhase2ETokenReadiness = buildPhase2ETokenReadiness;
 router.legacyChannelAliasesForMode = legacyChannelAliasesForMode;
 router.sanitizeTokenInput = sanitizeTokenInput;
 router.phase2bBoundary = phase2bBoundary;
