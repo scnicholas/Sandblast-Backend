@@ -21,7 +21,13 @@
 
 const express = require('express');
 const LingoSentinelLinkGateway = require('./LingoSentinelLinkGateway');
-const LingoSentinelEngine = require('./LingoSentinel/LingoSentinelEngine');
+const LingoSentinelEngine = (() => {
+  try {
+    return require('./LingoSentinel/LingoSentinelEngine');
+  } catch (_) {
+    return null;
+  }
+})();
 
 const router = express.Router();
 
@@ -47,12 +53,21 @@ function readClientIp(req = {}) {
 }
 
 function sanitizeBody(body = {}) {
+  const languagePair = body.languagePair && typeof body.languagePair === 'object'
+    ? {
+        source: safeString(body.languagePair.source || body.languagePair.from || body.sourceLanguage || body.language || body.lang || 'en'),
+        target: safeString(body.languagePair.target || body.languagePair.to || body.targetLanguage || body.targetLang || body.recipientLanguage || 'en')
+      }
+    : null;
+
   return {
     id: safeString(body.id),
     text: safeString(body.text || body.message || body.body),
     mode: safeString(body.mode || body.lane || 'one_to_one'),
 
-    roomId: safeString(body.roomId || body.channelId || body.conversationId),
+    roomId: safeString(body.roomId || body.channelId || body.conversationId || body.sessionId || body.deliveryId),
+    sessionId: safeString(body.sessionId),
+    deliveryId: safeString(body.deliveryId),
 
     sender: body.sender || body.from || {
       id: safeString(body.senderId || body.userId || 'guest'),
@@ -61,10 +76,16 @@ function sanitizeBody(body = {}) {
       preferredLanguage: safeString(body.sourceLanguage || body.lang || 'en')
     },
 
-    recipient: body.recipient || body.to || null,
+    recipient: body.recipient || body.to || (body.recipientId || body.toId ? { id: safeString(body.recipientId || body.toId), preferredLanguage: safeString(body.recipientLanguage || body.targetLanguage || body.targetLang || 'en') } : null),
+    recipientId: safeString(body.recipientId || body.toId),
+
+    sourceLanguage: safeString(body.sourceLanguage || body.language || body.lang || 'en'),
+    language: safeString(body.language || body.lang || body.sourceLanguage || 'en'),
+    lang: safeString(body.lang || body.language || body.sourceLanguage || 'en'),
+    languagePair,
 
     targetLanguage: safeString(body.targetLanguage || body.targetLang),
-    recipientLanguage: safeString(body.recipientLanguage || body.toLanguage),
+    recipientLanguage: safeString(body.recipientLanguage || body.toLanguage || body.targetLanguage || body.targetLang),
 
     metadata: {
       ...(body.metadata && typeof body.metadata === 'object' ? body.metadata : {}),
@@ -148,11 +169,52 @@ router.post('/publish', async (req, res) => {
       });
     }
 
+    const dryRun = req.query?.dryRun === '1' || req.body?.dryRun === true;
+
+    if (dryRun) {
+      return res.status(200).json({
+        ok: true,
+        stage: 'gateway_ready_dry_run',
+        dryRun: true,
+        publishInput: gatewayResult.publishInput,
+        governance: gatewayResult.governance,
+        telemetry: {
+          ...gatewayResult.telemetry,
+          routeReceivedAt: receivedAt,
+          routeCompletedAt: nowIso(),
+        silentOversight: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false,
+          engineRequired: false,
+          silentOversight: true,
+          marionVisibleParticipant: false,
+          visibleToUsers: false
+        }
+      });
+    }
+
+    if (!LingoSentinelEngine || typeof LingoSentinelEngine.publishMessage !== 'function') {
+      return res.status(503).json({
+        ok: false,
+        stage: 'engine_unavailable',
+        errors: ['LingoSentinelEngine publishMessage handler is unavailable.'],
+        governance: gatewayResult.governance,
+        diagnosticsRedacted: true,
+        telemetry: {
+          gatewayTraceId: gatewayResult.telemetry?.traceId,
+          routeReceivedAt: receivedAt,
+          routeCompletedAt: nowIso(),
+        silentOversight: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false,
+          expectedPath: 'Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js'
+        }
+      });
+    }
+
     const publishResult = await LingoSentinelEngine.publishMessage(
       gatewayResult.publishInput,
-      {
-        dryRun: req.query?.dryRun === '1' || req.body?.dryRun === true
-      }
+      { dryRun }
     );
 
     const status = publishResult.ok ? 200 : 502;
@@ -173,7 +235,10 @@ router.post('/publish', async (req, res) => {
         ...publishResult.telemetry,
         gatewayTraceId: gatewayResult.telemetry?.traceId,
         routeReceivedAt: receivedAt,
-        routeCompletedAt: nowIso()
+        routeCompletedAt: nowIso(),
+        silentOversight: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false
       }
     });
   } catch (error) {
@@ -186,6 +251,12 @@ router.get('/health', (req, res) => {
     ok: true,
     service: 'LingoSentinelPublishRoute',
     status: 'ready',
+    gatewayPath: 'Data/marion/runtime/LingoSentinelLinkGateway.js',
+    enginePath: 'Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js',
+    engineAvailable: !!(LingoSentinelEngine && typeof LingoSentinelEngine.publishMessage === 'function'),
+    silentOversight: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
     timestamp: nowIso()
   });
 });
