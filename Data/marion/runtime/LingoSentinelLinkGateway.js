@@ -22,7 +22,8 @@
 const crypto = require('crypto');
 
 const GATEWAY_NAME = 'LingoSentinelLinkGateway';
-const GATEWAY_VERSION = '1.1.0';
+const GATEWAY_VERSION = '1.2.0-phase2a-en-fr-es-continuity-smoke';
+const PHASE2A_CONTINUITY_VERSION = 'nyx.lingosentinel.linkGateway.enFrEsContinuity/2.0';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_LANGUAGE = 'en';
 const DEFAULT_REGION = 'global';
@@ -133,8 +134,12 @@ function normalizeMode(mode) {
 }
 
 function normalizeLanguage(value, fallback = DEFAULT_LANGUAGE) {
-  const lang = safeString(value || fallback, fallback, 16).toLowerCase();
-  return lang || fallback;
+  const raw = safeString(value || fallback, fallback, 32).toLowerCase().replace(/_/g, '-').trim();
+  if (!raw) return fallback;
+  if (/^(en|eng|english|en-ca|en-us|en-gb)/.test(raw)) return 'en';
+  if (/^(fr|fre|fra|french|français|francais|fr-ca|fr-fr)/.test(raw)) return 'fr';
+  if (/^(es|spa|spanish|español|espanol|es-mx|es-es|es-419)/.test(raw)) return 'es';
+  return raw.slice(0, 16) || fallback;
 }
 
 function normalizeLanguagePair(input = {}) {
@@ -146,6 +151,46 @@ function normalizeLanguagePair(input = {}) {
   if (!source || !target) return null;
 
   return { source, target };
+}
+
+function buildLanguageContinuity(input = {}, normalized = {}) {
+  const sourceLanguage = normalizeLanguage(
+    input.sourceLanguage || input.language || input.lang || normalized.sender?.preferredLanguage || DEFAULT_LANGUAGE,
+    DEFAULT_LANGUAGE
+  );
+  const targetLanguage = normalizeLanguage(
+    input.targetLanguage || input.targetLang || input.recipientLanguage || normalized.recipient?.preferredLanguage || DEFAULT_LANGUAGE,
+    DEFAULT_LANGUAGE
+  );
+  const previousLanguage = normalizeLanguage(
+    input.previousLanguage || input.lastLanguage || input.contextLanguage || input.continuity?.lastLanguage || '',
+    ''
+  );
+  const activeLanguages = Array.from(new Set([previousLanguage, sourceLanguage, targetLanguage].filter(Boolean)));
+  const languageDriftDetected = Boolean(previousLanguage && previousLanguage !== sourceLanguage);
+  const translationAmbiguityFlagged = Boolean(input.translationAmbiguity === true || input.ambiguous === true || input.lowConfidenceLanguage === true);
+  return {
+    version: PHASE2A_CONTINUITY_VERSION,
+    enFrEsContinuityActive: ['en', 'fr', 'es'].includes(sourceLanguage) || ['en', 'fr', 'es'].includes(targetLanguage),
+    supportedLanguages: ['en', 'fr', 'es'],
+    sourceLanguage,
+    targetLanguage,
+    previousLanguage,
+    activeLanguages,
+    languageContinuityPreserved: true,
+    contextCarryPreserved: true,
+    languageDriftDetected,
+    translationAmbiguityFlagged,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    finalAuthority: 'Marion',
+    advisoryOnly: true,
+    source: GATEWAY_NAME
+  };
 }
 
 function normalizeParticipant(input = {}, fallbackRole = 'participant') {
@@ -305,8 +350,14 @@ function buildGovernance(input = {}, normalized = {}) {
       publishesRealtime: false,
       performsTranslation: false,
       exposesPrivateIdentity: false,
-      finalAuthority: 'Marion'
-    }
+      finalAuthority: 'Marion',
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false
+    },
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx'
   };
 }
 
@@ -357,6 +408,7 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
   );
 
   const route = buildRoute(input, normalized);
+  const languageContinuity = buildLanguageContinuity(input, normalized);
 
   return {
     id: safeString(input.id || createTraceId('lsmsg'), '', 96),
@@ -377,6 +429,16 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
       targetLanguage
     ),
     languagePair: normalized.languagePair || { source: sourceLanguage, target: targetLanguage },
+    languageContinuity,
+    enFrEsContinuity: languageContinuity,
+    marionSilentOversight: {
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false,
+      publicUsersMayAddressMarion: false,
+      publicUsersSpeakThrough: 'LingoSentinel/Nyx'
+    },
 
     route,
 
@@ -387,7 +449,12 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
       governanceDecision: governance.decision,
       riskLevel: governance.riskLevel,
       marionAuthority: true,
-      realtimeReady: true
+      realtimeReady: true,
+      enFrEsContinuityActive: languageContinuity.enFrEsContinuityActive,
+      languageContinuityPreserved: true,
+      silentOversight: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false
     },
 
     governance
@@ -460,6 +527,11 @@ function prepareLingoSentinelPublish(input = {}) {
       roomId: publishInput.roomId,
       lane: publishInput.route.lane,
       eventType: publishInput.route.eventType,
+      ablyChannel: publishInput.route.ablyChannel,
+      languageContinuity: publishInput.languageContinuity,
+      silentOversight: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false,
       timestamp: nowIso()
     }
   };
@@ -479,6 +551,10 @@ function routePreview(input = {}) {
     sender: publishInput.sender?.id,
     recipient: publishInput.recipient?.id || null,
     languagePair: publishInput.languagePair || null,
+    languageContinuity: publishInput.languageContinuity || null,
+    silentOversight: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
     governance: prepared.governance,
     errors: prepared.errors || [],
     telemetry: prepared.telemetry
@@ -496,7 +572,11 @@ function getGatewayContract() {
       publishesRealtime: false,
       performsTranslation: false,
       finalAuthority: 'Marion',
-      publicFace: 'Nyx/LingoSentinel'
+      publicFace: 'Nyx/LingoSentinel',
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false
     }
   };
 }
@@ -510,6 +590,7 @@ module.exports = {
   normalizeMode,
   normalizeLanguage,
   normalizeLanguagePair,
+  buildLanguageContinuity,
   normalizeParticipant,
   normalizeRecipient,
   normalizeRoomId,
