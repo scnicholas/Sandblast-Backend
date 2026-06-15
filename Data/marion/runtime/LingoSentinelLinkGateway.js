@@ -22,8 +22,9 @@
 const crypto = require('crypto');
 
 const GATEWAY_NAME = 'LingoSentinelLinkGateway';
-const GATEWAY_VERSION = '1.2.0-phase2a-en-fr-es-continuity-smoke';
+const GATEWAY_VERSION = '1.3.0-phase2b-user-boundary-silent-oversight-hardlock';
 const PHASE2A_CONTINUITY_VERSION = 'nyx.lingosentinel.linkGateway.enFrEsContinuity/2.0';
+const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_LANGUAGE = 'en';
 const DEFAULT_REGION = 'global';
@@ -193,6 +194,79 @@ function buildLanguageContinuity(input = {}, normalized = {}) {
   };
 }
 
+
+function normalizeBoundaryText(value) {
+  return safeString(value || '', '', 180).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isReservedMarionIdentity(value) {
+  const text = normalizeBoundaryText(value);
+  if (!text) return false;
+  return /^(?:marion|marion ai|marion authority|marion admin|marion overseer|marion system|sandblast marion)$/.test(text) ||
+    /\bmarion\b/.test(text);
+}
+
+function isPublicParticipantReserved(participant = {}) {
+  if (!isObject(participant)) return false;
+  return isReservedMarionIdentity(participant.id) ||
+    isReservedMarionIdentity(participant.name) ||
+    isReservedMarionIdentity(participant.displayName) ||
+    isReservedMarionIdentity(participant.handle) ||
+    isReservedMarionIdentity(participant.role) ||
+    isReservedMarionIdentity(participant.publicAgent) ||
+    isReservedMarionIdentity(participant.visibleAgent) ||
+    isReservedMarionIdentity(participant.speaker) ||
+    isReservedMarionIdentity(participant.speakerName);
+}
+
+function hasPublicMarionSpoofAttempt(input = {}, normalized = {}) {
+  const src = isObject(input) ? input : {};
+  const n = isObject(normalized) ? normalized : {};
+  return isPublicParticipantReserved(src.sender) ||
+    isPublicParticipantReserved(src.from) ||
+    isPublicParticipantReserved(src.recipient) ||
+    isPublicParticipantReserved(src.to) ||
+    isPublicParticipantReserved(n.sender) ||
+    isPublicParticipantReserved(n.recipient) ||
+    isReservedMarionIdentity(src.senderId) ||
+    isReservedMarionIdentity(src.userId) ||
+    isReservedMarionIdentity(src.clientId) ||
+    isReservedMarionIdentity(src.senderName) ||
+    isReservedMarionIdentity(src.name) ||
+    isReservedMarionIdentity(src.recipientId) ||
+    isReservedMarionIdentity(src.toId) ||
+    isReservedMarionIdentity(src.publicAgent) ||
+    isReservedMarionIdentity(src.visibleAgent) ||
+    isReservedMarionIdentity(src.speaker) ||
+    isReservedMarionIdentity(src.speakerName);
+}
+
+function buildPhase2BUserBoundary(input = {}, normalized = {}) {
+  const spoofAttempt = hasPublicMarionSpoofAttempt(input, normalized);
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    phase: 'phase2b_user_to_user_boundary_silent_oversight_hardlock',
+    enabled: true,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: 'Marion',
+    publicFacingAgent: 'LingoSentinel/Nyx',
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    marionCanBeSender: false,
+    marionCanBeRecipient: false,
+    marionPublicChannelAllowed: false,
+    marionPublicSpoofAttempt: spoofAttempt,
+    visibleToUsers: false,
+    source: GATEWAY_NAME
+  };
+}
+
 function normalizeParticipant(input = {}, fallbackRole = 'participant') {
   const source = isObject(input) ? input : {};
   const id = normalizeToken(
@@ -200,7 +274,7 @@ function normalizeParticipant(input = {}, fallbackRole = 'participant') {
     'anonymous'
   );
 
-  return {
+  const participant = {
     id,
     name: safeString(source.name || source.displayName || source.handle || 'Guest', 'Guest'),
     role: safeString(source.role || fallbackRole, fallbackRole, 48),
@@ -210,6 +284,13 @@ function normalizeParticipant(input = {}, fallbackRole = 'participant') {
     ),
     anonymous: id === 'anonymous' || source.anonymous === true
   };
+
+  const reservedMarionIdentity = isPublicParticipantReserved(participant);
+  return Object.assign(participant, {
+    reservedMarionIdentity,
+    marionVisibleParticipant: false,
+    visibleToUsers: reservedMarionIdentity ? false : undefined
+  });
 }
 
 function normalizeRecipient(input = null) {
@@ -265,6 +346,7 @@ function detectPrivateMaterial(text = '') {
 function detectRiskLevel(input = {}) {
   const text = safeText(input.text || input.message || input.body);
 
+  if (hasPublicMarionSpoofAttempt(input)) return RISK_LEVELS.high;
   if (detectPrivateMaterial(text)) return RISK_LEVELS.high;
 
   if (/\b(emergency|danger|critical|urgent|breach|exploit|harm|weapon|self-harm|threat|violence)\b/i.test(text)) {
@@ -301,6 +383,9 @@ function validateGatewayInput(input = {}) {
   if (text.length > MAX_TEXT_LENGTH) errors.push(`Message text exceeds ${MAX_TEXT_LENGTH} characters.`);
   if (!roomId) errors.push('roomId, conversationId, channelId, or sessionId is required.');
   if (!sender.id || sender.id === 'anonymous') errors.push('sender.id is required.');
+  if (hasPublicMarionSpoofAttempt(input, { sender, recipient, roomId, mode })) {
+    errors.push('Marion is private authority only and cannot be used as a public sender, recipient, speaker, agent, roster member, or channel identity.');
+  }
 
   if (mode === 'one_to_one' && (!recipient || !recipient.id || recipient.id === 'anonymous')) {
     errors.push('one_to_one mode requires recipient.id.');
@@ -337,10 +422,12 @@ function buildGovernance(input = {}, normalized = {}) {
         ? GOVERNANCE_DECISIONS.allowWithReview
         : GOVERNANCE_DECISIONS.allow;
 
+  const userBoundary = buildPhase2BUserBoundary(input, normalized);
+
   return {
     marionAuthority: true,
     nyxPublicFacing: true,
-    lingoSentinelAllowed: decision !== GOVERNANCE_DECISIONS.reject,
+    lingoSentinelAllowed: decision !== GOVERNANCE_DECISIONS.reject && !userBoundary.marionPublicSpoofAttempt,
     requiresReview: decision === GOVERNANCE_DECISIONS.allowWithReview,
     riskLevel,
     privateMaterial,
@@ -354,10 +441,17 @@ function buildGovernance(input = {}, normalized = {}) {
       silentOversight: true,
       userToUserBoundary: true,
       marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
       visibleToUsers: false
     },
+    userBoundary,
     publicUsersMayAddressMarion: false,
-    publicUsersSpeakThrough: 'LingoSentinel/Nyx'
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false
   };
 }
 
@@ -409,6 +503,7 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
 
   const route = buildRoute(input, normalized);
   const languageContinuity = buildLanguageContinuity(input, normalized);
+  const userBoundary = buildPhase2BUserBoundary(input, normalized);
 
   return {
     id: safeString(input.id || createTraceId('lsmsg'), '', 96),
@@ -431,14 +526,8 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
     languagePair: normalized.languagePair || { source: sourceLanguage, target: targetLanguage },
     languageContinuity,
     enFrEsContinuity: languageContinuity,
-    marionSilentOversight: {
-      silentOversight: true,
-      userToUserBoundary: true,
-      marionVisibleParticipant: false,
-      visibleToUsers: false,
-      publicUsersMayAddressMarion: false,
-      publicUsersSpeakThrough: 'LingoSentinel/Nyx'
-    },
+    userBoundary,
+    marionSilentOversight: userBoundary,
 
     route,
 
@@ -453,8 +542,14 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
       enFrEsContinuityActive: languageContinuity.enFrEsContinuityActive,
       languageContinuityPreserved: true,
       silentOversight: true,
+      userToUserBoundary: true,
       marionVisibleParticipant: false,
-      visibleToUsers: false
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
+      publicUsersMayAddressMarion: false,
+      visibleToUsers: false,
+      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION
     },
 
     governance
@@ -480,8 +575,16 @@ function prepareLingoSentinelPublish(input = {}) {
           publishesRealtime: false,
           performsTranslation: false,
           exposesPrivateIdentity: false,
-          finalAuthority: 'Marion'
-        }
+          finalAuthority: 'Marion',
+          silentOversight: true,
+          userToUserBoundary: true,
+          marionVisibleParticipant: false,
+          marionRenderedAsSpeaker: false,
+          marionCanPublishToRoom: false,
+          marionCanAppearInUserRoster: false,
+          visibleToUsers: false
+        },
+        userBoundary: buildPhase2BUserBoundary(input, validation.normalized || {})
       },
       telemetry: {
         traceId,
@@ -530,8 +633,14 @@ function prepareLingoSentinelPublish(input = {}) {
       ablyChannel: publishInput.route.ablyChannel,
       languageContinuity: publishInput.languageContinuity,
       silentOversight: true,
+      userToUserBoundary: true,
       marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
+      publicUsersMayAddressMarion: false,
       visibleToUsers: false,
+      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION,
       timestamp: nowIso()
     }
   };
@@ -552,6 +661,7 @@ function routePreview(input = {}) {
     recipient: publishInput.recipient?.id || null,
     languagePair: publishInput.languagePair || null,
     languageContinuity: publishInput.languageContinuity || null,
+    userBoundary: publishInput.userBoundary || null,
     silentOversight: true,
     marionVisibleParticipant: false,
     visibleToUsers: false,
@@ -576,6 +686,10 @@ function getGatewayContract() {
       silentOversight: true,
       userToUserBoundary: true,
       marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
+      publicUsersMayAddressMarion: false,
       visibleToUsers: false
     }
   };
@@ -591,6 +705,9 @@ module.exports = {
   normalizeLanguage,
   normalizeLanguagePair,
   buildLanguageContinuity,
+  buildPhase2BUserBoundary,
+  hasPublicMarionSpoofAttempt,
+  isReservedMarionIdentity,
   normalizeParticipant,
   normalizeRecipient,
   normalizeRoomId,
@@ -607,5 +724,6 @@ module.exports = {
   CHANNEL_LANES,
   EVENT_TYPES,
   GOVERNANCE_DECISIONS,
-  RISK_LEVELS
+  RISK_LEVELS,
+  PHASE2B_USER_BOUNDARY_VERSION
 };
