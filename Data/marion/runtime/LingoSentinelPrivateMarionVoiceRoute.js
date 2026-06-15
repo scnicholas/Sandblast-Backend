@@ -23,7 +23,7 @@ const crypto = require('crypto');
 
 const MarionVoiceGateway = require('./MarionVoiceGateway');
 
-const VERSION = 'nyx.lingosentinel.privateMarionVoiceRoute/1.0';
+const VERSION = 'nyx.lingosentinel.privateMarionVoiceRoute/1.1-phase2a-path-lock';
 const router = express.Router();
 
 function cleanText(value) {
@@ -83,6 +83,43 @@ function checkAdmin(req) {
   };
 }
 
+function gatewayHandlerStatus() {
+  return {
+    gatewayAvailable: !!MarionVoiceGateway,
+    privateHandlerAvailable: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleLingoSentinelPrivateVoiceDelivery === 'function'),
+    voiceHandlerAvailable: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleVoiceTranscript === 'function'),
+    adminHandlerAvailable: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleMarionAdminConversation === 'function'),
+    version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || '')
+  };
+}
+
+async function callPrivateVoiceGateway(payload, options) {
+  if (MarionVoiceGateway && typeof MarionVoiceGateway.handleLingoSentinelPrivateVoiceDelivery === 'function') {
+    return MarionVoiceGateway.handleLingoSentinelPrivateVoiceDelivery(payload, options);
+  }
+  if (MarionVoiceGateway && typeof MarionVoiceGateway.handleMarionAdminConversation === 'function') {
+    return MarionVoiceGateway.handleMarionAdminConversation({
+      message: payload.transcript,
+      transcript: payload.transcript,
+      sessionId: payload.sessionId,
+      locale: payload.locale,
+      source: payload.source,
+      privateDelivery: true,
+      privateVoiceDelivery: true,
+      lingoSentinelPrivateVoice: true
+    }, options);
+  }
+  if (MarionVoiceGateway && typeof MarionVoiceGateway.handleVoiceTranscript === 'function') {
+    return MarionVoiceGateway.handleVoiceTranscript(payload, options);
+  }
+  return {
+    ok: false,
+    error: 'LINGOSENTINEL_PRIVATE_MARION_VOICE_HANDLER_UNAVAILABLE',
+    reply: 'Private Marion voice routing is mounted, but the gateway handler is not available yet.',
+    voice: { speakAllowed: false, voiceMode: 'silent', audioStored: false }
+  };
+}
+
 function voicePayload(req, admin) {
   const body = req && req.body && typeof req.body === 'object' ? req.body : {};
   return {
@@ -130,6 +167,7 @@ router.get('/voice/health', (req, res) => {
     audioStored: false,
     diagnosticsRedacted: true,
     tokenConfigured: envTokens().length > 0,
+    gateway: gatewayHandlerStatus(),
     version: VERSION
   });
 });
@@ -150,6 +188,11 @@ router.post('/voice', async (req, res) => {
       authority: 'Marion',
       privateDelivery: false,
       privateVoiceDelivery: true,
+      lingoSentinelPrivateVoice: true,
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false,
       adminOnlyVoiceDelivery: true,
       adminVoiceVerified: false,
       adminVoiceDeliveryAllowed: false,
@@ -174,6 +217,11 @@ router.post('/voice', async (req, res) => {
       authority: 'Marion',
       privateDelivery: true,
       privateVoiceDelivery: true,
+      lingoSentinelPrivateVoice: true,
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false,
       adminOnlyVoiceDelivery: true,
       adminVoiceVerified: true,
       adminVoiceDeliveryAllowed: true,
@@ -186,7 +234,7 @@ router.post('/voice', async (req, res) => {
   }
 
   try {
-    const packet = await MarionVoiceGateway.handleLingoSentinelPrivateVoiceDelivery(payload, {
+    const packet = await callPrivateVoiceGateway(payload, {
       adminVerified: true,
       adminVoiceVerified: true,
       adminVoiceTokenVerified: true,
@@ -201,7 +249,12 @@ router.post('/voice', async (req, res) => {
         publicAgent: 'Nyx',
         authority: 'Marion',
         privateDelivery: true,
-        privateVoiceDelivery: true
+        privateVoiceDelivery: true,
+        lingoSentinelPrivateVoice: true,
+        silentOversight: true,
+        userToUserBoundary: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false
       }
     });
 
@@ -212,6 +265,11 @@ router.post('/voice', async (req, res) => {
       authority: 'Marion',
       privateDelivery: true,
       privateVoiceDelivery: true,
+      lingoSentinelPrivateVoice: true,
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false,
       adminOnlyVoiceDelivery: true,
       adminVoiceVerified: true,
       adminVoiceDeliveryAllowed: true,
@@ -231,6 +289,11 @@ router.post('/voice', async (req, res) => {
       authority: 'Marion',
       privateDelivery: true,
       privateVoiceDelivery: true,
+      lingoSentinelPrivateVoice: true,
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false,
       adminOnlyVoiceDelivery: true,
       adminVoiceVerified: true,
       adminVoiceDeliveryAllowed: false,
