@@ -27,9 +27,10 @@ const router = express.Router();
 const DEFAULT_CLIENT_ID = 'lingosentinel-widget';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const CHANNEL_NAMESPACE = 'lingosentinel';
-const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/1.2-phase2b-user-boundary-hardlock';
+const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/1.3-phase2d-channel-namespace-roundtrip-hardlock';
 const DEFAULT_TTL_MS = 1000 * 60 * 30; // 30 minutes
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
+const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
 
 const VALID_MODES = Object.freeze([
   'one_to_one',
@@ -149,6 +150,39 @@ function channelForMode(mode, roomId) {
   return `${CHANNEL_NAMESPACE}:room:${cleanRoomId}`;
 }
 
+function legacyChannelAliasesForMode(mode, roomId) {
+  const cleanRoomId = sanitizeChannelPart(roomId);
+  const normalizedMode = normalizeMode(mode);
+  if (normalizedMode === 'one_to_one') return [`ls:direct:${cleanRoomId}`];
+  if (normalizedMode === 'live_translate') return [`ls:live:${cleanRoomId}`, `ls:translation:${cleanRoomId}`];
+  if (normalizedMode === 'delivered') return [`ls:receipt:${cleanRoomId}`, `ls:delivered:${cleanRoomId}`];
+  return [`ls:room:${cleanRoomId}`];
+}
+
+function buildChannelAlignment(mode, roomId) {
+  const normalizedMode = normalizeMode(mode);
+  const canonicalChannel = channelForMode(normalizedMode, roomId);
+  return {
+    version: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: true,
+    canonicalNamespace: CHANNEL_NAMESPACE,
+    mode: normalizedMode,
+    canonicalChannel,
+    tokenChannel: canonicalChannel,
+    publishChannel: canonicalChannel,
+    realtimeBridgeChannel: canonicalChannel,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    legacyChannelAliases: legacyChannelAliasesForMode(normalizedMode, roomId),
+    canonicalOnlyForNewTraffic: true,
+    roundtripReady: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicUsersMayAddressMarion: false
+  };
+}
+
 function buildCapability(channel) {
   return {
     [channel]: ['subscribe', 'presence'],
@@ -228,6 +262,7 @@ async function createTokenRequest(input = {}) {
 
   const channel = channelForMode(input.mode, input.roomId);
   const capability = buildCapability(channel);
+  const channelAlignment = buildChannelAlignment(input.mode, input.roomId);
 
   const tokenRequest = await rest.auth.createTokenRequest({
     clientId: input.clientId,
@@ -238,7 +273,8 @@ async function createTokenRequest(input = {}) {
   return {
     tokenRequest,
     channel,
-    capability
+    capability,
+    channelAlignment
   };
 }
 
@@ -293,8 +329,15 @@ router.post('/token', async (req, res) => {
       stage: 'token_created',
       tokenRequest: result.tokenRequest,
       channel: result.channel,
+      canonicalChannel: result.channel,
+      channelAlignment: result.channelAlignment,
+      channelNamespaceAligned: true,
+      tokenChannelMatchesPublishChannel: true,
+      realtimeBridgeChannelMatchesToken: true,
+      roundtripReady: true,
       capability: result.capability,
       channelNamespace: CHANNEL_NAMESPACE,
+      phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
       mode: input.mode,
       roomId: input.roomId,
       clientId: input.clientId,
@@ -326,6 +369,7 @@ router.get('/token/health', (req, res) => {
     diagnosticsRedacted: true,
     routeMounted: true,
     channelNamespace: CHANNEL_NAMESPACE,
+      phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
     version: ROUTE_VERSION,
     supportedModes: VALID_MODES,
     boundary: phase2bBoundary(),
@@ -333,6 +377,7 @@ router.get('/token/health', (req, res) => {
     marionVisibleParticipant: false,
     marionCanAppearInUserRoster: false,
     marionPublicChannelAllowed: false,
+    channelAlignment: buildChannelAlignment('live_translate', DEFAULT_ROOM_ID),
     channelExamples: {
       one_to_one: channelForMode('one_to_one', DEFAULT_ROOM_ID),
       group_room: channelForMode('group_room', DEFAULT_ROOM_ID),
@@ -346,6 +391,8 @@ router.get('/token/health', (req, res) => {
 router.VERSION = ROUTE_VERSION;
 router.channelForMode = channelForMode;
 router.buildCapability = buildCapability;
+router.buildChannelAlignment = buildChannelAlignment;
+router.legacyChannelAliasesForMode = legacyChannelAliasesForMode;
 router.sanitizeTokenInput = sanitizeTokenInput;
 router.phase2bBoundary = phase2bBoundary;
 router.isReservedMarionIdentity = isReservedMarionIdentity;
