@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'marion.voiceTranscriptNormalizer/1.3-phase2-speech-sync-compatible';
+const VERSION = 'marion.voiceTranscriptNormalizer/1.4-phase1c-admin-conversation-lingosentinel-continuity';
 
 /**
  * MarionVoiceTranscriptNormalizer
@@ -12,7 +12,6 @@ const FILLER_PATTERNS = [
   /\bum+\b/gi,
   /\ber+\b/gi,
   /\bah+\b/gi,
-  /\blike\b/gi,
   /\byou know\b/gi,
   /\bi mean\b/gi
 ];
@@ -20,6 +19,19 @@ const FILLER_PATTERNS = [
 const WAKE_WORD_PATTERNS = [
   /^\s*(vera|nyx|marion|lingosentinel|lingo sentinel)[,\s]+/i
 ];
+
+const LANGUAGE_ALIAS_MAP = Object.freeze({
+  english: 'en',
+  en: 'en',
+  french: 'fr',
+  français: 'fr',
+  francais: 'fr',
+  fr: 'fr',
+  spanish: 'es',
+  español: 'es',
+  espanol: 'es',
+  es: 'es'
+});
 
 function collapseRepeatedWords(text) {
   return String(text || '').replace(/\b(\w+)(\s+\1\b)+/gi, '$1');
@@ -72,12 +84,38 @@ function removeWakeWord(text) {
   return out.trim();
 }
 
+
+function detectTargetLanguages(text) {
+  const value = String(text || '').toLowerCase();
+  const out = [];
+  Object.keys(LANGUAGE_ALIAS_MAP).forEach((key) => {
+    const rx = new RegExp("\\b" + key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
+    if (rx.test(value)) out.push(LANGUAGE_ALIAS_MAP[key]);
+  });
+  return Array.from(new Set(out));
+}
+
+function isLingoSentinelContinuityRequest(text) {
+  const value = String(text || '').toLowerCase();
+  return /\blingo\s*sentinel|lingosentinel\b/i.test(value) &&
+    /\b(continuity|conversation|user[-\s]?to[-\s]?user|english|french|spanish|translation|language|handoff|oversight|silent|dialogue)\b/i.test(value);
+}
+
+function isPrivateAdminConversationRequest(text) {
+  const value = String(text || '').toLowerCase();
+  return /\b(private\s+admin|admin\s+conversation|direct\s+marion|marion\s+admin|protected\s+admin)\b/i.test(value);
+}
+
+
 function detectCommandPhrase(text) {
   const value = String(text || '').toLowerCase();
 
   if (/\b(stop listening|mute voice|voice off)\b/.test(value)) return 'voice_stop';
   if (/\b(start listening|voice on|enable voice)\b/.test(value)) return 'voice_start';
+  if (/\b(private admin conversation status|marion admin conversation status|direct marion status|admin conversation route)\b/.test(value)) return 'admin_conversation_status';
   if (/\b(status update|where are we|what is the status|private voice status|voice lane status|protected voice status|protected voice status summary)\b/.test(value)) return 'status';
+  if (isLingoSentinelContinuityRequest(value)) return 'lingosentinel_continuity';
+  if (/\b(english|french|spanish)\b/.test(value) && /\b(continuity|translation|handoff|conversation|dialogue|language)\b/.test(value)) return 'language_continuity';
   if (/\b(speech sync|speech-sync|avatar sync|mouth sync|viseme|visemes|animation timing)\b/.test(value)) return 'speech_sync_status';
   if (/\bnext step|next steps|move forward\b/.test(value)) return 'next_steps';
   if (/\bcreate|build|generate|draft|write\b/.test(value)) return 'creation';
@@ -111,6 +149,10 @@ function normalizeVoiceTranscript(envelopeOrText, options) {
     normalizedTranscript: normalized,
     wakeWord,
     commandPhrase,
+    targetLanguages: detectTargetLanguages(normalized),
+    privateAdminConversationRequested: isPrivateAdminConversationRequest(originalTranscript) || commandPhrase === 'admin_conversation_status',
+    lingoSentinelContinuityRequested: isLingoSentinelContinuityRequest(originalTranscript) || commandPhrase === 'lingosentinel_continuity',
+    languageContinuityRequested: commandPhrase === 'language_continuity',
     changed: originalTranscript.trim() !== normalized,
     warnings: []
   };
@@ -130,6 +172,10 @@ function applyTranscriptNormalization(envelope, options) {
       originalTranscript: normalized.originalTranscript,
       wakeWord: normalized.wakeWord,
       commandPhrase: normalized.commandPhrase,
+      targetLanguages: normalized.targetLanguages,
+      privateAdminConversationRequested: normalized.privateAdminConversationRequested === true,
+      lingoSentinelContinuityRequested: normalized.lingoSentinelContinuityRequested === true,
+      languageContinuityRequested: normalized.languageContinuityRequested === true,
       normalization: normalized
     }),
     normalization: normalized
@@ -144,5 +190,8 @@ module.exports = {
   collapseRepeatedWords,
   normalizePunctuation,
   extractWakeWord,
-  detectCommandPhrase
+  detectCommandPhrase,
+  detectTargetLanguages,
+  isLingoSentinelContinuityRequest,
+  isPrivateAdminConversationRequest
 };
