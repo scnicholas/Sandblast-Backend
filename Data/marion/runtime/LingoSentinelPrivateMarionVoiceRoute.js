@@ -23,9 +23,10 @@ const crypto = require('crypto');
 
 const MarionVoiceGateway = require('./MarionVoiceGateway');
 
-const VERSION = 'nyx.lingosentinel.privateMarionVoiceRoute/1.2-phase2b-private-admin-boundary-hardlock';
+const VERSION = 'nyx.lingosentinel.privateMarionVoiceRoute/1.3-phase2d-channel-namespace-roundtrip-compatible';
 const router = express.Router();
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
+const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
 
 
 function phase2bBoundary() {
@@ -43,7 +44,10 @@ function phase2bBoundary() {
     marionRenderedAsSpeaker: false,
     marionCanPublishToRoom: false,
     marionCanAppearInUserRoster: false,
-    visibleToUsers: false
+    visibleToUsers: false,
+    phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: true,
+    canonicalNamespace: 'lingosentinel'
   };
 }
 
@@ -194,7 +198,10 @@ router.get('/voice/health', (req, res) => {
     marionCanAppearInUserRoster: false,
     tokenConfigured: envTokens().length > 0,
     gateway: gatewayHandlerStatus(),
-    version: VERSION
+    version: VERSION,
+    phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: true,
+    canonicalNamespace: 'lingosentinel'
   });
 });
 
