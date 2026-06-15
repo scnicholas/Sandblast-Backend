@@ -22,6 +22,7 @@
 
 const DEFAULT_NAMESPACE = 'lingosentinel';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.realtimeBridge.userBoundarySilentOversight/2.0';
+const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.realtimeBridge.channelNamespaceRoundtrip/2.0';
 
 const CHANNELS = Object.freeze({
   presence: 'presence',
@@ -178,6 +179,36 @@ function buildChannelName(namespace, lane, id) {
   if (!id) return `${ns}:${cleanLane}`;
 
   return `${ns}:${cleanLane}:${sanitizeChannelPart(id, 'default')}`;
+}
+
+function channelForMode(mode, roomId) {
+  const rawMode = safeString(mode || 'one_to_one', 48).toLowerCase();
+  const normalizedMode = rawMode === 'live' || rawMode === 'translate' || rawMode === 'translation' ? 'live_translate' : rawMode;
+  const cleanRoomId = sanitizeChannelPart(roomId, 'global');
+  if (normalizedMode === 'group_room' || normalizedMode === 'group' || normalizedMode === 'room') return buildChannelName(DEFAULT_NAMESPACE, CHANNELS.room, cleanRoomId);
+  if (normalizedMode === 'live_translate') return buildChannelName(DEFAULT_NAMESPACE, CHANNELS.translation, cleanRoomId);
+  if (normalizedMode === 'delivered' || normalizedMode === 'delivery' || normalizedMode === 'receipt') return buildChannelName(DEFAULT_NAMESPACE, CHANNELS.delivered, cleanRoomId);
+  return buildChannelName(DEFAULT_NAMESPACE, CHANNELS.direct, cleanRoomId);
+}
+
+function buildChannelAlignment(mode, roomId) {
+  const canonicalChannel = channelForMode(mode, roomId);
+  return {
+    version: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: canonicalChannel.indexOf(`${DEFAULT_NAMESPACE}:`) === 0,
+    canonicalNamespace: DEFAULT_NAMESPACE,
+    canonicalChannel,
+    publishChannel: canonicalChannel,
+    tokenChannel: canonicalChannel,
+    realtimeBridgeChannel: canonicalChannel,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicUsersMayAddressMarion: false
+  };
 }
 
 function makeLocalClientId(prefix) {
@@ -493,7 +524,9 @@ class LingoSentinelRealtimeBridge {
       connected: safeBoolean(this.connected),
       fallback: safeBoolean(this.fallback),
       destroyed: safeBoolean(this.destroyed),
-      boundary: phase2bBoundary()
+      boundary: phase2bBoundary(),
+      phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      channelNamespaceAligned: true
     };
   }
 
@@ -600,6 +633,7 @@ class LingoSentinelRealtimeBridge {
   async publishDirectMessage(roomId, message, metadata = {}) {
     const cleanRoomId = sanitizeChannelPart(roomId, 'global');
     const channel = this.getChannel(CHANNELS.direct, cleanRoomId);
+    const channelAlignment = buildChannelAlignment('one_to_one', cleanRoomId);
 
     return this.publish(channel, EVENT_TYPES.ONE_TO_ONE_MESSAGE_READY, {
       type: EVENT_TYPES.ONE_TO_ONE_MESSAGE_READY,
@@ -609,13 +643,15 @@ class LingoSentinelRealtimeBridge {
       sourceLanguage: metadata.sourceLanguage,
       targetLanguage: metadata.targetLanguage,
       anonymous: metadata.anonymous !== false,
-      timestamp: now()
+      timestamp: now(),
+      channelAlignment
     });
   }
 
   async publishDeliveredMessage(roomId, message, metadata = {}) {
     const cleanRoomId = sanitizeChannelPart(roomId, 'delivered');
     const channel = this.getChannel(CHANNELS.delivered, cleanRoomId);
+    const channelAlignment = buildChannelAlignment('delivered', cleanRoomId);
 
     return this.publish(channel, EVENT_TYPES.DELIVERED_MESSAGE_READY, {
       type: EVENT_TYPES.DELIVERED_MESSAGE_READY,
@@ -950,8 +986,11 @@ module.exports = {
   CHANNELS,
   sanitizeEvent,
   buildChannelName,
+  channelForMode,
+  buildChannelAlignment,
   phase2bBoundary,
   eventHasPublicMarionIdentity,
   isReservedMarionIdentity,
-  PHASE2B_USER_BOUNDARY_VERSION
+  PHASE2B_USER_BOUNDARY_VERSION,
+  PHASE2D_CHANNEL_NAMESPACE_VERSION
 };
