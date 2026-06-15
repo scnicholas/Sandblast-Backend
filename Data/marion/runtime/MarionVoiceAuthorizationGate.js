@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.1-lingosentinel-private-voice-delivery';
+const VERSION = 'marion.voiceAuthorizationGate/2.2-marion-admin-interface-hardlock';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -37,6 +37,18 @@ const DEFAULT_AUTHORIZED_SPEAKERS = [
   'sean',
   'sean nicholas'
 ];
+
+const ADMIN_INTERFACE_SCOPES = new Set([
+  'marion_admin_conversation',
+  'marion_admin_voice',
+  'lingosentinel_private_voice'
+]);
+
+const ADMIN_DELIVERY_CHANNELS = new Set([
+  'marion_admin_interface',
+  'marion_admin_voice',
+  'lingosentinel_private_voice'
+]);
 
 function normalizeName(value) {
   return String(value || '')
@@ -85,6 +97,45 @@ function hasTrustedAdminVoiceProof(envelope, options) {
   return optionProof || (envelopeProofTrusted && envelopeProof);
 }
 
+
+function isTrustedAdminInterfaceScope(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const voice = env.voice && typeof env.voice === 'object' ? env.voice : {};
+  const scope = normalizeName(opts.adminInterfaceScope || env.adminInterfaceScope || voice.adminInterfaceScope || '');
+  const channel = normalizeName(opts.deliveryChannel || env.deliveryChannel || voice.deliveryChannel || '');
+  const requested =
+    opts.allowMarionAdminConversation === true ||
+    opts.marionAdminConversation === true ||
+    opts.directMarionAdminInterface === true ||
+    env.directMarionAdminInterface === true ||
+    env.marionAdminConversation === true ||
+    voice.directMarionAdminInterface === true ||
+    voice.marionAdminConversation === true ||
+    ADMIN_INTERFACE_SCOPES.has(scope) ||
+    ADMIN_DELIVERY_CHANNELS.has(channel);
+
+  if (!requested) return false;
+  if (!hasTrustedAdminVoiceProof(env, opts)) return false;
+
+  return ADMIN_INTERFACE_SCOPES.has(scope) ||
+    ADMIN_DELIVERY_CHANNELS.has(channel) ||
+    opts.allowMarionAdminConversation === true ||
+    opts.directMarionAdminInterface === true;
+}
+
+function resolveAdminInterfaceScope(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const voice = env.voice && typeof env.voice === 'object' ? env.voice : {};
+  const scope = normalizeName(opts.adminInterfaceScope || env.adminInterfaceScope || voice.adminInterfaceScope || '');
+  const channel = normalizeName(opts.deliveryChannel || env.deliveryChannel || voice.deliveryChannel || '');
+  if (ADMIN_INTERFACE_SCOPES.has(scope)) return scope;
+  if (ADMIN_DELIVERY_CHANNELS.has(channel)) return channel === 'marion_admin_interface' ? 'marion_admin_conversation' : channel;
+  if (opts.allowMarionAdminConversation === true || opts.directMarionAdminInterface === true || env.directMarionAdminInterface === true) return 'marion_admin_conversation';
+  return '';
+}
+
 function isSpeakerAuthorized(speakerHint, options) {
   const opts = options && typeof options === 'object' ? options : {};
   const trustedHint = opts.trustSpeakerHint === true || opts.trustedSpeakerHint === true || opts.allowSpeakerHintAuthorization === true;
@@ -117,10 +168,13 @@ function evaluateVoiceAuthorization(envelope, options) {
   const restrictedByPattern = isRestrictedTranscript(transcript);
   const restricted = restrictedByIntent || restrictedByPattern;
   const adminVoiceVerified = hasTrustedAdminVoiceProof(envelope, opts);
+  const adminInterfaceScope = resolveAdminInterfaceScope(envelope, opts);
+  const directMarionAdminInterface = isTrustedAdminInterfaceScope(envelope, opts);
   const speakerAuthorized = isSpeakerAuthorized(speakerHint, Object.assign({}, opts, {
     trustSpeakerHint: opts.trustSpeakerHint === true && adminVoiceVerified
   }));
   const adminAuthorized = adminVoiceVerified || speakerAuthorized;
+  const marionAdminConversationAllowed = directMarionAdminInterface && adminAuthorized;
 
   if (!transcript.trim()) {
     return {
@@ -132,6 +186,9 @@ function evaluateVoiceAuthorization(envelope, options) {
       speakerAuthorized,
       adminVoiceVerified,
       adminOnlyVoiceDelivery,
+      directMarionAdminInterface,
+      adminInterfaceScope,
+      marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
   }
@@ -146,6 +203,9 @@ function evaluateVoiceAuthorization(envelope, options) {
       speakerAuthorized,
       adminVoiceVerified,
       adminOnlyVoiceDelivery,
+      directMarionAdminInterface,
+      adminInterfaceScope,
+      marionAdminConversationAllowed,
       adminVoiceDeliveryAllowed: true
     };
   }
@@ -160,6 +220,9 @@ function evaluateVoiceAuthorization(envelope, options) {
       speakerAuthorized,
       adminVoiceVerified,
       adminOnlyVoiceDelivery,
+      directMarionAdminInterface,
+      adminInterfaceScope,
+      marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
   }
@@ -174,6 +237,9 @@ function evaluateVoiceAuthorization(envelope, options) {
       speakerAuthorized,
       adminVoiceVerified,
       adminOnlyVoiceDelivery,
+      directMarionAdminInterface,
+      adminInterfaceScope,
+      marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
   }
@@ -188,6 +254,9 @@ function evaluateVoiceAuthorization(envelope, options) {
       speakerAuthorized,
       adminVoiceVerified,
       adminOnlyVoiceDelivery,
+      directMarionAdminInterface,
+      adminInterfaceScope,
+      marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
   }
@@ -213,6 +282,9 @@ function applyVoiceAuthorization(envelope, options) {
       authorizationState: auth.authorizationState,
       adminVoiceVerified: auth.adminVoiceVerified === true,
       adminOnlyVoiceDelivery: auth.adminOnlyVoiceDelivery !== false,
+      directMarionAdminInterface: auth.directMarionAdminInterface === true,
+      adminInterfaceScope: auth.adminInterfaceScope || '',
+      marionAdminConversationAllowed: auth.marionAdminConversationAllowed === true,
       adminVoiceDeliveryAllowed: auth.adminVoiceDeliveryAllowed === true,
       authorization: auth
     }),
@@ -223,9 +295,13 @@ function applyVoiceAuthorization(envelope, options) {
 module.exports = {
   VERSION,
   DEFAULT_AUTHORIZED_SPEAKERS,
+  ADMIN_INTERFACE_SCOPES,
+  ADMIN_DELIVERY_CHANNELS,
   evaluateVoiceAuthorization,
   applyVoiceAuthorization,
   isRestrictedTranscript,
   isSpeakerAuthorized,
-  hasTrustedAdminVoiceProof
+  hasTrustedAdminVoiceProof,
+  isTrustedAdminInterfaceScope,
+  resolveAdminInterfaceScope
 };
