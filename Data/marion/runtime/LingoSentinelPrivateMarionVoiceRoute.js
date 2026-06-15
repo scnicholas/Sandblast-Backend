@@ -23,8 +23,29 @@ const crypto = require('crypto');
 
 const MarionVoiceGateway = require('./MarionVoiceGateway');
 
-const VERSION = 'nyx.lingosentinel.privateMarionVoiceRoute/1.1-phase2a-path-lock';
+const VERSION = 'nyx.lingosentinel.privateMarionVoiceRoute/1.2-phase2b-private-admin-boundary-hardlock';
 const router = express.Router();
+const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
+
+
+function phase2bBoundary() {
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    privateAdminOnly: true,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: 'Marion',
+    publicFacingAgent: 'Nyx',
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    visibleToUsers: false
+  };
+}
 
 function cleanText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -166,6 +187,11 @@ router.get('/voice/health', (req, res) => {
     transcriptOnly: true,
     audioStored: false,
     diagnosticsRedacted: true,
+    boundary: phase2bBoundary(),
+    publicUsersMayAddressMarion: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
     tokenConfigured: envTokens().length > 0,
     gateway: gatewayHandlerStatus(),
     version: VERSION
@@ -201,6 +227,11 @@ router.post('/voice', async (req, res) => {
       noRawAudioStored: true,
       route: '/api/lingosentinel/private/marion/voice',
       version: VERSION,
+      boundary: phase2bBoundary(),
+      publicUsersMayAddressMarion: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
       meta: {
         configured: admin.configured === true,
         provided: admin.provided === true,
@@ -229,7 +260,12 @@ router.post('/voice', async (req, res) => {
       audioStored: false,
       noRawAudioStored: true,
       route: '/api/lingosentinel/private/marion/voice',
-      version: VERSION
+      version: VERSION,
+      boundary: phase2bBoundary(),
+      publicUsersMayAddressMarion: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false
     });
   }
 
@@ -276,6 +312,11 @@ router.post('/voice', async (req, res) => {
       transcriptOnly: true,
       audioStored: false,
       noRawAudioStored: true,
+      boundary: phase2bBoundary(),
+      publicUsersMayAddressMarion: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
       meta: Object.assign({}, packet.meta || {}, {
         latencyMs: Date.now() - startedAt,
         diagnosticsRedacted: true
@@ -302,6 +343,11 @@ router.post('/voice', async (req, res) => {
       noRawAudioStored: true,
       route: '/api/lingosentinel/private/marion/voice',
       version: VERSION,
+      boundary: phase2bBoundary(),
+      publicUsersMayAddressMarion: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
       meta: {
         latencyMs: Date.now() - startedAt,
         diagnosticsRedacted: true
@@ -311,4 +357,5 @@ router.post('/voice', async (req, res) => {
 });
 
 router.VERSION = VERSION;
+router.phase2bBoundary = phase2bBoundary;
 module.exports = router;
