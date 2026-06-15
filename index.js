@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.57sb LINGOSENTINEL-PHASE2B-USER-BOUNDARY-SILENT-OVERSIGHT-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.58sb LINGOSENTINEL-PHASE2D-CHANNEL-NAMESPACE-ROUNDTRIP-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -52,6 +52,8 @@ const LINGOSENTINEL_ABLY_READINESS_VERSION = "nyx.lingosentinel.ablyReadiness/1.
 const LINGOSENTINEL_ABLY_SANDBOX_PUBLISH_VERSION = "nyx.lingosentinel.ablySandboxPublish/1.0";
 const LINGOSENTINEL_PRIVATE_ROOM_VERSION = "nyx.lingosentinel.controlledPrivateRoom/1.1-direct-ably-fallback";
 const LINGOSENTINEL_PHASE2B_USER_BOUNDARY_VERSION = "nyx.lingosentinel.index.phase2bUserBoundarySilentOversight/2.0";
+const LINGOSENTINEL_PHASE2D_CHANNEL_NAMESPACE_VERSION = "nyx.lingosentinel.index.phase2dChannelNamespaceRoundtrip/2.0";
+const LINGOSENTINEL_CHANNEL_NAMESPACE = "lingosentinel";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -13975,6 +13977,44 @@ function hasLingoSentinelAblyKeyConfigured() {
   return !!(cleanText(process.env.ABLY_API_KEY || "") || cleanText(process.env.ABLY_ROOT_API_KEY || ""));
 }
 
+function lingoSentinelCanonicalMode(value) {
+  const raw = cleanText(value || "group_room").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  if (["one", "one_to_one", "direct", "dm", "private", "chat"].includes(raw)) return "one_to_one";
+  if (["live", "live_translate", "translate", "translation"].includes(raw)) return "live_translate";
+  if (["delivered", "delivery", "receipt"].includes(raw)) return "delivered";
+  return "group_room";
+}
+
+function lingoSentinelCanonicalChannel(mode, roomId) {
+  const cleanRoomId = cleanLingoSentinelRoomId(roomId || "sandbox-healthcheck");
+  const m = lingoSentinelCanonicalMode(mode);
+  if (m === "one_to_one") return LINGOSENTINEL_CHANNEL_NAMESPACE + ":direct:" + cleanRoomId;
+  if (m === "live_translate") return LINGOSENTINEL_CHANNEL_NAMESPACE + ":translation:" + cleanRoomId;
+  if (m === "delivered") return LINGOSENTINEL_CHANNEL_NAMESPACE + ":delivered:" + cleanRoomId;
+  return LINGOSENTINEL_CHANNEL_NAMESPACE + ":room:" + cleanRoomId;
+}
+
+function lingoSentinelPhase2DChannelAlignment(mode, roomId) {
+  const canonicalChannel = lingoSentinelCanonicalChannel(mode, roomId);
+  return {
+    version: LINGOSENTINEL_PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: true,
+    canonicalNamespace: LINGOSENTINEL_CHANNEL_NAMESPACE,
+    mode: lingoSentinelCanonicalMode(mode),
+    canonicalChannel,
+    publishChannel: canonicalChannel,
+    tokenChannel: canonicalChannel,
+    realtimeBridgeChannel: canonicalChannel,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicUsersMayAddressMarion: false
+  };
+}
+
 function buildLingoSentinelAblyReadiness(req) {
   return {
     ok: true,
@@ -14005,10 +14045,13 @@ function buildLingoSentinelAblyReadiness(req) {
       engine: !!lingoSentinelEngineMod
     },
     contract: {
-      group_room: { channel: "ls:room:{roomId}", eventName: "lingosentinel.message.group" },
-      one_to_one: { channel: "ls:direct:{roomId}", eventName: "lingosentinel.message.direct" },
-      live_translate: { channel: "ls:live:{sessionId}", eventName: "lingosentinel.message.live" },
-      delivered: { channel: "ls:receipt:{threadId}", eventName: "lingosentinel.message.delivered" }
+      namespace: LINGOSENTINEL_CHANNEL_NAMESPACE,
+      channelNamespaceAligned: true,
+      phase2dChannelNamespaceVersion: LINGOSENTINEL_PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      group_room: { channel: "lingosentinel:room:{roomId}", eventName: "lingosentinel.message.group" },
+      one_to_one: { channel: "lingosentinel:direct:{roomId}", eventName: "lingosentinel.message.direct" },
+      live_translate: { channel: "lingosentinel:translation:{roomId}", eventName: "lingosentinel.message.live" },
+      delivered: { channel: "lingosentinel:delivered:{threadId}", eventName: "lingosentinel.message.delivered" }
     },
     safeguards: {
       keyExposed: false,
@@ -14176,7 +14219,7 @@ async function publishLingoSentinelSandboxFromRender(req) {
   }
 
   const input = buildLingoSentinelSandboxPublishInput(req);
-  const channel = "ls:room:sandbox-healthcheck";
+  const channel = lingoSentinelCanonicalChannel("group_room", "sandbox-healthcheck");
   const eventName = "lingosentinel.message.group";
   let result = null;
   const engine = lingoSentinelEngineMod;
@@ -14526,6 +14569,41 @@ function createAblyTokenRequestSafe(restClient, params) {
   });
 }
 
+
+app.get(["/api/lingosentinel/phase2d/health", "/api/lingosentinel/channel/health"], (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(200).json({
+    ok: true,
+    service: "lingosentinel-phase2d-channel-namespace-roundtrip",
+    routeMounted: true,
+    version: LINGOSENTINEL_PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    canonicalNamespace: LINGOSENTINEL_CHANNEL_NAMESPACE,
+    channelNamespaceAligned: true,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: true,
+    channelExamples: {
+      one_to_one: lingoSentinelCanonicalChannel("one_to_one", "phase2d-roundtrip-room"),
+      group_room: lingoSentinelCanonicalChannel("group_room", "phase2d-roundtrip-room"),
+      live_translate: lingoSentinelCanonicalChannel("live_translate", "phase2d-roundtrip-room"),
+      delivered: lingoSentinelCanonicalChannel("delivered", "phase2d-roundtrip-room")
+    },
+    boundary: {
+      userToUserBoundary: true,
+      silentOversight: true,
+      advisoryOnly: true,
+      finalAuthority: "Marion",
+      publicUsersMayAddressMarion: false,
+      publicUsersSpeakThrough: "LingoSentinel/Nyx",
+      marionVisibleParticipant: false,
+      visibleToUsers: false
+    },
+    diagnosticsRedacted: true,
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
+  });
+});
+
 if (!lingoSentinelSubscribeTokenMounted) {
   app.get("/api/lingosentinel/token/health", (req, res) => {
     applyCors(req, res);
@@ -14534,6 +14612,9 @@ if (!lingoSentinelSubscribeTokenMounted) {
       ok: true,
       service: "lingosentinel-subscribe-token",
       version: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
+      phase2dChannelNamespaceVersion: LINGOSENTINEL_PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      channelNamespaceAligned: true,
+      canonicalNamespace: LINGOSENTINEL_CHANNEL_NAMESPACE,
       ablyConfigured: hasLingoSentinelAblyKeyConfigured(),
       marionAuthority: true,
       publicSurface: "Nyx",
@@ -14549,12 +14630,13 @@ if (!lingoSentinelSubscribeTokenMounted) {
     hardenConversationNoStore(res);
     const body = safeObj(req && req.body);
     const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("lstoken"));
-    const mode = cleanText(body.mode || "group_room").toLowerCase();
+    const mode = lingoSentinelCanonicalMode(body.mode || "group_room");
     const roomId = cleanLingoSentinelRoomId(body.roomId || "sandbox-healthcheck");
-    if (mode !== "group_room" || !roomId) {
-      return res.status(400).json({ ok: false, stage: "token_rejected", reason: "invalid_room_or_mode", marionAuthority: true, publicSurface: "Nyx", traceId });
+    if (!roomId) {
+      return res.status(400).json({ ok: false, stage: "token_rejected", reason: "invalid_room", marionAuthority: true, publicSurface: "Nyx", traceId });
     }
-    const channel = "ls:room:" + roomId;
+    const channel = lingoSentinelCanonicalChannel(mode, roomId);
+    const channelAlignment = lingoSentinelPhase2DChannelAlignment(mode, roomId);
     const capability = {};
     capability[channel] = ["subscribe", "presence"];
     const clientId = lingoSentinelPrivateClientId(body.clientId || "ls-listener", "listener");
@@ -14570,10 +14652,17 @@ if (!lingoSentinelSubscribeTokenMounted) {
       ok: true,
       service: "lingosentinel-subscribe-token",
       version: LINGOSENTINEL_GATEWAY_INDEX_VERSION,
+      phase2dChannelNamespaceVersion: LINGOSENTINEL_PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      channelNamespaceAligned: true,
+      canonicalNamespace: LINGOSENTINEL_CHANNEL_NAMESPACE,
       stage: "token_ready",
-      mode: "group_room",
+      mode,
       roomId,
       channel,
+      channelAlignment,
+      channelNamespaceAligned: true,
+      tokenChannelMatchesPublishChannel: true,
+      realtimeBridgeChannelMatchesToken: true,
       eventName: "lingosentinel.message.group",
       capability,
       tokenRequest: tokenBuilt.tokenRequest,
@@ -14633,7 +14722,7 @@ app.post("/api/lingosentinel/private/token", async (req, res) => {
     return buildLingoSentinelPrivateDenied(res, 403, "private_role_rejected", "role_not_allowed", traceId);
   }
 
-  const channel = "ls:room:" + roomId;
+  const channel = "lingosentinel:room:" + roomId;
   const eventName = "lingosentinel.message.group";
   const clientId = lingoSentinelPrivateClientId(body.clientId, role);
   const capability = {};
@@ -14732,7 +14821,7 @@ app.post("/api/lingosentinel/private/publish", async (req, res) => {
 
   try {
     const input = buildLingoSentinelPrivatePublishInput(req, roomId, role, traceId);
-    const channel = "ls:room:" + roomId;
+    const channel = "lingosentinel:room:" + roomId;
     const eventName = "lingosentinel.message.group";
     let result = null;
     if (engine && typeof engine.publishGroupMessage === "function") {
@@ -14764,7 +14853,7 @@ app.post("/api/lingosentinel/private/publish", async (req, res) => {
       mode: "group_room",
       roomId,
       role,
-      channel: cleanText(result && result.channel || ("ls:room:" + roomId)),
+      channel: cleanText(result && result.channel || ("lingosentinel:room:" + roomId)),
       eventName: cleanText(result && result.eventName || "lingosentinel.message.group"),
       marionAuthority: true,
       publicSurface: "Nyx",
@@ -14849,7 +14938,7 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
   try {
     const delivery = await callLingoSentinelPrivateMarionText(body, clipText(text, 2200), roomId, role, traceId);
     const reply = delivery.reply || "Marion private text lane is active. I received the request, but no final private text was returned yet.";
-    const channel = "ls:room:" + roomId;
+    const channel = "lingosentinel:room:" + roomId;
     const eventName = "lingosentinel.marion.private.text";
     let privatePublish = { ok: false, stage: "ably_not_attempted" };
 
