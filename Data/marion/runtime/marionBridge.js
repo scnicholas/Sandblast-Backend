@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.19 PHASE2-SPEECH-SYNC-METADATA-CARRY + VOICE-CARRY-FINAL-DELIVERY-STABILIZER + VOICE-LANE-BRIDGE-CONTRACT + AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.20 MARION-ADMIN-INTERFACE-CARRY + PHASE2-SPEECH-SYNC-METADATA-CARRY + VOICE-CARRY-FINAL-DELIVERY-STABILIZER + VOICE-LANE-BRIDGE-CONTRACT + AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -1646,6 +1646,29 @@ function enforceValidPublicReply(packet={},ctx={}){
 
 
 
+function isDirectMarionAdminContext(input = {}) {
+  const src = safeObj(input);
+  const voice = safeObj(src.voice || src.voiceEnvelope || src.voiceTrack || src.voiceLane);
+  const channel = lower(firstText(src.deliveryChannel, voice.deliveryChannel, ""));
+  const scope = lower(firstText(src.adminInterfaceScope, voice.adminInterfaceScope, ""));
+  return src.directMarionAdminInterface === true ||
+    src.marionAdminConversation === true ||
+    voice.directMarionAdminInterface === true ||
+    voice.marionAdminConversation === true ||
+    src.allowMarionAdminConversation === true ||
+    scope === "marion_admin_conversation" ||
+    channel === "marion_admin_interface";
+}
+
+function resolveBridgePublicAgent(input = {}) {
+  const direct = isDirectMarionAdminContext(input);
+  const src = safeObj(input);
+  const voice = safeObj(src.voice || src.voiceEnvelope || src.voiceTrack || src.voiceLane);
+  const adminAllowed = src.adminVoiceDeliveryAllowed === true || voice.adminVoiceDeliveryAllowed === true || src.adminVoiceVerified === true || voice.adminVoiceVerified === true;
+  return direct && adminAllowed ? "Marion" : "Nyx";
+}
+
+
 
 function buildBridgeVoiceCarry(input = {}) {
   const src = safeObj(input);
@@ -1653,6 +1676,8 @@ function buildBridgeVoiceCarry(input = {}) {
   const inputChannel = canonicalInputSource(src);
   const transcript = firstText(src.transcript, src.normalizedTranscript, voice.transcript, voice.normalizedTranscript, src.text, src.userQuery, src.query, "");
   const originalTranscript = firstText(src.originalTranscript, voice.originalTranscript, transcript);
+  const directMarionAdminInterface = isDirectMarionAdminContext(src);
+  const publicAgent = resolveBridgePublicAgent(src);
 
   return {
     active: inputChannel === "voice" || voice.source === "voice" || voice.inputChannel === "voice" || !!transcript,
@@ -1667,8 +1692,13 @@ function buildBridgeVoiceCarry(input = {}) {
     wakeWord: firstText(src.wakeWord, voice.wakeWord, ""),
     speakAllowed: voice.speakAllowed === true,
     voiceMode: firstText(voice.voiceMode, ""),
-    publicAgent: firstText(src.publicAgent, "Nyx"),
+    publicAgent,
     authority: firstText(src.authority, "Marion"),
+    directMarionAdminInterface,
+    marionAdminConversation: directMarionAdminInterface,
+    marionAdminConversationAllowed: directMarionAdminInterface && (src.adminVoiceDeliveryAllowed === true || voice.adminVoiceDeliveryAllowed === true || src.adminVoiceVerified === true || voice.adminVoiceVerified === true),
+    adminInterfaceScope: directMarionAdminInterface ? firstText(src.adminInterfaceScope, voice.adminInterfaceScope, "marion_admin_conversation") : "",
+    publicUsersCanAddressMarion: false,
     adminOnlyVoiceDelivery: src.adminOnlyVoiceDelivery !== false && voice.adminOnlyVoiceDelivery !== false,
     adminVoiceVerified: src.adminVoiceVerified === true || voice.adminVoiceVerified === true,
     adminVoiceDeliveryAllowed: src.adminVoiceDeliveryAllowed === true || voice.adminVoiceDeliveryAllowed === true,
@@ -1689,7 +1719,7 @@ function buildBridgeVoiceCarry(input = {}) {
     estimatedSpeechDurationMs: Number(voice.estimatedSpeechDurationMs || safeObj(voice.speechSync).estimatedDurationMs || 0) || 0,
     visemeCount: Number(voice.visemeCount || safeObj(voice.speechSync).visemeCount || 0) || 0,
     speechSyncCompatible: true,
-    bridgeCarryVersion: "nyx.marion.voiceBridgeCarry/1.3-phase2-speech-sync-metadata-carry"
+    bridgeCarryVersion: "nyx.marion.voiceBridgeCarry/1.4-marion-admin-interface-carry"
   };
 }
 
@@ -1699,9 +1729,13 @@ function attachBridgeVoiceCarry(target = {}, input = {}) {
   return {
     ...safeObj(target),
     inputChannel: "voice",
-    source: "voice",
-    publicAgent: "Nyx",
+    source: carry.directMarionAdminInterface ? "marion-admin-interface" : "voice",
+    publicAgent: carry.publicAgent,
     authority: "Marion",
+    directMarionAdminInterface: carry.directMarionAdminInterface === true,
+    marionAdminConversationAllowed: carry.marionAdminConversationAllowed === true,
+    adminInterfaceScope: carry.adminInterfaceScope || "",
+    publicUsersCanAddressMarion: false,
     voice: {
       ...safeObj(safeObj(target).voice),
       ...carry
@@ -2143,8 +2177,9 @@ function normalizeInbound(input={}){
     }catch(err){commandPacket={ok:false,error:safeStr(err&&(err.message||err)||"command_normalizer_failed")};}
   }
   const inputSource=canonicalInputSource(source);
+  const directMarionAdminInterface=isDirectMarionAdminContext(source);
   const rawUserQuery=extractUserText(source);
-  const publicUserQueryRaw=normalizePublicNyxAddress(rawUserQuery);
+  const publicUserQueryRaw=directMarionAdminInterface?rawUserQuery:normalizePublicNyxAddress(rawUserQuery);
   const spokenAliasRecovery=normalizeSpokenProjectAliases(publicUserQueryRaw);
   const publicUserQuery=firstText(spokenAliasRecovery.text,publicUserQueryRaw);
   let userQuery=normalizeParityText(publicUserQuery);
@@ -2166,7 +2201,7 @@ function normalizeInbound(input={}){
   if(!userQuery)issues.push("user_query_missing");
   const turnId=extractTurnId(source)||`marion_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
   const sessionId=firstText(source.sessionId,source.body&&source.body.sessionId,source.meta&&source.meta.sessionId,"public")||"public";
-  return{ok:issues.length===0,issues,original:source,commandPacket,userQuery,text:userQuery,query:userQuery,rawUserQuery,publicUserQuery,inputSource,source:inputSource,voice:buildBridgeVoiceCarry(source),spokenAliasRecovery,phaseAnchor,phaseAnchorInstruction,continuity:continuityCarry,followUpReference:continuityCarry,continuityResolvedText:continuityCarry.resolvedText,continuityResolvedOriginalText:continuityCarry.originalText,shortFollowupContinuityResolved:continuityCarry.resolvedFollowup===true,effectivePrompt:userQuery,originalUserQuery:originalUserQueryForContinuity,voiceTextParity:{active:inputSource==="voice"||rawUserQuery!==userQuery||spokenAliasRecovery.changed||continuityCarry.promptRewritten===true,source:inputSource,normalizedText:userQuery,rawHash:hashText(rawUserQuery),normalizedHash:hashText(userQuery),parityLock:true,spokenAliasRecovery,phaseAnchor,continuityCarry},technicalTargetLock,knowledgeDomain:bareKnowledgeDomain||activeKnowledgeDomain,activeKnowledgeDomain,lastActivatedKnowledgeDomain:activeKnowledgeDomain,knowledgeDomainExplicit:!!bareKnowledgeDomain,knowledgeDomainReason:bareKnowledgeDomain?"bare_domain_activation":(activeKnowledgeDomain&&isShortConceptFollowup(userQuery)?"active_domain_short_concept_carry":""),targetFile:firstText(safeObj(technicalTargetLock).targetFile,""),targetPath:firstText(safeObj(technicalTargetLock).targetPath,""),targetName:firstText(safeObj(technicalTargetLock).targetName,""),continuityTurnKey:buildContinuityTurnKey(userQuery,sessionId,turnId),lane,requestedDomain,domain:requestedDomain,previousMemory,marionIntent:extractMarionIntentPacket(source),publicDomainAccess:source.publicDomainAccess===true||safeObj(source.ui).domainAccess===true,forceDomainAnswer:source.forceDomainAnswer===true||safeObj(source.ui).hardRetry===true,requireMarionFinal:source.requireMarionFinal===true,domainAccess:safeArray(source.domainAccess),turnId,sessionId};
+  return{ok:issues.length===0,issues,original:source,commandPacket,userQuery,text:userQuery,query:userQuery,rawUserQuery,publicUserQuery,inputSource,source:directMarionAdminInterface?"marion-admin-interface":inputSource,publicAgent:directMarionAdminInterface&&resolveBridgePublicAgent(source)==="Marion"?"Marion":"Nyx",directMarionAdminInterface,marionAdminConversationAllowed:directMarionAdminInterface&&(source.adminVoiceDeliveryAllowed===true||source.adminVoiceVerified===true||safeObj(source.voice).adminVoiceDeliveryAllowed===true),adminInterfaceScope:directMarionAdminInterface?firstText(source.adminInterfaceScope,safeObj(source.voice).adminInterfaceScope,"marion_admin_conversation"):"",publicUsersCanAddressMarion:false,voice:buildBridgeVoiceCarry(source),spokenAliasRecovery,phaseAnchor,phaseAnchorInstruction,continuity:continuityCarry,followUpReference:continuityCarry,continuityResolvedText:continuityCarry.resolvedText,continuityResolvedOriginalText:continuityCarry.originalText,shortFollowupContinuityResolved:continuityCarry.resolvedFollowup===true,effectivePrompt:userQuery,originalUserQuery:originalUserQueryForContinuity,voiceTextParity:{active:inputSource==="voice"||rawUserQuery!==userQuery||spokenAliasRecovery.changed||continuityCarry.promptRewritten===true,source:inputSource,normalizedText:userQuery,rawHash:hashText(rawUserQuery),normalizedHash:hashText(userQuery),parityLock:true,spokenAliasRecovery,phaseAnchor,continuityCarry},technicalTargetLock,knowledgeDomain:bareKnowledgeDomain||activeKnowledgeDomain,activeKnowledgeDomain,lastActivatedKnowledgeDomain:activeKnowledgeDomain,knowledgeDomainExplicit:!!bareKnowledgeDomain,knowledgeDomainReason:bareKnowledgeDomain?"bare_domain_activation":(activeKnowledgeDomain&&isShortConceptFollowup(userQuery)?"active_domain_short_concept_carry":""),targetFile:firstText(safeObj(technicalTargetLock).targetFile,""),targetPath:firstText(safeObj(technicalTargetLock).targetPath,""),targetName:firstText(safeObj(technicalTargetLock).targetName,""),continuityTurnKey:buildContinuityTurnKey(userQuery,sessionId,turnId),lane,requestedDomain,domain:requestedDomain,previousMemory,marionIntent:extractMarionIntentPacket(source),publicDomainAccess:source.publicDomainAccess===true||safeObj(source.ui).domainAccess===true,forceDomainAnswer:source.forceDomainAnswer===true||safeObj(source.ui).hardRetry===true,requireMarionFinal:source.requireMarionFinal===true,domainAccess:safeArray(source.domainAccess),turnId,sessionId};
 }
 function isDefinitionQuery(text=""){const t=lower(text);return!!t&&(/\b(what\s+is|what\s+are|define|definition\s+of|meaning\s+of|explain|explain\s+the\s+term|explain\s+the\s+word|describe)\b/i.test(t)||/\?$/.test(t));}
 
@@ -2465,9 +2500,13 @@ async function handleVoiceTranscript(input = {}, context = {}) {
     ...ctx,
     ...source,
     inputChannel: "voice",
-    source: "voice",
-    publicAgent: "Nyx",
+    source: isDirectMarionAdminContext({...ctx,...source}) ? "marion-admin-interface" : "voice",
+    publicAgent: resolveBridgePublicAgent({...ctx,...source}),
     authority: "Marion",
+    directMarionAdminInterface: isDirectMarionAdminContext({...ctx,...source}),
+    marionAdminConversationAllowed: isDirectMarionAdminContext({...ctx,...source}) && (source.adminVoiceDeliveryAllowed === true || ctx.adminVoiceDeliveryAllowed === true || source.adminVoiceVerified === true || ctx.adminVoiceVerified === true),
+    adminInterfaceScope: isDirectMarionAdminContext({...ctx,...source}) ? firstText(source.adminInterfaceScope, ctx.adminInterfaceScope, "marion_admin_conversation") : "",
+    publicUsersCanAddressMarion: false,
     requireMarionFinal: true,
     voice: {
       ...safeObj(ctx.voice),
@@ -2483,9 +2522,44 @@ async function handleVoiceTranscript(input = {}, context = {}) {
       adminVoiceDeliveryAllowed: source.adminVoiceDeliveryAllowed === true || ctx.adminVoiceDeliveryAllowed === true,
       privateVoiceDelivery: source.privateVoiceDelivery === true || ctx.privateVoiceDelivery === true,
       deliveryChannel: firstText(source.deliveryChannel, ctx.deliveryChannel, ""),
+      directMarionAdminInterface: isDirectMarionAdminContext({...ctx,...source}),
+      marionAdminConversationAllowed: isDirectMarionAdminContext({...ctx,...source}) && (source.adminVoiceDeliveryAllowed === true || ctx.adminVoiceDeliveryAllowed === true || source.adminVoiceVerified === true || ctx.adminVoiceVerified === true),
+      adminInterfaceScope: isDirectMarionAdminContext({...ctx,...source}) ? firstText(source.adminInterfaceScope, ctx.adminInterfaceScope, "marion_admin_conversation") : "",
+      publicUsersCanAddressMarion: false,
       requireMarionFinal: true
     }
   }, source));
+}
+async function handleMarionAdminConversation(input = {}, context = {}) {
+  const source = safeObj(input);
+  const ctx = safeObj(context);
+  return handleVoiceTranscript({
+    ...source,
+    inputChannel: "voice",
+    source: "marion-admin-interface",
+    publicAgent: "Marion",
+    authority: "Marion",
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    adminInterfaceScope: "marion_admin_conversation",
+    privateVoiceDelivery: true,
+    deliveryChannel: "marion_admin_interface",
+    adminOnlyVoiceDelivery: true,
+    publicUsersCanAddressMarion: false
+  }, {
+    ...ctx,
+    inputChannel: "voice",
+    source: "marion-admin-interface",
+    publicAgent: "Marion",
+    authority: "Marion",
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    adminInterfaceScope: "marion_admin_conversation",
+    privateVoiceDelivery: true,
+    deliveryChannel: "marion_admin_interface",
+    adminOnlyVoiceDelivery: true,
+    publicUsersCanAddressMarion: false
+  });
 }
 async function handleVoiceInput(input = {}, context = {}) { return handleVoiceTranscript(input, context); }
 async function maybeResolve(input={}){return processWithMarion(input);}
@@ -2493,7 +2567,7 @@ async function ask(input={}){return processWithMarion(input);}
 async function handle(input={}){return processWithMarion(input);}
 async function route(input={}){return processWithMarion(input);}
 async function retrieveLayer2Signals(input={}){const normalized=normalizeInbound(input);if(!normalized.ok)return{ok:false,issues:normalized.issues,userQuery:normalized.userQuery,diagnostics:{bridgeVersion:VERSION}};const routed=fallbackRoute(normalized);return{ok:true,userQuery:normalized.userQuery,routed,diagnostics:{bridgeVersion:VERSION,noLegacyRetrievers:true}};}
-function createMarionBridge(){return{maybeResolve,ask,handle,route,processWithMarion,handleVoiceTranscript,handleVoiceInput,retrieveLayer2Signals};}
+function createMarionBridge(){return{maybeResolve,ask,handle,route,processWithMarion,handleVoiceTranscript,handleMarionAdminConversation,handleVoiceInput,retrieveLayer2Signals};}
 
 function bridgeForensicNormalizationStatus(){
   return {
@@ -2517,11 +2591,14 @@ function bridgeForensicNormalizationStatus(){
     voiceBridgeCarryVersion: "nyx.marion.voiceBridgeCarry/1.1-final-delivery-stabilized",
     voiceInputChannelSupported: true,
     voicePublicAgent: "Nyx",
+    marionAdminInterfaceSupported: true,
+    marionAdminInterfacePublicAgent: "Marion",
+    publicUsersCanAddressMarion: false,
     voiceAuthority: "Marion",
     asterEnvironmentAdapterResolvedPath: DEPENDENCY_STATUS.asterEnvironmentAdapter.resolvedPath,
     asterEnvironmentAdapterExists: !!DEPENDENCY_STATUS.asterEnvironmentAdapter.exists
   };
 }
 
-module.exports={VERSION,NYX_MARION_LOOP_GOVERNOR_VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,ASTER_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,handleVoiceTranscript,handleVoiceInput,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{NYX_MARION_LOOP_GOVERNOR_VERSION,isCognitiveLoadSeparationRequest,buildCognitiveLoadSeparationReply,bridgeLoopGovernorReply,normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,buildBridgeVoiceCarry,attachBridgeVoiceCarry,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,runLingoSentinelGatewayForBridgeSafe,normalizeLingoSentinelGatewaySurfaceForBridge,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoSentinelExplanationPrompt,isAsterExplanationPrompt,isGenericGreetingStatusFallback,buildLingoSentinelPublicAnswerFromPacket,buildAsterPublicAnswerFromPacket,buildProjectGatewayPublicAnswerFromPacket,applyLingoSentinelReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply,observeBridgeRuntimeSafely,runAsterPassiveObservationSafe,bridgeAsterShouldObserve,bridgeAsterBuildInput,compactAsterObservationForBridge,buildParallelCoordinationSafe,bridgeLaneRecencySummary},
+module.exports={VERSION,NYX_MARION_LOOP_GOVERNOR_VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,PIPELINE_FORENSIC_NORMALIZATION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,DOMAIN_CONCIERGE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_BRIDGE_VERSION,LINGOSENTINEL_GATEWAY_BRIDGE_VERSION,ASTER_BRIDGE_VERSION,MARION_BRIDGE_DEPLOY_HARDENING_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,bridgeForensicNormalizationStatus,retrieveLayer2Signals,processWithMarion,handleVoiceTranscript,handleMarionAdminConversation,handleVoiceInput,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{NYX_MARION_LOOP_GOVERNOR_VERSION,isCognitiveLoadSeparationRequest,buildCognitiveLoadSeparationReply,bridgeLoopGovernorReply,normalizeInbound,canonicalTechnicalTargetFromText,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,buildBridgeRecoveryFinal,bridgeRecoveryReply,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,isThinPlaceholderText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,DOMAIN_CONCIERGE_REQUIRE_CANDIDATES,compactDomainConciergeForBridge,runDomainConciergeSafe,mergeDomainConciergeIntoRoute,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,buildBridgeVoiceCarry,attachBridgeVoiceCarry,isDirectMarionAdminContext,resolveBridgePublicAgent,canonicalInputSource,normalizeParityText,buildContinuityTurnKey,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion,compactCreativeCognitiveCarry,signatureLooksTrusted,hasTrustedBridgeFinalPacket,hasFinalFailureShape,bridgeForensicNormalizationStatus,buildBridgeRuntimeTelemetry,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,normalizeLanguageSphereInboundSafe,runLingoSentinelGatewayForBridgeSafe,normalizeLingoSentinelGatewaySurfaceForBridge,attachLanguageSphereFinalMetadata,languageSpherePayload,normalizeLanguageSphereSurface,isMarionAuthorityValue,normalizePublicNyxAddress,buildNyxPublicContextPassport,isLingoSentinelExplanationPrompt,isAsterExplanationPrompt,isGenericGreetingStatusFallback,buildLingoSentinelPublicAnswerFromPacket,buildAsterPublicAnswerFromPacket,buildProjectGatewayPublicAnswerFromPacket,applyLingoSentinelReplyOverride,normalizeSpokenProjectAliases,detectSpokenProjectAliasHit,bridgeProgressionProfile,bridgeProgressionMemory,bridgeProgressionTelemetry,bridgeShapeProgressionReply,resolvePhaseAnchor,buildPhaseAnchorInstruction,applyProjectRecoveryReplyOverride,isProgressionShapingRequest,isDomainConfidenceRequest,shouldSuppressDomainConciergeClarifier,readPublicReplyCandidate,isInvalidPublicReplyValue,buildPrimitiveReplyRecovery,applyReplyEverywhere,enforceValidPublicReply,observeBridgeRuntimeSafely,runAsterPassiveObservationSafe,bridgeAsterShouldObserve,bridgeAsterBuildInput,compactAsterObservationForBridge,buildParallelCoordinationSafe,bridgeLaneRecencySummary},
   FINAL_RENDER_TELEMETRY_VERSION};
