@@ -1,3 +1,4 @@
+
 'use strict';
 
 /**
@@ -14,7 +15,8 @@ const { mapTextToVisemes } = require('./NyxVisemeMapper');
 const { buildSpeechTiming } = require('./NyxSpeechTimingAdapter');
 const { buildAvatarSpeechState } = require('./NyxAvatarSpeechState');
 
-const VERSION = 'nyx.speechSyncEnvelope/1.0-phase2-speech-sync';
+const VERSION = 'nyx.speechSyncEnvelope/1.1-phase2-integrity-hardlock';
+const SPEECH_SYNC_CONTRACT = 'nyx.avatar.speechSync/1.0';
 
 function safeText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -30,15 +32,30 @@ function hashText(value) {
   return crypto.createHash('sha256').update(text).digest('hex').slice(0, 24);
 }
 
+function normalizeVoiceMode(value, speakAllowed, spokenText) {
+  if (speakAllowed !== true || !safeText(spokenText)) return 'silent';
+  return safeText(value).toLowerCase() === 'brief' ? 'brief' : 'full';
+}
+
+function hasRawAudioInput(src) {
+  const source = safeObj(src);
+  return source.rawAudio != null || source.audio != null || source.audioBlob != null || source.blob != null || source.buffer != null;
+}
+
 function disabledSpeechSync(reason) {
   return {
     version: VERSION,
+    contract: SPEECH_SYNC_CONTRACT,
     enabled: false,
+    frontendReady: false,
     reason: safeText(reason || 'SPEECH_SYNC_DISABLED'),
     audioStored: false,
+    noRawAudioStored: true,
     transcriptOnly: true,
     visemes: [],
+    visemeCount: 0,
     timing: null,
+    mouthTimeline: [],
     avatar: buildAvatarSpeechState({ speakAllowed: false })
   };
 }
@@ -52,38 +69,54 @@ function buildSpeechSyncEnvelope(input) {
   const finalApproved = src.finalApproved === true || voice.finalApproved === true || voice.finalEnvelopeOnly === true;
   const adminVoiceDeliveryAllowed = src.adminVoiceDeliveryAllowed === true || voice.adminVoiceDeliveryAllowed === true || voiceEnvelope.adminVoiceDeliveryAllowed === true;
 
+  if (hasRawAudioInput(src) || hasRawAudioInput(voice) || hasRawAudioInput(voiceEnvelope)) return disabledSpeechSync('RAW_AUDIO_INPUT_REJECTED');
   if (!speakAllowed) return disabledSpeechSync('SPEAK_NOT_ALLOWED');
   if (!spokenText) return disabledSpeechSync('SPOKEN_TEXT_EMPTY');
   if (!adminVoiceDeliveryAllowed) return disabledSpeechSync('ADMIN_VOICE_REQUIRED');
   if (!finalApproved) return disabledSpeechSync('MARION_FINAL_REQUIRED');
 
   const timing = buildSpeechTiming(spokenText, src.timing || {});
-  const mapped = mapTextToVisemes(spokenText, src.viseme || {});
+  const mapped = mapTextToVisemes(spokenText, Object.assign({}, src.viseme || {}, {
+    totalDurationMs: timing.estimatedDurationMs
+  }));
   const avatar = buildAvatarSpeechState({
     speakAllowed: true,
     spokenText,
     estimatedDurationMs: timing.estimatedDurationMs,
     visemeCount: mapped.count,
-    intensity: src.intensity
+    intensity: src.intensity,
+    reducedMotion: src.reducedMotion === true
   });
+  const voiceMode = normalizeVoiceMode(src.voiceMode || voice.voiceMode || 'full', true, spokenText);
 
   return {
     version: VERSION,
+    contract: SPEECH_SYNC_CONTRACT,
     enabled: true,
+    frontendReady: true,
     source: 'NyxSpeechSyncEnvelope',
     authority: 'Marion',
     publicAgent: 'Nyx',
     finalApproved: true,
     speakAllowed: true,
-    voiceMode: safeText(src.voiceMode || voice.voiceMode || 'full') || 'full',
+    voiceMode,
     text: spokenText,
     textHash: hashText(spokenText),
     locale: safeText(voiceEnvelope.locale || src.locale || 'en-CA'),
     estimatedDurationMs: timing.estimatedDurationMs,
     totalAnimationWindowMs: timing.totalAnimationWindowMs,
+    animationClock: {
+      leadInMs: timing.leadInMs,
+      speechStartMs: timing.leadInMs,
+      speechEndMs: timing.leadInMs + timing.estimatedDurationMs,
+      settleEndMs: timing.totalAnimationWindowMs
+    },
     timing,
     visemes: mapped.visemes,
+    mouthTimeline: mapped.visemes,
     visemeCount: mapped.count,
+    visemeFrameMs: mapped.frameMs,
+    timingAligned: mapped.timingAligned === true,
     mouthState: avatar.mouthState,
     speechState: avatar.speechState,
     avatarSpeechState: avatar.avatarState,
@@ -97,6 +130,8 @@ function buildSpeechSyncEnvelope(input) {
 
 module.exports = {
   VERSION,
+  SPEECH_SYNC_CONTRACT,
   buildSpeechSyncEnvelope,
-  disabledSpeechSync
+  disabledSpeechSync,
+  normalizeVoiceMode
 };
