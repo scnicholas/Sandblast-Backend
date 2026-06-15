@@ -47,7 +47,7 @@ const voiceDeliveryStabilizer = (() => {
   }
 })();
 
-const VERSION = 'marion.voiceGateway/2.2-final-envelope-delivery-stabilized';
+const VERSION = 'marion.voiceGateway/2.3-speakable-final-status-hardlock';
 
 function safeRequire(path) {
   try {
@@ -217,6 +217,68 @@ function isAdminVoiceDeliveryAllowed(voiceEnvelope, outputPolicy) {
     (env.authorizationState === 'authorized' && env.adminVoiceVerified === true);
 }
 
+function normalizeEchoText(value) {
+  return safeText(value)
+    .toLowerCase()
+    .replace(/^\s*(?:vera|nyx|marion)\s*[,:\-]?\s*/i, '')
+    .replace(/[“”"'`]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isEchoReplyToEnvelope(reply, voiceEnvelope, response) {
+  const candidate = normalizeEchoText(reply);
+  if (!candidate) return false;
+  const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
+  const res = response && typeof response === 'object' ? response : {};
+  const voice = res.voice && typeof res.voice === 'object' ? res.voice : {};
+  const normalization = env.normalization && typeof env.normalization === 'object' ? env.normalization : {};
+  const echoes = [
+    env.transcript,
+    env.originalTranscript,
+    env.normalizedTranscript,
+    normalization.transcript,
+    normalization.originalTranscript,
+    normalization.normalizedTranscript,
+    res.transcript,
+    res.originalTranscript,
+    res.normalizedTranscript,
+    voice.transcript,
+    voice.originalTranscript,
+    voice.normalizedTranscript
+  ].map(normalizeEchoText).filter(Boolean);
+  return echoes.some((echo) => candidate === echo || (candidate.length >= 12 && echo.length >= 12 && (candidate.includes(echo) || echo.includes(candidate))));
+}
+
+function isProtectedVoiceStatusIntent(voiceEnvelope) {
+  const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
+  const text = safeText([
+    env.userIntentHint,
+    env.commandPhrase,
+    env.wakeWord,
+    env.transcript,
+    env.originalTranscript,
+    env.normalizedTranscript
+  ].map(safeText).filter(Boolean).join(' ')).toLowerCase();
+  if (!text) return false;
+  return /\bstatus\b/.test(text) ||
+    /\bconnected\s+through\s+marion\b/.test(text) ||
+    /\bconnected\s+to\s+marion\b/.test(text) ||
+    /\bmarion\b.*\bconnected\b/.test(text) ||
+    /\bvoice\s+lane\b.*\bstatus\b/.test(text) ||
+    /\bprotected\s+voice\b.*\bsummary\b/.test(text);
+}
+
+function buildProtectedVoiceStatusReply(voiceEnvelope) {
+  const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
+  const adminVoiceDeliveryAllowed = env.adminVoiceDeliveryAllowed === true || env.adminVoiceVerified === true || env.authorizationState === 'authorized';
+  if (adminVoiceDeliveryAllowed) {
+    return 'Nyx is connected through Marion. Marion remains the final response authority, admin voice delivery is authorized, and raw audio is not being stored.';
+  }
+  return 'Protected voice lane status: admin voice delivery is locked, transcript-only processing is live, and raw audio is not being stored.';
+}
+
 function buildVoiceReplyPromotionFallback(voiceEnvelope, response) {
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const hint = safeText(env.userIntentHint).toLowerCase();
@@ -224,10 +286,8 @@ function buildVoiceReplyPromotionFallback(voiceEnvelope, response) {
   const authorizationState = safeText(env.authorizationState);
   const adminVoiceDeliveryAllowed = env.adminVoiceDeliveryAllowed === true;
 
-  if (hint === 'status' || commandPhrase === 'status') {
-    return adminVoiceDeliveryAllowed
-      ? 'Protected voice lane status: admin authorization is verified, transcript-only processing is live, and raw audio is not being stored.'
-      : 'Protected voice lane status: admin voice delivery is locked. Transcript-only processing is live, and raw audio is not being stored.';
+  if (hint === 'status' || commandPhrase === 'status' || isProtectedVoiceStatusIntent(env)) {
+    return buildProtectedVoiceStatusReply(env);
   }
 
   if (response && response.ok === false) {
@@ -247,7 +307,9 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     : { reply: String(response || '') };
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const deliveryMeta = voiceDeliveryMetaFromEnvelope(env, base);
-  const originalReply = firstReplyText(base);
+  const rawOriginalReply = firstReplyText(base);
+  const originalReplyEchoSuppressed = Boolean(rawOriginalReply && isEchoReplyToEnvelope(rawOriginalReply, env, base));
+  const originalReply = originalReplyEchoSuppressed ? '' : rawOriginalReply;
   const fallbackReply = originalReply ? '' : buildVoiceReplyPromotionFallback(env, base);
   const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
   const policyReason = safeText(policy.reason);
@@ -256,11 +318,14 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       response: base,
       voiceEnvelope: env,
       outputPolicy: policy,
-      candidateReply: originalReply || fallbackReply
+      candidateReply: originalReply || fallbackReply,
+      allowCandidateAsFinal: Boolean(!originalReply && fallbackReply && isProtectedVoiceStatusIntent(env)),
+      candidateFinalSource: 'gateway_protected_voice_status',
+      upstreamEchoSuppressed: originalReplyEchoSuppressed
     })
     : null;
   const cleanReply = safeText(stabilizer && stabilizer.displayReply) || originalReply || fallbackReply;
-  const fallbackUsed = !originalReply && Boolean(cleanReply);
+  const fallbackUsed = (!originalReply && Boolean(cleanReply)) || originalReplyEchoSuppressed;
   const adminVoiceDeliveryAllowed = stabilizer ? stabilizer.adminVoiceDeliveryAllowed === true : isAdminVoiceDeliveryAllowed(env, policy);
   const fallbackCanSpeak = adminVoiceDeliveryAllowed && fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
   const policySpokenText = firstReplyText(policy);
@@ -299,6 +364,8 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       adminOnlyVoiceDelivery: true,
       adminVoiceDeliveryAllowed,
       replyPromotionFallback: fallbackUsed,
+      upstreamEchoSuppressed: originalReplyEchoSuppressed,
+      protectedStatusIntent: isProtectedVoiceStatusIntent(env),
       finalEnvelopeOnly: stabilizer ? stabilizer.finalEnvelopeOnly === true : false,
       finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
       finalReplySource: stabilizer ? safeText(stabilizer.finalReplySource) : '',
@@ -331,6 +398,8 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       applied: fallbackUsed,
       source: originalReply ? 'bridge_or_composer' : 'gateway_safe_fallback',
       originalReplyPresent: Boolean(originalReply),
+      rawOriginalReplyEchoSuppressed: originalReplyEchoSuppressed,
+      protectedStatusIntent: isProtectedVoiceStatusIntent(env),
       finalEnvelopeOnly: stabilizer ? stabilizer.finalEnvelopeOnly === true : false,
       finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
       duplicateSuppressed: stabilizer ? stabilizer.duplicateSuppressed === true : false,
@@ -565,6 +634,8 @@ module.exports = {
   handleVoiceTranscript,
   handleLingoSentinelPrivateVoiceDelivery,
   makeNyxBoundaryResponse,
+  isProtectedVoiceStatusIntent,
+  buildProtectedVoiceStatusReply,
   firstReplyText,
   loadMarionBridge,
   hasOptionAdminVoiceProof,
