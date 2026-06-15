@@ -1,3 +1,4 @@
+
 'use strict';
 
 /**
@@ -8,10 +9,12 @@
  * spoken text into lightweight mouth-shape cues that the frontend can animate.
  */
 
-const VERSION = 'nyx.visemeMapper/1.0-phase2-speech-sync';
+const VERSION = 'nyx.visemeMapper/1.1-phase2-timing-aligned-hardlock';
 
 const DEFAULT_FRAME_MS = 90;
 const MAX_VISEMES = 180;
+const MAX_TEXT_CHARS = 2200;
+const VISEME_CONTRACT = 'nyx.avatar.visemeSequence/1.0';
 
 function safeText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -21,6 +24,15 @@ function clampNumber(value, fallback, min, max) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, n));
+}
+
+function clampInteger(value, fallback, min, max) {
+  return Math.trunc(clampNumber(value, fallback, min, max));
+}
+
+function clipSpeechText(value) {
+  const text = safeText(value);
+  return text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS).trim() : text;
 }
 
 function normalizeToken(value) {
@@ -53,7 +65,7 @@ function tokenWeight(token) {
 }
 
 function splitSpeechTokens(text) {
-  return safeText(text)
+  return clipSpeechText(text)
     .split(/(\s+|[,.!?;:]+)/)
     .map((part) => safeText(part))
     .filter(Boolean)
@@ -64,20 +76,54 @@ function splitSpeechTokens(text) {
     .filter((item) => item.pause || item.token);
 }
 
+function normalizeCue(cue, index) {
+  const startMs = Math.max(0, Math.round(Number(cue.startMs || 0) || 0));
+  const endMs = Math.max(startMs, Math.round(Number(cue.endMs || startMs) || startMs));
+  const viseme = safeText(cue.viseme || 'REST').toUpperCase() || 'REST';
+  return {
+    id: `v_${String(index).padStart(3, '0')}`,
+    index,
+    viseme,
+    token: safeText(cue.token || '').slice(0, 48),
+    startMs,
+    endMs,
+    durationMs: Math.max(0, Math.round(endMs - startMs)),
+    mouthOpen: clampNumber(cue.mouthOpen, mouthOpenForViseme(viseme), 0, 1),
+    intensity: clampNumber(cue.intensity, intensityForViseme(viseme), 0, 1),
+    pause: cue.pause === true
+  };
+}
+
+function scaleVisemesToDuration(visemes, targetDurationMs) {
+  const target = Math.round(Number(targetDurationMs || 0) || 0);
+  if (!Array.isArray(visemes) || !visemes.length || target <= 0) return visemes;
+  const current = Math.max(1, Math.round(Number(visemes[visemes.length - 1].endMs || 0) || 0));
+  const scale = target / current;
+  let cursor = 0;
+  return visemes.map((cue, index) => {
+    const baseDuration = Math.max(1, Math.round(Number(cue.durationMs || (cue.endMs - cue.startMs) || 1) * scale));
+    const end = index === visemes.length - 1 ? target : Math.min(target, cursor + baseDuration);
+    const out = normalizeCue(Object.assign({}, cue, { startMs: cursor, endMs: end }), index);
+    cursor = end;
+    return out;
+  });
+}
+
 function mapTextToVisemes(text, options) {
   const opts = options && typeof options === 'object' ? options : {};
-  const frameMs = clampNumber(opts.frameMs, DEFAULT_FRAME_MS, 40, 220);
-  const maxVisemes = clampNumber(opts.maxVisemes, MAX_VISEMES, 24, 400);
+  const frameMs = clampInteger(opts.frameMs, DEFAULT_FRAME_MS, 40, 220);
+  const maxVisemes = clampInteger(opts.maxVisemes, MAX_VISEMES, 24, 400);
+  const targetDurationMs = Math.max(0, Math.round(Number(opts.totalDurationMs || opts.estimatedDurationMs || 0) || 0));
   const tokens = splitSpeechTokens(text);
-  const cues = [];
+  const rawCues = [];
   let cursor = 0;
 
   for (const item of tokens) {
-    if (cues.length >= maxVisemes) break;
+    if (rawCues.length >= maxVisemes) break;
 
     if (item.pause) {
       const durationMs = /[.!?]/.test(item.raw) ? frameMs * 3 : frameMs * 2;
-      cues.push({
+      rawCues.push({
         viseme: 'REST',
         token: item.raw,
         startMs: Math.round(cursor),
@@ -93,7 +139,7 @@ function mapTextToVisemes(text, options) {
 
     const durationMs = Math.round(frameMs * tokenWeight(item.token));
     const viseme = visemeForToken(item.token);
-    cues.push({
+    rawCues.push({
       viseme,
       token: item.token,
       startMs: Math.round(cursor),
@@ -106,8 +152,8 @@ function mapTextToVisemes(text, options) {
     cursor += durationMs;
   }
 
-  if (!cues.length && safeText(text)) {
-    cues.push({
+  if (!rawCues.length && safeText(text)) {
+    rawCues.push({
       viseme: 'NEUTRAL',
       token: 'speech',
       startMs: 0,
@@ -120,8 +166,8 @@ function mapTextToVisemes(text, options) {
     cursor = frameMs;
   }
 
-  if (cues.length && cues[cues.length - 1].viseme !== 'REST' && cues.length < maxVisemes) {
-    cues.push({
+  if (rawCues.length && rawCues[rawCues.length - 1].viseme !== 'REST' && rawCues.length < maxVisemes) {
+    rawCues.push({
       viseme: 'REST',
       token: '',
       startMs: Math.round(cursor),
@@ -134,15 +180,25 @@ function mapTextToVisemes(text, options) {
     cursor += frameMs;
   }
 
+  const normalized = rawCues.map(normalizeCue);
+  const visemes = targetDurationMs ? scaleVisemesToDuration(normalized, targetDurationMs) : normalized;
+  const estimatedDurationMs = visemes.length ? Math.round(visemes[visemes.length - 1].endMs) : 0;
+
   return {
     version: VERSION,
+    contract: VISEME_CONTRACT,
     source: 'NyxVisemeMapper',
     audioStored: false,
+    noRawAudioStored: true,
     transcriptOnly: true,
     frameMs,
-    estimatedDurationMs: Math.round(cursor),
-    count: cues.length,
-    visemes: cues
+    timingAligned: targetDurationMs > 0,
+    targetDurationMs,
+    estimatedDurationMs,
+    count: visemes.length,
+    maxVisemes,
+    truncated: tokens.length > maxVisemes,
+    visemes
   };
 }
 
@@ -182,11 +238,14 @@ function intensityForViseme(viseme) {
 
 module.exports = {
   VERSION,
+  VISEME_CONTRACT,
   DEFAULT_FRAME_MS,
   MAX_VISEMES,
+  MAX_TEXT_CHARS,
   mapTextToVisemes,
   splitSpeechTokens,
   visemeForToken,
   mouthOpenForViseme,
-  intensityForViseme
+  intensityForViseme,
+  scaleVisemesToDuration
 };
