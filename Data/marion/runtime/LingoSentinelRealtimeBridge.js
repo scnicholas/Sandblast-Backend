@@ -23,6 +23,7 @@
 const DEFAULT_NAMESPACE = 'lingosentinel';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.realtimeBridge.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.realtimeBridge.channelNamespaceRoundtrip/2.0';
+const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.realtimeBridge.liveAblyRoundtrip/2.0';
 
 const CHANNELS = Object.freeze({
   presence: 'presence',
@@ -110,6 +111,24 @@ function eventHasPublicMarionIdentity(input = {}) {
     isReservedMarionIdentity(event.roomId) || isReservedMarionIdentity(event.channelId) ||
     isReservedMarionIdentity(event.conversationId) || isReservedMarionIdentity(event.sessionId) ||
     isReservedMarionIdentity(event.deliveryId);
+}
+
+
+function buildPhase2ERoundtripState(channel = '', eventName = '') {
+  return {
+    ...phase2bBoundary(),
+    version: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+    liveAblyRoundtrip: true,
+    canonicalChannel: safeString(channel, 240),
+    clientSubscribed: false,
+    publishOk: false,
+    messageReceivedByClient: false,
+    receivedEventType: safeString(eventName, 120),
+    channelNamespaceAligned: /^lingosentinel:/.test(safeString(channel, 240)),
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: /^lingosentinel:/.test(safeString(channel, 240))
+  };
 }
 
 function phase2bBoundary() {
@@ -316,7 +335,9 @@ function sanitizeEvent(input, limits) {
         message: safeString(input.message, limits.maxMessageLength),
         languagePair: normalizeLanguagePair(input.languagePair),
         direction: safeString(input.direction, 24).toLowerCase(),
-        ...phase2bBoundary()
+        ...phase2bBoundary(),
+        phase2eLiveRoundtrip: input.phase2eLiveRoundtrip === true,
+        phase2eRoundtripProbeId: safeString(input.phase2eRoundtripProbeId, 160)
       };
 
     case EVENT_TYPES.DELIVERED_MESSAGE_READY:
@@ -676,7 +697,9 @@ class LingoSentinelRealtimeBridge {
       targetLanguage: publishInput.targetLanguage,
       languagePair: publishInput.languagePair,
       region: publishInput.route?.globeContext?.region,
-      direction: publishInput.sourceLanguage && publishInput.targetLanguage ? `${publishInput.sourceLanguage}_to_${publishInput.targetLanguage}` : ''
+      direction: publishInput.sourceLanguage && publishInput.targetLanguage ? `${publishInput.sourceLanguage}_to_${publishInput.targetLanguage}` : '',
+      phase2eLiveRoundtrip: publishInput.phase2eLiveRoundtrip === true,
+      phase2eRoundtripProbeId: publishInput.phase2eRoundtripProbeId
     };
 
     if (mode === 'group_room') return this.publishRoomMessage(roomId, message, metadata);
@@ -750,6 +773,8 @@ class LingoSentinelRealtimeBridge {
       message,
       languagePair: metadata.languagePair,
       direction: metadata.direction,
+      phase2eLiveRoundtrip: metadata.phase2eLiveRoundtrip === true,
+      phase2eRoundtripProbeId: metadata.phase2eRoundtripProbeId,
       timestamp: now()
     });
   }
@@ -835,6 +860,11 @@ class LingoSentinelRealtimeBridge {
 
   async subscribeRoom(roomId, callback) {
     return this.subscribe(CHANNELS.room, sanitizeChannelPart(roomId, 'global'), callback);
+  }
+
+
+  async subscribePhase2ERoundtrip(roomId, callback) {
+    return this.subscribe(CHANNELS.translation, sanitizeChannelPart(roomId || 'phase2e-live-roundtrip-room', 'phase2e-live-roundtrip-room'), callback);
   }
 
   async subscribeTranslation(sessionId, callback) {
@@ -992,5 +1022,7 @@ module.exports = {
   eventHasPublicMarionIdentity,
   isReservedMarionIdentity,
   PHASE2B_USER_BOUNDARY_VERSION,
-  PHASE2D_CHANNEL_NAMESPACE_VERSION
+  PHASE2D_CHANNEL_NAMESPACE_VERSION,
+  PHASE2E_LIVE_ROUNDTRIP_VERSION,
+  buildPhase2ERoundtripState
 };
