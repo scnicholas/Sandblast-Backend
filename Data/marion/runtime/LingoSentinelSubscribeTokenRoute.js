@@ -25,7 +25,9 @@ const express = require('express');
 const router = express.Router();
 
 const DEFAULT_CLIENT_ID = 'lingosentinel-widget';
-const DEFAULT_ROOM_ID = 'command-nexus-test';
+const DEFAULT_ROOM_ID = 'lingosentinel-main';
+const CHANNEL_NAMESPACE = 'lingosentinel';
+const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/1.1-phase2a-channel-alignment';
 const DEFAULT_TTL_MS = 1000 * 60 * 30; // 30 minutes
 
 const VALID_MODES = Object.freeze([
@@ -39,17 +41,21 @@ const MODE_ALIASES = Object.freeze({
   one: 'one_to_one',
   one_to_one: 'one_to_one',
   oneToOne: 'one_to_one',
+  one_to_1: 'one_to_one',
   direct: 'one_to_one',
   dm: 'one_to_one',
   private: 'one_to_one',
 
   group: 'group_room',
   group_room: 'group_room',
+  groupRoom: 'group_room',
   room: 'group_room',
 
   live: 'live_translate',
   live_translate: 'live_translate',
+  liveTranslate: 'live_translate',
   translate: 'live_translate',
+  translation: 'live_translate',
 
   delivered: 'delivered',
   delivery: 'delivered',
@@ -106,18 +112,20 @@ function loadAblyPackage() {
 function channelForMode(mode, roomId) {
   const cleanRoomId = sanitizeChannelPart(roomId);
 
-  if (mode === 'one_to_one') return `ls:direct:${cleanRoomId}`;
-  if (mode === 'live_translate') return `ls:live:${cleanRoomId}`;
-  if (mode === 'delivered') return `ls:receipt:${cleanRoomId}`;
+  if (mode === 'one_to_one') return `${CHANNEL_NAMESPACE}:direct:${cleanRoomId}`;
+  if (mode === 'live_translate') return `${CHANNEL_NAMESPACE}:translation:${cleanRoomId}`;
+  if (mode === 'delivered') return `${CHANNEL_NAMESPACE}:delivered:${cleanRoomId}`;
 
-  return `ls:room:${cleanRoomId}`;
+  return `${CHANNEL_NAMESPACE}:room:${cleanRoomId}`;
 }
 
 function buildCapability(channel) {
   return {
     [channel]: ['subscribe', 'presence'],
     [`${channel}:receipt`]: ['publish', 'subscribe'],
-    [`${channel}:client`]: ['publish', 'subscribe']
+    [`${channel}:client`]: ['publish', 'subscribe'],
+    [`${CHANNEL_NAMESPACE}:presence`]: ['subscribe', 'presence'],
+    [`${CHANNEL_NAMESPACE}:telemetry`]: ['publish']
   };
 }
 
@@ -218,6 +226,11 @@ function safeErrorResponse(error, stage = 'token_failed') {
   };
 }
 
+router.options('/token', (req, res) => {
+  hardenNoStore(res);
+  return res.status(204).end();
+});
+
 router.post('/token', async (req, res) => {
   hardenNoStore(res);
   const requestedAt = nowIso();
@@ -244,6 +257,8 @@ router.post('/token', async (req, res) => {
       stage: 'token_created',
       tokenRequest: result.tokenRequest,
       channel: result.channel,
+      capability: result.capability,
+      channelNamespace: CHANNEL_NAMESPACE,
       mode: input.mode,
       roomId: input.roomId,
       clientId: input.clientId,
@@ -251,7 +266,8 @@ router.post('/token', async (req, res) => {
       telemetry: {
         requestedAt,
         issuedAt: nowIso(),
-        route: 'LingoSentinelSubscribeTokenRoute'
+        route: 'LingoSentinelSubscribeTokenRoute',
+        routeVersion: ROUTE_VERSION
       }
     });
   } catch (error) {
@@ -272,8 +288,21 @@ router.get('/token/health', (req, res) => {
     status: 'ready',
     diagnosticsRedacted: true,
     routeMounted: true,
+    channelNamespace: CHANNEL_NAMESPACE,
+    version: ROUTE_VERSION,
+    supportedModes: VALID_MODES,
+    channelExamples: {
+      one_to_one: channelForMode('one_to_one', DEFAULT_ROOM_ID),
+      group_room: channelForMode('group_room', DEFAULT_ROOM_ID),
+      live_translate: channelForMode('live_translate', DEFAULT_ROOM_ID),
+      delivered: channelForMode('delivered', DEFAULT_ROOM_ID)
+    },
     timestamp: nowIso()
   });
 });
 
+router.VERSION = ROUTE_VERSION;
+router.channelForMode = channelForMode;
+router.buildCapability = buildCapability;
+router.sanitizeTokenInput = sanitizeTokenInput;
 module.exports = router;
