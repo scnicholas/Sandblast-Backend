@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.55sb NYX-PHASE2-SPEECH-SYNC-ENVELOPE-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.56sb MARION-ADMIN-CONVERSATION-ROUTE-PHASE1B-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -296,6 +296,26 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.8-phase2SpeechSyncEnvelope";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.0-phase1b-admin-interface-gate";
+
+const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
+  "/api/marion/admin/conversation",
+  "/marion/admin/conversation"
+]);
+
+const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
+  "/api/marion/admin/conversation/health",
+  "/marion/admin/conversation/health"
+]);
+
+const MARION_ADMIN_CONVERSATION_REQUIRED_RUNTIME_FILES = Object.freeze([
+  "Data/marion/runtime/MarionVoiceGateway.js",
+  "Data/marion/runtime/MarionVoiceAuthorizationGate.js",
+  "Data/marion/runtime/marionBridge.js",
+  "Data/marion/runtime/marionFinalEnvelope.js",
+  "Data/marion/runtime/composeMarionResponse.js"
+]);
+
 
 const NYX_VOICE_TRANSCRIPT_ROUTES = Object.freeze([
   "/api/nyx/voice/transcript",
@@ -392,6 +412,126 @@ function marionAdminVoiceRequestAuth(req, body) {
     provided: candidates.length > 0,
     source: candidates.length ? "invalid" : "none"
   };
+}
+
+function marionAdminConversationEnvTokens() {
+  return [
+    process.env.SB_MARION_ADMIN_CONVERSATION_TOKEN,
+    process.env.SB_MARION_ADMIN_TOKEN,
+    process.env.MARION_ADMIN_CONVERSATION_TOKEN,
+    process.env.MARION_ADMIN_TOKEN,
+    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
+    process.env.SB_ADMIN_VOICE_TOKEN,
+    process.env.MARION_ADMIN_VOICE_TOKEN
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+}
+
+function marionAdminConversationRequestAuth(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const tokens = marionAdminConversationEnvTokens();
+  const candidates = [
+    { source: "x-sb-marion-admin-conversation-token", value: headers["x-sb-marion-admin-conversation-token"] },
+    { source: "x-sb-marion-admin-token", value: headers["x-sb-marion-admin-token"] },
+    { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
+    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] }
+  ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
+
+  for (const candidate of candidates) {
+    if (tokens.some((token) => timingSafeTextEqual(candidate.value, token))) {
+      return { verified: true, configured: tokens.length > 0, provided: true, source: candidate.source };
+    }
+  }
+
+  return { verified: false, configured: tokens.length > 0, provided: candidates.length > 0, source: candidates.length ? "invalid" : "none" };
+}
+
+function marionAdminConversationRuntimeDiagnostics() {
+  return MARION_ADMIN_CONVERSATION_REQUIRED_RUNTIME_FILES.map((relativePath) => {
+    const filePath = path.join(__dirname, relativePath);
+    let exists = false;
+    let bytes = 0;
+    try {
+      const stat = fs.statSync(filePath);
+      exists = stat.isFile();
+      bytes = exists ? stat.size : 0;
+    } catch (_) {
+      exists = false;
+      bytes = 0;
+    }
+    return { path: relativePath, exists, bytes };
+  });
+}
+
+function marionAdminConversationRuntimeReady() {
+  return marionAdminConversationRuntimeDiagnostics().every((item) => item.exists);
+}
+
+function marionAdminRedactText(value) {
+  let text = cleanText(value || "");
+  if (!text) return "";
+  text = text
+    .replace(/(?:api[_-]?key|secret|password|passwd|private\s+key|credential|authorization|bearer|cookie|token)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+    .replace(/x-sb-[a-z0-9_-]+\s*[:=]\s*[^\s,;]+/gi, "x-sb-header=[redacted]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+=*/g, "Bearer [redacted]")
+    .replace(/MARION::FINAL::[^\s.;,]+/gi, "")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return text.length > 6000 ? `${text.slice(0, 6000)}…` : text;
+}
+
+function marionAdminConversationReplyText(value, depth, seen) {
+  if (!value) return "";
+  if (typeof value === "string") return marionAdminRedactText(value);
+  if (!isObj(value)) return "";
+
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 7) return "";
+
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+
+  const direct = marionAdminRedactText(
+    value.adminReply ||
+    value.marionReply ||
+    value.privateReply ||
+    value.displayReply ||
+    value.reply ||
+    value.text ||
+    value.message ||
+    value.answer ||
+    value.output ||
+    value.response ||
+    value.finalReply ||
+    value.spokenText ||
+    ""
+  );
+  if (direct) return direct;
+
+  const priorityKeys = [
+    "admin", "marionAdmin", "finalEnvelope", "payload", "data", "result", "packet",
+    "marionFinal", "final", "envelope", "response", "output", "message", "reply", "text", "voice", "meta"
+  ];
+
+  for (const key of priorityKeys) {
+    const nested = value[key];
+    if (nested && typeof nested === "object") {
+      const found = marionAdminConversationReplyText(nested, level + 1, visited);
+      if (found) return found;
+    }
+  }
+
+  for (const key of Object.keys(value)) {
+    if (priorityKeys.includes(key)) continue;
+    const nested = value[key];
+    if (nested && typeof nested === "object") {
+      const found = marionAdminConversationReplyText(nested, level + 1, visited);
+      if (found) return found;
+    }
+  }
+
+  return "";
 }
 
 function nyxVoiceRouteReplyText(value, depth, seen) {
@@ -954,6 +1094,333 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
     });
   }
 });
+
+// MARION-ADMIN-CONVERSATION-ROUTE-PHASE1B:
+// Private admin-only Marion conversation route. Public users still communicate
+// through Nyx. This route is locked to verified server-side/admin headers and
+// does not accept raw audio, body-supplied tokens, or browser speaker hints as
+// authorization proof.
+app.options([...MARION_ADMIN_CONVERSATION_ROUTES, ...MARION_ADMIN_CONVERSATION_HEALTH_ROUTES], (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
+
+app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+
+  let MarionVoiceGateway = null;
+  try {
+    MarionVoiceGateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
+  } catch (_) {
+    MarionVoiceGateway = null;
+  }
+
+  return res.status(200).json({
+    ok: true,
+    service: "marion-admin-conversation",
+    routeMounted: true,
+    routeOrder: "early",
+    canonicalPostRoute: "/api/marion/admin/conversation",
+    canonicalHealthRoute: "/api/marion/admin/conversation/health",
+    acceptsAdminConversation: true,
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: "Nyx",
+    authority: "Marion",
+    privateAdminConversation: true,
+    adminTokenConfigured: marionAdminConversationEnvTokens().length > 0,
+    transcriptOnly: true,
+    audioStored: false,
+    noRawAudioStored: true,
+    version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION,
+    runtimeFilesReady: marionAdminConversationRuntimeReady(),
+    runtimeFiles: marionAdminConversationRuntimeDiagnostics(),
+    gateway: {
+      available: !!MarionVoiceGateway,
+      hasAdminHandler: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleMarionAdminConversation === "function"),
+      hasVoiceHandler: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleVoiceTranscript === "function"),
+      version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || "")
+    },
+    lingoSentinel: {
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      visibleToUsers: false
+    },
+    diagnosticsRedacted: true,
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
+  });
+});
+
+app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+
+  const startedAt = now();
+  const body = isObj(req.body) ? req.body : {};
+  const traceId = cleanText(req.headers["x-sb-trace-id"] || body.traceId || body.requestId || `marion_admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const auth = marionAdminConversationRequestAuth(req);
+
+  if (!auth.verified) {
+    return res.status(403).json({
+      ok: false,
+      final: true,
+      handled: true,
+      reply: "Marion admin conversation is locked.",
+      text: "Marion admin conversation is locked.",
+      message: "Marion admin conversation is locked.",
+      publicAgent: "Marion",
+      authority: "Marion",
+      inputChannel: "admin",
+      source: "marion_admin_conversation",
+      route: "/api/marion/admin/conversation",
+      error: "MARION_ADMIN_CONVERSATION_AUTH_REQUIRED",
+      privateAdminConversation: true,
+      adminConversationAllowed: false,
+      transcriptOnly: true,
+      audioStored: false,
+      noRawAudioStored: true,
+      lingoSentinel: {
+        silentOversight: true,
+        userToUserBoundary: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false
+      },
+      meta: {
+        traceId,
+        latencyMs: now() - startedAt,
+        adminTokenConfigured: auth.configured === true,
+        adminTokenProvided: auth.provided === true,
+        authSource: auth.source,
+        diagnosticsRedacted: true,
+        version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION
+      }
+    });
+  }
+
+  const prompt = cleanText(body.transcript || body.message || body.text || body.prompt || body.query || "");
+  if (!prompt) {
+    return res.status(400).json({
+      ok: false,
+      final: true,
+      handled: true,
+      reply: "Marion admin conversation requires a usable message.",
+      text: "Marion admin conversation requires a usable message.",
+      message: "Marion admin conversation requires a usable message.",
+      publicAgent: "Marion",
+      authority: "Marion",
+      inputChannel: "admin",
+      source: "marion_admin_conversation",
+      route: "/api/marion/admin/conversation",
+      error: "EMPTY_MARION_ADMIN_MESSAGE",
+      privateAdminConversation: true,
+      adminConversationAllowed: true,
+      transcriptOnly: true,
+      audioStored: false,
+      noRawAudioStored: true,
+      meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION }
+    });
+  }
+
+  let MarionVoiceGateway = null;
+  try {
+    MarionVoiceGateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
+  } catch (_) {
+    MarionVoiceGateway = null;
+  }
+
+  if (!MarionVoiceGateway || typeof MarionVoiceGateway.handleMarionAdminConversation !== "function") {
+    return res.status(503).json({
+      ok: false,
+      final: true,
+      handled: true,
+      reply: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
+      text: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
+      message: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
+      publicAgent: "Marion",
+      authority: "Marion",
+      inputChannel: "admin",
+      source: "marion_admin_conversation",
+      route: "/api/marion/admin/conversation",
+      error: "MARION_ADMIN_GATEWAY_HANDLER_UNAVAILABLE",
+      privateAdminConversation: true,
+      adminConversationAllowed: true,
+      transcriptOnly: true,
+      audioStored: false,
+      noRawAudioStored: true,
+      runtimeFilesReady: marionAdminConversationRuntimeReady(),
+      runtimeFiles: marionAdminConversationRuntimeDiagnostics(),
+      meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION }
+    });
+  }
+
+  try {
+    const packet = await MarionVoiceGateway.handleMarionAdminConversation({
+      transcript: prompt,
+      message: prompt,
+      text: prompt,
+      prompt,
+      confidence: Number.isFinite(Number(body.confidence)) ? Number(body.confidence) : 1,
+      locale: cleanText(body.locale || body.language || "en-CA"),
+      provider: cleanText(body.provider || "marion-admin-interface"),
+      speakerHint: cleanText(body.speakerHint || body.speaker || "Mac"),
+      sessionId: cleanText(body.sessionId || "marion-admin"),
+      requestId: traceId,
+      userAgent: cleanText(req.headers["user-agent"] || ""),
+      client: cleanText(body.client || "admin"),
+      final: body.final !== false,
+      inputChannel: "admin",
+      source: "marion_admin_conversation",
+      privateAdminConversation: true,
+      marionAdminConversation: true,
+      adminConversationAllowed: true,
+      adminVoiceVerified: true,
+      adminVoiceTokenVerified: true,
+      adminVoiceAuthSource: auth.source,
+      lingoSentinel: {
+        silentOversight: true,
+        userToUserBoundary: true,
+        marionVisibleParticipant: false,
+        visibleToUsers: false
+      }
+    }, {
+      authorization: {
+        adminOnlyVoiceDelivery: true,
+        allowConversationalWhenUnknown: false,
+        trustSpeakerHint: true,
+        adminVoiceVerified: true,
+        adminVoiceTokenVerified: true,
+        adminVoiceDeliveryAllowed: true,
+        serverSideAdminVoiceAuth: true,
+        trustedServerAuth: true
+      },
+      output: {
+        adminOnlyVoiceDelivery: true,
+        adminVoiceVerified: true,
+        adminVoiceTokenVerified: true,
+        adminVoiceDeliveryAllowed: true,
+        forceSilent: false,
+        privateAdminConversation: true
+      },
+      context: {
+        sessionId: cleanText(body.sessionId || "marion-admin"),
+        requestId: traceId,
+        inputChannel: "admin",
+        source: "marion_admin_conversation",
+        publicAgent: "Marion",
+        authority: "Marion",
+        userFacingAgent: "Marion",
+        privateAdminConversation: true,
+        marionAdminConversation: true,
+        adminConversationAllowed: true,
+        adminVoiceVerified: true,
+        adminVoiceDeliveryAllowed: true,
+        lingoSentinel: {
+          silentOversight: true,
+          userToUserBoundary: true,
+          marionVisibleParticipant: false,
+          visibleToUsers: false
+        }
+      }
+    });
+
+    const reply = marionAdminConversationReplyText(packet) || "Marion admin conversation completed, but no displayable reply was returned.";
+    const statusCode = packet && packet.ok === false ? 202 : 200;
+    const voice = isObj(packet && packet.voice) ? packet.voice : {};
+    const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
+    const lingo = isObj(packet && packet.lingoSentinel) ? packet.lingoSentinel : {};
+
+    return res.status(statusCode).json({
+      ok: !(packet && packet.ok === false),
+      final: true,
+      handled: true,
+      reply,
+      text: reply,
+      message: reply,
+      displayReply: reply,
+      publicAgent: "Marion",
+      authority: "Marion",
+      inputChannel: "admin",
+      source: "marion_admin_conversation",
+      route: "/api/marion/admin/conversation",
+      version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION,
+      privateAdminConversation: true,
+      marionAdminConversation: true,
+      adminConversationAllowed: true,
+      transcriptOnly: true,
+      audioStored: false,
+      noRawAudioStored: true,
+      voice: {
+        speakAllowed: voice.speakAllowed === true,
+        voiceMode: cleanText(voice.voiceMode || "full"),
+        spokenText: marionAdminRedactText(voice.spokenText || reply),
+        audioStored: false,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed: true,
+        finalApproved: voice.finalApproved !== false,
+        speechSyncEnabled: isObj(voice.speechSync) && voice.speechSync.enabled === true,
+        speechSyncVersion: cleanText((isObj(voice.speechSync) ? voice.speechSync.version : "") || voice.speechSyncVersion || "")
+      },
+      voiceEnvelope: {
+        source: "admin",
+        inputChannel: "admin",
+        locale: cleanText(voiceEnvelope.locale || body.locale || "en-CA"),
+        confidence: Number.isFinite(Number(voiceEnvelope.confidence)) ? Number(voiceEnvelope.confidence) : null,
+        authorizationState: cleanText(voiceEnvelope.authorizationState || "authorized"),
+        adminOnlyVoiceDelivery: true,
+        adminVoiceVerified: true,
+        adminVoiceDeliveryAllowed: true,
+        audioStored: false
+      },
+      lingoSentinel: {
+        silentOversight: lingo.silentOversight !== false,
+        userToUserBoundary: lingo.userToUserBoundary !== false,
+        marionVisibleParticipant: false,
+        visibleToUsers: false,
+        languageContinuityGuard: lingo.languageContinuityGuard === true || lingo.languageContinuityGuardActive === true,
+        oversightOnly: true
+      },
+      meta: {
+        traceId,
+        latencyMs: now() - startedAt,
+        routeAuthority: "Protected admin route -> MarionVoiceGateway.handleMarionAdminConversation -> MarionBridge -> Marion final",
+        adminTokenConfigured: auth.configured === true,
+        adminTokenProvided: auth.provided === true,
+        authSource: auth.source,
+        diagnosticsRedacted: true,
+        noRawAudioStored: true,
+        publicUsersMayAddressMarion: false,
+        publicUsersSpeakThrough: "Nyx",
+        version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({
+      ok: false,
+      final: true,
+      handled: true,
+      reply: "Marion admin conversation failed before Marion could finish the turn.",
+      text: "Marion admin conversation failed before Marion could finish the turn.",
+      message: "Marion admin conversation failed before Marion could finish the turn.",
+      publicAgent: "Marion",
+      authority: "Marion",
+      inputChannel: "admin",
+      source: "marion_admin_conversation",
+      route: "/api/marion/admin/conversation",
+      error: "MARION_ADMIN_CONVERSATION_ROUTE_FAILED",
+      detail: marionAdminRedactText(err && (err.message || err) || "route_failed").slice(0, 160),
+      privateAdminConversation: true,
+      adminConversationAllowed: true,
+      transcriptOnly: true,
+      audioStored: false,
+      noRawAudioStored: true,
+      meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION }
+    });
+  }
+});
+
+
 
 
 
