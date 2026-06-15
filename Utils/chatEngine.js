@@ -387,7 +387,7 @@ function extractRuntimeTelemetry(source = {}) {
   return {};
 }
 function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",trustedFinalEnvelope=false,finalEnvelope=false,canEmit=false,error=""}={}){
-  const src=safeObj(input), inherited=extractRuntimeTelemetry(src), packet=extractPacket(src), packetMeta=safeObj(packet.meta), domainConcierge=extractDomainConcierge(src);
+  const src=safeObj(input), inherited=extractRuntimeTelemetry(src), packet=extractPacket(src), packetMeta=safeObj(packet.meta), domainConcierge=extractDomainConcierge(src), marionAdminConversation=extractMarionAdminConversationCarry(src), lingoSentinelSilentOversight=extractLingoSentinelSilentOversightCarry(src);
   const finalRenderTelemetry = finalRenderTelemetryMod && typeof finalRenderTelemetryMod.buildFinalRenderTelemetry === "function" ? safeObj(finalRenderTelemetryMod.buildFinalRenderTelemetry({source,stage:canEmit ? "final" : "awaiting_marion",reply,canEmit,finalEnvelopeTrusted:trustedFinalEnvelope,runtimeTelemetry:inherited,domainConfidence:safeObj(inherited.domainConfidence),error})) : {};
   return {
     ...inherited,
@@ -410,6 +410,10 @@ function buildChatRuntimeTelemetry({source="chatEngine",input={},reply="",truste
     technicalTargetLock: safeObj(src.technicalTargetLock || safeObj(src.sessionPatch).technicalTargetLock || safeObj(packetMeta).technicalTargetLock || inherited.technicalTargetLock),
     domainConcierge: Object.keys(domainConcierge).length ? domainConcierge : undefined,
     domainConciergeObserved: !!Object.keys(domainConcierge).length,
+    marionAdminConversation: Object.keys(marionAdminConversation).length ? marionAdminConversation : undefined,
+    privateAdminConversation: !!Object.keys(marionAdminConversation).length,
+    lingoSentinelSilentOversight: Object.keys(lingoSentinelSilentOversight).length ? lingoSentinelSilentOversight : undefined,
+    lingoSentinelSilentOversightActive: !!Object.keys(lingoSentinelSilentOversight).length,
     domainConciergeCoreVersion: DOMAIN_CONCIERGE_CORE_VERSION,
     replySignature: reply ? hashText(reply) : firstText(inherited.replySignature,packetMeta.replySignature,""),
     trustedFinalEnvelope: !!trustedFinalEnvelope,
@@ -2493,6 +2497,145 @@ function shouldLockMarionAuthority(source = {}) {
     !!extractFinalReply(source, { trustedFinalEnvelope: true, finalEnvelope: true });
 }
 
+
+const MARION_ADMIN_CONVERSATION_TRANSPORT_VERSION = "nyx.marion.adminConversationTransport/1.0";
+const LINGOSENTINEL_SILENT_OVERSIGHT_TRANSPORT_VERSION = "nyx.lingosentinel.silentOversightTransport/1.0";
+
+function normalizeMarionAdminConversationCarry(value = {}) {
+  const src = safeObj(value);
+  const active = src.privateAdminConversation === true ||
+    src.adminConversation === true ||
+    src.adminConversationAllowed === true ||
+    src.marionAdminConversation === true ||
+    src.directMarionConversation === true ||
+    cleanText(src.routeScope || src.scope || "").toLowerCase() === "admin_private";
+
+  if (!active) return {};
+
+  return {
+    version: cleanText(src.version || MARION_ADMIN_CONVERSATION_TRANSPORT_VERSION),
+    active: true,
+    privateAdminConversation: true,
+    adminConversationAllowed: src.adminConversationAllowed !== false,
+    directMarionConversation: true,
+    authority: "Marion",
+    publicAgent: "Marion",
+    routeScope: "admin_private",
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: "Nyx",
+    tokenExposed: false,
+    tokenStored: false,
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    visibleToPublicUsers: false,
+    source: cleanText(src.source || "chatEngine.marionAdminConversationTransport")
+  };
+}
+
+function extractMarionAdminConversationCarry(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || meta.finalEnvelope);
+  const runtimeTelemetry = safeObj(src.runtimeTelemetry || payload.runtimeTelemetry || meta.runtimeTelemetry || finalEnvelope.runtimeTelemetry);
+  const candidates = [
+    src.marionAdminConversation,
+    src.adminConversation,
+    src.adminConversationBoundary,
+    src.privateAdminConversation,
+    payload.marionAdminConversation,
+    payload.adminConversation,
+    meta.marionAdminConversation,
+    meta.adminConversation,
+    finalEnvelope.marionAdminConversation,
+    finalEnvelope.adminConversation,
+    runtimeTelemetry.marionAdminConversation,
+    runtimeTelemetry.adminConversation,
+    src
+  ];
+
+  for (const item of candidates) {
+    const normalized = normalizeMarionAdminConversationCarry(item);
+    if (Object.keys(normalized).length) return normalized;
+  }
+
+  return {};
+}
+
+function normalizeLingoSentinelSilentOversightCarry(value = {}) {
+  const src = safeObj(value);
+  const active = src.silentOversight === true ||
+    src.lingoSentinelSilentOversight === true ||
+    src.userToUserBoundary === true ||
+    src.marionVisibleParticipant === false ||
+    cleanText(src.mode || src.oversightMode || "").toLowerCase() === "silent_overseer";
+
+  if (!active) return {};
+
+  const rawLanguages = safeArray(src.languages || src.supportedLanguages || src.targetLanguages)
+    .map((item) => cleanText(item).toLowerCase())
+    .filter(Boolean);
+  const languages = rawLanguages.length ? Array.from(new Set(rawLanguages)).slice(0, 8) : ["en", "fr", "es"];
+
+  return {
+    version: cleanText(src.version || LINGOSENTINEL_SILENT_OVERSIGHT_TRANSPORT_VERSION),
+    active: true,
+    silentOversight: true,
+    mode: "silent_overseer",
+    authority: "Marion",
+    publicAgent: "LingoSentinel",
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
+    userFacing: false,
+    publicReplyVisible: false,
+    noUserFacingDiagnostics: true,
+    supportsUserToUserDialogue: true,
+    languages,
+    languageContinuityGuard: src.languageContinuityGuard !== false,
+    contextLossGuard: src.contextLossGuard !== false,
+    toneEscalationGuard: src.toneEscalationGuard !== false,
+    translationAmbiguityGuard: src.translationAmbiguityGuard !== false,
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    source: cleanText(src.source || "chatEngine.lingoSentinelSilentOversightTransport")
+  };
+}
+
+function extractLingoSentinelSilentOversightCarry(input = {}) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || meta.finalEnvelope);
+  const runtimeTelemetry = safeObj(src.runtimeTelemetry || payload.runtimeTelemetry || meta.runtimeTelemetry || finalEnvelope.runtimeTelemetry);
+  const lingoSentinel = safeObj(src.lingoSentinel || payload.lingoSentinel || meta.lingoSentinel || finalEnvelope.lingoSentinel || runtimeTelemetry.lingoSentinel);
+  const candidates = [
+    src.lingoSentinelSilentOversight,
+    src.lingoSentinelOversight,
+    src.silentOversight,
+    src.userToUserBoundary,
+    lingoSentinel.silentOversight,
+    lingoSentinel.oversight,
+    lingoSentinel,
+    payload.lingoSentinelSilentOversight,
+    payload.silentOversight,
+    meta.lingoSentinelSilentOversight,
+    finalEnvelope.lingoSentinelSilentOversight,
+    runtimeTelemetry.lingoSentinelSilentOversight,
+    runtimeTelemetry.silentOversight
+  ];
+
+  for (const item of candidates) {
+    const normalized = normalizeLingoSentinelSilentOversightCarry(item);
+    if (Object.keys(normalized).length) return normalized;
+  }
+
+  return {};
+}
+
+
 if (typeof module !== "undefined") {
   module.exports = {
     VERSION,
@@ -2533,6 +2676,12 @@ if (typeof module !== "undefined") {
     compactDomainConciergeForTransport,
     normalizeConversationalPackBridge,
     conversationPackCohesionProfile,
+    MARION_ADMIN_CONVERSATION_TRANSPORT_VERSION,
+    LINGOSENTINEL_SILENT_OVERSIGHT_TRANSPORT_VERSION,
+    normalizeMarionAdminConversationCarry,
+    extractMarionAdminConversationCarry,
+    normalizeLingoSentinelSilentOversightCarry,
+    extractLingoSentinelSilentOversightCarry,
     _internal: {
       isFinalEnvelope,
       isAuthoritativeMarionFinalLocation,
@@ -2578,7 +2727,11 @@ if (typeof module !== "undefined") {
       normalizeInputForMarion,
       applyLanguageSphereToTrustedFinal,
       extractFinalTranslationOptions,
-      loadUniversalTranslatorAdapter
+      loadUniversalTranslatorAdapter,
+      normalizeMarionAdminConversationCarry,
+      extractMarionAdminConversationCarry,
+      normalizeLingoSentinelSilentOversightCarry,
+      extractLingoSentinelSilentOversightCarry,
     }
   };
 }
