@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'nyx.voiceDeliveryStabilizer/1.0-final-envelope-double-fire-hardlock';
+const VERSION = 'nyx.voiceDeliveryStabilizer/1.1-speakable-final-status-hardlock';
 const FINAL_ENVELOPE_CONTRACT = 'nyx.marion.final/1.0';
 const FINAL_SIGNATURE = 'MARION_FINAL_AUTHORITY';
 const DEFAULT_DUPLICATE_WINDOW_MS = 4500;
@@ -74,6 +74,59 @@ function directReplyText(value) {
   );
 }
 
+function isProtectedVoiceStatusIntent(envelope) {
+  const env = safeObj(envelope);
+  const text = lower([
+    env.userIntentHint,
+    env.commandPhrase,
+    env.wakeWord,
+    env.transcript,
+    env.originalTranscript,
+    env.normalizedTranscript
+  ].map(safeText).filter(Boolean).join(' '));
+  if (!text) return false;
+  return /\bstatus\b/.test(text) ||
+    /\bconnected\s+through\s+marion\b/.test(text) ||
+    /\bconnected\s+to\s+marion\b/.test(text) ||
+    /\bmarion\b.*\bconnected\b/.test(text) ||
+    /\bvoice\s+lane\b.*\bstatus\b/.test(text) ||
+    /\bprotected\s+voice\b.*\bsummary\b/.test(text);
+}
+
+function isSafeProtectedVoiceStatusReply(value) {
+  const text = safeText(value);
+  if (!text) return false;
+  if (/\b(api[_-]?key|secret|password|private\s+key|credential|x-sb-[a-z0-9_-]+|\.env|bearer\s+[a-z0-9._-]+)\b/i.test(text)) return false;
+  return /\bnyx\s+is\s+connected\s+through\s+marion\b/i.test(text) ||
+    /\bprotected\s+voice\s+lane\s+status\b/i.test(text) ||
+    /\badmin\s+voice\s+delivery\s+is\s+authorized\b/i.test(text) ||
+    /\braw\s+audio\s+is\s+not\s+being\s+stored\b/i.test(text);
+}
+
+function buildProtectedVoiceStatusReply(envelope) {
+  const env = safeObj(envelope);
+  const authorized = env.adminVoiceDeliveryAllowed === true || env.adminVoiceVerified === true || env.authorizationState === 'authorized';
+  if (authorized) {
+    return 'Nyx is connected through Marion. Marion remains the final response authority, admin voice delivery is authorized, and raw audio is not being stored.';
+  }
+  return 'Protected voice lane status: admin voice delivery is locked, transcript-only processing is live, and raw audio is not being stored.';
+}
+
+function candidateReplyAsProtectedFinal(input, envelope, policy, candidateReply) {
+  const src = safeObj(input);
+  if (!adminAllowed(envelope, policy)) return { reply: '', source: '' };
+  const allowCandidate = src.allowCandidateAsFinal === true || isProtectedVoiceStatusIntent(envelope);
+  if (!allowCandidate) return { reply: '', source: '' };
+  const candidate = safeText(candidateReply);
+  if (isSafeProtectedVoiceStatusReply(candidate)) {
+    return { reply: candidate, source: safeText(src.candidateFinalSource || 'gateway_protected_voice_status') };
+  }
+  const generated = buildProtectedVoiceStatusReply(envelope);
+  return isSafeProtectedVoiceStatusReply(generated)
+    ? { reply: generated, source: 'generated_protected_voice_status' }
+    : { reply: '', source: '' };
+}
+
 function isTrustedFinalShape(value) {
   const obj = safeObj(value);
   const contract = safeText(obj.contractVersion || obj.contract || obj.version);
@@ -82,7 +135,6 @@ function isTrustedFinalShape(value) {
   return obj.final === true ||
     obj.marionFinal === true ||
     obj.finalized === true ||
-    obj.handled === true ||
     contract === FINAL_ENVELOPE_CONTRACT ||
     signature === FINAL_SIGNATURE ||
     authority === 'marionfinalenvelope' ||
@@ -198,13 +250,20 @@ function stabilizeNyxVoiceDelivery(input) {
   const envelope = safeObj(src.voiceEnvelope);
   const policy = safeObj(src.outputPolicy);
   const candidateReply = safeText(src.candidateReply);
-  const finalCandidate = extractFinalApprovedReply(response);
+  const extractedFinalCandidate = extractFinalApprovedReply(response);
+  const protectedCandidate = candidateReplyAsProtectedFinal(src, envelope, policy, candidateReply);
+  const extractedFinalEchoSuppressed = extractedFinalCandidate.reply ? (isInputEchoReply(extractedFinalCandidate.reply, envelope, response) && !isSafeProtectedVoiceStatusReply(extractedFinalCandidate.reply)) : false;
+  const finalCandidate = extractedFinalCandidate.reply && !(extractedFinalEchoSuppressed && protectedCandidate.reply)
+    ? extractedFinalCandidate
+    : protectedCandidate;
   const finalReply = finalCandidate.reply;
   const displayReply = safeText(finalReply || candidateReply);
   const allowAdmin = adminAllowed(envelope, policy);
-  const speakPolicyAllowed = policy.speakAllowed === true || policy.voiceMode === 'full';
+  const candidateProtectedFinal = finalCandidate.source === 'gateway_protected_voice_status' || finalCandidate.source === 'generated_protected_voice_status';
+  const policyReason = safeText(policy.reason);
+  const speakPolicyAllowed = policy.speakAllowed === true || policy.voiceMode === 'full' || (candidateProtectedFinal && (!policyReason || policyReason === 'EMPTY_RESPONSE' || policyReason === 'SPEAKABLE_RESPONSE'));
   const finalApproved = Boolean(finalReply);
-  const echoSuppressed = finalReply ? isInputEchoReply(finalReply, envelope, response) : false;
+  const echoSuppressed = finalReply ? (isInputEchoReply(finalReply, envelope, response) && !isSafeProtectedVoiceStatusReply(finalReply)) : false;
   const currentVoiceHash = hashText(finalReply);
   const windowMs = Math.max(500, Math.min(30000, Number(src.duplicateWindowMs || DEFAULT_DUPLICATE_WINDOW_MS) || DEFAULT_DUPLICATE_WINDOW_MS));
   const duplicate = currentVoiceHash ? duplicateState(cacheKey(envelope, response), currentVoiceHash, windowMs) : { duplicate: false, lastVoiceHash: '', currentVoiceHash: '', duplicateWindowMs: windowMs };
@@ -217,6 +276,7 @@ function stabilizeNyxVoiceDelivery(input) {
   else if (echoSuppressed) reason = 'VOICE_ROUTE_ECHO_SUPPRESSED';
   else if (duplicateSuppressed) reason = 'VOICE_DOUBLE_FIRE_SUPPRESSED';
   else if (!speakPolicyAllowed) reason = safeText(policy.reason) || 'VOICE_OUTPUT_POLICY_SILENT';
+  else if (candidateProtectedFinal) reason = 'SPEAKABLE_PROTECTED_VOICE_STATUS_FINAL';
   else reason = safeText(policy.reason) || 'SPEAKABLE_MARION_FINAL';
 
   return {
@@ -230,6 +290,9 @@ function stabilizeNyxVoiceDelivery(input) {
     finalEnvelopeOnly: true,
     finalApproved,
     finalReplySource: finalCandidate.source,
+    extractedFinalEchoSuppressed,
+    candidateProtectedFinal,
+    protectedStatusIntent: isProtectedVoiceStatusIntent(envelope),
     echoSuppressed,
     duplicateSuppressed,
     adminVoiceDeliveryAllowed: allowAdmin,
@@ -256,6 +319,9 @@ module.exports = {
   DEFAULT_DUPLICATE_WINDOW_MS,
   extractFinalApprovedReply,
   isInputEchoReply,
+  isProtectedVoiceStatusIntent,
+  isSafeProtectedVoiceStatusReply,
+  buildProtectedVoiceStatusReply,
   stabilizeNyxVoiceDelivery,
   resetNyxVoiceDeliveryState
 };
