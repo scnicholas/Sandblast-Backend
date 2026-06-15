@@ -53,6 +53,7 @@ const dormantScannerMod = (() => {
 })();
 
 const PHASE2A_CONTINUITY_VERSION = "nyx.lingosentinel.enFrEsContinuitySmoke/2.0";
+const PHASE2B_USER_BOUNDARY_VERSION = "nyx.lingosentinel.userBoundarySilentOversight/2.0";
 
 const DEFAULT_GATEWAY_CONFIG = {
   enabled: true,
@@ -60,7 +61,7 @@ const DEFAULT_GATEWAY_CONFIG = {
     name: "LingoSentinel",
     phase: "gateway-orchestration-alert-scanner-carry",
     mode: "advisory",
-    version: "0.3.1-private-voice-delivery"
+    version: "0.3.2-phase2b-user-boundary-hardlock"
   },
   supportedLanguages: ["en", "fr", "es"],
   defaultLanguage: "en",
@@ -571,6 +572,32 @@ function extractContinuityState(payload = {}, options = {}) {
   return state;
 }
 
+
+function buildPhase2BUserBoundaryCarry(extra = {}) {
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    phase: "phase2b_user_to_user_boundary_silent_oversight_hardlock",
+    enabled: true,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: "Marion",
+    publicFacingAgent: "LingoSentinel/Nyx",
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: "LingoSentinel/Nyx",
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    marionCanBeSender: false,
+    marionCanBeRecipient: false,
+    marionPublicChannelAllowed: false,
+    visibleToUsers: false,
+    source: "LingoSentinelGateway",
+    ...safeObject(extra)
+  };
+}
+
 function buildEnFrEsContinuitySmokeCarry({ payload = {}, options = {}, languageMeta = {}, gatewayMeta = {}, traceId = "" } = {}) {
   const p = safeObject(payload);
   const state = extractContinuityState(p, options);
@@ -608,6 +635,10 @@ function buildEnFrEsContinuitySmokeCarry({ payload = {}, options = {}, languageM
     visibleToUsers: false,
     publicUsersMayAddressMarion: false,
     publicUsersSpeakThrough: "LingoSentinel/Nyx",
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    phase2bUserBoundary: buildPhase2BUserBoundaryCarry({ traceId: safeString(traceId || gatewayMeta.traceId || gatewayMeta.correlationId || "") }),
     advisoryOnly: true,
     finalAuthority: "Marion",
     publicSurface: "LingoSentinel",
@@ -797,6 +828,14 @@ function runLingoSentinelGateway(payload, options = {}) {
     correlationId,
     traceId,
     reason: "lingosentinel_gateway_completed",
+    phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    visibleToUsers: false,
     source: "LingoSentinelGateway"
   };
 
@@ -851,13 +890,18 @@ function runLingoSentinelGateway(payload, options = {}) {
     telemetry,
     enFrEsContinuity,
     languageContinuity: enFrEsContinuity,
+    phase2bUserBoundary: buildPhase2BUserBoundaryCarry({ traceId }),
     marionSilentOversight: {
       silentOversight: true,
       userToUserBoundary: true,
       marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
       visibleToUsers: false,
       publicUsersMayAddressMarion: false,
-      publicUsersSpeakThrough: "LingoSentinel/Nyx"
+      publicUsersSpeakThrough: "LingoSentinel/Nyx",
+      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION
     },
     authority,
 
@@ -892,6 +936,7 @@ function buildMarionBridgePayload(payload, options = {}) {
     telemetry: gatewayPackage.telemetry,
     enFrEsContinuity: gatewayPackage.enFrEsContinuity,
     languageContinuity: gatewayPackage.languageContinuity,
+    phase2bUserBoundary: gatewayPackage.phase2bUserBoundary,
     marionSilentOversight: gatewayPackage.marionSilentOversight,
 
     authority: gatewayPackage.authority,
@@ -1018,6 +1063,8 @@ module.exports = {
   ensureRenderSafeTranslationMeta,
   DEFAULT_GATEWAY_CONFIG,
   PHASE2A_CONTINUITY_VERSION,
+  PHASE2B_USER_BOUNDARY_VERSION,
+  buildPhase2BUserBoundaryCarry,
   normalizeContinuityLanguage,
   buildEnFrEsContinuitySmokeCarry
 };
