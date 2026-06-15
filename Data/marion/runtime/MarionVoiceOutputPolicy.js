@@ -11,7 +11,7 @@
  *   another private layer explicitly overrides it later.
  */
 
-const VERSION = 'marion.voiceOutputPolicy/2.2-speakable-final-status-hardlock';
+const VERSION = 'marion.voiceOutputPolicy/2.3-phase2-speech-sync-compatible';
 const DEFAULT_MAX_SPOKEN_CHARS = 700;
 
 const SENSITIVE_PATTERNS = [
@@ -90,6 +90,7 @@ function silentPolicy(reason, extra) {
     voiceMode: 'silent',
     reason: reason || 'SILENT',
     spokenText: '',
+    speechSyncAllowed: false,
     adminOnlyVoiceDelivery: true,
     adminVoiceDeliveryAllowed: false
   }, extra || {});
@@ -145,6 +146,7 @@ function evaluateVoiceOutputPolicy(response, options) {
       voiceMode: 'brief',
       reason: 'LONG_RESPONSE_BRIEF_MODE',
       spokenText: createBriefSpokenSummary(text),
+      speechSyncAllowed: true,
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed
     };
@@ -155,6 +157,7 @@ function evaluateVoiceOutputPolicy(response, options) {
     voiceMode: 'full',
     reason: 'SPEAKABLE_RESPONSE',
     spokenText: text,
+    speechSyncAllowed: true,
     adminOnlyVoiceDelivery,
     adminVoiceDeliveryAllowed
   };
