@@ -61,7 +61,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/2.5-phase2-speech-sync-integrity-projection';
+const VERSION = 'marion.voiceGateway/2.6-phase3b-animation-metadata-bridge';
 
 function safeRequire(path) {
   try {
@@ -395,7 +395,13 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     speechSyncEnabled: speechSync && speechSync.enabled === true,
     avatar: speechSync && typeof speechSync === 'object' ? speechSync.avatar : null,
     avatarSpeechState: safeText(speechSync && (speechSync.avatarSpeechState || speechSync.speechState || '')),
+    avatarExpression: safeText(speechSync && speechSync.avatarExpression),
+    avatarMotion: speechSync && typeof speechSync === 'object' ? speechSync.motion : null,
+    avatarAnimation: speechSync && typeof speechSync === 'object' ? (speechSync.avatarAnimation || speechSync.animation) : null,
+    avatarMotionTelemetry: speechSync && typeof speechSync === 'object' ? speechSync.avatarMotionTelemetry : null,
+    avatarAnimationEnabled: speechSync && speechSync.avatarAnimationEnabled === true,
     phase2SpeechSyncPrepared: speechSync && speechSync.enabled === true,
+    phase3AnimationMetadataBridge: speechSync && speechSync.phase3AnimationMetadataBridge === true,
     voice: Object.assign({}, base.voice || {}, policy, {
       speakAllowed,
       voiceMode: projectedVoiceMode,
@@ -423,7 +429,13 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       speechSyncEnabled: speechSync && speechSync.enabled === true,
       speechSyncVersion: safeText(speechSync && speechSync.version),
       avatarSpeechState: safeText(speechSync && (speechSync.avatarSpeechState || speechSync.speechState || '')),
+      avatarExpression: safeText(speechSync && speechSync.avatarExpression),
+      avatarMotion: speechSync && typeof speechSync === 'object' ? speechSync.motion : null,
+      avatarAnimation: speechSync && typeof speechSync === 'object' ? (speechSync.avatarAnimation || speechSync.animation) : null,
+      avatarMotionTelemetry: speechSync && typeof speechSync === 'object' ? speechSync.avatarMotionTelemetry : null,
+      avatarAnimationEnabled: speechSync && speechSync.avatarAnimationEnabled === true,
       phase2SpeechSyncPrepared: speechSync && speechSync.enabled === true,
+      phase3AnimationMetadataBridge: speechSync && speechSync.phase3AnimationMetadataBridge === true,
       speechSyncFrontendReady: speechSync && speechSync.frontendReady === true,
       speechSyncContract: safeText(speechSync && speechSync.contract),
       visemeCount: Number(speechSync && speechSync.visemeCount || 0) || 0,
@@ -459,7 +471,9 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       echoSuppressed: stabilizer ? stabilizer.echoSuppressed === true : false,
       stabilizerVersion: voiceDeliveryStabilizer && voiceDeliveryStabilizer.VERSION ? voiceDeliveryStabilizer.VERSION : '',
       speechSyncEnabled: speechSync && speechSync.enabled === true,
-      speechSyncVersion: safeText(speechSync && speechSync.version)
+      speechSyncVersion: safeText(speechSync && speechSync.version),
+      avatarAnimationEnabled: speechSync && speechSync.avatarAnimationEnabled === true,
+      phase3AnimationMetadataBridge: speechSync && speechSync.phase3AnimationMetadataBridge === true
     },
     telemetry
   });
