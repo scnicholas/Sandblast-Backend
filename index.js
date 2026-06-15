@@ -32,7 +32,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.53sb NYX-VOICE-SPEAKABLE-FINAL-OUTPUT-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.54sb NYX-VOICE-MODE-PROJECTION-HARDLOCK";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -294,7 +294,7 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 // Public voice entrypoint stays Nyx-facing while Marion remains the hidden authority.
 // This route accepts transcript-only payloads. Raw audio must never be stored here.
 // V1.3 hardens the projection layer against transcript echo promotion.
-const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.6-speakableFinalOutputHardlock";
+const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.7-voiceModeProjectionHardlock";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
 
 const NYX_VOICE_TRANSCRIPT_ROUTES = Object.freeze([
@@ -311,7 +311,7 @@ const NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES = Object.freeze([
   "/marion/voice/diagnostics"
 ]);
 
-const NYX_VOICE_DEPLOYMENT_PARITY_VERSION = "nyx.voiceDeploymentParity/1.5-speakable-final-output";
+const NYX_VOICE_DEPLOYMENT_PARITY_VERSION = "nyx.voiceDeploymentParity/1.6-voice-mode-projection";
 
 const NYX_VOICE_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceGateway.js",
@@ -508,6 +508,19 @@ function nyxVoiceRouteIsProtectedStatusReply(value) {
     /\braw\s+audio\s+is\s+not\s+being\s+stored\b/i.test(text);
 }
 
+function nyxVoiceRouteProjectedVoiceMode(rawMode, speakAllowed, spokenText) {
+  const hasSpeakableText = !!cleanText(spokenText || "");
+  if (speakAllowed !== true || !hasSpeakableText) return "silent";
+  const mode = cleanText(rawMode || "").toLowerCase();
+  // NYX-VOICE-MODE-PROJECTION-HARDLOCK:
+  // Do not allow a stale downstream "silent" mode to mask an already-approved
+  // speakable final. Preserve brief mode when explicitly requested; otherwise
+  // project to full so frontends that check both speakAllowed and voiceMode
+  // cannot discard a valid spoken reply.
+  if (mode === "brief") return "brief";
+  return "full";
+}
+
 function nyxVoiceRouteCollectEchoSources(packet, body) {
   const p = isObj(packet) ? packet : {};
   const b = isObj(body) ? body : {};
@@ -625,7 +638,7 @@ app.get([...NYX_VOICE_TRANSCRIPT_ROUTES, ...NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES],
       v: PUBLIC_INDEX_VERSION,
       t: now(),
       noRawAudioStored: true,
-      promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.5-speakable-final",
+      promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.6-voice-mode-projection",
       deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
       renderDeployParityRequired: true,
       echoSuppressionHardlock: true,
@@ -791,6 +804,8 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       Boolean(rawSpokenCandidate || promotedSafe || reply);
     const spokenCandidate = routeSpeakAllowed ? (rawSpokenCandidate || promotedSafe || reply) : "";
     const spokenText = routeSpeakAllowed ? (nyxVoiceRouteSafePublicReply(spokenCandidate) || reply) : "";
+    const projectedVoiceMode = nyxVoiceRouteProjectedVoiceMode(voice.voiceMode, routeSpeakAllowed, spokenText);
+    const rawVoiceMode = cleanText(voice.voiceMode || "");
 
     return res.status(packet && packet.ok === false ? 202 : 200).json({
       ok: !(packet && packet.ok === false),
@@ -808,7 +823,10 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       version: NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
       voice: {
         speakAllowed: routeSpeakAllowed,
-        voiceMode: routeSpeakAllowed ? cleanText(voice.voiceMode || "full") : "silent",
+        voiceMode: projectedVoiceMode,
+        rawVoiceMode,
+        voiceModeProjectionHardlock: true,
+        voiceModeProjected: routeSpeakAllowed && !!spokenText && projectedVoiceMode !== "silent" && rawVoiceMode.toLowerCase() !== projectedVoiceMode,
         reason: !adminVoiceDeliveryAllowed ? "ADMIN_ONLY_VOICE_DELIVERY_REQUIRED" : voiceEchoSuppressed ? "VOICE_ROUTE_ECHO_SUPPRESSED_FALLBACK" : (routeSpeakAllowed && allowProtectedStatusFinal && voice.speakAllowed !== true) ? "VOICE_ROUTE_PROTECTED_STATUS_FINAL_APPROVED" : voiceReplyPromotionFallback ? "VOICE_ROUTE_REPLY_PROMOTION_FALLBACK" : cleanText(voice.reason || ""),
         spokenText,
         audioStored: false,
@@ -859,7 +877,10 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         protectedStatusFinalAllowed: allowProtectedStatusFinal,
         duplicateSuppressed: voice.duplicateSuppressed === true,
         stabilizerVersion: cleanText(voice.stabilizerVersion || ""),
-        promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.5-speakable-final",
+        projectedVoiceMode,
+        rawVoiceMode,
+        voiceModeProjectionHardlock: true,
+        promotionHardlockVersion: "nyx.voiceReplyPromotionHardlock/1.6-voice-mode-projection",
         deploymentParityVersion: NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
         readme: "README.md",
         renderDeployParityRequired: true
