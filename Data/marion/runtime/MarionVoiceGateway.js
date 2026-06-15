@@ -61,7 +61,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/2.6-phase3b-animation-metadata-bridge';
+const VERSION = 'marion.voiceGateway/2.7-marion-admin-interface-bridge';
 
 function safeRequire(path) {
   try {
@@ -115,6 +115,44 @@ async function callBridge(bridge, payload, context) {
 
 function safeText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+
+function isDirectMarionAdminInterface(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const voice = env.voice && typeof env.voice === 'object' ? env.voice : {};
+  const channel = safeText(opts.deliveryChannel || env.deliveryChannel || voice.deliveryChannel).toLowerCase();
+  const scope = safeText(opts.adminInterfaceScope || env.adminInterfaceScope || voice.adminInterfaceScope).toLowerCase();
+  return env.directMarionAdminInterface === true ||
+    env.marionAdminConversation === true ||
+    voice.directMarionAdminInterface === true ||
+    voice.marionAdminConversation === true ||
+    opts.directMarionAdminInterface === true ||
+    opts.allowMarionAdminConversation === true ||
+    scope === 'marion_admin_conversation' ||
+    channel === 'marion_admin_interface';
+}
+
+function resolveVoicePublicAgent(envelope, adminVoiceDeliveryAllowed, options) {
+  return adminVoiceDeliveryAllowed === true && isDirectMarionAdminInterface(envelope, options) ? 'Marion' : 'Nyx';
+}
+
+function resolveVoiceSource(envelope, options) {
+  return isDirectMarionAdminInterface(envelope, options) ? 'marion-admin-interface' : 'voice';
+}
+
+function marionAdminInterfaceMeta(envelope, allowed, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const direct = isDirectMarionAdminInterface(env, options || {});
+  return {
+    directMarionAdminInterface: direct,
+    marionAdminConversationAllowed: allowed === true && direct,
+    adminInterfaceScope: safeText(env.adminInterfaceScope || (direct ? 'marion_admin_conversation' : '')),
+    publicUsersCanAddressMarion: false,
+    publicUserFacing: false,
+    adminOnly: true
+  };
 }
 
 function hasOptionAdminVoiceProof(options) {
@@ -226,6 +264,7 @@ function firstReplyText(response, depth, seen) {
 function isAdminVoiceDeliveryAllowed(voiceEnvelope, outputPolicy) {
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
+  const opts = options && typeof options === 'object' ? options : {};
   return policy.adminVoiceDeliveryAllowed === true ||
     env.adminVoiceDeliveryAllowed === true ||
     (env.authorizationState === 'authorized' && env.adminVoiceVerified === true);
@@ -288,6 +327,9 @@ function buildProtectedVoiceStatusReply(voiceEnvelope) {
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const adminVoiceDeliveryAllowed = env.adminVoiceDeliveryAllowed === true || env.adminVoiceVerified === true || env.authorizationState === 'authorized';
   if (adminVoiceDeliveryAllowed) {
+    if (isDirectMarionAdminInterface(env, {})) {
+      return 'Marion admin interface is active. Marion is responding through the protected admin channel, public users cannot address Marion directly, and raw audio is not being stored.';
+    }
     return 'Nyx is connected through Marion. Marion remains the final response authority, admin voice delivery is authorized, and raw audio is not being stored.';
   }
   return 'Protected voice lane status: admin voice delivery is locked, transcript-only processing is live, and raw audio is not being stored.';
@@ -315,7 +357,7 @@ function buildVoiceReplyPromotionFallback(voiceEnvelope, response) {
   return 'I heard you, but protected voice delivery needs admin authorization before I can continue.';
 }
 
-function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolicy) {
+function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolicy, options) {
   const base = response && typeof response === 'object'
     ? response
     : { reply: String(response || '') };
@@ -341,6 +383,10 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
   const cleanReply = safeText(stabilizer && stabilizer.displayReply) || originalReply || fallbackReply;
   const fallbackUsed = (!originalReply && Boolean(cleanReply)) || originalReplyEchoSuppressed;
   const adminVoiceDeliveryAllowed = stabilizer ? stabilizer.adminVoiceDeliveryAllowed === true : isAdminVoiceDeliveryAllowed(env, policy);
+  const resolverOptions = Object.assign({}, opts, policy);
+  const resolvedPublicAgent = resolveVoicePublicAgent(env, adminVoiceDeliveryAllowed, resolverOptions);
+  const resolvedSource = resolveVoiceSource(env, resolverOptions);
+  const adminInterface = marionAdminInterfaceMeta(env, adminVoiceDeliveryAllowed, resolverOptions);
   const fallbackCanSpeak = adminVoiceDeliveryAllowed && fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
   const policySpokenText = firstReplyText(policy);
   const speakAllowed = stabilizer
@@ -380,10 +426,11 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     text: cleanReply,
     message: cleanReply,
     displayReply: cleanReply,
-    publicAgent: 'Nyx',
+    publicAgent: resolvedPublicAgent,
     authority: 'Marion',
     inputChannel: 'voice',
-    source: 'voice',
+    source: resolvedSource,
+    adminInterface,
     adminOnlyVoiceDelivery: true,
     privateDelivery: deliveryMeta.privateDelivery,
     privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
@@ -413,6 +460,10 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
       adminOnlyVoiceDelivery: true,
       adminVoiceDeliveryAllowed,
+      directMarionAdminInterface: adminInterface.directMarionAdminInterface,
+      marionAdminConversationAllowed: adminInterface.marionAdminConversationAllowed,
+      adminInterfaceScope: adminInterface.adminInterfaceScope,
+      publicUsersCanAddressMarion: false,
       replyPromotionFallback: fallbackUsed,
       upstreamEchoSuppressed: originalReplyEchoSuppressed,
       protectedStatusIntent: isProtectedVoiceStatusIntent(env),
@@ -450,6 +501,10 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       adminOnlyVoiceDelivery: true,
       adminVoiceVerified: env.adminVoiceVerified === true,
       adminVoiceDeliveryAllowed,
+      directMarionAdminInterface: adminInterface.directMarionAdminInterface,
+      marionAdminConversationAllowed: adminInterface.marionAdminConversationAllowed,
+      adminInterfaceScope: adminInterface.adminInterfaceScope,
+      publicUsersCanAddressMarion: false,
       userIntentHint: env.userIntentHint,
       commandPhrase: env.commandPhrase || null,
       wakeWord: env.wakeWord || null,
@@ -494,7 +549,12 @@ async function handleVoiceTranscript(input, options) {
     trustedServerAuth: optionAdminVoiceVerified,
     adminVoiceVerified: optionAdminVoiceVerified,
     adminVoiceTokenVerified: optionAdminVoiceVerified,
-    adminVoiceDeliveryAllowed: optionAdminVoiceVerified
+    adminVoiceDeliveryAllowed: optionAdminVoiceVerified,
+    directMarionAdminInterface: inputObj.directMarionAdminInterface === true || opts.directMarionAdminInterface === true || opts.allowMarionAdminConversation === true,
+    marionAdminConversation: inputObj.marionAdminConversation === true || opts.marionAdminConversation === true || opts.allowMarionAdminConversation === true,
+    adminInterfaceScope: safeText(inputObj.adminInterfaceScope || opts.adminInterfaceScope || ''),
+    publicAgent: inputObj.publicAgent || (inputObj.directMarionAdminInterface === true ? 'Marion' : 'Nyx'),
+    deliveryChannel: inputObj.deliveryChannel || opts.deliveryChannel || ''
   }));
   telemetryEvents.push(createVoiceTelemetryEvent('voice.envelope.created', envelope));
 
@@ -506,7 +566,11 @@ async function handleVoiceTranscript(input, options) {
     trustedServerAuth: optionAdminVoiceVerified,
     adminVoiceVerified: optionAdminVoiceVerified,
     adminVoiceTokenVerified: optionAdminVoiceVerified,
-    adminVoiceDeliveryAllowed: optionAdminVoiceVerified
+    adminVoiceDeliveryAllowed: optionAdminVoiceVerified,
+    directMarionAdminInterface: inputObj.directMarionAdminInterface === true || opts.directMarionAdminInterface === true || opts.allowMarionAdminConversation === true,
+    allowMarionAdminConversation: opts.allowMarionAdminConversation === true,
+    adminInterfaceScope: safeText(inputObj.adminInterfaceScope || opts.adminInterfaceScope || ''),
+    deliveryChannel: safeText(inputObj.deliveryChannel || opts.deliveryChannel || '')
   }, opts.authorization || opts);
 
   const authResult = applyVoiceAuthorization(envelope, authOptions);
@@ -530,7 +594,7 @@ async function handleVoiceTranscript(input, options) {
 
     telemetryEvents.push(createVoiceTelemetryEvent('voice.blocked', envelope, authResult.authorization));
 
-    return makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy);
+    return makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy, opts);
   }
 
   const normalizationResult = applyTranscriptNormalization(envelope, opts.normalization || opts);
@@ -541,6 +605,10 @@ async function handleVoiceTranscript(input, options) {
 
   const deliveryMeta = voiceDeliveryMetaFromEnvelope(envelope, {});
 
+  const directAdminInterface = isDirectMarionAdminInterface(envelope, opts);
+  const bridgePublicAgent = resolveVoicePublicAgent(envelope, envelope.adminVoiceDeliveryAllowed === true, opts);
+  const bridgeSource = resolveVoiceSource(envelope, opts);
+
   const bridgePayload = {
     input: envelope.transcript,
     text: envelope.transcript,
@@ -550,9 +618,13 @@ async function handleVoiceTranscript(input, options) {
     transcript: envelope.transcript,
     originalTranscript: envelope.originalTranscript || envelope.transcript,
     inputChannel: 'voice',
-    source: 'voice',
-    publicAgent: 'Nyx',
+    source: bridgeSource,
+    publicAgent: bridgePublicAgent,
     authority: 'Marion',
+    directMarionAdminInterface: directAdminInterface,
+    marionAdminConversation: directAdminInterface,
+    adminInterfaceScope: directAdminInterface ? 'marion_admin_conversation' : '',
+    publicUsersCanAddressMarion: false,
     locale: envelope.locale,
     confidence: envelope.confidence,
     authorizationState: envelope.authorizationState,
@@ -568,8 +640,13 @@ async function handleVoiceTranscript(input, options) {
       envelope,
       wakeWord: envelope.wakeWord || null,
       commandPhrase: envelope.commandPhrase || null,
-      source: 'voice',
+      source: bridgeSource,
       inputChannel: 'voice',
+      publicAgent: bridgePublicAgent,
+      directMarionAdminInterface: directAdminInterface,
+      marionAdminConversation: directAdminInterface,
+      adminInterfaceScope: directAdminInterface ? 'marion_admin_conversation' : '',
+      publicUsersCanAddressMarion: false,
       audioStored: false,
       noRawAudioStored: true,
       transcriptOnly: true,
@@ -581,9 +658,13 @@ async function handleVoiceTranscript(input, options) {
 
   const bridgeContext = Object.assign({}, opts.context || {}, {
     inputChannel: 'voice',
-    source: 'voice',
-    publicAgent: 'Nyx',
+    source: bridgeSource,
+    publicAgent: bridgePublicAgent,
     authority: 'Marion',
+    directMarionAdminInterface: directAdminInterface,
+    marionAdminConversation: directAdminInterface,
+    adminInterfaceScope: directAdminInterface ? 'marion_admin_conversation' : '',
+    publicUsersCanAddressMarion: false,
     sessionId: envelope.sessionId,
     requestId: envelope.requestId,
     adminOnlyVoiceDelivery: true,
@@ -622,7 +703,106 @@ async function handleVoiceTranscript(input, options) {
 
   telemetryEvents.push(createVoiceTelemetryEvent('voice.output.policy.checked', envelope, outputPolicy));
 
-  return makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy);
+  return makeNyxBoundaryResponse(withPolicy, envelope, telemetryEvents, outputPolicy, opts);
+}
+
+
+async function handleMarionAdminConversation(input, options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const adminVerified =
+    opts.adminVerified === true ||
+    opts.adminVoiceVerified === true ||
+    opts.adminVoiceTokenVerified === true ||
+    opts.adminVoiceDeliveryAllowed === true ||
+    opts.serverSideAdminVoiceAuth === true ||
+    opts.trustedServerAuth === true ||
+    hasOptionAdminVoiceProof(opts.authorization || {}) ||
+    hasOptionAdminVoiceProof(opts.output || {});
+
+  const payload = input && typeof input === 'object' ? input : { transcript: String(input || '') };
+  const transcript = payload.transcript || payload.text || payload.message || payload.query || payload.input || '';
+
+  const result = await handleVoiceTranscript(Object.assign({}, payload, {
+    transcript,
+    inputChannel: 'voice',
+    source: 'marion-admin-interface',
+    publicAgent: 'Marion',
+    authority: 'Marion',
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    adminInterfaceScope: 'marion_admin_conversation',
+    privateDelivery: true,
+    privateVoiceDelivery: true,
+    deliveryChannel: 'marion_admin_interface',
+    adminOnlyVoiceDelivery: true,
+    publicUsersCanAddressMarion: false
+  }), Object.assign({}, opts, {
+    directMarionAdminInterface: true,
+    allowMarionAdminConversation: true,
+    adminInterfaceScope: 'marion_admin_conversation',
+    deliveryChannel: 'marion_admin_interface',
+    serverSideAdminVoiceAuth: adminVerified,
+    trustedServerAuth: adminVerified,
+    authorization: Object.assign({}, opts.authorization || {}, {
+      adminOnlyVoiceDelivery: true,
+      allowConversationalWhenUnknown: false,
+      trustSpeakerHint: adminVerified,
+      allowMarionAdminConversation: true,
+      directMarionAdminInterface: true,
+      adminInterfaceScope: 'marion_admin_conversation',
+      deliveryChannel: 'marion_admin_interface',
+      serverSideAdminVoiceAuth: adminVerified,
+      trustedServerAuth: adminVerified,
+      adminVoiceVerified: adminVerified,
+      adminVoiceTokenVerified: adminVerified,
+      adminVoiceDeliveryAllowed: adminVerified
+    }),
+    output: Object.assign({}, opts.output || {}, {
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: adminVerified,
+      adminVoiceTokenVerified: adminVerified,
+      adminVoiceDeliveryAllowed: adminVerified,
+      directMarionAdminInterface: true,
+      marionAdminConversation: true,
+      adminInterfaceScope: 'marion_admin_conversation',
+      deliveryChannel: 'marion_admin_interface',
+      forceSilent: !adminVerified
+    }),
+    context: Object.assign({}, opts.context || {}, {
+      inputChannel: 'voice',
+      source: 'marion-admin-interface',
+      publicAgent: 'Marion',
+      authority: 'Marion',
+      directMarionAdminInterface: true,
+      marionAdminConversation: true,
+      adminInterfaceScope: 'marion_admin_conversation',
+      privateDelivery: true,
+      privateVoiceDelivery: true,
+      deliveryChannel: 'marion_admin_interface',
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: adminVerified,
+      adminVoiceDeliveryAllowed: adminVerified,
+      publicUsersCanAddressMarion: false
+    })
+  }));
+
+  return Object.assign({}, result, {
+    route: '/api/marion/admin/conversation',
+    source: 'marion-admin-interface',
+    publicAgent: adminVerified && result.ok !== false ? 'Marion' : 'Nyx',
+    authority: 'Marion',
+    directMarionAdminInterface: adminVerified && result.ok !== false,
+    marionAdminConversationAllowed: adminVerified && result.ok !== false,
+    adminInterfaceScope: 'marion_admin_conversation',
+    publicUsersCanAddressMarion: false,
+    privateDelivery: adminVerified && result.ok !== false,
+    privateVoiceDelivery: true,
+    deliveryChannel: 'marion_admin_interface',
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    adminVoiceDeliveryAllowed: adminVerified && result.voice && result.voice.adminVoiceDeliveryAllowed === true
+  });
 }
 
 
@@ -701,9 +881,12 @@ async function handleLingoSentinelPrivateVoiceDelivery(input, options) {
 module.exports = {
   VERSION,
   handleVoiceTranscript,
+  handleMarionAdminConversation,
   handleLingoSentinelPrivateVoiceDelivery,
   makeNyxBoundaryResponse,
   isProtectedVoiceStatusIntent,
+  isDirectMarionAdminInterface,
+  resolveVoicePublicAgent,
   buildProtectedVoiceStatusReply,
   firstReplyText,
   loadMarionBridge,
