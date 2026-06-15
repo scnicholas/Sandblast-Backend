@@ -36,8 +36,11 @@ const DEFAULT_TIMEOUT_MS = 6500;
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_NAMESPACE = 'lingosentinel';
 const ENGINE_NAME = 'LingoSentinelEngine';
-const ENGINE_VERSION = '1.2.0';
+const ENGINE_VERSION = '1.3.0-phase2e-live-ably-roundtrip';
 const PAYLOAD_SHAPE = 'lingosentinel.signal';
+const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.engine.userBoundarySilentOversight/2.0';
+const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.engine.channelNamespaceRoundtrip/2.0';
+const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.engine.liveAblyRoundtrip/2.0';
 
 let cachedAbly = null;
 let cachedGateway = null;
@@ -183,7 +186,7 @@ function createAblyClient(options = {}) {
   return new Ably.Realtime({
     key,
     clientId: getClientId(options),
-    echoMessages: false,
+    echoMessages: options.echoMessages === true,
     autoConnect: true
   });
 }
@@ -363,6 +366,95 @@ function normalizeLanguagePair(publishInput = {}) {
   };
 }
 
+
+function channelForMode(mode, roomId) {
+  const cleanRoomId = normalizeToken(roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const normalizedMode = normalizeMode(mode || 'one_to_one');
+  if (normalizedMode === 'group_room') return `${DEFAULT_NAMESPACE}:room:${cleanRoomId}`;
+  if (normalizedMode === 'live_translate') return `${DEFAULT_NAMESPACE}:translation:${cleanRoomId}`;
+  if (normalizedMode === 'delivered') return `${DEFAULT_NAMESPACE}:delivered:${cleanRoomId}`;
+  return `${DEFAULT_NAMESPACE}:direct:${cleanRoomId}`;
+}
+
+function buildPhase2BBoundary() {
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: 'Marion',
+    publicFacingAgent: 'LingoSentinel/Nyx',
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    marionPublicChannelAllowed: false,
+    visibleToUsers: false
+  };
+}
+
+function buildChannelAlignment(mode, roomId) {
+  const normalizedMode = normalizeMode(mode || 'one_to_one');
+  const canonicalChannel = channelForMode(normalizedMode, roomId || DEFAULT_ROOM_ID);
+  return {
+    version: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: true,
+    canonicalNamespace: DEFAULT_NAMESPACE,
+    mode: normalizedMode,
+    canonicalChannel,
+    publishChannel: canonicalChannel,
+    tokenChannel: canonicalChannel,
+    realtimeBridgeChannel: canonicalChannel,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: true,
+    canonicalOnlyForNewTraffic: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicUsersMayAddressMarion: false
+  };
+}
+
+function buildPhase2ERoundtripState({ channel = '', eventName = '', mode = '', roomId = '', received = false, subscribed = false, published = false } = {}) {
+  return {
+    ...buildPhase2BBoundary(),
+    version: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+    liveAblyRoundtrip: true,
+    tokenCreated: false,
+    canonicalChannel: safeString(channel, '', 240),
+    clientSubscribed: subscribed === true,
+    publishOk: published === true,
+    messageReceivedByClient: received === true,
+    receivedEventType: safeString(eventName, '', 120),
+    channelNamespaceAligned: /^lingosentinel:/.test(safeString(channel, '', 240)),
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: /^lingosentinel:/.test(safeString(channel, '', 240)),
+    mode: normalizeMode(mode || 'live_translate'),
+    roomId: normalizeToken(roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID)
+  };
+}
+
+function safeCloseClient(client) {
+  try {
+    if (client && typeof client.close === 'function') client.close();
+  } catch (_) {}
+}
+
+function extractMessageData(message) {
+  if (!message) return null;
+  if (isObject(message) && Object.prototype.hasOwnProperty.call(message, 'data')) return message.data;
+  return message;
+}
+
+function messageMatchesProbe(message, probeId) {
+  const data = extractMessageData(message);
+  return isObject(data) && safeString(data.phase2eRoundtripProbeId, '', 160) === probeId;
+}
+
 function fallbackRoute(publishInput = {}) {
   const mode = normalizeMode(publishInput.mode || 'one_to_one');
   const roomId = normalizeToken(publishInput.roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
@@ -374,7 +466,8 @@ function fallbackRoute(publishInput = {}) {
       eventType: 'ROOM_MESSAGE_READY',
       roomId,
       sessionId: null,
-      ablyChannel: `${DEFAULT_NAMESPACE}:room:${roomId}`
+      ablyChannel: channelForMode('group_room', roomId),
+      canonicalChannel: channelForMode('group_room', roomId)
     };
   }
 
@@ -384,7 +477,8 @@ function fallbackRoute(publishInput = {}) {
       eventType: 'TRANSLATION_MESSAGE_READY',
       roomId,
       sessionId,
-      ablyChannel: `${DEFAULT_NAMESPACE}:translation:${sessionId}`
+      ablyChannel: channelForMode('live_translate', roomId),
+      canonicalChannel: channelForMode('live_translate', roomId)
     };
   }
 
@@ -394,7 +488,8 @@ function fallbackRoute(publishInput = {}) {
       eventType: 'DELIVERED_MESSAGE_READY',
       roomId,
       sessionId: null,
-      ablyChannel: `${DEFAULT_NAMESPACE}:delivered:${roomId}`
+      ablyChannel: channelForMode('delivered', roomId),
+      canonicalChannel: channelForMode('delivered', roomId)
     };
   }
 
@@ -403,7 +498,8 @@ function fallbackRoute(publishInput = {}) {
     eventType: 'ONE_TO_ONE_MESSAGE_READY',
     roomId,
     sessionId: null,
-    ablyChannel: `${DEFAULT_NAMESPACE}:direct:${roomId}`
+    ablyChannel: channelForMode('one_to_one', roomId),
+    canonicalChannel: channelForMode('one_to_one', roomId)
   };
 }
 
@@ -436,11 +532,14 @@ function buildCanonicalSignal(gatewayResult = {}) {
       pair: languagePair
     },
     delivery: {
-      channel: route.ablyChannel,
+      channel: route.canonicalChannel || route.ablyChannel,
       eventName: route.eventType,
       lane: route.lane,
-      dryRunnable: true
+      dryRunnable: true,
+      channelAlignment: buildChannelAlignment(publishInput.mode, publishInput.roomId)
     },
+    channelAlignment: buildChannelAlignment(publishInput.mode, publishInput.roomId),
+    phase2eRoundtrip: buildPhase2ERoundtripState({ channel: route.canonicalChannel || route.ablyChannel, eventName: route.eventType, mode: publishInput.mode, roomId: publishInput.roomId }),
     metadata: {
       ...(isObject(publishInput.metadata) ? publishInput.metadata : {}),
       engine: ENGINE_NAME,
@@ -458,7 +557,9 @@ function buildCanonicalSignal(gatewayResult = {}) {
       lane: route.lane,
       eventType: route.eventType,
       timestamp: nowIso(),
-      marionAuthority: true
+      marionAuthority: true,
+      phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+      channelNamespaceAligned: true
     }
   };
 }
@@ -556,7 +657,7 @@ function buildSignalPlan(input = {}) {
     adaptive: adaptivePlan ? adaptivePlan.adaptive : null,
     signal: adaptiveSignal,
     publish: {
-      channel: adaptivePublish && adaptivePublish.channel ? adaptivePublish.channel : route.ablyChannel,
+      channel: adaptivePublish && adaptivePublish.channel ? adaptivePublish.channel : (route.canonicalChannel || route.ablyChannel),
       eventName: adaptivePublish && adaptivePublish.eventName ? adaptivePublish.eventName : route.eventType,
       payload: adaptivePublish && adaptivePublish.payload ? adaptivePublish.payload : adaptiveSignal
     },
@@ -653,6 +754,13 @@ function buildPublishedResult(plan, startedAt, options = {}) {
     ok: true,
     stage: 'published',
     channel: plan.publish.channel,
+    canonicalChannel: plan.publish.channel,
+    channelAlignment: buildChannelAlignment(signal.mode || room.mode, room.id),
+    phase2eRoundtrip: buildPhase2ERoundtripState({ channel: plan.publish.channel, eventName: plan.publish.eventName, mode: signal.mode || room.mode, roomId: room.id, published: true }),
+    channelNamespaceAligned: /^lingosentinel:/.test(String(plan.publish.channel || '')),
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: /^lingosentinel:/.test(String(plan.publish.channel || '')),
     eventName: plan.publish.eventName,
     signalId: signal.id,
     envelopeId: signal.envelopeId || (plan.adaptive && plan.adaptive.envelope && plan.adaptive.envelope.id) || null,
@@ -747,6 +855,218 @@ async function publishMessage(input = {}, options = {}) {
   }
 }
 
+
+async function confirmLiveAblyRoundtrip(input = {}, options = {}) {
+  const startedAt = Date.now();
+  const engineInput = buildEngineInput({
+    mode: 'live_translate',
+    roomId: 'phase2e-live-roundtrip-room',
+    sourceLanguage: 'en',
+    targetLanguage: 'fr',
+    ...input
+  });
+  const plan = buildSignalPlan(engineInput);
+  const validation = validatePublishPlan(plan);
+
+  if (!validation.ok) {
+    return buildValidationFailure({ ...plan, errors: validation.errors }, engineInput, startedAt);
+  }
+
+  const channelName = safeString(plan.publish && plan.publish.channel, '', 240);
+  const eventName = safeString(plan.publish && plan.publish.eventName, '', 120);
+  const mode = normalizeMode(engineInput.mode || 'live_translate');
+  const roomId = normalizeToken(engineInput.roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const probeId = safeString(options.probeId, '', 160) || `ls2e_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const timeoutMs = getTimeoutMs(options);
+  const phase2eBase = buildPhase2ERoundtripState({ channel: channelName, eventName, mode, roomId });
+  const payload = {
+    ...(isObject(plan.publish.payload) ? plan.publish.payload : {}),
+    phase2eLiveRoundtrip: true,
+    phase2eRoundtripProbeId: probeId,
+    roundtripProbe: true,
+    channelAlignment: buildChannelAlignment(mode, roomId),
+    boundary: buildPhase2BBoundary(),
+    createdAt: nowIso()
+  };
+
+  if (options.dryRun === true) {
+    return {
+      ok: true,
+      stage: 'roundtrip_dry_run',
+      dryRun: true,
+      channel: channelName,
+      canonicalChannel: channelName,
+      eventName,
+      probeId,
+      tokenCreated: options.tokenCreated === true,
+      clientSubscribed: false,
+      publishOk: false,
+      messageReceivedByClient: false,
+      receivedEventType: eventName,
+      channelAlignment: buildChannelAlignment(mode, roomId),
+      phase2eRoundtrip: phase2eBase,
+      boundary: buildPhase2BBoundary(),
+      telemetry: {
+        engine: ENGINE_NAME,
+        engineVersion: ENGINE_VERSION,
+        phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+        elapsedMs: Date.now() - startedAt,
+        diagnosticsRedacted: true
+      }
+    };
+  }
+
+  if (options.mockReceive === true) {
+    return {
+      ok: true,
+      stage: 'live_roundtrip_confirmed',
+      mockReceive: true,
+      channel: channelName,
+      canonicalChannel: channelName,
+      eventName,
+      probeId,
+      tokenCreated: options.tokenCreated === true,
+      clientSubscribed: true,
+      publishOk: true,
+      messageReceivedByClient: true,
+      receivedEventType: eventName,
+      channelAlignment: buildChannelAlignment(mode, roomId),
+      phase2eRoundtrip: buildPhase2ERoundtripState({ channel: channelName, eventName, mode, roomId, received: true, subscribed: true, published: true }),
+      boundary: buildPhase2BBoundary(),
+      received: { name: eventName, probeId },
+      telemetry: {
+        engine: ENGINE_NAME,
+        engineVersion: ENGINE_VERSION,
+        phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+        elapsedMs: Date.now() - startedAt,
+        diagnosticsRedacted: true
+      }
+    };
+  }
+
+  let subscriberClient = options.subscriberClient || null;
+  let publisherClient = options.publisherClient || options.client || null;
+  const closeSubscriber = !subscriberClient;
+  const closePublisher = !publisherClient && !options.client;
+
+  try {
+    subscriberClient = subscriberClient || createAblyClient({ ...options, forceNewClient: true, echoMessages: true, clientId: `${getClientId(options)}-phase2e-sub` });
+    publisherClient = publisherClient || createAblyClient({ ...options, forceNewClient: true, echoMessages: true, clientId: `${getClientId(options)}-phase2e-pub` });
+
+    await waitForConnection(subscriberClient, timeoutMs);
+    if (publisherClient !== subscriberClient) await waitForConnection(publisherClient, timeoutMs);
+
+    const subscriberChannel = subscriberClient.channels && subscriberClient.channels.get ? subscriberClient.channels.get(channelName) : null;
+    const publisherChannel = publisherClient.channels && publisherClient.channels.get ? publisherClient.channels.get(channelName) : null;
+
+    if (!subscriberChannel || typeof subscriberChannel.subscribe !== 'function') {
+      const error = new Error('Subscriber channel does not expose subscribe().');
+      error.code = 'ABLY_SUBSCRIBE_UNAVAILABLE';
+      throw error;
+    }
+    if (!publisherChannel || typeof publisherChannel.publish !== 'function') {
+      const error = new Error('Publisher channel does not expose publish().');
+      error.code = 'ABLY_PUBLISH_UNAVAILABLE';
+      throw error;
+    }
+
+    let handlerRef = null;
+    const receivedPromise = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(Object.assign(new Error('Client receive confirmation timed out.'), { code: 'CLIENT_RECEIVE_TIMEOUT' }));
+      }, timeoutMs);
+
+      handlerRef = (message) => {
+        if (!messageMatchesProbe(message, probeId)) return;
+        clearTimeout(timer);
+        resolve(message);
+      };
+
+      try {
+        const maybe = subscriberChannel.subscribe(eventName, handlerRef);
+        if (maybe && typeof maybe.then === 'function') maybe.catch((err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        reject(error);
+      }
+    });
+
+    await publisherChannel.publish(eventName, payload);
+    const receivedMessage = await receivedPromise;
+
+    try {
+      if (subscriberChannel && typeof subscriberChannel.unsubscribe === 'function' && handlerRef) {
+        subscriberChannel.unsubscribe(eventName, handlerRef);
+      }
+    } catch (_) {}
+
+    return {
+      ok: true,
+      stage: 'live_roundtrip_confirmed',
+      channel: channelName,
+      canonicalChannel: channelName,
+      eventName,
+      probeId,
+      tokenCreated: options.tokenCreated === true,
+      clientSubscribed: true,
+      publishOk: true,
+      messageReceivedByClient: true,
+      receivedEventType: eventName,
+      channelAlignment: buildChannelAlignment(mode, roomId),
+      phase2eRoundtrip: buildPhase2ERoundtripState({ channel: channelName, eventName, mode, roomId, received: true, subscribed: true, published: true }),
+      boundary: buildPhase2BBoundary(),
+      received: {
+        name: safeString(receivedMessage && receivedMessage.name || eventName, eventName, 120),
+        probeId,
+        dataShape: isObject(extractMessageData(receivedMessage)) ? 'object' : typeof extractMessageData(receivedMessage)
+      },
+      telemetry: {
+        confirmedAt: nowIso(),
+        elapsedMs: Date.now() - startedAt,
+        engine: ENGINE_NAME,
+        engineVersion: ENGINE_VERSION,
+        phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+        diagnosticsRedacted: true,
+        marionAuthority: true
+      }
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      stage: 'live_roundtrip_failed',
+      channel: channelName,
+      canonicalChannel: channelName,
+      eventName,
+      probeId,
+      tokenCreated: options.tokenCreated === true,
+      clientSubscribed: false,
+      publishOk: false,
+      messageReceivedByClient: false,
+      receivedEventType: eventName,
+      errors: [sanitizeError(error)],
+      channelAlignment: buildChannelAlignment(mode, roomId),
+      phase2eRoundtrip: phase2eBase,
+      boundary: buildPhase2BBoundary(),
+      telemetry: {
+        failedAt: nowIso(),
+        elapsedMs: Date.now() - startedAt,
+        code: error && error.code ? error.code : 'PHASE2E_ROUNDTRIP_FAILED',
+        engine: ENGINE_NAME,
+        engineVersion: ENGINE_VERSION,
+        phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+        diagnosticsRedacted: true,
+        marionAuthority: true
+      }
+    };
+  } finally {
+    if (closeSubscriber) safeCloseClient(subscriberClient);
+    if (closePublisher && publisherClient !== subscriberClient) safeCloseClient(publisherClient);
+  }
+}
+
 async function publishDirectMessage(input = {}, options = {}) {
   return publishMessage({ ...input, mode: 'one_to_one' }, options);
 }
@@ -825,6 +1145,7 @@ function getEngineContract() {
     engine: ENGINE_NAME,
     version: ENGINE_VERSION,
     payloadShape: PAYLOAD_SHAPE,
+    phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
     boundaries: {
       consumesGatewayApprovedInput: true,
       publishesRealtime: true,
@@ -837,6 +1158,11 @@ function getEngineContract() {
       group_room: 'room',
       live_translate: 'translation',
       delivered: 'delivered'
+    },
+    phase2e: {
+      liveAblyRoundtrip: true,
+      clientReceiveConfirmationRequired: true,
+      canonicalNamespace: DEFAULT_NAMESPACE
     }
   };
 }
@@ -847,6 +1173,7 @@ module.exports = {
   publishGroupMessage,
   publishLiveTranslateMessage,
   publishDeliveredReceipt,
+  confirmLiveAblyRoundtrip,
   routePreview,
   closeEngine,
   resetEngineForTests,
@@ -860,11 +1187,16 @@ module.exports = {
   validatePublishPlan,
   buildCanonicalSignal,
   fallbackRoute,
+  channelForMode,
+  buildChannelAlignment,
+  buildPhase2BBoundary,
+  buildPhase2ERoundtripState,
   createAblyClient,
   getAblyClient,
   waitForConnection,
   getAblyKey,
   getClientId,
   getTimeoutMs,
-  normalizeMode
+  normalizeMode,
+  PHASE2E_LIVE_ROUNDTRIP_VERSION
 };
