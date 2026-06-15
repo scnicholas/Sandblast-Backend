@@ -6,7 +6,7 @@
  * Does not store raw audio or admin tokens.
  */
 
-const VERSION = 'marion.voiceTelemetry/2.1-lingosentinel-private-voice-delivery';
+const VERSION = 'marion.voiceTelemetry/2.2-phase2-speech-sync-compatible';
 
 function safeLength(value) {
   return String(value || '').length;
@@ -37,6 +37,8 @@ function createVoiceTelemetryEvent(type, envelope, detail) {
     originalTranscriptLength: safeLength(env.originalTranscript || env.transcript),
     provider: meta.provider || 'browser-native',
     audioStored: false,
+    speechSyncEnabled: detail && typeof detail === 'object' && detail.speechSyncEnabled === true,
+    speechSyncVersion: detail && typeof detail === 'object' ? sanitizeSensitiveString(detail.speechSyncVersion || '') : '',
     detail: sanitizeTelemetryDetail(detail)
   };
 }
@@ -95,6 +97,19 @@ function sanitizeTelemetryDetail(detail) {
   return out;
 }
 
+
+function createVoiceSpeechSyncTelemetryEvent(speechSync, envelope) {
+  const sync = speechSync && typeof speechSync === 'object' ? speechSync : {};
+  return createVoiceTelemetryEvent('voice.speech_sync.prepared', envelope || {}, {
+    speechSyncEnabled: sync.enabled === true,
+    speechSyncVersion: sync.version || '',
+    estimatedDurationMs: Number(sync.estimatedDurationMs || 0) || 0,
+    visemeCount: Number(sync.visemeCount || (Array.isArray(sync.visemes) ? sync.visemes.length : 0)) || 0,
+    avatarSpeechState: sync.avatarSpeechState || sync.speechState || '',
+    audioStored: false
+  });
+}
+
 function createVoiceTelemetrySummary(events) {
   const list = Array.isArray(events) ? events : [];
 
@@ -117,6 +132,7 @@ module.exports = {
   VERSION,
   createVoiceTelemetryEvent,
   createVoiceTelemetrySummary,
+  createVoiceSpeechSyncTelemetryEvent,
   sanitizeTelemetryDetail,
   sanitizeSensitiveString
 };
