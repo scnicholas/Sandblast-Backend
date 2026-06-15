@@ -1,3 +1,4 @@
+
 'use strict';
 
 /**
@@ -7,7 +8,7 @@
  * Provides a small, frontend-safe state object for avatar animation readiness.
  */
 
-const VERSION = 'nyx.avatarSpeechState/1.0-phase2-speech-sync';
+const VERSION = 'nyx.avatarSpeechState/1.1-frontend-ready-contract';
 
 function safeText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -25,26 +26,33 @@ function buildAvatarSpeechState(input) {
   const spokenText = safeText(src.spokenText || src.text || '');
   const durationMs = Math.max(0, Number(src.estimatedDurationMs || 0) || 0);
   const visemeCount = Math.max(0, Number(src.visemeCount || 0) || 0);
-  const intensity = clamp01(src.intensity, speakAllowed && spokenText ? 0.58 : 0.12);
+  const reducedMotion = src.reducedMotion === true;
+  const baseIntensity = reducedMotion ? 0.34 : 0.58;
+  const intensity = clamp01(src.intensity, speakAllowed && spokenText ? baseIntensity : 0.12);
 
   const speechState = speakAllowed && spokenText ? 'speaking_ready' : 'idle';
   const mouthState = speakAllowed && spokenText
-    ? (visemeCount ? 'viseme_sequence_ready' : 'speech_open_ready')
+    ? (reducedMotion ? 'speech_open_ready' : (visemeCount ? 'viseme_sequence_ready' : 'speech_open_ready'))
     : 'rest';
 
   return {
     version: VERSION,
     source: 'NyxAvatarSpeechState',
     enabled: speakAllowed && !!spokenText,
+    frontendReady: speakAllowed && !!spokenText,
     speechState,
     mouthState,
     avatarState: speakAllowed && spokenText ? 'voice_delivery_ready' : 'voice_idle',
+    animationPhase: speakAllowed && spokenText ? 'speech_sync_ready' : 'idle',
     intensity,
+    motionIntensity: reducedMotion ? Math.min(0.35, intensity) : intensity,
+    reducedMotion,
     estimatedDurationMs: durationMs,
     visemeCount,
     leadInState: speakAllowed && spokenText ? 'prepare_mouth' : 'none',
     settleState: speakAllowed && spokenText ? 'return_to_idle' : 'none',
     audioStored: false,
+    noRawAudioStored: true,
     transcriptOnly: true
   };
 }
