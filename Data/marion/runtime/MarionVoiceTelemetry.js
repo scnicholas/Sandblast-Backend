@@ -6,7 +6,7 @@
  * Does not store raw audio or admin tokens.
  */
 
-const VERSION = 'marion.voiceTelemetry/2.2-phase2-speech-sync-compatible';
+const VERSION = 'marion.voiceTelemetry/2.3-phase1c-admin-conversation-lingosentinel-boundary';
 
 function safeLength(value) {
   return String(value || '').length;
@@ -32,6 +32,12 @@ function createVoiceTelemetryEvent(type, envelope, detail) {
     adminOnlyVoiceDelivery: env.adminOnlyVoiceDelivery !== false,
     adminVoiceVerified: env.adminVoiceVerified === true,
     adminVoiceDeliveryAllowed: env.adminVoiceDeliveryAllowed === true,
+    privateAdminConversation: env.privateAdminConversation === true || env.adminConversation === true,
+    adminConversationAllowed: env.adminConversationAllowed === true || env.privateAdminConversation === true,
+    directMarionConversation: env.directMarionConversation === true || env.privateAdminConversation === true,
+    lingoSentinelSilentOversight: env.lingoSentinelSilentOversight === true || env.silentOversight === true,
+    userToUserBoundary: env.userToUserBoundary === true,
+    marionVisibleParticipant: env.marionVisibleParticipant === false ? false : null,
     userIntentHint: env.userIntentHint || null,
     transcriptLength: safeLength(env.transcript),
     originalTranscriptLength: safeLength(env.originalTranscript || env.transcript),
@@ -76,8 +82,9 @@ function sanitizeTelemetryDetail(detail) {
   const out = {};
 
   Object.keys(detail).forEach((key) => {
-    if (blockedKeys.has(key)) return;
-    if (/token|secret|password|cookie|authorization|api[_-]?key/i.test(key)) return;
+    const normalizedKey = String(key || '').replace(/[^a-z0-9_]+/gi, '').toLowerCase();
+    if (blockedKeys.has(key) || blockedKeys.has(normalizedKey)) return;
+    if (/token|secret|password|cookie|authorization|api[_-]?key|rawaudio|buffer|blob/i.test(key)) return;
 
     const value = detail[key];
 
@@ -87,7 +94,15 @@ function sanitizeTelemetryDetail(detail) {
     }
 
     if (value && typeof value === 'object') {
-      out[key] = '[object]';
+      const nested = {};
+      Object.keys(value).slice(0, 12).forEach((nestedKey) => {
+        if (/token|secret|password|cookie|authorization|api[_-]?key|rawaudio|audio|buffer|blob/i.test(nestedKey)) return;
+        const nestedValue = value[nestedKey];
+        if (typeof nestedValue === 'string') nested[nestedKey] = sanitizeSensitiveString(nestedValue);
+        else if (typeof nestedValue === 'number' || typeof nestedValue === 'boolean' || nestedValue == null) nested[nestedKey] = nestedValue;
+        else nested[nestedKey] = '[object]';
+      });
+      out[key] = nested;
       return;
     }
 
@@ -110,6 +125,45 @@ function createVoiceSpeechSyncTelemetryEvent(speechSync, envelope) {
   });
 }
 
+
+function createMarionAdminConversationTelemetryEvent(envelope, detail) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  return createVoiceTelemetryEvent('voice.marion_admin_conversation', Object.assign({}, env, {
+    privateAdminConversation: true,
+    adminConversation: true,
+    adminConversationAllowed: env.adminConversationAllowed !== false,
+    directMarionConversation: true,
+    publicAgent: 'Marion'
+  }), Object.assign({
+    privateAdminConversation: true,
+    adminConversationAllowed: true,
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'Nyx',
+    noRawAudioStored: true,
+    audioStored: false
+  }, detail && typeof detail === 'object' ? detail : {}));
+}
+
+function createLingoSentinelSilentOversightTelemetryEvent(envelope, detail) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  return createVoiceTelemetryEvent('voice.lingosentinel_silent_oversight', Object.assign({}, env, {
+    lingoSentinelSilentOversight: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicAgent: 'LingoSentinel'
+  }), Object.assign({
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
+    noUserFacingDiagnostics: true,
+    noRawAudioStored: true,
+    audioStored: false
+  }, detail && typeof detail === 'object' ? detail : {}));
+}
+
+
 function createVoiceTelemetrySummary(events) {
   const list = Array.isArray(events) ? events : [];
 
@@ -124,7 +178,10 @@ function createVoiceTelemetrySummary(events) {
     adminVoiceDeliveryAllowed: list.some((event) => event.adminVoiceDeliveryAllowed === true),
     lastEvent: list.length ? list[list.length - 1].type : null,
     blocked: list.some((event) => event.type === 'voice.blocked'),
-    failed: list.some((event) => String(event.type || '').includes('failed'))
+    failed: list.some((event) => String(event.type || '').includes('failed')),
+    privateAdminConversationObserved: list.some((event) => event.privateAdminConversation === true),
+    lingoSentinelSilentOversightObserved: list.some((event) => event.lingoSentinelSilentOversight === true),
+    userToUserBoundaryObserved: list.some((event) => event.userToUserBoundary === true)
   };
 }
 
@@ -133,6 +190,8 @@ module.exports = {
   createVoiceTelemetryEvent,
   createVoiceTelemetrySummary,
   createVoiceSpeechSyncTelemetryEvent,
+  createMarionAdminConversationTelemetryEvent,
+  createLingoSentinelSilentOversightTelemetryEvent,
   sanitizeTelemetryDetail,
   sanitizeSensitiveString
 };
