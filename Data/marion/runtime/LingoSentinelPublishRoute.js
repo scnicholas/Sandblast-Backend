@@ -20,6 +20,7 @@
  */
 
 const express = require('express');
+const crypto = require('crypto');
 const LingoSentinelLinkGateway = require('./LingoSentinelLinkGateway');
 const LingoSentinelEngine = (() => {
   try {
@@ -32,9 +33,10 @@ const LingoSentinelEngine = (() => {
 const router = express.Router();
 
 const DEFAULT_LIMIT_BYTES = 8000;
-const ROUTE_VERSION = 'nyx.lingosentinel.publishRoute/1.3-phase2d-channel-namespace-roundtrip-hardlock';
+const ROUTE_VERSION = 'nyx.lingosentinel.publishRoute/1.4-phase2e-live-ably-roundtrip';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
+const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.liveAblyRoundtrip/2.0';
 const CHANNEL_NAMESPACE = 'lingosentinel';
 
 function safeString(value, fallback = '') {
@@ -120,6 +122,64 @@ function phase2dChannelAlignment(publishInput = {}) {
     userToUserBoundary: true,
     marionVisibleParticipant: false,
     publicUsersMayAddressMarion: false
+  };
+}
+
+
+function roundtripDiagnosticTokens() {
+  return [
+    process.env.SB_LINGOSENTINEL_ROUNDTRIP_TOKEN,
+    process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN,
+    process.env.SB_MARION_ADMIN_CONVERSATION_TOKEN,
+    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
+    process.env.SB_ADMIN_VOICE_TOKEN
+  ].map(safeString).filter(Boolean);
+}
+
+function timingSafeTextEqual(a, b) {
+  const left = Buffer.from(safeString(a));
+  const right = Buffer.from(safeString(b));
+  if (!left.length || !right.length || left.length !== right.length) return false;
+  try {
+    return crypto.timingSafeEqual(left, right);
+  } catch (_) {
+    return false;
+  }
+}
+
+function checkRoundtripDiagnosticAccess(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const tokens = roundtripDiagnosticTokens();
+  const candidates = [
+    headers['x-sb-lingosentinel-roundtrip-token'],
+    headers['x-sb-lingosentinel-marion-admin-token'],
+    headers['x-sb-marion-admin-conversation-token'],
+    headers['x-sb-marion-admin-voice-token'],
+    headers['x-sb-admin-voice-token']
+  ].map(safeString).filter(Boolean);
+  for (const candidate of candidates) {
+    if (tokens.some((token) => timingSafeTextEqual(candidate, token))) {
+      return { ok: true, configured: tokens.length > 0, provided: true };
+    }
+  }
+  return { ok: false, configured: tokens.length > 0, provided: candidates.length > 0 };
+}
+
+function phase2eRoundtripMarkers(channel = '', eventName = '') {
+  return {
+    ...phase2bBoundary(),
+    version: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+    liveAblyRoundtrip: true,
+    tokenCreated: false,
+    canonicalChannel: safeString(channel),
+    clientSubscribed: false,
+    publishOk: false,
+    messageReceivedByClient: false,
+    receivedEventType: safeString(eventName),
+    channelNamespaceAligned: /^lingosentinel:/.test(safeString(channel)),
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: /^lingosentinel:/.test(safeString(channel))
   };
 }
 
@@ -277,6 +337,7 @@ router.post('/publish', async (req, res) => {
         tokenChannelMatchesPublishChannel: true,
         realtimeBridgeChannelMatchesToken: true,
         roundtripReady: phase2dChannelAlignment(gatewayResult.publishInput).roundtripReady,
+        phase2eLiveRoundtrip: phase2eRoundtripMarkers(gatewayResult.publishInput && gatewayResult.publishInput.route ? gatewayResult.publishInput.route.canonicalChannel || gatewayResult.publishInput.route.ablyChannel : '', gatewayResult.publishInput && gatewayResult.publishInput.route ? gatewayResult.publishInput.route.eventType : ''),
         governance: gatewayResult.governance,
         boundary: phase2bBoundary(),
         telemetry: {
@@ -355,6 +416,150 @@ router.post('/publish', async (req, res) => {
   }
 });
 
+
+router.options('/roundtrip', (req, res) => {
+  return res.status(204).end();
+});
+
+router.get('/roundtrip/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'LingoSentinelPhase2ELiveRoundtrip',
+    status: 'ready',
+    version: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+    routeMounted: true,
+    route: '/api/lingosentinel/roundtrip',
+    method: 'POST',
+    canonicalChannel: 'lingosentinel:translation:phase2e-live-roundtrip-room',
+    expectedEventType: 'TRANSLATION_MESSAGE_READY',
+    tokenRequiredForLiveDiagnostic: true,
+    diagnosticTokenConfigured: roundtripDiagnosticTokens().length > 0,
+    engineAvailable: !!(LingoSentinelEngine && typeof LingoSentinelEngine.confirmLiveAblyRoundtrip === 'function'),
+    channelNamespaceAligned: true,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: true,
+    clientReceiveConfirmationRoute: '/api/lingosentinel/roundtrip',
+    phase2eLiveRoundtrip: phase2eRoundtripMarkers('lingosentinel:translation:lingosentinel-main', 'TRANSLATION_MESSAGE_READY'),
+    boundary: phase2bBoundary(),
+    phase2eLiveRoundtrip: phase2eRoundtripMarkers('lingosentinel:translation:phase2e-live-roundtrip-room', 'TRANSLATION_MESSAGE_READY'),
+    timestamp: nowIso()
+  });
+});
+
+router.post('/roundtrip', async (req, res) => {
+  const receivedAt = nowIso();
+
+  try {
+    const body = req.body || {};
+    const liveRequested = req.query?.live === '1' || body.live === true;
+    const dryRun = !liveRequested || req.query?.dryRun === '1' || body.dryRun === true;
+    const auth = checkRoundtripDiagnosticAccess(req);
+
+    if (liveRequested && !auth.ok) {
+      return res.status(403).json({
+        ok: false,
+        stage: 'roundtrip_diagnostic_locked',
+        error: 'phase2e_roundtrip_admin_token_required',
+        diagnosticsRedacted: true,
+        tokenConfigured: auth.configured === true,
+        tokenProvided: auth.provided === true,
+        boundary: phase2bBoundary(),
+        phase2eLiveRoundtrip: phase2eRoundtripMarkers('lingosentinel:translation:phase2e-live-roundtrip-room', 'TRANSLATION_MESSAGE_READY'),
+        telemetry: { receivedAt, route: 'LingoSentinelPublishRoute.roundtrip' }
+      });
+    }
+
+    const input = sanitizeBody({
+      mode: 'live_translate',
+      roomId: 'phase2e-live-roundtrip-room',
+      sender: { id: 'phase2e-user-a', name: 'Phase 2E User A', preferredLanguage: 'en' },
+      recipient: { id: 'phase2e-user-b', name: 'Phase 2E User B', preferredLanguage: 'fr' },
+      text: 'Phase 2E live Ably roundtrip diagnostic message.',
+      sourceLanguage: 'en',
+      targetLanguage: 'fr',
+      ...(body && typeof body === 'object' ? body : {})
+    });
+
+    const validation = validateRequestBody(input);
+    if (!validation.ok) {
+      return res.status(400).json({
+        ok: false,
+        stage: 'roundtrip_validation',
+        errors: validation.errors,
+        boundary: phase2bBoundary(),
+        telemetry: { receivedAt }
+      });
+    }
+
+    const gatewayResult = LingoSentinelLinkGateway.prepareLingoSentinelPublish({
+      ...input,
+      metadata: {
+        ...input.metadata,
+        route: 'phase2e-roundtrip-diagnostic',
+        clientIp: readClientIp(req),
+        userAgent: safeString(req.headers?.['user-agent']),
+        receivedAt
+      }
+    });
+
+    if (!gatewayResult.ok) {
+      return res.status(422).json({
+        ok: false,
+        stage: 'roundtrip_gateway_rejected',
+        errors: gatewayResult.errors,
+        governance: gatewayResult.governance,
+        boundary: phase2bBoundary(),
+        telemetry: gatewayResult.telemetry
+      });
+    }
+
+    const channel = gatewayResult.publishInput && gatewayResult.publishInput.route ? gatewayResult.publishInput.route.canonicalChannel || gatewayResult.publishInput.route.ablyChannel : '';
+    const eventName = gatewayResult.publishInput && gatewayResult.publishInput.route ? gatewayResult.publishInput.route.eventType : '';
+
+    if (!LingoSentinelEngine || typeof LingoSentinelEngine.confirmLiveAblyRoundtrip !== 'function') {
+      return res.status(503).json({
+        ok: false,
+        stage: 'roundtrip_engine_unavailable',
+        errors: ['LingoSentinelEngine confirmLiveAblyRoundtrip handler is unavailable.'],
+        channel,
+        canonicalChannel: channel,
+        boundary: phase2bBoundary(),
+        phase2eLiveRoundtrip: phase2eRoundtripMarkers(channel, eventName),
+        diagnosticsRedacted: true,
+        telemetry: { receivedAt, routeCompletedAt: nowIso() }
+      });
+    }
+
+    const result = await LingoSentinelEngine.confirmLiveAblyRoundtrip(gatewayResult.publishInput, {
+      dryRun,
+      tokenCreated: auth.ok === true,
+      timeoutMs: Number(body.timeoutMs || req.query?.timeoutMs || 6500) || 6500,
+      clientId: safeString(body.clientId || 'phase2e-live-roundtrip-diagnostic', 'phase2e-live-roundtrip-diagnostic')
+    });
+
+    return res.status(result.ok ? 200 : 502).json({
+      ...result,
+      route: '/api/lingosentinel/roundtrip',
+      liveRequested,
+      dryRun,
+      tokenCreated: auth.ok === true,
+      channel: result.channel || channel,
+      canonicalChannel: result.canonicalChannel || channel,
+      eventName: result.eventName || eventName,
+      boundary: phase2bBoundary(),
+      telemetry: {
+        ...(result.telemetry || {}),
+        routeReceivedAt: receivedAt,
+        routeCompletedAt: nowIso(),
+        diagnosticsRedacted: true
+      }
+    });
+  } catch (error) {
+    return res.status(500).json(safeErrorResponse(error, 'roundtrip_route_failed'));
+  }
+});
+
 router.get('/health', (req, res) => {
   res.json({
     ok: true,
@@ -362,9 +567,12 @@ router.get('/health', (req, res) => {
     status: 'ready',
     version: ROUTE_VERSION,
     phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
     channelNamespace: CHANNEL_NAMESPACE,
     channelNamespaceAligned: true,
     roundtripReady: true,
+    clientReceiveConfirmationRoute: '/api/lingosentinel/roundtrip',
+    phase2eLiveRoundtrip: phase2eRoundtripMarkers('lingosentinel:translation:lingosentinel-main', 'TRANSLATION_MESSAGE_READY'),
     boundary: phase2bBoundary(),
     gatewayPath: 'Data/marion/runtime/LingoSentinelLinkGateway.js',
     enginePath: 'Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js',
@@ -386,4 +594,5 @@ router.VERSION = ROUTE_VERSION;
 router.phase2bBoundary = phase2bBoundary;
 router.hasPublicMarionSpoof = hasPublicMarionSpoof;
 router.phase2dChannelAlignment = phase2dChannelAlignment;
+router.phase2eRoundtripMarkers = phase2eRoundtripMarkers;
 module.exports = router;
