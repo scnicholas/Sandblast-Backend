@@ -61,7 +61,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/2.7-marion-admin-interface-bridge';
+const VERSION = 'marion.voiceGateway/2.7.1-marion-admin-interface-opts-hotfix';
 
 function safeRequire(path) {
   try {
@@ -264,7 +264,6 @@ function firstReplyText(response, depth, seen) {
 function isAdminVoiceDeliveryAllowed(voiceEnvelope, outputPolicy) {
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
-  const opts = options && typeof options === 'object' ? options : {};
   return policy.adminVoiceDeliveryAllowed === true ||
     env.adminVoiceDeliveryAllowed === true ||
     (env.authorizationState === 'authorized' && env.adminVoiceVerified === true);
@@ -358,6 +357,7 @@ function buildVoiceReplyPromotionFallback(voiceEnvelope, response) {
 }
 
 function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolicy, options) {
+  const opts = options && typeof options === 'object' ? options : {};
   const base = response && typeof response === 'object'
     ? response
     : { reply: String(response || '') };
