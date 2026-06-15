@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'nyx.voiceDeliveryStabilizer/1.2-phase2-speech-sync-compatible';
+const VERSION = 'nyx.voiceDeliveryStabilizer/1.3-phase2-integrity-carry';
 const FINAL_ENVELOPE_CONTRACT = 'nyx.marion.final/1.0';
 const FINAL_SIGNATURE = 'MARION_FINAL_AUTHORITY';
 const DEFAULT_DUPLICATE_WINDOW_MS = 4500;
@@ -306,7 +306,19 @@ function stabilizeNyxVoiceDelivery(input) {
     textFallbackAvailable: Boolean(displayReply),
     speechSyncEligible: speakAllowed && Boolean(finalReply),
     speechSyncCandidateSource: speakAllowed ? 'marion_final_reply' : '',
-    phase2SpeechSyncCompatible: true
+    speechSyncInput: {
+      spokenText: speakAllowed ? finalReply : '',
+      speakAllowed,
+      voiceMode: speakAllowed ? (safeText(policy.voiceMode) || 'full') : 'silent',
+      finalApproved,
+      adminVoiceDeliveryAllowed: allowAdmin,
+      finalReplySource: finalCandidate.source,
+      transcriptOnly: true,
+      noRawAudioStored: true,
+      audioStored: false
+    },
+    phase2SpeechSyncCompatible: true,
+    phase2IntegrityCarry: true
   };
 }
 
