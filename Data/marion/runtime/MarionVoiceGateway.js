@@ -47,7 +47,21 @@ const voiceDeliveryStabilizer = (() => {
   }
 })();
 
-const VERSION = 'marion.voiceGateway/2.3-speakable-final-status-hardlock';
+const speechSyncEnvelopeMod = (() => {
+  try {
+    return require('./NyxSpeechSyncEnvelope');
+  } catch (_) {
+    return null;
+  }
+})();
+
+function projectVoiceMode(rawMode, speakAllowed, spokenText) {
+  if (speakAllowed !== true || !safeText(spokenText)) return 'silent';
+  const mode = safeText(rawMode || '').toLowerCase();
+  return mode === 'brief' ? 'brief' : 'full';
+}
+
+const VERSION = 'marion.voiceGateway/2.4-phase2-speech-sync-envelope';
 
 function safeRequire(path) {
   try {
@@ -333,6 +347,27 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     ? stabilizer.speakAllowed === true
     : adminVoiceDeliveryAllowed && Boolean(policySpokenText || (fallbackCanSpeak && cleanReply)) && (policy.speakAllowed === true || fallbackCanSpeak);
   const spokenText = stabilizer ? safeText(stabilizer.spokenText) : (speakAllowed ? (policySpokenText || cleanReply) : '');
+  const projectedVoiceMode = projectVoiceMode(policy.voiceMode, speakAllowed, spokenText);
+  const speechSync = speechSyncEnvelopeMod && typeof speechSyncEnvelopeMod.buildSpeechSyncEnvelope === 'function'
+    ? speechSyncEnvelopeMod.buildSpeechSyncEnvelope({
+      spokenText,
+      speakAllowed,
+      voiceMode: projectedVoiceMode,
+      voice: Object.assign({}, base.voice || {}, policy, stabilizer || {}),
+      voiceEnvelope: env,
+      finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
+      adminVoiceDeliveryAllowed,
+      sessionId: env.sessionId,
+      requestId: env.requestId,
+      locale: env.locale,
+      source: 'MarionVoiceGateway'
+    })
+    : {
+      enabled: false,
+      reason: 'SPEECH_SYNC_ENVELOPE_UNAVAILABLE',
+      audioStored: false,
+      transcriptOnly: true
+    };
   const voiceReason = stabilizer ? safeText(stabilizer.reason) : '';
 
   return Object.assign({}, base, {
@@ -354,7 +389,7 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
     audioStored: false,
     voice: Object.assign({}, base.voice || {}, policy, {
       speakAllowed,
-      voiceMode: speakAllowed ? (safeText(policy.voiceMode) || 'full') : 'silent',
+      voiceMode: projectedVoiceMode,
       reason: voiceReason || (speakAllowed ? (fallbackUsed ? 'VOICE_REPLY_PROMOTION_FALLBACK' : (policyReason || 'SPEAKABLE_RESPONSE')) : (policyReason || 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED')),
       spokenText,
       audioStored: false,
@@ -374,7 +409,12 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       replyHash: stabilizer ? safeText(stabilizer.replyHash) : '',
       ttsFallbackSafe: stabilizer ? stabilizer.ttsFallbackSafe === true : true,
       textFallbackAvailable: stabilizer ? stabilizer.textFallbackAvailable === true : Boolean(cleanReply),
-      stabilizerVersion: voiceDeliveryStabilizer && voiceDeliveryStabilizer.VERSION ? voiceDeliveryStabilizer.VERSION : ''
+      stabilizerVersion: voiceDeliveryStabilizer && voiceDeliveryStabilizer.VERSION ? voiceDeliveryStabilizer.VERSION : '',
+      speechSync,
+      speechSyncEnabled: speechSync && speechSync.enabled === true,
+      speechSyncVersion: safeText(speechSync && speechSync.version),
+      avatarSpeechState: safeText(speechSync && (speechSync.avatarSpeechState || speechSync.speechState || '')),
+      phase2SpeechSyncPrepared: speechSync && speechSync.enabled === true
     }),
     voiceEnvelope: {
       source: env.source,
@@ -404,7 +444,9 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
       duplicateSuppressed: stabilizer ? stabilizer.duplicateSuppressed === true : false,
       echoSuppressed: stabilizer ? stabilizer.echoSuppressed === true : false,
-      stabilizerVersion: voiceDeliveryStabilizer && voiceDeliveryStabilizer.VERSION ? voiceDeliveryStabilizer.VERSION : ''
+      stabilizerVersion: voiceDeliveryStabilizer && voiceDeliveryStabilizer.VERSION ? voiceDeliveryStabilizer.VERSION : '',
+      speechSyncEnabled: speechSync && speechSync.enabled === true,
+      speechSyncVersion: safeText(speechSync && speechSync.version)
     },
     telemetry
   });
@@ -640,5 +682,6 @@ module.exports = {
   loadMarionBridge,
   hasOptionAdminVoiceProof,
   isAdminVoiceDeliveryAllowed,
-  voiceDeliveryStabilizer
+  voiceDeliveryStabilizer,
+  speechSyncEnvelopeMod
 };
