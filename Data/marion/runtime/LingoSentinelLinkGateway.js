@@ -22,10 +22,11 @@
 const crypto = require('crypto');
 
 const GATEWAY_NAME = 'LingoSentinelLinkGateway';
-const GATEWAY_VERSION = '1.4.0-phase2d-channel-namespace-roundtrip-hardlock';
+const GATEWAY_VERSION = '1.5.0-phase2e-live-ably-roundtrip';
 const PHASE2A_CONTINUITY_VERSION = 'nyx.lingosentinel.linkGateway.enFrEsContinuity/2.0';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
+const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.linkGateway.liveAblyRoundtrip/2.0';
 const CHANNEL_NAMESPACE = 'lingosentinel';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_LANGUAGE = 'en';
@@ -154,6 +155,26 @@ function normalizeLanguagePair(input = {}) {
   if (!source || !target) return null;
 
   return { source, target };
+}
+
+
+function buildPhase2ERoundtripReadiness(mode, roomId) {
+  const alignment = buildChannelAlignment(mode || 'live_translate', roomId || DEFAULT_ROOM_ID);
+  return {
+    ...buildPhase2BUserBoundary(),
+    version: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+    liveAblyRoundtrip: true,
+    tokenCreated: false,
+    canonicalChannel: alignment.canonicalChannel,
+    clientSubscribed: false,
+    publishOk: false,
+    messageReceivedByClient: false,
+    receivedEventType: alignment.mode === 'live_translate' ? 'TRANSLATION_MESSAGE_READY' : EVENT_TYPES[alignment.mode] || '',
+    channelNamespaceAligned: alignment.channelNamespaceAligned === true,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: alignment.roundtripReady === true
+  };
 }
 
 function buildLanguageContinuity(input = {}, normalized = {}) {
@@ -425,7 +446,6 @@ function buildGovernance(input = {}, normalized = {}) {
         : GOVERNANCE_DECISIONS.allow;
 
   const userBoundary = buildPhase2BUserBoundary(input, normalized);
-
   return {
     marionAuthority: true,
     nyxPublicFacing: true,
@@ -551,6 +571,7 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
   const route = buildRoute(input, normalized);
   const languageContinuity = buildLanguageContinuity(input, normalized);
   const userBoundary = buildPhase2BUserBoundary(input, normalized);
+  const phase2eRoundtrip = buildPhase2ERoundtripReadiness(normalized.mode, normalized.roomId);
 
   return {
     id: safeString(input.id || createTraceId('lsmsg'), '', 96),
@@ -575,6 +596,7 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
     enFrEsContinuity: languageContinuity,
     userBoundary,
     marionSilentOversight: userBoundary,
+    phase2eLiveRoundtrip: phase2eRoundtrip,
 
     route,
 
@@ -592,6 +614,8 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
       tokenChannelMatchesPublishChannel: true,
       realtimeBridgeChannelMatchesToken: true,
       phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+      phase2eLiveRoundtrip: true,
       enFrEsContinuityActive: languageContinuity.enFrEsContinuityActive,
       languageContinuityPreserved: true,
       silentOversight: true,
@@ -790,6 +814,7 @@ module.exports = {
   channelForMode,
   legacyChannelAliasesForMode,
   buildChannelAlignment,
+  buildPhase2ERoundtripReadiness,
 
   VALID_MODES,
   MODE_ALIASES,
@@ -799,5 +824,6 @@ module.exports = {
   RISK_LEVELS,
   PHASE2B_USER_BOUNDARY_VERSION,
   PHASE2D_CHANNEL_NAMESPACE_VERSION,
+  PHASE2E_LIVE_ROUNDTRIP_VERSION,
   CHANNEL_NAMESPACE
 };
