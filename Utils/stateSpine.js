@@ -510,7 +510,7 @@ function extractRuntimeTelemetryFromTurn(params = {}, inbound = {}) {
   return {};
 }
 function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalCompletion=false,stage="",intent="",domain="",lane=""}={}){
-  const inherited=extractRuntimeTelemetryFromTurn(params,inbound);
+  const inherited=extractRuntimeTelemetryFromTurn(params,inbound), marionAdminConversation=extractMarionAdminConversationCarry(params,inbound,extractComposerMemoryPatch(params)), lingoSentinelSilentOversight=extractLingoSentinelSilentOversightCarry(params,inbound,extractComposerMemoryPatch(params));
   const finalRenderTelemetry = finalRenderTelemetryMod && typeof finalRenderTelemetryMod.buildFinalRenderTelemetry === "function" ? safeObj(finalRenderTelemetryMod.buildFinalRenderTelemetry({source:"stateSpine.finalizeTurn",stage:normalizeStateStage(stage || (trustedFinalCompletion ? "final" : "open"), "open"),reply,canEmit:trustedFinalCompletion,finalEnvelopeTrusted:trustedFinalCompletion,runtimeTelemetry:inherited,domainConfidence:isPlainObject(inherited.domainConfidence) ? inherited.domainConfidence : safeObj(params).domainConfidence,error:inherited.error||""})) : {};
   return {
     ...inherited,
@@ -527,6 +527,10 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
     domain: safeStr(domain),
     lane: safeStr(lane),
     inputSource: canonicalTurnInputSource(inbound, params),
+    marionAdminConversation: Object.keys(marionAdminConversation).length ? marionAdminConversation : undefined,
+    privateAdminConversation: !!Object.keys(marionAdminConversation).length,
+    lingoSentinelSilentOversight: Object.keys(lingoSentinelSilentOversight).length ? lingoSentinelSilentOversight : undefined,
+    lingoSentinelSilentOversightActive: !!Object.keys(lingoSentinelSilentOversight).length,
     domainConfidence: normalizeDomainConfidenceCarry(isPlainObject(inherited.domainConfidence) ? inherited.domainConfidence : safeObj(params).domainConfidence),
     replySignature: reply ? hashText(reply) : safeStr(inherited.replySignature || ""),
     marionFinalObserved: !!hasMarionFinalSignal(params),
@@ -2859,6 +2863,148 @@ function extractParallelLaneRecencyCarry(params = {}, inbound = {}, memoryPatch 
   return normalizeParallelLaneRecencyCarry({ active: false });
 }
 
+
+const MARION_ADMIN_CONVERSATION_STATE_VERSION = "nyx.marion.adminConversationState/1.0";
+const LINGOSENTINEL_SILENT_OVERSIGHT_STATE_VERSION = "nyx.lingosentinel.silentOversightState/1.0";
+
+function normalizeMarionAdminConversationCarry(value = {}) {
+  const src = isPlainObject(value) ? value : {};
+  const active = src.privateAdminConversation === true ||
+    src.adminConversation === true ||
+    src.adminConversationAllowed === true ||
+    src.marionAdminConversation === true ||
+    src.directMarionConversation === true ||
+    boundedOneLine(src.routeScope || src.scope || "", 80).toLowerCase() === "admin_private";
+
+  if (!active) return {};
+
+  return {
+    version: boundedOneLine(src.version || MARION_ADMIN_CONVERSATION_STATE_VERSION, 120),
+    active: true,
+    privateAdminConversation: true,
+    adminConversationAllowed: src.adminConversationAllowed !== false,
+    directMarionConversation: true,
+    authority: "Marion",
+    publicAgent: "Marion",
+    routeScope: "admin_private",
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: "Nyx",
+    tokenExposed: false,
+    tokenStored: false,
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    visibleToPublicUsers: false,
+    source: boundedOneLine(src.source || "stateSpine.marionAdminConversationState", 160)
+  };
+}
+
+function extractMarionAdminConversationCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const meta = safeObj(src.meta);
+  const payload = safeObj(src.payload);
+  const sb = safeObj(mp.stateBridge || src.stateBridge || meta.stateBridge || payload.stateBridge);
+  const rt = safeObj(p.runtimeTelemetry || src.runtimeTelemetry || meta.runtimeTelemetry || payload.runtimeTelemetry);
+  const candidates = [
+    p.marionAdminConversation,
+    p.adminConversation,
+    p.adminConversationBoundary,
+    src.marionAdminConversation,
+    src.adminConversation,
+    meta.marionAdminConversation,
+    payload.marionAdminConversation,
+    mp.marionAdminConversation,
+    sb.marionAdminConversation,
+    rt.marionAdminConversation,
+    rt.adminConversation,
+    p,
+    src
+  ];
+
+  for (const item of candidates) {
+    const normalized = normalizeMarionAdminConversationCarry(item);
+    if (Object.keys(normalized).length) return normalized;
+  }
+
+  return {};
+}
+
+function normalizeLingoSentinelSilentOversightCarry(value = {}) {
+  const src = isPlainObject(value) ? value : {};
+  const active = src.silentOversight === true ||
+    src.lingoSentinelSilentOversight === true ||
+    src.userToUserBoundary === true ||
+    src.marionVisibleParticipant === false ||
+    boundedOneLine(src.mode || src.oversightMode || "", 80).toLowerCase() === "silent_overseer";
+
+  if (!active) return {};
+
+  const rawLanguages = boundedArray(src.languages || src.supportedLanguages || src.targetLanguages || [], 8, 16).map((item) => item.toLowerCase());
+  const languages = rawLanguages.length ? Array.from(new Set(rawLanguages)).slice(0, 8) : ["en", "fr", "es"];
+
+  return {
+    version: boundedOneLine(src.version || LINGOSENTINEL_SILENT_OVERSIGHT_STATE_VERSION, 120),
+    active: true,
+    silentOversight: true,
+    mode: "silent_overseer",
+    authority: "Marion",
+    publicAgent: "LingoSentinel",
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
+    userFacing: false,
+    publicReplyVisible: false,
+    noUserFacingDiagnostics: true,
+    supportsUserToUserDialogue: true,
+    languages,
+    languageContinuityGuard: src.languageContinuityGuard !== false,
+    contextLossGuard: src.contextLossGuard !== false,
+    toneEscalationGuard: src.toneEscalationGuard !== false,
+    translationAmbiguityGuard: src.translationAmbiguityGuard !== false,
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    source: boundedOneLine(src.source || "stateSpine.lingoSentinelSilentOversightState", 160)
+  };
+}
+
+function extractLingoSentinelSilentOversightCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const meta = safeObj(src.meta);
+  const payload = safeObj(src.payload);
+  const sb = safeObj(mp.stateBridge || src.stateBridge || meta.stateBridge || payload.stateBridge);
+  const rt = safeObj(p.runtimeTelemetry || src.runtimeTelemetry || meta.runtimeTelemetry || payload.runtimeTelemetry);
+  const lingo = safeObj(p.lingoSentinel || src.lingoSentinel || meta.lingoSentinel || payload.lingoSentinel || rt.lingoSentinel || sb.lingoSentinel);
+  const candidates = [
+    p.lingoSentinelSilentOversight,
+    p.lingoSentinelOversight,
+    p.silentOversight,
+    src.lingoSentinelSilentOversight,
+    src.silentOversight,
+    meta.lingoSentinelSilentOversight,
+    payload.lingoSentinelSilentOversight,
+    mp.lingoSentinelSilentOversight,
+    sb.lingoSentinelSilentOversight,
+    rt.lingoSentinelSilentOversight,
+    rt.silentOversight,
+    lingo.silentOversight,
+    lingo.oversight,
+    lingo
+  ];
+
+  for (const item of candidates) {
+    const normalized = normalizeLingoSentinelSilentOversightCarry(item);
+    if (Object.keys(normalized).length) return normalized;
+  }
+
+  return {};
+}
+
+
 module.exports = {
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
@@ -2951,6 +3097,12 @@ module.exports = {
   buildStateContinuityResolvedQuestion,
   inferContinuityTopicFromAssistantText,
   chooseContinuityTopicCandidate,
-  continuityTopicFromState
+  continuityTopicFromState,
+  MARION_ADMIN_CONVERSATION_STATE_VERSION,
+  LINGOSENTINEL_SILENT_OVERSIGHT_STATE_VERSION,
+  normalizeMarionAdminConversationCarry,
+  extractMarionAdminConversationCarry,
+  normalizeLingoSentinelSilentOversightCarry,
+  extractLingoSentinelSilentOversightCarry,
 };
 module.exports.default = module.exports;
