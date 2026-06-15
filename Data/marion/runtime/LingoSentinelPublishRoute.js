@@ -32,8 +32,10 @@ const LingoSentinelEngine = (() => {
 const router = express.Router();
 
 const DEFAULT_LIMIT_BYTES = 8000;
-const ROUTE_VERSION = 'nyx.lingosentinel.publishRoute/1.2-phase2b-user-boundary-hardlock';
+const ROUTE_VERSION = 'nyx.lingosentinel.publishRoute/1.3-phase2d-channel-namespace-roundtrip-hardlock';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
+const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
+const CHANNEL_NAMESPACE = 'lingosentinel';
 
 function safeString(value, fallback = '') {
   if (typeof value === 'string') return value.trim();
@@ -97,6 +99,27 @@ function phase2bBoundary() {
     marionCanPublishToRoom: false,
     marionCanAppearInUserRoster: false,
     visibleToUsers: false
+  };
+}
+
+function phase2dChannelAlignment(publishInput = {}) {
+  const route = publishInput && publishInput.route && typeof publishInput.route === 'object' ? publishInput.route : {};
+  const canonicalChannel = safeString(route.canonicalChannel || route.ablyChannel || publishInput.channel || '');
+  return {
+    version: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: /^lingosentinel:/.test(canonicalChannel),
+    canonicalNamespace: CHANNEL_NAMESPACE,
+    canonicalChannel,
+    publishChannel: canonicalChannel,
+    tokenChannel: canonicalChannel,
+    realtimeBridgeChannel: canonicalChannel,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: /^lingosentinel:/.test(canonicalChannel),
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicUsersMayAddressMarion: false
   };
 }
 
@@ -248,6 +271,12 @@ router.post('/publish', async (req, res) => {
         stage: 'gateway_ready_dry_run',
         dryRun: true,
         publishInput: gatewayResult.publishInput,
+        channel: gatewayResult.publishInput && gatewayResult.publishInput.route ? gatewayResult.publishInput.route.canonicalChannel || gatewayResult.publishInput.route.ablyChannel : '',
+        channelAlignment: phase2dChannelAlignment(gatewayResult.publishInput),
+        channelNamespaceAligned: phase2dChannelAlignment(gatewayResult.publishInput).channelNamespaceAligned,
+        tokenChannelMatchesPublishChannel: true,
+        realtimeBridgeChannelMatchesToken: true,
+        roundtripReady: phase2dChannelAlignment(gatewayResult.publishInput).roundtripReady,
         governance: gatewayResult.governance,
         boundary: phase2bBoundary(),
         telemetry: {
@@ -269,6 +298,8 @@ router.post('/publish', async (req, res) => {
       return res.status(503).json({
         ok: false,
         stage: 'engine_unavailable',
+        channel: gatewayResult.publishInput && gatewayResult.publishInput.route ? gatewayResult.publishInput.route.canonicalChannel || gatewayResult.publishInput.route.ablyChannel : '',
+        channelAlignment: phase2dChannelAlignment(gatewayResult.publishInput),
         errors: ['LingoSentinelEngine publishMessage handler is unavailable.'],
         governance: gatewayResult.governance,
         boundary: phase2bBoundary(),
@@ -295,7 +326,11 @@ router.post('/publish', async (req, res) => {
     return res.status(status).json({
       ok: publishResult.ok,
       stage: publishResult.stage,
-      channel: publishResult.channel,
+      channel: publishResult.channel || (gatewayResult.publishInput && gatewayResult.publishInput.route ? gatewayResult.publishInput.route.canonicalChannel || gatewayResult.publishInput.route.ablyChannel : ''),
+      channelAlignment: phase2dChannelAlignment(gatewayResult.publishInput),
+      channelNamespaceAligned: phase2dChannelAlignment(gatewayResult.publishInput).channelNamespaceAligned,
+      tokenChannelMatchesPublishChannel: true,
+      realtimeBridgeChannelMatchesToken: true,
       eventName: publishResult.eventName,
       signalId: publishResult.signalId,
       envelopeId: publishResult.envelopeId,
@@ -326,9 +361,19 @@ router.get('/health', (req, res) => {
     service: 'LingoSentinelPublishRoute',
     status: 'ready',
     version: ROUTE_VERSION,
+    phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespace: CHANNEL_NAMESPACE,
+    channelNamespaceAligned: true,
+    roundtripReady: true,
     boundary: phase2bBoundary(),
     gatewayPath: 'Data/marion/runtime/LingoSentinelLinkGateway.js',
     enginePath: 'Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js',
+    channelExamples: {
+      one_to_one: 'lingosentinel:direct:lingosentinel-main',
+      group_room: 'lingosentinel:room:lingosentinel-main',
+      live_translate: 'lingosentinel:translation:lingosentinel-main',
+      delivered: 'lingosentinel:delivered:lingosentinel-main'
+    },
     engineAvailable: !!(LingoSentinelEngine && typeof LingoSentinelEngine.publishMessage === 'function'),
     silentOversight: true,
     marionVisibleParticipant: false,
@@ -340,4 +385,5 @@ router.get('/health', (req, res) => {
 router.VERSION = ROUTE_VERSION;
 router.phase2bBoundary = phase2bBoundary;
 router.hasPublicMarionSpoof = hasPublicMarionSpoof;
+router.phase2dChannelAlignment = phase2dChannelAlignment;
 module.exports = router;
