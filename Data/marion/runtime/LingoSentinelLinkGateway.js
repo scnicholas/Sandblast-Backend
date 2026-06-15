@@ -22,9 +22,11 @@
 const crypto = require('crypto');
 
 const GATEWAY_NAME = 'LingoSentinelLinkGateway';
-const GATEWAY_VERSION = '1.3.0-phase2b-user-boundary-silent-oversight-hardlock';
+const GATEWAY_VERSION = '1.4.0-phase2d-channel-namespace-roundtrip-hardlock';
 const PHASE2A_CONTINUITY_VERSION = 'nyx.lingosentinel.linkGateway.enFrEsContinuity/2.0';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
+const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
+const CHANNEL_NAMESPACE = 'lingosentinel';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_LANGUAGE = 'en';
 const DEFAULT_REGION = 'global';
@@ -455,19 +457,58 @@ function buildGovernance(input = {}, normalized = {}) {
   };
 }
 
+function channelForMode(mode, roomId, options = {}) {
+  const normalizedMode = normalizeMode(mode) || 'one_to_one';
+  const cleanRoomId = normalizeToken(roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const sessionId = normalizeToken(options.sessionId || cleanRoomId, cleanRoomId);
+
+  if (normalizedMode === 'one_to_one') return `${CHANNEL_NAMESPACE}:direct:${cleanRoomId}`;
+  if (normalizedMode === 'live_translate') return `${CHANNEL_NAMESPACE}:translation:${sessionId}`;
+  if (normalizedMode === 'delivered') return `${CHANNEL_NAMESPACE}:delivered:${cleanRoomId}`;
+  return `${CHANNEL_NAMESPACE}:room:${cleanRoomId}`;
+}
+
+function legacyChannelAliasesForMode(mode, roomId, options = {}) {
+  const normalizedMode = normalizeMode(mode) || 'one_to_one';
+  const cleanRoomId = normalizeToken(roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const sessionId = normalizeToken(options.sessionId || cleanRoomId, cleanRoomId);
+  if (normalizedMode === 'one_to_one') return [`ls:direct:${cleanRoomId}`];
+  if (normalizedMode === 'live_translate') return [`ls:live:${sessionId}`, `ls:translation:${sessionId}`];
+  if (normalizedMode === 'delivered') return [`ls:receipt:${cleanRoomId}`, `ls:delivered:${cleanRoomId}`];
+  return [`ls:room:${cleanRoomId}`];
+}
+
+function buildChannelAlignment(mode, roomId, options = {}) {
+  const normalizedMode = normalizeMode(mode) || 'one_to_one';
+  const canonicalChannel = channelForMode(normalizedMode, roomId, options);
+  return {
+    version: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: true,
+    canonicalNamespace: CHANNEL_NAMESPACE,
+    mode: normalizedMode,
+    canonicalChannel,
+    publishChannel: canonicalChannel,
+    tokenChannel: canonicalChannel,
+    realtimeBridgeChannel: canonicalChannel,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    legacyChannelAliases: legacyChannelAliasesForMode(normalizedMode, roomId, options),
+    canonicalOnlyForNewTraffic: true,
+    roundtripReady: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicUsersMayAddressMarion: false
+  };
+}
+
 function buildRoute(input = {}, normalized = {}) {
   const mode = normalized.mode;
   const lane = CHANNEL_LANES[mode] || 'direct';
   const eventType = EVENT_TYPES[mode] || EVENT_TYPES.one_to_one;
   const sessionId = normalizeToken(input.sessionId || normalized.roomId, normalized.roomId);
-  const ablyChannel =
-    mode === 'live_translate'
-      ? `lingosentinel:translation:${sessionId}`
-      : mode === 'group_room'
-        ? `lingosentinel:room:${normalized.roomId}`
-        : mode === 'delivered'
-          ? `lingosentinel:delivered:${normalized.roomId}`
-          : `lingosentinel:direct:${normalized.roomId}`;
+  const channelAlignment = buildChannelAlignment(mode, normalized.roomId, { sessionId });
+  const ablyChannel = channelAlignment.canonicalChannel;
 
   return {
     lane,
@@ -475,6 +516,12 @@ function buildRoute(input = {}, normalized = {}) {
     roomId: normalized.roomId,
     sessionId: mode === 'live_translate' ? sessionId : null,
     ablyChannel,
+    channel: ablyChannel,
+    canonicalChannel: ablyChannel,
+    channelNamespace: CHANNEL_NAMESPACE,
+    channelAlignment,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
     globeContext: {
       region: normalized.region,
       languageHint: normalizeLanguage(input.languageHint || input.lang || input.language, DEFAULT_LANGUAGE)
@@ -539,6 +586,12 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
       riskLevel: governance.riskLevel,
       marionAuthority: true,
       realtimeReady: true,
+      channelNamespaceAligned: true,
+      canonicalNamespace: CHANNEL_NAMESPACE,
+      canonicalChannel: route.canonicalChannel,
+      tokenChannelMatchesPublishChannel: true,
+      realtimeBridgeChannelMatchesToken: true,
+      phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
       enFrEsContinuityActive: languageContinuity.enFrEsContinuityActive,
       languageContinuityPreserved: true,
       silentOversight: true,
@@ -631,6 +684,10 @@ function prepareLingoSentinelPublish(input = {}) {
       lane: publishInput.route.lane,
       eventType: publishInput.route.eventType,
       ablyChannel: publishInput.route.ablyChannel,
+      canonicalChannel: publishInput.route.canonicalChannel,
+      channelNamespaceAligned: true,
+      tokenChannelMatchesPublishChannel: true,
+      realtimeBridgeChannelMatchesToken: true,
       languageContinuity: publishInput.languageContinuity,
       silentOversight: true,
       userToUserBoundary: true,
@@ -657,6 +714,10 @@ function routePreview(input = {}) {
     lane: publishInput.route?.lane,
     eventType: publishInput.route?.eventType,
     ablyChannel: publishInput.route?.ablyChannel,
+    canonicalChannel: publishInput.route?.canonicalChannel,
+    channelNamespaceAligned: true,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
     sender: publishInput.sender?.id,
     recipient: publishInput.recipient?.id || null,
     languagePair: publishInput.languagePair || null,
@@ -677,6 +738,14 @@ function getGatewayContract() {
     version: GATEWAY_VERSION,
     validModes: VALID_MODES.slice(),
     lanes: { ...CHANNEL_LANES },
+    channelNamespace: CHANNEL_NAMESPACE,
+    phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    canonicalChannels: {
+      one_to_one: channelForMode('one_to_one', DEFAULT_ROOM_ID),
+      group_room: channelForMode('group_room', DEFAULT_ROOM_ID),
+      live_translate: channelForMode('live_translate', DEFAULT_ROOM_ID),
+      delivered: channelForMode('delivered', DEFAULT_ROOM_ID)
+    },
     eventTypes: { ...EVENT_TYPES },
     boundaries: {
       publishesRealtime: false,
@@ -718,6 +787,9 @@ module.exports = {
   detectRiskLevel,
   detectPrivateMaterial,
   stripSensitiveMetadata,
+  channelForMode,
+  legacyChannelAliasesForMode,
+  buildChannelAlignment,
 
   VALID_MODES,
   MODE_ALIASES,
@@ -725,5 +797,7 @@ module.exports = {
   EVENT_TYPES,
   GOVERNANCE_DECISIONS,
   RISK_LEVELS,
-  PHASE2B_USER_BOUNDARY_VERSION
+  PHASE2B_USER_BOUNDARY_VERSION,
+  PHASE2D_CHANNEL_NAMESPACE_VERSION,
+  CHANNEL_NAMESPACE
 };
