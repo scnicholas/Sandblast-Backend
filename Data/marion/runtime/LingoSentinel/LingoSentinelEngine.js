@@ -36,7 +36,7 @@ const DEFAULT_TIMEOUT_MS = 6500;
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_NAMESPACE = 'lingosentinel';
 const ENGINE_NAME = 'LingoSentinelEngine';
-const ENGINE_VERSION = '1.3.0-phase2e-live-ably-roundtrip';
+const ENGINE_VERSION = '1.3.1-phase2e-engine-export-hotfix';
 const PAYLOAD_SHAPE = 'lingosentinel.signal';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.engine.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.engine.channelNamespaceRoundtrip/2.0';
@@ -1167,6 +1167,9 @@ function getEngineContract() {
   };
 }
 
+// PHASE2E-EXPORT-HOTFIX:
+// Keep confirmLiveAblyRoundtrip in the public module contract.
+// The Phase 2E regression test imports this function directly.
 module.exports = {
   publishMessage,
   publishDirectMessage,
