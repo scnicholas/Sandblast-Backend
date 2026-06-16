@@ -36,7 +36,7 @@ const DEFAULT_TIMEOUT_MS = 6500;
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_NAMESPACE = 'lingosentinel';
 const ENGINE_NAME = 'LingoSentinelEngine';
-const ENGINE_VERSION = '1.3.1-phase2e-engine-export-hotfix';
+const ENGINE_VERSION = '1.3.2-phase2e-channel-canonicalization-hotfix';
 const PAYLOAD_SHAPE = 'lingosentinel.signal';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.engine.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.engine.channelNamespaceRoundtrip/2.0';
@@ -376,6 +376,34 @@ function channelForMode(mode, roomId) {
   return `${DEFAULT_NAMESPACE}:direct:${cleanRoomId}`;
 }
 
+function canonicalizeLingoSentinelChannel(channel, mode, roomId) {
+  const normalizedMode = normalizeMode(mode || 'one_to_one');
+  const cleanRoomId = normalizeToken(roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const fallback = channelForMode(normalizedMode, cleanRoomId);
+  const raw = safeString(channel || fallback, fallback, 240);
+  if (!raw) return fallback;
+
+  // PHASE2E-CHANNEL-CANONICALIZATION-HOTFIX:
+  // Some older/adaptive publish envelopes still emit the live lane as
+  // `translate` or `live`. The token route, link gateway, realtime bridge,
+  // and Phase 2D namespace contract require `translation`.
+  // This function canonicalizes those legacy lane labels at the final engine
+  // boundary before mock/live roundtrip confirmation or publish.
+  if (/^ls:live:/i.test(raw)) return raw.replace(/^ls:live:/i, `${DEFAULT_NAMESPACE}:translation:`);
+  if (/^ls:translate:/i.test(raw)) return raw.replace(/^ls:translate:/i, `${DEFAULT_NAMESPACE}:translation:`);
+  if (/^ls:translation:/i.test(raw)) return raw.replace(/^ls:translation:/i, `${DEFAULT_NAMESPACE}:translation:`);
+  if (/^lingosentinel:live:/i.test(raw)) return raw.replace(/^lingosentinel:live:/i, `${DEFAULT_NAMESPACE}:translation:`);
+  if (/^lingosentinel:translate:/i.test(raw)) return raw.replace(/^lingosentinel:translate:/i, `${DEFAULT_NAMESPACE}:translation:`);
+
+  if (normalizedMode === 'live_translate' && !/^lingosentinel:translation:/i.test(raw)) {
+    const parts = raw.split(':').filter(Boolean);
+    const last = normalizeToken(parts[parts.length - 1] || cleanRoomId, cleanRoomId);
+    return `${DEFAULT_NAMESPACE}:translation:${last}`;
+  }
+
+  return raw;
+}
+
 function buildPhase2BBoundary() {
   return {
     version: PHASE2B_USER_BOUNDARY_VERSION,
@@ -508,6 +536,11 @@ function buildCanonicalSignal(gatewayResult = {}) {
   const route = publishInput.route || fallbackRoute(publishInput);
   const languagePair = normalizeLanguagePair(publishInput);
   const signalId = safeString(publishInput.id, '', 128) || safeString(gatewayResult.telemetry && gatewayResult.telemetry.traceId, '', 128) || `lss_${Date.now()}`;
+  const canonicalRouteChannel = canonicalizeLingoSentinelChannel(
+    route.canonicalChannel || route.ablyChannel,
+    publishInput.mode,
+    publishInput.roomId || route.roomId || route.sessionId
+  );
 
   return {
     id: signalId,
@@ -532,14 +565,14 @@ function buildCanonicalSignal(gatewayResult = {}) {
       pair: languagePair
     },
     delivery: {
-      channel: route.canonicalChannel || route.ablyChannel,
+      channel: canonicalRouteChannel,
       eventName: route.eventType,
       lane: route.lane,
       dryRunnable: true,
       channelAlignment: buildChannelAlignment(publishInput.mode, publishInput.roomId)
     },
     channelAlignment: buildChannelAlignment(publishInput.mode, publishInput.roomId),
-    phase2eRoundtrip: buildPhase2ERoundtripState({ channel: route.canonicalChannel || route.ablyChannel, eventName: route.eventType, mode: publishInput.mode, roomId: publishInput.roomId }),
+    phase2eRoundtrip: buildPhase2ERoundtripState({ channel: canonicalRouteChannel, eventName: route.eventType, mode: publishInput.mode, roomId: publishInput.roomId }),
     metadata: {
       ...(isObject(publishInput.metadata) ? publishInput.metadata : {}),
       engine: ENGINE_NAME,
@@ -649,6 +682,14 @@ function buildSignalPlan(input = {}) {
 
   const adaptiveSignal = adaptivePlan && adaptivePlan.signal ? adaptivePlan.signal : signal;
   const adaptivePublish = adaptivePlan && adaptivePlan.publish ? adaptivePlan.publish : null;
+  const rawPublishChannel = adaptivePublish && adaptivePublish.channel
+    ? adaptivePublish.channel
+    : (route.canonicalChannel || route.ablyChannel);
+  const canonicalPublishChannel = canonicalizeLingoSentinelChannel(
+    rawPublishChannel,
+    gatewayResult.publishInput.mode,
+    gatewayResult.publishInput.roomId || route.roomId || route.sessionId
+  );
 
   return {
     ok: true,
@@ -657,7 +698,7 @@ function buildSignalPlan(input = {}) {
     adaptive: adaptivePlan ? adaptivePlan.adaptive : null,
     signal: adaptiveSignal,
     publish: {
-      channel: adaptivePublish && adaptivePublish.channel ? adaptivePublish.channel : (route.canonicalChannel || route.ablyChannel),
+      channel: canonicalPublishChannel,
       eventName: adaptivePublish && adaptivePublish.eventName ? adaptivePublish.eventName : route.eventType,
       payload: adaptivePublish && adaptivePublish.payload ? adaptivePublish.payload : adaptiveSignal
     },
@@ -872,10 +913,10 @@ async function confirmLiveAblyRoundtrip(input = {}, options = {}) {
     return buildValidationFailure({ ...plan, errors: validation.errors }, engineInput, startedAt);
   }
 
-  const channelName = safeString(plan.publish && plan.publish.channel, '', 240);
   const eventName = safeString(plan.publish && plan.publish.eventName, '', 120);
   const mode = normalizeMode(engineInput.mode || 'live_translate');
   const roomId = normalizeToken(engineInput.roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const channelName = canonicalizeLingoSentinelChannel(plan.publish && plan.publish.channel, mode, roomId);
   const probeId = safeString(options.probeId, '', 160) || `ls2e_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const timeoutMs = getTimeoutMs(options);
   const phase2eBase = buildPhase2ERoundtripState({ channel: channelName, eventName, mode, roomId });
@@ -1167,7 +1208,7 @@ function getEngineContract() {
   };
 }
 
-// PHASE2E-EXPORT-HOTFIX:
+// PHASE2E-EXPORT+CHANNEL-CANONICALIZATION-HOTFIX:
 // Keep confirmLiveAblyRoundtrip in the public module contract.
 // The Phase 2E regression test imports this function directly.
 module.exports = {
@@ -1194,6 +1235,7 @@ module.exports = {
   buildChannelAlignment,
   buildPhase2BBoundary,
   buildPhase2ERoundtripState,
+  canonicalizeLingoSentinelChannel,
   createAblyClient,
   getAblyClient,
   waitForConnection,
