@@ -36,7 +36,7 @@ const DEFAULT_TIMEOUT_MS = 6500;
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
 const DEFAULT_NAMESPACE = 'lingosentinel';
 const ENGINE_NAME = 'LingoSentinelEngine';
-const ENGINE_VERSION = '1.3.2-phase2e-channel-canonicalization-hotfix';
+const ENGINE_VERSION = '1.3.3-phase2e-event-name-canonicalization-hotfix';
 const PAYLOAD_SHAPE = 'lingosentinel.signal';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.engine.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.engine.channelNamespaceRoundtrip/2.0';
@@ -404,6 +404,27 @@ function canonicalizeLingoSentinelChannel(channel, mode, roomId) {
   return raw;
 }
 
+
+function canonicalizeLingoSentinelEventName(value, mode) {
+  const normalizedMode = normalizeMode(mode || 'one_to_one');
+  const raw = safeString(value || '', '', 180).trim();
+  const upper = raw.toUpperCase();
+
+  // PHASE2E-EVENT-NAME-CANONICALIZATION-HOTFIX:
+  // Optional/adaptive envelopes can prefix the Ably event name with legacy
+  // lane strings such as `lingosentinel.message.live`. The realtime contract
+  // requires the event name itself to remain clean and stable.
+  if (/TRANSLATION_MESSAGE_READY/.test(upper)) return 'TRANSLATION_MESSAGE_READY';
+  if (/ROOM_MESSAGE_READY/.test(upper)) return 'ROOM_MESSAGE_READY';
+  if (/ONE_TO_ONE_MESSAGE_READY/.test(upper)) return 'ONE_TO_ONE_MESSAGE_READY';
+  if (/DELIVERED_MESSAGE_READY/.test(upper)) return 'DELIVERED_MESSAGE_READY';
+
+  if (normalizedMode === 'live_translate') return 'TRANSLATION_MESSAGE_READY';
+  if (normalizedMode === 'group_room') return 'ROOM_MESSAGE_READY';
+  if (normalizedMode === 'delivered') return 'DELIVERED_MESSAGE_READY';
+  return 'ONE_TO_ONE_MESSAGE_READY';
+}
+
 function buildPhase2BBoundary() {
   return {
     version: PHASE2B_USER_BOUNDARY_VERSION,
@@ -699,7 +720,7 @@ function buildSignalPlan(input = {}) {
     signal: adaptiveSignal,
     publish: {
       channel: canonicalPublishChannel,
-      eventName: adaptivePublish && adaptivePublish.eventName ? adaptivePublish.eventName : route.eventType,
+      eventName: canonicalizeLingoSentinelEventName(adaptivePublish && adaptivePublish.eventName ? adaptivePublish.eventName : route.eventType, gatewayResult.publishInput.mode),
       payload: adaptivePublish && adaptivePublish.payload ? adaptivePublish.payload : adaptiveSignal
     },
     errors: []
@@ -1236,6 +1257,7 @@ module.exports = {
   buildPhase2BBoundary,
   buildPhase2ERoundtripState,
   canonicalizeLingoSentinelChannel,
+  canonicalizeLingoSentinelEventName,
   createAblyClient,
   getAblyClient,
   waitForConnection,
