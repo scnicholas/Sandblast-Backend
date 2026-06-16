@@ -47,6 +47,17 @@ const RealtimeBridge = require('../../Data/marion/runtime/LingoSentinelRealtimeB
 
   assert.strictEqual(confirmed.ok, true, 'Mock roundtrip should confirm');
   assert.strictEqual(confirmed.stage, 'live_roundtrip_confirmed');
+
+  assert.strictEqual(
+    Engine.canonicalizeLingoSentinelChannel(`lingosentinel:translate:${roomId}`, 'live_translate', roomId),
+    `lingosentinel:translation:${roomId}`,
+    'Engine must canonicalize legacy/adaptive translate lane to translation'
+  );
+  assert.strictEqual(
+    Engine.canonicalizeLingoSentinelChannel(`ls:live:${roomId}`, 'live_translate', roomId),
+    `lingosentinel:translation:${roomId}`,
+    'Engine must canonicalize legacy ls:live lane to translation'
+  );
   assert.strictEqual(confirmed.canonicalChannel, `lingosentinel:translation:${roomId}`);
   assert.strictEqual(confirmed.clientSubscribed, true);
   assert.strictEqual(confirmed.publishOk, true);
