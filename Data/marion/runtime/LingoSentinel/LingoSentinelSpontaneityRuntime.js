@@ -1,53 +1,44 @@
-'use strict';
+"use strict";
 
 /**
  * LingoSentinelSpontaneityRuntime
- * One import point for spontaneous language modules.
+ * Shared service export for LingoSentinel, Nyx, Nick/Nyx ↔ Marion language relay.
  */
 
-const TranslationEngine = require('./LingoSentinelTranslationEngine');
-const TranslationRoute = require('./LingoSentinelSpontaneousTranslationRoute');
-const RealtimeTranslationBridge = require('./LingoSentinelRealtimeTranslationBridge');
-const LanguageDetector = require('./LingoSentinelLanguageDetector');
-const ToneAdapter = require('./LingoSentinelToneAdapter');
-const ContextMemory = require('./LingoSentinelContextMemory');
-const Provider = require('./LingoSentinelTranslationProvider');
-const ResponseNormalizer = require('./LingoSentinelResponseNormalizer');
+const LanguageRegistry = require("./LingoSentinelLanguageRegistry");
+const LanguageDetector = require("./LingoSentinelLanguageDetector");
+const ToneAdapter = require("./LingoSentinelToneAdapter");
+const TranslationEngine = require("./LingoSentinelTranslationEngine");
+const TranslationProvider = require("./LingoSentinelTranslationProvider");
+const ResponseNormalizer = require("./LingoSentinelResponseNormalizer");
+const RealtimeTranslationBridge = require("./LingoSentinelRealtimeTranslationBridge");
 
-const VERSION = '2.1.0-spontaneity-runtime';
+const VERSION = "2.2.0-spontaneity-runtime";
 
 function health() {
   return {
     ok: true,
-    service: 'LingoSentinelSpontaneityRuntime',
+    service: "LingoSentinelSpontaneityRuntime",
     version: VERSION,
-    modules: {
-      translationEngine: TranslationEngine.VERSION,
-      translationRoute: TranslationRoute.VERSION,
-      realtimeTranslationBridge: RealtimeTranslationBridge.VERSION,
-      languageDetector: LanguageDetector.VERSION,
-      toneAdapter: ToneAdapter.VERSION,
-      contextMemory: ContextMemory.VERSION,
-      provider: Provider.VERSION,
-      responseNormalizer: ResponseNormalizer.VERSION
-    },
-    spontaneousTranslation: true,
-    controlledPhraseFallbackOnly: false,
-    publicSurface: 'Nyx',
-    finalAuthority: 'Marion',
+    languages: LanguageRegistry.getSupportedLanguageCodes().length,
+    engine: TranslationEngine.health(),
+    publicSurface: "Nyx",
+    finalAuthority: "Marion",
     diagnosticsRedacted: true
   };
 }
 
 module.exports = {
   VERSION,
-  health,
-  TranslationEngine,
-  TranslationRoute,
-  RealtimeTranslationBridge,
+  LanguageRegistry,
   LanguageDetector,
   ToneAdapter,
-  ContextMemory,
-  Provider,
-  ResponseNormalizer
+  TranslationEngine,
+  TranslationProvider,
+  ResponseNormalizer,
+  RealtimeTranslationBridge,
+  translateTurn: TranslationEngine.translateTurn,
+  detect: TranslationEngine.detect,
+  languages: TranslationEngine.languages,
+  health
 };
