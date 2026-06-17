@@ -52,13 +52,16 @@ const dormantScannerMod = (() => {
   }
 })();
 
+const PHASE2A_CONTINUITY_VERSION = "nyx.lingosentinel.enFrEsContinuitySmoke/2.0";
+const PHASE2B_USER_BOUNDARY_VERSION = "nyx.lingosentinel.userBoundarySilentOversight/2.0";
+
 const DEFAULT_GATEWAY_CONFIG = {
   enabled: true,
   gateway: {
     name: "LingoSentinel",
     phase: "gateway-orchestration-alert-scanner-carry",
     mode: "advisory",
-    version: "0.3.1-private-voice-delivery"
+    version: "0.3.2-phase2b-user-boundary-hardlock"
   },
   supportedLanguages: ["en", "fr", "es"],
   defaultLanguage: "en",
@@ -552,6 +555,98 @@ function buildDisabledGateway(rawInput, config) {
   };
 }
 
+
+function normalizeContinuityLanguage(value, fallback = "unknown") {
+  const raw = safeString(value || fallback).toLowerCase().replace(/_/g, "-").trim();
+  if (!raw) return fallback;
+  if (/^(en|eng|english|en-ca|en-us|en-gb)/.test(raw)) return "en";
+  if (/^(fr|fre|fra|french|français|francais|fr-ca|fr-fr)/.test(raw)) return "fr";
+  if (/^(es|spa|spanish|español|espanol|es-mx|es-es|es-419)/.test(raw)) return "es";
+  return raw.slice(0, 12) || fallback;
+}
+
+function extractContinuityState(payload = {}, options = {}) {
+  const p = safeObject(payload);
+  const opts = safeObject(options);
+  const state = safeObject(opts.conversationState || opts.continuity || p.continuity || p.conversationState || p.contextCarry);
+  return state;
+}
+
+
+function buildPhase2BUserBoundaryCarry(extra = {}) {
+  return {
+    version: PHASE2B_USER_BOUNDARY_VERSION,
+    phase: "phase2b_user_to_user_boundary_silent_oversight_hardlock",
+    enabled: true,
+    userToUserBoundary: true,
+    silentOversight: true,
+    advisoryOnly: true,
+    finalAuthority: "Marion",
+    publicFacingAgent: "LingoSentinel/Nyx",
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: "LingoSentinel/Nyx",
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    marionCanBeSender: false,
+    marionCanBeRecipient: false,
+    marionPublicChannelAllowed: false,
+    visibleToUsers: false,
+    source: "LingoSentinelGateway",
+    ...safeObject(extra)
+  };
+}
+
+function buildEnFrEsContinuitySmokeCarry({ payload = {}, options = {}, languageMeta = {}, gatewayMeta = {}, traceId = "" } = {}) {
+  const p = safeObject(payload);
+  const state = extractContinuityState(p, options);
+  const detectedLanguage = normalizeContinuityLanguage(languageMeta.detectedLanguage || languageMeta.language || p.language || p.lang || "unknown");
+  const previousLanguage = normalizeContinuityLanguage(
+    state.activeLanguage || state.lastLanguage || state.previousLanguage || state.sourceLanguage || safeObject(options).previousLanguage || "",
+    ""
+  );
+  const targetLanguage = normalizeContinuityLanguage(
+    p.targetLanguage || p.targetLang || state.targetLanguage || safeObject(options).targetLanguage || "en",
+    "en"
+  );
+  const supported = ["en", "fr", "es"].includes(detectedLanguage);
+  const confidence = Number(languageMeta.confidence);
+  const safeConfidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
+  const languageDriftDetected = Boolean(previousLanguage && detectedLanguage && previousLanguage !== detectedLanguage);
+  const translationAmbiguityFlagged = detectedLanguage === "unknown" || supported === false || safeConfidence < 0.62 || languageMeta.fallbackTriggered === true || languageMeta.ambiguous === true;
+  return {
+    version: PHASE2A_CONTINUITY_VERSION,
+    phase: "phase2a_en_fr_es_continuity_smoke",
+    enabled: true,
+    supportedLanguages: ["en", "fr", "es"],
+    detectedLanguage,
+    previousLanguage,
+    targetLanguage,
+    languageSupported: supported,
+    languageContinuityPreserved: true,
+    contextCarryPreserved: true,
+    languageDriftDetected,
+    translationAmbiguityFlagged,
+    enFrEsContinuityActive: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: "LingoSentinel/Nyx",
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    phase2bUserBoundary: buildPhase2BUserBoundaryCarry({ traceId: safeString(traceId || gatewayMeta.traceId || gatewayMeta.correlationId || "") }),
+    advisoryOnly: true,
+    finalAuthority: "Marion",
+    publicSurface: "LingoSentinel",
+    traceId: safeString(traceId || gatewayMeta.traceId || gatewayMeta.correlationId || ""),
+    source: "LingoSentinelGateway"
+  };
+}
+
 function createGatewayTelemetry({
   config,
   languageMeta,
@@ -733,6 +828,14 @@ function runLingoSentinelGateway(payload, options = {}) {
     correlationId,
     traceId,
     reason: "lingosentinel_gateway_completed",
+    phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false,
+    visibleToUsers: false,
     source: "LingoSentinelGateway"
   };
 
@@ -753,6 +856,14 @@ function runLingoSentinelGateway(payload, options = {}) {
       correlationId,
       traceId
     }
+  });
+
+  const enFrEsContinuity = buildEnFrEsContinuitySmokeCarry({
+    payload,
+    options,
+    languageMeta,
+    gatewayMeta,
+    traceId
   });
 
   return {
@@ -777,6 +888,21 @@ function runLingoSentinelGateway(payload, options = {}) {
     dormantScanner,
     gatewayMeta,
     telemetry,
+    enFrEsContinuity,
+    languageContinuity: enFrEsContinuity,
+    phase2bUserBoundary: buildPhase2BUserBoundaryCarry({ traceId }),
+    marionSilentOversight: {
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
+      visibleToUsers: false,
+      publicUsersMayAddressMarion: false,
+      publicUsersSpeakThrough: "LingoSentinel/Nyx",
+      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION
+    },
     authority,
 
     marionAuthority: true,
@@ -808,6 +934,10 @@ function buildMarionBridgePayload(payload, options = {}) {
     dormantScanner: gatewayPackage.dormantScanner,
     gatewayMeta: gatewayPackage.gatewayMeta,
     telemetry: gatewayPackage.telemetry,
+    enFrEsContinuity: gatewayPackage.enFrEsContinuity,
+    languageContinuity: gatewayPackage.languageContinuity,
+    phase2bUserBoundary: gatewayPackage.phase2bUserBoundary,
+    marionSilentOversight: gatewayPackage.marionSilentOversight,
 
     authority: gatewayPackage.authority,
     marionAuthority: true,
@@ -931,5 +1061,10 @@ module.exports = {
   mergeGatewayConfig,
   stableHash,
   ensureRenderSafeTranslationMeta,
-  DEFAULT_GATEWAY_CONFIG
+  DEFAULT_GATEWAY_CONFIG,
+  PHASE2A_CONTINUITY_VERSION,
+  PHASE2B_USER_BOUNDARY_VERSION,
+  buildPhase2BUserBoundaryCarry,
+  normalizeContinuityLanguage,
+  buildEnFrEsContinuitySmokeCarry
 };
