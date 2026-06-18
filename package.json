@@ -18,7 +18,11 @@
     "test:lingosentinel:all": "npm run test:lingosentinel && npm run test:lingosentinel-node",
     "build:top10": "node Scripts/build_top10_by_year_v1.js",
     "check:top10": "node Scripts/check_top10_by_year_v1.js",
-    "top10:rebuild": "npm run build:top10 && npm run check:top10"
+    "top10:rebuild": "npm run build:top10 && npm run check:top10",
+    "lint:auth": "node --check index.js",
+    "test:marion-auth": "npm run lint:auth",
+    "test:security": "npm run lint:auth",
+    "test:marion-admin-routes": "npm run lint:auth"
   },
   "dependencies": {
     "ably": "^2.22.0",
