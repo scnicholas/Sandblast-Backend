@@ -31,7 +31,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.60sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.61sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -355,6 +355,99 @@ app.use(
 if (compression) {
   app.use(compression());
 }
+
+/* LINGOSENTINEL_WEBFLOW_PUBLIC_TRANSLATION_CORS_START
+ * Early CORS hardlock for browser-facing LingoSentinel routes that are mounted
+ * before the global CORS middleware below. This is intentionally scoped to
+ * public widget/translation/readiness lanes only; private/admin Marion routes
+ * remain outside this public preflight helper.
+ */
+const LINGOSENTINEL_WEBFLOW_PUBLIC_CORS_VERSION = "nyx.lingosentinel.webflowPublicTranslationCors/1.0";
+const LINGOSENTINEL_PUBLIC_CORS_ROUTES = Object.freeze([
+  /^\/api\/lingosentinel\/?$/i,
+  /^\/api\/lingosentinel\/translate\/?$/i,
+  /^\/api\/lingosentinel\/detect\/?$/i,
+  /^\/api\/lingosentinel\/languages\/?$/i,
+  /^\/api\/lingosentinel\/translation\/health\/?$/i,
+  /^\/api\/lingosentinel\/token(?:\/health)?\/?$/i,
+  /^\/api\/lingosentinel\/(?:ably\/readiness|readiness)\/?$/i,
+  /^\/api\/lingosentinel\/(?:publish|link)\/?$/i,
+  /^\/api\/lingosentinel\/(?:phase2b|roundtrip)\/health\/?$/i
+]);
+const LINGOSENTINEL_PUBLIC_CORS_ALLOWED_ORIGINS = Object.freeze(
+  String(process.env.LINGOSENTINEL_PUBLIC_CORS_ORIGINS || process.env.SB_CORS_ALLOWED_ORIGINS || [
+    "https://www.sandblast.channel",
+    "https://sandblast.channel",
+    "https://www.sandblastchannel.com",
+    "https://sandblastchannel.com",
+    "https://sandblast-channel.webflow.io",
+    "https://preview.webflow.com",
+    "https://editor.webflow.com",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080"
+  ].join(","))
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+);
+function lingoSentinelPublicCorsRoute(req) {
+  const pathname = String((req && (req.path || req.url)) || "").split("?")[0];
+  return LINGOSENTINEL_PUBLIC_CORS_ROUTES.some((rx) => rx.test(pathname));
+}
+function lingoSentinelPublicCorsOriginAllowed(origin) {
+  const raw = String(origin || "").trim();
+  if (!raw) return true;
+  if (LINGOSENTINEL_PUBLIC_CORS_ALLOWED_ORIGINS.includes("*")) return true;
+  if (LINGOSENTINEL_PUBLIC_CORS_ALLOWED_ORIGINS.includes(raw)) return true;
+  try {
+    const host = new URL(raw).host.toLowerCase();
+    return host === "sandblast.channel" ||
+      host === "www.sandblast.channel" ||
+      host === "sandblastchannel.com" ||
+      host === "www.sandblastchannel.com" ||
+      host === "sandblast-channel.webflow.io" ||
+      host === "preview.webflow.com" ||
+      host === "editor.webflow.com" ||
+      host === "localhost:3000" ||
+      host === "localhost:8080" ||
+      host === "127.0.0.1:3000" ||
+      host === "127.0.0.1:8080";
+  } catch (_) {
+    return false;
+  }
+}
+function applyLingoSentinelPublicCors(req, res) {
+  const origin = String((req && req.headers && req.headers.origin) || "").trim();
+  const reqHeaders = String((req && req.headers && req.headers["access-control-request-headers"]) || "").trim();
+  const allowHeaders = Array.from(new Set([
+    "Content-Type",
+    "Authorization",
+    "x-requested-with",
+    "x-sb-trace-id",
+    "x-sb-widget-token",
+    ...(reqHeaders ? reqHeaders.split(",").map((item) => item.trim()).filter(Boolean) : [])
+  ]));
+  if (origin && lingoSentinelPublicCorsOriginAllowed(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  } else if (!origin) {
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", allowHeaders.join(", "));
+  res.setHeader("Access-Control-Expose-Headers", "x-sb-trace-id");
+  res.setHeader("X-LingoSentinel-Public-CORS", LINGOSENTINEL_WEBFLOW_PUBLIC_CORS_VERSION);
+}
+app.use((req, res, next) => {
+  if (!lingoSentinelPublicCorsRoute(req)) return next();
+  applyLingoSentinelPublicCors(req, res);
+  if (req.method === "OPTIONS") return res.status(204).end();
+  return next();
+});
+/* LINGOSENTINEL_WEBFLOW_PUBLIC_TRANSLATION_CORS_END */
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
@@ -17022,4 +17115,3 @@ module.exports = {
   invokeMarionAdminConsoleGateway,
   applyPublicReplyHygieneToResponse
 };
-
