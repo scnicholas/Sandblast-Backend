@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.2-marion-admin-interface-hardlock';
+const VERSION = 'marion.voiceAuthorizationGate/2.3-remote-trusted-user-boundary';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -49,6 +49,28 @@ const ADMIN_DELIVERY_CHANNELS = new Set([
   'marion_admin_voice',
   'lingosentinel_private_voice'
 ]);
+
+
+const REMOTE_TRUSTED_USER_SCOPES = new Set([
+  'remote_trusted_user',
+  'trusted_remote_user',
+  'lingosentinel_remote_trusted_user',
+  'marion_remote_trusted_user'
+]);
+
+const REMOTE_TRUSTED_DELIVERY_CHANNELS = new Set([
+  'remote_trusted_voice',
+  'lingosentinel_remote_trusted_voice',
+  'marion_remote_trusted_voice'
+]);
+
+const REMOTE_TRUSTED_USER_CAPABILITIES = Object.freeze([
+  'status.read',
+  'voice.private.submit',
+  'voice.private.receive',
+  'session.check'
+]);
+
 
 function normalizeName(value) {
   return String(value || '')
@@ -96,6 +118,76 @@ function hasTrustedAdminVoiceProof(envelope, options) {
 
   return optionProof || (envelopeProofTrusted && envelopeProof);
 }
+
+
+function hasTrustedRemoteUserVoiceProof(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const auth = env.authorization && typeof env.authorization === 'object' ? env.authorization : {};
+
+  const optionProof =
+    opts.remoteTrustedUserVerified === true ||
+    opts.remoteTrustedUserTokenVerified === true ||
+    opts.trustedRemoteUserAuth === true ||
+    opts.serverSideRemoteTrustedUserAuth === true ||
+    opts.trustedServerAuth === true ||
+    opts.role === 'remote_trusted_user';
+
+  const envelopeProofTrusted =
+    opts.trustEnvelopeRemoteTrustedUserProof === true ||
+    opts.allowEnvelopeRemoteTrustedUserProof === true ||
+    opts.serverSideRemoteTrustedUserAuth === true ||
+    opts.trustedServerAuth === true;
+
+  const envelopeProof =
+    env.remoteTrustedUserVerified === true ||
+    env.remoteTrustedUserTokenVerified === true ||
+    env.trustedRemoteUserAuth === true ||
+    auth.remoteTrustedUserVerified === true ||
+    auth.remoteTrustedUserTokenVerified === true ||
+    auth.role === 'remote_trusted_user';
+
+  return optionProof || (envelopeProofTrusted && envelopeProof);
+}
+
+function isTrustedRemoteUserScope(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const voice = env.voice && typeof env.voice === 'object' ? env.voice : {};
+  const scope = normalizeName(opts.remoteTrustedUserScope || opts.adminInterfaceScope || env.remoteTrustedUserScope || env.adminInterfaceScope || voice.remoteTrustedUserScope || voice.adminInterfaceScope || '');
+  const channel = normalizeName(opts.deliveryChannel || env.deliveryChannel || voice.deliveryChannel || '');
+  const requested =
+    opts.allowRemoteTrustedUser === true ||
+    opts.remoteTrustedUser === true ||
+    opts.trustedRemoteUser === true ||
+    env.remoteTrustedUser === true ||
+    env.trustedRemoteUser === true ||
+    voice.remoteTrustedUser === true ||
+    REMOTE_TRUSTED_USER_SCOPES.has(scope) ||
+    REMOTE_TRUSTED_DELIVERY_CHANNELS.has(channel);
+
+  if (!requested) return false;
+  if (!hasTrustedRemoteUserVoiceProof(env, opts)) return false;
+
+  return REMOTE_TRUSTED_USER_SCOPES.has(scope) ||
+    REMOTE_TRUSTED_DELIVERY_CHANNELS.has(channel) ||
+    opts.allowRemoteTrustedUser === true ||
+    opts.remoteTrustedUser === true ||
+    opts.trustedRemoteUser === true;
+}
+
+function resolveRemoteTrustedUserScope(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const voice = env.voice && typeof env.voice === 'object' ? env.voice : {};
+  const scope = normalizeName(opts.remoteTrustedUserScope || env.remoteTrustedUserScope || voice.remoteTrustedUserScope || opts.adminInterfaceScope || env.adminInterfaceScope || voice.adminInterfaceScope || '');
+  const channel = normalizeName(opts.deliveryChannel || env.deliveryChannel || voice.deliveryChannel || '');
+  if (REMOTE_TRUSTED_USER_SCOPES.has(scope)) return scope;
+  if (REMOTE_TRUSTED_DELIVERY_CHANNELS.has(channel)) return 'remote_trusted_user';
+  if (opts.allowRemoteTrustedUser === true || opts.remoteTrustedUser === true || env.remoteTrustedUser === true) return 'remote_trusted_user';
+  return '';
+}
+
 
 
 function isTrustedAdminInterfaceScope(envelope, options) {
@@ -168,12 +260,16 @@ function evaluateVoiceAuthorization(envelope, options) {
   const restrictedByPattern = isRestrictedTranscript(transcript);
   const restricted = restrictedByIntent || restrictedByPattern;
   const adminVoiceVerified = hasTrustedAdminVoiceProof(envelope, opts);
+  const remoteTrustedUserVerified = hasTrustedRemoteUserVoiceProof(envelope, opts);
   const adminInterfaceScope = resolveAdminInterfaceScope(envelope, opts);
+  const remoteTrustedUserScope = resolveRemoteTrustedUserScope(envelope, opts);
   const directMarionAdminInterface = isTrustedAdminInterfaceScope(envelope, opts);
+  const directRemoteTrustedUserInterface = isTrustedRemoteUserScope(envelope, opts);
   const speakerAuthorized = isSpeakerAuthorized(speakerHint, Object.assign({}, opts, {
     trustSpeakerHint: opts.trustSpeakerHint === true && adminVoiceVerified
   }));
   const adminAuthorized = adminVoiceVerified || speakerAuthorized;
+  const remoteTrustedUserAuthorized = remoteTrustedUserVerified && directRemoteTrustedUserInterface;
   const marionAdminConversationAllowed = directMarionAdminInterface && adminAuthorized;
 
   if (!transcript.trim()) {
@@ -188,6 +284,12 @@ function evaluateVoiceAuthorization(envelope, options) {
       adminOnlyVoiceDelivery,
       directMarionAdminInterface,
       adminInterfaceScope,
+      remoteTrustedUserVerified,
+      directRemoteTrustedUserInterface,
+      remoteTrustedUserScope,
+      remoteTrustedUserAuthorized: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      remoteTrustedUserCapabilities: [],
       marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
@@ -205,8 +307,60 @@ function evaluateVoiceAuthorization(envelope, options) {
       adminOnlyVoiceDelivery,
       directMarionAdminInterface,
       adminInterfaceScope,
+      remoteTrustedUserVerified,
+      directRemoteTrustedUserInterface,
+      remoteTrustedUserScope,
+      remoteTrustedUserAuthorized: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      remoteTrustedUserCapabilities: [],
       marionAdminConversationAllowed,
       adminVoiceDeliveryAllowed: true
+    };
+  }
+
+  if (remoteTrustedUserAuthorized) {
+    if (restricted) {
+      return {
+        allowed: false,
+        authorizationState: 'blocked',
+        authority: 'MarionVoiceAuthorizationGate',
+        reason: 'REMOTE_TRUSTED_USER_RESTRICTED_COMMAND_BLOCKED',
+        restricted,
+        speakerAuthorized,
+        adminVoiceVerified,
+        remoteTrustedUserVerified,
+        adminOnlyVoiceDelivery,
+        directMarionAdminInterface,
+        directRemoteTrustedUserInterface,
+        adminInterfaceScope,
+        remoteTrustedUserScope,
+        remoteTrustedUserAuthorized: true,
+        remoteTrustedVoiceDeliveryAllowed: false,
+        remoteTrustedUserCapabilities: REMOTE_TRUSTED_USER_CAPABILITIES,
+        marionAdminConversationAllowed: false,
+        adminVoiceDeliveryAllowed: false
+      };
+    }
+
+    return {
+      allowed: true,
+      authorizationState: 'limited',
+      authority: 'MarionVoiceAuthorizationGate',
+      reason: 'REMOTE_TRUSTED_USER_VERIFIED',
+      restricted,
+      speakerAuthorized,
+      adminVoiceVerified,
+      remoteTrustedUserVerified,
+      adminOnlyVoiceDelivery,
+      directMarionAdminInterface,
+      directRemoteTrustedUserInterface,
+      adminInterfaceScope,
+      remoteTrustedUserScope,
+      remoteTrustedUserAuthorized: true,
+      remoteTrustedVoiceDeliveryAllowed: true,
+      remoteTrustedUserCapabilities: REMOTE_TRUSTED_USER_CAPABILITIES,
+      marionAdminConversationAllowed: false,
+      adminVoiceDeliveryAllowed: false
     };
   }
 
@@ -222,6 +376,12 @@ function evaluateVoiceAuthorization(envelope, options) {
       adminOnlyVoiceDelivery,
       directMarionAdminInterface,
       adminInterfaceScope,
+      remoteTrustedUserVerified,
+      directRemoteTrustedUserInterface,
+      remoteTrustedUserScope,
+      remoteTrustedUserAuthorized: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      remoteTrustedUserCapabilities: [],
       marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
@@ -239,6 +399,12 @@ function evaluateVoiceAuthorization(envelope, options) {
       adminOnlyVoiceDelivery,
       directMarionAdminInterface,
       adminInterfaceScope,
+      remoteTrustedUserVerified,
+      directRemoteTrustedUserInterface,
+      remoteTrustedUserScope,
+      remoteTrustedUserAuthorized: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      remoteTrustedUserCapabilities: [],
       marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
@@ -253,9 +419,15 @@ function evaluateVoiceAuthorization(envelope, options) {
       restricted,
       speakerAuthorized,
       adminVoiceVerified,
+      remoteTrustedUserVerified,
       adminOnlyVoiceDelivery,
       directMarionAdminInterface,
+      directRemoteTrustedUserInterface,
       adminInterfaceScope,
+      remoteTrustedUserScope,
+      remoteTrustedUserAuthorized: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      remoteTrustedUserCapabilities: [],
       marionAdminConversationAllowed: false,
       adminVoiceDeliveryAllowed: false
     };
@@ -283,7 +455,13 @@ function applyVoiceAuthorization(envelope, options) {
       adminVoiceVerified: auth.adminVoiceVerified === true,
       adminOnlyVoiceDelivery: auth.adminOnlyVoiceDelivery !== false,
       directMarionAdminInterface: auth.directMarionAdminInterface === true,
+      directRemoteTrustedUserInterface: auth.directRemoteTrustedUserInterface === true,
       adminInterfaceScope: auth.adminInterfaceScope || '',
+      remoteTrustedUserScope: auth.remoteTrustedUserScope || '',
+      remoteTrustedUserVerified: auth.remoteTrustedUserVerified === true,
+      remoteTrustedUserAuthorized: auth.remoteTrustedUserAuthorized === true,
+      remoteTrustedVoiceDeliveryAllowed: auth.remoteTrustedVoiceDeliveryAllowed === true,
+      remoteTrustedUserCapabilities: auth.remoteTrustedUserCapabilities || [],
       marionAdminConversationAllowed: auth.marionAdminConversationAllowed === true,
       adminVoiceDeliveryAllowed: auth.adminVoiceDeliveryAllowed === true,
       authorization: auth
@@ -297,11 +475,17 @@ module.exports = {
   DEFAULT_AUTHORIZED_SPEAKERS,
   ADMIN_INTERFACE_SCOPES,
   ADMIN_DELIVERY_CHANNELS,
+  REMOTE_TRUSTED_USER_SCOPES,
+  REMOTE_TRUSTED_DELIVERY_CHANNELS,
+  REMOTE_TRUSTED_USER_CAPABILITIES,
   evaluateVoiceAuthorization,
   applyVoiceAuthorization,
   isRestrictedTranscript,
   isSpeakerAuthorized,
   hasTrustedAdminVoiceProof,
+  hasTrustedRemoteUserVoiceProof,
   isTrustedAdminInterfaceScope,
-  resolveAdminInterfaceScope
+  isTrustedRemoteUserScope,
+  resolveAdminInterfaceScope,
+  resolveRemoteTrustedUserScope
 };
