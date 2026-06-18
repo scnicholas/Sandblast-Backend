@@ -22,7 +22,9 @@
     "lint:auth": "node --check index.js",
     "test:marion-auth": "npm run lint:auth",
     "test:security": "npm run lint:auth",
-    "test:marion-admin-routes": "npm run lint:auth"
+    "test:marion-admin-routes": "npm run lint:auth",
+    "test:marion-remote-boundary": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceAuthorizationGate.js",
+    "test:marion-phase3": "npm run test:marion-remote-boundary"
   },
   "dependencies": {
     "ably": "^2.22.0",
