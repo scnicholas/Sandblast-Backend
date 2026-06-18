@@ -21,7 +21,8 @@
     "top10:rebuild": "npm run build:top10 && npm run check:top10",
     "lint:auth": "node --check index.js",
     "test:marion-auth": "npm run lint:auth",
-    "test:security": "npm run lint:auth"
+    "test:security": "npm run lint:auth",
+    "test:marion-admin-routes": "npm run lint:auth"
   },
   "dependencies": {
     "ably": "^2.22.0",
