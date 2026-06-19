@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.5-phase5-speaker-registry-control';
+const VERSION = 'marion.voiceAuthorizationGate/2.6-phase6-challenge-verification';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -533,6 +533,12 @@ function applyVoiceAuthorization(envelope, options) {
       voiceIdentity: auth.speakerIdentity,
       voiceIdentityBoundary: true,
       identityIsAuthority: false,
+      liveChallengeRequired: auth.speakerIdentity && auth.speakerIdentity.liveChallengeRequired === true,
+      liveChallengeVerified: auth.speakerIdentity && auth.speakerIdentity.liveChallengeVerified === true,
+      challengeStatus: auth.speakerIdentity && auth.speakerIdentity.challengeStatus || 'unknown',
+      challengeBlocked: auth.speakerIdentity && auth.speakerIdentity.challengeBlocked === true,
+      challengePreventsReplay: true,
+      challengeIsAuthority: false,
       authorization: auth
     }),
     authorization: auth
