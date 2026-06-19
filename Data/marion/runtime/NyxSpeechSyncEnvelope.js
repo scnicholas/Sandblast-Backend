@@ -47,7 +47,7 @@ const motionTelemetryMod = (() => {
   }
 })();
 
-const VERSION = 'nyx.speechSyncEnvelope/1.2-phase3b-animation-metadata-bridge';
+const VERSION = 'nyx.speechSyncEnvelope/1.3-phase4-speaker-identity-boundary';
 const SPEECH_SYNC_CONTRACT = 'nyx.avatar.speechSync/1.0';
 
 function safeText(value) {
@@ -97,7 +97,11 @@ function disabledSpeechSync(reason) {
     avatarExpression: '',
     avatarMotionTelemetry: null,
     avatarAnimationEnabled: false,
-    phase3AnimationMetadataBridge: false
+    phase3AnimationMetadataBridge: false,
+    speakerIdentityBoundary: true,
+    voiceIdentityIsAuthority: false,
+    speakerRoleBinding: 'blocked',
+    voiceMatchStatus: 'unknown'
   };
 }
 
@@ -186,6 +190,7 @@ function buildPhase3AvatarMetadata(input) {
 
 function buildSpeechSyncEnvelope(input) {
   const src = safeObj(input);
+  const speakerIdentity = safeObj(src.speakerIdentity || src.voiceIdentity || (safeObj(src.voice).speakerIdentity));
   const voice = safeObj(src.voice);
   const voiceEnvelope = safeObj(src.voiceEnvelope);
   const spokenText = safeText(src.spokenText || voice.spokenText || src.text || '');
