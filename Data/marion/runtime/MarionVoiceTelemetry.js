@@ -6,7 +6,7 @@
  * Does not store raw audio or admin tokens.
  */
 
-const VERSION = 'marion.voiceTelemetry/2.4-phase4-speaker-identity-boundary';
+const VERSION = 'marion.voiceTelemetry/2.5-phase5-speaker-registry-control';
 
 function safeLength(value) {
   return String(value || '').length;
@@ -44,6 +44,12 @@ function createVoiceTelemetryEvent(type, envelope, detail) {
     speakerConfidenceBand: speakerIdentity.speakerConfidenceBand || env.speakerConfidenceBand || 'unknown',
     voiceMatchStatus: speakerIdentity.voiceMatchStatus || env.voiceMatchStatus || 'unknown',
     speakerRoleBinding: speakerIdentity.roleBinding || env.speakerRoleBinding || 'blocked',
+    speakerRegistryAvailable: speakerIdentity.speakerRegistryAvailable === true || env.speakerRegistryAvailable === true,
+    speakerRegistryMatched: speakerIdentity.speakerRegistryMatched === true || env.speakerRegistryMatched === true,
+    speakerRegistryStatus: speakerIdentity.speakerRegistryStatus || env.speakerRegistryStatus || 'unknown',
+    speakerRegistryBlocked: speakerIdentity.speakerRegistryBlocked === true || env.speakerRegistryBlocked === true,
+    profileMetadataOnly: true,
+    voiceprintStored: false,
     privateAdminConversation: env.privateAdminConversation === true || env.adminConversation === true,
     adminConversationAllowed: env.adminConversationAllowed === true || env.privateAdminConversation === true,
     directMarionConversation: env.directMarionConversation === true || env.privateAdminConversation === true,
@@ -193,7 +199,9 @@ function createVoiceTelemetrySummary(events) {
     failed: list.some((event) => String(event.type || '').includes('failed')),
     privateAdminConversationObserved: list.some((event) => event.privateAdminConversation === true),
     lingoSentinelSilentOversightObserved: list.some((event) => event.lingoSentinelSilentOversight === true),
-    userToUserBoundaryObserved: list.some((event) => event.userToUserBoundary === true)
+    userToUserBoundaryObserved: list.some((event) => event.userToUserBoundary === true),
+    speakerRegistryObserved: list.some((event) => event.speakerRegistryAvailable === true || event.speakerRegistryMatched === true),
+    voiceprintStored: false
   };
 }
 
