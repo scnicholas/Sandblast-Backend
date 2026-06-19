@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'marion.voiceTranscriptNormalizer/1.4-phase1c-admin-conversation-lingosentinel-continuity';
+const VERSION = 'marion.voiceTranscriptNormalizer/1.5-phase4-speaker-identity-boundary';
 
 /**
  * MarionVoiceTranscriptNormalizer
@@ -176,6 +176,8 @@ function applyTranscriptNormalization(envelope, options) {
       privateAdminConversationRequested: normalized.privateAdminConversationRequested === true,
       lingoSentinelContinuityRequested: normalized.lingoSentinelContinuityRequested === true,
       languageContinuityRequested: normalized.languageContinuityRequested === true,
+      voiceIdentityBoundary: envelope && envelope.voiceIdentityBoundary === true,
+      speakerIdentity: envelope && envelope.speakerIdentity || null,
       normalization: normalized
     }),
     normalization: normalized
