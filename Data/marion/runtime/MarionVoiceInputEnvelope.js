@@ -6,7 +6,7 @@
  * No raw audio is stored here. Transcript-only envelope.
  */
 
-const VERSION = 'marion.voiceInputEnvelope/2.2-phase4-speaker-identity-boundary';
+const VERSION = 'marion.voiceInputEnvelope/2.3-phase5-speaker-registry-control';
 const VOICE_SOURCE = 'voice';
 const DEFAULT_LOCALE = 'en-CA';
 const MIN_CONFIDENCE = 0;
@@ -117,6 +117,10 @@ function createVoiceInputEnvelope(input) {
     speakerConfidence: clampConfidence(payload.speakerConfidence != null ? payload.speakerConfidence : payload.voiceConfidence),
     voiceMatchStatus: cleanPublicHint(payload.voiceMatchStatus || '', 80),
     voiceProfileEnrolled: payload.voiceProfileEnrolled === true,
+    speakerRegistryStatus: cleanPublicHint(payload.speakerRegistryStatus || '', 80),
+    speakerRegistryMatched: payload.speakerRegistryMatched === true,
+    profileMetadataOnly: true,
+    voiceprintStored: false,
     sessionRole: cleanPublicHint(payload.sessionRole || payload.role || '', 80),
     remoteTrustedUserVerified: payload.remoteTrustedUserVerified === true || payload.remoteTrustedUserTokenVerified === true,
     remoteTrustedUserTokenVerified: payload.remoteTrustedUserTokenVerified === true,
