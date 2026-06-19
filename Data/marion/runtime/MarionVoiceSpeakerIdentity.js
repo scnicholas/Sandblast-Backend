@@ -10,7 +10,7 @@
  * label alone.
  */
 
-const VERSION = 'marion.voiceSpeakerIdentity/1.1-phase5-speaker-registry-control';
+const VERSION = 'marion.voiceSpeakerIdentity/1.2-phase6-challenge-verification';
 
 const SPEAKER_CONFIDENCE = Object.freeze({
   STRONG: 0.90,
@@ -27,6 +27,14 @@ const ROLE_BINDINGS = Object.freeze({
 const speakerRegistryMod = (() => {
   try {
     return require('./MarionVoiceSpeakerRegistry');
+  } catch (_) {
+    return null;
+  }
+})();
+
+const challengeVerifierMod = (() => {
+  try {
+    return require('./MarionVoiceChallengeVerifier');
   } catch (_) {
     return null;
   }
@@ -197,6 +205,46 @@ function speakerRegistryEvidenceForIdentity(envelope, options) {
   };
 }
 
+function challengeEvidenceForIdentity(envelope, options, speakerRegistry, voiceMatchStatus) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const registeredSpeaker = speakerRegistry && speakerRegistry.matched === true && speakerRegistry.blocked !== true;
+  const weakMatch = voiceMatchStatus === 'weak_match';
+  const required = env.liveChallengeRequired === true || opts.liveChallengeRequired === true || opts.requireLiveChallenge === true || registeredSpeaker || weakMatch;
+  let evidence = {
+    version: '',
+    liveChallengeRequired: required,
+    liveChallengeProvided: false,
+    liveChallengeVerified: false,
+    challengeStatus: required ? 'missing' : 'not_required',
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
+    identityIsAuthority: false,
+    authorityStillRequiresRBAC: true,
+    rawAudioStored: false,
+    audioStored: false,
+    voiceprintStored: false,
+    transcriptOnly: true
+  };
+  if (challengeVerifierMod && typeof challengeVerifierMod.evaluateChallengeEvidence === 'function') {
+    evidence = Object.assign(evidence, challengeVerifierMod.evaluateChallengeEvidence(Object.assign({}, env, {
+      liveChallengeRequired: required,
+      voiceChallenge: env.voiceChallenge || opts.voiceChallenge || opts.challengeResult || null,
+      liveChallengeVerified: env.liveChallengeVerified === true || opts.liveChallengeVerified === true,
+      voiceChallengeVerified: env.voiceChallengeVerified === true || opts.voiceChallengeVerified === true,
+      challengeId: env.challengeId || opts.challengeId || env.voiceChallengeId || opts.voiceChallengeId || '',
+      challengeResponse: env.challengeResponse || opts.challengeResponse || ''
+    }), Object.assign({}, opts, {
+      sessionVerified: opts.sessionVerified === true || env.sessionVerified === true,
+      trustedServerAuth: opts.trustedServerAuth === true || opts.serverSideAdminVoiceAuth === true || opts.serverSideRemoteTrustedUserAuth === true
+    })));
+    evidence.liveChallengeRequired = required;
+  }
+  evidence.challengeBlocked = required && evidence.liveChallengeVerified !== true;
+  evidence.challengeVersion = challengeVerifierMod && challengeVerifierMod.VERSION || '';
+  return evidence;
+}
+
 function resolveVoiceSpeakerIdentity(envelope, options) {
   const env = envelope && typeof envelope === 'object' ? envelope : {};
   const opts = options && typeof options === 'object' ? options : {};
@@ -214,7 +262,11 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
   let roleBinding = resolveRoleBinding(env, opts);
   const speakerRegistry = speakerRegistryEvidenceForIdentity(env, opts);
   const speakerRegistryBlocked = speakerRegistry.blocked === true || speakerRegistry.enrollmentStatus === 'revoked' || speakerRegistry.enrollmentStatus === 'blocked';
-  if (!adminVerified && !remoteTrustedUserVerified && speakerRegistryBlocked) roleBinding = ROLE_BINDINGS.BLOCKED;
+  const challengeEvidence = challengeEvidenceForIdentity(env, opts, speakerRegistry, voiceMatchStatus);
+  const liveChallengeRequired = challengeEvidence.liveChallengeRequired === true;
+  const liveChallengeVerified = challengeEvidence.liveChallengeVerified === true;
+  const challengeBlocked = challengeEvidence.challengeBlocked === true && !adminVerified && !remoteTrustedUserVerified;
+  if (!adminVerified && !remoteTrustedUserVerified && (speakerRegistryBlocked || challengeBlocked)) roleBinding = ROLE_BINDINGS.BLOCKED;
 
   const explicitTrustedHint =
     opts.trustSpeakerHint === true ||
@@ -234,7 +286,7 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
 
   return {
     version: VERSION,
-    phase: 'phase5_speaker_registry_control',
+    phase: 'phase6_challenge_verification',
     speakerHint: rawSpeakerHint,
     claimedSpeaker,
     detectedSpeakerId,
@@ -251,6 +303,14 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
     speakerRegistryVersion: speakerRegistry.version || '',
     profileMetadataOnly: true,
     voiceprintStored: false,
+    voiceChallenge: challengeEvidence,
+    voiceChallengeVersion: challengeEvidence.challengeVersion || '',
+    liveChallengeRequired,
+    liveChallengeVerified,
+    challengeBlocked,
+    challengeStatus: challengeEvidence.challengeStatus || 'unknown',
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
     speakerHintTrusted,
     speakerClaimTrusted,
     adminVerified,
@@ -265,7 +325,7 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
     audioStored: false,
     voiceStored: false,
     transcriptOnly: true,
-    reason
+    reason: challengeBlocked ? 'LIVE_CHALLENGE_REQUIRED_FOR_SPEAKER_IDENTITY' : reason
   };
 }
 
@@ -293,6 +353,14 @@ function applyVoiceSpeakerIdentityEnvelope(envelope, options) {
     speakerRegistryBlocked: identity.speakerRegistryBlocked === true,
     profileMetadataOnly: true,
     voiceprintStored: false,
+    voiceChallenge: identity.voiceChallenge,
+    voiceChallengeVersion: identity.voiceChallengeVersion || '',
+    liveChallengeRequired: identity.liveChallengeRequired === true,
+    liveChallengeVerified: identity.liveChallengeVerified === true,
+    challengeBlocked: identity.challengeBlocked === true,
+    challengeStatus: identity.challengeStatus || 'unknown',
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
     speakerHintTrusted: identity.speakerHintTrusted,
     speakerRoleBinding: identity.roleBinding,
     rawAudioStored: false,
@@ -320,5 +388,6 @@ module.exports = {
   isVoiceSpeakerIdentityTrusted,
   hasAdminProof,
   hasRemoteTrustedProof,
-  speakerRegistryEvidenceForIdentity
+  speakerRegistryEvidenceForIdentity,
+  challengeEvidenceForIdentity
 };
