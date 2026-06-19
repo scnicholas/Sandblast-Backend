@@ -55,13 +55,21 @@ const speechSyncEnvelopeMod = (() => {
   }
 })();
 
+const speakerIdentityMod = (() => {
+  try {
+    return require('./MarionVoiceSpeakerIdentity');
+  } catch (_) {
+    return null;
+  }
+})();
+
 function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   if (speakAllowed !== true || !safeText(spokenText)) return 'silent';
   const mode = safeText(rawMode || '').toLowerCase();
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/2.7.1-marion-admin-interface-opts-hotfix';
+const VERSION = 'marion.voiceGateway/2.8-phase4-speaker-identity-boundary';
 
 function safeRequire(path) {
   try {
@@ -153,6 +161,18 @@ function marionAdminInterfaceMeta(envelope, allowed, options) {
     publicUserFacing: false,
     adminOnly: true
   };
+}
+
+function hasOptionRemoteTrustedUserProof(options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const identity = opts.speakerIdentity && typeof opts.speakerIdentity === 'object' ? opts.speakerIdentity : {};
+  return opts.remoteTrustedUserVerified === true ||
+    opts.remoteTrustedUserTokenVerified === true ||
+    opts.trustedRemoteUserAuth === true ||
+    opts.serverSideRemoteTrustedUserAuth === true ||
+    opts.role === 'remote_trusted_user' ||
+    identity.remoteTrustedUserVerified === true ||
+    identity.roleBinding === 'remote_trusted_user';
 }
 
 function hasOptionAdminVoiceProof(options) {
@@ -265,8 +285,12 @@ function isAdminVoiceDeliveryAllowed(voiceEnvelope, outputPolicy) {
   const env = voiceEnvelope && typeof voiceEnvelope === 'object' ? voiceEnvelope : {};
   const policy = outputPolicy && typeof outputPolicy === 'object' ? outputPolicy : {};
   return policy.adminVoiceDeliveryAllowed === true ||
+    policy.remoteTrustedVoiceDeliveryAllowed === true ||
+    policy.trustedVoiceDeliveryAllowed === true ||
     env.adminVoiceDeliveryAllowed === true ||
-    (env.authorizationState === 'authorized' && env.adminVoiceVerified === true);
+    env.remoteTrustedVoiceDeliveryAllowed === true ||
+    (env.authorizationState === 'authorized' && env.adminVoiceVerified === true) ||
+    (env.authorizationState === 'limited' && env.remoteTrustedUserVerified === true);
 }
 
 function normalizeEchoText(value) {
@@ -399,6 +423,9 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       spokenText,
       speakAllowed,
       voiceMode: projectedVoiceMode,
+      speakerIdentity: env.speakerIdentity || env.voiceIdentity || null,
+      speakerRoleBinding: env.speakerRoleBinding || '',
+      voiceMatchStatus: env.voiceMatchStatus || '',
       voice: Object.assign({}, base.voice || {}, policy, stabilizer || {}),
       voiceEnvelope: env,
       finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
@@ -542,6 +569,11 @@ async function handleVoiceTranscript(input, options) {
     hasOptionAdminVoiceProof(opts.authorization || {}) ||
     hasOptionAdminVoiceProof(opts.output || {}) ||
     hasOptionAdminVoiceProof(opts);
+  const optionRemoteTrustedUserVerified =
+    hasOptionRemoteTrustedUserProof(opts.authorization || {}) ||
+    hasOptionRemoteTrustedUserProof(opts.output || {}) ||
+    hasOptionRemoteTrustedUserProof(opts.context || {}) ||
+    hasOptionRemoteTrustedUserProof(opts);
 
   let envelope = createVoiceInputEnvelope(Object.assign({}, inputObj, {
     adminOnlyVoiceDelivery: true,
@@ -550,12 +582,33 @@ async function handleVoiceTranscript(input, options) {
     adminVoiceVerified: optionAdminVoiceVerified,
     adminVoiceTokenVerified: optionAdminVoiceVerified,
     adminVoiceDeliveryAllowed: optionAdminVoiceVerified,
+    remoteTrustedUserVerified: optionRemoteTrustedUserVerified,
+    remoteTrustedUserTokenVerified: optionRemoteTrustedUserVerified,
+    trustedRemoteUserAuth: optionRemoteTrustedUserVerified,
+    claimedSpeaker: inputObj.claimedSpeaker || inputObj.speaker || inputObj.user || '',
+    detectedSpeakerId: inputObj.detectedSpeakerId || inputObj.speakerId || '',
+    speakerConfidence: inputObj.speakerConfidence,
+    voiceMatchStatus: inputObj.voiceMatchStatus || '',
+    voiceProfileEnrolled: inputObj.voiceProfileEnrolled === true,
+    sessionRole: inputObj.sessionRole || opts.sessionRole || opts.role || (optionAdminVoiceVerified ? 'owner' : (optionRemoteTrustedUserVerified ? 'remote_trusted_user' : 'blocked')),
+    requestTrustedSpeakerHint: optionAdminVoiceVerified || optionRemoteTrustedUserVerified,
     directMarionAdminInterface: inputObj.directMarionAdminInterface === true || opts.directMarionAdminInterface === true || opts.allowMarionAdminConversation === true,
     marionAdminConversation: inputObj.marionAdminConversation === true || opts.marionAdminConversation === true || opts.allowMarionAdminConversation === true,
     adminInterfaceScope: safeText(inputObj.adminInterfaceScope || opts.adminInterfaceScope || ''),
     publicAgent: inputObj.publicAgent || (inputObj.directMarionAdminInterface === true ? 'Marion' : 'Nyx'),
     deliveryChannel: inputObj.deliveryChannel || opts.deliveryChannel || ''
   }));
+  if (speakerIdentityMod && typeof speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope === 'function') {
+    envelope = speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope(envelope, Object.assign({}, opts, opts.authorization || {}, {
+      adminVoiceVerified: optionAdminVoiceVerified,
+      adminVoiceTokenVerified: optionAdminVoiceVerified,
+      adminVoiceDeliveryAllowed: optionAdminVoiceVerified,
+      remoteTrustedUserVerified: optionRemoteTrustedUserVerified,
+      remoteTrustedUserTokenVerified: optionRemoteTrustedUserVerified,
+      role: optionAdminVoiceVerified ? 'owner' : (optionRemoteTrustedUserVerified ? 'remote_trusted_user' : (opts.role || opts.sessionRole || 'blocked')),
+      trustSpeakerHint: optionAdminVoiceVerified || optionRemoteTrustedUserVerified
+    }));
+  }
   telemetryEvents.push(createVoiceTelemetryEvent('voice.envelope.created', envelope));
 
   const authOptions = Object.assign({
@@ -567,6 +620,13 @@ async function handleVoiceTranscript(input, options) {
     adminVoiceVerified: optionAdminVoiceVerified,
     adminVoiceTokenVerified: optionAdminVoiceVerified,
     adminVoiceDeliveryAllowed: optionAdminVoiceVerified,
+    remoteTrustedUserVerified: optionRemoteTrustedUserVerified,
+    remoteTrustedUserTokenVerified: optionRemoteTrustedUserVerified,
+    trustedRemoteUserAuth: optionRemoteTrustedUserVerified,
+    allowRemoteTrustedUser: optionRemoteTrustedUserVerified,
+    remoteTrustedUser: optionRemoteTrustedUserVerified,
+    remoteTrustedUserScope: optionRemoteTrustedUserVerified ? 'remote_trusted_user' : '',
+    role: optionAdminVoiceVerified ? 'owner' : (optionRemoteTrustedUserVerified ? 'remote_trusted_user' : 'blocked'),
     directMarionAdminInterface: inputObj.directMarionAdminInterface === true || opts.directMarionAdminInterface === true || opts.allowMarionAdminConversation === true,
     allowMarionAdminConversation: opts.allowMarionAdminConversation === true,
     adminInterfaceScope: safeText(inputObj.adminInterfaceScope || opts.adminInterfaceScope || ''),
@@ -588,6 +648,9 @@ async function handleVoiceTranscript(input, options) {
       adminOnlyVoiceDelivery: true,
       adminVoiceVerified: false,
       adminVoiceDeliveryAllowed: false,
+      remoteTrustedUserVerified: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      speakerIdentity: envelope.speakerIdentity || null,
       forceSilent: true
     }));
     const outputPolicy = withPolicy.voice;
@@ -628,9 +691,21 @@ async function handleVoiceTranscript(input, options) {
     locale: envelope.locale,
     confidence: envelope.confidence,
     authorizationState: envelope.authorizationState,
+    speakerIdentity: envelope.speakerIdentity || envelope.voiceIdentity || null,
+    voiceIdentityBoundary: envelope.voiceIdentityBoundary === true,
+    identityIsAuthority: false,
+    speakerRoleBinding: envelope.speakerRoleBinding || '',
+    voiceMatchStatus: envelope.voiceMatchStatus || '',
     adminOnlyVoiceDelivery: true,
     adminVoiceVerified: envelope.adminVoiceVerified === true,
     adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true,
+    remoteTrustedUserVerified: envelope.remoteTrustedUserVerified === true,
+    remoteTrustedVoiceDeliveryAllowed: envelope.remoteTrustedVoiceDeliveryAllowed === true,
+    speakerIdentity: envelope.speakerIdentity || envelope.voiceIdentity || null,
+    voiceIdentityBoundary: envelope.voiceIdentityBoundary === true,
+    identityIsAuthority: false,
+    remoteTrustedUserVerified: envelope.remoteTrustedUserVerified === true,
+    remoteTrustedVoiceDeliveryAllowed: envelope.remoteTrustedVoiceDeliveryAllowed === true,
     privateDelivery: envelope.privateDelivery === true,
     privateVoiceDelivery: envelope.privateVoiceDelivery === true,
     deliveryChannel: envelope.deliveryChannel || '',
@@ -652,7 +727,12 @@ async function handleVoiceTranscript(input, options) {
       transcriptOnly: true,
       privateVoiceDelivery: deliveryMeta.privateVoiceDelivery,
       adminOnlyVoiceDelivery: true,
-      adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true
+      adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true,
+      remoteTrustedUserVerified: envelope.remoteTrustedUserVerified === true,
+      remoteTrustedVoiceDeliveryAllowed: envelope.remoteTrustedVoiceDeliveryAllowed === true,
+      speakerIdentity: envelope.speakerIdentity || envelope.voiceIdentity || null,
+      voiceIdentityBoundary: envelope.voiceIdentityBoundary === true,
+      identityIsAuthority: false
     }
   };
 
@@ -697,7 +777,13 @@ async function handleVoiceTranscript(input, options) {
   const withPolicy = applyVoiceOutputPolicy(bridgeResponse, Object.assign({}, opts.output || opts, {
     adminOnlyVoiceDelivery: true,
     adminVoiceVerified: envelope.adminVoiceVerified === true,
-    adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true
+    adminVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true,
+    remoteTrustedUserVerified: envelope.remoteTrustedUserVerified === true,
+    remoteTrustedVoiceDeliveryAllowed: envelope.remoteTrustedVoiceDeliveryAllowed === true,
+    trustedVoiceDeliveryAllowed: envelope.adminVoiceDeliveryAllowed === true || envelope.remoteTrustedVoiceDeliveryAllowed === true,
+    speakerIdentity: envelope.speakerIdentity || envelope.voiceIdentity || null,
+    voiceIdentityBoundary: envelope.voiceIdentityBoundary === true,
+    identityIsAuthority: false
   }));
   const outputPolicy = withPolicy.voice;
 
@@ -891,7 +977,9 @@ module.exports = {
   firstReplyText,
   loadMarionBridge,
   hasOptionAdminVoiceProof,
+  hasOptionRemoteTrustedUserProof,
   isAdminVoiceDeliveryAllowed,
   voiceDeliveryStabilizer,
-  speechSyncEnvelopeMod
+  speechSyncEnvelopeMod,
+  speakerIdentityMod
 };
