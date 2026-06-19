@@ -6,7 +6,7 @@
  * Does not store raw audio or admin tokens.
  */
 
-const VERSION = 'marion.voiceTelemetry/2.5-phase5-speaker-registry-control';
+const VERSION = 'marion.voiceTelemetry/2.6-phase6-challenge-verification';
 
 function safeLength(value) {
   return String(value || '').length;
@@ -50,6 +50,12 @@ function createVoiceTelemetryEvent(type, envelope, detail) {
     speakerRegistryBlocked: speakerIdentity.speakerRegistryBlocked === true || env.speakerRegistryBlocked === true,
     profileMetadataOnly: true,
     voiceprintStored: false,
+    liveChallengeRequired: speakerIdentity.liveChallengeRequired === true || env.liveChallengeRequired === true,
+    liveChallengeVerified: speakerIdentity.liveChallengeVerified === true || env.liveChallengeVerified === true,
+    challengeStatus: speakerIdentity.challengeStatus || env.challengeStatus || 'unknown',
+    challengeBlocked: speakerIdentity.challengeBlocked === true || env.challengeBlocked === true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
     privateAdminConversation: env.privateAdminConversation === true || env.adminConversation === true,
     adminConversationAllowed: env.adminConversationAllowed === true || env.privateAdminConversation === true,
     directMarionConversation: env.directMarionConversation === true || env.privateAdminConversation === true,
