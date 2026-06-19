@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.4-phase4-speaker-identity-boundary';
+const VERSION = 'marion.voiceAuthorizationGate/2.5-phase5-speaker-registry-control';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -90,6 +90,12 @@ function resolveSpeakerIdentity(envelope, options) {
     authorityStillRequiresRBAC: true,
     roleBinding: 'blocked',
     voiceMatchStatus: 'unknown',
+    speakerRegistryAvailable: false,
+    speakerRegistryMatched: false,
+    speakerRegistryStatus: 'unknown',
+    speakerRegistryBlocked: false,
+    profileMetadataOnly: true,
+    voiceprintStored: false,
     speakerConfidence: null,
     speakerHintTrusted: false,
     rawAudioStored: false,
