@@ -6,7 +6,7 @@
  * Does not store raw audio or admin tokens.
  */
 
-const VERSION = 'marion.voiceTelemetry/2.3-phase1c-admin-conversation-lingosentinel-boundary';
+const VERSION = 'marion.voiceTelemetry/2.4-phase4-speaker-identity-boundary';
 
 function safeLength(value) {
   return String(value || '').length;
@@ -15,6 +15,7 @@ function safeLength(value) {
 function createVoiceTelemetryEvent(type, envelope, detail) {
   const env = envelope && typeof envelope === 'object' ? envelope : {};
   const meta = env.rawMeta && typeof env.rawMeta === 'object' ? env.rawMeta : {};
+  const speakerIdentity = env.speakerIdentity && typeof env.speakerIdentity === 'object' ? env.speakerIdentity : {};
 
   return {
     type: type || 'voice.event',
@@ -32,6 +33,17 @@ function createVoiceTelemetryEvent(type, envelope, detail) {
     adminOnlyVoiceDelivery: env.adminOnlyVoiceDelivery !== false,
     adminVoiceVerified: env.adminVoiceVerified === true,
     adminVoiceDeliveryAllowed: env.adminVoiceDeliveryAllowed === true,
+    remoteTrustedUserVerified: env.remoteTrustedUserVerified === true || speakerIdentity.remoteTrustedUserVerified === true,
+    remoteTrustedVoiceDeliveryAllowed: env.remoteTrustedVoiceDeliveryAllowed === true,
+    speakerIdentityBoundary: env.voiceIdentityBoundary === true || speakerIdentity.voiceIdentityBoundary === true,
+    voiceIdentityIsAuthority: false,
+    speakerHintPresent: !!env.speakerHint,
+    claimedSpeakerPresent: !!(env.claimedSpeaker || speakerIdentity.claimedSpeaker),
+    detectedSpeakerIdPresent: !!(env.detectedSpeakerId || speakerIdentity.detectedSpeakerId),
+    speakerConfidence: typeof speakerIdentity.speakerConfidence === 'number' ? speakerIdentity.speakerConfidence : (typeof env.speakerConfidence === 'number' ? env.speakerConfidence : null),
+    speakerConfidenceBand: speakerIdentity.speakerConfidenceBand || env.speakerConfidenceBand || 'unknown',
+    voiceMatchStatus: speakerIdentity.voiceMatchStatus || env.voiceMatchStatus || 'unknown',
+    speakerRoleBinding: speakerIdentity.roleBinding || env.speakerRoleBinding || 'blocked',
     privateAdminConversation: env.privateAdminConversation === true || env.adminConversation === true,
     adminConversationAllowed: env.adminConversationAllowed === true || env.privateAdminConversation === true,
     directMarionConversation: env.directMarionConversation === true || env.privateAdminConversation === true,
