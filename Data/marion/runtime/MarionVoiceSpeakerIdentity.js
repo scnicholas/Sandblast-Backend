@@ -10,7 +10,7 @@
  * label alone.
  */
 
-const VERSION = 'marion.voiceSpeakerIdentity/1.0-phase4-speaker-differentiation-boundary';
+const VERSION = 'marion.voiceSpeakerIdentity/1.1-phase5-speaker-registry-control';
 
 const SPEAKER_CONFIDENCE = Object.freeze({
   STRONG: 0.90,
@@ -22,6 +22,15 @@ const ROLE_BINDINGS = Object.freeze({
   REMOTE_TRUSTED_USER: 'remote_trusted_user',
   BLOCKED: 'blocked'
 });
+
+
+const speakerRegistryMod = (() => {
+  try {
+    return require('./MarionVoiceSpeakerRegistry');
+  } catch (_) {
+    return null;
+  }
+})();
 
 function safeText(value, maxLength) {
   const max = Number.isFinite(Number(maxLength)) ? Math.max(1, Math.min(Number(maxLength), 500)) : 160;
@@ -132,6 +141,62 @@ function resolveRoleBinding(envelope, options) {
   return role;
 }
 
+
+function speakerRegistryEvidenceForIdentity(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  if (!speakerRegistryMod || typeof speakerRegistryMod.checkSpeaker !== 'function') {
+    return {
+      available: false,
+      matched: false,
+      enrollmentStatus: 'unknown',
+      roleBinding: 'blocked',
+      blocked: false,
+      version: ''
+    };
+  }
+  const candidates = [
+    opts.speakerId,
+    opts.detectedSpeakerId,
+    env.detectedSpeakerId,
+    env.speakerId,
+    opts.claimedSpeaker,
+    env.claimedSpeaker,
+    opts.speakerHint,
+    env.speakerHint
+  ].map((item) => normalizeSpeakerLabel(item)).filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      const result = speakerRegistryMod.checkSpeaker({ speakerId: candidate, detectedSpeakerId: candidate, claimedSpeaker: candidate });
+      if (result && result.matched === true) {
+        return {
+          available: true,
+          matched: true,
+          speakerId: result.speakerId || candidate,
+          enrollmentStatus: result.enrollmentStatus || (result.speaker && result.speaker.enrollmentStatus) || 'unknown',
+          roleBinding: result.roleBinding || (result.speaker && result.speaker.roleBinding) || 'blocked',
+          blocked: result.blocked === true,
+          profileMetadataOnly: true,
+          rawAudioStored: false,
+          voiceprintStored: false,
+          version: speakerRegistryMod.VERSION || ''
+        };
+      }
+    } catch (_) {}
+  }
+  return {
+    available: true,
+    matched: false,
+    enrollmentStatus: 'unknown',
+    roleBinding: 'blocked',
+    blocked: false,
+    profileMetadataOnly: true,
+    rawAudioStored: false,
+    voiceprintStored: false,
+    version: speakerRegistryMod.VERSION || ''
+  };
+}
+
 function resolveVoiceSpeakerIdentity(envelope, options) {
   const env = envelope && typeof envelope === 'object' ? envelope : {};
   const opts = options && typeof options === 'object' ? options : {};
@@ -146,7 +211,10 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
   const voiceMatchStatus = normalizeVoiceMatchStatus(env.voiceMatchStatus || opts.voiceMatchStatus || '', speakerConfidence);
   const adminVerified = hasAdminProof(env, opts);
   const remoteTrustedUserVerified = hasRemoteTrustedProof(env, opts);
-  const roleBinding = resolveRoleBinding(env, opts);
+  let roleBinding = resolveRoleBinding(env, opts);
+  const speakerRegistry = speakerRegistryEvidenceForIdentity(env, opts);
+  const speakerRegistryBlocked = speakerRegistry.blocked === true || speakerRegistry.enrollmentStatus === 'revoked' || speakerRegistry.enrollmentStatus === 'blocked';
+  if (!adminVerified && !remoteTrustedUserVerified && speakerRegistryBlocked) roleBinding = ROLE_BINDINGS.BLOCKED;
 
   const explicitTrustedHint =
     opts.trustSpeakerHint === true ||
@@ -166,7 +234,7 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
 
   return {
     version: VERSION,
-    phase: 'phase4_speaker_differentiation_boundary',
+    phase: 'phase5_speaker_registry_control',
     speakerHint: rawSpeakerHint,
     claimedSpeaker,
     detectedSpeakerId,
@@ -174,6 +242,15 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
     speakerConfidenceBand: band,
     voiceMatchStatus,
     voiceProfileEnrolled,
+    speakerRegistry,
+    speakerRegistryAvailable: speakerRegistry.available === true,
+    speakerRegistryMatched: speakerRegistry.matched === true,
+    speakerRegistryStatus: speakerRegistry.enrollmentStatus || 'unknown',
+    speakerRegistryRoleBinding: speakerRegistry.roleBinding || 'blocked',
+    speakerRegistryBlocked,
+    speakerRegistryVersion: speakerRegistry.version || '',
+    profileMetadataOnly: true,
+    voiceprintStored: false,
     speakerHintTrusted,
     speakerClaimTrusted,
     adminVerified,
@@ -208,6 +285,14 @@ function applyVoiceSpeakerIdentityEnvelope(envelope, options) {
     speakerConfidence: identity.speakerConfidence,
     speakerConfidenceBand: identity.speakerConfidenceBand,
     voiceMatchStatus: identity.voiceMatchStatus,
+    speakerRegistry: identity.speakerRegistry,
+    speakerRegistryAvailable: identity.speakerRegistryAvailable === true,
+    speakerRegistryMatched: identity.speakerRegistryMatched === true,
+    speakerRegistryStatus: identity.speakerRegistryStatus || 'unknown',
+    speakerRegistryRoleBinding: identity.speakerRegistryRoleBinding || 'blocked',
+    speakerRegistryBlocked: identity.speakerRegistryBlocked === true,
+    profileMetadataOnly: true,
+    voiceprintStored: false,
     speakerHintTrusted: identity.speakerHintTrusted,
     speakerRoleBinding: identity.roleBinding,
     rawAudioStored: false,
@@ -234,5 +319,6 @@ module.exports = {
   applyVoiceSpeakerIdentityEnvelope,
   isVoiceSpeakerIdentityTrusted,
   hasAdminProof,
-  hasRemoteTrustedProof
+  hasRemoteTrustedProof,
+  speakerRegistryEvidenceForIdentity
 };
