@@ -6,11 +6,19 @@
  * No raw audio is stored here. Transcript-only envelope.
  */
 
-const VERSION = 'marion.voiceInputEnvelope/2.1-lingosentinel-private-voice-delivery';
+const VERSION = 'marion.voiceInputEnvelope/2.2-phase4-speaker-identity-boundary';
 const VOICE_SOURCE = 'voice';
 const DEFAULT_LOCALE = 'en-CA';
 const MIN_CONFIDENCE = 0;
 const MAX_CONFIDENCE = 1;
+
+const speakerIdentityMod = (() => {
+  try {
+    return require('./MarionVoiceSpeakerIdentity');
+  } catch (_) {
+    return null;
+  }
+})();
 
 function clampConfidence(value) {
   const n = Number(value);
@@ -84,7 +92,7 @@ function createVoiceInputEnvelope(input) {
   const adminVoiceVerified = hasTrustedServerAdminVoiceProof(payload);
   const privateDelivery = payload.privateDelivery === true || payload.privateVoiceDelivery === true;
 
-  return {
+  const envelope = {
     ok: transcript.length > 0,
     version: VERSION,
     source: VOICE_SOURCE,
@@ -104,6 +112,19 @@ function createVoiceInputEnvelope(input) {
     adminVoiceDeliveryAllowed: adminVoiceVerified,
     privateDelivery,
     privateVoiceDelivery: privateDelivery,
+    claimedSpeaker: cleanPublicHint(payload.claimedSpeaker || payload.speaker || payload.user || '', 160),
+    detectedSpeakerId: cleanPublicHint(payload.detectedSpeakerId || payload.speakerId || '', 160),
+    speakerConfidence: clampConfidence(payload.speakerConfidence != null ? payload.speakerConfidence : payload.voiceConfidence),
+    voiceMatchStatus: cleanPublicHint(payload.voiceMatchStatus || '', 80),
+    voiceProfileEnrolled: payload.voiceProfileEnrolled === true,
+    sessionRole: cleanPublicHint(payload.sessionRole || payload.role || '', 80),
+    remoteTrustedUserVerified: payload.remoteTrustedUserVerified === true || payload.remoteTrustedUserTokenVerified === true,
+    remoteTrustedUserTokenVerified: payload.remoteTrustedUserTokenVerified === true,
+    trustedRemoteUserAuth: payload.trustedRemoteUserAuth === true,
+    rawAudioStored: false,
+    audioStored: false,
+    voiceStored: false,
+    transcriptOnly: true,
     deliveryChannel: cleanPublicHint(payload.deliveryChannel || (privateDelivery ? 'lingosentinel_private_voice' : ''), 80),
     rawMeta: {
       provider: cleanPublicHint(payload.provider || 'browser-native', 80),
@@ -117,6 +138,24 @@ function createVoiceInputEnvelope(input) {
     },
     warnings: transcript.length > 0 ? [] : ['EMPTY_TRANSCRIPT']
   };
+
+  if (speakerIdentityMod && typeof speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope === 'function') {
+    return speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope(envelope, {
+      adminVoiceVerified,
+      adminVoiceTokenVerified: adminVoiceVerified,
+      adminVoiceDeliveryAllowed: adminVoiceVerified,
+      remoteTrustedUserVerified: envelope.remoteTrustedUserVerified === true,
+      remoteTrustedUserTokenVerified: envelope.remoteTrustedUserTokenVerified === true,
+      role: envelope.sessionRole || '',
+      trustSpeakerHint: payload.trustSpeakerHint === true || payload.requestTrustedSpeakerHint === true,
+      speakerConfidence: envelope.speakerConfidence,
+      voiceMatchStatus: envelope.voiceMatchStatus,
+      detectedSpeakerId: envelope.detectedSpeakerId,
+      claimedSpeaker: envelope.claimedSpeaker
+    });
+  }
+
+  return envelope;
 }
 
 function isVoiceInputEnvelope(value) {
