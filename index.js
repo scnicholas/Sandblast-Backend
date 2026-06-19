@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.70sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.71sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -15403,7 +15403,7 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
 // Private admin console control plane. This must mount before static handlers
 // and the /api not_found guard so the protected Webflow/admin interface does
 // not fall through to 404. Body/query tokens are intentionally ignored.
-const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.4-phase5-speaker-registry-control";
+const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.5-phase6-voice-challenge-verification";
 const MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH = "Data/marion/runtime/MarionAdminConsoleGateway.js";
 const MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH = "./" + MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH;
 
@@ -15800,7 +15800,7 @@ function marionAdminConsoleMfaTokens() {
   ].map((item) => cleanText(item || "")).filter(Boolean));
 }
 
-const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.3-phase5-speaker-registry-control";
+const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.4-phase6-voice-challenge-verification";
 const MARION_ADMIN_CONSOLE_ROUTE_CONTRACT_VERSION = "marion.adminConsole.routes/1.1-check-post-alias-contract";
 const MARION_ADMIN_CONSOLE_REQUIRE_SESSION_FOR_MUTATIONS = process.env.SB_MARION_ADMIN_REQUIRE_SESSION_FOR_MUTATIONS !== "false";
 const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
@@ -15811,7 +15811,7 @@ const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
   OBSERVER: "observer",
   BLOCKED: "blocked"
 });
-const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke"]);
+const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke"]);
 const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   health: "status.read",
   status: "status.read",
@@ -15830,7 +15830,11 @@ const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   "speaker.registry.request": "speaker.registry.request",
   "speaker.registry.approve": "speaker.registry.approve",
   "speaker.registry.deny": "speaker.registry.deny",
-  "speaker.registry.revoke": "speaker.registry.revoke"
+  "speaker.registry.revoke": "speaker.registry.revoke",
+  "voice.challenge.health": "voice.challenge.read",
+  "voice.challenge.issue": "voice.challenge.issue",
+  "voice.challenge.check": "voice.challenge.check",
+  "voice.challenge.revoke": "voice.challenge.revoke"
 });
 const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
   owner: Object.freeze([
@@ -15839,17 +15843,18 @@ const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
     "escalation.issue", "escalation.check", "escalation.revoke", "roles.manage",
     "voice.private.submit", "voice.private.receive", "logs.read",
     "speaker.registry.read", "speaker.registry.check", "speaker.registry.request",
-    "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke"
+    "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke",
+    "voice.challenge.read", "voice.challenge.issue", "voice.challenge.check", "voice.challenge.revoke"
   ]),
   admin_operator: Object.freeze([
     "status.read", "command.submit", "command.approve", "command.deny",
     "session.check", "session.revoke", "escalation.check", "voice.private.submit", "voice.private.receive",
-    "speaker.registry.read", "speaker.registry.check"
+    "speaker.registry.read", "speaker.registry.check", "voice.challenge.read", "voice.challenge.check"
   ]),
   remote_trusted_user: Object.freeze([
-    "status.read", "session.issue", "session.check", "session.revoke", "voice.private.submit", "voice.private.receive"
+    "status.read", "session.issue", "session.check", "session.revoke", "voice.private.submit", "voice.private.receive", "voice.challenge.check"
   ]),
-  voice_user: Object.freeze(["status.read", "session.check", "session.revoke", "voice.private.submit"]),
+  voice_user: Object.freeze(["status.read", "session.check", "session.revoke", "voice.private.submit", "voice.challenge.check"]),
   observer: Object.freeze(["status.read", "session.check", "session.revoke"]),
   blocked: Object.freeze([])
 });
@@ -17145,7 +17150,181 @@ async function handleMarionAdminConsoleAction(req, res, action) {
 // Phase 5 private speaker enrollment/registry control plane.
 // The registry is metadata-only. It never stores raw audio or voiceprints, and
 // speaker identity evidence never bypasses admin session/RBAC/escalation gates.
-const MARION_VOICE_SPEAKER_REGISTRY_INDEX_VERSION = "marion.voiceSpeakerRegistry.index/1.0-phase5-control-plane";
+
+
+// MARION-VOICE-CHALLENGE-VERIFICATION-V1:
+// Phase 6 live-speaker challenge layer. A recognized speaker profile is still
+// evidence only; challenge success never overrides admin/session/RBAC controls.
+const MARION_VOICE_CHALLENGE_INDEX_VERSION = "marion.voiceChallenge.index/1.0-phase6-spoof-resistance";
+const MARION_VOICE_CHALLENGE_RELATIVE_PATH = "Data/marion/runtime/MarionVoiceChallengeVerifier.js";
+const MARION_VOICE_CHALLENGE_REQUIRE_PATH = "./" + MARION_VOICE_CHALLENGE_RELATIVE_PATH;
+const MARION_VOICE_CHALLENGE_ROUTES = Object.freeze({
+  health: Object.freeze(["/api/private/marion/voice-challenge/health", "/private/marion/voice-challenge/health"]),
+  issue: Object.freeze(["/api/private/marion/voice-challenge/issue", "/private/marion/voice-challenge/issue"]),
+  check: Object.freeze(["/api/private/marion/voice-challenge/check", "/private/marion/voice-challenge/check"]),
+  revoke: Object.freeze(["/api/private/marion/voice-challenge/revoke", "/private/marion/voice-challenge/revoke"])
+});
+const MARION_VOICE_CHALLENGE_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_VOICE_CHALLENGE_ROUTES).reduce((acc, key) => acc.concat(MARION_VOICE_CHALLENGE_ROUTES[key]), [])));
+
+function marionVoiceChallengeStatus() {
+  try {
+    const resolved = require.resolve(MARION_VOICE_CHALLENGE_REQUIRE_PATH);
+    const mod = require(resolved);
+    return {
+      available: !!mod,
+      mod,
+      runtimePath: MARION_VOICE_CHALLENGE_RELATIVE_PATH,
+      resolvedPath: resolved,
+      version: cleanText(mod && mod.VERSION || ""),
+      routeMounted: true,
+      liveChallengeRequired: true,
+      challengeIsAuthority: false,
+      identityIsAuthority: false,
+      rawAudioStored: false,
+      voiceprintStored: false
+    };
+  } catch (err) {
+    return {
+      available: false,
+      mod: null,
+      runtimePath: MARION_VOICE_CHALLENGE_RELATIVE_PATH,
+      resolvedPath: "",
+      version: "",
+      routeMounted: true,
+      liveChallengeRequired: true,
+      challengeIsAuthority: false,
+      identityIsAuthority: false,
+      rawAudioStored: false,
+      voiceprintStored: false,
+      error: cleanText(err && (err.code || err.message) || "voice_challenge_unavailable").slice(0, 160)
+    };
+  }
+}
+
+function marionVoiceChallengeActionName(action) {
+  const raw = cleanText(action || "").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
+  if (raw === "health") return "voice.challenge.health";
+  if (raw === "issue") return "voice.challenge.issue";
+  if (raw === "check") return "voice.challenge.check";
+  if (raw === "revoke") return "voice.challenge.revoke";
+  return "voice.challenge.check";
+}
+
+function marionVoiceChallengeAuthContext(auth, traceId) {
+  return {
+    traceId,
+    adminVerified: !!(auth && auth.verified),
+    sessionVerified: !!(auth && auth.sessionVerified),
+    sessionId: cleanText(auth && auth.sessionId || ""),
+    role: marionAdminConsoleAuthRole(auth),
+    capabilities: marionAdminConsoleAuthCapabilities(auth),
+    ownerVerified: marionAdminConsoleAuthRole(auth) === MARION_ADMIN_CONSOLE_ROLES.OWNER,
+    remoteTrustedUserVerified: !!(auth && auth.remoteTrustedUserVerified),
+    source: cleanText(auth && auth.source || ""),
+    publicSurface: "Nyx",
+    authority: "Marion",
+    challengeIsAuthority: false,
+    identityIsAuthority: false,
+    rawAudioStored: false,
+    voiceprintStored: false
+  };
+}
+
+function marionVoiceChallengeBaseResponse(action, traceId, auth, extra) {
+  const status = marionVoiceChallengeStatus();
+  return marionAdminConsoleBaseResponse(action, traceId, auth, {
+    voiceChallengeVersion: MARION_VOICE_CHALLENGE_INDEX_VERSION,
+    voiceChallengeRuntimeVersion: cleanText(status.version || ""),
+    voiceChallengeAvailable: !!status.available,
+    voiceChallengeRuntimePath: MARION_VOICE_CHALLENGE_RELATIVE_PATH,
+    liveChallengeRequired: true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
+    identityIsAuthority: false,
+    authorityStillRequiresRBAC: true,
+    rawAudioStored: false,
+    audioStored: false,
+    voiceprintStored: false,
+    ...safeObj(extra)
+  });
+}
+
+async function handleMarionVoiceChallenge(req, res, action) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("voicechallenge"));
+  const status = marionVoiceChallengeStatus();
+  const verifier = status.mod;
+  const routeAction = marionVoiceChallengeActionName(action);
+
+  if (action === "health") {
+    const auth = marionAdminConsoleRequestAuth(req);
+    const health = status.available && verifier && typeof verifier.health === "function" ? verifier.health() : null;
+    return res.status(200).json(marionVoiceChallengeBaseResponse(routeAction, traceId, auth, {
+      ok: true,
+      stage: "voice_challenge_route_mounted",
+      routeMounted: true,
+      health: health || { ok: false, reason: cleanText(status.error || "voice_challenge_unavailable") },
+      routes: MARION_VOICE_CHALLENGE_ROUTES,
+      methods: { health: ["GET"], issue: ["POST"], check: ["POST"], revoke: ["POST"] }
+    }));
+  }
+
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+  if (!status.available || !verifier) {
+    return res.status(503).json(marionVoiceChallengeBaseResponse(routeAction, traceId, auth, {
+      ok: false,
+      stage: "voice_challenge_runtime_unavailable",
+      reason: cleanText(status.error || "voice_challenge_runtime_missing"),
+      routeMounted: true
+    }));
+  }
+
+  const requiresSession = true;
+  const permission = marionAdminConsolePermissionDecision(auth, routeAction, { requireSession: requiresSession });
+  if (!permission.allowed) return marionAdminConsolePermissionDenied(res, routeAction, traceId, auth, permission);
+
+  try {
+    let result = null;
+    const context = marionVoiceChallengeAuthContext(auth, traceId);
+    if (routeAction === "voice.challenge.issue" && typeof verifier.issueChallenge === "function") result = verifier.issueChallenge(body, context);
+    else if (routeAction === "voice.challenge.check" && typeof verifier.checkChallenge === "function") result = verifier.checkChallenge(body, context);
+    else if (routeAction === "voice.challenge.revoke" && typeof verifier.revokeChallenge === "function") result = verifier.revokeChallenge(body, context);
+    else result = { ok: false, statusCode: 501, stage: "voice_challenge_handler_missing", reason: routeAction + "_handler_missing" };
+
+    const statusCode = clamp(Number(result && result.statusCode || (result && result.ok === false ? 400 : 200)), 200, 599);
+    return res.status(statusCode).json(marionVoiceChallengeBaseResponse(routeAction, traceId, auth, {
+      ok: !(result && result.ok === false),
+      stage: cleanText(result && result.stage || "voice_challenge_action_complete"),
+      reason: cleanText(result && result.reason || ""),
+      result: safeObj(result),
+      voiceChallengeAction: routeAction,
+      sessionRequired: requiresSession,
+      responseFinalized: true
+    }));
+  } catch (err) {
+    return res.status(500).json(marionVoiceChallengeBaseResponse(routeAction, traceId, auth, {
+      ok: false,
+      stage: "voice_challenge_exception",
+      reason: cleanText(err && (err.code || err.message) || "voice_challenge_exception").slice(0, 160),
+      responseFinalized: true
+    }));
+  }
+}
+
+app.options(MARION_VOICE_CHALLENGE_ALL_ROUTES, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
+app.get(MARION_VOICE_CHALLENGE_ROUTES.health, async (req, res) => handleMarionVoiceChallenge(req, res, "health"));
+app.post(MARION_VOICE_CHALLENGE_ROUTES.issue, async (req, res) => handleMarionVoiceChallenge(req, res, "issue"));
+app.post(MARION_VOICE_CHALLENGE_ROUTES.check, async (req, res) => handleMarionVoiceChallenge(req, res, "check"));
+app.post(MARION_VOICE_CHALLENGE_ROUTES.revoke, async (req, res) => handleMarionVoiceChallenge(req, res, "revoke"));
+
+const MARION_VOICE_SPEAKER_REGISTRY_INDEX_VERSION = "marion.voiceSpeakerRegistry.index/1.1-phase6-challenge-aware-control-plane";
 const MARION_VOICE_SPEAKER_REGISTRY_RELATIVE_PATH = "Data/marion/runtime/MarionVoiceSpeakerRegistry.js";
 const MARION_VOICE_SPEAKER_REGISTRY_REQUIRE_PATH = "./" + MARION_VOICE_SPEAKER_REGISTRY_RELATIVE_PATH;
 const MARION_VOICE_SPEAKER_REGISTRY_ROUTES = Object.freeze({
