@@ -24,7 +24,9 @@
     "test:security": "npm run lint:auth",
     "test:marion-admin-routes": "npm run lint:auth",
     "test:marion-remote-boundary": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceAuthorizationGate.js",
-    "test:marion-phase3": "npm run test:marion-remote-boundary"
+    "test:marion-phase3": "npm run test:marion-remote-boundary",
+    "test:marion-phase4-voice-identity": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceSpeakerIdentity.js && node --check Data/marion/runtime/MarionVoiceInputEnvelope.js && node --check Data/marion/runtime/MarionVoiceAuthorizationGate.js && node --check Data/marion/runtime/MarionVoiceGateway.js && node --check Data/marion/runtime/MarionVoiceOutputPolicy.js && node --check Data/marion/runtime/MarionVoiceTelemetry.js && node --check Data/marion/runtime/NyxSpeechSyncEnvelope.js",
+    "test:marion-phase4": "npm run test:marion-phase4-voice-identity"
   },
   "dependencies": {
     "ably": "^2.22.0",
