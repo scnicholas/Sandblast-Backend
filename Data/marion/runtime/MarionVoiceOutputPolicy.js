@@ -11,7 +11,7 @@
  *   another private layer explicitly overrides it later.
  */
 
-const VERSION = 'marion.voiceOutputPolicy/2.4-phase1c-admin-conversation-lingosentinel-boundary';
+const VERSION = 'marion.voiceOutputPolicy/2.5-phase4-speaker-identity-boundary';
 const DEFAULT_MAX_SPOKEN_CHARS = 700;
 
 const SENSITIVE_PATTERNS = [
@@ -94,6 +94,22 @@ function hasAdminVoiceDeliveryProof(options) {
     hasPrivateAdminConversationProof(opts);
 }
 
+function hasRemoteTrustedVoiceDeliveryProof(options) {
+  const opts = options && typeof options === 'object' ? options : {};
+  const identity = opts.speakerIdentity && typeof opts.speakerIdentity === 'object' ? opts.speakerIdentity : {};
+  return opts.remoteTrustedUserVerified === true ||
+    opts.remoteTrustedUserTokenVerified === true ||
+    opts.remoteTrustedVoiceDeliveryAllowed === true ||
+    opts.trustedRemoteUserAuth === true ||
+    opts.role === 'remote_trusted_user' ||
+    identity.remoteTrustedUserVerified === true ||
+    identity.roleBinding === 'remote_trusted_user';
+}
+
+function hasTrustedVoiceDeliveryProof(options) {
+  return hasAdminVoiceDeliveryProof(options) || hasRemoteTrustedVoiceDeliveryProof(options);
+}
+
 function hasPrivateAdminConversationProof(options) {
   const opts = options && typeof options === 'object' ? options : {};
   return opts.privateAdminConversation === true ||
@@ -112,6 +128,10 @@ function silentPolicy(reason, extra) {
     speechSyncAllowed: false,
     adminOnlyVoiceDelivery: true,
     adminVoiceDeliveryAllowed: false,
+    remoteTrustedVoiceDeliveryAllowed: false,
+    trustedVoiceDeliveryAllowed: false,
+    voiceIdentityBoundary: true,
+    identityIsAuthority: false,
     privateAdminConversation: false,
     adminConversationAllowed: false,
     publicUsersMayAddressMarion: false,
@@ -128,21 +148,27 @@ function evaluateVoiceOutputPolicy(response, options) {
   const adminOnlyVoiceDelivery = opts.adminOnlyVoiceDelivery !== false && opts.adminOnly !== false;
   const privateAdminConversation = hasPrivateAdminConversationProof(opts);
   const adminVoiceDeliveryAllowed = hasAdminVoiceDeliveryProof(opts);
+  const remoteTrustedVoiceDeliveryAllowed = hasRemoteTrustedVoiceDeliveryProof(opts);
+  const trustedVoiceDeliveryAllowed = adminVoiceDeliveryAllowed || remoteTrustedVoiceDeliveryAllowed;
   const adminConversationAllowed = privateAdminConversation;
 
   if (opts.forceSilent === true) {
     return silentPolicy('FORCED_SILENT', {
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed,
+      remoteTrustedVoiceDeliveryAllowed,
+      trustedVoiceDeliveryAllowed,
       privateAdminConversation,
       adminConversationAllowed
     });
   }
 
-  if (adminOnlyVoiceDelivery && !adminVoiceDeliveryAllowed) {
+  if (adminOnlyVoiceDelivery && !trustedVoiceDeliveryAllowed) {
     return silentPolicy('ADMIN_ONLY_VOICE_DELIVERY_REQUIRED', {
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed,
+      remoteTrustedVoiceDeliveryAllowed,
+      trustedVoiceDeliveryAllowed,
       privateAdminConversation,
       adminConversationAllowed
     });
@@ -152,6 +178,8 @@ function evaluateVoiceOutputPolicy(response, options) {
     return silentPolicy('EMPTY_RESPONSE', {
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed,
+      remoteTrustedVoiceDeliveryAllowed,
+      trustedVoiceDeliveryAllowed,
       privateAdminConversation,
       adminConversationAllowed
     });
@@ -161,6 +189,8 @@ function evaluateVoiceOutputPolicy(response, options) {
     return silentPolicy('SENSITIVE_CONTENT', {
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed,
+      remoteTrustedVoiceDeliveryAllowed,
+      trustedVoiceDeliveryAllowed,
       privateAdminConversation,
       adminConversationAllowed
     });
@@ -170,6 +200,8 @@ function evaluateVoiceOutputPolicy(response, options) {
     return silentPolicy(privateAdminConversation ? 'ADMIN_CONVERSATION_CODE_SCREEN_ONLY' : 'CODE_OR_MARKUP_CONTENT', {
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed,
+      remoteTrustedVoiceDeliveryAllowed,
+      trustedVoiceDeliveryAllowed,
       privateAdminConversation,
       adminConversationAllowed,
       textFallbackAvailable: true
@@ -185,6 +217,8 @@ function evaluateVoiceOutputPolicy(response, options) {
       speechSyncAllowed: true,
       adminOnlyVoiceDelivery,
       adminVoiceDeliveryAllowed,
+      remoteTrustedVoiceDeliveryAllowed,
+      trustedVoiceDeliveryAllowed,
       privateAdminConversation,
       adminConversationAllowed,
       publicUsersMayAddressMarion: false,
@@ -200,6 +234,8 @@ function evaluateVoiceOutputPolicy(response, options) {
     speechSyncAllowed: true,
     adminOnlyVoiceDelivery,
     adminVoiceDeliveryAllowed,
+    remoteTrustedVoiceDeliveryAllowed,
+    trustedVoiceDeliveryAllowed,
     privateAdminConversation,
     adminConversationAllowed,
     publicUsersMayAddressMarion: false,
@@ -243,5 +279,7 @@ module.exports = {
   getReplyText,
   isSafeProtectedVoiceStatusText,
   hasAdminVoiceDeliveryProof,
-  hasPrivateAdminConversationProof
+  hasPrivateAdminConversationProof,
+  hasRemoteTrustedVoiceDeliveryProof,
+  hasTrustedVoiceDeliveryProof
 };
