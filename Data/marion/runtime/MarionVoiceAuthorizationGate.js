@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.3-remote-trusted-user-boundary';
+const VERSION = 'marion.voiceAuthorizationGate/2.4-phase4-speaker-identity-boundary';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -70,6 +70,33 @@ const REMOTE_TRUSTED_USER_CAPABILITIES = Object.freeze([
   'voice.private.receive',
   'session.check'
 ]);
+
+const speakerIdentityMod = (() => {
+  try {
+    return require('./MarionVoiceSpeakerIdentity');
+  } catch (_) {
+    return null;
+  }
+})();
+
+function resolveSpeakerIdentity(envelope, options) {
+  if (speakerIdentityMod && typeof speakerIdentityMod.resolveVoiceSpeakerIdentity === 'function') {
+    return speakerIdentityMod.resolveVoiceSpeakerIdentity(envelope, options);
+  }
+  return {
+    version: 'marion.voiceSpeakerIdentity/fallback',
+    voiceIdentityBoundary: true,
+    identityIsAuthority: false,
+    authorityStillRequiresRBAC: true,
+    roleBinding: 'blocked',
+    voiceMatchStatus: 'unknown',
+    speakerConfidence: null,
+    speakerHintTrusted: false,
+    rawAudioStored: false,
+    audioStored: false,
+    transcriptOnly: true
+  };
+}
 
 
 function normalizeName(value) {
@@ -255,6 +282,7 @@ function evaluateVoiceAuthorization(envelope, options) {
   const transcript = envelope && envelope.transcript ? String(envelope.transcript) : '';
   const intent = envelope && envelope.userIntentHint ? envelope.userIntentHint : 'conversation';
   const speakerHint = envelope && envelope.speakerHint ? envelope.speakerHint : null;
+  const speakerIdentity = resolveSpeakerIdentity(envelope, opts);
 
   const restrictedByIntent = RESTRICTED_INTENTS.has(intent);
   const restrictedByPattern = isRestrictedTranscript(transcript);
@@ -277,6 +305,10 @@ function evaluateVoiceAuthorization(envelope, options) {
       allowed: false,
       authorizationState: 'blocked',
       authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
       reason: 'EMPTY_TRANSCRIPT',
       restricted,
       speakerAuthorized,
@@ -300,6 +332,10 @@ function evaluateVoiceAuthorization(envelope, options) {
       allowed: true,
       authorizationState: 'authorized',
       authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
       reason: adminVoiceVerified ? 'ADMIN_VOICE_TOKEN_VERIFIED' : 'AUTHORIZED_TRUSTED_SPEAKER',
       restricted,
       speakerAuthorized,
@@ -324,6 +360,10 @@ function evaluateVoiceAuthorization(envelope, options) {
         allowed: false,
         authorizationState: 'blocked',
         authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
         reason: 'REMOTE_TRUSTED_USER_RESTRICTED_COMMAND_BLOCKED',
         restricted,
         speakerAuthorized,
@@ -346,6 +386,10 @@ function evaluateVoiceAuthorization(envelope, options) {
       allowed: true,
       authorizationState: 'limited',
       authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
       reason: 'REMOTE_TRUSTED_USER_VERIFIED',
       restricted,
       speakerAuthorized,
@@ -369,6 +413,10 @@ function evaluateVoiceAuthorization(envelope, options) {
       allowed: false,
       authorizationState: 'blocked',
       authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
       reason: restricted ? 'RESTRICTED_VOICE_COMMAND_REQUIRES_ADMIN_AUTHORIZATION' : 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED',
       restricted,
       speakerAuthorized,
@@ -392,6 +440,10 @@ function evaluateVoiceAuthorization(envelope, options) {
       allowed: false,
       authorizationState: 'blocked',
       authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
       reason: 'RESTRICTED_VOICE_COMMAND_REQUIRES_AUTHORIZATION',
       restricted,
       speakerAuthorized,
@@ -415,6 +467,10 @@ function evaluateVoiceAuthorization(envelope, options) {
       allowed: true,
       authorizationState: 'limited',
       authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
       reason: 'LIMITED_CONVERSATIONAL_ACCESS',
       restricted,
       speakerAuthorized,
@@ -448,9 +504,12 @@ function evaluateVoiceAuthorization(envelope, options) {
 
 function applyVoiceAuthorization(envelope, options) {
   const auth = evaluateVoiceAuthorization(envelope, options);
+  const identityEnvelope = speakerIdentityMod && typeof speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope === 'function'
+    ? speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope(envelope, Object.assign({}, options || {}, auth))
+    : Object.assign({}, envelope, { speakerIdentity: auth.speakerIdentity });
 
   return {
-    envelope: Object.assign({}, envelope, {
+    envelope: Object.assign({}, identityEnvelope, {
       authorizationState: auth.authorizationState,
       adminVoiceVerified: auth.adminVoiceVerified === true,
       adminOnlyVoiceDelivery: auth.adminOnlyVoiceDelivery !== false,
@@ -464,6 +523,10 @@ function applyVoiceAuthorization(envelope, options) {
       remoteTrustedUserCapabilities: auth.remoteTrustedUserCapabilities || [],
       marionAdminConversationAllowed: auth.marionAdminConversationAllowed === true,
       adminVoiceDeliveryAllowed: auth.adminVoiceDeliveryAllowed === true,
+      speakerIdentity: auth.speakerIdentity,
+      voiceIdentity: auth.speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
       authorization: auth
     }),
     authorization: auth
@@ -487,5 +550,6 @@ module.exports = {
   isTrustedAdminInterfaceScope,
   isTrustedRemoteUserScope,
   resolveAdminInterfaceScope,
-  resolveRemoteTrustedUserScope
+  resolveRemoteTrustedUserScope,
+  resolveSpeakerIdentity
 };
