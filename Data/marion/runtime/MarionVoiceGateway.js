@@ -69,7 +69,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/2.8-phase4-speaker-identity-boundary';
+const VERSION = 'marion.voiceGateway/2.9-phase5-speaker-registry-control';
 
 function safeRequire(path) {
   try {
