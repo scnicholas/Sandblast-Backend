@@ -6,7 +6,7 @@
  * No raw audio is stored here. Transcript-only envelope.
  */
 
-const VERSION = 'marion.voiceInputEnvelope/2.3-phase5-speaker-registry-control';
+const VERSION = 'marion.voiceInputEnvelope/2.4-phase6-challenge-verification';
 const VOICE_SOURCE = 'voice';
 const DEFAULT_LOCALE = 'en-CA';
 const MIN_CONFIDENCE = 0;
@@ -117,6 +117,13 @@ function createVoiceInputEnvelope(input) {
     speakerConfidence: clampConfidence(payload.speakerConfidence != null ? payload.speakerConfidence : payload.voiceConfidence),
     voiceMatchStatus: cleanPublicHint(payload.voiceMatchStatus || '', 80),
     voiceProfileEnrolled: payload.voiceProfileEnrolled === true,
+    challengeId: cleanPublicHint(payload.challengeId || payload.voiceChallengeId || '', 160),
+    challengeResponse: cleanTranscript(payload.challengeResponse || payload.responseTranscript || payload.challengeAnswer || ''),
+    liveChallengeRequired: payload.liveChallengeRequired === true || payload.requireLiveChallenge === true,
+    liveChallengeVerified: payload.liveChallengeVerified === true && payload.trustedServerAuth === true,
+    voiceChallengeVerified: payload.voiceChallengeVerified === true && payload.trustedServerAuth === true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
     speakerRegistryStatus: cleanPublicHint(payload.speakerRegistryStatus || '', 80),
     speakerRegistryMatched: payload.speakerRegistryMatched === true,
     profileMetadataOnly: true,
@@ -154,6 +161,12 @@ function createVoiceInputEnvelope(input) {
       trustSpeakerHint: payload.trustSpeakerHint === true || payload.requestTrustedSpeakerHint === true,
       speakerConfidence: envelope.speakerConfidence,
       voiceMatchStatus: envelope.voiceMatchStatus,
+      challengeId: envelope.challengeId,
+      challengeResponse: envelope.challengeResponse,
+      liveChallengeRequired: envelope.liveChallengeRequired,
+      liveChallengeVerified: envelope.liveChallengeVerified,
+      voiceChallengeVerified: envelope.voiceChallengeVerified,
+      sessionVerified: payload.sessionVerified === true,
       detectedSpeakerId: envelope.detectedSpeakerId,
       claimedSpeaker: envelope.claimedSpeaker
     });
