@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.66sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.67sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -15570,20 +15570,20 @@ function marionAdminConsoleCreateSession(req, auth, requestedRole) {
   const token = marionAdminConsoleNewSessionToken();
   const hash = marionAdminConsoleSha256(token);
   const t = now();
-  const role = marionAdminConsoleAuthRole(auth);
+  const roleDecision = marionAdminConsoleResolveSessionRole(auth, requestedRole);
+  const role = roleDecision.role;
   const entry = {
     id: "mas_" + crypto.randomBytes(8).toString("hex"),
     role,
     capabilities: marionAdminConsoleCapabilitiesForRole(role),
-    issuedByRole: marionAdminConsoleNormalizeRole(auth && auth.role),
+    issuedByRole: roleDecision.currentRole,
     requestedRole: roleDecision.requestedRole,
+    roleAssumptionAllowed: roleDecision.allowed === true,
     issuedAt: t,
     lastSeenAt: t,
     expiresAt: t + MARION_ADMIN_CONSOLE_SESSION_TTL_MS,
     idleExpiresAt: t + Math.min(MARION_ADMIN_CONSOLE_SESSION_IDLE_MS, MARION_ADMIN_CONSOLE_SESSION_TTL_MS),
     authSource: cleanText(auth && auth.source || "master"),
-    role,
-    capabilities: marionAdminConsoleCapabilitiesForRole(role),
     remoteTrustedUserBoundary: role === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
     fingerprint: marionAdminConsoleSessionFingerprint(req),
     client: marionAdminConsoleClientHint(req),
@@ -15591,7 +15591,7 @@ function marionAdminConsoleCreateSession(req, auth, requestedRole) {
   };
   marionAdminConsoleSessions.set(hash, entry);
   marionAdminConsoleSweepSessions(true);
-  return { token, entry, publicSession: marionAdminConsolePublicSession(entry) };
+  return { token, entry, publicSession: marionAdminConsolePublicSession(entry), roleDecision };
 }
 
 function marionAdminConsoleRevokeSession(req) {
@@ -15866,6 +15866,67 @@ function marionAdminConsoleNormalizeRole(value) {
 function marionAdminConsoleCapabilitiesForRole(role) {
   const normalized = marionAdminConsoleNormalizeRole(role);
   return Array.from(MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES[normalized] || []);
+}
+
+
+// MARION_ADMIN_AUTH_ROLE_RUNTIME_HOTFIX_V1:
+// Compatibility helpers for the v2.18.65/v2.18.66 admin route contract.
+// These keep legacy route blocks and Phase 4 RBAC code using the same role model.
+function marionAdminConsoleAuthRole(auth) {
+  const a = auth && typeof auth === "object" ? auth : {};
+  const session = a.session && typeof a.session === "object" ? a.session : {};
+  const sessionRole = session.role || (session.session && session.session.role);
+  if (a.role) return marionAdminConsoleNormalizeRole(a.role);
+  if (sessionRole) return marionAdminConsoleNormalizeRole(sessionRole);
+  if (a.remoteTrustedUserVerified === true || a.remoteTrustedVerified === true) {
+    return MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER;
+  }
+  if (a.adminOperatorVerified === true) return MARION_ADMIN_CONSOLE_ROLES.ADMIN_OPERATOR;
+  if (a.voiceUserVerified === true) return MARION_ADMIN_CONSOLE_ROLES.VOICE_USER;
+  if (a.observerVerified === true) return MARION_ADMIN_CONSOLE_ROLES.OBSERVER;
+  if (a.verified === true || a.adminVerified === true || a.masterVerified === true) {
+    return MARION_ADMIN_CONSOLE_ROLES.OWNER;
+  }
+  return MARION_ADMIN_CONSOLE_ROLES.BLOCKED;
+}
+
+function marionAdminConsoleAuthCapabilities(auth) {
+  const a = auth && typeof auth === "object" ? auth : {};
+  if (Array.isArray(a.capabilities) && a.capabilities.length) {
+    return uniq(a.capabilities.map((item) => cleanText(item || "")).filter(Boolean));
+  }
+  const session = a.session && typeof a.session === "object" ? a.session : {};
+  if (Array.isArray(session.capabilities) && session.capabilities.length) {
+    return uniq(session.capabilities.map((item) => cleanText(item || "")).filter(Boolean));
+  }
+  return marionAdminConsoleCapabilitiesForRole(marionAdminConsoleAuthRole(a));
+}
+
+function marionAdminConsoleActionCapability(action) {
+  return marionAdminConsoleCapabilityForAction(action);
+}
+
+function marionAdminConsoleCapabilityAllowed(auth, action) {
+  const required = marionAdminConsoleActionCapability(action);
+  if (!required) return true;
+  return marionAdminConsoleAuthCapabilities(auth).includes(required);
+}
+
+function marionAdminConsoleCapabilityDenied(res, traceId, auth, action) {
+  const required = marionAdminConsoleActionCapability(action);
+  return res.status(403).json(marionAdminConsoleBaseResponse(action, traceId, auth, {
+    ok: false,
+    stage: "admin_capability_denied",
+    reason: "role_capability_denied",
+    requiredCapability: required,
+    capability: required,
+    capabilityAllowed: false,
+    role: marionAdminConsoleAuthRole(auth),
+    capabilities: marionAdminConsoleAuthCapabilities(auth),
+    remoteTrustedUserBoundary: marionAdminConsoleAuthRole(auth) === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
+    rbacVersion: MARION_ADMIN_CONSOLE_RBAC_VERSION,
+    hotfix: "MARION_ADMIN_AUTH_ROLE_RUNTIME_HOTFIX_V1"
+  }));
 }
 
 function marionAdminConsoleHasCapability(auth, capability) {
