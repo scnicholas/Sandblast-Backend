@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'marion.voiceSpeakerRegistry/1.0-phase5-enrollment-control-boundary';
+const VERSION = 'marion.voiceSpeakerRegistry/1.1-phase6-challenge-aware-registry';
 
 const REGISTRY_STATES = Object.freeze({
   UNKNOWN: 'unknown',
@@ -153,7 +153,12 @@ function publicProfile(profile) {
     voiceprintStored: false,
     profileMetadataOnly: true,
     identityIsAuthority: false,
-    authorityStillRequiresRBAC: true
+    authorityStillRequiresRBAC: true,
+    liveChallengeRequired: true,
+    challengeVerificationRequired: true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
+    spoofResistanceBoundary: true
   };
 }
 
@@ -175,7 +180,12 @@ function publicRequest(request) {
     voiceprintStored: false,
     profileMetadataOnly: true,
     identityIsAuthority: false,
-    authorityStillRequiresRBAC: true
+    authorityStillRequiresRBAC: true,
+    liveChallengeRequired: true,
+    challengeVerificationRequired: true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
+    spoofResistanceBoundary: true
   };
 }
 
@@ -200,7 +210,7 @@ function health() {
     ok: true,
     service: 'marion-voice-speaker-registry',
     version: VERSION,
-    phase: 'phase5_speaker_registry_control',
+    phase: 'phase6_challenge_aware_speaker_registry',
     routeMounted: true,
     metadataOnly: true,
     rawAudioStored: false,
@@ -208,6 +218,10 @@ function health() {
     voiceprintStored: false,
     identityIsAuthority: false,
     authorityStillRequiresRBAC: true,
+    liveChallengeRequired: true,
+    challengeVerificationRequired: true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
     supportedStates: Object.values(REGISTRY_STATES),
     supportedRoles: Object.values(ROLE_BINDINGS),
     counts: {
@@ -248,7 +262,11 @@ function requestEnrollment(input, context) {
     rawAudioStored: false,
     audioStored: false,
     voiceprintStored: false,
-    profileMetadataOnly: true
+    profileMetadataOnly: true,
+    liveChallengeRequired: true,
+    challengeVerificationRequired: true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false
   };
   enrollmentRequests.set(request.requestId, request);
   return { ok: true, statusCode: 201, stage: 'speaker_registry_enrollment_requested', request: publicRequest(request), registry: health() };
@@ -286,7 +304,11 @@ function approveEnrollment(input, context) {
     rawAudioStored: false,
     audioStored: false,
     voiceprintStored: false,
-    profileMetadataOnly: true
+    profileMetadataOnly: true,
+    liveChallengeRequired: true,
+    challengeVerificationRequired: true,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false
   };
   request.enrollmentStatus = 'approved';
   request.decidedAt = iso(t);
@@ -356,6 +378,10 @@ function checkSpeaker(input) {
     enrollmentStatus: profile.enrollmentStatus,
     roleBinding: profile.roleBinding,
     blocked,
+    liveChallengeRequired: !blocked,
+    challengeVerificationRequired: !blocked,
+    challengePreventsReplay: true,
+    challengeIsAuthority: false,
     speaker: publicProfile(profile),
     registry: health()
   };
