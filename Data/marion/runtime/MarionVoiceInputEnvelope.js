@@ -6,7 +6,7 @@
  * No raw audio is stored here. Transcript-only envelope.
  */
 
-const VERSION = 'marion.voiceInputEnvelope/2.4-phase6-challenge-verification';
+const VERSION = 'marion.voiceInputEnvelope/2.5-phase7-continuity-window';
 const VOICE_SOURCE = 'voice';
 const DEFAULT_LOCALE = 'en-CA';
 const MIN_CONFIDENCE = 0;
@@ -124,6 +124,13 @@ function createVoiceInputEnvelope(input) {
     voiceChallengeVerified: payload.voiceChallengeVerified === true && payload.trustedServerAuth === true,
     challengePreventsReplay: true,
     challengeIsAuthority: false,
+    continuityWindowId: cleanPublicHint(payload.continuityWindowId || payload.windowId || payload.voiceWindowId || '', 160),
+    continuityWindowTokenPresent: !!(payload.continuityToken || payload.voiceContinuityToken || payload.windowToken),
+    trustedVoiceWindowActive: payload.trustedVoiceWindowActive === true && payload.trustedServerAuth === true,
+    continuityWindowVerified: payload.continuityWindowVerified === true && payload.trustedServerAuth === true,
+    voiceContinuityRequired: payload.voiceContinuityRequired === true || payload.requireContinuityWindow === true,
+    continuityPreventsSessionDrift: true,
+    continuityIsAuthority: false,
     speakerRegistryStatus: cleanPublicHint(payload.speakerRegistryStatus || '', 80),
     speakerRegistryMatched: payload.speakerRegistryMatched === true,
     profileMetadataOnly: true,
