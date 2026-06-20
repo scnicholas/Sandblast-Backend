@@ -17,7 +17,7 @@
 
 const crypto = require("crypto");
 
-const VERSION = "marion.voiceChallengeVerifier/1.0-phase6-spoof-resistance-boundary";
+const VERSION = "marion.voiceChallengeVerifier/1.1-phase7-continuity-aware-boundary";
 
 const DEFAULT_TTL_MS = clampNumber(process.env.SB_MARION_VOICE_CHALLENGE_TTL_MS, 90 * 1000, 15 * 1000, 5 * 60 * 1000);
 const MAX_CHALLENGES = clampNumber(process.env.SB_MARION_VOICE_CHALLENGE_MAX, 50, 1, 500);
@@ -119,7 +119,8 @@ function publicChallenge(entry, options) {
     audioStored: false,
     voiceprintStored: false,
     biometricTemplateStored: false,
-    transcriptOnly: true
+    transcriptOnly: true,
+    continuityWindowEligible: entry.state === CHALLENGE_STATES.VERIFIED
   };
 }
 
@@ -260,6 +261,7 @@ function issueChallenge(input, context) {
     ok: true,
     statusCode: 200,
     stage: "voice_challenge_issued",
+    challengeIssued: true,
     challenge: publicChallenge(entry, { includePhrase: true }),
     expectedResponse: phrase,
     nonce,
@@ -272,6 +274,8 @@ function issueChallenge(input, context) {
     voiceprintStored: false,
     biometricTemplateStored: false,
     transcriptOnly: true,
+    continuityWindowEligible: true,
+    continuityWindowMayOpen: true,
     health: health()
   };
 }
@@ -394,7 +398,9 @@ function evaluateChallengeEvidence(input, context) {
     audioStored: false,
     voiceprintStored: false,
     biometricTemplateStored: false,
-    transcriptOnly: true
+    transcriptOnly: true,
+    continuityWindowEligible: providedVerified && trustedServerContext,
+    continuityWindowMayOpen: providedVerified && trustedServerContext
   };
 }
 
