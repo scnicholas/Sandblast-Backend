@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.71sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.72sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -15403,7 +15403,7 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
 // Private admin console control plane. This must mount before static handlers
 // and the /api not_found guard so the protected Webflow/admin interface does
 // not fall through to 404. Body/query tokens are intentionally ignored.
-const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.5-phase6-voice-challenge-verification";
+const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.6-phase7-voice-continuity-window";
 const MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH = "Data/marion/runtime/MarionAdminConsoleGateway.js";
 const MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH = "./" + MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH;
 
@@ -15800,7 +15800,7 @@ function marionAdminConsoleMfaTokens() {
   ].map((item) => cleanText(item || "")).filter(Boolean));
 }
 
-const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.4-phase6-voice-challenge-verification";
+const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.5-phase7-voice-continuity-window";
 const MARION_ADMIN_CONSOLE_ROUTE_CONTRACT_VERSION = "marion.adminConsole.routes/1.1-check-post-alias-contract";
 const MARION_ADMIN_CONSOLE_REQUIRE_SESSION_FOR_MUTATIONS = process.env.SB_MARION_ADMIN_REQUIRE_SESSION_FOR_MUTATIONS !== "false";
 const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
@@ -15811,7 +15811,7 @@ const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
   OBSERVER: "observer",
   BLOCKED: "blocked"
 });
-const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke"]);
+const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke", "voice.continuity.open", "voice.continuity.revoke"]);
 const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   health: "status.read",
   status: "status.read",
@@ -15834,7 +15834,11 @@ const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   "voice.challenge.health": "voice.challenge.read",
   "voice.challenge.issue": "voice.challenge.issue",
   "voice.challenge.check": "voice.challenge.check",
-  "voice.challenge.revoke": "voice.challenge.revoke"
+  "voice.challenge.revoke": "voice.challenge.revoke",
+  "voice.continuity.health": "voice.continuity.read",
+  "voice.continuity.open": "voice.continuity.open",
+  "voice.continuity.check": "voice.continuity.check",
+  "voice.continuity.revoke": "voice.continuity.revoke"
 });
 const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
   owner: Object.freeze([
@@ -15844,17 +15848,19 @@ const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
     "voice.private.submit", "voice.private.receive", "logs.read",
     "speaker.registry.read", "speaker.registry.check", "speaker.registry.request",
     "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke",
-    "voice.challenge.read", "voice.challenge.issue", "voice.challenge.check", "voice.challenge.revoke"
+    "voice.challenge.read", "voice.challenge.issue", "voice.challenge.check", "voice.challenge.revoke",
+    "voice.continuity.read", "voice.continuity.open", "voice.continuity.check", "voice.continuity.revoke"
   ]),
   admin_operator: Object.freeze([
     "status.read", "command.submit", "command.approve", "command.deny",
     "session.check", "session.revoke", "escalation.check", "voice.private.submit", "voice.private.receive",
-    "speaker.registry.read", "speaker.registry.check", "voice.challenge.read", "voice.challenge.check"
+    "speaker.registry.read", "speaker.registry.check", "voice.challenge.read", "voice.challenge.check",
+    "voice.continuity.read", "voice.continuity.check"
   ]),
   remote_trusted_user: Object.freeze([
-    "status.read", "session.issue", "session.check", "session.revoke", "voice.private.submit", "voice.private.receive", "voice.challenge.check"
+    "status.read", "session.issue", "session.check", "session.revoke", "voice.private.submit", "voice.private.receive", "voice.challenge.check", "voice.continuity.check"
   ]),
-  voice_user: Object.freeze(["status.read", "session.check", "session.revoke", "voice.private.submit", "voice.challenge.check"]),
+  voice_user: Object.freeze(["status.read", "session.check", "session.revoke", "voice.private.submit", "voice.challenge.check", "voice.continuity.check"]),
   observer: Object.freeze(["status.read", "session.check", "session.revoke"]),
   blocked: Object.freeze([])
 });
@@ -17323,6 +17329,185 @@ app.get(MARION_VOICE_CHALLENGE_ROUTES.health, async (req, res) => handleMarionVo
 app.post(MARION_VOICE_CHALLENGE_ROUTES.issue, async (req, res) => handleMarionVoiceChallenge(req, res, "issue"));
 app.post(MARION_VOICE_CHALLENGE_ROUTES.check, async (req, res) => handleMarionVoiceChallenge(req, res, "check"));
 app.post(MARION_VOICE_CHALLENGE_ROUTES.revoke, async (req, res) => handleMarionVoiceChallenge(req, res, "revoke"));
+
+
+// MARION-VOICE-CONTINUITY-WINDOW-V1:
+// Phase 7 trusted voice continuity window. A valid challenge can open a short
+// speaker/session-bound voice window, but the window remains evidence only and
+// never overrides admin/session/RBAC/escalation controls.
+const MARION_VOICE_CONTINUITY_INDEX_VERSION = "marion.voiceContinuity.index/1.0-phase7-trusted-window";
+const MARION_VOICE_CONTINUITY_RELATIVE_PATH = "Data/marion/runtime/MarionVoiceContinuityWindow.js";
+const MARION_VOICE_CONTINUITY_REQUIRE_PATH = "./" + MARION_VOICE_CONTINUITY_RELATIVE_PATH;
+const MARION_VOICE_CONTINUITY_ROUTES = Object.freeze({
+  health: Object.freeze(["/api/private/marion/voice-continuity/health", "/private/marion/voice-continuity/health"]),
+  open: Object.freeze(["/api/private/marion/voice-continuity/open", "/private/marion/voice-continuity/open"]),
+  check: Object.freeze(["/api/private/marion/voice-continuity/check", "/private/marion/voice-continuity/check"]),
+  revoke: Object.freeze(["/api/private/marion/voice-continuity/revoke", "/private/marion/voice-continuity/revoke"])
+});
+const MARION_VOICE_CONTINUITY_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_VOICE_CONTINUITY_ROUTES).reduce((acc, key) => acc.concat(MARION_VOICE_CONTINUITY_ROUTES[key]), [])));
+
+function marionVoiceContinuityStatus() {
+  try {
+    const resolved = require.resolve(MARION_VOICE_CONTINUITY_REQUIRE_PATH);
+    const mod = require(resolved);
+    return {
+      available: !!mod,
+      mod,
+      runtimePath: MARION_VOICE_CONTINUITY_RELATIVE_PATH,
+      resolvedPath: resolved,
+      version: cleanText(mod && mod.VERSION || ""),
+      routeMounted: true,
+      trustedVoiceWindow: true,
+      continuityIsAuthority: false,
+      challengeIsAuthority: false,
+      identityIsAuthority: false,
+      rawAudioStored: false,
+      voiceprintStored: false
+    };
+  } catch (err) {
+    return {
+      available: false,
+      mod: null,
+      runtimePath: MARION_VOICE_CONTINUITY_RELATIVE_PATH,
+      resolvedPath: "",
+      version: "",
+      routeMounted: true,
+      trustedVoiceWindow: true,
+      continuityIsAuthority: false,
+      challengeIsAuthority: false,
+      identityIsAuthority: false,
+      rawAudioStored: false,
+      voiceprintStored: false,
+      error: cleanText(err && (err.code || err.message) || "voice_continuity_unavailable").slice(0, 160)
+    };
+  }
+}
+
+function marionVoiceContinuityActionName(action) {
+  const raw = cleanText(action || "").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
+  if (raw === "health") return "voice.continuity.health";
+  if (raw === "open") return "voice.continuity.open";
+  if (raw === "check") return "voice.continuity.check";
+  if (raw === "revoke") return "voice.continuity.revoke";
+  return "voice.continuity.check";
+}
+
+function marionVoiceContinuityAuthContext(auth, traceId) {
+  return {
+    traceId,
+    adminVerified: !!(auth && auth.verified),
+    sessionVerified: !!(auth && auth.sessionVerified),
+    sessionId: cleanText(auth && auth.sessionId || ""),
+    role: marionAdminConsoleAuthRole(auth),
+    capabilities: marionAdminConsoleAuthCapabilities(auth),
+    ownerVerified: marionAdminConsoleAuthRole(auth) === MARION_ADMIN_CONSOLE_ROLES.OWNER,
+    remoteTrustedUserVerified: !!(auth && auth.remoteTrustedUserVerified),
+    source: cleanText(auth && auth.source || ""),
+    publicSurface: "Nyx",
+    authority: "Marion",
+    continuityIsAuthority: false,
+    challengeIsAuthority: false,
+    identityIsAuthority: false,
+    rawAudioStored: false,
+    voiceprintStored: false
+  };
+}
+
+function marionVoiceContinuityBaseResponse(action, traceId, auth, extra) {
+  const status = marionVoiceContinuityStatus();
+  return marionAdminConsoleBaseResponse(action, traceId, auth, {
+    voiceContinuityVersion: MARION_VOICE_CONTINUITY_INDEX_VERSION,
+    voiceContinuityRuntimeVersion: cleanText(status.version || ""),
+    voiceContinuityAvailable: !!status.available,
+    voiceContinuityRuntimePath: MARION_VOICE_CONTINUITY_RELATIVE_PATH,
+    trustedVoiceWindow: true,
+    continuityRequiresFreshChallenge: true,
+    continuityPreventsSessionDrift: true,
+    continuityIsAuthority: false,
+    challengeIsAuthority: false,
+    identityIsAuthority: false,
+    authorityStillRequiresRBAC: true,
+    rawAudioStored: false,
+    audioStored: false,
+    voiceprintStored: false,
+    ...safeObj(extra)
+  });
+}
+
+async function handleMarionVoiceContinuity(req, res, action) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("voicecontinuity"));
+  const status = marionVoiceContinuityStatus();
+  const continuity = status.mod;
+  const routeAction = marionVoiceContinuityActionName(action);
+
+  if (action === "health") {
+    const auth = marionAdminConsoleRequestAuth(req);
+    const health = status.available && continuity && typeof continuity.health === "function" ? continuity.health() : null;
+    return res.status(200).json(marionVoiceContinuityBaseResponse(routeAction, traceId, auth, {
+      ok: true,
+      stage: "voice_continuity_route_mounted",
+      routeMounted: true,
+      health: health || { ok: false, reason: cleanText(status.error || "voice_continuity_unavailable") },
+      routes: MARION_VOICE_CONTINUITY_ROUTES,
+      methods: { health: ["GET"], open: ["POST"], check: ["POST"], revoke: ["POST"] }
+    }));
+  }
+
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+  if (!status.available || !continuity) {
+    return res.status(503).json(marionVoiceContinuityBaseResponse(routeAction, traceId, auth, {
+      ok: false,
+      stage: "voice_continuity_runtime_unavailable",
+      reason: cleanText(status.error || "voice_continuity_runtime_missing"),
+      routeMounted: true
+    }));
+  }
+
+  const requiresSession = true;
+  const permission = marionAdminConsolePermissionDecision(auth, routeAction, { requireSession: requiresSession });
+  if (!permission.allowed) return marionAdminConsolePermissionDenied(res, routeAction, traceId, auth, permission);
+
+  try {
+    let result = null;
+    const context = marionVoiceContinuityAuthContext(auth, traceId);
+    if (routeAction === "voice.continuity.open" && typeof continuity.openContinuityWindow === "function") result = continuity.openContinuityWindow(body, context);
+    else if (routeAction === "voice.continuity.check" && typeof continuity.checkContinuityWindow === "function") result = continuity.checkContinuityWindow(body, context);
+    else if (routeAction === "voice.continuity.revoke" && typeof continuity.revokeContinuityWindow === "function") result = continuity.revokeContinuityWindow(body, context);
+    else result = { ok: false, statusCode: 501, stage: "voice_continuity_handler_missing", reason: routeAction + "_handler_missing" };
+
+    const statusCode = clamp(Number(result && result.statusCode || (result && result.ok === false ? 400 : 200)), 200, 599);
+    return res.status(statusCode).json(marionVoiceContinuityBaseResponse(routeAction, traceId, auth, {
+      ok: !(result && result.ok === false),
+      stage: cleanText(result && result.stage || "voice_continuity_action_complete"),
+      reason: cleanText(result && result.reason || ""),
+      result: safeObj(result),
+      voiceContinuityAction: routeAction,
+      sessionRequired: requiresSession,
+      responseFinalized: true
+    }));
+  } catch (err) {
+    return res.status(500).json(marionVoiceContinuityBaseResponse(routeAction, traceId, auth, {
+      ok: false,
+      stage: "voice_continuity_exception",
+      reason: cleanText(err && (err.code || err.message) || "voice_continuity_exception").slice(0, 160),
+      responseFinalized: true
+    }));
+  }
+}
+
+app.options(MARION_VOICE_CONTINUITY_ALL_ROUTES, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
+app.get(MARION_VOICE_CONTINUITY_ROUTES.health, async (req, res) => handleMarionVoiceContinuity(req, res, "health"));
+app.post(MARION_VOICE_CONTINUITY_ROUTES.open, async (req, res) => handleMarionVoiceContinuity(req, res, "open"));
+app.post(MARION_VOICE_CONTINUITY_ROUTES.check, async (req, res) => handleMarionVoiceContinuity(req, res, "check"));
+app.post(MARION_VOICE_CONTINUITY_ROUTES.revoke, async (req, res) => handleMarionVoiceContinuity(req, res, "revoke"));
 
 const MARION_VOICE_SPEAKER_REGISTRY_INDEX_VERSION = "marion.voiceSpeakerRegistry.index/1.1-phase6-challenge-aware-control-plane";
 const MARION_VOICE_SPEAKER_REGISTRY_RELATIVE_PATH = "Data/marion/runtime/MarionVoiceSpeakerRegistry.js";
