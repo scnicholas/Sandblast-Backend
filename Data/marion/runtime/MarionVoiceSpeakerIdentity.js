@@ -10,7 +10,7 @@
  * label alone.
  */
 
-const VERSION = 'marion.voiceSpeakerIdentity/1.2-phase6-challenge-verification';
+const VERSION = 'marion.voiceSpeakerIdentity/1.3-phase7-continuity-window';
 
 const SPEAKER_CONFIDENCE = Object.freeze({
   STRONG: 0.90,
@@ -35,6 +35,14 @@ const speakerRegistryMod = (() => {
 const challengeVerifierMod = (() => {
   try {
     return require('./MarionVoiceChallengeVerifier');
+  } catch (_) {
+    return null;
+  }
+})();
+
+const continuityWindowMod = (() => {
+  try {
+    return require('./MarionVoiceContinuityWindow');
   } catch (_) {
     return null;
   }
@@ -245,6 +253,44 @@ function challengeEvidenceForIdentity(envelope, options, speakerRegistry, voiceM
   return evidence;
 }
 
+
+function continuityEvidenceForIdentity(envelope, options) {
+  const env = envelope && typeof envelope === 'object' ? envelope : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  let evidence = {
+    version: continuityWindowMod && continuityWindowMod.VERSION || '',
+    continuityWindowRequired: env.voiceContinuityRequired === true || opts.voiceContinuityRequired === true || env.continuityWindowRequired === true || opts.continuityWindowRequired === true,
+    continuityWindowProvided: !!(env.continuityWindowId || opts.continuityWindowId || env.trustedVoiceWindowActive || opts.trustedVoiceWindowActive),
+    trustedVoiceWindowActive: false,
+    continuityWindowVerified: false,
+    continuityStatus: 'missing',
+    continuityPreventsSessionDrift: true,
+    continuityIsAuthority: false,
+    challengeIsAuthority: false,
+    identityIsAuthority: false,
+    authorityStillRequiresRBAC: true,
+    rawAudioStored: false,
+    audioStored: false,
+    voiceprintStored: false,
+    transcriptOnly: true
+  };
+  if (continuityWindowMod && typeof continuityWindowMod.evaluateContinuityEvidence === 'function') {
+    evidence = Object.assign(evidence, continuityWindowMod.evaluateContinuityEvidence(Object.assign({}, env, {
+      continuityWindowRequired: evidence.continuityWindowRequired,
+      continuityWindowId: env.continuityWindowId || opts.continuityWindowId || env.windowId || opts.windowId || '',
+      trustedVoiceWindowActive: env.trustedVoiceWindowActive === true || opts.trustedVoiceWindowActive === true,
+      continuityWindowVerified: env.continuityWindowVerified === true || opts.continuityWindowVerified === true,
+      voiceContinuity: env.voiceContinuity || opts.voiceContinuity || null
+    }), Object.assign({}, opts, {
+      sessionVerified: opts.sessionVerified === true || env.sessionVerified === true,
+      trustedServerAuth: opts.trustedServerAuth === true || opts.serverSideAdminVoiceAuth === true || opts.serverSideRemoteTrustedUserAuth === true
+    })));
+  }
+  evidence.continuityWindowBlocked = evidence.continuityWindowRequired === true && evidence.trustedVoiceWindowActive !== true;
+  evidence.continuityWindowVersion = continuityWindowMod && continuityWindowMod.VERSION || '';
+  return evidence;
+}
+
 function resolveVoiceSpeakerIdentity(envelope, options) {
   const env = envelope && typeof envelope === 'object' ? envelope : {};
   const opts = options && typeof options === 'object' ? options : {};
@@ -263,9 +309,12 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
   const speakerRegistry = speakerRegistryEvidenceForIdentity(env, opts);
   const speakerRegistryBlocked = speakerRegistry.blocked === true || speakerRegistry.enrollmentStatus === 'revoked' || speakerRegistry.enrollmentStatus === 'blocked';
   const challengeEvidence = challengeEvidenceForIdentity(env, opts, speakerRegistry, voiceMatchStatus);
+  const continuityEvidence = continuityEvidenceForIdentity(env, opts);
   const liveChallengeRequired = challengeEvidence.liveChallengeRequired === true;
   const liveChallengeVerified = challengeEvidence.liveChallengeVerified === true;
-  const challengeBlocked = challengeEvidence.challengeBlocked === true && !adminVerified && !remoteTrustedUserVerified;
+  const trustedVoiceWindowActive = continuityEvidence.trustedVoiceWindowActive === true;
+  const continuityWindowVerified = continuityEvidence.continuityWindowVerified === true || trustedVoiceWindowActive;
+  const challengeBlocked = challengeEvidence.challengeBlocked === true && !continuityWindowVerified && !adminVerified && !remoteTrustedUserVerified;
   if (!adminVerified && !remoteTrustedUserVerified && (speakerRegistryBlocked || challengeBlocked)) roleBinding = ROLE_BINDINGS.BLOCKED;
 
   const explicitTrustedHint =
@@ -286,7 +335,7 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
 
   return {
     version: VERSION,
-    phase: 'phase6_challenge_verification',
+    phase: 'phase7_voice_continuity_window',
     speakerHint: rawSpeakerHint,
     claimedSpeaker,
     detectedSpeakerId,
@@ -305,6 +354,13 @@ function resolveVoiceSpeakerIdentity(envelope, options) {
     voiceprintStored: false,
     voiceChallenge: challengeEvidence,
     voiceChallengeVersion: challengeEvidence.challengeVersion || '',
+    voiceContinuity: continuityEvidence,
+    voiceContinuityVersion: continuityEvidence.continuityWindowVersion || '',
+    trustedVoiceWindowActive,
+    continuityWindowVerified,
+    continuityStatus: continuityEvidence.continuityStatus || 'unknown',
+    continuityPreventsSessionDrift: true,
+    continuityIsAuthority: false,
     liveChallengeRequired,
     liveChallengeVerified,
     challengeBlocked,
@@ -355,6 +411,13 @@ function applyVoiceSpeakerIdentityEnvelope(envelope, options) {
     voiceprintStored: false,
     voiceChallenge: identity.voiceChallenge,
     voiceChallengeVersion: identity.voiceChallengeVersion || '',
+    voiceContinuity: identity.voiceContinuity,
+    voiceContinuityVersion: identity.voiceContinuityVersion || '',
+    trustedVoiceWindowActive: identity.trustedVoiceWindowActive === true,
+    continuityWindowVerified: identity.continuityWindowVerified === true,
+    continuityStatus: identity.continuityStatus || 'unknown',
+    continuityPreventsSessionDrift: true,
+    continuityIsAuthority: false,
     liveChallengeRequired: identity.liveChallengeRequired === true,
     liveChallengeVerified: identity.liveChallengeVerified === true,
     challengeBlocked: identity.challengeBlocked === true,
@@ -389,5 +452,7 @@ module.exports = {
   hasAdminProof,
   hasRemoteTrustedProof,
   speakerRegistryEvidenceForIdentity,
-  challengeEvidenceForIdentity
+  challengeEvidenceForIdentity,
+  continuityEvidenceForIdentity,
+  continuityWindowMod
 };
