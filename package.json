@@ -30,7 +30,9 @@
     "test:marion-phase5-speaker-registry": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceSpeakerRegistry.js && node --check Data/marion/runtime/MarionVoiceSpeakerIdentity.js && node --check Data/marion/runtime/MarionVoiceInputEnvelope.js && node --check Data/marion/runtime/MarionVoiceAuthorizationGate.js && node --check Data/marion/runtime/MarionVoiceGateway.js && node --check Data/marion/runtime/MarionVoiceTelemetry.js && node tests/marion/marion-phase5-speaker-registry-contract.test.js",
     "test:marion-phase5": "npm run test:marion-phase5-speaker-registry",
     "test:marion-phase6-voice-challenge": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceChallengeVerifier.js && node --check Data/marion/runtime/MarionVoiceSpeakerRegistry.js && node --check Data/marion/runtime/MarionVoiceSpeakerIdentity.js && node --check Data/marion/runtime/MarionVoiceInputEnvelope.js && node --check Data/marion/runtime/MarionVoiceAuthorizationGate.js && node --check Data/marion/runtime/MarionVoiceGateway.js && node --check Data/marion/runtime/MarionVoiceTelemetry.js && node tests/marion/marion-phase6-voice-challenge-contract.test.js",
-    "test:marion-phase6": "npm run test:marion-phase6-voice-challenge"
+    "test:marion-phase6": "npm run test:marion-phase6-voice-challenge",
+    "test:marion-phase7-voice-continuity": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceContinuityWindow.js && node --check Data/marion/runtime/MarionVoiceChallengeVerifier.js && node --check Data/marion/runtime/MarionVoiceSpeakerIdentity.js && node --check Data/marion/runtime/MarionVoiceInputEnvelope.js && node --check Data/marion/runtime/MarionVoiceGateway.js && node tests/marion/marion-phase7-voice-continuity-contract.test.js",
+    "test:marion-phase7": "npm run test:marion-phase7-voice-continuity"
   },
   "dependencies": {
     "ably": "^2.22.0",
