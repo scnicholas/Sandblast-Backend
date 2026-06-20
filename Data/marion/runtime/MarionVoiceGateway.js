@@ -71,13 +71,21 @@ const challengeVerifierMod = (() => {
   }
 })();
 
+const continuityWindowMod = (() => {
+  try {
+    return require('./MarionVoiceContinuityWindow');
+  } catch (_) {
+    return null;
+  }
+})();
+
 function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   if (speakAllowed !== true || !safeText(spokenText)) return 'silent';
   const mode = safeText(rawMode || '').toLowerCase();
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/3.0-phase6-challenge-verification';
+const VERSION = 'marion.voiceGateway/3.1-phase7-continuity-window';
 
 function safeRequire(path) {
   try {
@@ -707,6 +715,11 @@ async function handleVoiceTranscript(input, options) {
     challengeStatus: envelope.challengeStatus || (envelope.speakerIdentity && envelope.speakerIdentity.challengeStatus) || 'unknown',
     challengePreventsReplay: true,
     challengeIsAuthority: false,
+    trustedVoiceWindowActive: envelope.trustedVoiceWindowActive === true || envelope.continuityWindowVerified === true || (envelope.speakerIdentity && envelope.speakerIdentity.trustedVoiceWindowActive === true),
+    continuityWindowVerified: envelope.continuityWindowVerified === true || (envelope.speakerIdentity && envelope.speakerIdentity.continuityWindowVerified === true),
+    continuityStatus: envelope.continuityStatus || (envelope.speakerIdentity && envelope.speakerIdentity.continuityStatus) || 'unknown',
+    continuityPreventsSessionDrift: true,
+    continuityIsAuthority: false,
     speakerRoleBinding: envelope.speakerRoleBinding || '',
     voiceMatchStatus: envelope.voiceMatchStatus || '',
     adminOnlyVoiceDelivery: true,
@@ -750,7 +763,12 @@ async function handleVoiceTranscript(input, options) {
       liveChallengeVerified: envelope.liveChallengeVerified === true || (envelope.speakerIdentity && envelope.speakerIdentity.liveChallengeVerified === true),
       challengeStatus: envelope.challengeStatus || (envelope.speakerIdentity && envelope.speakerIdentity.challengeStatus) || 'unknown',
       challengePreventsReplay: true,
-      challengeIsAuthority: false
+      challengeIsAuthority: false,
+      trustedVoiceWindowActive: envelope.trustedVoiceWindowActive === true || envelope.continuityWindowVerified === true || (envelope.speakerIdentity && envelope.speakerIdentity.trustedVoiceWindowActive === true),
+      continuityWindowVerified: envelope.continuityWindowVerified === true || (envelope.speakerIdentity && envelope.speakerIdentity.continuityWindowVerified === true),
+      continuityStatus: envelope.continuityStatus || (envelope.speakerIdentity && envelope.speakerIdentity.continuityStatus) || 'unknown',
+      continuityPreventsSessionDrift: true,
+      continuityIsAuthority: false
     }
   };
 
@@ -1000,5 +1018,6 @@ module.exports = {
   voiceDeliveryStabilizer,
   speechSyncEnvelopeMod,
   speakerIdentityMod,
-  challengeVerifierMod
+  challengeVerifierMod,
+  continuityWindowMod
 };
