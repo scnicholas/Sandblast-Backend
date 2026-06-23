@@ -2530,11 +2530,11 @@ const FIVE_TURN_CONTRACT_VERSION = "nyx.marion.fiveTurnContract/1.2";
 function isFiveTurnContractTurn(text="",input={},routed={}){
   const i=safeObj(input), pm=safeObj(i.previousMemory||i.memory||i.turnMemory), st=safeObj(i.state||i.conversationState||pm.stateSpine||pm.conversationState), cr=safeObj(pm.continuityRegression||st.continuityRegression||i.continuityRegression), prior=safeObj(pm.fiveTurnContract||st.fiveTurnContract||i.fiveTurnContract);
   const t=lower(text);
-  const currentExplicit=/(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|voice and typed|voice and text|typed input|final[- ]?envelope authority|preserve route|preserve.*state|regression target|summarize this regression|without resetting context|what should stay consistent|progression shaping|progression refinement|validation harness|regression harness|mark passed|mark failed)/i.test(t);
+  const currentExplicit=/\b(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|voice and typed|voice and text|typed input|final[- ]?envelope authority|preserve route|preserve.*state|regression target|summarize this regression|without resetting context|what should stay consistent|progression shaping|progression refinement|validation harness|regression harness|mark passed|mark failed)\b/i.test(t);
   if(isWarmNyxGreetingOnly(text))return false;
   if((prior.active||cr.continuityEligible)&&!currentExplicit)return false;
   if((prior.active||cr.continuityEligible)&&currentExplicit)return true;
-  return /(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|voice and typed|voice and text|typed input|final[- ]?envelope authority|preserve route|preserve.*state|regression target|summarize this regression|without resetting context|what should stay consistent)/i.test(t);
+  return /\b(5[- ]?turn|five[- ]?turn|five[- ]?term|continuity regression|mic\/?text|mic text|mytext|voice and typed|voice and text|typed input|final[- ]?envelope authority|preserve route|preserve.*state|regression target|summarize this regression|without resetting context|what should stay consistent)\b/i.test(t);
 }
 function fiveTurnContractProfile(text="",input={},routed={}){
   const t=lower(text), pm=safeObj(safeObj(input).previousMemory||safeObj(input).memory||{}), st=safeObj(safeObj(input).state||safeObj(input).conversationState||{}), cr=safeObj(pm.continuityRegression||st.continuityRegression||safeObj(input).continuityRegression), prior=safeObj(pm.fiveTurnContract||st.fiveTurnContract||safeObj(input).fiveTurnContract);
