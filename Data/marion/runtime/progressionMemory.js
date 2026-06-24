@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionMemory v1.1.1 RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
+const VERSION = "progressionMemory v1.1.2 KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
 const PROGRESSION_MEMORY_VERSION = "nyx.marion.progressionMemory/1.1";
 const PARALLEL_LANE_RECENCY_VERSION = "nyx.marion.parallelLaneRecency/0.1";
 const shape = require("./progressionShape.js");
@@ -79,18 +79,19 @@ function pendingActionFor(profile = {}, previous = {}) {
 function updateProgressionMemory({ text = "", reply = "", previous = {}, context = {} } = {}) {
   const prev = normalizeProgressionMemory(previous);
   const profile = shape.buildProgressionProfile(text, { ...safeObj(context), progressionRefinement: prev });
-  const active = !!(profile.active || prev.active);
+  const knowledgeBypass = shape && typeof shape.isKnowledgeQuestionText === "function" ? shape.isKnowledgeQuestionText(text) : false;
+  const active = knowledgeBypass ? false : !!(profile.active || prev.active);
   const shallow = active && /^\s*(continue|next|ok|done)\.?\s*$/i.test(safeStr(reply));
   const next = normalizeProgressionMemory({
     active,
-    lane: active ? "progression_shaping_refinement" : prev.lane,
-    activePhase: active ? "progression_shaping_refinement" : prev.activePhase,
+    lane: active ? "progression_shaping_refinement" : "",
+    activePhase: active ? "progression_shaping_refinement" : "",
     currentStep: profile.phaseKey || prev.currentStep,
     phaseId: profile.phaseId || prev.phaseId,
     phaseLabel: profile.phaseLabel || prev.phaseLabel,
-    lastUserIntent: profile.signal || prev.lastUserIntent,
+    lastUserIntent: active ? (profile.signal || prev.lastUserIntent) : "",
     lastSystemAction: profile.responseShape || prev.lastSystemAction,
-    pendingAction: pendingActionFor(profile, prev),
+    pendingAction: active ? pendingActionFor(profile, prev) : "",
     responseShape: profile.responseShape || prev.responseShape,
     confidence: profile.confidence || prev.confidence,
     userHash: text ? hashText(text) : prev.userHash,
