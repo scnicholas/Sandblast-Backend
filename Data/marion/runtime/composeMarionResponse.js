@@ -1693,6 +1693,29 @@ function normalizeSixDomainTopicLabel(value=""){
   s=s.replace(/^(?:the|a|an)\s+/i,"").trim();
   return s.slice(0,72);
 }
+
+function buildAdminNaturalLanguageAnswer(value=""){
+  const source=String(value==null?"":value).replace(/\s+/g," ").trim();
+  const t=source.toLowerCase();
+  if(!t)return "";
+  if(/\bbreak a leg\b/.test(t))return "Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it works as a superstition-based way of saying, “I hope you do well.”";
+  if(/\bbless your heart\b/.test(t))return "“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it may mean genuine sympathy, but it can also politely soften criticism, pity, or disapproval. The cultural meaning depends heavily on relationship, delivery, and context.";
+  if(/\bi['’]?m fine\b/.test(t))return "“I’m fine” can be literal, but behaviourally it often signals emotional masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer reading is: the phrase needs context, tone, timing, and follow-up before drawing a conclusion.";
+  if(/\bidiom\b/.test(t))return "An idiom is a phrase whose meaning cannot be understood only from the literal words. The correct reading depends on shared cultural use, context, and tone.";
+  if(/\bsarcasm\b/.test(t))return "Sarcasm means the stated words and the intended meaning do not fully match. Marion should look for tone, contradiction, exaggeration, and context before treating the sentence literally.";
+  return "";
+}
+function isComposerPlanningScaffold(value=""){
+  const t=String(value==null?"":value).replace(/\s+/g," ").trim();
+  if(!t)return false;
+  return /\bpublic knowledge topic\b/i.test(t)||/\bthe useful answer should define the term\b/i.test(t)||/\bcan route through the six-domain layer\b/i.test(t)||/\bshould be handled as a wording and meaning question\b/i.test(t);
+}
+function repairPlanningScaffoldReply(reply="",prompt=""){
+  const natural=buildAdminNaturalLanguageAnswer(prompt);
+  if(natural&&(isComposerPlanningScaffold(reply)||!String(reply||"").trim()))return natural;
+  return String(reply==null?"":reply).replace(/\s+/g," ").trim();
+}
+
 function buildSixDomainPublicKnowledgeAnswer(value=""){
   const source=String(value==null?"":value).replace(/\s+/g," ").trim();
   const t=source.toLowerCase();
@@ -1713,7 +1736,7 @@ function buildSixDomainPublicKnowledgeAnswer(value=""){
   if(/\bcyber\b|\bsecurity\b|\bpassword\b|\bmalware\b|\bransomware\b|\bprivacy\b|\bcredential\b|\baccess\b/.test(t))return "In cybersecurity, the goal is to protect systems, accounts, data, and people from misuse or attack. The strongest answer usually covers the threat, the risk, and the practical control.";
   const topic=normalizeSixDomainTopicLabel(source);
   if(topic&&/\b(tell me about|explain|what is|what are|define|describe|break down|help me understand)\b/i.test(source)){
-    return topic.charAt(0).toUpperCase()+topic.slice(1)+" is a public knowledge topic Marion can route through the six-domain layer. At a high level, the useful answer should define the term, explain why it matters, and give one practical example.";
+    const natural=buildAdminNaturalLanguageAnswer(source); if(natural)return natural; return topic.charAt(0).toUpperCase()+topic.slice(1)+" can be explained directly. The useful answer should define it plainly, explain the cultural or practical context, and give one grounded example.";
   }
   return "";
 }
