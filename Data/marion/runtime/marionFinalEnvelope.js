@@ -141,11 +141,24 @@ function buildFailureSignatureAudit(fields={}){
     finalEnvelopeTrusted: f.finalEnvelopeTrusted!==false && f.trustedFinalEnvelope!==false
   };
 }
+
+function isPlanningScaffoldLeakText(value=""){
+  const t=telemetryAuditText(value);
+  return /\bpublic knowledge topic\b/i.test(t)||/\bcan route through the six-domain layer\b/i.test(t)||/\bthe useful answer should define the term\b/i.test(t)||/\bshould be handled as a wording and meaning question\b/i.test(t);
+}
+function stripPlanningScaffoldLeak(value=""){
+  const t=telemetryAuditText(value);
+  if(!isPlanningScaffoldLeakText(t))return t;
+  return t.replace(/[^.?!]*\b(?:public knowledge topic|six-domain layer|useful answer should define the term|should be handled as a wording and meaning question)\b[^.?!]*[.?!]?/gi,"").replace(/\s+/g," ").trim();
+}
+
 function isTelemetryLeakText(value=""){
   return /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final)\b/i.test(telemetryAuditText(value));
 }
 function stripTelemetryLeakFromReply(value=""){
-  const text=telemetryAuditText(value);
+  let text=telemetryAuditText(value);
+  if(!text)return"";
+  if(isPlanningScaffoldLeakText(text))text=stripPlanningScaffoldLeak(text);
   if(!text)return"";
   if(isTelemetryLeakText(text))return text.replace(/\b(routeKind|speechHints|presenceProfile|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority|nyxStateHint)\s*=\s*[^.;,\n]+[.;,]?\s*/gi,"").replace(/\bdiagnostic packet\b/ig,"").replace(/\bfinal envelope missing\b/ig,"").replace(/\bnon-final\b/ig,"").replace(/\s+/g," ").trim();
   return text;
