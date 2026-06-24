@@ -6,7 +6,7 @@
  * Single-source final envelope builder + validator + JSON-safe transport normalizer.
  */
 
-const VERSION = "marionFinalEnvelope v2.3.3 MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "marionFinalEnvelope v2.3.4 MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -305,7 +305,13 @@ function normalizeEchoTextForCompare(value=""){return safeStr(value).toLowerCase
 function extractPromptForEnvelopeSelection(input={}){const src=safeObj(input),payload=safeObj(src.payload),meta=safeObj(src.meta);return firstText(src.userText,src.rawUserText,src.originalUserText,src.prompt,src.query,src.inputText,payload.userText,payload.rawUserText,payload.prompt,payload.query,meta.userText,meta.rawUserText,meta.prompt,meta.query);}
 function isPromptEchoReply(reply="",prompt=""){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(prompt);if(!r||!p)return false;return r===p||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
 function isExcessExpressionReply(value=""){return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(safeStr(value));}
-function deterministicEnvelopeKnowledgeReply(prompt=""){const t=safeStr(prompt).toLowerCase();if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';return '';}
+function deterministicEnvelopeKnowledgeReply(prompt=""){const t=safeStr(prompt).toLowerCase();
+  if(/\bbreak a leg\b/.test(t))return /instead of good luck|why would/i.test(t)?'Someone says “break a leg” instead of “good luck” because theatre culture treats direct good-luck wishes as unlucky. The phrase became a ritualized, indirect way to encourage someone before a performance.':'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';
+  if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
+  if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';
+  if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';
+  if(/\binstead of good luck\b/.test(t)||/\bwhy would someone say that\b/.test(t))return 'They would say it as an indirect good-luck wish, usually referring to “break a leg.” In theatre culture, saying “good luck” directly is considered unlucky, so the indirect phrase became the accepted ritual.';
+  return '';}
 
 function validateFinalReply(reply, context = {}) {
   const text = safeStr(reply);
@@ -395,11 +401,14 @@ function unwrapReply(value) { const v = safeObj(value); if (isMarionFinalEnvelop
 // MARION_VISIBLE_FINAL_ENVELOPE_ALIAS_PATCH_START
 function attachVisibleReplyAliases(packet={}){
   const out=safeObj(packet);
-  const reply=firstText(out.publicReply,out.visibleReply,out.finalReply,out.reply,out.text,out.displayReply,out.spokenText,safeObj(out.payload).publicReply,safeObj(out.payload).visibleReply,safeObj(out.payload).finalReply,safeObj(out.payload).reply);
+  const payload=safeObj(out.payload), result=safeObj(out.result), data=safeObj(out.data), fe=safeObj(out.finalEnvelope||payload.finalEnvelope||result.finalEnvelope||data.finalEnvelope);
+  const prompt=extractPromptForEnvelopeSelection(out);
+  const reply=firstText(out.publicReply,out.visibleReply,out.finalReply,out.reply,out.text,out.displayReply,out.spokenText,out.answer,out.output,out.response,fe.publicReply,fe.visibleReply,fe.finalReply,fe.reply,fe.text,fe.displayReply,payload.publicReply,payload.visibleReply,payload.finalReply,payload.reply,payload.text,result.publicReply,result.visibleReply,result.finalReply,result.reply,result.text,data.publicReply,data.visibleReply,data.finalReply,data.reply,data.text,deterministicEnvelopeKnowledgeReply(prompt));
   if(!reply)return out;
-  out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.text=reply;out.displayReply=reply;out.spokenText=reply;
-  out.payload={...safeObj(out.payload),reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply};
-  out.final=true;out.canEmit=true;out.publicSurfaceClean=true;
+  out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.text=reply;out.displayReply=reply;out.spokenText=reply;out.answer=reply;out.output=reply;out.response=reply;
+  out.payload={...payload,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,answer:reply,output:reply,response:reply};
+  out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,answer:reply,output:reply,response:reply,final:true,marionFinal:true,canEmit:true};
+  out.final=true;out.marionFinal=true;out.canEmit=true;out.publicSurfaceClean=true;
   return out;
 }
 // MARION_VISIBLE_FINAL_ENVELOPE_ALIAS_PATCH_END
