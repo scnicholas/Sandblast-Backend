@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionResponsePolicy v1.1.0 THIN-REPLY-BLOCKING-HARDLOCK";
+const VERSION = "progressionResponsePolicy v1.1.1 KNOWLEDGE-QUESTION-BYPASS + THIN-REPLY-BLOCKING-HARDLOCK";
 const RESPONSE_POLICY_VERSION = "nyx.marion.progressionResponsePolicy/1.1";
 const shape = require("./progressionShape.js");
 
@@ -30,6 +30,7 @@ function expandedNextAction(phaseKey = "") {
 }
 
 function shapeProgressionReply({ reply = "", text = "", profile = {}, memory = {} } = {}) {
+  if (shape && typeof shape.isKnowledgeQuestionText === "function" && shape.isKnowledgeQuestionText(text)) return safeStr(reply);
   const p = safeObj(profile).active ? safeObj(profile) : shape.buildProgressionProfile(text, { progressionRefinement: memory });
   if (!p.active) return safeStr(reply);
   const phase = p.phaseLabel || "Progression shaping refinement";
