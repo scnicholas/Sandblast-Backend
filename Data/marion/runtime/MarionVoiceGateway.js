@@ -883,20 +883,12 @@ async function callAdminTextBridge(bridge, payload, context) {
 }
 
 function buildAdminTextDeterministicReply(prompt) {
-  const t = safeText(prompt).toLowerCase();
-  if (!t) return '';
-  if (/\b(?:hello|hi|hey)\s+marion\b|^\s*(?:hello|hi|hey)\s*$/i.test(t)) {
-    return 'Hello Mac. Marion admin text is active. Send the next test prompt.';
-  }
-  if (/\bi[’']?m fine\b/.test(t)) {
-    return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a wish to end the topic. The correct analysis is contextual: compare tone, timing, prior stressors, and whether the phrase matches visible behaviour before drawing a conclusion.';
-  }
-  if (/\bbreak a leg\b/.test(t)) {
-    return 'Literally, “break a leg” means to injure a leg. Culturally, it is an idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based good-luck phrase.';
-  }
-  if (/\bbless your heart\b/.test(t)) {
-    return '“Bless your heart” can be sincere sympathy or polite criticism depending on tone, relationship, and setting. In Southern American usage, it may soften pity, disapproval, or affection without stating it directly.';
-  }
+  const t=safeText(prompt).toLowerCase(); if(!t)return '';
+  if(/\b(?:hello|hi|hey)\s+marion\b|^\s*(?:hello|hi|hey)\s*$/i.test(t))return 'Hello Mac. Marion admin text is active. Send the next test prompt.';
+  if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can signal masking, avoidance, or a wish to end the topic. Read it through tone, timing, stress, and visible behaviour.';
+  if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is a superstition-based idiom for wishing good luck, especially before a performance.';
+  if(/\bbless your heart\b/.test(t))return '“Bless your heart” can mean sincere sympathy or polite criticism. In Southern American usage, tone and relationship decide whether it signals care, pity, or disapproval.';
+  if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
   return '';
 }
 
