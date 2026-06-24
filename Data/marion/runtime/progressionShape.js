@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionShape v1.1.0 RESPONSE-EXPANSION-HARDLOCK";
+const VERSION = "progressionShape v1.1.1 KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
 const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRefinement/1.1";
 
 const PROGRESSION_SIGNALS = Object.freeze({
@@ -50,6 +50,17 @@ function safeObj(value) { return value && typeof value === "object" && !Array.is
 function clamp01(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback; }
 function firstText() { for (let i = 0; i < arguments.length; i += 1) { const v = safeStr(arguments[i]); if (v) return v; } return ""; }
 
+
+function isKnowledgeQuestionText(value = "") {
+  const t = lower(value).replace(/[_-]+/g, " ");
+  if (!t) return false;
+  if (/\b(what does|what is|what are|explain|define|meaning of|mean literally|mean culturally|culturally|idiom|phrase|language|linguistic|phonetic|behavioral|behavioural|analyze|analyse|interpret|translate)\b/i.test(t) &&
+      !/\b(progression shaping|progression refinement|progression signal|continuity memory|response shaping|phase 1|phase 2|phase 3|phase 4|regression telemetry|validation harness|mark passed|mark failed)\b/i.test(t)) {
+    return true;
+  }
+  return false;
+}
+
 function extractProgressionCarry(context = {}) {
   const c = safeObj(context);
   const memory = safeObj(c.memory || c.previousMemory || c.state || c.turnMemory || c.conversationState);
@@ -91,9 +102,13 @@ function isProgressionRelevant(text = "", context = {}) {
   const t = lower(text).replace(/[_-]+/g, " ");
   const c = safeObj(context);
   const carry = extractProgressionCarry(c);
-  if (/\b(progression shaping|progression refinement|progression signal|continuity memory|response shaping|phase 1|phase 2|phase 3|phase 4)\b/i.test(t)) return true;
-  if (/^\s*(next steps?|what now|what'?s next|passed|failed|continue|carry on|keep going|proceed)\s*[.!?]*\s*$/i.test(t)) return !!(carry.active || safeObj(c.progressionShapingGuard).active || /progression_shaping_refinement/i.test(firstText(c.activeLane, c.currentLane, c.activeProject, c.lastTopic, carry.activePhase, carry.lane)));
-  return !!(carry.active || safeObj(c.progressionShapingGuard).active || /progression_shaping_refinement/i.test(firstText(c.activeLane, c.currentLane, c.activeProject, c.lastTopic)));
+  const explicitProgression = /\b(progression shaping|progression refinement|progression signal|continuity memory|response shaping|phase 1|phase 2|phase 3|phase 4|regression telemetry|validation harness|regression harness|mark passed|mark failed)\b/i.test(t);
+  if (explicitProgression) return true;
+  if (isKnowledgeQuestionText(t)) return false;
+  if (/^\s*(next steps?|what now|what'?s next|passed|failed|continue|carry on|keep going|proceed)\s*[.!?]*\s*$/i.test(t)) {
+    return !!(carry.active || safeObj(c.progressionShapingGuard).active || /progression_shaping_refinement/i.test(firstText(c.activeLane, c.currentLane, c.activeProject, c.lastTopic, carry.activePhase, carry.lane)));
+  }
+  return false;
 }
 
 function responseShapeForSignal(signal = "", phaseKey = "") {
@@ -137,6 +152,7 @@ module.exports = {
   PROGRESSION_SIGNALS,
   PROGRESSION_PHASES,
   extractProgressionCarry,
+  isKnowledgeQuestionText,
   detectProgressionSignal,
   detectProgressionPhase,
   isProgressionRelevant,
