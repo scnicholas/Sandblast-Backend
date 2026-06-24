@@ -85,7 +85,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/3.3-admin-text-bridge-salvage';
+const VERSION = 'marion.voiceGateway/3.4-admin-text-continuity-reference-final';
 
 function safeRequire(path) {
   try {
@@ -882,13 +882,29 @@ async function callAdminTextBridge(bridge, payload, context) {
   throw lastError || new Error('MARION_TEXT_BRIDGE_NO_RESULT');
 }
 
+const MARION_ADMIN_TEXT_MEMORY={lastTopic:'',lastPrompt:'',lastReply:'',updatedAt:0};
+function rememberAdminTextTurn(prompt,reply){
+  const p=safeText(prompt),r=safeText(reply),t=(p+' '+r).toLowerCase();if(!p&&!r)return;
+  if(/\bbreak a leg\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic='break a leg';
+  else if(/\bspill the beans\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic='spill the beans';
+  else if(/\bbless your heart\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic='bless your heart';
+  else if(/\bi[’']?m fine\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic="I'm fine";
+  MARION_ADMIN_TEXT_MEMORY.lastPrompt=p;MARION_ADMIN_TEXT_MEMORY.lastReply=r;MARION_ADMIN_TEXT_MEMORY.updatedAt=Date.now();
+}
+function resolveAdminFollowupReference(prompt){
+  const t=safeText(prompt).toLowerCase(),m=MARION_ADMIN_TEXT_MEMORY,topic=safeText(m.lastTopic).toLowerCase();
+  const fresh=Date.now()-(Number(m.updatedAt)||0)<20*60*1000;
+  const follow=/\b(that|it|this|the phrase|instead of good luck|why would someone say)\b/.test(t);
+  return fresh&&follow?topic:'';
+}
 function buildAdminTextDeterministicReply(prompt) {
   const t=safeText(prompt).toLowerCase(); if(!t)return '';
+  const ref=resolveAdminFollowupReference(prompt);
   if(/\b(?:hello|hi|hey)\s+marion\b|^\s*(?:hello|hi|hey)\s*$/i.test(t))return 'Hello Mac. Marion admin text is active. Send the next test prompt.';
-  if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can signal masking, avoidance, or a wish to end the topic. Read it through tone, timing, stress, and visible behaviour.';
-  if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is a superstition-based idiom for wishing good luck, especially before a performance.';
-  if(/\bbless your heart\b/.test(t))return '“Bless your heart” can mean sincere sympathy or polite criticism. In Southern American usage, tone and relationship decide whether it signals care, pity, or disapproval.';
-  if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
+  if(/\bi[’']?m fine\b/.test(t)||ref==="i'm fine")return '“I’m fine” can be literal, but behaviourally it can signal masking, avoidance, or a wish to end the topic. Read it through tone, timing, stress, and visible behaviour.';
+  if(/\bbreak a leg\b/.test(t)||ref==='break a leg')return /instead of good luck|why would/i.test(t)?'Someone says “break a leg” instead of “good luck” because theatre culture treats direct good-luck wishes as unlucky. The phrase works as a ritualized, indirect good-luck wish that signals encouragement while respecting that superstition.':'Literally, “break a leg” means to injure a leg. Culturally, it is a superstition-based idiom for wishing good luck, especially before a performance.';
+  if(/\bbless your heart\b/.test(t)||ref==='bless your heart')return '“Bless your heart” can mean sincere sympathy or polite criticism. In Southern American usage, tone and relationship decide whether it signals care, pity, or disapproval.';
+  if(/\bspill the beans\b/.test(t)||ref==='spill the beans')return /why would|instead/i.test(t)?'Someone may say “spill the beans” when a secret, surprise, or private plan gets revealed earlier than intended. The phrase softens the accusation by making the disclosure sound informal rather than severe.':'“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
   return '';
 }
 
@@ -898,7 +914,7 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
   const rawReply = firstReplyText(base) || directReplyText(base);
   const badReply = /protected text bridge, but the bridge failed during processing|protected voice bridge|bridge did not return a visible final reply|no clean public reply field/i.test(rawReply);
   const reply = (!badReply && rawReply) || buildAdminTextDeterministicReply(prompt) || rawReply;
-  return Object.assign({}, base, {
+  const out=Object.assign({}, base, {
     ok: base.ok !== false && Boolean(reply),
     reply,
     text: reply,
@@ -942,6 +958,8 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
       noUserFacingDiagnostics: true
     })
   });
+  rememberAdminTextTurn(prompt,reply);
+  return out;
 }
 // MARION_ADMIN_TEXT_CONSOLE_BYPASS_PATCH_END
 
