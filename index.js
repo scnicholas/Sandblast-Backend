@@ -3610,8 +3610,8 @@ function buildIndexSafeTransportReply(norm, reason, extra) {
 function normalizeEchoTextForCompare(value=""){return cleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function promptTextForFinalSelection(norm={}){const n=isObj(norm)?norm:{};return cleanText(n.userText||n.rawUserText||n.originalText||n.text||n.query||n.prompt||n.message||"");}
 function isPromptEchoReply(reply="",norm={}){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(promptTextForFinalSelection(norm));if(!r||!p)return false;return r===p||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
-function isExcessExpressionReply(value=""){return /(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)/i.test(cleanText(value));}
-function deterministicAdminKnowledgeReply(norm={}){const t=promptTextForFinalSelection(norm).toLowerCase();if(/break a leg/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';if(/bless your heart/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';if(/i[’']?m fine/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';return '';}
+function isExcessExpressionReply(value=""){return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(cleanText(value));}
+function deterministicAdminKnowledgeReply(norm={}){const t=promptTextForFinalSelection(norm).toLowerCase();if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';return '';}
 
 function finalizeRenderableReply(reply, norm, authority, reason) {
   const cleaned = cleanReplyForUser(reply);
@@ -17834,24 +17834,28 @@ function marionAdminTextRuntimeExtractPrompt(body) {
   ).slice(0, 6000);
 }
 
-function marionAdminTextRuntimeReplyFromPacket(packet) {
+function marionAdminTextRuntimeReplyFromPacket(packet, promptText) {
   const src = safeObj(packet);
   const result = safeObj(src.result);
   const payload = safeObj(src.payload);
   const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || result.finalEnvelope);
   const synthesis = safeObj(src.synthesis || payload.synthesis || result.synthesis);
+  const norm = { prompt: promptText, userText: promptText, rawUserText: promptText, text: promptText, message: promptText };
   const candidates = [
-    src.reply, src.response, src.text, src.message, src.answer, src.output, src.publicReply, src.visibleReply,
-    result.reply, result.response, result.text, result.message, result.answer, result.output, result.publicReply, result.visibleReply,
-    payload.reply, payload.response, payload.text, payload.message, payload.answer, payload.output, payload.publicReply, payload.visibleReply,
-    finalEnvelope.reply, finalEnvelope.text, finalEnvelope.spokenText, finalEnvelope.publicReply, finalEnvelope.visibleReply,
-    synthesis.reply, synthesis.text, synthesis.spokenText, synthesis.output
+    finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.spokenText,
+    synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.answer, synthesis.output, synthesis.text, synthesis.spokenText,
+    result.reply, result.publicReply, result.visibleReply, result.answer, result.output, result.response, result.text, result.message,
+    payload.reply, payload.publicReply, payload.visibleReply, payload.answer, payload.output, payload.response, payload.text, payload.message,
+    src.reply, src.publicReply, src.visibleReply, src.answer, src.output, src.response, src.text, src.message
   ];
   for (const value of candidates) {
-    const text = stripUserVisibleDebugLeak(cleanText(value || ""));
-    if (text && !hasUserVisibleDebugLeak(text)) return text;
+    const raw = cleanText(value || "");
+    if (!raw) continue;
+    const cleaned = stripUserVisibleDebugLeak(raw);
+    const finalReply = finalizeRenderableReply(cleaned, norm, "marion_admin_runtime_reply_selection", "admin_runtime_packet_candidate");
+    if (finalReply && !hasUserVisibleDebugLeak(finalReply) && !isPromptEchoReply(finalReply, norm) && !isExcessExpressionReply(finalReply)) return finalReply;
   }
-  return "";
+  return deterministicAdminKnowledgeReply(norm) || "";
 }
 
 async function invokeMarionAdminTextRuntime(body, auth, traceId) {
@@ -17906,7 +17910,7 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId) {
     bridgeStatus.mod.route;
 
   const packet = await Promise.resolve(fn(input, context));
-  const reply = marionAdminTextRuntimeReplyFromPacket(packet);
+  const reply = marionAdminTextRuntimeReplyFromPacket(packet, prompt);
   return {
     ok: !!reply,
     statusCode: reply ? 200 : 502,
