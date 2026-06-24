@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.72sb LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.73sb MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -17690,11 +17690,212 @@ app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.enrollApprove, async (req, res) =>
 app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.enrollDeny, async (req, res) => handleMarionVoiceSpeakerRegistry(req, res, "deny"));
 app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.revoke, async (req, res) => handleMarionVoiceSpeakerRegistry(req, res, "revoke"));
 
+
+// MARION-ADMIN-TEXT-RUNTIME-HANDLER-V1:
+// Private admin-only text conversation bridge for the Marion console.
+// This keeps the existing admin control plane intact while routing conversational
+// text to MarionBridge/ChatEngine through Marion's final-authority pipeline.
+const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/1.0-session-rbac-bridge";
+const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
+  "/api/private/marion/admin/runtime",
+  "/private/marion/admin/runtime",
+  "/api/private/marion/runtime",
+  "/private/marion/runtime"
+]);
+
+function marionAdminTextRuntimeBridgeStatus() {
+  const candidates = [
+    "./marionBridge.js",
+    "./marionBridge",
+    "./Data/marion/runtime/marionBridge.js",
+    "./Data/marion/runtime/marionBridge",
+    "./Utils/marionBridge.js",
+    "./Utils/marionBridge"
+  ];
+  for (const candidate of candidates) {
+    try {
+      const resolved = require.resolve(candidate);
+      const mod = require(resolved);
+      if (mod) {
+        return {
+          available: true,
+          mod,
+          requested: candidate,
+          resolvedPath: resolved,
+          version: cleanText(mod.VERSION || ""),
+          handler:
+            typeof mod.handleMarionAdminConversation === "function" ? "handleMarionAdminConversation" :
+            typeof mod.processWithMarion === "function" ? "processWithMarion" :
+            typeof mod.handle === "function" ? "handle" :
+            typeof mod.ask === "function" ? "ask" :
+            typeof mod.route === "function" ? "route" : ""
+        };
+      }
+    } catch (_) {}
+  }
+  return {
+    available: false,
+    mod: null,
+    requested: "",
+    resolvedPath: "",
+    version: "",
+    handler: "",
+    reason: "marion_bridge_unavailable"
+  };
+}
+
+function marionAdminTextRuntimeExtractPrompt(body) {
+  return cleanText(
+    body && (body.prompt || body.message || body.text || body.query || body.userText || body.input || body.commandText || "")
+  ).slice(0, 6000);
+}
+
+function marionAdminTextRuntimeReplyFromPacket(packet) {
+  const src = safeObj(packet);
+  const result = safeObj(src.result);
+  const payload = safeObj(src.payload);
+  const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || result.finalEnvelope);
+  const synthesis = safeObj(src.synthesis || payload.synthesis || result.synthesis);
+  const candidates = [
+    src.reply, src.response, src.text, src.message, src.answer, src.output, src.publicReply, src.visibleReply,
+    result.reply, result.response, result.text, result.message, result.answer, result.output, result.publicReply, result.visibleReply,
+    payload.reply, payload.response, payload.text, payload.message, payload.answer, payload.output, payload.publicReply, payload.visibleReply,
+    finalEnvelope.reply, finalEnvelope.text, finalEnvelope.spokenText, finalEnvelope.publicReply, finalEnvelope.visibleReply,
+    synthesis.reply, synthesis.text, synthesis.spokenText, synthesis.output
+  ];
+  for (const value of candidates) {
+    const text = stripUserVisibleDebugLeak(cleanText(value || ""));
+    if (text && !hasUserVisibleDebugLeak(text)) return text;
+  }
+  return "";
+}
+
+async function invokeMarionAdminTextRuntime(body, auth, traceId) {
+  const prompt = marionAdminTextRuntimeExtractPrompt(body);
+  const bridgeStatus = marionAdminTextRuntimeBridgeStatus();
+  if (!prompt) {
+    return { ok: false, statusCode: 400, stage: "marion_runtime_prompt_missing", reason: "prompt_required", bridgeStatus };
+  }
+  if (!bridgeStatus.available || !bridgeStatus.mod || !bridgeStatus.handler) {
+    return { ok: false, statusCode: 503, stage: "marion_runtime_bridge_unavailable", reason: bridgeStatus.reason || "marion_bridge_unavailable", bridgeStatus };
+  }
+
+  const input = {
+    ...safeObj(body),
+    prompt,
+    message: prompt,
+    text: prompt,
+    query: prompt,
+    userText: prompt,
+    rawUserText: prompt,
+    inputChannel: "text",
+    source: "marion-admin-console",
+    publicAgent: "Marion",
+    authority: "Marion",
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    adminInterfaceScope: "marion_admin_conversation",
+    privateTextDelivery: true,
+    deliveryChannel: "marion_admin_interface",
+    adminOnlyTextDelivery: true,
+    publicUsersCanAddressMarion: false,
+    traceId
+  };
+  const context = {
+    traceId,
+    adminVerified: !!(auth && auth.verified),
+    adminRole: cleanText(auth && auth.role || ""),
+    sessionVerified: !!(auth && auth.sessionVerified),
+    inputChannel: "text",
+    source: "marion-admin-console",
+    publicAgent: "Marion",
+    authority: "Marion",
+    directMarionAdminInterface: true,
+    marionAdminConversation: true
+  };
+
+  const fn =
+    typeof bridgeStatus.mod.handleMarionAdminConversation === "function" ? bridgeStatus.mod.handleMarionAdminConversation :
+    typeof bridgeStatus.mod.processWithMarion === "function" ? bridgeStatus.mod.processWithMarion :
+    typeof bridgeStatus.mod.handle === "function" ? bridgeStatus.mod.handle :
+    typeof bridgeStatus.mod.ask === "function" ? bridgeStatus.mod.ask :
+    bridgeStatus.mod.route;
+
+  const packet = await Promise.resolve(fn(input, context));
+  const reply = marionAdminTextRuntimeReplyFromPacket(packet);
+  return {
+    ok: !!reply,
+    statusCode: reply ? 200 : 502,
+    stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing",
+    reason: reply ? "" : "clean_public_reply_missing",
+    reply,
+    response: reply,
+    text: reply,
+    message: reply,
+    result: packet,
+    bridgeStatus
+  };
+}
+
+async function handleMarionAdminTextRuntime(req, res) {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const body = safeObj(req && req.body);
+  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionruntime"));
+  const auth = marionAdminConsoleRequestAuth(req);
+  if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+  if (!marionAdminConsoleCapabilityAllowed(auth, "command")) {
+    return marionAdminConsoleCapabilityDenied(res, traceId, auth, "command");
+  }
+
+  try {
+    const runtime = await invokeMarionAdminTextRuntime(body, auth, traceId);
+    const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
+    const reply = cleanText(runtime.reply || "");
+    return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+      ok: !!runtime.ok,
+      stage: cleanText(runtime.stage || ""),
+      reason: cleanText(runtime.reason || ""),
+      routeMounted: true,
+      runtimeHandlerMounted: true,
+      runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
+      gatewayReady: true,
+      bridgeReady: !!(runtime.bridgeStatus && runtime.bridgeStatus.available),
+      bridgeHandler: cleanText(runtime.bridgeStatus && runtime.bridgeStatus.handler || ""),
+      bridgeVersion: cleanText(runtime.bridgeStatus && runtime.bridgeStatus.version || ""),
+      reply,
+      response: reply,
+      text: reply,
+      message: reply,
+      result: marionAdminConsoleRedacted(runtime.result || {}),
+      responseFinalized: true
+    }));
+  } catch (err) {
+    return res.status(502).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+      ok: false,
+      stage: "marion_runtime_handler_exception",
+      reason: cleanText(err && (err.code || err.message) || "marion_runtime_exception").slice(0, 160),
+      routeMounted: true,
+      runtimeHandlerMounted: true,
+      runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
+      responseFinalized: true
+    }));
+  }
+}
+
+
 app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
   applyCors(req, res);
   hardenConversationNoStore(res);
   return res.status(204).end();
 });
+
+app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
+app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES, async (req, res) => handleMarionAdminTextRuntime(req, res));
 
 app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionIssue, async (req, res) => handleMarionAdminConsoleSessionIssue(req, res));
 // MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1:
