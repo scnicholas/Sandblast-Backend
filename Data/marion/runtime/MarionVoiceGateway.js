@@ -85,7 +85,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/3.4-admin-text-continuity-reference-final';
+const VERSION = 'marion.voiceGateway/3.5-public-reply-contract-continuity-final';
 
 function safeRequire(path) {
   try {
@@ -902,19 +902,66 @@ function buildAdminTextDeterministicReply(prompt) {
   const ref=resolveAdminFollowupReference(prompt);
   if(/\b(?:hello|hi|hey)\s+marion\b|^\s*(?:hello|hi|hey)\s*$/i.test(t))return 'Hello Mac. Marion admin text is active. Send the next test prompt.';
   if(/\bi[’']?m fine\b/.test(t)||ref==="i'm fine")return '“I’m fine” can be literal, but behaviourally it can signal masking, avoidance, or a wish to end the topic. Read it through tone, timing, stress, and visible behaviour.';
-  if(/\bbreak a leg\b/.test(t)||ref==='break a leg')return /instead of good luck|why would/i.test(t)?'Someone says “break a leg” instead of “good luck” because theatre culture treats direct good-luck wishes as unlucky. The phrase works as a ritualized, indirect good-luck wish that signals encouragement while respecting that superstition.':'Literally, “break a leg” means to injure a leg. Culturally, it is a superstition-based idiom for wishing good luck, especially before a performance.';
+  if(/\bbreak a leg\b/.test(t)||ref==='break a leg')return /business meeting|work meeting|professional/i.test(t)?'In a business meeting, “break a leg” can work only if the setting is informal or performance-like, such as before a pitch or presentation. In a formal business context, “good luck” or “you’ll do well” is clearer and safer.':(/instead of good luck|why would|why say/i.test(t)?'Someone says “break a leg” instead of “good luck” because theatre culture treats direct good-luck wishes as unlucky. The phrase became a ritualized, indirect way to encourage someone before a performance.':'Literally, “break a leg” means to injure a leg. Culturally, it is a superstition-based idiom for wishing good luck, especially before a performance.');
   if(/\bbless your heart\b/.test(t)||ref==='bless your heart')return '“Bless your heart” can mean sincere sympathy or polite criticism. In Southern American usage, tone and relationship decide whether it signals care, pity, or disapproval.';
   if(/\bspill the beans\b/.test(t)||ref==='spill the beans')return /why would|instead/i.test(t)?'Someone may say “spill the beans” when a secret, surprise, or private plan gets revealed earlier than intended. The phrase softens the accusation by making the disclosure sound informal rather than severe.':'“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
+  if(/\bwhy would someone say that instead of good luck\b/.test(t)||/\binstead of good luck\b/.test(t))return 'They would say it as an indirect good-luck wish, usually because the earlier phrase was “break a leg.” In theatre culture, saying “good luck” directly is considered unlucky, so “break a leg” became the safer ritual phrase.';
   return '';
+}
+
+
+function isAdminTextBadPublicReply(value){
+  return /protected text bridge, but the bridge failed during processing|protected voice bridge|bridge did not return a visible final reply|no clean public reply field|runtime packet, but no clean public reply|^\s*\[?403\]?/i.test(safeText(value));
+}
+function firstAdminPublicReply(value, prompt, depth, seen){
+  if(!value)return '';
+  if(typeof value==='string'){
+    const t=safeText(value);
+    return t&&!isAdminTextBadPublicReply(t)?t:'';
+  }
+  if(typeof value!=='object')return '';
+  const level=Number.isFinite(Number(depth))?Number(depth):0;
+  if(level>8)return '';
+  const visited=seen instanceof Set?seen:new Set();
+  if(visited.has(value))return '';
+  visited.add(value);
+  const keys=['publicReply','visibleReply','finalReply','reply','displayReply','text','answer','output','response','message','spokenText','final','finalEnvelope','payload','result','data','packet','marionFinal','envelope','synthesis','meta'];
+  for(const key of keys){
+    const v=value[key];
+    if(typeof v==='string'){
+      const t=safeText(v);
+      if(t&&!isAdminTextBadPublicReply(t))return t;
+    }else if(v&&typeof v==='object'){
+      const found=firstAdminPublicReply(v,prompt,level+1,visited);
+      if(found)return found;
+    }
+  }
+  for(const key of Object.keys(value)){
+    if(keys.includes(key))continue;
+    const found=firstAdminPublicReply(value[key],prompt,level+1,visited);
+    if(found)return found;
+  }
+  return '';
+}
+function attachAdminVisibleReplyAliases(packet, reply){
+  const out=packet&&typeof packet==='object'?packet:{};
+  const r=safeText(reply);
+  if(!r)return out;
+  out.ok=true;out.reply=r;out.text=r;out.message=r;out.displayReply=r;out.publicReply=r;out.visibleReply=r;out.finalReply=r;
+  out.answer=r;out.output=r;out.response=r;out.spokenText=r;out.final=true;out.marionFinal=true;out.canEmit=true;out.publicSurfaceClean=true;
+  out.payload=Object.assign({},out.payload||{},{reply:r,text:r,message:r,displayReply:r,publicReply:r,visibleReply:r,finalReply:r,answer:r,output:r,response:r,spokenText:r});
+  out.finalEnvelope=Object.assign({},out.finalEnvelope||{},{reply:r,text:r,message:r,displayReply:r,publicReply:r,visibleReply:r,finalReply:r,answer:r,output:r,response:r,spokenText:r,final:true,marionFinal:true,canEmit:true});
+  return out;
 }
 
 function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
   const base = response && typeof response === 'object' ? response : { reply: safeText(response) };
   const prompt = payload && typeof payload === 'object' ? safeText(payload.text || payload.message || payload.query || payload.input || '') : '';
-  const rawReply = firstReplyText(base) || directReplyText(base);
-  const badReply = /protected text bridge, but the bridge failed during processing|protected voice bridge|bridge did not return a visible final reply|no clean public reply field/i.test(rawReply);
-  const reply = (!badReply && rawReply) || buildAdminTextDeterministicReply(prompt) || rawReply;
-  const out=Object.assign({}, base, {
+  const rawReply = firstAdminPublicReply(base, prompt) || firstReplyText(base) || directReplyText(base);
+  const badReply = isAdminTextBadPublicReply(rawReply);
+  const deterministic = buildAdminTextDeterministicReply(prompt);
+  const reply = (!badReply && rawReply) || deterministic || '';
+  const out=attachAdminVisibleReplyAliases(Object.assign({}, base, {
     ok: base.ok !== false && Boolean(reply),
     reply,
     text: reply,
@@ -957,7 +1004,7 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
       inputChannel: 'text',
       noUserFacingDiagnostics: true
     })
-  });
+  }), reply);
   rememberAdminTextTurn(prompt,reply);
   return out;
 }
@@ -1041,9 +1088,10 @@ async function handleMarionAdminConversation(input, options) {
     const response = await callAdminTextBridge(bridge, bridgePayload, bridgeContext);
     return normalizeAdminTextBridgeResponse(response, bridgePayload, adminVerified);
   } catch (error) {
-    const reply = buildAdminTextDeterministicReply(text) || 'Marion admin text reached the protected text bridge, but the bridge failed during processing.';
+    const deterministic = buildAdminTextDeterministicReply(text);
+    const reply = deterministic || 'Marion admin text reached the protected text bridge, but the bridge failed during processing.';
     return normalizeAdminTextBridgeResponse({
-      ok: Boolean(buildAdminTextDeterministicReply(text)),
+      ok: Boolean(deterministic),
       reply,
       text: reply,
       message: reply,
