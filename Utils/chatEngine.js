@@ -1145,8 +1145,8 @@ function extractReplyCandidate(input = {}) {
 function normalizeEchoTextForCompare(value=""){return cleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function extractPromptForReplySelection(input={}){const src=safeObj(input),payload=safeObj(src.payload),meta=safeObj(src.meta);return firstText(src.userText,src.rawUserText,src.originalUserText,src.prompt,src.query,src.inputText,payload.userText,payload.rawUserText,payload.prompt,payload.query,meta.userText,meta.rawUserText,meta.prompt,meta.query);}
 function isPromptEchoReply(reply="",prompt=""){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(prompt);if(!r||!p)return false;return r===p||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
-function isExcessExpressionReply(value=""){return /(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)/i.test(cleanText(value));}
-function deterministicKnowledgeReplyForSelection(prompt=""){const t=cleanText(prompt).toLowerCase();if(/break a leg/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';if(/bless your heart/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';if(/i[’']?m fine/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';return '';}
+function isExcessExpressionReply(value=""){return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(cleanText(value));}
+function deterministicKnowledgeReplyForSelection(prompt=""){const t=cleanText(prompt).toLowerCase();if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';return '';}
 function isUnsafeFinalReplySelection(reply="",prompt=""){return !cleanText(reply)||isThinPlaceholderText(reply)||isInternalBlockerText(reply,{})||isExcessExpressionReply(reply)||isPromptEchoReply(reply,prompt);}
 
 function extractFinalReply(input = {}, trust = {}) {
@@ -2646,7 +2646,21 @@ function extractLingoSentinelSilentOversightCarry(input = {}) {
 
 
 if (typeof module !== "undefined") {
-  module.exports = {
+  
+
+// MARION_VISIBLE_FINAL_CHATENGINE_PATCH_START
+function normalizeVisibleFinalReplyFields(packet={}){
+  const out=safeObj(packet), payload=safeObj(out.payload), fe=safeObj(out.finalEnvelope);
+  const reply=firstText(fe.publicReply,fe.visibleReply,fe.finalReply,fe.reply,out.publicReply,out.visibleReply,out.finalReply,out.reply,out.answer,out.output,out.response,out.message,out.text,payload.publicReply,payload.visibleReply,payload.finalReply,payload.reply,payload.answer,payload.output,payload.response,payload.message,payload.text);
+  if(!reply)return out;
+  out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.answer=reply;out.output=reply;out.response=reply;out.message=reply;out.text=reply;
+  out.payload={...payload,reply,publicReply:reply,visibleReply:reply,finalReply:reply,answer:reply,output:reply,response:reply,message:reply,text:reply};
+  out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,canEmit:true,final:true};
+  return out;
+}
+// MARION_VISIBLE_FINAL_CHATENGINE_PATCH_END
+
+module.exports = { normalizeVisibleFinalReplyFields,
     VERSION,
     FINAL_RUNTIME_TELEMETRY_VERSION,
     DOMAIN_CONCIERGE_CORE_VERSION,
