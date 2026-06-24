@@ -85,7 +85,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/3.1-phase7-continuity-window';
+const VERSION = 'marion.voiceGateway/3.2-admin-text-console-bypass';
 
 function safeRequire(path) {
   try {
@@ -829,6 +829,92 @@ async function handleVoiceTranscript(input, options) {
 }
 
 
+
+// MARION_ADMIN_TEXT_CONSOLE_BYPASS_PATCH_START
+// The Marion admin console is a text channel, even though this module also
+// coordinates the protected voice lane. Keep admin text out of handleVoiceTranscript
+// so typed prompts never fall into voice-bridge error handling.
+async function callAdminTextBridge(bridge, payload, context) {
+  if (!bridge) {
+    return {
+      ok: false,
+      reply: 'Marion admin text was received, but MarionBridge is not available yet.',
+      error: 'MARION_BRIDGE_NOT_FOUND'
+    };
+  }
+
+  const candidates = [
+    bridge.handleMarionAdminConversation,
+    bridge.processWithMarion,
+    bridge.handleMessage,
+    bridge.handle,
+    bridge.route,
+    bridge.process,
+    bridge.compose,
+    bridge.default
+  ].filter((fn) => typeof fn === 'function');
+
+  if (candidates.length === 0) {
+    return {
+      ok: false,
+      reply: 'Marion admin text was received, but MarionBridge does not expose a compatible text handler.',
+      error: 'MARION_TEXT_BRIDGE_HANDLER_NOT_FOUND'
+    };
+  }
+
+  return candidates[0](payload, context);
+}
+
+function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
+  const base = response && typeof response === 'object' ? response : { reply: safeText(response) };
+  const reply = firstReplyText(base) || directReplyText(base);
+  return Object.assign({}, base, {
+    ok: base.ok !== false && Boolean(reply),
+    reply,
+    text: reply,
+    message: reply,
+    displayReply: reply,
+    publicReply: reply,
+    visibleReply: reply,
+    finalReply: reply,
+    route: '/api/marion/admin/conversation',
+    source: 'marion-admin-interface',
+    inputChannel: 'text',
+    publicAgent: adminVerified && base.ok !== false ? 'Marion' : 'Nyx',
+    authority: 'Marion',
+    directMarionAdminInterface: adminVerified && base.ok !== false,
+    marionAdminConversationAllowed: adminVerified && base.ok !== false,
+    adminInterfaceScope: 'marion_admin_conversation',
+    publicUsersCanAddressMarion: false,
+    privateTextDelivery: adminVerified && base.ok !== false,
+    privateDelivery: adminVerified && base.ok !== false,
+    privateVoiceDelivery: false,
+    deliveryChannel: 'marion_admin_interface',
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    adminVoiceDeliveryAllowed: false,
+    textConsoleVoiceBypass: true,
+    voice: Object.assign({}, base.voice || {}, {
+      active: false,
+      inputChannel: 'text',
+      source: 'text',
+      textConsoleVoiceBypass: true,
+      adminVoiceDeliveryAllowed: false,
+      privateVoiceDelivery: false,
+      audioStored: false,
+      noRawAudioStored: true
+    }),
+    meta: Object.assign({}, base.meta || {}, {
+      textConsoleVoiceBypass: true,
+      adminInterfaceScope: 'marion_admin_conversation',
+      inputChannel: 'text',
+      noUserFacingDiagnostics: true
+    })
+  });
+}
+// MARION_ADMIN_TEXT_CONSOLE_BYPASS_PATCH_END
+
 async function handleMarionAdminConversation(input, options) {
   const opts = options && typeof options === 'object' ? options : {};
   const adminVerified =
@@ -841,92 +927,80 @@ async function handleMarionAdminConversation(input, options) {
     hasOptionAdminVoiceProof(opts.authorization || {}) ||
     hasOptionAdminVoiceProof(opts.output || {});
 
-  const payload = input && typeof input === 'object' ? input : { transcript: String(input || '') };
-  const transcript = payload.transcript || payload.text || payload.message || payload.query || payload.input || '';
+  const payload = input && typeof input === 'object' ? input : { text: String(input || '') };
+  const text = safeText(payload.text || payload.message || payload.query || payload.input || payload.transcript || '');
+  const bridge = loadMarionBridge();
 
-  const result = await handleVoiceTranscript(Object.assign({}, payload, {
-    transcript,
-    inputChannel: 'voice',
+  const bridgePayload = Object.assign({}, payload, {
+    text,
+    message: text,
+    query: text,
+    inputChannel: 'text',
     source: 'marion-admin-interface',
     publicAgent: 'Marion',
     authority: 'Marion',
     directMarionAdminInterface: true,
     marionAdminConversation: true,
     adminInterfaceScope: 'marion_admin_conversation',
+    privateTextDelivery: true,
     privateDelivery: true,
-    privateVoiceDelivery: true,
+    privateVoiceDelivery: false,
     deliveryChannel: 'marion_admin_interface',
-    adminOnlyVoiceDelivery: true,
-    publicUsersCanAddressMarion: false
-  }), Object.assign({}, opts, {
-    directMarionAdminInterface: true,
-    allowMarionAdminConversation: true,
-    adminInterfaceScope: 'marion_admin_conversation',
-    deliveryChannel: 'marion_admin_interface',
-    serverSideAdminVoiceAuth: adminVerified,
-    trustedServerAuth: adminVerified,
-    authorization: Object.assign({}, opts.authorization || {}, {
-      adminOnlyVoiceDelivery: true,
-      allowConversationalWhenUnknown: false,
-      trustSpeakerHint: adminVerified,
-      allowMarionAdminConversation: true,
-      directMarionAdminInterface: true,
-      adminInterfaceScope: 'marion_admin_conversation',
-      deliveryChannel: 'marion_admin_interface',
-      serverSideAdminVoiceAuth: adminVerified,
-      trustedServerAuth: adminVerified,
-      adminVoiceVerified: adminVerified,
-      adminVoiceTokenVerified: adminVerified,
-      adminVoiceDeliveryAllowed: adminVerified
-    }),
-    output: Object.assign({}, opts.output || {}, {
-      adminOnlyVoiceDelivery: true,
-      adminVoiceVerified: adminVerified,
-      adminVoiceTokenVerified: adminVerified,
-      adminVoiceDeliveryAllowed: adminVerified,
-      directMarionAdminInterface: true,
-      marionAdminConversation: true,
-      adminInterfaceScope: 'marion_admin_conversation',
-      deliveryChannel: 'marion_admin_interface',
-      forceSilent: !adminVerified
-    }),
-    context: Object.assign({}, opts.context || {}, {
-      inputChannel: 'voice',
-      source: 'marion-admin-interface',
-      publicAgent: 'Marion',
-      authority: 'Marion',
-      directMarionAdminInterface: true,
-      marionAdminConversation: true,
-      adminInterfaceScope: 'marion_admin_conversation',
-      privateDelivery: true,
-      privateVoiceDelivery: true,
-      deliveryChannel: 'marion_admin_interface',
-      adminOnlyVoiceDelivery: true,
-      adminVoiceVerified: adminVerified,
-      adminVoiceDeliveryAllowed: adminVerified,
-      publicUsersCanAddressMarion: false
-    })
-  }));
-
-  return Object.assign({}, result, {
-    route: '/api/marion/admin/conversation',
-    source: 'marion-admin-interface',
-    publicAgent: adminVerified && result.ok !== false ? 'Marion' : 'Nyx',
-    authority: 'Marion',
-    directMarionAdminInterface: adminVerified && result.ok !== false,
-    marionAdminConversationAllowed: adminVerified && result.ok !== false,
-    adminInterfaceScope: 'marion_admin_conversation',
+    adminOnlyTextDelivery: true,
+    adminOnlyVoiceDelivery: false,
     publicUsersCanAddressMarion: false,
-    privateDelivery: adminVerified && result.ok !== false,
-    privateVoiceDelivery: true,
-    deliveryChannel: 'marion_admin_interface',
-    transcriptOnly: true,
-    noRawAudioStored: true,
-    audioStored: false,
-    adminVoiceDeliveryAllowed: adminVerified && result.voice && result.voice.adminVoiceDeliveryAllowed === true
+    voice: Object.assign({}, payload.voice || {}, {
+      active: false,
+      inputChannel: 'text',
+      source: 'text',
+      textConsoleVoiceBypass: true,
+      audioStored: false,
+      noRawAudioStored: true,
+      privateVoiceDelivery: false,
+      adminVoiceDeliveryAllowed: false
+    })
   });
-}
 
+  const bridgeContext = Object.assign({}, opts.context || {}, {
+    inputChannel: 'text',
+    source: 'marion-admin-interface',
+    publicAgent: 'Marion',
+    authority: 'Marion',
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    adminInterfaceScope: 'marion_admin_conversation',
+    privateTextDelivery: true,
+    privateDelivery: true,
+    privateVoiceDelivery: false,
+    deliveryChannel: 'marion_admin_interface',
+    adminOnlyTextDelivery: true,
+    adminOnlyVoiceDelivery: false,
+    adminVerified,
+    adminVoiceVerified: false,
+    adminVoiceDeliveryAllowed: false,
+    publicUsersCanAddressMarion: false,
+    voice: {
+      active: false,
+      inputChannel: 'text',
+      source: 'text',
+      textConsoleVoiceBypass: true,
+      audioStored: false,
+      noRawAudioStored: true
+    }
+  });
+
+  try {
+    const response = await callAdminTextBridge(bridge, bridgePayload, bridgeContext);
+    return normalizeAdminTextBridgeResponse(response, bridgePayload, adminVerified);
+  } catch (error) {
+    const reply = 'Marion admin text reached the protected text bridge, but the bridge failed during processing.';
+    return normalizeAdminTextBridgeResponse({
+      ok: false,
+      reply,
+      error: safeErrorCode(error, 'MARION_TEXT_BRIDGE_ERROR')
+    }, bridgePayload, adminVerified);
+  }
+}
 
 async function handleLingoSentinelPrivateVoiceDelivery(input, options) {
   const opts = options && typeof options === 'object' ? options : {};
