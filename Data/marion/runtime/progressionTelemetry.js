@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionTelemetry v1.1.1 RESPONSE-EXPANSION-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-RECENCY";
+const VERSION = "progressionTelemetry v1.1.2 KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-RECENCY";
 const PROGRESSION_TELEMETRY_VERSION = "nyx.marion.progressionTelemetry/1.1";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const PARALLEL_LANE_RECENCY_VERSION = "nyx.marion.parallelLaneRecency/0.1";
