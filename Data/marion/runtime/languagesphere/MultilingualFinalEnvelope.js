@@ -19,7 +19,7 @@
  * - Preserve LanguageSphere as advisory metadata only.
  */
 
-const VERSION = "MultilingualFinalEnvelope/1.1.1 REFERENCEERROR-FINAL-RECOVERY";
+const VERSION = "MultilingualFinalEnvelope/1.1.2 LAW-DOMAIN-REFERENCEERROR-FINAL-RECOVERY";
 const CONTRACT_VERSION = "nyx.marion.multilingualFinal/1.0";
 
 const DEFAULT_CONFIG = Object.freeze({
@@ -239,6 +239,18 @@ function buildFallbackFinal(payload = {}) {
       payload.message ||
       payload.text
   ).toLowerCase();
+
+  if (/\bconsideration\b.*\bcontract\s+law\b|\bcontract\s+law\b.*\bconsideration\b/.test(prompt)) {
+    return "In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or a benefit. It helps show that an agreement is not merely a one-sided gift.";
+  }
+
+  if (/\bpromise\b.*\bconsideration\b|\bconsideration\b.*\bpromise\b/.test(prompt)) {
+    return "A promise can be consideration when it is bargained for as part of an exchange. A bare promise with no exchange is usually not enough, but mutual promises can support a contract.";
+  }
+
+  if (/\bcommon\s+exceptions\b|\bexceptions\b.*\bconsideration\b/.test(prompt)) {
+    return "Common consideration exceptions or related doctrines include promissory estoppel, deeds or sealed instruments in some systems, part payment rules, and statutory modifications. The details depend on jurisdiction.";
+  }
 
   if (/\bbreak a leg\b/.test(prompt)) {
     return "“Break a leg” literally means to injure a leg. Culturally, it is an idiom used to wish someone good luck, especially before a performance.";
