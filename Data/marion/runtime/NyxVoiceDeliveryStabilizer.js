@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'nyx.voiceDeliveryStabilizer/1.3-phase2-integrity-carry';
+const VERSION = 'nyx.voiceDeliveryStabilizer/1.3.1-referenceerror-suppression';
 const FINAL_ENVELOPE_CONTRACT = 'nyx.marion.final/1.0';
 const FINAL_SIGNATURE = 'MARION_FINAL_AUTHORITY';
 const DEFAULT_DUPLICATE_WINDOW_MS = 4500;
@@ -54,24 +54,39 @@ function normalizeEchoText(value) {
     .trim();
 }
 
+
+function isUnsafeVisibleReply(value) {
+  const text = safeText(value);
+  if (!text) return true;
+  return /\b(?:REFERENCEERROR|ReferenceError|TypeError|SyntaxError|RangeError|stack trace|undefined is not|cannot read|is not defined|no clean public reply field|bridge failed during processing|diagnostic packet|final envelope missing|non-final)\b/i.test(text);
+}
+
 function directReplyText(value) {
   if (!value) return '';
   if (typeof value === 'string') return safeText(value);
   if (!isObj(value)) return '';
-  return safeText(
-    value.displayReply ||
-      value.reply ||
-      value.text ||
-      value.message ||
-      value.answer ||
-      value.output ||
-      value.response ||
-      value.spokenText ||
-      value.finalReply ||
-      value.publicReply ||
-      value.visibleReply ||
-      ''
-  );
+  const candidates = [
+    value.final,
+    value.finalAnswer,
+    value.displayReply,
+    value.publicReply,
+    value.visibleReply,
+    value.finalReply,
+    value.reply,
+    value.text,
+    value.message,
+    value.answer,
+    value.output,
+    value.response,
+    value.spokenText
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' && !candidate) continue;
+    if (candidate && typeof candidate === 'object') continue;
+    const text = safeText(candidate);
+    if (text && !isUnsafeVisibleReply(text)) return text;
+  }
+  return '';
 }
 
 function isProtectedVoiceStatusIntent(envelope) {
@@ -145,7 +160,7 @@ function isTrustedFinalShape(value) {
 function collectFinalReplyCandidates(value, out, depth, seen, finalContext) {
   if (!value || depth > 7) return;
   if (typeof value === 'string') {
-    if (finalContext) out.push({ reply: safeText(value), source: 'trusted_string' });
+    if (finalContext && !isUnsafeVisibleReply(value)) out.push({ reply: safeText(value), source: 'trusted_string' });
     return;
   }
   if (!isObj(value)) return;
@@ -154,7 +169,7 @@ function collectFinalReplyCandidates(value, out, depth, seen, finalContext) {
 
   const trustedHere = finalContext || isTrustedFinalShape(value);
   const direct = directReplyText(value);
-  if (trustedHere && direct) {
+  if (trustedHere && direct && !isUnsafeVisibleReply(direct)) {
     out.push({ reply: direct, source: safeText(value.authority || value.source || value.contractVersion || 'trusted_final_shape') });
   }
 
@@ -257,7 +272,7 @@ function stabilizeNyxVoiceDelivery(input) {
     ? extractedFinalCandidate
     : protectedCandidate;
   const finalReply = finalCandidate.reply;
-  const displayReply = safeText(finalReply || candidateReply);
+  const displayReply = !isUnsafeVisibleReply(finalReply) ? safeText(finalReply) : (!isUnsafeVisibleReply(candidateReply) ? safeText(candidateReply) : '');
   const allowAdmin = adminAllowed(envelope, policy);
   const candidateProtectedFinal = finalCandidate.source === 'gateway_protected_voice_status' || finalCandidate.source === 'generated_protected_voice_status';
   const policyReason = safeText(policy.reason);
