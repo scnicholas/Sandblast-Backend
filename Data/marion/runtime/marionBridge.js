@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.23 ADMIN-TEXT-CONSOLE-VOICE-PURGE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + MARION-ADMIN-INTERFACE-CARRY + PHASE2-SPEECH-SYNC-METADATA-CARRY + VOICE-CARRY-FINAL-DELIVERY-STABILIZER + VOICE-LANE-BRIDGE-CONTRACT + AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.24 VISIBLE-FINAL-PROMPT-SCOPE-HARDLOCK + ADMIN-TEXT-CONSOLE-VOICE-PURGE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + MARION-ADMIN-INTERFACE-CARRY + PHASE2-SPEECH-SYNC-METADATA-CARRY + VOICE-CARRY-FINAL-DELIVERY-STABILIZER + VOICE-LANE-BRIDGE-CONTRACT + AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -1573,6 +1573,8 @@ function buildDeterministicLastMilePublicReplyFromText(text=""){
   const source=safeStr(text);
   const t=lower(source);
   if(!t)return "";
+  if(/^(?:hi|hello|hey|good morning|good afternoon|good evening)\s+(?:marion|nyx)\.?$/i.test(source)||/^(?:hi|hello|hey)\s+marion$/i.test(t))return "Marion is connected to the admin runtime. Send the next direct test prompt and I’ll keep the reply clean, visible, and free of diagnostics.";
+  if(/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/i.test(source))return "A reference error means the script tried to use a variable, function, or module binding that was not available in that scope. The fix is to identify the missing symbol, correct the declaration or import/export path, then rerun the same route to confirm the public reply no longer falls back.";
   if(/\bsandblast\s+channel\b/i.test(source)){
     return "Sandblast Channel is a media and AI interface ecosystem built around chat, radio, video, news, and multilingual support through Nyx and Marion.";
   }
@@ -2493,6 +2495,8 @@ function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPa
 function bridgeVisibleFinalDeterministicReply(prompt=""){
   const t=safeStr(prompt).toLowerCase();
   if(!t)return "";
+  if(/^(?:hi|hello|hey|good morning|good afternoon|good evening)\s+(?:marion|nyx)\.?$/i.test(safeStr(prompt))||/^(?:hi|hello|hey)\s+marion$/i.test(t))return "Marion is connected to the admin runtime. Send the next direct test prompt and I’ll keep the reply clean, visible, and free of diagnostics.";
+  if(/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/i.test(safeStr(prompt)))return "A reference error means the script tried to use a variable, function, or module binding that was not available in that scope. The fix is to identify the missing symbol, correct the declaration or import/export path, then rerun the same route to confirm the public reply no longer falls back.";
   if(/\bbreak a leg\b/.test(t))return "Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”";
   if(/\bbless your heart\b/.test(t))return "“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can express genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on tone, relationship, and context.";
   if(/\bi[’']?m fine\b/.test(t))return "“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, emotional compression, or a desire to end the topic. Marion should not assume distress automatically; the safer analysis is to compare the phrase against tone, timing, context, and visible behaviour.";
@@ -2500,24 +2504,49 @@ function bridgeVisibleFinalDeterministicReply(prompt=""){
   return "";
 }
 function bridgeVisibleFinalPrompt(ctx={},packet={}){
-  const n=safeObj(ctx.normalized), p=safeObj(packet), payload=safeObj(p.payload), original=safeObj(n.original), body=safeObj(original.body), meta=safeObj(p.meta), fe=safeObj(p.finalEnvelope);
-  return firstText(n.userQuery,n.rawUserQuery,n.publicUserQuery,n.text,n.query,n.message,p.userQuery,p.rawUserQuery,prompt,prompt,payload.userQuery,payload.rawUserQuery,payload.prompt,payload.text,payload.message,fe.userQuery,fe.rawUserQuery,meta.userQuery,original.userQuery,original.text,original.message,body.userQuery,body.text,body.message);
+  const c=safeObj(ctx), n=safeObj(c.normalized), sourceInput=safeObj(c.sourceInput), sourceBody=safeObj(sourceInput.body), sourcePayload=safeObj(sourceInput.payload);
+  const p=safeObj(packet), payload=safeObj(p.payload), original=safeObj(n.original), body=safeObj(original.body), meta=safeObj(p.meta), fe=safeObj(p.finalEnvelope);
+  return firstText(
+    n.userQuery,n.rawUserQuery,n.publicUserQuery,n.text,n.query,n.message,n.input,n.prompt,
+    sourceInput.userQuery,sourceInput.rawUserQuery,sourceInput.publicUserQuery,sourceInput.text,sourceInput.query,sourceInput.message,sourceInput.input,sourceInput.prompt,sourceInput.transcript,
+    sourcePayload.userQuery,sourcePayload.rawUserQuery,sourcePayload.text,sourcePayload.query,sourcePayload.message,sourcePayload.input,sourcePayload.prompt,
+    sourceBody.userQuery,sourceBody.rawUserQuery,sourceBody.text,sourceBody.query,sourceBody.message,sourceBody.input,sourceBody.prompt,
+    p.userQuery,p.rawUserQuery,p.publicUserQuery,p.text,p.query,p.message,p.input,p.prompt,
+    payload.userQuery,payload.rawUserQuery,payload.publicUserQuery,payload.prompt,payload.text,payload.query,payload.message,payload.input,
+    fe.userQuery,fe.rawUserQuery,fe.publicUserQuery,fe.prompt,fe.text,fe.query,fe.message,
+    meta.userQuery,meta.rawUserQuery,meta.publicUserQuery,meta.prompt,meta.text,meta.query,meta.message,
+    original.userQuery,original.rawUserQuery,original.publicUserQuery,original.prompt,original.text,original.query,original.message,
+    body.userQuery,body.rawUserQuery,body.publicUserQuery,body.prompt,body.text,body.query,body.message
+  );
 }
 function bridgeVisibleFinalHasCleanReply(packet={},prompt=""){
-  const candidate=bestPublicReplyCandidate(packet,prompt);
-  return !!candidate;
+  try{
+    const candidate=bestPublicReplyCandidate(packet,prompt);
+    return !!candidate;
+  }catch(_){
+    return false;
+  }
 }
 function forceBridgeVisibleFinalReply(packet={},ctx={}){
   const out=safeObj(packet);
-  const prompt=bridgeVisibleFinalPrompt(ctx,out);
-  const existing=bestPublicReplyCandidate(out,prompt);
-  const forced=existing||bridgeVisibleFinalDeterministicReply(prompt)||buildDeterministicLastMilePublicReplyFromText(prompt);
+  let prompt="";
+  try{
+    prompt=bridgeVisibleFinalPrompt(ctx,out);
+  }catch(err){
+    const c=safeObj(ctx), n=safeObj(c.normalized), sourceInput=safeObj(c.sourceInput);
+    prompt=firstText(n.userQuery,n.rawUserQuery,n.text,n.query,n.message,sourceInput.userQuery,sourceInput.rawUserQuery,sourceInput.text,sourceInput.query,sourceInput.message,sourceInput.input,sourceInput.prompt);
+    out.diagnostics={...safeObj(out.diagnostics),visibleFinalPromptRecovery:true,visibleFinalPromptError:safeStr(err&&(err.message||err)||""),noUserFacingDiagnostics:true};
+  }
+  const deterministic=bridgeVisibleFinalDeterministicReply(prompt);
+  let existing="";
+  try{existing=deterministic?"":bestPublicReplyCandidate(out,prompt);}catch(_){existing="";}
+  const forced=deterministic||existing||buildDeterministicLastMilePublicReplyFromText(prompt);
   if(!forced||isUnsafeFinalSelection(forced,prompt)){
     out.ok=false;
     out.status=403;
     out.error="visible_final_reply_missing";
     out.message="Marion returned a runtime packet, but no clean visible final reply field was exposed yet.";
-    out.diagnostics={...safeObj(out.diagnostics),visibleFinalHandoffPatch:true,noUserFacingDiagnostics:true,emit:false,blocked:true};
+    out.diagnostics={...safeObj(out.diagnostics),visibleFinalHandoffPatch:true,visibleFinalPromptRecovered:!!prompt,noUserFacingDiagnostics:true,emit:false,blocked:true};
     return out;
   }
   out.ok=true;
