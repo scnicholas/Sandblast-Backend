@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.20 REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "composeMarionResponse v3.36.21 ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -2676,7 +2676,7 @@ function composerAttachVisibleFinalFields(packet={},prompt=""){
 }
 // MARION_VISIBLE_FINAL_HANDOFF_COMPOSER_PATCH_END
 
-function ensureFinalReply(packet={},ctx={}){const p=safeObj(packet),intent=ctx.intent||normalizeIntent(p.intent),domain=ctx.domain||normalizeDomain(p.domain,intent),turnId=ctx.turnId||firstText(p.turnId,p.finalEnvelope&&p.finalEnvelope.turnId),text=ctx.text||"",input=safeObj(ctx.input),knowledgeDomain=normalizeKnowledgeDomain(ctx.knowledgeDomain||p.knowledgeDomain||safeObj(p.finalEnvelope).knowledgeDomain||resolveKnowledgeDomain(p,input,text)),domainHints=safeObj(ctx.domainHints||p.domainHints||safeObj(p.finalEnvelope).domainHints),domainRoute=safeObj(ctx.domainRoute||p.domainRoute||safeObj(p.finalEnvelope).domainRoute);let reply=sanitizeUserFacingReply(firstText(p.finalEnvelope&&p.finalEnvelope.reply,p.reply,p.text,p.answer,p.output,p.response,p.message,p.spokenText),intent,text,input);if(!isUsableFinalReply(reply)&&isNewsMediaPositioningRequest(text)){reply=newsMediaSafeRenderFallback(text,intent,domain);}if(!isUsableFinalReply(reply)){return buildAwaitingMarionContract("compose_reply_missing_or_blocked",{replyPreview:safeStr(reply).slice(0,160),intent,domain}, {intent,domain,turnId,text,input});}const finalEnvelope=assertFinalEnvelope(buildFinalEnvelope(reply,intent,domain,turnId,{knowledgeDomain,domainHints,domainRoute,input,routed:safeObj(p.routing||ctx.routed),sixDomainCoverage:safeArray(ctx.sixDomainCoverage||p.sixDomainCoverage||safeObj(safeObj(ctx.routed).routing).sixDomainCoverage),allKnowledgeDomains:safeArray(ctx.allKnowledgeDomains||p.allKnowledgeDomains||safeObj(safeObj(ctx.routed).routing).allKnowledgeDomains)}));const resolvedEmotion=normalizeResolvedEmotion(input);const presence=firstText(safeObj(p.speech).presenceProfile,safeObj(p.ui).presenceProfile,p.presenceProfile,emotionPresenceProfile(intent,resolvedEmotion));const hint=firstText(safeObj(p.speech).nyxStateHint,safeObj(p.ui).nyxStateHint,p.nyxStateHint,emotionNyxHint(intent,resolvedEmotion));return{...p,ok:true,final:true,marionFinal:true,handled:true,blocked:false,emit:true,suppressUserFacingReply:false,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,voice:buildComposerVoiceMetadata(input,safeObj(p.routing||ctx.routed),safeObj(p.voice||safeObj(finalEnvelope).voice)),knowledgeDomain,domainHints,domainRoute,finalEnvelope:{...finalEnvelope,emit:true,suppressUserFacingReply:false},displayReply:reply,hotFallbackApplied:false,finalAuthorityGuaranteed:true,payload:{...safeObj(p.payload),ok:true,final:true,marionFinal:true,handled:true,blocked:false,emit:true,suppressUserFacingReply:false,reply,text:reply,message:reply,displayReply:reply,spokenText:reply,voice:buildComposerVoiceMetadata(input,safeObj(p.routing||ctx.routed),safeObj(p.voice||safeObj(finalEnvelope).voice)),finalEnvelope},presenceProfile:presence,nyxStateHint:hint,speech:{...safeObj(p.speech),enabled:true,silent:false,silentAudio:false,textDisplay:reply,textSpeak:reply,presenceProfile:presence,nyxStateHint:hint},ui:{...safeObj(p.ui),nyxStateHint:hint,presenceProfile:presence,openOverlay:false},meta:{...safeObj(p.meta),emit:true,suppressUserFacingReply:false,finalEnvelopePresent:true,replyAuthority:"composeMarionResponse.ensureFinalReply",cognitionComplete:true,syntheticFallbackSuppressed:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry:finalEnvelope.runtimeTelemetry},diagnostics:{...safeObj(p.diagnostics),hardFinalCognitionComplete:true,hotFallbackApplied:false,finalAuthorityGuaranteed:true,syntheticFallbackSuppressed:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry:finalEnvelope.runtimeTelemetry}};}
+function ensureFinalReplyUnsafe(packet={},ctx={}){const p=safeObj(packet),intent=ctx.intent||normalizeIntent(p.intent),domain=ctx.domain||normalizeDomain(p.domain,intent),turnId=ctx.turnId||firstText(p.turnId,p.finalEnvelope&&p.finalEnvelope.turnId),text=ctx.text||"",input=safeObj(ctx.input),knowledgeDomain=normalizeKnowledgeDomain(ctx.knowledgeDomain||p.knowledgeDomain||safeObj(p.finalEnvelope).knowledgeDomain||resolveKnowledgeDomain(p,input,text)),domainHints=safeObj(ctx.domainHints||p.domainHints||safeObj(p.finalEnvelope).domainHints),domainRoute=safeObj(ctx.domainRoute||p.domainRoute||safeObj(p.finalEnvelope).domainRoute);let reply=sanitizeUserFacingReply(firstText(p.finalEnvelope&&p.finalEnvelope.reply,p.reply,p.text,p.answer,p.output,p.response,p.message,p.spokenText),intent,text,input);if(!isUsableFinalReply(reply)&&isNewsMediaPositioningRequest(text)){reply=newsMediaSafeRenderFallback(text,intent,domain);}if(!isUsableFinalReply(reply)){return buildAwaitingMarionContract("compose_reply_missing_or_blocked",{replyPreview:safeStr(reply).slice(0,160),intent,domain}, {intent,domain,turnId,text,input});}const finalEnvelope=assertFinalEnvelope(buildFinalEnvelope(reply,intent,domain,turnId,{knowledgeDomain,domainHints,domainRoute,input,routed:safeObj(p.routing||ctx.routed),sixDomainCoverage:safeArray(ctx.sixDomainCoverage||p.sixDomainCoverage||safeObj(safeObj(ctx.routed).routing).sixDomainCoverage),allKnowledgeDomains:safeArray(ctx.allKnowledgeDomains||p.allKnowledgeDomains||safeObj(safeObj(ctx.routed).routing).allKnowledgeDomains)}));const resolvedEmotion=normalizeResolvedEmotion(input);const presence=firstText(safeObj(p.speech).presenceProfile,safeObj(p.ui).presenceProfile,p.presenceProfile,emotionPresenceProfile(intent,resolvedEmotion));const hint=firstText(safeObj(p.speech).nyxStateHint,safeObj(p.ui).nyxStateHint,p.nyxStateHint,emotionNyxHint(intent,resolvedEmotion));return{...p,ok:true,final:true,marionFinal:true,handled:true,blocked:false,emit:true,suppressUserFacingReply:false,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,voice:buildComposerVoiceMetadata(input,safeObj(p.routing||ctx.routed),safeObj(p.voice||safeObj(finalEnvelope).voice)),knowledgeDomain,domainHints,domainRoute,finalEnvelope:{...finalEnvelope,emit:true,suppressUserFacingReply:false},displayReply:reply,hotFallbackApplied:false,finalAuthorityGuaranteed:true,payload:{...safeObj(p.payload),ok:true,final:true,marionFinal:true,handled:true,blocked:false,emit:true,suppressUserFacingReply:false,reply,text:reply,message:reply,displayReply:reply,spokenText:reply,voice:buildComposerVoiceMetadata(input,safeObj(p.routing||ctx.routed),safeObj(p.voice||safeObj(finalEnvelope).voice)),finalEnvelope},presenceProfile:presence,nyxStateHint:hint,speech:{...safeObj(p.speech),enabled:true,silent:false,silentAudio:false,textDisplay:reply,textSpeak:reply,presenceProfile:presence,nyxStateHint:hint},ui:{...safeObj(p.ui),nyxStateHint:hint,presenceProfile:presence,openOverlay:false},meta:{...safeObj(p.meta),emit:true,suppressUserFacingReply:false,finalEnvelopePresent:true,replyAuthority:"composeMarionResponse.ensureFinalReply",cognitionComplete:true,syntheticFallbackSuppressed:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry:finalEnvelope.runtimeTelemetry},diagnostics:{...safeObj(p.diagnostics),hardFinalCognitionComplete:true,hotFallbackApplied:false,finalAuthorityGuaranteed:true,syntheticFallbackSuppressed:true,finalRuntimeTelemetryVersion:FINAL_RUNTIME_TELEMETRY_VERSION,runtimeTelemetry:finalEnvelope.runtimeTelemetry}};}
 
 function crossDomainSecondaryLaneProfile(text="",input={},routed={}){
   const t=lower(text);
@@ -2756,11 +2756,68 @@ function composeMarionResponseUnsafe(routed={},input={}){const voiceParity=apply
 const finalResult=ensureFinalReply(base,{intent,domain,knowledgeDomain,domainHints,domainRoute,text,input:{...enrichedInput,resolvedEmotion:resolvedEmotion.present?resolvedEmotion.state:null,emotionalContinuity:memoryPatch.emotionalContinuity},turnId,routed,sixDomainCoverage:safeArray(safeObj(routed).sixDomainCoverage||safeObj(safeObj(routed).reason).sixDomainCoverage||safeObj(safeObj(routed).routing).sixDomainCoverage),allKnowledgeDomains:safeArray(safeObj(routed).allKnowledgeDomains||safeObj(safeObj(routed).reason).allKnowledgeDomains||safeObj(safeObj(routed).routing).allKnowledgeDomains)});return observeBenchmarkRuntimeSafely(composerAttachVisibleFinalFields(finalResult, firstText(text, safeObj(input).userQuery, safeObj(input).rawUserQuery, safeObj(input).message)),{turnId,phase:"phase5-compose-passive-observation"});}
 
 
+
+function isVisibleRuntimeErrorReply(value = "") {
+  return /^(?:REFERENCEERROR|TYPEERROR|SYNTAXERROR|RANGEERROR)$/i.test(safeStr(value)) || /\b(?:ReferenceError|TypeError|SyntaxError|RangeError|is not defined|undefined is not|cannot read|no clean public reply field|bridge failed during processing)\b/i.test(safeStr(value));
+}
+function extractPromptForReferenceRecovery(primary = {}, secondary = {}) {
+  const p = safeObj(primary);
+  const s = safeObj(secondary);
+  const pp = safeObj(p.payload), sp = safeObj(s.payload);
+  const pm = safeObj(p.meta), sm = safeObj(s.meta);
+  const pr = safeObj(p.routing), sr = safeObj(s.routing);
+  return firstText(
+    p.normalizedUserIntent, p.rawUserText, p.userText, p.text, p.message, p.prompt, p.query, p.inputText, p.originalText,
+    pp.normalizedUserIntent, pp.rawUserText, pp.userText, pp.text, pp.message, pp.prompt, pp.query, pp.inputText, pp.originalText,
+    pm.normalizedUserIntent, pm.rawUserText, pm.userText, pm.text, pm.message, pm.prompt, pm.query, pm.inputText, pm.originalText,
+    pr.normalizedUserIntent, pr.rawUserText, pr.userText, pr.text, pr.message, pr.prompt, pr.query, pr.inputText, pr.originalText,
+    s.normalizedUserIntent, s.rawUserText, s.userText, s.text, s.message, s.prompt, s.query, s.inputText, s.originalText,
+    sp.normalizedUserIntent, sp.rawUserText, sp.userText, sp.text, sp.message, sp.prompt, sp.query, sp.inputText, sp.originalText,
+    sm.normalizedUserIntent, sm.rawUserText, sm.userText, sm.text, sm.message, sm.prompt, sm.query, sm.inputText, sm.originalText,
+    sr.normalizedUserIntent, sr.rawUserText, sr.userText, sr.text, sr.message, sr.prompt, sr.query, sr.inputText, sr.originalText,
+    safeObj(p.questionShape).normalizedUserIntent, safeObj(p.questionShape).normalizedText,
+    safeObj(s.questionShape).normalizedUserIntent, safeObj(s.questionShape).normalizedText,
+    safeObj(p.continuityCarry).resolvedText, safeObj(p.continuityCarry).originalText, safeObj(p.continuityCarry).topic,
+    safeObj(s.continuityCarry).resolvedText, safeObj(s.continuityCarry).originalText, safeObj(s.continuityCarry).topic
+  );
+}
+function looksLikeRoutedPacket(value = {}) {
+  const v = safeObj(value);
+  const r = safeObj(v.routing);
+  return !!(v.primary || v.primaryDomain || v.selectedDomain || v.domainConfidence || v.sixDomainCoverage || r.domain || r.knowledgeDomain || r.intent || r.domainConfidence);
+}
+function looksLikeInputPacket(value = {}) {
+  const v = safeObj(value);
+  return !!extractPromptForReferenceRecovery(v, {}) || !!(v.directMarionAdminInterface || v.marionAdminConversation || v.payload || v.meta || v.voiceEnvelope);
+}
+function normalizeComposeArguments(first = {}, second = {}) {
+  const a = safeObj(first), b = safeObj(second);
+  // Normal signature is (routed, input). Some admin/runtime callers still pass (input, routed).
+  if (looksLikeInputPacket(a) && looksLikeRoutedPacket(b) && !looksLikeRoutedPacket(a)) {
+    return { routed: b, input: a, swapped: true };
+  }
+  return { routed: a, input: b, swapped: false };
+}
+function sanitizeReferenceErrorPacket(packet = {}, routed = {}, input = {}) {
+  const p = safeObj(packet);
+  const publicReply = firstText(p.publicReply, p.visibleReply, p.displayReply, p.finalReply, p.reply, p.text, p.answer, p.message, p.output, p.response);
+  if (!isVisibleRuntimeErrorReply(publicReply)) return p;
+  return buildReferenceErrorRecoveredComposeResult(new ReferenceError(publicReply || "REFERENCEERROR"), routed, input);
+}
+function ensureFinalReply(packet = {}, ctx = {}) {
+  try {
+    const result = ensureFinalReplyUnsafe(packet, ctx);
+    return sanitizeReferenceErrorPacket(result, safeObj(ctx).routed || safeObj(packet).routing || {}, safeObj(ctx).input || {});
+  } catch (err) {
+    return buildReferenceErrorRecoveredComposeResult(err, safeObj(ctx).routed || safeObj(packet).routing || {}, safeObj(ctx).input || {});
+  }
+}
+
 function buildReferenceErrorRecoveredComposeResult(error, routed = {}, input = {}) {
   const inputObj = safeObj(input);
   const routedObj = safeObj(routed);
   const routing = safeObj(routedObj.routing);
-  const prompt = firstText(
+  const prompt = extractPromptForReferenceRecovery(inputObj, routedObj) || firstText(
     inputObj.normalizedUserIntent,
     inputObj.rawUserText,
     inputObj.userText,
@@ -2841,8 +2898,11 @@ function buildReferenceErrorRecoveredComposeResult(error, routed = {}, input = {
 }
 
 function composeMarionResponse(routed = {}, input = {}) {
+  const normalizedArgs = normalizeComposeArguments(routed, input);
+  const safeRouted = normalizedArgs.routed;
+  const safeInput = normalizedArgs.input;
   try {
-    const result = composeMarionResponseUnsafe(routed, input);
+    const result = composeMarionResponseUnsafe(safeRouted, safeInput);
     const publicReply = firstText(
       safeObj(result).publicReply,
       safeObj(result).visibleReply,
@@ -2851,14 +2911,16 @@ function composeMarionResponse(routed = {}, input = {}) {
       safeObj(result).reply,
       safeObj(result).text,
       safeObj(result).answer,
-      safeObj(result).message
+      safeObj(result).message,
+      safeObj(result).output,
+      safeObj(result).response
     );
-    if (/^(?:REFERENCEERROR|TYPEERROR|SYNTAXERROR|RANGEERROR)$/i.test(publicReply)) {
-      return buildReferenceErrorRecoveredComposeResult(new ReferenceError(publicReply), routed, input);
+    if (isVisibleRuntimeErrorReply(publicReply)) {
+      return buildReferenceErrorRecoveredComposeResult(new ReferenceError(publicReply || "REFERENCEERROR"), safeRouted, safeInput);
     }
     return result;
   } catch (err) {
-    return buildReferenceErrorRecoveredComposeResult(err, routed, input);
+    return buildReferenceErrorRecoveredComposeResult(err, safeRouted, safeInput);
   }
 }
 
