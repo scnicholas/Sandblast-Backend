@@ -19,7 +19,7 @@
  * - Preserve LanguageSphere as advisory metadata only.
  */
 
-const VERSION = "MultilingualFinalEnvelope/1.1.2 LAW-DOMAIN-REFERENCEERROR-FINAL-RECOVERY";
+const VERSION = "MultilingualFinalEnvelope/1.1.3 RUNTIME-REFERENCEERROR-HARDENED";
 const CONTRACT_VERSION = "nyx.marion.multilingualFinal/1.0";
 
 const DEFAULT_CONFIG = Object.freeze({
@@ -230,15 +230,75 @@ function extractFinalAnswer(payload = {}) {
   return extractNestedText(payload);
 }
 
+function extractPromptCandidate(payload = {}, depth = 0, seen = new WeakSet()) {
+  if (!payload || depth > 6) return "";
+  if (typeof payload === "string") return sanitizeString(payload);
+  if (!isObject(payload)) return "";
+
+  if (seen.has(payload)) return "";
+  seen.add(payload);
+
+  const direct = firstCleanText(
+    payload.prompt,
+    payload.userText,
+    payload.rawUserText,
+    payload.rawUserQuery,
+    payload.normalizedUserIntent,
+    payload.query,
+    payload.input,
+    payload.message,
+    payload.question,
+    payload.command,
+    payload.transcript,
+    payload.originalTranscript,
+    payload.normalizedTranscript
+  );
+
+  if (direct) return direct;
+
+  const priorityKeys = [
+    "request",
+    "input",
+    "payload",
+    "data",
+    "meta",
+    "routing",
+    "questionShape",
+    "memoryPatch",
+    "sessionPatch",
+    "stateBridge",
+    "context",
+    "voice",
+    "voiceEnvelope",
+    "finalEnvelope"
+  ];
+
+  for (const key of priorityKeys) {
+    const nested = payload[key];
+    if (isObject(nested)) {
+      const found = extractPromptCandidate(nested, depth + 1, seen);
+      if (found) return found;
+    }
+  }
+
+  for (const key of Object.keys(payload)) {
+    if (priorityKeys.includes(key)) continue;
+    const nested = payload[key];
+    if (isObject(nested)) {
+      const found = extractPromptCandidate(nested, depth + 1, seen);
+      if (found) return found;
+    }
+  }
+
+  return "";
+}
+
+function isRuntimeExceptionText(value = "") {
+  return DEBUG_OR_ERROR_PATTERN.test(normalizeString(value));
+}
+
 function buildFallbackFinal(payload = {}) {
-  const prompt = normalizeString(
-    payload.prompt ||
-      payload.userText ||
-      payload.query ||
-      payload.input ||
-      payload.message ||
-      payload.text
-  ).toLowerCase();
+  const prompt = normalizeString(extractPromptCandidate(payload)).toLowerCase();
 
   if (/\bconsideration\b.*\bcontract\s+law\b|\bcontract\s+law\b.*\bconsideration\b/.test(prompt)) {
     return "In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or a benefit. It helps show that an agreement is not merely a one-sided gift.";
@@ -492,6 +552,8 @@ module.exports = {
   normalizeConfidence,
   normalizeConfidenceBand,
   extractFinalAnswer,
+  extractPromptCandidate,
+  isRuntimeExceptionText,
   sanitizeString,
   sanitizeMetadata,
   buildMultilingualFinalEnvelope,
