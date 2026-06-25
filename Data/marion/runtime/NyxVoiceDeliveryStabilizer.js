@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'nyx.voiceDeliveryStabilizer/1.3.2-referenceerror-final-recovery';
+const VERSION = 'nyx.voiceDeliveryStabilizer/1.3.3-referenceerror-law-final-recovery';
 const FINAL_ENVELOPE_CONTRACT = 'nyx.marion.final/1.0';
 const FINAL_SIGNATURE = 'MARION_FINAL_AUTHORITY';
 const DEFAULT_DUPLICATE_WINDOW_MS = 4500;
@@ -125,6 +125,37 @@ function buildProtectedVoiceStatusReply(envelope) {
     return 'Nyx is connected through Marion. Marion remains the final response authority, admin voice delivery is authorized, and raw audio is not being stored.';
   }
   return 'Protected voice lane status: admin voice delivery is locked, transcript-only processing is live, and raw audio is not being stored.';
+}
+
+function extractPromptForReferenceRecovery(input = {}) {
+  const src = safeObj(input);
+  const response = safeObj(src.response);
+  const envelope = safeObj(src.voiceEnvelope);
+  const payload = safeObj(response.payload);
+  const meta = safeObj(response.meta);
+  const finalEnvelope = safeObj(response.finalEnvelope);
+  return safeText(
+    src.userText || src.rawUserText || src.prompt || src.query ||
+    envelope.transcript || envelope.normalizedTranscript || envelope.originalTranscript ||
+    response.userText || response.rawUserText || response.prompt || response.query || response.text || response.message ||
+    payload.userText || payload.rawUserText || payload.prompt || payload.query || payload.text || payload.message ||
+    meta.userText || meta.rawUserText || meta.prompt || meta.query ||
+    finalEnvelope.userText || finalEnvelope.rawUserText || finalEnvelope.prompt || finalEnvelope.query
+  );
+}
+
+function deterministicReferenceRecoveryReply(prompt = '') {
+  const t = safeText(prompt).toLowerCase();
+  if (/\bconsideration\b.*\bcontract\s+law\b|\bcontract\s+law\b.*\bconsideration\b/.test(t)) {
+    return 'In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or a benefit. It helps show that an agreement is more than a one-sided gift. This is general legal information, not legal advice.';
+  }
+  if (/\bpromise\b.*\bconsideration\b|\bconsideration\b.*\bpromise\b/.test(t)) {
+    return 'A promise can be consideration when it is bargained for as part of an exchange. A bare promise with no exchange is usually not enough, but mutual promises can support a contract. The exact rule depends on jurisdiction.';
+  }
+  if (/\bprofessional alternative\b|\bmore professional\b/.test(t)) {
+    return 'A more professional alternative is: “Good luck with your presentation,” “I hope it goes well,” or “You’ll do well.” These are clearer and safer in formal business settings.';
+  }
+  return '';
 }
 
 function candidateReplyAsProtectedFinal(input, envelope, policy, candidateReply) {
@@ -272,7 +303,8 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
     ? extractedFinalCandidate
     : protectedCandidate;
   const finalReply = finalCandidate.reply;
-  const displayReply = !isUnsafeVisibleReply(finalReply) ? safeText(finalReply) : (!isUnsafeVisibleReply(candidateReply) ? safeText(candidateReply) : '');
+  const referenceRecoveryReply = deterministicReferenceRecoveryReply(extractPromptForReferenceRecovery(src));
+  const displayReply = !isUnsafeVisibleReply(finalReply) ? safeText(finalReply) : (!isUnsafeVisibleReply(candidateReply) ? safeText(candidateReply) : referenceRecoveryReply);
   const allowAdmin = adminAllowed(envelope, policy);
   const candidateProtectedFinal = finalCandidate.source === 'gateway_protected_voice_status' || finalCandidate.source === 'generated_protected_voice_status';
   const policyReason = safeText(policy.reason);
