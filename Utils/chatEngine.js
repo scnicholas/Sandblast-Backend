@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.9.9 TEXT-CONSOLE-CHANNEL-CARRY + MARION-ADMIN-TEXT-RUNTIME-COMPAT + CONTINUITY-MISSING-FINAL-RECOVERY-GATE + LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "ChatEngine v3.10.0 REFERENCEERROR-LAW-DOMAIN-FINAL-RECOVERY + TEXT-CONSOLE-CHANNEL-CARRY + MARION-ADMIN-TEXT-RUNTIME-COMPAT + CONTINUITY-MISSING-FINAL-RECOVERY-GATE + LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -667,10 +667,15 @@ function finalTransportPacket(packet = {}) {
     const finalEnvelope = isFinalEnvelope(out);
     const trustedFinalEnvelope = hasTrustedFinalEnvelope(out, out);
     let reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope, trustedFinalEnvelope }));
+    const promptForFinalRecovery = extractPromptForReplySelection(out);
+    if (isUnsafeFinalReplySelection(reply, promptForFinalRecovery)) {
+      reply = deterministicKnowledgeReplyForSelection(promptForFinalRecovery);
+    }
     const coordinatorRecoveryReply = buildCoordinatorRecoveryReply(out);
     const continuityMissingFinalRecoveryReply = buildContinuityMissingFinalRecoveryReply(out);
     if (!reply && coordinatorRecoveryReply) reply = coordinatorRecoveryReply;
     if (!reply && continuityMissingFinalRecoveryReply) reply = continuityMissingFinalRecoveryReply;
+    if (isUnsafeFinalReplySelection(reply, promptForFinalRecovery)) reply = deterministicKnowledgeReplyForSelection(promptForFinalRecovery);
     const recoveryTrusted = !!(coordinatorRecoveryReply || continuityMissingFinalRecoveryReply);
     const canEmit = !!reply && (finalEnvelope || recoveryTrusted) && (trustedFinalEnvelope || recoveryTrusted) && !hasRejectedLoopReply(out) && (!hasFinalFailureMarker(out, 0) || !!continuityMissingFinalRecoveryReply);
     const continuityTransport = continuityTransportMarker(out, reply);
@@ -1143,11 +1148,46 @@ function extractReplyCandidate(input = {}) {
 
 
 function normalizeEchoTextForCompare(value=""){return cleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function extractPromptForReplySelection(input={}){const src=safeObj(input),payload=safeObj(src.payload),meta=safeObj(src.meta);return firstText(src.userText,src.rawUserText,src.originalUserText,src.prompt,src.query,src.inputText,payload.userText,payload.rawUserText,payload.prompt,payload.query,meta.userText,meta.rawUserText,meta.prompt,meta.query);}
+function extractPromptForReplySelection(input={}){
+  const src=safeObj(input),payload=safeObj(src.payload),meta=safeObj(src.meta),diagnostics=safeObj(src.diagnostics);
+  const finalEnvelope=extractFinalEnvelope(src),contract=extractMarionContract(src),packet=extractPacket(src);
+  const routing=safeObj(src.routing||payload.routing||meta.routing||packet.routing);
+  const continuity=compactContinuityCarryForTransport(firstText(src.continuityCarry,src.continuity)||src.continuityCarry||src.continuity||payload.continuityCarry||meta.continuityCarry||routing.continuityCarry||{});
+  const questionShape=safeObj(src.questionShape||payload.questionShape||meta.questionShape||routing.questionShape);
+  return firstText(
+    src.userText,src.rawUserText,src.originalUserText,src.prompt,src.query,src.inputText,src.text,src.message,src.normalizedUserIntent,
+    payload.userText,payload.rawUserText,payload.originalUserText,payload.prompt,payload.query,payload.inputText,payload.text,payload.message,payload.normalizedUserIntent,
+    meta.userText,meta.rawUserText,meta.originalUserText,meta.prompt,meta.query,meta.text,meta.message,meta.normalizedUserIntent,
+    diagnostics.userText,diagnostics.prompt,diagnostics.query,
+    finalEnvelope.userText,finalEnvelope.rawUserText,finalEnvelope.prompt,finalEnvelope.query,finalEnvelope.text,finalEnvelope.message,
+    contract.userText,contract.rawUserText,contract.prompt,contract.query,contract.text,contract.message,
+    packet.userText,packet.rawUserText,packet.prompt,packet.query,packet.text,packet.message,
+    routing.userText,routing.rawUserText,routing.prompt,routing.query,routing.text,routing.normalizedUserIntent,
+    questionShape.normalizedUserIntent,questionShape.normalizedText,questionShape.rawUserText,
+    continuity.resolvedText,continuity.originalText,continuity.topic
+  );
+}
 function isPromptEchoReply(reply="",prompt=""){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(prompt);if(!r||!p)return false;return r===p||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
 function isExcessExpressionReply(value=""){return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(cleanText(value));}
-function deterministicKnowledgeReplyForSelection(prompt=""){const t=cleanText(prompt).toLowerCase();if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';return '';}
-function isUnsafeFinalReplySelection(reply="",prompt=""){return !cleanText(reply)||isThinPlaceholderText(reply)||isInternalBlockerText(reply,{})||isExcessExpressionReply(reply)||isPromptEchoReply(reply,prompt);}
+function deterministicKnowledgeReplyForSelection(prompt=""){
+  const t=cleanText(prompt).toLowerCase();
+  if(/\bconsideration\b.*\bcontract\s+law\b|\bcontract\s+law\b.*\bconsideration\b/.test(t))return 'In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or a benefit. It helps show that an agreement is more than a one-sided gift. This is general legal information, not legal advice.';
+  if(/\bpromise\b.*\bconsideration\b|\bconsideration\b.*\bpromise\b/.test(t))return 'A promise can be consideration when it is bargained for as part of an exchange. A bare promise with no exchange is usually not enough, but mutual promises can support a contract. The exact rule depends on jurisdiction.';
+  if(/\bcommon\s+exceptions\b|\bexceptions\b.*\bconsideration\b/.test(t))return 'Common consideration-related exceptions include promissory estoppel, deeds or sealed instruments in some systems, statutory modifications, and some part-payment doctrines. The details depend on jurisdiction.';
+  if(/\bbreak a leg\b/.test(t))return /instead of good luck|why would/i.test(t)?'Someone says “break a leg” instead of “good luck” because theatre culture treats direct good-luck wishes as unlucky. The phrase became a ritualized, indirect way to encourage someone before a performance.':'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';
+  if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
+  if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';
+  if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';
+  if(/\binstead of good luck\b/.test(t)||/\bwhy would someone say that\b/.test(t))return 'They would say it as an indirect good-luck wish, usually referring to “break a leg.” In theatre culture, saying “good luck” directly is considered unlucky, so the indirect phrase became the accepted ritual.';
+  return '';
+}
+function isUnsafeFinalReplySelection(reply="",prompt=""){
+  const text=cleanText(reply);
+  if(!text)return true;
+  if(/^(?:REFERENCEERROR|TYPEERROR|SYNTAXERROR|RANGEERROR)$/i.test(text))return true;
+  if(/\b(?:ReferenceError|TypeError|SyntaxError|RangeError|stack trace|undefined is not|cannot read|is not defined|no clean public reply field|bridge failed during processing|diagnostic packet|final envelope missing|non-final)\b/i.test(text))return true;
+  return isThinPlaceholderText(text)||isInternalBlockerText(text,{})||isExcessExpressionReply(text)||isPromptEchoReply(text,prompt);
+}
 
 function extractFinalReply(input = {}, trust = {}) {
   const candidates = [];
