@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.76sb MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.77sb MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -852,7 +852,10 @@ function marionAdminConversationReplyText(value, depth, seen) {
     value.spokenText ||
     ""
   );
-  if (direct) return direct;
+  if (direct) {
+    if (marionAdminVisibleRuntimeErrorText(direct)) return "";
+    return direct;
+  }
 
   const priorityKeys = [
     "admin", "marionAdmin", "finalEnvelope", "payload", "data", "result", "packet",
@@ -877,6 +880,33 @@ function marionAdminConversationReplyText(value, depth, seen) {
   }
 
   return "";
+}
+
+
+function marionAdminVisibleRuntimeErrorText(value) {
+  const text = cleanText(value || "");
+  if (!text) return false;
+  return /^(?:REFERENCEERROR|TYPEERROR|SYNTAXERROR|RANGEERROR)$/i.test(text) || /\b(?:ReferenceError|TypeError|SyntaxError|RangeError|is not defined|cannot access .* before initialization|no clean public reply field|bridge failed during processing)\b/i.test(text);
+}
+
+function marionAdminRuntimeSafeFallbackReply(prompt, err) {
+  const norm = { prompt, text: prompt, message: prompt, userText: prompt, rawUserText: prompt };
+  const deterministic = deterministicAdminKnowledgeReply(norm);
+  if (deterministic) return deterministic;
+  const detail = cleanText(err && (err.message || err) || "");
+  if (/\bdomain\s+routing\b|\bdomain\s+router\b/i.test(prompt || detail)) {
+    return "Domain routing is Marion’s triage layer. It reads the user’s intent, selects the best knowledge lane, and sends the turn to that lane so the response comes from the right context instead of a generic fallback.";
+  }
+  if (/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/i.test(detail)) {
+    return "Marion reached the runtime layer, but one backend reference was unavailable. The request stayed contained, diagnostics were kept out of the public reply, and the next fix should target the missing import, export, or symbol named in the server log.";
+  }
+  return "Marion received the request. The runtime path stayed contained, but a clean final reply was not produced by the active handler.";
+}
+
+function marionAdminConversationSafeReply(packet, prompt, err) {
+  const raw = marionAdminConversationReplyText(packet);
+  if (raw && !marionAdminVisibleRuntimeErrorText(raw)) return raw;
+  return marionAdminRuntimeSafeFallbackReply(prompt, err || packet);
 }
 
 function nyxVoiceRouteReplyText(value, depth, seen) {
@@ -1587,7 +1617,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   if (wantsTextRuntime && typeof invokeMarionAdminTextRuntime === "function") {
     try {
       const runtime = await invokeMarionAdminTextRuntime({ ...body, prompt, message: prompt, text: prompt, userText: prompt }, auth, traceId);
-      const runtimeReply = marionAdminConversationReplyText(runtime) || marionAdminRedactText(runtime && (runtime.reply || runtime.text || runtime.message) || "");
+      const runtimeReply = marionAdminConversationSafeReply(runtime, prompt);
       if (runtime && runtime.ok && runtimeReply) {
         return res.status(200).json({
           ok: true,
@@ -1732,7 +1762,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       }
     });
 
-    const reply = marionAdminConversationReplyText(packet) || "Marion admin conversation completed, but no displayable reply was returned.";
+    const reply = marionAdminConversationSafeReply(packet, prompt);
     const statusCode = packet && packet.ok === false ? 202 : 200;
     const voice = isObj(packet && packet.voice) ? packet.voice : {};
     const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
@@ -1803,26 +1833,32 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       }
     });
   } catch (err) {
-    return res.status(500).json({
-      ok: false,
+    const signature = marionAdminRuntimeErrorSignature(err);
+    const fallbackReply = marionAdminRuntimeSafeFallbackReply(prompt, err);
+    const recovered = !!fallbackReply;
+    return res.status(recovered ? 200 : 500).json({
+      ok: recovered,
       final: true,
       handled: true,
-      reply: "Marion admin conversation failed before Marion could finish the turn.",
-      text: "Marion admin conversation failed before Marion could finish the turn.",
-      message: "Marion admin conversation failed before Marion could finish the turn.",
+      reply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      text: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      message: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      displayReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       publicAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
       route: "/api/marion/admin/conversation",
-      error: "MARION_ADMIN_CONVERSATION_ROUTE_FAILED",
-      detail: marionAdminRedactText(err && (err.message || err) || "route_failed").slice(0, 160),
+      error: recovered ? "MARION_ADMIN_CONVERSATION_REFERENCE_RECOVERED" : "MARION_ADMIN_CONVERSATION_ROUTE_FAILED",
+      runtimeErrorSignature: signature,
+      referenceError: signature === "reference_error",
+      detail: recovered ? "diagnostics_redacted" : marionAdminRedactText(err && (err.message || err) || "route_failed").slice(0, 160),
       privateAdminConversation: true,
       adminConversationAllowed: true,
       transcriptOnly: true,
       audioStored: false,
       noRawAudioStored: true,
-      meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION }
+      meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION, recoveredReferenceError: recovered && signature === "reference_error" }
     });
   }
 });
@@ -3621,6 +3657,8 @@ function deterministicAdminKnowledgeReply(norm={}){
   if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret, especially a surprise, plan, or confidential detail.';
   if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';
   if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';
+  if(/\bdomain\s+routing\b|\bdomain\s+router\b|\broute\s+domains?\b/.test(t))return 'Domain routing is Marion’s triage layer. It reads the user’s intent, selects the best knowledge lane, such as technical, psychology, English, AI, cyber, law, or finance, and then sends the turn to that lane so Marion can answer from the right context instead of guessing. For this system, the router should classify the request, preserve the original question, prevent cross-domain bleed, and return one clean final reply.';
+  if(/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/.test(t))return 'A ReferenceError means a script tried to use a variable, function, or imported module that was not available in that scope at runtime. In Marion’s path, the clean fix is to capture the missing symbol, verify the import/export contract, keep the admin session valid, and make the runtime return a safe final reply instead of exposing diagnostics.';
   return '';
 }
 
@@ -18292,12 +18330,12 @@ async function handleMarionAdminTextRuntime(req, res) {
     const prompt = marionAdminTextRuntimeExtractPrompt(body);
     const signature = marionAdminRuntimeErrorSignature(err);
     const referenceError = signature === "reference_error";
-    const fallbackReply = referenceError ? "" : deterministicAdminKnowledgeReply({ prompt, text: prompt, message: prompt, userText: prompt });
-    const statusCode = referenceError ? 500 : (fallbackReply ? 200 : 502);
+    const fallbackReply = marionAdminRuntimeSafeFallbackReply(prompt, err);
+    const statusCode = fallbackReply ? 200 : (referenceError ? 500 : 502);
     return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
-      ok: !!fallbackReply && !referenceError,
-      stage: referenceError ? "marion_runtime_reference_error" : (fallbackReply ? "marion_runtime_handler_exception_recovered" : "marion_runtime_handler_exception"),
-      reason: referenceError ? marionAdminRuntimeErrorPublicDetail(err) : (fallbackReply ? "" : "marion_runtime_exception_suppressed"),
+      ok: !!fallbackReply,
+      stage: referenceError ? (fallbackReply ? "marion_runtime_reference_error_recovered" : "marion_runtime_reference_error") : (fallbackReply ? "marion_runtime_handler_exception_recovered" : "marion_runtime_handler_exception"),
+      reason: fallbackReply ? "" : (referenceError ? marionAdminRuntimeErrorPublicDetail(err) : "marion_runtime_exception_suppressed"),
       runtimeErrorSignature: signature,
       referenceError,
       routeMounted: true,
