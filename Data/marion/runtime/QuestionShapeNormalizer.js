@@ -17,7 +17,7 @@
  * - Does not bypass DomainConcierge, MarionBridge, or MarionFinalEnvelope.
  */
 
-const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.1";
+const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.2-referenceerror-hardening";
 const DOMAIN_CONCIERGE_READINESS_VERSION = "nyx.marion.domainConciergeReadiness/1.0";
 const UNIVERSAL_TRANSLATOR_READINESS_VERSION = "nyx.marion.universalTranslatorReadiness/0.1-prep";
 
@@ -213,7 +213,39 @@ function buildPassthrough(raw, cleaned, reason = "passthrough", options = {}) {
   };
 }
 
-function normalizeQuestionShape(text = "", options = {}) {
+
+function detectLawDomainHint(value = "") {
+  const text = lower(value);
+  if (!text) return "";
+  if (/\b(contract law|consideration|promissory estoppel|promise alone|legal consideration|law)\b/.test(text)) {
+    return "law";
+  }
+  return "";
+}
+
+function buildNormalizedResult({ raw = "", cleaned = "", normalized = "", reason = "no_topic_prefix_match", shape = "passthrough", options = {}, languageIntent = null } = {}) {
+  const domainHint = detectLawDomainHint(normalized || cleaned || raw);
+  return {
+    version: QUESTION_SHAPE_NORMALIZATION_VERSION,
+    rawText: raw,
+    normalizedText: normalized || cleaned || raw,
+    normalizedUserIntent: normalized || cleaned || raw,
+    questionShape: shape,
+    changed: Boolean((normalized || cleaned || raw) !== cleaned),
+    reason,
+    source: "QuestionShapeNormalizer",
+    domainConciergeReady: true,
+    domainConciergeReadinessVersion: DOMAIN_CONCIERGE_READINESS_VERSION,
+    universalTranslatorReady: true,
+    universalTranslatorReadinessVersion: UNIVERSAL_TRANSLATOR_READINESS_VERSION,
+    languageIntent: languageIntent || detectLanguageIntent(normalized || cleaned || raw, options),
+    domainHint,
+    knowledgeDomainHint: domainHint,
+    runtimeSafe: true
+  };
+}
+
+function normalizeQuestionShapeUnsafe(text = "", options = {}) {
   const rawInput = extractTextInput(text);
   const raw = normalizeRouterVoiceTextParity(compactWhitespace(rawInput));
   const cleaned = raw
@@ -282,7 +314,39 @@ function normalizeQuestionShape(text = "", options = {}) {
     };
   }
 
-  return buildPassthrough(raw, cleaned, "no_topic_prefix_match", options);
+  const passthrough = buildPassthrough(raw, cleaned, "no_topic_prefix_match", options);
+  const domainHint = detectLawDomainHint(passthrough.normalizedText || cleaned);
+  return {
+    ...passthrough,
+    domainHint,
+    knowledgeDomainHint: domainHint,
+    runtimeSafe: true
+  };
+}
+
+function normalizeQuestionShape(text = "", options = {}) {
+  try {
+    const result = normalizeQuestionShapeUnsafe(text, options);
+    const safeResult = result && typeof result === "object" ? result : buildPassthrough("", "", "normalizer_non_object_result", options);
+    const domainHint = detectLawDomainHint(safeResult.normalizedText || safeResult.normalizedUserIntent || safeResult.rawText);
+    return {
+      ...safeResult,
+      domainHint: safeResult.domainHint || domainHint,
+      knowledgeDomainHint: safeResult.knowledgeDomainHint || domainHint,
+      runtimeSafe: true
+    };
+  } catch (err) {
+    const raw = normalizeRouterVoiceTextParity(compactWhitespace(extractTextInput(text)));
+    const cleaned = raw.replace(/[\u2018\u2019]/g, "'").replace(/[?!.,]+$/g, "").replace(/\s+/g, " ").trim();
+    return buildNormalizedResult({
+      raw,
+      cleaned,
+      normalized: cleaned,
+      reason: "normalizer_referenceerror_recovered",
+      shape: "passthrough",
+      options
+    });
+  }
 }
 
 function questionShapeNormalizerStatus() {
@@ -318,6 +382,8 @@ module.exports = {
     compactWhitespace,
     extractTextInput,
     firstText,
+    detectLawDomainHint,
+    buildNormalizedResult,
     TOPIC_PREFIX_PATTERNS,
     EXECUTION_OR_TECHNICAL_GUARD,
     TRANSLATION_INTENT_GUARD
