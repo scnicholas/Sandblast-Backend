@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "composeMarionResponse v3.36.21 ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "composeMarionResponse v3.36.22 REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -126,6 +126,8 @@ function deterministicComposerKnowledgeReply(prompt=""){const t=safeStr(prompt).
   if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
   if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';
   if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';
+  if(/\bdomain\s+routing\b|\bdomain\s+router\b|\broute\s+domains?\b/.test(t))return 'Domain routing is Marion’s triage layer. It reads the user’s intent, selects the best knowledge lane, such as technical, psychology, English, AI, cyber, law, or finance, and sends the turn there so Marion can answer from the right context instead of guessing. In this system, the router should preserve the user’s original question, prevent cross-domain bleed, and hand one clean final reply back to the interface.';
+  if(/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/.test(t))return 'A ReferenceError means a script tried to use a variable, function, or module binding that was not available in that runtime scope. The fix is to identify the missing symbol, correct the import/export or declaration order, and return a safe final reply instead of letting the raw diagnostic become Marion’s visible answer.';
   if(/\binstead of good luck\b/.test(t)||/\bwhy would someone say that\b/.test(t))return 'They would say it as an indirect good-luck wish, usually referring to “break a leg.” In theatre culture, saying “good luck” directly is considered unlucky, so the indirect phrase became the accepted ritual.';
   return '';}
 
@@ -2758,7 +2760,7 @@ const finalResult=ensureFinalReply(base,{intent,domain,knowledgeDomain,domainHin
 
 
 function isVisibleRuntimeErrorReply(value = "") {
-  return /^(?:REFERENCEERROR|TYPEERROR|SYNTAXERROR|RANGEERROR)$/i.test(safeStr(value)) || /\b(?:ReferenceError|TypeError|SyntaxError|RangeError|is not defined|undefined is not|cannot read|no clean public reply field|bridge failed during processing)\b/i.test(safeStr(value));
+  const s = safeStr(value);return /^(?:REFERENCEERROR|REFERENCE_ERROR|TYPEERROR|SYNTAXERROR|RANGEERROR)$/i.test(s) || /\b(?:ReferenceError|TypeError|SyntaxError|RangeError|is not defined|undefined is not|cannot read|no clean public reply field|bridge failed during processing)\b/i.test(s);
 }
 function extractPromptForReferenceRecovery(primary = {}, secondary = {}) {
   const p = safeObj(primary);
@@ -2807,7 +2809,13 @@ function sanitizeReferenceErrorPacket(packet = {}, routed = {}, input = {}) {
 function ensureFinalReply(packet = {}, ctx = {}) {
   try {
     const result = ensureFinalReplyUnsafe(packet, ctx);
-    return sanitizeReferenceErrorPacket(result, safeObj(ctx).routed || safeObj(packet).routing || {}, safeObj(ctx).input || {});
+    const ctxInput = safeObj(ctx).input || {};
+    const ctxRouted = safeObj(ctx).routed || safeObj(packet).routing || {};
+    const publicReply = firstText(safeObj(result).publicReply, safeObj(result).visibleReply, safeObj(result).displayReply, safeObj(result).finalReply, safeObj(result).reply, safeObj(result).text, safeObj(result).answer, safeObj(result).message, safeObj(result).output, safeObj(result).response);
+    if (!publicReply && deterministicComposerKnowledgeReply(extractPromptForReferenceRecovery(ctxInput, ctxRouted))) {
+      return buildReferenceErrorRecoveredComposeResult(new Error("compose_reply_missing_or_blocked"), ctxRouted, ctxInput);
+    }
+    return sanitizeReferenceErrorPacket(result, ctxRouted, ctxInput);
   } catch (err) {
     return buildReferenceErrorRecoveredComposeResult(err, safeObj(ctx).routed || safeObj(packet).routing || {}, safeObj(ctx).input || {});
   }
@@ -2843,7 +2851,7 @@ function buildReferenceErrorRecoveredComposeResult(error, routed = {}, input = {
   );
   const reply = deterministicComposerKnowledgeReply(prompt) ||
     "Marion received the request, but the runtime reply path recovered from a transient reference-resolution error before exposing diagnostics.";
-  const domain = /\b(contract|consideration|law|promise|estoppel)\b/i.test(prompt) ? "law" : "general";
+  const domain = /\b(domain\s+routing|domain\s+router|route\s+domains?|reference\s*error|referenceerror|backend|runtime|index\.js|compose\s*marion\s*response)\b/i.test(prompt) ? "technical" : (/\b(contract|consideration|law|promise|estoppel)\b/i.test(prompt) ? "law" : "general");
   const intent = "domain_question";
   const turnId = firstText(routedObj.turnId, inputObj.turnId, safeObj(inputObj.meta).turnId, `compose-recovered-${Date.now()}`);
   const memoryPatch = {
@@ -2917,6 +2925,9 @@ function composeMarionResponse(routed = {}, input = {}) {
     );
     if (isVisibleRuntimeErrorReply(publicReply)) {
       return buildReferenceErrorRecoveredComposeResult(new ReferenceError(publicReply || "REFERENCEERROR"), safeRouted, safeInput);
+    }
+    if (!publicReply && deterministicComposerKnowledgeReply(extractPromptForReferenceRecovery(safeInput, safeRouted))) {
+      return buildReferenceErrorRecoveredComposeResult(new Error("compose_reply_missing_or_blocked"), safeRouted, safeInput);
     }
     return result;
   } catch (err) {
