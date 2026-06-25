@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.9 REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.16.10 PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -281,8 +281,8 @@ function normalizeContinuityCarry(value = {}) {
 function isShortContinuityFollowupStateText(value = "") {
   const t = oneLine(value).replace(/[.?!]+$/g, "").toLowerCase();
   if (!t) return false;
-  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|give me example|show me an example|show me example|show another example|another example|example|use case|apply it|apply that|what about that|what happens next|what next|then what|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work)$/i.test(t) ||
-    (/\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically)\b/i.test(t));
+  return /^(?:why|why is that important|why does that matter|why is it important|why does it matter|how so|explain why|give me an example|give me example|show me an example|show me example|show another example|another example|example|use case|apply it|apply that|what about that|what happens next|what next|then what|what does that mean|tell me more|go deeper|continue|expand on that|break that down|how would that work|how does that help sandblast|how does this help sandblast|how does it help sandblast|why is that important for nyx|how does that help|next steps)$/i.test(t) ||
+    (/\b(that|it|this|those|these)\b/i.test(t) && /\b(important|matter|example|apply|work|mean|impact|risk|benefit|useful|business|small business|practical|practically|help|helps|sandblast|nyx|next)\b/i.test(t));
 }
 
 function classifyContinuityFollowupStateAction(value = "") {
@@ -290,12 +290,13 @@ function classifyContinuityFollowupStateAction(value = "") {
   if (!t) return "";
   if (/\b(example|scenario|show me|for instance)\b/i.test(t) || /^(?:example|give me an example)$/i.test(t)) return "example";
   if (/\b(why|important|matter|value|purpose|significance)\b/i.test(t)) return "importance";
-  if (/\b(apply|application|small business|business use|real world|practical|practically|use case|scenario)\b/i.test(t)) return "application";
+  if (/\b(how does that help sandblast|how does this help sandblast|how does it help sandblast|help sandblast|helps sandblast|sandblast)\b/i.test(t)) return "sandblast_application";
+  if (/\b(apply|application|small business|business use|real world|practical|practically|use case|scenario|help|helps)\b/i.test(t)) return "application";
   if (/\b(risk|risks|danger|downside|problem|failure|warning)\b/i.test(t)) return "risk";
   if (/\b(benefit|benefits|upside|advantage|advantages|useful)\b/i.test(t)) return "benefit";
   if (/\b(compare|comparison|versus|vs\.?|difference|different from)\b/i.test(t)) return "compare";
   if (/\b(how|work|works|mechanism|process)\b/i.test(t)) return "mechanism";
-  if (/\b(what happens next|next step|what next|then what)\b/i.test(t)) return "next";
+  if (/\b(what happens next|next step|next steps|what next|then what)\b/i.test(t)) return "next";
   if (/\b(continue|tell me more|expand|go deeper|break that down|elaborate)\b/i.test(t)) return "expand";
   if (/\b(mean|means|definition|define)\b/i.test(t)) return "meaning";
   return isShortContinuityFollowupStateText(t) ? "followup" : "";
@@ -309,8 +310,9 @@ function buildStateContinuityResolvedQuestion(text = "", topic = "", action = ""
   const a = oneLine(action || classifyContinuityFollowupStateAction(raw));
   switch (a) {
     case "example": return `Give me a concrete example of ${subject}.`;
-    case "importance": return `Why is ${subject} important?`;
-    case "application": return /small business/i.test(raw) ? `Apply ${subject} to a small business.` : `Apply ${subject} to a practical business scenario.`;
+    case "importance": return /nyx/i.test(raw) ? `Why is ${subject} important for Nyx?` : `Why is ${subject} important?`;
+    case "sandblast_application": return `How does ${subject} help Sandblast?`;
+    case "application": return /sandblast/i.test(raw) ? `How does ${subject} help Sandblast?` : (/small business/i.test(raw) ? `Apply ${subject} to a small business.` : `Apply ${subject} to a practical business scenario.`);
     case "risk": return `What are the main risks or failure points related to ${subject}?`;
     case "benefit": return `What are the main benefits of ${subject}?`;
     case "compare": return `Compare ${subject} with the closest alternative or opposite concept.`;
@@ -328,6 +330,9 @@ function inferContinuityTopicFromAssistantText(value = "") {
   const lowerT = t.toLowerCase();
   if (!t) return "";
   const directTopics = [
+    { rx: /\bmarion\b.*\bnyx\b.*\bcontext\b|\bnyx\b.*\bmarion\b.*\bcontext\b|\bmarion\b.*\bcarry\b.*\bcontext\b|\bnyx\b.*\bfollow[-\s]?up\b/i, topic: "Marion and Nyx continuity" },
+    { rx: /\bmarion\b.*\badmin runtime\b|\bmarion\b.*\bruntime\b/i, topic: "Marion runtime continuity" },
+    { rx: /\bnyx\b.*\bpublic\b.*\bprojection\b|\bpublic\s+nyx\b.*\bprojection\b/i, topic: "public Nyx final projection" },
     { rx: /\bcash[-\s]?flow\b/i, topic: "cash flow" },
     { rx: /\bleast privilege\b/i, topic: "least privilege" },
     { rx: /\bphishing\b/i, topic: "phishing" },
