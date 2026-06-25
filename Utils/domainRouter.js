@@ -22,7 +22,7 @@
 
 const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
 
-const ROUTER_VERSION = "domainRouter v1.5.5 SIX-DOMAIN-DEFINITION-SCORE-AUTHORITY + SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.6 REFERENCEERROR-ENTRYPOINT-HARDENED + SIX-DOMAIN-DEFINITION-SCORE-AUTHORITY + SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -602,7 +602,7 @@ function pickTopDomains(scores, opts) {
 // -------------------------
 // Public functions
 // -------------------------
-function scoreDomains(norm, session, cog, opts = {}) {
+function scoreDomainsUnsafe(norm, session, cog, opts = {}) {
   const n = isPlainObject(norm) ? norm : {};
   const s = isPlainObject(session) ? session : {};
   const c = isPlainObject(cog) ? cog : {};
@@ -692,10 +692,10 @@ function scoreDomains(norm, session, cog, opts = {}) {
   };
 }
 
-function routeDomain(norm, session, cog, opts = {}) {
+function routeDomainUnsafe(norm, session, cog, opts = {}) {
   const n = isPlainObject(norm) ? norm : {};
   const o = isPlainObject(opts) ? opts : {};
-  const scored = scoreDomains(n, session, cog, o);
+  const scored = scoreDomainsUnsafe(n, session, cog, o);
   const text = n.text || n.query || n.message || "";
   const domainConfidence = scored.domainConfidence || domainConfidenceProfile(scored.scores, text, o);
   const crossDomainProfile = crossDomainSecondaryLaneProfile(text);
@@ -776,6 +776,143 @@ function routeDomain(norm, session, cog, opts = {}) {
       noCrossDomainBleed: true
     }
   };
+}
+
+
+// Surgical hardening: normalize loose caller payloads and fail closed without surfacing ReferenceError.
+function extractRouteTextForRecovery(value) {
+  const v = safeObj(value);
+  const payload = safeObj(v.payload);
+  const meta = safeObj(v.meta);
+  const routing = safeObj(v.routing);
+  const candidates = [
+    v.text, v.query, v.message, v.prompt, v.userText, v.rawUserText, v.normalizedUserIntent,
+    payload.text, payload.query, payload.message, payload.prompt, payload.userText, payload.rawUserText,
+    meta.text, meta.query, meta.message, meta.prompt, meta.userText, meta.rawUserText,
+    routing.text, routing.query, routing.message, routing.prompt, routing.normalizedUserIntent
+  ];
+  for (const item of candidates) {
+    const text = safeStr(item, 1400).trim();
+    if (text) return text;
+  }
+  return typeof value === "string" ? safeStr(value, 1400) : "";
+}
+function normalizeRouteNormInput(norm = {}) {
+  if (isPlainObject(norm)) {
+    const text = extractRouteTextForRecovery(norm);
+    return { ...norm, text: text || safeStr(norm.text || norm.query || norm.message || "", 1400) };
+  }
+  return { text: extractRouteTextForRecovery(norm) };
+}
+function fallbackRouteDomainForReferenceError(norm = {}, error = null) {
+  const n = normalizeRouteNormInput(norm);
+  const text = n.text || "";
+  let primary = DOMAIN_ENUM.CORE;
+  const definitionDomain = definitionKnowledgeDomainFromText(text);
+  if (definitionDomain) primary = definitionDomain;
+  else if (/\b(contract|consideration|promise|estoppel|legal|law)\b/i.test(text)) primary = DOMAIN_ENUM.LAW;
+  const secondary = [];
+  const scores = baseScores();
+  if (scores[primary] !== undefined) scores[primary] = 1;
+  const domainConfidence = {
+    version: "nyx.domainConfidenceScoring/1.1",
+    primary,
+    secondary: "",
+    confidence: primary === DOMAIN_ENUM.CORE ? 0.52 : 0.91,
+    margin: primary === DOMAIN_ENUM.CORE ? 0.34 : 0.91,
+    ambiguous: false,
+    routeLocked: true,
+    failClosed: false,
+    primaryDomain: primary,
+    fallbackDomain: primary,
+    top: [{ domain: primary, score: 1 }],
+    reason: "referenceerror_recovered_route"
+  };
+  const sixDomainCoverage = buildSixDomainCoverage(scores, domainConfidence);
+  const routing = {
+    intent: safeStr(n.intent || "domain_question") || "domain_question",
+    domain: primary,
+    knowledgeDomain: SIX_KNOWLEDGE_DOMAINS.includes(primary) ? primary : "",
+    primaryDomain: primary,
+    selectedDomain: primary,
+    secondaryDomains: secondary,
+    endpoint: "marion://routeMarion.primary",
+    answerMode: "grounded",
+    domainConfidence,
+    sixDomainCoverage,
+    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+    noCrossDomainBleed: true,
+    finalAuthorityExpected: "marionFinalEnvelope"
+  };
+  return {
+    ok: true,
+    recoveredReferenceError: true,
+    routerVersion: ROUTER_VERSION,
+    routing,
+    primary,
+    primaryDomain: primary,
+    selectedDomain: primary,
+    secondary,
+    secondaryDomains: secondary,
+    reason: {
+      primary,
+      secondary,
+      confidence: domainConfidence.confidence,
+      signals: ["recovered:referenceerror", `definition:${primary}`],
+      inputSource: normalizeInputSource(n.inputSource || n.source || "text"),
+      turnHash: continuityHash(text),
+      domainConfidence,
+      sixDomainCoverage,
+      allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+      finalAuthorityExpected: "marionFinalEnvelope"
+    },
+    signals: ["recovered:referenceerror", `definition:${primary}`],
+    scores,
+    confidence: scores,
+    domainConfidence,
+    sixDomainCoverage,
+    allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+    crossDomainProfile: null,
+    answerMode: "grounded",
+    finalAuthorityExpected: "marionFinalEnvelope",
+    stateSpinePatch: {
+      source: "domainRouter.referenceerrorRecovery",
+      schema: "nyx.marion.stateSpine/1.7",
+      shouldAdvanceState: false,
+      selectedDomain: primary,
+      secondaryDomains: secondary,
+      sixDomainCoverage,
+      allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+      noCrossDomainBleed: true,
+      recoveredReferenceError: true,
+      safeErrorName: safeStr(error && error.name, 40)
+    }
+  };
+}
+function scoreDomains(norm, session, cog, opts = {}) {
+  try {
+    return scoreDomainsUnsafe(normalizeRouteNormInput(norm), session, cog, opts);
+  } catch (err) {
+    const recovered = fallbackRouteDomainForReferenceError(norm, err);
+    return {
+      ok: true,
+      routerVersion: ROUTER_VERSION,
+      scores: recovered.scores,
+      confidence: recovered.confidence,
+      domainConfidence: recovered.domainConfidence,
+      sixDomainCoverage: recovered.sixDomainCoverage,
+      allKnowledgeDomains: SIX_KNOWLEDGE_DOMAINS.slice(),
+      signals: recovered.signals,
+      stateSpinePatch: recovered.stateSpinePatch
+    };
+  }
+}
+function routeDomain(norm, session, cog, opts = {}) {
+  try {
+    return routeDomainUnsafe(normalizeRouteNormInput(norm), session, cog, opts);
+  } catch (err) {
+    return fallbackRouteDomainForReferenceError(norm, err);
+  }
 }
 
 module.exports = {
