@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.42sb MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.78sb MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.79sb PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -2487,10 +2487,195 @@ function normalizeLastMileIntentText(value) {
 
 const LAST_MILE_PROGRESSION_CONTINUATION_REPLY = "";
 
+const PUBLIC_NYX_FINAL_PROJECTION_REPAIR_VERSION = "nyx.index.publicFinalProjectionRepair/1.0";
+
+function isPublicNyxGreetingIntentText(value = "") {
+  const text = normalizePublicNyxAddress(value).replace(/[.!?]+$/g, "").trim().toLowerCase();
+  if (!text) return false;
+  return /^(?:hi|hello|hey|yo|hiya|good morning|good afternoon|good evening)(?:[, ]+(?:nyx|nix|nick|nicks|mix|mike))?$/.test(text) ||
+    /^(?:nyx|nix|nick|nicks)$/.test(text);
+}
+
+function buildPublicNyxGreetingReply(value = "") {
+  const text = normalizePublicNyxAddress(value).toLowerCase();
+  if (/\bgood\s+morning\b/i.test(text)) return "Good morning. I’m ready when you are.";
+  if (/\bgood\s+afternoon\b/i.test(text)) return "Good afternoon. I’m ready when you are.";
+  if (/\bgood\s+evening\b/i.test(text)) return "Good evening. I’m ready when you are.";
+  return "Hi. I’m Nyx. I’m ready when you are.";
+}
+
+function buildPublicNyxRoleReply(value = "") {
+  const text = normalizeLastMileIntentText(normalizePublicNyxAddress(value));
+  if (!text) return "";
+  if (/\bwhat\s+is\s+marion\s+supposed\s+to\s+do\b/i.test(text) || /\bwhat\s+does\s+marion\s+do\b/i.test(text) || /\bmarion(?:'s| is)?\s+(?:role|purpose|job)\b/i.test(text)) {
+    return "Marion is the hidden orchestration layer behind Nyx. Nyx handles the public conversation, while Marion helps route intent, preserve context, validate the final reply, and keep diagnostics out of the visible answer.";
+  }
+  if (/\bcan\s+(?:you|nyx|marion)\s+carry\s+context\b/i.test(text) || /\bcarry\s+context\s+across\s+turns\b/i.test(text)) {
+    return "Yes. The goal is for Nyx to keep the conversation natural while Marion carries the useful context behind the scenes, so follow-up questions stay connected instead of restarting the conversation.";
+  }
+  if (/\bwhy\s+is\s+that\s+important\s+for\s+nyx\b/i.test(text) || (/\bwhy\s+is\s+that\s+important\b/i.test(text) && /\bnyx|context|marion\b/i.test(text))) {
+    return "That matters because Nyx should feel continuous to the user. Marion’s job is to preserve the thread, control the final answer, and prevent the interface from exposing backend state or stale fallback language.";
+  }
+  if (/\bnext\s+steps?\b/i.test(text) && /\bnyx|marion|runtime|public|projection|context\b/i.test(text)) {
+    return "Next, test the public route across five turns: greeting, Marion role, context carry, why it matters, and next steps. The pass condition is one clean public reply per turn with no diagnostics, no blank final, and no fallback loop.";
+  }
+  return "";
+}
+
+function collectPublicProjectionIntentText(packet = {}) {
+  const src = safeObj(packet);
+  const payload = safeObj(src.payload);
+  const finalEnvelope = safeObj(src.finalEnvelope);
+  const input = safeObj(src.input);
+  const body = safeObj(src.body);
+  const meta = safeObj(src.meta);
+  const normalized = safeObj(src.normalized || src.norm);
+  const original = safeObj(src.original);
+  const pieces = [
+    src.userText, src.publicUserText, src.rawUserText, src.originalUserText, src.originalText, src.originalRawText, src.userQuery, src.rawUserQuery, src.publicUserQuery, src.query, src.message, src.text, src.inputText,
+    payload.userText, payload.publicUserText, payload.rawUserText, payload.originalUserText, payload.originalText, payload.originalRawText, payload.userQuery, payload.rawUserQuery, payload.publicUserQuery, payload.query, payload.message, payload.text, payload.inputText,
+    input.userText, input.publicUserText, input.rawUserText, input.originalUserText, input.originalText, input.query, input.message, input.text,
+    body.userText, body.publicUserText, body.rawUserText, body.originalUserText, body.originalText, body.query, body.message, body.text,
+    meta.userText, meta.publicUserText, meta.rawUserText, meta.originalUserText, meta.originalText, meta.query, meta.message, meta.text,
+    normalized.userText, normalized.publicUserText, normalized.rawUserText, normalized.originalUserText, normalized.originalText, normalized.query, normalized.message, normalized.text,
+    original.userText, original.publicUserText, original.rawUserText, original.originalUserText, original.originalText, original.query, original.message, original.text,
+    finalEnvelope.userText, finalEnvelope.publicUserText, finalEnvelope.rawUserText, finalEnvelope.originalUserText, finalEnvelope.originalText
+  ];
+  return pieces.map(cleanText).filter((piece) => piece && !isPublicWorkflowStateLeak(piece) && !hasUserVisibleDebugLeak(piece)).join(" ");
+}
+
+function buildPublicNyxProjectionRecoveryReply(packet = {}) {
+  const source = collectPublicProjectionIntentText(packet);
+  if (!source) return "";
+  if (isPublicNyxGreetingIntentText(source)) return buildPublicNyxGreetingReply(source);
+  const roleReply = buildPublicNyxRoleReply(source);
+  if (roleReply) return roleReply;
+  return buildDeterministicLastMilePublicReplyFromText(source);
+}
+
+function attachPublicProjectionIntentFields(packet = {}, norm = {}) {
+  const out = isObj(packet) ? { ...packet } : {};
+  const n = safeObj(norm);
+  const payload = safeObj(out.payload);
+  const userText = cleanText(n.text || n.userText || n.message || n.query || out.userText || payload.userText || "");
+  const rawUserText = cleanText(n.rawUserText || n.rawText || n.originalRawText || n.originalText || out.rawUserText || payload.rawUserText || userText);
+  const originalUserText = cleanText(n.originalText || n.originalUserText || n.originalRawText || rawUserText || userText);
+  out.userText = cleanText(out.userText || userText);
+  out.publicUserText = cleanText(out.publicUserText || userText);
+  out.rawUserText = cleanText(out.rawUserText || rawUserText);
+  out.originalUserText = cleanText(out.originalUserText || originalUserText);
+  out.originalText = cleanText(out.originalText || originalUserText);
+  out.originalRawText = cleanText(out.originalRawText || n.originalRawText || rawUserText);
+  out.query = cleanText(out.query || userText);
+  out.message = cleanText(out.message || userText);
+  out.payload = {
+    ...payload,
+    userText: cleanText(payload.userText || userText),
+    publicUserText: cleanText(payload.publicUserText || userText),
+    rawUserText: cleanText(payload.rawUserText || rawUserText),
+    originalUserText: cleanText(payload.originalUserText || originalUserText),
+    originalText: cleanText(payload.originalText || originalUserText),
+    query: cleanText(payload.query || userText),
+    message: cleanText(payload.message || userText)
+  };
+  out.normalized = {
+    ...(isObj(out.normalized) ? out.normalized : {}),
+    userText,
+    publicUserText: userText,
+    rawUserText,
+    originalUserText,
+    originalText: originalUserText,
+    query: userText,
+    text: userText
+  };
+  return out;
+}
+
+function buildPublicProjectionRecoveryResponse(norm = {}, reason = "public_projection_recovered", packet = {}) {
+  const n = safeObj(norm);
+  const base = attachPublicProjectionIntentFields({
+    ...(isObj(packet) ? packet : {}),
+    ok: true,
+    final: true,
+    finalized: true,
+    handled: true,
+    marionFinal: true,
+    awaitingMarion: false,
+    suppressUserFacingReply: false,
+    emit: true,
+    blocked: false,
+    lane: cleanText(n.lane || safeObj(packet).lane || "general") || "general",
+    laneId: cleanText(n.lane || safeObj(packet).laneId || "general") || "general",
+    sessionLane: cleanText(n.lane || safeObj(packet).sessionLane || "general") || "general",
+    requestId: cleanText(safeObj(packet).requestId || makeTraceId("req")),
+    traceId: cleanText(safeObj(packet).traceId || n.traceId || makeTraceId("chat")),
+    authority: "marionFinalEnvelope",
+    meta: {
+      ...(isObj(safeObj(packet).meta) ? safeObj(packet).meta : {}),
+      publicNyxFinalProjectionRepair: true,
+      publicNyxFinalProjectionRepairVersion: PUBLIC_NYX_FINAL_PROJECTION_REPAIR_VERSION,
+      reason: cleanText(reason),
+      noUserFacingDiagnostics: true
+    }
+  }, n);
+  const recoveredReply = cleanReplyForUser(buildPublicNyxProjectionRecoveryReply(base));
+  if (!recoveredReply) return null;
+  base.reply = recoveredReply;
+  base.text = recoveredReply;
+  base.short = recoveredReply;
+  base.answer = recoveredReply;
+  base.output = recoveredReply;
+  base.response = recoveredReply;
+  base.displayReply = recoveredReply;
+  base.spokenText = recoveredReply;
+  base.textSpeak = recoveredReply;
+  base.textDisplay = recoveredReply;
+  base.payload = {
+    ...safeObj(base.payload),
+    reply: recoveredReply,
+    text: recoveredReply,
+    message: recoveredReply,
+    answer: recoveredReply,
+    output: recoveredReply,
+    response: recoveredReply,
+    displayReply: recoveredReply,
+    spokenText: recoveredReply,
+    textSpeak: recoveredReply,
+    textDisplay: recoveredReply,
+    final: true,
+    finalized: true,
+    marionFinal: true,
+    handled: true,
+    emit: true,
+    blocked: false,
+    awaitingMarion: false,
+    suppressUserFacingReply: false
+  };
+  base.finalEnvelope = {
+    ...(isObj(base.finalEnvelope) ? base.finalEnvelope : {}),
+    reply: recoveredReply,
+    text: recoveredReply,
+    displayReply: recoveredReply,
+    spokenText: recoveredReply,
+    final: true,
+    finalized: true,
+    marionFinal: true,
+    handled: true,
+    authority: "marionFinalEnvelope",
+    contractVersion: "nyx.marion.final/1.0",
+    qualityPass: true,
+    publicNyxFinalProjectionRepair: true
+  };
+  return buildPublicChatResponse(base, recoveredReply);
+}
+
 function buildDeterministicLastMilePublicReplyFromText(value = "") {
   const source = cleanText(value);
   const normalized = normalizeLastMileIntentText(source);
   if (!source && !normalized) return "";
+  if (isPublicNyxGreetingIntentText(source)) return buildPublicNyxGreetingReply(source);
+  const publicNyxRoleReply = buildPublicNyxRoleReply(source);
+  if (publicNyxRoleReply) return publicNyxRoleReply;
   if (/\bsandblast\s+channel\b/i.test(source)) {
     return "Sandblast Channel is a media and AI interface ecosystem built around chat, radio, video, news, and multilingual support through Nyx and Marion.";
   }
@@ -2954,6 +3139,7 @@ function buildPublicChatResponse(packet, reply) {
   if (lingoSentinelAnswer && (!safeReply || isGenericGreetingStatusReply(safeReply))) safeReply = lingoSentinelAnswer;
   if (!safeReply) safeReply = lingoSentinelAnswer;
   if (!safeReply) safeReply = buildLastMileRecoveryReply(src);
+  if (!safeReply) safeReply = buildPublicNyxProjectionRecoveryReply(src);
   if (!safeReply || isPrimitivePlaceholderReplyValue(safeReply)) {
     return buildSuppressedPublicChatResponse(src, "blank_or_unsafe_public_reply");
   }
@@ -3091,6 +3277,8 @@ function applyPublicReplyHygieneToResponse(packet) {
   if (lingoSentinelAnswer) return buildPublicChatResponse(packet, lingoSentinelAnswer);
   const lastMileRecovery = buildLastMileRecoveryReply(packet);
   if (lastMileRecovery) return buildPublicChatResponse(forcePublicReply(packet, lastMileRecovery, { primitivePublicReplyRecovered: true }), lastMileRecovery);
+  const publicProjectionRecovery = buildPublicNyxProjectionRecoveryReply(packet);
+  if (publicProjectionRecovery) return buildPublicChatResponse(forcePublicReply(packet, publicProjectionRecovery, { publicNyxFinalProjectionRepair: true }), publicProjectionRecovery);
   return {
     ok: false,
     final: false,
@@ -3672,6 +3860,9 @@ function finalizeRenderableReply(reply, norm, authority, reason) {
 
 function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
   const n = isObj(norm) ? norm : {};
+  const userText = cleanText(n.text || n.userText || n.message || n.query || "");
+  const rawUserText = cleanText(n.rawUserText || n.rawText || n.originalRawText || n.originalText || userText);
+  const originalUserText = cleanText(n.originalText || n.originalUserText || n.originalRawText || rawUserText || userText);
   const lane = cleanText(n.lane || "general") || "general";
   const traceId = cleanText(n.traceId || makeTraceId("chat"));
   const err = cleanText(error || "conversation_authority_empty") || "conversation_authority_empty";
@@ -3710,6 +3901,16 @@ function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
     output: emergencyReply,
     answer: emergencyReply,
     response: emergencyReply,
+    userText,
+    publicUserText: userText,
+    rawUserText,
+    originalUserText,
+    originalText: originalUserText,
+    originalRawText: rawUserText,
+    query: userText,
+    message: userText,
+    inputText: userText,
+    normalized: { userText, publicUserText: userText, rawUserText, originalUserText, originalText: originalUserText, query: userText, text: userText },
     finalEnvelope: {
       reply: emergencyReply,
       text: emergencyReply,
@@ -3726,6 +3927,13 @@ function buildConversationNonFinalPacket(norm, status, error, detail, extra) {
       text: emergencyReply,
       message: emergencyReply,
       spokenText: emergencyReply,
+      userText,
+      publicUserText: userText,
+      rawUserText,
+      originalUserText,
+      originalText: originalUserText,
+      query: userText,
+      inputText: userText,
       final: canEmitEmergency,
       marionFinal: false,
       awaitingMarion: !canEmitEmergency,
@@ -13643,6 +13851,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   if (!selected) {
+    const projectionRecovery = buildPublicProjectionRecoveryResponse(norm, "conversation_authority_empty_public_projection_recovery", { traceId: norm.traceId, lane: norm.lane || "general" });
+    if (projectionRecovery) {
+      const projectionReply = cleanReplyForUser(projectionRecovery.reply || projectionRecovery.text || projectionRecovery.displayReply || "");
+      setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply: projectionReply, replyHash: replyHash(projectionReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: "public_nyx_projection_recovery", count: 1 });
+      return res.status(200).json(projectionRecovery);
+    }
     const safe = buildConversationSafeErrorReply(norm, 200, "conversation_authority_empty", cleanText(errorDetail || "No final reply was returned by MarionBridge."), {
       marionBridgePresent: !!marionBridgeMod,
       chatEnginePresent: !!chatEngineMod,
@@ -13797,6 +14011,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     }
   }
   if (!cleanText(reply)) {
+    const projectionRecovery = buildPublicProjectionRecoveryResponse(norm, "trusted_marion_final_reply_missing_after_sanitization_public_projection_recovery", selected || {});
+    if (projectionRecovery) {
+      const projectionReply = cleanReplyForUser(projectionRecovery.reply || projectionRecovery.text || projectionRecovery.displayReply || "");
+      setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply: projectionReply, replyHash: replyHash(projectionReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: "public_nyx_projection_recovery", count: 1 });
+      return res.status(200).json(projectionRecovery);
+    }
     const safe = buildConversationSafeErrorReply(norm, 200, "conversation_authority_empty", "trusted_marion_final_reply_missing_after_sanitization", {
       authority,
       marionBridgePresent: !!marionBridgeMod,
@@ -14166,8 +14386,14 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   });
 
   if (!cleanReplyForUser(reply) || hasUserVisibleDebugLeak(reply) || isPublicWorkflowStateLeak(reply) || isBlockedLoopingSupportReply(reply)) {
+    const projectionRecovery = buildPublicProjectionRecoveryResponse(norm, "unsafe_final_reply_purged_public_projection_recovery", selected || {});
+    if (projectionRecovery) {
+      const projectionReply = cleanReplyForUser(projectionRecovery.reply || projectionRecovery.text || projectionRecovery.displayReply || "");
+      setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply: projectionReply, replyHash: replyHash(projectionReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: "public_nyx_projection_recovery", count: 1 });
+      return res.status(200).json(projectionRecovery);
+    }
     setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", unsafeFinalPurged: true });
-    return res.status(200).json(buildSuppressedPublicChatResponse({ requestId: selected.requestId, traceId: selected.traceId || norm.traceId, sessionId, lane: norm.lane || "general", authority }, "unsafe_final_reply_purged"));
+    return res.status(200).json(buildSuppressedPublicChatResponse(attachPublicProjectionIntentFields({ requestId: selected.requestId, traceId: selected.traceId || norm.traceId, sessionId, lane: norm.lane || "general", authority }, norm), "unsafe_final_reply_purged"));
   }
 
   setSupportState(sessionId, {
