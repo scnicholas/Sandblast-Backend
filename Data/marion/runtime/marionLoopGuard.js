@@ -13,7 +13,7 @@
  *   mutate durable memory.
  */
 
-const VERSION = "marionLoopGuard v1.2.0 LOOP-SIGNAL-SEPARATION-HARDLOCK + EMPTY-REPLY-SUPPRESSION + TELEMETRY-LEAK-SUPPRESSION + TRUSTED-FINAL-REPEAT-PRECISION + FINAL-RENDER-TELEMETRY-CARRY";
+const VERSION = "marionLoopGuard v1.2.1 REFERENCEERROR-SUPPRESSION";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
 
@@ -39,7 +39,10 @@ const DEFAULT_BLOCKED_PHRASES = Object.freeze([
   "non-final",
   "reply authority",
   "session patch",
-  "route kind"
+  "route kind",
+  "referenceerror",
+  "typeerror",
+  "syntaxerror"
 ]);
 
 const TELEMETRY_VISIBILITY_VERSION = "nyx.marion.telemetryVisibility/1.0";
@@ -97,7 +100,7 @@ function telemetryAuditObj(value) {
 function isTelemetryLeakText(value = "") {
   const text = telemetryAuditText(value);
   if (!text) return false;
-  return /\b(routeKind\s*=|speechHints\s*=|presenceProfile\s*=|finalEnvelope\b|sessionPatch\b|marionFinal\b|transportSafe\b|replyAuthority\s*=|nyxStateHint\s*=|diagnostic packet|final envelope missing|non-final|MARION::FINAL::|MARION_FINAL_AUTHORITY)\b/i.test(text);
+  return /\b(routeKind\s*=|speechHints\s*=|presenceProfile\s*=|finalEnvelope\b|sessionPatch\b|marionFinal\b|transportSafe\b|replyAuthority\s*=|nyxStateHint\s*=|diagnostic packet|final envelope missing|non-final|ReferenceError|REFERENCEERROR|TypeError|SyntaxError|RangeError|stack trace|MARION::FINAL::|MARION_FINAL_AUTHORITY)\b/i.test(text);
 }
 
 function stripTelemetryLeakFromReply(value = "") {
@@ -107,7 +110,7 @@ function stripTelemetryLeakFromReply(value = "") {
   text = text
     .replace(/\b(routeKind|speechHints|presenceProfile|replyAuthority|nyxStateHint)\s*=\s*[^.;,\n]+[.;,]?\s*/gi, "")
     .replace(/\b(finalEnvelope|sessionPatch|marionFinal|transportSafe)\b\s*[:=]?\s*[^.;,\n]*[.;,]?\s*/gi, "")
-    .replace(/\b(MARION::FINAL::|MARION_FINAL_AUTHORITY|diagnostic packet|final envelope missing|non-final)\b/gi, "")
+    .replace(/\b(MARION::FINAL::|MARION_FINAL_AUTHORITY|diagnostic packet|final envelope missing|non-final|ReferenceError|REFERENCEERROR|TypeError|SyntaxError|RangeError)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
   return text;
