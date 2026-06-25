@@ -36,8 +36,8 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "index.js v2.18.43sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.80sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
+const INDEX_VERSION = "index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.81sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -2671,7 +2671,7 @@ function buildPublicProjectionRecoveryResponse(norm = {}, reason = "public_proje
 
 function buildPublicNyxContinuityHandoffReply(value = "") {
   const source = cleanText(value);
-  const t = normalizeLastMileIntentText(source);
+  const t = normalizeLastMileIntentText(source).replace(/[.!?]+$/g, "").trim();
   if (!t) return "";
   if (/\bwhat\s+is\s+marion\s+supposed\s+to\s+do\b|\bwhat\s+is\s+marion(?:'s|s)?\s+role\b|\bwhat\s+does\s+marion\s+do\b/i.test(t)) {
     return "Marion is the deeper coordination layer behind Nyx. Nyx stays public-facing and conversational while Marion helps preserve intent, context, routing, and clean response handoff in the background.";
@@ -2679,13 +2679,13 @@ function buildPublicNyxContinuityHandoffReply(value = "") {
   if (/\bcan\s+marion\s+carry\s+context\s+across\s+turns\b|\bcan\s+you\s+carry\s+context\s+across\s+turns\b|\bcarry\s+context\s+across\s+turns\b/i.test(t)) {
     return "Yes. The goal is for Nyx to keep the conversation natural while Marion carries the useful context behind the scenes, so follow-up questions stay connected instead of restarting the conversation.";
   }
-  if (/\bwhy\s+is\s+that\s+important\s+for\s+nyx\b|\bwhy\s+does\s+that\s+matter\s+for\s+nyx\b/i.test(t)) {
+  if (/\bwhy\s+is\s+that\s+important\s+for\s+nyx\b|\bwhy\s+does\s+that\s+matter\s+for\s+nyx\b|\bwhy\s+is\b.{0,120}\bimportant\s+for\s+nyx\b/i.test(t)) {
     return "It matters because Nyx is the public voice. If Marion carries the thread behind the scenes, Nyx can answer follow-up questions naturally without making the user restate the topic every turn.";
   }
-  if (/\bhow\s+does\s+that\s+help\s+sandblast\b|\bhow\s+does\s+this\s+help\s+sandblast\b|\bhow\s+does\s+it\s+help\s+sandblast\b/i.test(t)) {
+  if (/\bhow\s+does\b.{0,160}\bhelp\s+sandblast\b|\bhow\s+would\b.{0,160}\bhelp\s+sandblast\b|\bhelp\s+sandblast\b/i.test(t)) {
     return "It helps Sandblast because Nyx becomes easier to talk to and Marion keeps the useful context in the background. That means users can ask follow-up questions naturally, stay engaged longer, and move through radio, TV, news, and business prompts without the interface feeling like it resets every turn.";
   }
-  if (/^(?:next\s+steps?|what(?:'|’)?s\s+next|what\s+next|then\s+what)\??$/i.test(t)) {
+  if (/^(?:next\s+steps?|what(?:'|’)?s\s+next|what\s+next|then\s+what)\??$/i.test(t) || (/\bnext\s+steps?\b/i.test(t) && /\bnyx|marion|sandblast|continuity|handoff|public\b/i.test(t))) {
     return "Next steps: keep the public Nyx route clean, run the five-turn continuity test, confirm each follow-up advances the thread, then lock the stable handoff before adding new features.";
   }
   return "";
@@ -2725,6 +2725,66 @@ function buildDeterministicLastMilePublicReplyFromText(value = "") {
   }
   const sixDomainReply = buildSixDomainPublicKnowledgeAnswer(source);
   if (sixDomainReply) return sixDomainReply;
+  return "";
+}
+
+
+function buildPublicContinuitySemanticOverrideReply(packet = {}, currentReply = "", norm = {}) {
+  // PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1:
+  // A clean-looking reply can still be stale if it answers the previous turn.
+  // This gate uses only the current user intent / resolved follow-up fields and
+  // promotes a deterministic public answer when the selected reply does not
+  // match the current follow-up shape.
+  const src = safeObj(packet);
+  const payload = safeObj(src.payload);
+  const finalEnvelope = safeObj(src.finalEnvelope);
+  const n = safeObj(norm);
+  const prompt = [
+    n.continuityResolvedOriginalText,
+    n.originalText,
+    n.rawUserText,
+    n.userText,
+    n.message,
+    n.query,
+    n.text,
+    n.continuityResolvedText,
+    n.resolvedQuestion,
+    n.resolvedPrompt,
+    src.continuityResolvedOriginalText,
+    src.originalUserText,
+    src.rawUserText,
+    src.userText,
+    src.publicUserText,
+    src.message,
+    src.query,
+    src.text,
+    payload.continuityResolvedOriginalText,
+    payload.originalUserText,
+    payload.rawUserText,
+    payload.userText,
+    payload.publicUserText,
+    payload.message,
+    payload.query,
+    payload.text,
+    finalEnvelope.userText,
+    finalEnvelope.rawUserText,
+    finalEnvelope.query,
+    finalEnvelope.text,
+    collectCurrentUserIntentText(src)
+  ].map(cleanText).filter(Boolean).join(" ");
+  const candidate = cleanReplyForUser(buildPublicNyxContinuityHandoffReply(prompt));
+  if (!candidate) return "";
+  const reply = cleanReplyForUser(currentReply);
+  if (!reply) return candidate;
+  if (replyHash(candidate) === replyHash(reply)) return "";
+  const p = normalizeLastMileIntentText(prompt);
+  const r = normalizeLastMileIntentText(reply);
+  if (!p || !r) return "";
+  if (/\bsandblast\b/i.test(p) && /\bhelp|application|apply|business|users?|engaged|radio|tv|news\b/i.test(p) && !/\bsandblast\b/i.test(r)) return candidate;
+  if (/\bwhy\b/i.test(p) && /\bnyx\b/i.test(p) && !/\bnyx\b/i.test(r)) return candidate;
+  if (/\bwhy\b/i.test(p) && /\bimportant|matter\b/i.test(p) && !/\bbecause|matters|important|prevents|allows|helps\b/i.test(r)) return candidate;
+  if (/\bnext\s+steps?\b/i.test(p) && !/\bnext\s+steps?|test|confirm|lock|route|handoff\b/i.test(r)) return candidate;
+  if (/\bwhat\s+is\s+marion\b|\bwhat\s+does\s+marion\b/i.test(p) && !/\bmarion\b/i.test(r)) return candidate;
   return "";
 }
 
@@ -2842,6 +2902,7 @@ function buildContinuityIntentOverrideReply(norm = {}, currentReply = "") {
   if (replyHash(candidate) === replyHash(reply)) return "";
   if (/\b(example|for instance|show me)\b/i.test(p) && !/\b(example|for instance|invoices|\$|scenario|suppose|imagine)\b/i.test(r)) return candidate;
   if (/\b(important|matter|why)\b/i.test(p) && !/\b(important|because|determines|matters|helps|prevents|allows)\b/i.test(r)) return candidate;
+  if (/\bsandblast\b/i.test(p) && /\b(help|application|apply|business|users?|engaged|radio|tv|news)\b/i.test(p) && !/\bsandblast\b/i.test(r)) return candidate;
   if (/\b(apply|small business|practical)\b/i.test(p) && !/\b(apply|small business|practical|in practice|means watching|rule is)\b/i.test(r)) return candidate;
   return "";
 }
@@ -3151,6 +3212,9 @@ function buildPublicChatResponse(packet, reply) {
     finalEnvelope.reply ||
     ""
   );
+
+  const semanticContinuityOverride = buildPublicContinuitySemanticOverrideReply(src, safeReply);
+  if (semanticContinuityOverride) safeReply = semanticContinuityOverride;
 
   // PUBLIC-FINAL-PROJECTION-HARDLOCK:
   // The /api/chat public response must never expose runtime/advisory objects
@@ -8565,7 +8629,11 @@ function resolveShortContinuityFollowupText(currentText, priorTurn) {
 
   const lowerSource = source.replace(/[.?!]+$/g, "").toLowerCase();
   let resolved = "";
-  if (/^why\s+(?:is|does|do|are|would|could|should)\s+(?:that|this|it|they|them|those|these)\b/.test(lowerSource) || /important|matter/.test(lowerSource)) {
+  if (/\bhow\s+does\s+(?:that|this|it)\s+help\s+sandblast\b|\bhelp\s+sandblast\b/i.test(lowerSource)) {
+    resolved = `How does ${topic} help Sandblast?`;
+  } else if ((/^why\s+(?:is|does|do|are|would|could|should)\s+(?:that|this|it|they|them|those|these)\b/.test(lowerSource) || /important|matter/.test(lowerSource)) && /\bnyx\b/i.test(lowerSource)) {
+    resolved = `Why is ${topic} important for Nyx?`;
+  } else if (/^why\s+(?:is|does|do|are|would|could|should)\s+(?:that|this|it|they|them|those|these)\b/.test(lowerSource) || /important|matter/.test(lowerSource)) {
     resolved = `Why is ${topic} important?`;
   } else if (/^(?:give|show)\s+me\s+(?:an?\s+)?(?:another\s+)?example\b/i.test(source) || /^(?:another\s+example|example|use\s+case|show\s+another\s+one)$/i.test(lowerSource)) {
     resolved = /another|show\s+another/i.test(source) ? `Show another example of ${topic}.` : `Give me an example of ${topic}.`;
@@ -13992,6 +14060,25 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       longTurnContinuityRecovery: true
     };
   }
+  const publicContinuitySemanticOverrideReply = buildPublicContinuitySemanticOverrideReply(selected, reply, norm);
+  if (publicContinuitySemanticOverrideReply) {
+    reply = finalizeRenderableReply(publicContinuitySemanticOverrideReply, norm, authority || "public_continuity_handoff_semantic_override", "public_continuity_handoff_semantic_override_v2");
+    selected = forcePublicReply(selected, reply, {
+      publicContinuityHandoffRepairV2: true,
+      publicSemanticReplayOverride: true,
+      continuityEffectivePrompt: cleanText(norm.continuityResolvedText || norm.resolvedQuestion || norm.resolvedPrompt || norm.text || ""),
+      continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || norm.originalText || norm.rawUserText || ""),
+      continuityTopic: cleanText(norm.continuityTopic || extractContinuityTopicFromTurn(priorTurn) || ""),
+      noUserFacingDiagnostics: true
+    });
+    selected.marionFinal = true;
+    selected.final = true;
+    selected.finalized = true;
+    selected.handled = true;
+    selected.authority = "marionFinalEnvelope";
+    authority = authority || "public_continuity_handoff_semantic_override";
+  }
+
   if (isBlockedLoopingSupportReply(reply)) {
     reply = buildIndexSafeTransportReply(norm, "marion_loop_reply_blocked", { authority, latencyMs: now() - startedAt });
   }
