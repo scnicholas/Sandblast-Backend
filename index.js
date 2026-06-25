@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.74sb MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.75sb MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -3875,6 +3875,9 @@ function applyCors(req, res) {
     "x-marion-admin-escalation-secret",
     "x-sb-marion-admin-console-mfa-token",
     "x-sb-marion-admin-token",
+    "x-sb-marion-admin-conversation-token",
+    "x-sb-marion-runtime-handler",
+    "x-sb-marion-admin-conversation-session",
     "x-marion-admin-token",
     "x-sb-marion-admin-mfa-token",
     "x-marion-admin-mfa-token",
@@ -15906,11 +15909,13 @@ const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
   OBSERVER: "observer",
   BLOCKED: "blocked"
 });
-const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke", "voice.continuity.open", "voice.continuity.revoke"]);
+const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "runtime", "conversation.text", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke", "voice.continuity.open", "voice.continuity.revoke"]);
 const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   health: "status.read",
   status: "status.read",
   command: "command.submit",
+  runtime: "voice.private.submit",
+  "conversation.text": "voice.private.submit",
   approve: "command.approve",
   deny: "command.deny",
   emergency: "emergency.trigger",
@@ -17869,6 +17874,71 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText) {
   return deterministicAdminKnowledgeReply(norm) || "";
 }
 
+
+function marionAdminTextRuntimeRequestAuth(req) {
+  const consoleAuth = marionAdminConsoleRequestAuth(req);
+  if (consoleAuth && consoleAuth.verified) {
+    return {
+      ...consoleAuth,
+      runtimeAuthBridge: "admin_console_request_auth",
+      runtimeSessionBridge: consoleAuth.sessionVerified === true
+    };
+  }
+
+  const conversationAuth = marionAdminConversationRequestAuth(req);
+  if (conversationAuth && conversationAuth.verified) {
+    const role = marionAdminConsoleNormalizeRole(conversationAuth.role || (conversationAuth.session && conversationAuth.session.role) || MARION_ADMIN_CONSOLE_ROLES.OWNER);
+    const capabilities = Array.isArray(conversationAuth.capabilities) && conversationAuth.capabilities.length
+      ? conversationAuth.capabilities
+      : marionAdminConsoleCapabilitiesForRole(role);
+    return {
+      ...conversationAuth,
+      configured: conversationAuth.configured === true || marionAdminConversationEnvTokens().length > 0 || marionAdminConsoleEnvTokens().length > 0,
+      provided: true,
+      mfaRequired: false,
+      mfaProvided: false,
+      mfaVerified: true,
+      sessionVerified: conversationAuth.sessionVerified === true,
+      sessionProvided: conversationAuth.sessionProvided === true,
+      role,
+      capabilities,
+      remoteTrustedUserVerified: role === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
+      remoteTrustedUserBoundary: role === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
+      authMode: conversationAuth.authMode || (conversationAuth.sessionVerified === true ? "admin_console_session" : "admin_conversation_token"),
+      runtimeAuthBridge: "admin_conversation_request_auth",
+      runtimeSessionBridge: conversationAuth.sessionVerified === true
+    };
+  }
+
+  return {
+    ...consoleAuth,
+    configured: (consoleAuth && consoleAuth.configured) || marionAdminConversationEnvTokens().length > 0 || marionAdminConsoleEnvTokens().length > 0,
+    provided: !!(consoleAuth && consoleAuth.provided),
+    runtimeAuthBridge: "runtime_auth_failed",
+    runtimeSessionBridge: false,
+    role: MARION_ADMIN_CONSOLE_ROLES.BLOCKED,
+    capabilities: [],
+    authMode: consoleAuth && consoleAuth.authMode || "none"
+  };
+}
+
+function marionAdminRuntimeErrorSignature(err) {
+  const name = cleanText(err && err.name || "");
+  const message = cleanText(err && (err.message || err) || "");
+  const stack = cleanText(err && err.stack || "");
+  const joined = `${name} ${message} ${stack}`;
+  if (/\bReferenceError\b|\bis not defined\b|\bcannot access .* before initialization\b/i.test(joined)) return "reference_error";
+  if (/auth|forbidden|unauthori[sz]ed|token|permission|capability|session/i.test(joined)) return "runtime_auth_or_permission_error";
+  if (/module_not_found|cannot find module|require/i.test(joined)) return "runtime_module_resolution_error";
+  if (/timeout|aborted|network/i.test(joined)) return "runtime_transport_error";
+  return "runtime_handler_exception";
+}
+
+function marionAdminRuntimeErrorPublicDetail(err) {
+  return marionAdminRedactText(err && (err.message || err) || "runtime_error").slice(0, 240);
+}
+
+
 async function invokeMarionAdminTextRuntime(body, auth, traceId) {
   const prompt = marionAdminTextRuntimeExtractPrompt(body);
   const bridgeStatus = marionAdminTextRuntimeBridgeStatus();
@@ -17941,10 +18011,11 @@ async function handleMarionAdminTextRuntime(req, res) {
   hardenConversationNoStore(res);
   const body = safeObj(req && req.body);
   const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionruntime"));
-  const auth = marionAdminConsoleRequestAuth(req);
+  const auth = marionAdminTextRuntimeRequestAuth(req);
   if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
-  if (!marionAdminConsoleCapabilityAllowed(auth, "command")) {
-    return marionAdminConsoleCapabilityDenied(res, traceId, auth, "command");
+  const permission = marionAdminConsolePermissionDecision(auth, "runtime", { requireSession: true });
+  if (!permission.allowed) {
+    return marionAdminConsolePermissionDenied(res, "runtime", traceId, auth, permission);
   }
 
   try {
@@ -17958,6 +18029,9 @@ async function handleMarionAdminTextRuntime(req, res) {
       routeMounted: true,
       runtimeHandlerMounted: true,
       runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
+      authBridge: cleanText(auth.runtimeAuthBridge || ""),
+      runtimeSessionBridge: auth.runtimeSessionBridge === true,
+      runtimeRequiredCapability: marionAdminConsoleActionCapability("runtime"),
       gatewayReady: true,
       bridgeReady: !!(runtime.bridgeStatus && runtime.bridgeStatus.available),
       bridgeHandler: cleanText(runtime.bridgeStatus && runtime.bridgeStatus.handler || ""),
@@ -17971,14 +18045,22 @@ async function handleMarionAdminTextRuntime(req, res) {
     }));
   } catch (err) {
     const prompt = marionAdminTextRuntimeExtractPrompt(body);
-    const fallbackReply = deterministicAdminKnowledgeReply({ prompt, text: prompt, message: prompt, userText: prompt });
-    return res.status(fallbackReply ? 200 : 502).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
-      ok: !!fallbackReply,
-      stage: fallbackReply ? "marion_runtime_handler_exception_recovered" : "marion_runtime_handler_exception",
-      reason: fallbackReply ? "" : "marion_runtime_exception_suppressed",
+    const signature = marionAdminRuntimeErrorSignature(err);
+    const referenceError = signature === "reference_error";
+    const fallbackReply = referenceError ? "" : deterministicAdminKnowledgeReply({ prompt, text: prompt, message: prompt, userText: prompt });
+    const statusCode = referenceError ? 500 : (fallbackReply ? 200 : 502);
+    return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+      ok: !!fallbackReply && !referenceError,
+      stage: referenceError ? "marion_runtime_reference_error" : (fallbackReply ? "marion_runtime_handler_exception_recovered" : "marion_runtime_handler_exception"),
+      reason: referenceError ? marionAdminRuntimeErrorPublicDetail(err) : (fallbackReply ? "" : "marion_runtime_exception_suppressed"),
+      runtimeErrorSignature: signature,
+      referenceError,
       routeMounted: true,
       runtimeHandlerMounted: true,
       runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
+      authBridge: cleanText(auth.runtimeAuthBridge || ""),
+      runtimeSessionBridge: auth.runtimeSessionBridge === true,
+      runtimeRequiredCapability: marionAdminConsoleActionCapability("runtime"),
       reply: fallbackReply || "",
       response: fallbackReply || "",
       text: fallbackReply || "",
@@ -18042,6 +18124,7 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
         health: ["GET"],
         status: ["GET", "POST"],
         command: ["POST"],
+        runtime: ["POST"],
         approve: ["POST"],
         deny: ["POST"],
         emergency: ["POST"],
@@ -18054,6 +18137,7 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
       },
       status: MARION_ADMIN_CONSOLE_ROUTES.status[0],
       command: MARION_ADMIN_CONSOLE_ROUTES.command[0],
+      runtime: MARION_ADMIN_TEXT_RUNTIME_ROUTES[0],
       approve: MARION_ADMIN_CONSOLE_ROUTES.approve[0],
       deny: MARION_ADMIN_CONSOLE_ROUTES.deny[0],
       emergency: MARION_ADMIN_CONSOLE_ROUTES.emergency[0],
