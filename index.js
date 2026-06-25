@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.41sb INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.75sb MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.76sb MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -3868,6 +3868,8 @@ function applyCors(req, res) {
     CFG.apiTokenHeader,
     "x-sb-marion-admin-console-token",
     "x-sb-marion-admin-session-token",
+    "x-sb-marion-testing-bypass",
+    "x-sb-marion-admin-testing-bypass",
     "x-sb-marion-admin-escalation-token",
     "x-sb-marion-admin-escalation-secret",
     "x-sb-marion-admin-escalation-action",
@@ -15501,7 +15503,7 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
 // Private admin console control plane. This must mount before static handlers
 // and the /api not_found guard so the protected Webflow/admin interface does
 // not fall through to 404. Body/query tokens are intentionally ignored.
-const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.6-phase7-voice-continuity-window";
+const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.7-test-bypass-session-issuer";
 const MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH = "Data/marion/runtime/MarionAdminConsoleGateway.js";
 const MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH = "./" + MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH;
 
@@ -15530,7 +15532,32 @@ const MARION_ADMIN_CONSOLE_SESSION_HEADER = "x-sb-marion-admin-session-token";
 const MARION_ADMIN_CONSOLE_SESSION_TTL_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_TTL_MS", 15 * 60 * 1000, 60 * 1000, 60 * 60 * 1000);
 const MARION_ADMIN_CONSOLE_SESSION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_IDLE_MS", 5 * 60 * 1000, 30 * 1000, 30 * 60 * 1000);
 const MARION_ADMIN_CONSOLE_SESSION_MAX = clampNumberEnv("SB_MARION_ADMIN_SESSION_MAX", 25, 1, 250);
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION = "marion.adminConsole.testBypassSessionIssuer/1.0-env-gated-origin-bound";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER = "x-sb-marion-testing-bypass";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED = process.env.SB_MARION_ADMIN_TEST_BYPASS === "true";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOW_NO_ORIGIN = process.env.SB_MARION_ADMIN_TEST_BYPASS_ALLOW_NO_ORIGIN === "true";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOWED_ORIGINS = Object.freeze(
+  String(process.env.SB_MARION_ADMIN_TEST_BYPASS_ORIGINS || [
+    "https://sandblast.channel",
+    "https://www.sandblast.channel",
+    "https://sandblastchannel.com",
+    "https://www.sandblastchannel.com",
+    "https://sandblast-channel.webflow.io",
+    "https://preview.webflow.com",
+    "https://editor.webflow.com",
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:8080"
+  ].join(","))
+    .split(",")
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+);
 const marionAdminConsoleSessions = new Map();
+const marionAdminConsoleTestingBypassClientTokens = new Map();
 let marionAdminConsoleSessionLastSweepAt = 0;
 
 const MARION_ADMIN_CONSOLE_ESCALATION_VERSION = "marion.adminConsole.escalation/1.0-controlled-hardlock";
@@ -15576,6 +15603,180 @@ function marionAdminConsoleClientHint(req) {
   };
 }
 
+function marionAdminConsoleTestingBypassTruthy(value) {
+  const raw = cleanText(value || "").toLowerCase();
+  return raw === "true" || raw === "1" || raw === "yes" || raw === "allow" || raw === "enabled" || raw === "marion-test" || raw === "testing";
+}
+
+function marionAdminConsoleRequestOrigin(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const origin = cleanText(headers.origin || "");
+  if (origin) return origin;
+  const referer = cleanText(headers.referer || headers.referrer || "");
+  if (!referer) return "";
+  try { return new URL(referer).origin; } catch (_) { return ""; }
+}
+
+function marionAdminConsoleOriginHost(value) {
+  try { return new URL(cleanText(value || "")).host.toLowerCase(); } catch (_) { return ""; }
+}
+
+function marionAdminConsoleTestingBypassOriginAllowed(req) {
+  const origin = marionAdminConsoleRequestOrigin(req);
+  if (!origin) {
+    const host = cleanText(req && req.headers && req.headers.host || "").toLowerCase();
+    return MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOW_NO_ORIGIN || /^localhost(?::\d+)?$/i.test(host) || /^127\.0\.0\.1(?::\d+)?$/i.test(host);
+  }
+  if (MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOWED_ORIGINS.includes("*")) return true;
+  if (MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOWED_ORIGINS.includes(origin)) return true;
+  const host = marionAdminConsoleOriginHost(origin);
+  return MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOWED_ORIGINS.some((allowed) => {
+    if (!allowed) return false;
+    if (allowed === origin) return true;
+    const allowedHost = marionAdminConsoleOriginHost(allowed);
+    return !!allowedHost && allowedHost === host;
+  });
+}
+
+function marionAdminConsoleTestingBypassRequested(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const body = safeObj(req && req.body);
+  return marionAdminConsoleTestingBypassTruthy(headers[MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER]) ||
+    marionAdminConsoleTestingBypassTruthy(headers["x-sb-marion-admin-testing-bypass"]) ||
+    marionAdminConsoleTestingBypassTruthy(body.testingBypass) ||
+    marionAdminConsoleTestingBypassTruthy(body.testBypass) ||
+    marionAdminConsoleTestingBypassTruthy(body.marionTestingBypass);
+}
+
+function marionAdminConsoleTestingBypassClientKey(req) {
+  const origin = marionAdminConsoleRequestOrigin(req) || "no-origin";
+  const fp = marionAdminConsoleSessionFingerprint(req);
+  const ip = clipText((req && (req.ip || req.headers && (req.headers["x-forwarded-for"] || req.headers["cf-connecting-ip"]))) || "", 120);
+  return marionAdminConsoleSha256([origin, fp, ip].join("|"));
+}
+
+function marionAdminConsoleTestingBypassRequestAuth(req) {
+  const requested = marionAdminConsoleTestingBypassRequested(req);
+  if (!requested) {
+    return {
+      verified: false,
+      configured: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED,
+      provided: false,
+      source: "none",
+      reason: "testing_bypass_not_requested",
+      testBypass: false,
+      testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+    };
+  }
+  if (!MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED) {
+    return {
+      verified: false,
+      configured: false,
+      provided: true,
+      source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+      reason: "testing_bypass_disabled",
+      testBypass: true,
+      testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+    };
+  }
+  if (!marionAdminConsoleTestingBypassOriginAllowed(req)) {
+    return {
+      verified: false,
+      configured: true,
+      provided: true,
+      source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+      reason: "testing_bypass_origin_denied",
+      origin: marionAdminConsoleRequestOrigin(req),
+      testBypass: true,
+      testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+    };
+  }
+  return {
+    verified: true,
+    configured: true,
+    provided: true,
+    source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+    mfaRequired: false,
+    mfaProvided: false,
+    mfaVerified: true,
+    sessionVerified: false,
+    sessionProvided: false,
+    role: MARION_ADMIN_CONSOLE_ROLES.OWNER,
+    capabilities: marionAdminConsoleCapabilitiesForRole(MARION_ADMIN_CONSOLE_ROLES.OWNER),
+    remoteTrustedUserVerified: false,
+    remoteTrustedUserBoundary: false,
+    authMode: "testing_bypass",
+    testBypass: true,
+    testingBypass: true,
+    testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+  };
+}
+
+function marionAdminConsoleTestingBypassForgetToken(token) {
+  const raw = cleanText(token || "");
+  if (!raw) return;
+  for (const [key, value] of marionAdminConsoleTestingBypassClientTokens.entries()) {
+    if (value === raw) marionAdminConsoleTestingBypassClientTokens.delete(key);
+  }
+}
+
+function marionAdminConsoleTestingBypassSessionResult(req, token, entry, reason) {
+  const publicSession = marionAdminConsolePublicSession(entry);
+  const role = publicSession && publicSession.role || MARION_ADMIN_CONSOLE_ROLES.OWNER;
+  return {
+    verified: true,
+    provided: true,
+    source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+    reason: cleanText(reason || "testing_bypass_session_active"),
+    sessionId: publicSession && publicSession.id || "",
+    session: publicSession,
+    sessionToken: token,
+    role,
+    capabilities: publicSession && publicSession.capabilities || marionAdminConsoleCapabilitiesForRole(role),
+    authMode: "testing_bypass_session",
+    sessionVerified: true,
+    sessionProvided: true,
+    testBypass: true,
+    testingBypass: true,
+    testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+  };
+}
+
+function marionAdminConsoleIssueOrRestoreTestingBypassSession(req) {
+  const auth = marionAdminConsoleTestingBypassRequestAuth(req);
+  if (!auth.verified) return auth;
+  marionAdminConsoleSweepSessions(false);
+  const clientKey = marionAdminConsoleTestingBypassClientKey(req);
+  const existingToken = cleanText(marionAdminConsoleTestingBypassClientTokens.get(clientKey) || "");
+  const t = now();
+  if (existingToken) {
+    const existingHash = marionAdminConsoleSha256(existingToken);
+    const existingEntry = marionAdminConsoleSessions.get(existingHash);
+    if (existingEntry && existingEntry.revoked !== true && Number(existingEntry.expiresAt || 0) > t && Number(existingEntry.idleExpiresAt || 0) > t) {
+      const fingerprint = marionAdminConsoleSessionFingerprint(req);
+      if (!existingEntry.fingerprint || !fingerprint || existingEntry.fingerprint === fingerprint) {
+        existingEntry.lastSeenAt = t;
+        existingEntry.idleExpiresAt = Math.min(Number(existingEntry.expiresAt || t), t + MARION_ADMIN_CONSOLE_SESSION_IDLE_MS);
+        existingEntry.testingBypass = true;
+        existingEntry.authSource = "testing_bypass";
+        marionAdminConsoleSessions.set(existingHash, existingEntry);
+        return marionAdminConsoleTestingBypassSessionResult(req, existingToken, existingEntry, "testing_bypass_session_reused");
+      }
+      marionAdminConsoleSessions.delete(existingHash);
+    }
+    marionAdminConsoleTestingBypassClientTokens.delete(clientKey);
+  }
+
+  const issued = marionAdminConsoleCreateSession(req, auth, MARION_ADMIN_CONSOLE_ROLES.OWNER);
+  if (issued && issued.entry) {
+    issued.entry.testingBypass = true;
+    issued.entry.authSource = "testing_bypass";
+    marionAdminConsoleSessions.set(marionAdminConsoleSha256(issued.token), issued.entry);
+  }
+  marionAdminConsoleTestingBypassClientTokens.set(clientKey, issued.token);
+  return marionAdminConsoleTestingBypassSessionResult(req, issued.token, issued.entry, "testing_bypass_session_issued");
+}
+
 function marionAdminConsoleSweepSessions(force) {
   const t = now();
   if (!force && t - marionAdminConsoleSessionLastSweepAt < 30000) return;
@@ -15590,6 +15791,13 @@ function marionAdminConsoleSweepSessions(force) {
     while (marionAdminConsoleSessions.size > MARION_ADMIN_CONSOLE_SESSION_MAX && entries.length) {
       const [hash] = entries.shift();
       marionAdminConsoleSessions.delete(hash);
+    }
+  }
+  for (const [key, token] of marionAdminConsoleTestingBypassClientTokens.entries()) {
+    const hash = marionAdminConsoleSha256(token);
+    const entry = marionAdminConsoleSessions.get(hash);
+    if (!entry || entry.revoked === true || Number(entry.expiresAt || 0) <= t || Number(entry.idleExpiresAt || 0) <= t) {
+      marionAdminConsoleTestingBypassClientTokens.delete(key);
     }
   }
 }
@@ -15627,6 +15835,9 @@ function marionAdminConsoleValidateSession(req) {
   marionAdminConsoleSweepSessions(false);
   const token = marionAdminConsoleSessionTokenFromRequest(req);
   if (!token) {
+    const testing = marionAdminConsoleIssueOrRestoreTestingBypassSession(req);
+    if (testing && testing.verified) return testing;
+    if (testing && testing.provided) return { verified: false, provided: true, source: testing.source || MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER, reason: cleanText(testing.reason || "testing_bypass_denied"), testBypass: true, testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION };
     return { verified: false, provided: false, source: "none", reason: "session_token_missing" };
   }
   if (!/^mas_[A-Za-z0-9_-]{32,}$/.test(token)) {
@@ -15640,11 +15851,13 @@ function marionAdminConsoleValidateSession(req) {
   }
   if (entry.revoked === true || Number(entry.expiresAt || 0) <= t || Number(entry.idleExpiresAt || 0) <= t) {
     marionAdminConsoleSessions.delete(hash);
+    marionAdminConsoleTestingBypassForgetToken(token);
     return { verified: false, provided: true, source: "expired", reason: "session_expired" };
   }
   const fingerprint = marionAdminConsoleSessionFingerprint(req);
   if (entry.fingerprint && fingerprint && entry.fingerprint !== fingerprint) {
     marionAdminConsoleSessions.delete(hash);
+    marionAdminConsoleTestingBypassForgetToken(token);
     return { verified: false, provided: true, source: "fingerprint_mismatch", reason: "session_client_binding_mismatch" };
   }
   entry.lastSeenAt = t;
@@ -15654,13 +15867,18 @@ function marionAdminConsoleValidateSession(req) {
   return {
     verified: true,
     provided: true,
-    source: "session",
-    reason: "session_verified",
+    source: entry.testingBypass === true ? MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER : MARION_ADMIN_CONSOLE_SESSION_HEADER,
+    reason: entry.testingBypass === true ? "testing_bypass_session_verified" : "session_verified",
     sessionId: entry.id,
     session: publicSession,
+    sessionToken: entry.testingBypass === true ? token : "",
     role: publicSession && publicSession.role || MARION_ADMIN_CONSOLE_ROLES.OWNER,
     capabilities: publicSession && publicSession.capabilities || marionAdminConsoleCapabilitiesForRole(MARION_ADMIN_CONSOLE_ROLES.OWNER),
-    remoteTrustedUserVerified: publicSession && publicSession.role === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER
+    remoteTrustedUserVerified: publicSession && publicSession.role === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
+    authMode: entry.testingBypass === true ? "testing_bypass_session" : "session",
+    testBypass: entry.testingBypass === true,
+    testingBypass: entry.testingBypass === true,
+    testBypassVersion: entry.testingBypass === true ? MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION : ""
   };
 }
 
@@ -15700,6 +15918,7 @@ function marionAdminConsoleRevokeSession(req) {
   const entry = marionAdminConsoleSessions.get(hash);
   if (!entry) return { ok: false, provided: true, reason: "session_not_found_or_expired" };
   marionAdminConsoleSessions.delete(hash);
+  marionAdminConsoleTestingBypassForgetToken(token);
   return { ok: true, provided: true, session: marionAdminConsolePublicSession(entry) };
 }
 
@@ -16284,9 +16503,13 @@ function marionAdminConsoleRemoteTrustedUserRequestAuth(req) {
 function marionAdminConsoleSessionIssueRequestAuth(req) {
   // SESSION-ISSUE-HARDLOCK:
   // Check remote trusted auth first so the remote token can never be accidentally
-  // promoted through the broader master-token candidate list.
+  // promoted through the broader master-token candidate list. Testing bypass is
+  // server-issued only and stays gated by SB_MARION_ADMIN_TEST_BYPASS + origin.
   const remote = marionAdminConsoleRemoteTrustedUserRequestAuth(req);
   if (remote.verified) return remote;
+
+  const testing = marionAdminConsoleTestingBypassRequestAuth(req);
+  if (testing.verified) return testing;
 
   const master = marionAdminConsoleMasterRequestAuth(req);
   if (master.verified) return {
@@ -16299,15 +16522,18 @@ function marionAdminConsoleSessionIssueRequestAuth(req) {
 
   return {
     ...master,
-    configured: master.configured || remote.configured,
-    provided: master.provided || remote.provided,
+    configured: master.configured || remote.configured || testing.configured,
+    provided: master.provided || remote.provided || testing.provided,
     remoteTrustedUserConfigured: remote.configured,
     remoteTrustedUserProvided: remote.provided,
     remoteTrustedUserVerified: false,
     remoteTrustedUserBoundary: false,
     role: MARION_ADMIN_CONSOLE_ROLES.BLOCKED,
     capabilities: [],
-    authMode: master.provided ? "master_failed" : (remote.provided ? "remote_trusted_user_failed" : "none")
+    testBypass: !!testing.provided,
+    testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION,
+    testingBypassReason: cleanText(testing.reason || ""),
+    authMode: master.provided ? "master_failed" : (testing.provided ? "testing_bypass_failed" : (remote.provided ? "remote_trusted_user_failed" : "none"))
   };
 }
 
@@ -16322,7 +16548,7 @@ function marionAdminConsoleRequestAuth(req) {
       verified: true,
       configured: marionAdminConsoleEnvTokens().length > 0 || marionAdminConsoleRoleTokenEntries().length > 0,
       provided: true,
-      source: "x-sb-marion-admin-session-token",
+      source: session.source || "x-sb-marion-admin-session-token",
       mfaRequired: mfaTokens.length > 0,
       mfaProvided: false,
       mfaVerified: true,
@@ -16334,7 +16560,10 @@ function marionAdminConsoleRequestAuth(req) {
       capabilities: session.capabilities || marionAdminConsoleCapabilitiesForRole(role),
       remoteTrustedUserVerified: role === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
       remoteTrustedUserBoundary: role === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
-      authMode: "session"
+      authMode: session.authMode || "session",
+      testBypass: session.testBypass === true,
+      testingBypass: session.testingBypass === true,
+      testBypassVersion: session.testBypassVersion || ""
     };
   }
 
@@ -17036,7 +17265,10 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
       sessionProvided: true,
       sessionId: publicSession.id,
       session: publicSession,
-      authMode: auth.remoteTrustedUserVerified === true ? "remote_trusted_user_to_session" : "master_to_session",
+      authMode: auth.testBypass === true ? "testing_bypass_to_session" : (auth.remoteTrustedUserVerified === true ? "remote_trusted_user_to_session" : "master_to_session"),
+      testBypass: auth.testBypass === true,
+      testingBypass: auth.testBypass === true,
+      testBypassVersion: auth.testBypassVersion || "",
       role: sessionRole,
       capabilities: sessionCapabilities,
       remoteTrustedUserVerified: sessionRole === MARION_ADMIN_CONSOLE_ROLES.REMOTE_TRUSTED_USER,
@@ -17062,11 +17294,14 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
       expiresInMs: Number(publicSession.expiresInMs || 0),
       idleExpiresInMs: Number(publicSession.idleExpiresInMs || 0),
       longLivedTokenReuseDiscouraged: true,
+      testingBypass: auth.testBypass === true,
+      testBypassVersion: auth.testBypassVersion || "",
       hotfix: "MARION_SESSION_ISSUE_RESPONSE_FINALIZATION_HOTFIX_V1 + MARION_ASYNC_TOPLEVEL_BOOT_HOTFIX_V1",
       instructions: {
         useHeader: MARION_ADMIN_CONSOLE_SESSION_HEADER,
-        clearMasterTokenFromBrowser: true,
-        storeSessionTokenInMemoryOnly: true
+        clearMasterTokenFromBrowser: auth.testBypass !== true,
+        storeSessionTokenInMemoryOnly: true,
+        testingBypassEnvRequired: auth.testBypass === true ? "SB_MARION_ADMIN_TEST_BYPASS=true" : undefined
       }
     }));
   } catch (err) {
@@ -17109,12 +17344,16 @@ async function handleMarionAdminConsoleSessionCheck(req, res) {
       sessionVerified: false,
       sessionProvided: !!session.provided,
       sessionReason: cleanText(session.reason || ""),
-      authMode: "session_failed"
+      authMode: "session_failed",
+      testBypass: session.testBypass === true,
+      testBypassVersion: session.testBypassVersion || ""
     }, {
       ok: false,
       stage: "admin_session_invalid",
       reason: cleanText(session.reason || "session_invalid"),
-      sessionActive: false
+      sessionActive: false,
+      testingBypass: session.testBypass === true,
+      testBypassVersion: session.testBypassVersion || ""
     }));
   }
 
@@ -17122,22 +17361,28 @@ async function handleMarionAdminConsoleSessionCheck(req, res) {
     verified: true,
     configured: marionAdminConsoleEnvTokens().length > 0 || marionAdminConsoleRoleTokenEntries().length > 0,
     provided: true,
-    source: MARION_ADMIN_CONSOLE_SESSION_HEADER,
+    source: session.source || MARION_ADMIN_CONSOLE_SESSION_HEADER,
     mfaRequired: false,
     mfaVerified: true,
     sessionVerified: true,
     sessionProvided: true,
     sessionId: session.sessionId,
     session: session.session,
-    authMode: "session",
+    authMode: session.authMode || "session",
     role: session.role,
     capabilities: session.capabilities,
-    rbacVersion: MARION_ADMIN_CONSOLE_RBAC_VERSION
+    rbacVersion: MARION_ADMIN_CONSOLE_RBAC_VERSION,
+    testBypass: session.testBypass === true,
+    testingBypass: session.testingBypass === true,
+    testBypassVersion: session.testBypassVersion || ""
   }, {
     ok: true,
-    stage: "admin_session_active",
+    stage: session.testBypass === true ? "admin_testing_bypass_session_active" : "admin_session_active",
     sessionActive: true,
-    session: session.session
+    session: session.session,
+    sessionToken: session.testBypass === true ? cleanText(session.sessionToken || "") : undefined,
+    testingBypass: session.testBypass === true,
+    testBypassVersion: session.testBypassVersion || ""
   }));
 }
 
@@ -18116,7 +18361,14 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
       roles: Object.values(MARION_ADMIN_CONSOLE_ROLES),
       actionCapabilities: MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES,
       requireSessionForMutations: MARION_ADMIN_CONSOLE_REQUIRE_SESSION_FOR_MUTATIONS,
-      mutationActions: MARION_ADMIN_CONSOLE_MUTATION_ACTIONS
+      mutationActions: MARION_ADMIN_CONSOLE_MUTATION_ACTIONS,
+      testingBypass: {
+        version: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION,
+        enabled: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED,
+        header: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+        originAllowed: marionAdminConsoleTestingBypassOriginAllowed(req),
+        requested: marionAdminConsoleTestingBypassRequested(req)
+      }
     },
     routes: {
       contractVersion: MARION_ADMIN_CONSOLE_ROUTE_CONTRACT_VERSION,
