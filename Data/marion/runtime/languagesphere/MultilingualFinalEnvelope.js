@@ -19,7 +19,7 @@
  * - Preserve LanguageSphere as advisory metadata only.
  */
 
-const VERSION = "MultilingualFinalEnvelope/1.1.0 MARION-FINAL-ALIAS-STABILIZED";
+const VERSION = "MultilingualFinalEnvelope/1.1.1 REFERENCEERROR-FINAL-RECOVERY";
 const CONTRACT_VERSION = "nyx.marion.multilingualFinal/1.0";
 
 const DEFAULT_CONFIG = Object.freeze({
