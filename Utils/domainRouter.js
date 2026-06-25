@@ -22,7 +22,7 @@
 
 const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
 
-const ROUTER_VERSION = "domainRouter v1.5.6 REFERENCEERROR-ENTRYPOINT-HARDENED + SIX-DOMAIN-DEFINITION-SCORE-AUTHORITY + SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.7 REFERENCEERROR-TRIAD-HARDENING-V1 + REFERENCEERROR-ENTRYPOINT-HARDENED + SIX-DOMAIN-DEFINITION-SCORE-AUTHORITY + SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
 
 // -------------------------
 // helpers
@@ -810,6 +810,7 @@ function fallbackRouteDomainForReferenceError(norm = {}, error = null) {
   let primary = DOMAIN_ENUM.CORE;
   const definitionDomain = definitionKnowledgeDomainFromText(text);
   if (definitionDomain) primary = definitionDomain;
+  else if (/\b(domain\s+routing|domain\s+router|route\s+domains?|reference\s*error|referenceerror|is not defined|runtime handler|backend|index\.js|compose\s*marion\s*response)\b/i.test(text)) primary = DOMAIN_ENUM.TECH;
   else if (/\b(contract|consideration|promise|estoppel|legal|law)\b/i.test(text)) primary = DOMAIN_ENUM.LAW;
   const secondary = [];
   const scores = baseScores();
