@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.10.2 PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + EXPORT-DUPLICATE-PURGE + REFERENCEERROR-LAW-DOMAIN-FINAL-RECOVERY + TEXT-CONSOLE-CHANNEL-CARRY + MARION-ADMIN-TEXT-RUNTIME-COMPAT + CONTINUITY-MISSING-FINAL-RECOVERY-GATE + LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "ChatEngine v3.10.3 PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + EXPORT-DUPLICATE-PURGE + REFERENCEERROR-LAW-DOMAIN-FINAL-RECOVERY + TEXT-CONSOLE-CHANNEL-CARRY + MARION-ADMIN-TEXT-RUNTIME-COMPAT + CONTINUITY-MISSING-FINAL-RECOVERY-GATE + LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -642,9 +642,23 @@ function buildNyxMarionContinuityTransportReply(value = "") {
   if (/\bwhat\s+is\s+marion\s+supposed\s+to\s+do\b|\bwhat\s+does\s+marion\s+do\b|\bmarion\s+role\b/i.test(t)) return "Marion is the deeper coordination layer behind Nyx. Nyx stays public-facing while Marion helps preserve intent, context, routing, and clean response handoff in the background.";
   if (/\bcan\s+(?:marion|you)\s+carry\s+context\s+across\s+turns\b|\bcarry\s+context\s+across\s+turns\b/i.test(t)) return "Yes. The goal is for Nyx to keep the conversation natural while Marion carries the useful context behind the scenes, so follow-up questions stay connected instead of restarting the conversation.";
   if (/\bwhy\s+is\s+that\s+important\s+for\s+nyx\b|\bwhy\s+does\s+that\s+matter\s+for\s+nyx\b/i.test(t)) return "It matters because Nyx is the public voice. If Marion carries the thread behind the scenes, Nyx can answer follow-up questions naturally without making the user restate the topic every turn.";
-  if (/\bhow\s+does\s+(?:that|this|it)\s+help\s+sandblast\b/i.test(t)) return "It helps Sandblast because Nyx becomes easier to talk to and Marion keeps the useful context in the background. Users can ask follow-up questions naturally, stay engaged longer, and move through radio, TV, news, and business prompts without the interface feeling like it resets every turn.";
+  if (/\bhow\s+does\b.{0,160}\bhelp\s+sandblast\b|\bhelp\s+sandblast\b/i.test(t)) return "It helps Sandblast because Nyx becomes easier to talk to and Marion keeps the useful context in the background. Users can ask follow-up questions naturally, stay engaged longer, and move through radio, TV, news, and business prompts without the interface feeling like it resets every turn.";
   if (/^(?:next\s+steps?|what(?:'|’)?s\s+next|what\s+next|then\s+what)\??$/i.test(t)) return "Next steps: keep the public Nyx route clean, run the five-turn continuity test, confirm each follow-up advances the thread, then lock the stable handoff before adding new features.";
   return "";
+}
+
+
+function shouldOverrideContinuityTransportReply(prompt = "", reply = "", candidate = "") {
+  const p = lower(prompt);
+  const r = lower(reply);
+  const c = cleanText(candidate);
+  if (!p || !c) return false;
+  if (!r) return true;
+  if (hashText(r) === hashText(c)) return false;
+  if (/\bsandblast\b/i.test(p) && /\bhelp|business|users?|engaged|radio|tv|news\b/i.test(p) && !/\bsandblast\b/i.test(r)) return true;
+  if (/\bwhy\b/i.test(p) && /\bnyx\b/i.test(p) && !/\bnyx\b/i.test(r)) return true;
+  if (/\bnext\s+steps?\b/i.test(p) && !/\bnext\s+steps?|test|confirm|lock|handoff\b/i.test(r)) return true;
+  return false;
 }
 
 function buildContinuityMissingFinalRecoveryReply(packet = {}) {
@@ -683,6 +697,11 @@ function finalTransportPacket(packet = {}) {
     const promptForFinalRecovery = extractPromptForReplySelection(out);
     if (isUnsafeFinalReplySelection(reply, promptForFinalRecovery)) {
       reply = deterministicKnowledgeReplyForSelection(promptForFinalRecovery);
+    }
+    const semanticContinuityOverrideReply = buildNyxMarionContinuityTransportReply(promptForFinalRecovery);
+    if (semanticContinuityOverrideReply && shouldOverrideContinuityTransportReply(promptForFinalRecovery, reply, semanticContinuityOverrideReply)) {
+      reply = semanticContinuityOverrideReply;
+      out.publicSemanticReplayOverride = true;
     }
     const coordinatorRecoveryReply = buildCoordinatorRecoveryReply(out);
     const continuityMissingFinalRecoveryReply = buildContinuityMissingFinalRecoveryReply(out);
