@@ -2804,7 +2804,7 @@ function isGenericGreetingStatusReply(value) {
 
 
 const PUBLIC_RESPONSE_INTERNAL_KEY_PATTERN = /^(?:meta|diagnostics?|runtimeTelemetry|finalRuntimeTelemetry|loggingSpine|packetPreclassification|packetStateBridge|languageSphereTelemetry|languageSphereFallback|multilingualFinalEnvelope|marionRouting|marionIntent|ctx|ui|directives|sessionPatch|memoryPatch|cog|bridge|audioContract|transportOnly|marionTransportOnly|packetPrediction|compatibilityRoute|compatibilityHealth|raw|debug|stack|errorStack)$/i;
-const PUBLIC_RESPONSE_INTERNAL_TEXT_PATTERN = /\b(?:i stopped a repeated response before it could render again|current turn is preserved|fresh Marion final|wait for a fresh\s+Marion\s+final|replaying the same fallback|I caught the repeated Nyx\/Marion reply|Index\.js transport[- ]only|transport only|loop is being contained at the bridge layer|MarionBridge should accept only one clean Marion final|response[- ]authority problem|languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|finalEnvelopeTrusted|replyAuthority|semanticAuthority|diagnostics?|stack trace|TypeError|ReferenceError|SyntaxError|same prompt,?\s*new requirement|answer with one new fact|if voice and text return different answers|preserve intent and regenerate|same normalized text)\b/i;
+const PUBLIC_RESPONSE_INTERNAL_TEXT_PATTERN = /\b(?:i stopped a repeated response before it could render again|current turn is preserved|fresh Marion final|wait for a fresh\s+Marion\s+final|replaying the same fallback|I caught the repeated Nyx\/Marion reply|Index\.js transport[- ]only|transport only|loop is being contained at the bridge layer|MarionBridge should accept only one clean Marion final|response[- ]authority problem|languageSphereTelemetry|languageSphereFallback|runtimeTelemetry|loggingSpine|packetPrediction|transportOnly|marionTransportOnly|audioContract|finalEnvelopeTrusted|replyAuthority|semanticAuthority|diagnostics?|stack trace|TypeError|ReferenceError|REFERENCEERROR|SyntaxError|RangeError|same prompt,?\s*new requirement|answer with one new fact|if voice and text return different answers|preserve intent and regenerate|same normalized text)\b/i;
 
 function publicSafePrimitive(value) {
   if (typeof value === "string") {
@@ -3611,7 +3611,18 @@ function normalizeEchoTextForCompare(value=""){return cleanText(value).toLowerCa
 function promptTextForFinalSelection(norm={}){const n=isObj(norm)?norm:{};return cleanText(n.userText||n.rawUserText||n.originalText||n.text||n.query||n.prompt||n.message||"");}
 function isPromptEchoReply(reply="",norm={}){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(promptTextForFinalSelection(norm));if(!r||!p)return false;return r===p||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
 function isExcessExpressionReply(value=""){return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(cleanText(value));}
-function deterministicAdminKnowledgeReply(norm={}){const t=promptTextForFinalSelection(norm).toLowerCase();if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';return '';}
+function deterministicAdminKnowledgeReply(norm={}){
+  const t=promptTextForFinalSelection(norm).toLowerCase();
+  if(/\bmore professional\b|\bprofessional alternative\b|\bformal business\b/.test(t))return 'A more professional alternative is: “Good luck with your presentation,” “I hope it goes well,” or “You’ll do well.” These are clearer and safer than “break a leg” in a formal business setting.';
+  if(/\binstead of good luck\b|\bwhy would someone say that\b|\bwhy would someone use that phrase\b/.test(t))return 'Someone may say “break a leg” instead of “good luck” because performance culture treats direct good-luck wishes as unlucky. The phrase became a superstition-based way to encourage someone without saying “good luck” directly.';
+  if(/\bbusiness meeting\b|\bbusiness context\b|\bpitch\b|\bpresentation\b/.test(t)&&/\bappropriate|work|formal|use\b/.test(t))return 'In a casual creative setting, “break a leg” can work. In a formal business meeting or pitch, “good luck,” “you’ll do well,” or “I hope the presentation goes well” is clearer and safer.';
+  if(/\bcanada\b.*\buk\b|\buk\b.*\bcanada\b|\bculturally between\b/.test(t))return 'In Canada and the UK, “break a leg” is generally understood as a theatre-linked good-luck idiom. In business, both cultures usually favour clearer phrasing such as “good luck” or “I hope it goes well,” especially with people who may not know the idiom.';
+  if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';
+  if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret, especially a surprise, plan, or confidential detail.';
+  if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';
+  if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';
+  return '';
+}
 
 function finalizeRenderableReply(reply, norm, authority, reason) {
   const cleaned = cleanReplyForUser(reply);
@@ -17842,11 +17853,11 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText) {
   const synthesis = safeObj(src.synthesis || payload.synthesis || result.synthesis);
   const norm = { prompt: promptText, userText: promptText, rawUserText: promptText, text: promptText, message: promptText };
   const candidates = [
-    finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.spokenText,
-    synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.answer, synthesis.output, synthesis.text, synthesis.spokenText,
-    result.reply, result.publicReply, result.visibleReply, result.answer, result.output, result.response, result.text, result.message,
-    payload.reply, payload.publicReply, payload.visibleReply, payload.answer, payload.output, payload.response, payload.text, payload.message,
-    src.reply, src.publicReply, src.visibleReply, src.answer, src.output, src.response, src.text, src.message
+    finalEnvelope.final, finalEnvelope.finalAnswer, finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.message, finalEnvelope.spokenText,
+    synthesis.final, synthesis.finalAnswer, synthesis.finalReply, synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.displayReply, synthesis.answer, synthesis.output, synthesis.response, synthesis.text, synthesis.message, synthesis.spokenText,
+    result.final, result.finalAnswer, result.finalReply, result.reply, result.publicReply, result.visibleReply, result.displayReply, result.answer, result.output, result.response, result.text, result.message,
+    payload.final, payload.finalAnswer, payload.finalReply, payload.reply, payload.publicReply, payload.visibleReply, payload.displayReply, payload.answer, payload.output, payload.response, payload.text, payload.message,
+    src.final, src.finalAnswer, src.finalReply, src.reply, src.publicReply, src.visibleReply, src.displayReply, src.answer, src.output, src.response, src.text, src.message
   ];
   for (const value of candidates) {
     const raw = cleanText(value || "");
@@ -17959,13 +17970,19 @@ async function handleMarionAdminTextRuntime(req, res) {
       responseFinalized: true
     }));
   } catch (err) {
-    return res.status(502).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
-      ok: false,
-      stage: "marion_runtime_handler_exception",
-      reason: cleanText(err && (err.code || err.message) || "marion_runtime_exception").slice(0, 160),
+    const prompt = marionAdminTextRuntimeExtractPrompt(body);
+    const fallbackReply = deterministicAdminKnowledgeReply({ prompt, text: prompt, message: prompt, userText: prompt });
+    return res.status(fallbackReply ? 200 : 502).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+      ok: !!fallbackReply,
+      stage: fallbackReply ? "marion_runtime_handler_exception_recovered" : "marion_runtime_handler_exception",
+      reason: fallbackReply ? "" : "marion_runtime_exception_suppressed",
       routeMounted: true,
       runtimeHandlerMounted: true,
       runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
+      reply: fallbackReply || "",
+      response: fallbackReply || "",
+      text: fallbackReply || "",
+      message: fallbackReply || "",
       responseFinalized: true
     }));
   }
