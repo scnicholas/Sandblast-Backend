@@ -1,9 +1,9 @@
 {
   "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse.",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Includes advisory ethical-gate and defensive-intent justification carry for bounded protection scenarios.",
   "requiredFields": [
     "guardian",
     "guardianMode",
@@ -31,13 +31,36 @@
     "timestamp": "",
     "sourceRoute": "",
     "rawRuntimeAvailable": false,
-    "errors": []
+    "errors": [],
+    "ethicalGate": {},
+    "defensiveEscalation": {},
+    "defensiveJustification": {},
+    "adapterVersion": ""
   },
   "allowedValues": {
-    "guardian": ["marion"],
-    "guardianMode": ["marion", "admin", "diagnostic", "fallback"],
-    "systemState": ["online", "degraded", "fallback", "locked", "unknown", "error"],
-    "riskLevel": ["low", "medium", "high", "critical"]
+    "guardian": [
+      "marion"
+    ],
+    "guardianMode": [
+      "marion",
+      "admin",
+      "diagnostic",
+      "fallback"
+    ],
+    "systemState": [
+      "online",
+      "degraded",
+      "fallback",
+      "locked",
+      "unknown",
+      "error"
+    ],
+    "riskLevel": [
+      "low",
+      "medium",
+      "high",
+      "critical"
+    ]
   },
   "rules": {
     "noRawTelemetryAsReply": true,
@@ -46,7 +69,14 @@
     "singleAuthorityPerTurn": true,
     "defaultGuardianAuthority": "marion",
     "diagnosticsStayInOutputPanel": true,
-    "runtimePacketCanBeCopied": true
+    "runtimePacketCanBeCopied": true,
+    "ethicalGateAdvisoryOnly": true,
+    "defensiveEscalationRequiresJustification": true,
+    "defensiveEscalationRequiresExplicitCommand": true,
+    "defensiveEscalationRequiresPermissionBoundary": true,
+    "defensiveEscalationNoContinuousOutput": true,
+    "defensiveEscalationNoPunitiveUse": true,
+    "defensiveEscalationNoCoerciveUse": true
   },
   "security": {
     "redactKeys": [
@@ -69,7 +99,12 @@
       "api key",
       "session token",
       "runtime token",
-      "master token"
+      "master token",
+      "private key",
+      "credential",
+      "punitive alarm",
+      "coercive alarm",
+      "continuous alarm output"
     ]
   },
   "qualityGates": {
@@ -78,13 +113,52 @@
     "nextActionMustBePresent": true,
     "traceIdPreferred": true,
     "approvalRequiredMustBeBoolean": true,
-    "riskLevelMustNormalize": true
+    "riskLevelMustNormalize": true,
+    "ethicalGateMustStayAdvisory": true,
+    "defensiveJustificationRequiredForElevatedAlert": true,
+    "defensiveEscalationMustBeBounded": true,
+    "defensiveEscalationMustNotBecomeFinalAuthority": true
   },
   "chamberTargets": {
     "replyBubble": "directReply",
-    "contextTransparencyPanel": ["contextSummary", "currentObjective", "systemState", "nextAction", "riskLevel", "approvalRequired"],
+    "contextTransparencyPanel": [
+      "contextSummary",
+      "currentObjective",
+      "systemState",
+      "nextAction",
+      "riskLevel",
+      "approvalRequired"
+    ],
     "guardianModeIndicator": "guardianMode",
     "copyGuardianPacket": "fullPacket",
-    "outputPanel": "sanitizedRuntime"
+    "outputPanel": "sanitizedRuntime",
+    "ethicalTransparencyPanel": [
+      "ethicalGate",
+      "defensiveEscalation",
+      "defensiveJustification"
+    ],
+    "adapterVersion": "adapterVersion"
+  },
+  "defensiveEscalationPolicy": {
+    "version": "nyx.marion.defensiveEscalationPolicy/0.1",
+    "purpose": "Permit elevated attention-alert metadata only for explicit, permissioned, protective, immediate-threat scenarios.",
+    "advisoryOnly": true,
+    "requiresExplicitIntent": true,
+    "requiresPermission": true,
+    "requiresProtectivePurpose": true,
+    "requiresImmediateThreatForElevatedOutput": true,
+    "recommendedMaxDb": 85,
+    "absoluteEmergencyMaxDb": 90,
+    "maxBurstSeconds": 8,
+    "minIntervalSeconds": 30,
+    "emergencyMinIntervalSeconds": 15,
+    "disallowedUses": [
+      "punitive_use",
+      "coercive_use",
+      "continuous_output",
+      "unpermissioned_alerting",
+      "identity_targeting",
+      "harmful_sound_output"
+    ]
   }
 }
