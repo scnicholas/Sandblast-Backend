@@ -39,6 +39,7 @@ try {
 const INDEX_VERSION = "index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const PUBLIC_INDEX_VERSION = "index.js v2.18.81sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
 const SERVER_BOOT_AT = Date.now();
+const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.0";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
   releaseReadinessEnabled: process.env.SB_MARION_RELEASE_READINESS !== "false",
@@ -317,13 +318,26 @@ function loadLingoSentinelTranslationRouteModule() {
 }
 
 function mountLingoSentinelTranslationRoutesOptional(appInstance, label) {
+  const mountLabel = String(label || "lingosentinel-translation-routes");
+  const locals = appInstance && appInstance.locals ? appInstance.locals : null;
+  if (locals && locals.__lingoSentinelTranslationRoutesMounted) {
+    return {
+      ok: true,
+      mounted: false,
+      alreadyMounted: true,
+      degraded: false,
+      label: mountLabel,
+      version: LINGOSENTINEL_TRANSLATION_ROUTE_MOUNT_VERSION,
+      previousMount: locals.__lingoSentinelTranslationRoutesMounted
+    };
+  }
   const loaded = loadLingoSentinelTranslationRouteModule();
   if (!loaded.ok || !loaded.module) {
     return {
       ok: false,
       mounted: false,
       degraded: true,
-      label: String(label || "lingosentinel-translation-routes"),
+      label: mountLabel,
       version: LINGOSENTINEL_TRANSLATION_ROUTE_MOUNT_VERSION,
       reason: "optional_translation_route_module_unavailable",
       error: loaded.error || "module_unavailable"
@@ -331,11 +345,20 @@ function mountLingoSentinelTranslationRoutesOptional(appInstance, label) {
   }
   try {
     const mounted = loaded.module.registerLingoSentinelTranslationRoutes(appInstance);
+    if (locals) {
+      locals.__lingoSentinelTranslationRoutesMounted = {
+        label: mountLabel,
+        candidate: loaded.candidate,
+        mountedAt: Date.now(),
+        version: LINGOSENTINEL_TRANSLATION_ROUTE_MOUNT_VERSION
+      };
+    }
     return {
       ok: true,
       mounted: true,
+      alreadyMounted: false,
       degraded: false,
-      label: String(label || "lingosentinel-translation-routes"),
+      label: mountLabel,
       version: LINGOSENTINEL_TRANSLATION_ROUTE_MOUNT_VERSION,
       candidate: loaded.candidate,
       mount: mounted
@@ -345,7 +368,7 @@ function mountLingoSentinelTranslationRoutesOptional(appInstance, label) {
       ok: false,
       mounted: false,
       degraded: true,
-      label: String(label || "lingosentinel-translation-routes"),
+      label: mountLabel,
       version: LINGOSENTINEL_TRANSLATION_ROUTE_MOUNT_VERSION,
       candidate: loaded.candidate,
       reason: "translation_route_mount_failed",
@@ -2131,7 +2154,14 @@ app.post(LINGOSENTINEL_START_CONTACT_EARLY_ROUTES, (req, res) => {
 
 
 
-const PORT = Number(process.env.PORT || 3000);
+function normalizeHttpPort(value, fallback = 3000) {
+  const raw = String(value == null || value === "" ? fallback : value).trim();
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 65535) return fallback;
+  return Math.trunc(n);
+}
+
+const PORT = normalizeHttpPort(process.env.PORT, 3000);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PUBLIC_NEWSCANADA_DIR = path.join(__dirname, "public newscanada");
 const STATIC_PUBLIC_DIRS = uniq([PUBLIC_DIR, PUBLIC_NEWSCANADA_DIR]).filter((dir) => {
@@ -18844,9 +18874,7 @@ app.get(["/avatar/video", "/api/avatar/video"], (req, res) => {
   applyCors(req, res);
   const filePath = avatarVideoFile();
   if (sendAvatarFile(res, filePath)) return;
-  return 
-//
-res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: PUBLIC_INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
+  return res.status(404).json({ ok: false, error: "not_found", path: req.path, meta: { v: PUBLIC_INDEX_VERSION, t: now(), avatar: avatarConfigPayload() } });
 });
 
 app.get(["/avatar/fallback", "/api/avatar/fallback"], (req, res) => {
@@ -19218,36 +19246,56 @@ async function startNewsCanadaAutoIngest() {
 
 //
 
-const server = app.listen(PORT, () => {
-  console.log(`[Sandblast] ${INDEX_VERSION} listening on :${PORT}`);
-  try {
-    const emotionHealth = getMarionEmotionRuntimeHealth();
-    console.log("[Sandblast][marion-emotion-runtime]", {
-      ok: !!emotionHealth.ok,
-      loaded: !!marionEmotionRuntimeMod,
-      mode: "resolved_state_only",
-      route: "/api/marion/emotion/health"
-    });
-  } catch (_) {}
-});
+let server = null;
+
+function startSandblastServer(port = PORT) {
+  if (server && typeof server.close === "function") return server;
+  server = app.listen(port, () => {
+    console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
+    try {
+      const emotionHealth = getMarionEmotionRuntimeHealth();
+      console.log("[Sandblast][marion-emotion-runtime]", {
+        ok: !!emotionHealth.ok,
+        loaded: !!marionEmotionRuntimeMod,
+        mode: "resolved_state_only",
+        route: "/api/marion/emotion/health"
+      });
+    } catch (_) {}
+  });
+  return server;
+}
+
+if (require.main === module || process.env.SB_INDEX_AUTO_LISTEN === "true") {
+  startSandblastServer(PORT);
+}
 
 function gracefulShutdown(signal) {
   try {
     console.log(`[Sandblast][shutdown] ${signal}`);
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(0), 5000).unref();
+    if (server && typeof server.close === "function") {
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 5000).unref();
+      return;
+    }
+    process.exit(0);
   } catch (_) {
     process.exit(0);
   }
 }
 
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+if (require.main === module || process.env.SB_INDEX_ATTACH_SIGNAL_HANDLERS === "true") {
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+}
 
 module.exports = {
   app,
   server,
+  startSandblastServer,
+  gracefulShutdown,
+  PORT,
   INDEX_VERSION,
+  PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION,
   NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
   NYX_VOICE_TRANSCRIPT_ROUTES,
   NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES,
