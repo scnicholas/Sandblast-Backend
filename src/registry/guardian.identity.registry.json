@@ -1,6 +1,6 @@
 {
   "schema": "sandblast.guardian.identity.registry",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "defaultGuardian": "marion",
   "activeGuardian": "marion",
   "aliases": {
@@ -11,7 +11,11 @@
     "aster": "aster",
     "astro": "aster",
     "thalon": "thalon",
-    "fallon": "thalon"
+    "fallon": "thalon",
+    "talon": "thalon",
+    "guardian-marion": "marion",
+    "guardian-aster": "aster",
+    "guardian-talon": "thalon"
   },
   "guardians": {
     "marion": {
@@ -32,7 +36,11 @@
         "context_summary",
         "guardian_packet_export",
         "guardian_handoff_review",
-        "final_decision"
+        "final_decision",
+        "protective_escalation_review",
+        "defensive_intent_approval",
+        "protective_boundary_enforcement",
+        "audit_review"
       ],
       "allowedIntents": [
         "admin_status",
@@ -43,11 +51,29 @@
         "command",
         "diagnostics",
         "guardian_handoff",
-        "context_summary"
+        "context_summary",
+        "protective_escalation",
+        "defensive_intent_review",
+        "protective_boundary_review"
       ],
-      "handoffTargets": ["aster", "thalon"],
+      "handoffTargets": [
+        "aster",
+        "thalon"
+      ],
       "requiresApprovalFrom": null,
-      "mayOverride": ["aster", "thalon"]
+      "mayOverride": [
+        "aster",
+        "thalon"
+      ],
+      "protectiveBoundary": {
+        "role": "final_approval_authority",
+        "mayApproveBoundedDefensiveEscalation": true,
+        "requiresTraceableJustification": true,
+        "mayOverride": [
+          "aster",
+          "thalon"
+        ]
+      }
     },
     "aster": {
       "id": "aster",
@@ -63,17 +89,29 @@
         "signal_analysis",
         "risk_detection",
         "pattern_review",
-        "analysis_summary"
+        "analysis_summary",
+        "protective_signal_review",
+        "defensive_risk_analysis"
       ],
       "allowedIntents": [
         "analyze_signal",
         "risk_review",
         "pattern_review",
-        "analysis_summary"
+        "analysis_summary",
+        "protective_signal_review",
+        "defensive_risk_review"
       ],
-      "handoffTargets": ["marion"],
+      "handoffTargets": [
+        "marion"
+      ],
       "requiresApprovalFrom": "marion",
-      "mayOverride": []
+      "mayOverride": [],
+      "protectiveBoundary": {
+        "role": "advisory_signal_analysis",
+        "mayApproveBoundedDefensiveEscalation": false,
+        "requiresApprovalFrom": "marion",
+        "finalAuthority": false
+      }
     },
     "thalon": {
       "id": "thalon",
@@ -89,17 +127,32 @@
         "strategy_review",
         "scenario_planning",
         "ethical_pressure_test",
-        "decision_support"
+        "decision_support",
+        "protective_scenario_review",
+        "defensive_ethics_review"
       ],
       "allowedIntents": [
         "strategy_review",
         "scenario_planning",
         "ethical_review",
-        "decision_support"
+        "decision_support",
+        "protective_scenario_review",
+        "defensive_ethics_review"
       ],
-      "handoffTargets": ["marion"],
+      "handoffTargets": [
+        "marion"
+      ],
       "requiresApprovalFrom": "marion",
-      "mayOverride": []
+      "mayOverride": [],
+      "aliases": [
+        "talon"
+      ],
+      "protectiveBoundary": {
+        "role": "advisory_strategy_ethics",
+        "mayApproveBoundedDefensiveEscalation": false,
+        "requiresApprovalFrom": "marion",
+        "finalAuthority": false
+      }
     }
   },
   "rules": {
@@ -111,12 +164,41 @@
     "requireTraceId": true,
     "requireGuardianPacket": true,
     "denyUnregisteredGuardians": true,
-    "standbyGuardiansReturnActivationPacket": true
+    "standbyGuardiansReturnActivationPacket": true,
+    "protectiveEscalationRequiresMarionApproval": true,
+    "protectiveEscalationRequiresVerifiedCommand": true,
+    "protectiveEscalationRequiresBoundedPolicy": true,
+    "protectiveEscalationAuditRequired": true,
+    "protectiveEscalationMemoryCarryAllowed": true,
+    "denyContinuousCoerciveOutput": true,
+    "talonAliasMapsToThalon": true
   },
   "packetDefaults": {
     "systemState": "standby",
     "riskLevel": "low",
     "approvalRequired": false,
     "rawRuntimeAvailable": false
+  },
+  "protectiveEscalationPolicy": {
+    "version": "sandblast.guardian.protectiveEscalationPolicy/1.0",
+    "finalAuthority": "marion",
+    "allowedScenarioTypes": [
+      "self_defense",
+      "personal_safety",
+      "verified_immediate_threat",
+      "emergency_attention_signal"
+    ],
+    "requiresVerifiedCommand": true,
+    "requiresProtectivePurpose": true,
+    "requiresHumanApprovalOrPreauthorizedEmergencyRule": true,
+    "maxBurstSeconds": 8,
+    "minimumCooldownSeconds": 15,
+    "continuousOutputAllowed": false,
+    "punitiveUseAllowed": false,
+    "coerciveUseAllowed": false,
+    "identityTargetingAllowed": false,
+    "auditRequired": true,
+    "memoryCarryAllowed": true,
+    "advisoryGuardiansRequireMarionApproval": true
   }
 }
