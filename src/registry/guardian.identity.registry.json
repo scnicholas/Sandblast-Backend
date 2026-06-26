@@ -1,44 +1,122 @@
 {
+  "schema": "sandblast.guardian.identity.registry",
+  "version": "1.1.0",
+  "defaultGuardian": "marion",
+  "activeGuardian": "marion",
+  "aliases": {
+    "marian": "marion",
+    "mariam": "marion",
+    "marion": "marion",
+    "nyx-admin": "marion",
+    "aster": "aster",
+    "astro": "aster",
+    "thalon": "thalon",
+    "fallon": "thalon"
+  },
   "guardians": {
     "marion": {
+      "id": "marion",
       "name": "Marion",
+      "status": "active",
+      "stage": "phase_3_pipeline_anchor",
       "role": "executive_orchestration",
       "authority": "primary",
+      "finalAuthority": true,
       "voice": "clear_direct_contextual",
+      "description": "Primary Guardian authority for executive orchestration, admin dialogue, runtime continuity, approvals, and final decision routing.",
       "permissions": [
         "admin_status",
         "runtime_conversation",
         "approval_review",
         "command_routing",
+        "context_summary",
+        "guardian_packet_export",
+        "guardian_handoff_review",
+        "final_decision"
+      ],
+      "allowedIntents": [
+        "admin_status",
+        "conversation",
+        "runtime_check",
+        "approval",
+        "deny",
+        "command",
+        "diagnostics",
+        "guardian_handoff",
         "context_summary"
-      ]
+      ],
+      "handoffTargets": ["aster", "thalon"],
+      "requiresApprovalFrom": null,
+      "mayOverride": ["aster", "thalon"]
     },
     "aster": {
+      "id": "aster",
       "name": "Aster",
+      "status": "standby",
+      "stage": "registered_not_active",
       "role": "analysis_layer",
       "authority": "advisory",
+      "finalAuthority": false,
       "voice": "diagnostic_pattern_analysis",
+      "description": "Advisory Guardian for observation, signal analysis, risk detection, and pattern review. Does not override Marion.",
       "permissions": [
         "signal_analysis",
         "risk_detection",
-        "pattern_review"
-      ]
+        "pattern_review",
+        "analysis_summary"
+      ],
+      "allowedIntents": [
+        "analyze_signal",
+        "risk_review",
+        "pattern_review",
+        "analysis_summary"
+      ],
+      "handoffTargets": ["marion"],
+      "requiresApprovalFrom": "marion",
+      "mayOverride": []
     },
     "thalon": {
+      "id": "thalon",
       "name": "Thalon",
+      "status": "standby",
+      "stage": "registered_not_active",
       "role": "strategic_layer",
       "authority": "advisory",
+      "finalAuthority": false,
       "voice": "strategic_ethics_scenario_planning",
+      "description": "Advisory Guardian for strategic review, ethical pressure testing, scenario planning, and decision support. Does not override Marion.",
       "permissions": [
         "strategy_review",
         "scenario_planning",
-        "ethical_pressure_test"
-      ]
+        "ethical_pressure_test",
+        "decision_support"
+      ],
+      "allowedIntents": [
+        "strategy_review",
+        "scenario_planning",
+        "ethical_review",
+        "decision_support"
+      ],
+      "handoffTargets": ["marion"],
+      "requiresApprovalFrom": "marion",
+      "mayOverride": []
     }
   },
   "rules": {
     "marionFinalAuthority": true,
     "preventIdentityBleed": true,
-    "advisoryGuardiansDoNotOverrideMarion": true
+    "advisoryGuardiansDoNotOverrideMarion": true,
+    "unknownGuardianFallbackToMarion": true,
+    "singleAuthorityPerTurn": true,
+    "requireTraceId": true,
+    "requireGuardianPacket": true,
+    "denyUnregisteredGuardians": true,
+    "standbyGuardiansReturnActivationPacket": true
+  },
+  "packetDefaults": {
+    "systemState": "standby",
+    "riskLevel": "low",
+    "approvalRequired": false,
+    "rawRuntimeAvailable": false
   }
 }
