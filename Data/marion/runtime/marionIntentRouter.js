@@ -12,10 +12,11 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.5.7 FOLLOWUP-CANDIDATE-SANITIZATION + UNRESOLVED-FOLLOWUP-DEADEND-BYPASS + FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "marionIntentRouter v3.6.0 PRIORITY2-COMMAND-ROUTING-HARDENING + DEFENSIVE-INTENT-SIGNAL-CARRY + FOLLOWUP-CANDIDATE-SANITIZATION + UNRESOLVED-FOLLOWUP-DEADEND-BYPASS + FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
+const PROTECTIVE_ESCALATION_ROUTING_VERSION = "nyx.marion.protectiveEscalationRouting/1.0";
 
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
@@ -623,8 +624,13 @@ function canonicalTechnicalTargetFromText(text = "") {
   if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
   if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
   if (/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i.test(t)) return mk("marionCommandNormalizer", "MarionCommandNormalizer", "marionCommandNormalizer.js", "Data/marion/runtime/marionCommandNormalizer.js", "normalizer");
+  if (/\b(guardian\s*pipeline\s*router|guardian\.pipeline\.router|guardianpipelinerouter)\b/i.test(t)) return mk("guardianPipelineRouter", "GuardianPipelineRouter", "guardian.pipeline.router.js", "Data/marion/runtime/guardian.pipeline.router.js", "guardian_router");
+  if (/\b(domain\s*concierge|domainconcierge)\b/i.test(t)) return mk("DomainConcierge", "DomainConcierge", "DomainConcierge.js", "Data/marion/runtime/DomainConcierge.js", "concierge");
+  if (/\b(domain\s*retriever|domainretriever)\b/i.test(t)) return mk("domainRetriever", "DomainRetriever", "domainRetriever.js", "Data/marion/runtime/domainRetriever.js", "retriever");
   if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
   if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
+  if (/\b(marion\s*ethical\s*gatekeeper|ethical\s*gatekeeper|marionethicalgatekeeper)\b/i.test(t)) return mk("MarionEthicalGatekeeper", "MarionEthicalGatekeeper", "MarionEthicalGatekeeper.js", "Data/marion/runtime/MarionEthicalGatekeeper.js", "ethics");
+  if (/\b(marion\s*runtime\s*contract|runtime\s*contract|marion\.runtime\.contract)\b/i.test(t)) return mk("marionRuntimeContract", "MarionRuntimeContract", "marion.runtime.contract.json", "Data/marion/runtime/marion.runtime.contract.json", "contract");
   if (/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
   return {};
 }
@@ -633,6 +639,42 @@ function isTechnicalFollowUpIntent(text = "") {
   const target = canonicalTechnicalTargetFromText(t);
   if (!target || !target.targetPath) return false;
   return /\b(now|next|then|also|again|from there|after that|one more)\b/i.test(t) || /\b(full autopsy|autopsy|audit|line[-\s]?by[-\s]?line|critical fix|critical fixes|check|inspect|review|patch|harden|run)\b/i.test(t);
+}
+
+function detectProtectiveEscalationRouting(text = "", packet = {}) {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  const p = safeObj(packet);
+  const signal = safeObj(safeObj(p.signals).protectiveEscalation || p.protectiveEscalation || safeObj(p.meta).protectiveEscalation);
+  const guardians = [];
+  if (/\baster\b/i.test(t) || safeArray(signal.guardians).includes("aster")) guardians.push("aster");
+  if (/\b(talon|thalon)\b/i.test(t) || safeArray(signal.guardians).includes("thalon")) guardians.push("thalon");
+  if (/\bmarion\b/i.test(t) || safeArray(signal.guardians).includes("marion")) guardians.push("marion");
+  const protective = /\b(defen[cs]e|defensive|self[-\s]?defen[cs]e|protect|protection|protective|personal safety|emergency|threat|imminent|danger|alarm|alert|escalation|boundary|guardrail|intent justifier|justified scenario|verified command|code word|codeword)\b/i.test(t);
+  const elevated = /\b(90\s*dB|ninety\s*dB|decibel|burst|cooldown|interval|siren|audio controller|cross over|ethical boundary|line crossing)\b/i.test(t);
+  const implementation = /\b(add|include|implement|integrate|route|patch|harden|controller|runtime|gatekeeper|guardrail|boundary|policy|file|code)\b/i.test(t);
+  const detected = signal.detected === true || (protective && (elevated || guardians.length > 0 || implementation));
+  return {
+    version: PROTECTIVE_ESCALATION_ROUTING_VERSION,
+    detected,
+    level: detected && (elevated || signal.level === "elevated") ? "elevated" : (detected ? "bounded" : "none"),
+    guardians: Array.from(new Set(guardians.concat(safeArray(signal.guardians).map(safeStr).filter(Boolean)))),
+    requiresEthicalGate: detected,
+    requiresVerifiedIntent: detected,
+    protectivePurposeOnly: true,
+    boundedOutputRequired: true,
+    noPunitiveUse: true,
+    noCoerciveUse: true,
+    noContinuousAlarm: true,
+    routeAsTechnicalPolicy: detected && implementation,
+    reason: detected ? "protective_escalation_routing_signal" : "none"
+  };
+}
+
+function isPriorityTwoRuntimeRoutingText(text = "") {
+  const t = lower(normalizeRouterVoiceTextParity(text));
+  if (!t) return false;
+  return /\bpriority\s*(?:number\s*)?(?:two|2)\b/i.test(t) ||
+    /\b(command routing|intent router|marionintentrouter|command normalizer|marioncommandnormalizer|guardian pipeline|guardian\.pipeline\.router|domain concierge|domainconcierge|domain registry|mariondomainregistry|domain retriever|domainretriever)\b/i.test(t);
 }
 
 function isInfrastructureContinuityPrompt(text) {
@@ -839,7 +881,7 @@ function detectDomainIntroIntent(text) {
 function detectBackendTechnicalContext(text) {
   const t = lower(text);
   if (!t) return false;
-  const backendAnchor = /\b(nyx|marion|backend|chatengine|chat engine|marionbridge|marion bridge|intent router|marion intent router|composemarionresponse|compose marion response|state spine|statespine|state-spine|final envelope|finalenvelope|session patch|sessionpatch|reply authority|transport|coordinator|composer|bridge|router|runtime|utils|api\/chat|endpoint|contract|packet|script|file|code-level|code level)\b/i.test(t);
+  const backendAnchor = /\b(nyx|marion|backend|chatengine|chat engine|marionbridge|marion bridge|intent router|marion intent router|command normalizer|guardian pipeline|guardian\.pipeline\.router|domain concierge|domainconcierge|domain registry|mariondomainregistry|domain retriever|domainretriever|composemarionresponse|compose marion response|state spine|statespine|state-spine|final envelope|finalenvelope|session patch|sessionpatch|reply authority|transport|coordinator|composer|bridge|router|runtime|utils|api\/chat|endpoint|contract|packet|script|file|code-level|code level|priority two|priority 2)\b/i.test(t);
   const technicalAction = /\b(autopsy|audit|line[- ]?by[- ]?line|critical fix|critical fixes|fix|patch|harden|hardening|stabilize|refine|regression|smoke test|compatibility|cohesion|routing|handoff|continuity|carry-forward|carry forward|final-authority|authority preservation|structural integrity)\b/i.test(t);
   return !!(backendAnchor && technicalAction);
 }
@@ -1151,6 +1193,7 @@ function inferIntentFromText(text) {
   const knowledge = detectKnowledgeDomain(t);
   const technicalTargetLock = canonicalTechnicalTargetFromText(text);
   const technicalFollowUpLock = isTechnicalFollowUpIntent(text);
+  const protectiveEscalation = detectProtectiveEscalationRouting(text);
 
   if (!t) {
     return {
@@ -1213,11 +1256,11 @@ function inferIntentFromText(text) {
     };
   }
 
-  if (technicalTargetLock && technicalTargetLock.targetPath && safetyLevel === "none") {
+  if ((technicalTargetLock && technicalTargetLock.targetPath || isPriorityTwoRuntimeRoutingText(text)) && safetyLevel === "none") {
     return {
       intent: "technical_debug",
       confidence: 0.99,
-      reason: technicalFollowUpLock ? "technical_followup_target_lock" : "technical_target_lock",
+      reason: technicalFollowUpLock ? "technical_followup_target_lock" : (isPriorityTwoRuntimeRoutingText(text) ? "priority_two_command_routing_lock" : "technical_target_lock"),
       stateStageHint: "execution",
       safetyLevel,
       recoveryRequired: false,
@@ -1227,6 +1270,26 @@ function inferIntentFromText(text) {
       routeLock: true,
       technicalTargetLock,
       technicalFollowUpLock: !!technicalFollowUpLock,
+      blockScheduleInterception: true,
+      protectiveEscalation,
+      ethicalEscalationRequired: !!protectiveEscalation.requiresEthicalGate
+    };
+  }
+
+  if (protectiveEscalation.detected && safetyLevel === "none") {
+    return {
+      intent: "technical_debug",
+      confidence: 0.96,
+      reason: "protective_escalation_policy_routing",
+      stateStageHint: "execution",
+      safetyLevel,
+      recoveryRequired: false,
+      knowledgeDomain: "",
+      knowledgeDomainExplicit: false,
+      knowledgeDomainReason: "protective_escalation_routes_to_runtime_policy",
+      routeLock: true,
+      protectiveEscalation,
+      ethicalEscalationRequired: true,
       blockScheduleInterception: true
     };
   }
@@ -1518,6 +1581,7 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
   const detectedKnowledge = detectKnowledgeDomain(fallbackText);
   const technicalTargetLock = safeObj(src.technicalTargetLock || canonicalTechnicalTargetFromText(fallbackText));
   const technicalFollowUpLock = !!(src.technicalFollowUpLock || isTechnicalFollowUpIntent(fallbackText));
+  const protectiveEscalation = detectProtectiveEscalationRouting(fallbackText, src);
   const explicitKnowledge = normalizeKnowledgeDomainName(src.knowledgeDomain || src.domainKnowledge || src.primaryKnowledgeDomain || safeObj(src.routing).knowledgeDomain || "");
   let knowledgeDomain = explicitKnowledge || inferred.knowledgeDomain || detectedKnowledge.knowledgeDomain || "";
 
@@ -1536,10 +1600,10 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     recoveryRequired = false;
   }
 
-  if (technicalTargetLock && technicalTargetLock.targetPath && inferred.intent !== "emotional_support" && reason !== "definition_query_domain_lock") {
+  if ((technicalTargetLock && technicalTargetLock.targetPath || isPriorityTwoRuntimeRoutingText(fallbackText)) && inferred.intent !== "emotional_support" && reason !== "definition_query_domain_lock") {
     intent = "technical_debug";
     confidence = Math.max(confidence, 0.99);
-    reason = technicalFollowUpLock ? "technical_followup_target_lock" : "technical_target_lock";
+    reason = technicalFollowUpLock ? "technical_followup_target_lock" : (isPriorityTwoRuntimeRoutingText(fallbackText) ? "priority_two_command_routing_lock" : "technical_target_lock");
     stateStageHint = "execution";
     recoveryRequired = false;
     knowledgeDomain = "";
@@ -1558,6 +1622,15 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     intent = "technical_debug";
     confidence = Math.max(confidence, detectCreativeCognitiveCarryContext(fallbackText) ? 0.96 : 0.94);
     reason = detectCreativeCognitiveCarryContext(fallbackText) ? "backend_technical_creative_cognitive_context" : "backend_technical_hardening_context";
+    stateStageHint = "execution";
+    recoveryRequired = false;
+    knowledgeDomain = "";
+  }
+
+  if (protectiveEscalation.detected && inferred.intent !== "emotional_support" && reason !== "definition_query_domain_lock") {
+    intent = "technical_debug";
+    confidence = Math.max(confidence, 0.96);
+    reason = "protective_escalation_policy_routing";
     stateStageHint = "execution";
     recoveryRequired = false;
     knowledgeDomain = "";
@@ -1669,7 +1742,9 @@ function normalizeIntent(rawInput = {}, fallbackText = "") {
     crossDomainProfile: safeObj(src.crossDomainProfile || inferred.crossDomainProfile || detectedKnowledge.crossDomainProfile),
     technicalTargetLock,
     technicalFollowUpLock: !!technicalFollowUpLock,
-    blockScheduleInterception: !!(technicalTargetLock && technicalTargetLock.targetPath),
+    protectiveEscalation,
+    ethicalEscalationRequired: !!protectiveEscalation.requiresEthicalGate,
+    blockScheduleInterception: !!((technicalTargetLock && technicalTargetLock.targetPath) || isPriorityTwoRuntimeRoutingText(fallbackText)),
     knowledgeDomainActivationRequest: isKnowledgeDomainActivationRequest(fallbackText),
     source: safeStr(src.source || "marionIntentRouter"),
     inputSource: normalizeInputSource(src.inputSource || src.source || "text"),
@@ -1709,7 +1784,8 @@ function domainSignalCandidates(text = "", intentPacket = {}) {
   const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || "");
   addDomainCandidate(map, baseDomain, knowledgeDomain ? Math.max(0.45, clamp01(p.confidence, 0.48) - 0.06) : clamp01(p.confidence, 0.48), `intent:${intent}`);
   if (knowledgeDomain) addDomainCandidate(map, knowledgeDomain, p.knowledgeDomainExplicit ? 0.99 : Math.max(clamp01(p.confidence, 0.72), 0.84), p.knowledgeDomainReason || "knowledge_domain", knowledgeDomain);
-  if (/\b(full autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|domain registry|composemarionresponse|final envelope|telemetry|pipeline|routing)\b/i.test(t) && !(knowledgeDomain && !detectBackendTechnicalContext(t))) addDomainCandidate(map, "technical", 0.96, "technical_terms");
+  if (/\b(full autopsy|surgical autopsy|line[- ]?by[- ]?line audit|critical fix|backend|widget|marion|nyx|state spine|chatengine|intent router|command normalizer|guardian pipeline|domain concierge|domain registry|domain retriever|composemarionresponse|final envelope|telemetry|pipeline|routing|priority two|priority 2)\b/i.test(t) && !(knowledgeDomain && !detectBackendTechnicalContext(t))) addDomainCandidate(map, "technical", 0.98, "priority_two_technical_terms");
+  if (detectProtectiveEscalationRouting(t).detected) addDomainCandidate(map, "technical", 0.96, "protective_escalation_policy_terms");
   if (/\b(overwhelmed|panic|spiral|emotional shutdown|cognitive distortion|emotional intelligence|trauma|attachment|distress|support strategy)\b/i.test(t)) addDomainCandidate(map, "psychology", 0.9, "psychology_terms", "psychology");
   if (isContinuationCompressionInstruction(t)) addDomainCandidate(map, "memory", 0.91, "continuation_compression_terms");
   else if (/\b(rewrite|proofread|polish|grammar|syntax|tone|copyedit|wording|business english|language flow)\b/i.test(t)) addDomainCandidate(map, "english", 0.9, "english_terms", "english");
@@ -1734,7 +1810,7 @@ function intentConfidenceProfile(intentPacket = {}, text = "") {
   const second = candidates[1] || null;
   const c = Math.max(clamp01(p.confidence, 0), clamp01(top.confidence, 0));
   const margin = second ? Math.max(0, c - clamp01(second.confidence, 0)) : c;
-  const routeLocked = !!(p.routeLock || answerableTopic || isInfrastructureContinuityPrompt(text) || isNewsMediaPositioningRequest(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
+  const routeLocked = !!(p.routeLock || answerableTopic || isPriorityTwoRuntimeRoutingText(text) || detectProtectiveEscalationRouting(text, p).detected || isInfrastructureContinuityPrompt(text) || isNewsMediaPositioningRequest(text) || c >= 0.82 || (c >= 0.72 && margin >= 0.16));
   const ambiguous = !routeLocked && (c < 0.62 || (second && margin < 0.08));
   const knowledgeDomain = normalizeKnowledgeDomainName(p.knowledgeDomain || top.knowledgeDomain || "");
   const base = {
@@ -1776,6 +1852,7 @@ function buildDomainConciergeSeed(routing = {}, marionIntent = {}, questionShape
   const route = safeStr(rt.domain || dc.selectedDomain || dc.primaryDomain || INTENT_TO_DOMAIN[mi.intent] || "general");
   const intent = normalizeIntentName(mi.intent || rt.intent || "simple_chat");
   const answerableTopic = isAnswerableTopicRequest(safeStr(rt.rawTurnText || rt.normalizedUserIntent || mi.rawTurnText || mi.normalizedUserIntent || mi.turnText || ""), questionShape || mi.questionShape || rt.questionShape || {});
+  const protectiveEscalation = detectProtectiveEscalationRouting(safeStr(rt.rawTurnText || rt.normalizedUserIntent || mi.rawTurnText || mi.normalizedUserIntent || mi.turnText || ""), mi);
   const ambiguous = !!(rt.routeAmbiguous || dc.ambiguous || rt.routeFailClosed || dc.failClosed);
   const routeLocked = !!(rt.routeLock || dc.routeLocked || answerableTopic || confidence >= 0.82);
   const action = ambiguous && !routeLocked && !answerableTopic ? "clarify" : "route";
@@ -1792,6 +1869,8 @@ function buildDomainConciergeSeed(routing = {}, marionIntent = {}, questionShape
     routeLocked,
     routeFailClosed: !!(rt.routeFailClosed || dc.failClosed),
     questionShape: safeObj(questionShape),
+    protectiveEscalation,
+    ethicalEscalationRequired: !!protectiveEscalation.requiresEthicalGate,
     answerMode: safeStr(dc.answerMode || (action === "clarify" ? "clarify" : "direct")), fallbackReason: safeStr(dc.fallbackReason || ""), secondaryDomains: safeArray(dc.secondaryDomains || rt.secondaryDomains).slice(0, 4), candidates: safeArray(rt.candidateDomains || dc.candidates).slice(0, 6),
     noUserFacingDiagnostics: true
   };
@@ -1856,6 +1935,8 @@ function buildRouting(marionIntent) {
     knowledgeDomainActivationRequest: !!marionIntent.knowledgeDomainActivationRequest,
     technicalTargetLock: safeObj(marionIntent.technicalTargetLock),
     technicalFollowUpLock: !!marionIntent.technicalFollowUpLock,
+    protectiveEscalation: safeObj(marionIntent.protectiveEscalation),
+    ethicalEscalationRequired: !!marionIntent.ethicalEscalationRequired,
     blockScheduleInterception: !!marionIntent.blockScheduleInterception,
     domainConfidence: confidenceProfile,
     routeConfidence: confidenceProfile.confidence,
@@ -2023,7 +2104,9 @@ function routeMarionIntent(packet = {}) {
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
       routeFailClosed: !!safeObj(routing.domainConfidence).failClosed,
       domainConfidence: routing.domainConfidence || intentConfidenceProfile(marionIntent, text),
-      domainConcierge: domainConciergeSeed
+      domainConcierge: domainConciergeSeed,
+      protectiveEscalation: safeObj(marionIntent.protectiveEscalation),
+      ethicalEscalationRequired: !!marionIntent.ethicalEscalationRequired
     },
     meta: {
       routedAt: new Date().toISOString(),
@@ -2060,7 +2143,9 @@ function routeMarionIntent(packet = {}) {
       micTextParity: true,
       continuityRegressionReady: true,
       routeLock: !!(marionIntent.routeLock || safeObj(routing.domainConfidence).routeLocked),
-      routeFailClosed: !!safeObj(routing.domainConfidence).failClosed
+      routeFailClosed: !!safeObj(routing.domainConfidence).failClosed,
+      protectiveEscalation: safeObj(marionIntent.protectiveEscalation),
+      ethicalEscalationRequired: !!marionIntent.ethicalEscalationRequired
     }
   };
 }
@@ -2086,6 +2171,7 @@ module.exports = {
   DOMAIN_CONFIDENCE_VERSION,
   DOMAIN_CONCIERGE_CORE_VERSION,
   QUESTION_SHAPE_NORMALIZATION_VERSION,
+  PROTECTIVE_ESCALATION_ROUTING_VERSION,
   routerForensicNormalizationStatus,
   STATE_SPINE_SCHEMA,
   STATE_SPINE_SCHEMA_COMPAT,
@@ -2110,6 +2196,8 @@ module.exports = {
   canonicalTechnicalTargetFromText,
   isTechnicalFollowUpIntent,
   isInfrastructureContinuityPrompt,
+  isPriorityTwoRuntimeRoutingText,
+  detectProtectiveEscalationRouting,
   isAnswerableTopicRequest,
   turnContinuityHash,
   confidenceBand,
@@ -2151,6 +2239,8 @@ module.exports = {
     canonicalTechnicalTargetFromText,
     isTechnicalFollowUpIntent,
     isInfrastructureContinuityPrompt,
+    isPriorityTwoRuntimeRoutingText,
+    detectProtectiveEscalationRouting,
     isAnswerableTopicRequest,
     turnContinuityHash,
     extractContinuityCarry,
