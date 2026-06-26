@@ -13,7 +13,8 @@
  *   mutate durable memory.
  */
 
-const VERSION = "marionLoopGuard v1.2.1 REFERENCEERROR-SUPPRESSION";
+const VERSION = "marionLoopGuard v1.3.0 PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
+const PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION = "sandblast.guardian.protectiveEscalationLoopGuard/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
 
@@ -286,6 +287,74 @@ function isDeepeningTurn(packet = {}) {
   );
 }
 
+
+function normalizeProtectiveEscalationCarry(value = {}) {
+  const src = safeObj(value);
+  const purpose = oneLine(src.purpose || src.protectivePurpose || src.justification || src.reason || "").slice(0, 600);
+  const burst = Number(src.maxBurstSeconds ?? src.burstSeconds ?? src.maxBurstDurationSeconds ?? 0);
+  const cooldown = Number(src.minCooldownSeconds ?? src.cooldownSeconds ?? 0);
+  const active = !!(src.active || src.defensiveIntent || src.protectiveIntent || src.verifiedCommand || purpose);
+  if (!active) return {};
+  const boundedPolicy = !!(
+    (!Number.isFinite(burst) || burst === 0 || burst <= 8) &&
+    (!Number.isFinite(cooldown) || cooldown === 0 || cooldown >= 15) &&
+    src.continuous !== true &&
+    src.punitive !== true &&
+    src.coercive !== true
+  );
+  const verifiedCommand = src.verifiedCommand === true || src.commandVerified === true || src.intentVerified === true;
+  const humanApproval = src.humanApproval === true || src.approved === true || !!src.approvedBy;
+  return {
+    version: PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION,
+    active: true,
+    defensiveIntent: !!(src.defensiveIntent || src.protectiveIntent || /defen|protect|safety|threat|emergency/i.test(purpose)),
+    protectivePurpose: purpose,
+    verifiedCommand,
+    humanApproval,
+    approvalRequired: src.approvalRequired !== false,
+    boundedPolicy,
+    maxBurstSeconds: Number.isFinite(burst) && burst > 0 ? Math.min(8, Math.max(1, burst)) : 0,
+    minCooldownSeconds: Number.isFinite(cooldown) && cooldown > 0 ? Math.max(15, cooldown) : 0,
+    allowed: !!(verifiedCommand && boundedPolicy && (humanApproval || src.approvalRequired === false)),
+    finalAuthority: "marion",
+    source: oneLine(src.source || "marionLoopGuard.protectiveEscalationCarry")
+  };
+}
+
+function extractProtectiveEscalationCarry(packet = {}, options = {}) {
+  const p = safeObj(packet);
+  const state = getState(p);
+  const meta = safeObj(p.meta);
+  const routing = safeObj(p.routing);
+  const payload = safeObj(p.payload);
+  const memoryPatch = safeObj(p.memoryPatch || payload.memoryPatch || meta.memoryPatch);
+  const candidates = [
+    options.protectiveEscalation,
+    options.defensiveIntentJustifier,
+    p.protectiveEscalation,
+    p.defensiveIntentJustifier,
+    p.ethicalJustification,
+    meta.protectiveEscalation,
+    meta.defensiveIntentJustifier,
+    routing.protectiveEscalation,
+    memoryPatch.protectiveEscalation,
+    safeObj(memoryPatch.stateBridge).protectiveEscalation,
+    state.protectiveEscalation,
+    safeObj(state.runtimeTelemetry).protectiveEscalation
+  ];
+  for (const item of candidates) {
+    const normalized = normalizeProtectiveEscalationCarry(item);
+    if (Object.keys(normalized).length) return normalized;
+  }
+  return {};
+}
+
+function protectiveEscalationPolicyViolation(carry = {}) {
+  const c = safeObj(carry);
+  if (!c.active) return false;
+  return c.allowed !== true || c.boundedPolicy !== true || c.verifiedCommand !== true;
+}
+
 function buildFinalRenderTelemetrySafe(fields = {}) {
   if (!finalRenderTelemetryMod || typeof finalRenderTelemetryMod.buildFinalRenderTelemetry !== "function") return {};
   try {
@@ -306,6 +375,8 @@ function evaluateLoop(packet = {}, candidateReply = "", options = {}) {
   const trustedFinal = options.trustedFinal === true || isTrustedFinalPacket(packet);
   const deepeningTurn = options.deepeningTurn === true || isDeepeningTurn(packet);
   const blockedPhrases = Array.isArray(options.blockedPhrases) ? options.blockedPhrases : DEFAULT_BLOCKED_PHRASES;
+  const protectiveEscalation = extractProtectiveEscalationCarry(packet, options);
+  const protectivePolicyViolation = protectiveEscalationPolicyViolation(protectiveEscalation);
 
   const emptyReply = !oneLine(rawReply);
   const telemetryLeak = isTelemetryLeakText(rawReply);
@@ -343,6 +414,7 @@ function evaluateLoop(packet = {}, candidateReply = "", options = {}) {
     bridgeEcho ||
     exactRepeat ||
     stuckState ||
+    protectivePolicyViolation ||
     (!trustedFinal && softLoopDetected)
   );
   const loopDetected = hardLoopDetected || softLoopDetected;
@@ -356,6 +428,7 @@ function evaluateLoop(packet = {}, candidateReply = "", options = {}) {
   if (bridgeEcho) reasons.push("bridge_echo_detected");
   if (repeatedInHistory) reasons.push("history_repeat_detected");
   if (stuckState) reasons.push("stuck_state_detected");
+  if (protectivePolicyViolation) reasons.push("protective_escalation_policy_violation");
 
   const allowReply = !hardLoopDetected;
   const forceRecovery = !allowReply;
@@ -369,7 +442,8 @@ function evaluateLoop(packet = {}, candidateReply = "", options = {}) {
     hardLoopDetected,
     reasons,
     emptyReply,
-    finalEnvelopeTrusted: trustedFinal
+    finalEnvelopeTrusted: trustedFinal,
+    protectiveEscalation
   };
   const failureSignature = classifyFailureSignature(failureFields);
   const failureSignatureAudit = buildFailureSignatureAudit(failureFields);
@@ -380,7 +454,8 @@ function evaluateLoop(packet = {}, candidateReply = "", options = {}) {
     canEmit: allowReply,
     finalEnvelopeTrusted: trustedFinal,
     error: forceRecovery ? reasons.join(",") : "",
-    loopGuard: { loopDetected, hardLoopDetected, forceRecovery, allowReply, reasons }
+    loopGuard: { loopDetected, hardLoopDetected, forceRecovery, allowReply, reasons },
+    protectiveEscalation
   });
 
   return {
@@ -399,6 +474,9 @@ function evaluateLoop(packet = {}, candidateReply = "", options = {}) {
     failureSignatureAudit,
     finalRenderTelemetryVersion: FINAL_RENDER_TELEMETRY_VERSION,
     finalRenderTelemetry,
+    protectiveEscalation,
+    protectiveEscalationActive: !!protectiveEscalation.active,
+    protectivePolicyViolation,
     diagnostics: {
       loopCount,
       stateStage,
@@ -412,7 +490,9 @@ function evaluateLoop(packet = {}, candidateReply = "", options = {}) {
       bridgeEcho,
       repeatedInHistory,
       stuckState,
-      similarityToLastReply
+      similarityToLastReply,
+      protectiveEscalationActive: !!protectiveEscalation.active,
+      protectivePolicyViolation
     }
   };
 }
@@ -431,7 +511,9 @@ function applyLoopGuard(packet = {}, candidateReply = "", options = {}) {
       failureSignature: result.failureSignature,
       failureSignatureAudit: result.failureSignatureAudit,
       finalRenderTelemetryVersion: FINAL_RENDER_TELEMETRY_VERSION,
-      finalRenderTelemetry: result.finalRenderTelemetry
+      finalRenderTelemetry: result.finalRenderTelemetry,
+      protectiveEscalation: result.protectiveEscalation,
+      protectiveEscalationActive: !!result.protectiveEscalationActive
     }
   };
 }
@@ -440,6 +522,7 @@ module.exports = {
   VERSION,
   TELEMETRY_VISIBILITY_VERSION,
   FAILURE_SIGNATURE_AUDIT_VERSION,
+  PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION,
   KNOWN_FAILURE_SIGNATURES,
   DEFAULT_BLOCKED_PHRASES,
   normalizeText,
@@ -454,5 +537,8 @@ module.exports = {
   buildFailureSignatureAudit,
   isTelemetryLeakText,
   stripTelemetryLeakFromReply,
+  normalizeProtectiveEscalationCarry,
+  extractProtectiveEscalationCarry,
+  protectiveEscalationPolicyViolation,
   FINAL_RENDER_TELEMETRY_VERSION
 };
