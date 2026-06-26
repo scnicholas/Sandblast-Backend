@@ -1,32 +1,126 @@
+"use strict";
+
+/**
+ * guardian.memory.bridge.js
+ * Priority-3 state-memory bridge.
+ *
+ * Purpose:
+ * - Maintain lightweight Guardian continuity for Marion, Aster, and Thalon/Talon.
+ * - Preserve final-authority boundaries: Marion remains primary; advisory Guardians do not override.
+ * - Carry defensive/protective escalation state as metadata only, never as an uncontrolled action trigger.
+ * - Redact secrets and runtime tokens before memory storage.
+ */
+
+const VERSION = "guardian.memory.bridge v1.2.0 PRIORITY3-STATE-CARRY-HARDENED";
 const DEFAULT_MAX_TURNS = 30;
-const GUARDIAN_ALIASES = { marion: "marion", mariam: "marion", aster: "aster", astro: "aster", thalon: "thalon", fallon: "thalon" };
-const SECRET_KEY_RE = /(token|secret|password|apikey|api_key|authorization|cookie|session)/i;
+const PROTECTIVE_ESCALATION_MEMORY_VERSION = "sandblast.guardian.protectiveEscalationMemory/1.0";
+const GUARDIAN_ALIASES = Object.freeze({
+  marion: "marion",
+  marian: "marion",
+  mariam: "marion",
+  "nyx-admin": "marion",
+  aster: "aster",
+  astro: "aster",
+  thalon: "thalon",
+  talon: "thalon",
+  fallon: "thalon"
+});
+const SECRET_KEY_RE = /(token|secret|password|apikey|api_key|authorization|cookie|session|sessiontoken|runtimeToken|masterToken|credential|private[_-]?key)/i;
+const SECRET_TEXT_RE = /(bearer\s+[a-z0-9._~+/-]+=*|(?:token|secret|password|api[_-]?key|session[_-]?token|runtime[_-]?token|master[_-]?token)\s*[:=]\s*[^\s,"'}]+)/gi;
 
-function now() {
-  return new Date().toISOString();
-}
-
+function now() { return new Date().toISOString(); }
+function isObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function guardianKey(value = "marion") {
   const key = String(value || "marion").trim().toLowerCase();
   return GUARDIAN_ALIASES[key] || "marion";
 }
-
 function cleanText(value, max = 1200) {
   if (value === null || value === undefined) return "";
-  const text = String(value).replace(/\s+/g, " ").trim();
+  const text = String(value).replace(/\s+/g, " ").replace(SECRET_TEXT_RE, "[REDACTED]").trim();
   return text.length > max ? text.slice(0, max - 1).trim() + "…" : text;
 }
-
+function normalizeRisk(value) {
+  const risk = cleanText(value || "low", 32).toLowerCase();
+  if (["none", "low", "medium", "high", "critical"].includes(risk)) return risk === "none" ? "low" : risk;
+  if (["warn", "warning", "moderate"].includes(risk)) return "medium";
+  if (["severe", "danger"].includes(risk)) return "high";
+  return "low";
+}
+function redactDeep(value, seen = new WeakSet()) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string") return cleanText(value);
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value !== "object") return cleanText(value);
+  if (seen.has(value)) return "[Circular]";
+  seen.add(value);
+  if (Array.isArray(value)) return value.slice(0, 50).map((item) => redactDeep(item, seen));
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = SECRET_KEY_RE.test(key) ? "[REDACTED]" : redactDeep(item, seen);
+  }
+  return out;
+}
+function normalizeProtectiveEscalation(value = {}) {
+  const src = isObject(value) ? value : {};
+  const purpose = cleanText(src.purpose || src.protectivePurpose || src.justification || src.reason || "", 500);
+  const guardian = guardianKey(src.guardian || src.asset || src.authority || "marion");
+  const burstSeconds = Number(src.maxBurstSeconds ?? src.burstSeconds ?? src.maxBurstDurationSeconds ?? 0);
+  const cooldownSeconds = Number(src.minCooldownSeconds ?? src.cooldownSeconds ?? 0);
+  const active = !!(src.active || src.defensiveIntent || src.protectiveIntent || purpose || src.verifiedCommand);
+  const verifiedCommand = src.verifiedCommand === true || src.commandVerified === true || src.intentVerified === true;
+  const humanApproval = src.humanApproval === true || src.approved === true || src.approvedBy;
+  const boundedPolicy = !!(
+    (!Number.isFinite(burstSeconds) || burstSeconds === 0 || burstSeconds <= 8) &&
+    (!Number.isFinite(cooldownSeconds) || cooldownSeconds === 0 || cooldownSeconds >= 15) &&
+    src.continuous !== true &&
+    src.coercive !== true &&
+    src.punitive !== true
+  );
+  if (!active) return {};
+  return {
+    version: PROTECTIVE_ESCALATION_MEMORY_VERSION,
+    active: true,
+    guardian,
+    asset: guardian,
+    purpose,
+    protectivePurpose: purpose,
+    defensiveIntent: !!(src.defensiveIntent || src.protectiveIntent || /defen|protect|safety|threat|emergency/i.test(purpose)),
+    verifiedCommand,
+    humanApproval,
+    boundedPolicy,
+    maxBurstSeconds: Number.isFinite(burstSeconds) && burstSeconds > 0 ? Math.min(8, Math.max(1, burstSeconds)) : 0,
+    minCooldownSeconds: Number.isFinite(cooldownSeconds) && cooldownSeconds > 0 ? Math.max(15, cooldownSeconds) : 0,
+    approvalRequired: src.approvalRequired !== false,
+    allowed: !!(verifiedCommand && boundedPolicy && (humanApproval || src.approvalRequired === false)),
+    finalAuthority: "marion",
+    advisoryOnly: guardian !== "marion",
+    updatedAt: now()
+  };
+}
+function pickProtectiveEscalation(turn = {}) {
+  const candidates = [
+    turn.protectiveEscalation,
+    turn.defensiveIntentJustifier,
+    turn.ethicalJustification,
+    turn.guardianEscalation,
+    isObject(turn.meta) ? turn.meta.protectiveEscalation : null,
+    isObject(turn.meta) ? turn.meta.defensiveIntentJustifier : null
+  ];
+  for (const item of candidates) {
+    const normalized = normalizeProtectiveEscalation(item);
+    if (Object.keys(normalized).length) return normalized;
+  }
+  return {};
+}
 function redactTurn(turn = {}) {
   const safe = {};
   for (const [key, value] of Object.entries(turn || {})) {
     if (SECRET_KEY_RE.test(key)) safe[key] = "[REDACTED]";
     else if (typeof value === "string") safe[key] = cleanText(value, key === "reply" ? 1800 : 1200);
-    else safe[key] = value;
+    else safe[key] = redactDeep(value);
   }
   return safe;
 }
-
 function createGuardianMemory(currentObjective) {
   return {
     currentObjective,
@@ -36,31 +130,27 @@ function createGuardianMemory(currentObjective) {
     lastRiskLevel: "low",
     approvalRequired: false,
     activeMode: "marion",
+    protectiveEscalation: {},
     updatedAt: now(),
     turns: []
   };
 }
-
 const memory = {
   marion: createGuardianMemory("Stabilize Marion chamber and Guardian runtime pathway."),
   aster: createGuardianMemory("Standby for analysis-layer activation."),
   thalon: createGuardianMemory("Standby for strategic-layer activation.")
 };
-
 function ensureMemory(guardian = "marion") {
   const key = guardianKey(guardian);
   if (!memory[key]) memory[key] = createGuardianMemory("Guardian standby.");
   return memory[key];
 }
-
-export function getGuardianMemory(guardian = "marion") {
-  return ensureMemory(guardian);
-}
-
-export function getGuardianSnapshot(guardian = "marion", limit = 8) {
-  const m = ensureMemory(guardian);
+function getGuardianMemory(guardian = "marion") { return ensureMemory(guardian); }
+function getGuardianSnapshot(guardian = "marion", limit = 8) {
+  const key = guardianKey(guardian);
+  const m = ensureMemory(key);
   return {
-    guardian: guardianKey(guardian),
+    guardian: key,
     currentObjective: m.currentObjective,
     lastTopic: m.lastTopic,
     lastDecision: m.lastDecision,
@@ -68,58 +158,77 @@ export function getGuardianSnapshot(guardian = "marion", limit = 8) {
     lastRiskLevel: m.lastRiskLevel,
     approvalRequired: m.approvalRequired,
     activeMode: m.activeMode,
+    protectiveEscalation: Object.keys(m.protectiveEscalation || {}).length ? { ...m.protectiveEscalation } : {},
     updatedAt: m.updatedAt,
-    turns: m.turns.slice(-Math.max(0, Number(limit) || 0))
+    turns: m.turns.slice(-Math.max(0, Number(limit) || 0)).map((turn) => redactDeep(turn))
   };
 }
-
-export function rememberTurn(guardian = "marion", turn = {}, options = {}) {
-  const m = ensureMemory(guardian);
+function rememberTurn(guardian = "marion", turn = {}, options = {}) {
+  const key = guardianKey(guardian);
+  const m = ensureMemory(key);
   const maxTurns = Math.max(1, Number(options.maxTurns) || DEFAULT_MAX_TURNS);
   const safeTurn = redactTurn({ timestamp: now(), ...turn });
-
-  m.lastTopic = cleanText(safeTurn.input || safeTurn.topic || m.lastTopic, 700);
+  const protectiveEscalation = pickProtectiveEscalation(safeTurn);
+  if (Object.keys(protectiveEscalation).length) {
+    m.protectiveEscalation = protectiveEscalation;
+    safeTurn.protectiveEscalation = protectiveEscalation;
+  }
+  m.lastTopic = cleanText(safeTurn.input || safeTurn.topic || safeTurn.currentObjective || m.lastTopic, 700);
   m.lastDecision = cleanText(safeTurn.reply || safeTurn.decision || m.lastDecision, 900);
   m.lastAction = cleanText(safeTurn.nextAction || safeTurn.action || m.lastAction, 700);
-  m.lastRiskLevel = cleanText(safeTurn.riskLevel || m.lastRiskLevel, 32) || "low";
-  m.approvalRequired = Boolean(safeTurn.approvalRequired);
-  m.activeMode = cleanText(safeTurn.guardianMode || safeTurn.mode || m.activeMode, 32) || "marion";
+  m.lastRiskLevel = normalizeRisk(safeTurn.riskLevel || (protectiveEscalation.active ? "high" : m.lastRiskLevel));
+  m.approvalRequired = Boolean(safeTurn.approvalRequired || protectiveEscalation.approvalRequired);
+  m.activeMode = cleanText(safeTurn.guardianMode || safeTurn.mode || key || m.activeMode, 32) || "marion";
   m.updatedAt = now();
   m.turns.push(safeTurn);
-
   while (m.turns.length > maxTurns) m.turns.shift();
-  return getGuardianSnapshot(guardian, maxTurns);
+  return getGuardianSnapshot(key, maxTurns);
 }
-
-export function setGuardianObjective(guardian = "marion", objective = "") {
+function setGuardianObjective(guardian = "marion", objective = "") {
   const m = ensureMemory(guardian);
   const next = cleanText(objective, 900);
   if (next) m.currentObjective = next;
   m.updatedAt = now();
   return getGuardianSnapshot(guardian);
 }
-
-export function mergeGuardianContext(guardian = "marion", patch = {}) {
+function mergeGuardianContext(guardian = "marion", patch = {}) {
   const m = ensureMemory(guardian);
   const allowed = ["currentObjective", "lastTopic", "lastDecision", "lastAction", "lastRiskLevel", "activeMode"];
-  for (const key of allowed) {
-    if (patch[key] !== undefined) m[key] = cleanText(patch[key], 1200) || m[key];
-  }
-  if (patch.approvalRequired !== undefined) m.approvalRequired = Boolean(patch.approvalRequired);
+  for (const key of allowed) if (patch[key] !== undefined) m[key] = cleanText(patch[key], 1200) || m[key];
+  const protectiveEscalation = pickProtectiveEscalation(patch);
+  if (Object.keys(protectiveEscalation).length) m.protectiveEscalation = protectiveEscalation;
+  if (patch.approvalRequired !== undefined || protectiveEscalation.approvalRequired) m.approvalRequired = Boolean(patch.approvalRequired || protectiveEscalation.approvalRequired);
+  m.lastRiskLevel = normalizeRisk(patch.lastRiskLevel || patch.riskLevel || m.lastRiskLevel);
   m.updatedAt = now();
   return getGuardianSnapshot(guardian);
 }
-
-export function resetGuardianMemory(guardian = "marion") {
+function resetGuardianMemory(guardian = "marion") {
   const key = guardianKey(guardian);
   const currentObjective = ensureMemory(key).currentObjective;
   memory[key] = createGuardianMemory(currentObjective);
   return getGuardianSnapshot(key);
 }
-
-export function listGuardianMemory() {
+function listGuardianMemory() {
   return Object.keys(memory).reduce((out, key) => {
     out[key] = getGuardianSnapshot(key, 3);
     return out;
   }, {});
 }
+
+module.exports = {
+  VERSION,
+  PROTECTIVE_ESCALATION_MEMORY_VERSION,
+  GUARDIAN_ALIASES,
+  guardianKey,
+  cleanText,
+  redactDeep,
+  normalizeProtectiveEscalation,
+  getGuardianMemory,
+  getGuardianSnapshot,
+  rememberTurn,
+  setGuardianObjective,
+  mergeGuardianContext,
+  resetGuardianMemory,
+  listGuardianMemory
+};
+module.exports.default = module.exports;
