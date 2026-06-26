@@ -1,8 +1,12 @@
 {
+  "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "mode": "admin_dialogue",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse.",
   "requiredFields": [
+    "guardian",
+    "guardianMode",
     "directReply",
     "contextSummary",
     "currentObjective",
@@ -10,10 +14,12 @@
     "nextAction",
     "riskLevel",
     "approvalRequired",
-    "guardianMode",
-    "traceId"
+    "traceId",
+    "timestamp"
   ],
   "responseShape": {
+    "guardian": "marion",
+    "guardianMode": "marion",
     "directReply": "",
     "contextSummary": "",
     "currentObjective": "",
@@ -21,14 +27,64 @@
     "nextAction": "",
     "riskLevel": "low",
     "approvalRequired": false,
-    "guardianMode": "marion",
     "traceId": "",
-    "rawRuntimeAvailable": true
+    "timestamp": "",
+    "sourceRoute": "",
+    "rawRuntimeAvailable": false,
+    "errors": []
+  },
+  "allowedValues": {
+    "guardian": ["marion"],
+    "guardianMode": ["marion", "admin", "diagnostic", "fallback"],
+    "systemState": ["online", "degraded", "fallback", "locked", "unknown", "error"],
+    "riskLevel": ["low", "medium", "high", "critical"]
   },
   "rules": {
     "noRawTelemetryAsReply": true,
     "noSecretExposure": true,
     "macFacingLanguage": true,
-    "singleAuthorityPerTurn": true
+    "singleAuthorityPerTurn": true,
+    "defaultGuardianAuthority": "marion",
+    "diagnosticsStayInOutputPanel": true,
+    "runtimePacketCanBeCopied": true
+  },
+  "security": {
+    "redactKeys": [
+      "token",
+      "secret",
+      "password",
+      "apikey",
+      "api_key",
+      "authorization",
+      "cookie",
+      "session",
+      "sessionToken",
+      "runtimeToken",
+      "masterToken"
+    ],
+    "neverExposeInDirectReply": [
+      "stack trace",
+      "authorization",
+      "bearer",
+      "api key",
+      "session token",
+      "runtime token",
+      "master token"
+    ]
+  },
+  "qualityGates": {
+    "directReplyMustBeReadable": true,
+    "contextSummaryMustBePresent": true,
+    "nextActionMustBePresent": true,
+    "traceIdPreferred": true,
+    "approvalRequiredMustBeBoolean": true,
+    "riskLevelMustNormalize": true
+  },
+  "chamberTargets": {
+    "replyBubble": "directReply",
+    "contextTransparencyPanel": ["contextSummary", "currentObjective", "systemState", "nextAction", "riskLevel", "approvalRequired"],
+    "guardianModeIndicator": "guardianMode",
+    "copyGuardianPacket": "fullPacket",
+    "outputPanel": "sanitizedRuntime"
   }
 }
