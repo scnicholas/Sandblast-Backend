@@ -1,3 +1,8 @@
+"use strict";
+
+const VERSION = "guardian.pipeline.router v1.2.0 PRIORITY2-GUARDIAN-BOUNDARY-ROUTING + TALON-ALIAS-COMPAT + DEFENSIVE-INTENT-APPROVAL-GATE";
+const PROTECTIVE_ESCALATION_ROUTING_VERSION = "nyx.marion.protectiveEscalationRouting/1.0";
+
 const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
   schema: "sandblast.guardian.identity.registry",
   version: "1.1.0",
@@ -11,6 +16,8 @@ const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
     aster: "aster",
     astro: "aster",
     thalon: "thalon",
+    talon: "thalon",
+    talon_guardian: "thalon",
     fallon: "thalon"
   },
   guardians: {
@@ -21,7 +28,7 @@ const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
       role: "executive_orchestration",
       authority: "primary",
       finalAuthority: true,
-      allowedIntents: ["admin_status", "conversation", "runtime_check", "approval", "deny", "command", "diagnostics", "guardian_handoff", "context_summary"],
+      allowedIntents: ["admin_status", "conversation", "runtime_check", "approval", "deny", "command", "diagnostics", "guardian_handoff", "context_summary", "ethical_review", "defensive_boundary_review", "protective_escalation_review", "protection_signal"],
       requiresApprovalFrom: null
     },
     aster: {
@@ -31,7 +38,7 @@ const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
       role: "analysis_layer",
       authority: "advisory",
       finalAuthority: false,
-      allowedIntents: ["analyze_signal", "risk_review", "pattern_review", "analysis_summary"],
+      allowedIntents: ["analyze_signal", "risk_review", "pattern_review", "analysis_summary", "ethical_review", "defensive_boundary_review", "protective_escalation_review", "protection_signal"],
       requiresApprovalFrom: "marion"
     },
     thalon: {
@@ -41,7 +48,7 @@ const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
       role: "strategic_layer",
       authority: "advisory",
       finalAuthority: false,
-      allowedIntents: ["strategy_review", "scenario_planning", "ethical_review", "decision_support"],
+      allowedIntents: ["strategy_review", "scenario_planning", "ethical_review", "decision_support", "defensive_boundary_review", "protective_escalation_review", "protection_signal"],
       requiresApprovalFrom: "marion"
     }
   },
@@ -49,6 +56,9 @@ const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
     marionFinalAuthority: true,
     preventIdentityBleed: true,
     advisoryGuardiansDoNotOverrideMarion: true,
+    defensiveEscalationRequiresMarionApproval: true,
+    advisoryGuardiansCannotEmitPhysicalAction: true,
+    protectiveEscalationRequiresVerifiedIntent: true,
     unknownGuardianFallbackToMarion: true,
     singleAuthorityPerTurn: true,
     requireTraceId: true,
@@ -85,13 +95,48 @@ export function getGuardianProfile(guardian = "marion", registry = DEFAULT_GUARD
   return (registry.guardians && registry.guardians[id]) || null;
 }
 
+function normalizeIntentKey(value = "conversation") {
+  const raw = String(value || "conversation").trim().toLowerCase();
+  return raw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "conversation";
+}
+
 export function deriveIntent(payload = {}) {
-  return String(payload.intent || payload.command || payload.action || payload.type || "conversation").trim().toLowerCase();
+  const raw = payload.intent || payload.command || payload.action || payload.type || "conversation";
+  return normalizeIntentKey(raw);
+}
+
+export function isProtectiveEscalationIntent(intent = "", payload = {}) {
+  const key = normalizeIntentKey(intent);
+  const text = String(payload.text || payload.message || payload.input || payload.prompt || payload.directReply || "").toLowerCase();
+  return ["defensive_boundary_review", "protective_escalation_review", "protection_signal"].includes(key) ||
+    /\b(defen[cs]e|defensive|protect|protection|protective|personal safety|emergency|alarm|alert|escalation|intent justifier|ethical boundary|verified command|code word|codeword)\b/i.test(text);
+}
+
+export function buildGuardianEthicalBoundary(payload = {}, intent = "conversation", guardian = "marion", profile = {}) {
+  const protective = isProtectiveEscalationIntent(intent, payload);
+  return {
+    version: PROTECTIVE_ESCALATION_ROUTING_VERSION,
+    active: protective,
+    guardian,
+    guardianRole: profile.role || "unknown",
+    intent: normalizeIntentKey(intent),
+    requiresMarionApproval: protective && guardian !== "marion",
+    requiresVerifiedIntent: protective,
+    protectivePurposeOnly: true,
+    boundedOutputRequired: true,
+    advisoryOnly: guardian !== "marion",
+    noPhysicalActionFromAdvisoryGuardian: guardian !== "marion",
+    noPunitiveUse: true,
+    noCoerciveUse: true,
+    noContinuousAlarm: true,
+    reason: protective ? "protective_escalation_guardian_boundary" : "standard_guardian_route"
+  };
 }
 
 export function isIntentAllowed(profile = {}, intent = "conversation") {
-  const allowed = Array.isArray(profile.allowedIntents) ? profile.allowedIntents : [];
-  return allowed.length === 0 || allowed.includes(intent) || intent === "conversation";
+  const allowed = Array.isArray(profile.allowedIntents) ? profile.allowedIntents.map(normalizeIntentKey) : [];
+  const key = normalizeIntentKey(intent);
+  return allowed.length === 0 || allowed.includes(key) || key === "conversation";
 }
 
 export function createTraceId(prefix = "guardian") {
@@ -121,7 +166,9 @@ export function buildGuardianPacket(overrides = {}, registry = DEFAULT_GUARDIAN_
     timestamp: overrides.timestamp || new Date().toISOString(),
     rawRuntimeAvailable: Boolean(overrides.rawRuntimeAvailable ?? defaults.rawRuntimeAvailable),
     route: overrides.route || "guardian.pipeline.router",
-    meta: sanitizeMeta(overrides.meta || {})
+    routerVersion: VERSION,
+    ethicalBoundary: overrides.ethicalBoundary || null,
+    meta: sanitizeMeta({ routerVersion: VERSION, ...(overrides.meta || {}) })
   };
 }
 
@@ -133,6 +180,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
   const rules = registry.rules || {};
   const traceId = String(payload.traceId || createTraceId(guardian));
   const intent = deriveIntent(payload);
+  let ethicalBoundary = null;
 
   if (!profile) {
     if (rules.unknownGuardianFallbackToMarion) {
@@ -142,6 +190,8 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
       throw new GuardianRoutingError(`Unknown Guardian: ${requested}`, { requested, traceId });
     }
   }
+
+  ethicalBoundary = buildGuardianEthicalBoundary(payload, intent, guardian, profile || {});
 
   if (!isIntentAllowed(profile, intent)) {
     const packet = buildGuardianPacket({
@@ -154,7 +204,8 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
       contextSummary: `Intent '${intent}' was blocked by Guardian identity rules.`,
       currentObjective: "Preserve Guardian authority boundaries.",
       nextAction: "Route this request through Marion for review.",
-      meta: { intent, requestedGuardian: requested, rule: "intent_not_allowed" }
+      ethicalBoundary,
+      meta: { intent, requestedGuardian: requested, rule: "intent_not_allowed", ethicalBoundary }
     }, registry);
     await safeAudit(dependencies, packet, payload, "blocked_intent");
     return packet;
@@ -180,7 +231,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
     }
 
     const result = await marionHandler({ ...payload, guardian: "marion", guardianMode: "marion", intent, traceId });
-    const packet = buildGuardianPacket({ ...result, guardian: "marion", guardianMode: "marion", traceId, route: "guardian.pipeline.router:marion" }, registry);
+    const packet = buildGuardianPacket({ ...result, guardian: "marion", guardianMode: "marion", traceId, ethicalBoundary, route: "guardian.pipeline.router:marion", meta: { ...(result && result.meta || {}), ethicalBoundary } }, registry);
     await safeAudit(dependencies, packet, payload, "marion_routed");
     return packet;
   }
@@ -196,8 +247,9 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
       directReply: `${profile.name || guardian} is registered but not fully activated yet.`,
       contextSummary: `${profile.name || guardian} exists in the Guardian registry as ${profile.authority || "advisory"} authority.`,
       currentObjective: "Keep advisory Guardians registered without letting them override Marion.",
-      nextAction: `Activate the ${profile.name || guardian} controller only after Marion's runtime pattern is stable.`,
-      meta: { intent, requestedGuardian: requested, requiresApprovalFrom: profile.requiresApprovalFrom || null }
+      nextAction: ethicalBoundary && ethicalBoundary.active ? `Route ${profile.name || guardian} protective output to Marion for verified approval before any escalation.` : `Activate the ${profile.name || guardian} controller only after Marion's runtime pattern is stable.`,
+      ethicalBoundary,
+      meta: { intent, requestedGuardian: requested, requiresApprovalFrom: profile.requiresApprovalFrom || null, ethicalBoundary }
     }, registry);
     await safeAudit(dependencies, packet, payload, "guardian_standby");
     return packet;
@@ -209,9 +261,11 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
     guardian,
     guardianMode: guardian,
     traceId,
-    approvalRequired: rules.advisoryGuardiansDoNotOverrideMarion ? true : Boolean(raw?.approvalRequired),
-    nextAction: raw?.nextAction || "Route advisory output to Marion for final authority.",
-    route: `guardian.pipeline.router:${guardian}`
+    approvalRequired: rules.advisoryGuardiansDoNotOverrideMarion || (ethicalBoundary && ethicalBoundary.active) ? true : Boolean(raw?.approvalRequired),
+    ethicalBoundary,
+    nextAction: ethicalBoundary && ethicalBoundary.active ? "Route protective advisory output to Marion for verified approval and bounded execution." : (raw?.nextAction || "Route advisory output to Marion for final authority."),
+    route: `guardian.pipeline.router:${guardian}`,
+    meta: { ...(raw && raw.meta || {}), ethicalBoundary }
   }, registry);
   await safeAudit(dependencies, packet, payload, "advisory_routed");
   return packet;
