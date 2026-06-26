@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "stateSpine v2.16.11 PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "stateSpine v2.17.0 PRIORITY3-PROTECTIVE-STATE-CARRY + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -28,6 +28,7 @@ const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
 const REQUIRED_CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRefinement/1.0";
+const PROTECTIVE_ESCALATION_STATE_VERSION = "sandblast.guardian.protectiveEscalationState/1.0";
 
 const KNOWN_GOOD_FINAL_CONTRACTS = Object.freeze([
   FINAL_ENVELOPE_CONTRACT,
@@ -515,7 +516,7 @@ function extractRuntimeTelemetryFromTurn(params = {}, inbound = {}) {
   return {};
 }
 function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalCompletion=false,stage="",intent="",domain="",lane=""}={}){
-  const inherited=extractRuntimeTelemetryFromTurn(params,inbound), marionAdminConversation=extractMarionAdminConversationCarry(params,inbound,extractComposerMemoryPatch(params)), lingoSentinelSilentOversight=extractLingoSentinelSilentOversightCarry(params,inbound,extractComposerMemoryPatch(params));
+  const inherited=extractRuntimeTelemetryFromTurn(params,inbound), memoryPatch=extractComposerMemoryPatch(params), marionAdminConversation=extractMarionAdminConversationCarry(params,inbound,memoryPatch), lingoSentinelSilentOversight=extractLingoSentinelSilentOversightCarry(params,inbound,memoryPatch), protectiveEscalationState=extractProtectiveEscalationStateCarry(params,inbound,memoryPatch);
   const finalRenderTelemetry = finalRenderTelemetryMod && typeof finalRenderTelemetryMod.buildFinalRenderTelemetry === "function" ? safeObj(finalRenderTelemetryMod.buildFinalRenderTelemetry({source:"stateSpine.finalizeTurn",stage:normalizeStateStage(stage || (trustedFinalCompletion ? "final" : "open"), "open"),reply,canEmit:trustedFinalCompletion,finalEnvelopeTrusted:trustedFinalCompletion,runtimeTelemetry:inherited,domainConfidence:isPlainObject(inherited.domainConfidence) ? inherited.domainConfidence : safeObj(params).domainConfidence,error:inherited.error||""})) : {};
   return {
     ...inherited,
@@ -536,6 +537,8 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
     privateAdminConversation: !!Object.keys(marionAdminConversation).length,
     lingoSentinelSilentOversight: Object.keys(lingoSentinelSilentOversight).length ? lingoSentinelSilentOversight : undefined,
     lingoSentinelSilentOversightActive: !!Object.keys(lingoSentinelSilentOversight).length,
+    protectiveEscalation: Object.keys(protectiveEscalationState).length ? protectiveEscalationState : undefined,
+    protectiveEscalationActive: !!Object.keys(protectiveEscalationState).length,
     domainConfidence: normalizeDomainConfidenceCarry(isPlainObject(inherited.domainConfidence) ? inherited.domainConfidence : safeObj(params).domainConfidence),
     replySignature: reply ? hashText(reply) : safeStr(inherited.replySignature || ""),
     marionFinalObserved: !!hasMarionFinalSignal(params),
@@ -548,6 +551,79 @@ function buildStateRuntimeTelemetry({params={},inbound={},reply="",trustedFinalC
   };
 }
 
+
+
+function normalizeProtectiveEscalationStateCarry(value = {}) {
+  const src = isPlainObject(value) ? value : {};
+  const purpose = boundedOneLine(src.purpose || src.protectivePurpose || src.justification || src.reason || "", 600);
+  const guardianRaw = boundedOneLine(src.guardian || src.asset || src.authority || "marion", 64).toLowerCase();
+  const guardian = ({ marian:"marion", mariam:"marion", marion:"marion", aster:"aster", astro:"aster", thalon:"thalon", talon:"thalon", fallon:"thalon" })[guardianRaw] || "marion";
+  const burst = Number(src.maxBurstSeconds ?? src.burstSeconds ?? src.maxBurstDurationSeconds ?? 0);
+  const cooldown = Number(src.minCooldownSeconds ?? src.cooldownSeconds ?? 0);
+  const active = !!(src.active || src.defensiveIntent || src.protectiveIntent || src.verifiedCommand || purpose);
+  if (!active) return {};
+  const boundedPolicy = !!(
+    (!Number.isFinite(burst) || burst === 0 || burst <= 8) &&
+    (!Number.isFinite(cooldown) || cooldown === 0 || cooldown >= 15) &&
+    src.continuous !== true &&
+    src.punitive !== true &&
+    src.coercive !== true
+  );
+  const verifiedCommand = src.verifiedCommand === true || src.commandVerified === true || src.intentVerified === true;
+  const humanApproval = src.humanApproval === true || src.approved === true || !!src.approvedBy;
+  return {
+    version: PROTECTIVE_ESCALATION_STATE_VERSION,
+    active: true,
+    guardian,
+    asset: guardian,
+    defensiveIntent: !!(src.defensiveIntent || src.protectiveIntent || /defen|protect|safety|threat|emergency/i.test(purpose)),
+    protectivePurpose: purpose,
+    verifiedCommand,
+    humanApproval,
+    approvalRequired: src.approvalRequired !== false,
+    boundedPolicy,
+    maxBurstSeconds: Number.isFinite(burst) && burst > 0 ? Math.min(8, Math.max(1, burst)) : 0,
+    minCooldownSeconds: Number.isFinite(cooldown) && cooldown > 0 ? Math.max(15, cooldown) : 0,
+    allowed: !!(verifiedCommand && boundedPolicy && (humanApproval || src.approvalRequired === false)),
+    finalAuthority: "marion",
+    advisoryOnly: guardian !== "marion",
+    noContinuousOutput: true,
+    noPunitiveUse: true,
+    noCoerciveUse: true,
+    source: boundedOneLine(src.source || "stateSpine.protectiveEscalationState", 160),
+    updatedAt: nowMs()
+  };
+}
+
+function extractProtectiveEscalationStateCarry(params = {}, inbound = {}, memoryPatch = {}) {
+  const p = isPlainObject(params) ? params : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const mp = isPlainObject(memoryPatch) ? memoryPatch : {};
+  const meta = safeObj(src.meta);
+  const payload = safeObj(src.payload);
+  const sb = safeObj(mp.stateBridge || src.stateBridge || meta.stateBridge || payload.stateBridge);
+  const rt = safeObj(p.runtimeTelemetry || src.runtimeTelemetry || meta.runtimeTelemetry || payload.runtimeTelemetry);
+  const candidates = [
+    p.protectiveEscalation,
+    p.defensiveIntentJustifier,
+    p.ethicalJustification,
+    src.protectiveEscalation,
+    src.defensiveIntentJustifier,
+    src.ethicalJustification,
+    meta.protectiveEscalation,
+    payload.protectiveEscalation,
+    mp.protectiveEscalation,
+    mp.defensiveIntentJustifier,
+    sb.protectiveEscalation,
+    rt.protectiveEscalation,
+    rt.defensiveIntentJustifier
+  ];
+  for (const item of candidates) {
+    const normalized = normalizeProtectiveEscalationStateCarry(item);
+    if (Object.keys(normalized).length) return normalized;
+  }
+  return {};
+}
 
 
 function normalizeKnowledgeDomainCarry(value=""){
@@ -2570,6 +2646,7 @@ function finalizeTurn(params = {}) {
   const progressionShapingGuard = extractProgressionShapingGuardCarry(params, inbound, memoryPatch);
   const progressionRefinement = updateProgressionRefinementState(params, inbound, memoryPatch, speak);
   const progressionTelemetry = buildStateProgressionTelemetry(progressionRefinement, params, inbound, speak);
+  const protectiveEscalationState = extractProtectiveEscalationStateCarry(params, inbound, memoryPatch);
   const nextState = {
     ...prev,
     rev: clampInt(prev.rev, 0, 0, 999999) + 1,
@@ -2634,6 +2711,8 @@ function finalizeTurn(params = {}) {
     progressionShapingGuard,
     progressionRefinement,
     progressionTelemetry,
+    protectiveEscalation: Object.keys(protectiveEscalationState).length ? protectiveEscalationState : prev.protectiveEscalation || {},
+    protectiveEscalationActive: !!Object.keys(protectiveEscalationState).length || !!prev.protectiveEscalationActive,
     volatility,
     turns: {
       user: clampInt(prev.turns.user, 0, 0, 999999) + 1,
@@ -3084,6 +3163,7 @@ module.exports = {
   extractDomainConciergeCarry,
   CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,
   PROGRESSION_SHAPING_REFINEMENT_VERSION,
+  PROTECTIVE_ESCALATION_STATE_VERSION,
   normalizeConfidenceAwareResponseShapingCarry,
   extractConfidenceAwareResponseShapingCarry,
   normalizeProgressionShapingGuardCarry,
@@ -3109,5 +3189,7 @@ module.exports = {
   extractMarionAdminConversationCarry,
   normalizeLingoSentinelSilentOversightCarry,
   extractLingoSentinelSilentOversightCarry,
+  normalizeProtectiveEscalationStateCarry,
+  extractProtectiveEscalationStateCarry,
 };
 module.exports.default = module.exports;
