@@ -22,7 +22,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const VERSION = "domainRetriever v1.4.1 INDEX-COHESION + REGISTRY-PATH-ALIGNMENT + DATA-DOMAINS-ROOT-LOCK + DOMAIN-ISOLATION-GUARD";
+const VERSION = "domainRetriever v1.5.0 PRIORITY2-RETRIEVER-COHESION-HARDENING + BUSINESS-STRATEGY-ALIAS-COMPAT + INDEX-COHESION + REGISTRY-PATH-ALIGNMENT + DATA-DOMAINS-ROOT-LOCK + DOMAIN-ISOLATION-GUARD";
 const RUNTIME_ROOT = __dirname;
 const MARION_ROOT = path.resolve(RUNTIME_ROOT, "..");
 const DATA_ROOT = path.resolve(MARION_ROOT, "..");
@@ -67,9 +67,24 @@ const DOMAIN_ALIASES = Object.freeze({
 
   marketing: "marketing",
   mkt: "marketing",
+  advertising: "marketing",
+  sponsorship: "marketing",
+  media_kit: "marketing",
 
+  business: "strategy",
+  business_strategy: "strategy",
+  operations_strategy: "strategy",
   strategy: "strategy",
-  strat: "strategy"
+  strat: "strategy",
+
+  technical: "general",
+  command_routing: "general",
+  guardian_pipeline: "general",
+  domain_concierge: "general",
+  domain_registry: "general",
+  domain_retriever: "general",
+  protective_escalation: "general",
+  defensive_boundary: "general"
 });
 
 const CANONICAL_DOMAINS = Object.freeze([
@@ -804,6 +819,25 @@ async function retrieveDomain(input = {}) {
 
   if (!query) return [];
 
+  const config = _domainConfig(domain, input.allowGeneralFallback === true);
+  if (!config && input.returnDiagnostics === true) {
+    return [{
+      id: `domain-${domain}-unsupported`,
+      source: "domain",
+      dataset: "domain_retriever_diagnostic",
+      domain,
+      title: "Unsupported domain",
+      summary: `Domain '${domain}' is not loaded for retrieval.`,
+      content: "The retriever failed closed instead of crossing into another domain without explicit allowGeneralFallback.",
+      score: 0,
+      confidence: 0,
+      tags: [domain, "unsupported_domain", "fail_closed"],
+      recency: 0,
+      emotionalRelevance: 0,
+      metadata: { failClosed: true, noCrossDomainBleed: true, requestedDomain: input.domain || input.requestedDomain || input.knowledgeDomain || "" }
+    }];
+  }
+
   const loaded = _loadDomainRecords(domain, input);
   const records = _safeArray(loaded.records);
   if (!records.length) return [];
@@ -874,7 +908,14 @@ function getHealth(options = {}) {
     optionalStatuses,
     aliases: {
       cybersecurity: "cyber",
-      security: "cyber"
+      security: "cyber",
+      business: "strategy",
+      business_strategy: "strategy",
+      advertising: "marketing",
+      sponsorship: "marketing",
+      technical: "general",
+      command_routing: "general",
+      protective_escalation: "general"
     },
     registry: {
       loaded: !!registryLoaded.ok,
