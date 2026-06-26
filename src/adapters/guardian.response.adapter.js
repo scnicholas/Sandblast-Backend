@@ -1,11 +1,18 @@
-const SECRET_KEY_RE = /(token|secret|password|apikey|api_key|authorization|cookie|sessiontoken|runtimeToken|masterToken)/i;
-const SECRET_TEXT_RE = /(bearer\s+[a-z0-9._-]+|api[_ -]?key|session[_ -]?token|runtime[_ -]?token|master[_ -]?token)/i;
+"use strict";
+
+const GUARDIAN_RESPONSE_ADAPTER_VERSION = "guardian.response.adapter/1.1-CJS-SAFE-FALLBACK-ETHICAL-CARRY";
+const SECRET_KEY_RE = /(token|secret|password|apikey|api_key|authorization|cookie|sessiontoken|runtimeToken|masterToken|private[_-]?key|credential)/i;
+const SECRET_TEXT_RE = /(bearer\s+[a-z0-9._-]+|api[_ -]?key|session[_ -]?token|runtime[_ -]?token|master[_ -]?token|authorization\s*:)/i;
 const BAD_REPLY_RE = /^(true|false|null|undefined|\[object object\]|ok|success)$/i;
 const RISK_ORDER = ["low", "medium", "high", "critical"];
 const STATE_SET = new Set(["online", "degraded", "fallback", "locked", "unknown", "error"]);
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function safeObject(value) {
+  return isObject(value) ? value : {};
 }
 
 function cleanText(value, max = 1600) {
@@ -16,15 +23,26 @@ function cleanText(value, max = 1600) {
 }
 
 function readPath(source, path) {
-  return path.split(".").reduce((node, key) => (node && node[key] !== undefined ? node[key] : undefined), source);
+  const root = safeObject(source);
+  return String(path || "").split(".").reduce((node, key) => (node && node[key] !== undefined ? node[key] : undefined), root);
 }
 
 function firstText(source, paths, max) {
-  for (const path of paths) {
-    const text = cleanText(readPath(source, path), max);
+  const root = safeObject(source);
+  for (const path of Array.isArray(paths) ? paths : []) {
+    const text = cleanText(readPath(root, path), max);
     if (text) return text;
   }
   return "";
+}
+
+function firstObject(source, paths) {
+  const root = safeObject(source);
+  for (const path of Array.isArray(paths) ? paths : []) {
+    const candidate = readPath(root, path);
+    if (isObject(candidate) && Object.keys(candidate).length) return candidate;
+  }
+  return {};
 }
 
 function normalizeGuardian(value) {
@@ -74,12 +92,15 @@ function redact(value, seen = new WeakSet()) {
 }
 
 function trace(raw, fallback) {
-  return cleanText(raw.traceId || readPath(raw, "result.traceId") || readPath(raw, "meta.traceId") || fallback.traceId, 96);
+  const r = safeObject(raw);
+  const f = safeObject(fallback);
+  return cleanText(r.traceId || readPath(r, "result.traceId") || readPath(r, "meta.traceId") || f.traceId, 96);
 }
 
 function collectErrors(raw) {
+  const r = safeObject(raw);
   const errors = [];
-  const candidates = [raw.error, raw.message && raw.ok === false ? raw.message : "", readPath(raw, "result.error"), readPath(raw, "meta.error")];
+  const candidates = [r.error, r.message && r.ok === false ? r.message : "", readPath(r, "result.error"), readPath(r, "meta.error")];
   for (const item of candidates) {
     const text = cleanText(item, 300);
     if (text && !errors.includes(text)) errors.push(text);
@@ -87,14 +108,15 @@ function collectErrors(raw) {
   return errors.slice(0, 5);
 }
 
-export function adaptGuardianResponse(raw = {}, fallback = {}) {
+function adaptGuardianResponse(raw = {}, fallback = {}) {
+  const fallbackSafe = safeObject(fallback);
   const packetSource = isObject(raw) ? raw : { reply: raw };
-  const guardianPacket = isObject(packetSource.guardianPacket) ? packetSource.guardianPacket : {};
-  const result = isObject(packetSource.result) ? packetSource.result : {};
-  const payload = isObject(packetSource.payload) ? packetSource.payload : {};
-  const envelope = isObject(packetSource.finalEnvelope) ? packetSource.finalEnvelope : isObject(result.finalEnvelope) ? result.finalEnvelope : {};
-  const meta = isObject(result.meta) ? result.meta : isObject(packetSource.meta) ? packetSource.meta : {};
-  const merged = { ...fallback, ...guardianPacket, ...packetSource, result, payload, finalEnvelope: envelope, meta };
+  const guardianPacket = safeObject(packetSource.guardianPacket);
+  const result = safeObject(packetSource.result);
+  const payload = safeObject(packetSource.payload);
+  const envelope = isObject(packetSource.finalEnvelope) ? packetSource.finalEnvelope : safeObject(result.finalEnvelope);
+  const meta = isObject(result.meta) ? result.meta : safeObject(packetSource.meta);
+  const merged = { ...fallbackSafe, ...guardianPacket, ...packetSource, result, payload, finalEnvelope: envelope, meta };
 
   const directReply =
     firstText(merged, [
@@ -107,46 +129,75 @@ export function adaptGuardianResponse(raw = {}, fallback = {}) {
 
   const contextSummary =
     firstText(merged, ["contextSummary", "result.contextSummary", "payload.contextSummary", "finalEnvelope.contextSummary", "meta.contextSummary"], 900) ||
-    firstText(fallback, ["contextSummary", "memory.contextSummary"], 900) ||
+    firstText(fallbackSafe, ["contextSummary", "memory.contextSummary"], 900) ||
     "Context summary not exposed yet.";
 
   const currentObjective =
     firstText(merged, ["currentObjective", "result.currentObjective", "payload.currentObjective", "meta.currentObjective"], 700) ||
-    firstText(fallback, ["currentObjective", "memory.currentObjective"], 700) ||
+    firstText(fallbackSafe, ["currentObjective", "memory.currentObjective"], 700) ||
     "Maintain Marion admin continuity.";
 
   const nextAction =
     firstText(merged, ["nextAction", "result.nextAction", "payload.nextAction", "finalEnvelope.nextAction", "meta.nextAction"], 700) ||
     "Review the context panel, then continue the Marion runtime validation path.";
 
+  const ethicalGate = firstObject(merged, [
+    "ethicalGate", "ethicalGatekeeper", "result.ethicalGate", "result.ethicalGatekeeper", "payload.ethicalGate", "payload.ethicalGatekeeper", "finalEnvelope.ethicalGate", "meta.ethicalGate"
+  ]);
+  const defensiveEscalation = firstObject(merged, [
+    "defensiveEscalation", "result.defensiveEscalation", "payload.defensiveEscalation", "finalEnvelope.defensiveEscalation", "ethicalGate.defensiveEscalation", "ethicalGatekeeper.defensiveEscalation"
+  ]);
+  const defensiveJustification = firstObject(merged, [
+    "defensiveJustification", "defensiveIntentJustifier", "result.defensiveJustification", "payload.defensiveJustification", "finalEnvelope.defensiveJustification", "ethicalGate.defensiveJustification", "defensiveEscalation.justification"
+  ]);
+
   const approvalRequired = normalizeBoolean(
-    merged.approvalRequired ?? merged.requiresApproval ?? result.approvalRequired ?? result.requiresApproval ?? payload.approvalRequired
+    merged.approvalRequired ??
+      merged.requiresApproval ??
+      result.approvalRequired ??
+      result.requiresApproval ??
+      payload.approvalRequired ??
+      ethicalGate.requiresHumanReview ??
+      defensiveEscalation.requiresHumanReview
   );
 
   const packet = {
-    guardian: normalizeGuardian(merged.guardian || fallback.guardian),
-    guardianMode: normalizeMode(merged.guardianMode || fallback.guardianMode),
+    guardian: normalizeGuardian(merged.guardian || fallbackSafe.guardian),
+    guardianMode: normalizeMode(merged.guardianMode || fallbackSafe.guardianMode),
     directReply,
     contextSummary,
     currentObjective,
     systemState: normalizeState(merged.systemState || result.systemState || payload.systemState || meta.systemState, packetSource),
     nextAction,
-    riskLevel: normalizeRisk(merged.riskLevel || result.riskLevel || payload.riskLevel || meta.riskLevel),
+    riskLevel: normalizeRisk(merged.riskLevel || result.riskLevel || payload.riskLevel || meta.riskLevel || ethicalGate.riskLevel),
     approvalRequired,
-    traceId: trace(packetSource, fallback),
+    traceId: trace(packetSource, fallbackSafe),
     timestamp: cleanText(merged.timestamp, 64) || new Date().toISOString(),
-    sourceRoute: cleanText(merged.sourceRoute || merged.route || fallback.sourceRoute, 120),
+    sourceRoute: cleanText(merged.sourceRoute || merged.route || fallbackSafe.sourceRoute, 120),
     rawRuntimeAvailable: Object.keys(packetSource).length > 0,
     errors: collectErrors(packetSource)
   };
 
+  if (Object.keys(ethicalGate).length) packet.ethicalGate = redact(ethicalGate);
+  if (Object.keys(defensiveEscalation).length) packet.defensiveEscalation = redact(defensiveEscalation);
+  if (Object.keys(defensiveJustification).length) packet.defensiveJustification = redact(defensiveJustification);
+  packet.adapterVersion = GUARDIAN_RESPONSE_ADAPTER_VERSION;
+
   return packet;
 }
 
-export function createGuardianPacket(raw = {}, fallback = {}) {
+function createGuardianPacket(raw = {}, fallback = {}) {
   return adaptGuardianResponse(raw, fallback);
 }
 
-export function sanitizeRuntimePacket(raw = {}) {
+function sanitizeRuntimePacket(raw = {}) {
   return redact(raw);
 }
+
+module.exports = {
+  GUARDIAN_RESPONSE_ADAPTER_VERSION,
+  adaptGuardianResponse,
+  createGuardianPacket,
+  sanitizeRuntimePacket,
+  default: adaptGuardianResponse
+};
