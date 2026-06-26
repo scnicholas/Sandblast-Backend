@@ -16,7 +16,8 @@
  * before it reaches MarionBridge, marionIntentRouter, or StateSpine.
  */
 
-const VERSION = "marionCommandNormalizer v1.1.0 TECHNICAL-FOLLOWUP-SCHEDULER-BYPASS + MARION-PACKET-STABILITY";
+const VERSION = "marionCommandNormalizer v1.2.0 PRIORITY2-COMMAND-ROUTING-HARDENING + DEFENSIVE-INTENT-SIGNAL-CARRY + TECHNICAL-FOLLOWUP-SCHEDULER-BYPASS + MARION-PACKET-STABILITY";
+const PROTECTIVE_ESCALATION_VERSION = "nyx.marion.protectiveEscalationRouting/1.0";
 
 const DEFAULT_SOURCE = "nyx-widget";
 const DEFAULT_CHANNEL = "chat";
@@ -59,6 +60,15 @@ function extractUserText(input = {}) {
     input.body?.text ||
     input.body?.message ||
     input.body?.query ||
+    input.body?.prompt ||
+    input.payload?.text ||
+    input.payload?.message ||
+    input.payload?.query ||
+    input.payload?.prompt ||
+    input.turn?.text ||
+    input.turn?.message ||
+    input.command?.text ||
+    input.command?.message ||
     ""
   );
 }
@@ -151,8 +161,13 @@ function canonicalTechnicalTargetFromText(text = "") {
   if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
   if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
   if (/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i.test(t)) return mk("marionCommandNormalizer", "MarionCommandNormalizer", "marionCommandNormalizer.js", "Data/marion/runtime/marionCommandNormalizer.js", "normalizer");
+  if (/\b(guardian\s*pipeline\s*router|guardian\.pipeline\.router|guardianpipelinerouter)\b/i.test(t)) return mk("guardianPipelineRouter", "GuardianPipelineRouter", "guardian.pipeline.router.js", "Data/marion/runtime/guardian.pipeline.router.js", "guardian_router");
+  if (/\b(domain\s*concierge|domainconcierge)\b/i.test(t)) return mk("DomainConcierge", "DomainConcierge", "DomainConcierge.js", "Data/marion/runtime/DomainConcierge.js", "concierge");
+  if (/\b(domain\s*retriever|domainretriever)\b/i.test(t)) return mk("domainRetriever", "DomainRetriever", "domainRetriever.js", "Data/marion/runtime/domainRetriever.js", "retriever");
   if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
   if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
+  if (/\b(marion\s*ethical\s*gatekeeper|ethical\s*gatekeeper|marionethicalgatekeeper)\b/i.test(t)) return mk("MarionEthicalGatekeeper", "MarionEthicalGatekeeper", "MarionEthicalGatekeeper.js", "Data/marion/runtime/MarionEthicalGatekeeper.js", "ethics");
+  if (/\b(marion\s*runtime\s*contract|runtime\s*contract|marion\.runtime\.contract)\b/i.test(t)) return mk("marionRuntimeContract", "MarionRuntimeContract", "marion.runtime.contract.json", "Data/marion/runtime/marion.runtime.contract.json", "contract");
   if (/\b(index\.js|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
   return {};
 }
@@ -170,8 +185,17 @@ function detectTechnicalSignal(text) {
   const terms = [
     "index.js",
     "marion",
+    "runtime",
+    "surgical",
     "bridge",
     "router",
+    "command routing",
+    "priority two",
+    "priority 2",
+    "guardian pipeline",
+    "domain concierge",
+    "domain retriever",
+    "domain registry",
     "normalizer",
     "state spine",
     "statespine",
@@ -198,6 +222,69 @@ function detectTechnicalSignal(text) {
     score: matched.length ? Math.min(0.95, 0.45 + matched.length * 0.08) : 0,
     terms: matched
   };
+}
+
+function detectProtectiveEscalationSignal(text) {
+  const t = safeLower(text);
+  if (!t) {
+    return {
+      version: PROTECTIVE_ESCALATION_VERSION,
+      detected: false,
+      level: "none",
+      guardians: [],
+      requiresEthicalGate: false,
+      requiresVerifiedIntent: false,
+      protectivePurposeOnly: true,
+      boundedOutputRequired: true
+    };
+  }
+
+  const guardians = [];
+  if (/\baster\b/i.test(t)) guardians.push("aster");
+  if (/\b(talon|thalon)\b/i.test(t)) guardians.push("thalon");
+  if (/\bmarion\b/i.test(t)) guardians.push("marion");
+
+  const protective = /\b(defen[cs]e|defensive|self[-\s]?defen[cs]e|protect|protection|protective|personal safety|emergency|threat|imminent|danger|alarm|alert|escalation|boundary|guardrail|justified scenario|intent justifier|verified command|code word|codeword)\b/i.test(t);
+  const elevated = /\b(90\s*dB|ninety\s*dB|decibel|burst|cooldown|interval|alarm|loud|sir[eo]n|audio controller|cross over|ethical boundary|line crossing)\b/i.test(t);
+  const implementation = /\b(add|include|implement|integrate|route|patch|harden|controller|runtime|gatekeeper|guardrail|boundary|policy)\b/i.test(t);
+  const detected = protective && (elevated || guardians.length > 0 || implementation);
+
+  return {
+    version: PROTECTIVE_ESCALATION_VERSION,
+    detected,
+    level: detected && elevated ? "elevated" : (detected ? "bounded" : "none"),
+    guardians: Array.from(new Set(guardians)),
+    requiresEthicalGate: detected,
+    requiresVerifiedIntent: detected,
+    protectivePurposeOnly: true,
+    boundedOutputRequired: true,
+    noPunitiveUse: true,
+    noCoerciveUse: true,
+    noContinuousAlarm: true,
+    reason: detected ? "protective_escalation_command_signal" : "none"
+  };
+}
+
+function priorityTwoTargetSignals(text = "") {
+  const t = safeLower(text);
+  const targets = [];
+  const add = (key, file, layer) => { if (!targets.some((x) => x.key === key)) targets.push({ key, file, layer }); };
+  if (/\b(intent router|marionintentrouter|marion intent router)\b/i.test(t)) add("marionIntentRouter", "marionIntentRouter.js", "router");
+  if (/\b(command normalizer|marioncommandnormalizer|marion command normalizer)\b/i.test(t)) add("marionCommandNormalizer", "marionCommandNormalizer.js", "normalizer");
+  if (/\b(guardian pipeline|guardian\.pipeline\.router|guardianpipelinerouter)\b/i.test(t)) add("guardianPipelineRouter", "guardian.pipeline.router.js", "guardian_router");
+  if (/\b(domain concierge|domainconcierge)\b/i.test(t)) add("DomainConcierge", "DomainConcierge.js", "concierge");
+  if (/\b(domain registry|mariondomainregistry|marion domain registry)\b/i.test(t)) add("marionDomainRegistry", "marionDomainRegistry.js", "registry");
+  if (/\b(domain retriever|domainretriever)\b/i.test(t)) add("domainRetriever", "domainRetriever.js", "retriever");
+  if (/\bcommand\s+routing\b/i.test(t)) add("commandRouting", "marionIntentRouter.js", "routing_stack");
+  if (/\bpriority\s*(?:number\s*)?(?:two|2)\b/i.test(t)) {
+    add("marionIntentRouter", "marionIntentRouter.js", "router");
+    add("marionCommandNormalizer", "marionCommandNormalizer.js", "normalizer");
+    add("guardianPipelineRouter", "guardian.pipeline.router.js", "guardian_router");
+    add("DomainConcierge", "DomainConcierge.js", "concierge");
+    add("marionDomainRegistry", "marionDomainRegistry.js", "registry");
+    add("domainRetriever", "domainRetriever.js", "retriever");
+  }
+  return targets;
 }
 
 function inferInputKind(text) {
@@ -268,6 +355,9 @@ function normalizeCommand(input = {}) {
   const technicalSignal = detectTechnicalSignal(userText);
   const technicalTargetLock = canonicalTechnicalTargetFromText(userText);
   const technicalFollowUpLock = isTechnicalFollowUpIntent(userText);
+  const protectiveEscalation = detectProtectiveEscalationSignal(userText);
+  const priorityTwoTargets = priorityTwoTargetSignals(userText);
+  const priorityTwoRoutingLock = priorityTwoTargets.length > 0 || /\b(priority\s*(?:number\s*)?(?:two|2)|command\s+routing|guardian\s+pipeline|domain\s+concierge|domain\s+retriever|domain\s+registry)\b/i.test(userText);
   const inputKind = inferInputKind(userText);
 
   const packet = {
@@ -298,7 +388,10 @@ function normalizeCommand(input = {}) {
       emotional: emotionalSignal,
       technical: technicalSignal,
       technicalTargetLock,
-      technicalFollowUpLock
+      technicalFollowUpLock,
+      protectiveEscalation,
+      priorityTwoTargets,
+      priorityTwoRoutingLock
     },
 
     state: {
@@ -308,12 +401,16 @@ function normalizeCommand(input = {}) {
 
     routingHints: {
       preferEmotional: emotionalSignal.detected,
-      preferTechnical: technicalSignal.detected || technicalFollowUpLock,
-      forceTechnical: technicalFollowUpLock,
-      blockScheduleInterception: technicalFollowUpLock,
+      preferTechnical: technicalSignal.detected || technicalFollowUpLock || priorityTwoRoutingLock || protectiveEscalation.detected,
+      forceTechnical: technicalFollowUpLock || priorityTwoRoutingLock || protectiveEscalation.detected,
+      blockScheduleInterception: technicalFollowUpLock || priorityTwoRoutingLock,
       requiresRecovery: previousState.loopCount > 0,
       allowFallback: true,
-      allowLoopBlock: true
+      allowLoopBlock: true,
+      priorityTwoRoutingLock,
+      priorityTwoTargets,
+      requiresEthicalGate: protectiveEscalation.requiresEthicalGate,
+      requiresVerifiedIntent: protectiveEscalation.requiresVerifiedIntent
     },
 
     meta: {
@@ -324,7 +421,11 @@ function normalizeCommand(input = {}) {
       composerCompatible: true,
       technicalTargetLock,
       technicalFollowUpLock,
-      blockScheduleInterception: technicalFollowUpLock
+      priorityTwoRoutingLock,
+      priorityTwoTargets,
+      protectiveEscalation,
+      requiresEthicalGate: protectiveEscalation.requiresEthicalGate,
+      blockScheduleInterception: technicalFollowUpLock || priorityTwoRoutingLock
     }
   };
 
@@ -348,5 +449,7 @@ module.exports = {
   normalizeCommand,
   isNormalizedMarionPacket,
   canonicalTechnicalTargetFromText,
-  isTechnicalFollowUpIntent
+  isTechnicalFollowUpIntent,
+  detectProtectiveEscalationSignal,
+  priorityTwoTargetSignals
 };
