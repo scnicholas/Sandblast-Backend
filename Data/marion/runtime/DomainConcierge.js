@@ -18,12 +18,13 @@
  * - Fails closed into one clarifier only when routing confidence is genuinely weak/ambiguous.
  */
 
-const VERSION = "DomainConcierge v1.1.0 CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
+const VERSION = "DomainConcierge v1.2.0 PRIORITY2-ROUTE-CLARIFY-HARDENING + DEFENSIVE-INTENT-CARRY + CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
 const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
 const STATE_SPINE_SCHEMA = "nyx.marion.stateSpine/1.7";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
+const PROTECTIVE_ESCALATION_ROUTING_VERSION = "nyx.marion.protectiveEscalationRouting/1.0";
 
 const DEFAULT_CONFIG = Object.freeze({
   highConfidence: 0.82,
@@ -294,6 +295,50 @@ function normalizeQuestionShapeSafe(text, packet) {
   return fallbackQuestionShape(text);
 }
 
+function extractProtectiveEscalation(packet = {}, routeResult = {}) {
+  const p = safeObj(packet);
+  const r = safeObj(routeResult);
+  const routing = safeObj(r.routing);
+  const marionIntent = safeObj(r.marionIntent);
+  const signal = safeObj(
+    safeObj(p.signals).protectiveEscalation ||
+    p.protectiveEscalation ||
+    safeObj(p.meta).protectiveEscalation ||
+    marionIntent.protectiveEscalation ||
+    routing.protectiveEscalation
+  );
+  const text = lower(firstText(extractText(p), r.rawUserText, r.normalizedUserIntent, marionIntent.turnText));
+  const guardians = [];
+  if (/\baster\b/i.test(text) || safeArray(signal.guardians).includes("aster")) guardians.push("aster");
+  if (/\b(talon|thalon)\b/i.test(text) || safeArray(signal.guardians).includes("thalon")) guardians.push("thalon");
+  if (/\bmarion\b/i.test(text) || safeArray(signal.guardians).includes("marion")) guardians.push("marion");
+  const detected = signal.detected === true || /\b(defen[cs]e|defensive|protect|protection|protective|personal safety|emergency|threat|alarm|alert|escalation|boundary|guardrail|intent justifier|verified command|code word|codeword|ethical boundary)\b/i.test(text);
+  return {
+    version: PROTECTIVE_ESCALATION_ROUTING_VERSION,
+    detected,
+    active: detected,
+    guardians: Array.from(new Set(guardians.concat(safeArray(signal.guardians).map(safeStr).filter(Boolean)))),
+    requiresEthicalGate: detected,
+    requiresVerifiedIntent: detected,
+    protectivePurposeOnly: true,
+    boundedOutputRequired: true,
+    routeLock: detected,
+    noPunitiveUse: true,
+    noCoerciveUse: true,
+    noContinuousAlarm: true,
+    reason: detected ? "domain_concierge_protective_escalation_carry" : "none"
+  };
+}
+
+function hasPriorityTwoTechnicalSignal(packet = {}) {
+  const p = safeObj(packet);
+  const text = lower(extractText(p));
+  const hints = safeObj(p.routingHints);
+  const signals = safeObj(p.signals);
+  return hints.forceTechnical === true || hints.preferTechnical === true || signals.priorityTwoRoutingLock === true ||
+    /\b(priority\s*(?:number\s*)?(?:two|2)|command routing|intent router|command normalizer|guardian pipeline|guardian\.pipeline\.router|domain concierge|domain registry|domain retriever|surgical autopsy|critical fixes|downloadable zip)\b/i.test(text);
+}
+
 function routeWithRouter(packet) {
   const p = safeObj(packet);
 
@@ -324,6 +369,37 @@ function routeWithRouter(packet) {
         source: "DomainConcierge.routeWithRouter"
       };
     }
+  }
+
+  if (hasPriorityTwoTechnicalSignal(p)) {
+    return {
+      ok: true,
+      final: false,
+      routing: {
+        domain: "technical",
+        intent: "technical_debug",
+        mode: "forensic_autopsy",
+        depth: "forensic",
+        routeLock: true,
+        domainConfidence: {
+          version: DOMAIN_CONFIDENCE_VERSION,
+          confidence: 0.94,
+          band: "high",
+          primaryDomain: "technical",
+          selectedDomain: "technical",
+          routeLocked: true,
+          ambiguous: false,
+          failClosed: false,
+          reason: "domain_concierge_priority_two_router_fallback"
+        }
+      },
+      marionIntent: { intent: "technical_debug", confidence: 0.94, reason: "priority_two_command_routing_fallback" },
+      domainConfidence: { confidence: 0.94, band: "high", primaryDomain: "technical", selectedDomain: "technical", routeLocked: true },
+      questionShape: p.questionShape || {},
+      rawUserText: extractText(p),
+      normalizedUserIntent: firstText(p.normalizedUserIntent, extractText(p)),
+      source: "DomainConcierge.routeWithRouter.priorityTwoFallback"
+    };
   }
 
   return {
@@ -425,7 +501,9 @@ function normalizeDomainConfidence(routeResult, route, intent, config) {
     reason: firstText(raw.reason, marionIntent.reason, r.reason, "domain_concierge_confidence_normalized"),
     candidates,
     noCrossDomainBleed: true,
-    noUserFacingDiagnostics: true
+    noUserFacingDiagnostics: true,
+    protectiveEscalationRouting: true,
+    protectiveEscalationRoutingVersion: PROTECTIVE_ESCALATION_ROUTING_VERSION
   };
   if (domainConfidenceMod && typeof domainConfidenceMod.normalizeDomainConfidenceProfile === "function") {
     try {
@@ -544,11 +622,20 @@ function decideAction(route, intent, domainConfidence, packet, routeResult, conf
   const failClosed = !!domainConfidence.failClosed;
   const validDomain = domainExists(route);
   const directiveOrTechnical = isDirectiveOrTechnical(intent, route, text, routeResult);
+  const protectiveEscalation = extractProtectiveEscalation(packet, routeResult);
 
   if (!text) {
     return {
       action: "fallback",
       reason: "empty_input",
+      needsClarifier: false
+    };
+  }
+
+  if (protectiveEscalation.active) {
+    return {
+      action: "route",
+      reason: "protective_escalation_requires_ethical_gate",
       needsClarifier: false
     };
   }
@@ -663,6 +750,8 @@ function buildStateSpinePatch(decision, packet, routeResult) {
     routeLock: !!safeObj(d.domainConfidence).routeLocked,
     routeFailClosed: !!safeObj(d.domainConfidence).failClosed,
     domainConfidence: d.domainConfidence,
+    protectiveEscalation: safeObj(d.protectiveEscalation),
+    ethicalEscalationRequired: !!safeObj(d.protectiveEscalation).requiresEthicalGate,
     confidenceAwareResponseShaping: Object.keys(safeObj(d.confidenceAwareResponseShaping)).length ? safeObj(d.confidenceAwareResponseShaping) : buildConfidenceAwareResponseShapingSeed(d),
     questionShape: d.questionShape,
     normalizedUserIntent: firstText(d.normalizedUserIntent, text),
@@ -682,7 +771,8 @@ function buildConfidenceAwareResponseShapingSeed(decision) {
   const route = compactKey(firstText(d.route, dc.primaryDomain, "general"));
   const intent = compactKey(firstText(d.intent, "simple_chat"));
   const knowledgeDomain = compactKey(firstText(d.knowledgeDomain, dc.knowledgeDomain));
-  const highStakes = ["law", "finance", "cyber"].includes(knowledgeDomain || route);
+  const protectiveEscalation = safeObj(d.protectiveEscalation);
+  const highStakes = ["law", "finance", "cyber"].includes(knowledgeDomain || route) || protectiveEscalation.active === true || protectiveEscalation.requiresEthicalGate === true;
   const technical = route === "technical" || intent === "technical_debug" || intent === "directive_response" || intent === "contextual_directive";
   const needsClarifier = !!(d.needsClarifier || action === "clarify");
   return {
@@ -700,6 +790,8 @@ function buildConfidenceAwareResponseShapingSeed(decision) {
     technical,
     needsClarifier,
     clarifier: needsClarifier ? safeStr(d.clarifier) : "",
+    protectiveEscalation,
+    ethicalEscalationRequired: !!protectiveEscalation.requiresEthicalGate,
     noUserFacingDiagnostics: true,
     updatedAt: Date.now()
   };
@@ -722,12 +814,16 @@ function buildComposerContext(decision, routeResult) {
       reason: d.reason,
       failClosed: !!safeObj(d.domainConfidence).failClosed,
       routeLocked: !!safeObj(d.domainConfidence).routeLocked,
+      protectiveEscalation: safeObj(d.protectiveEscalation),
+      ethicalEscalationRequired: !!safeObj(d.protectiveEscalation).requiresEthicalGate,
       noUserFacingDiagnostics: true
     },
     confidenceAwareResponseShaping: buildConfidenceAwareResponseShapingSeed(d),
     routing: safeObj(r.routing),
     marionIntent: safeObj(r.marionIntent),
     domainConfidence: safeObj(d.domainConfidence),
+    protectiveEscalation: safeObj(d.protectiveEscalation),
+    ethicalEscalationRequired: !!safeObj(d.protectiveEscalation).requiresEthicalGate,
     questionShape: safeObj(d.questionShape),
     normalizedUserIntent: d.normalizedUserIntent,
     rawUserText: d.rawUserText
@@ -755,6 +851,8 @@ function normalizeConciergeDecision(fields) {
     knowledgeDomain: compactKey(firstText(f.knowledgeDomain, domainConfidence.knowledgeDomain)),
     confidence: clamp01(domainConfidence.confidence, f.confidence),
     domainConfidence,
+    protectiveEscalation: safeObj(f.protectiveEscalation),
+    ethicalEscalationRequired: !!safeObj(f.protectiveEscalation).requiresEthicalGate,
     reason: firstText(f.reason, "domain_concierge_decision"),
     needsClarifier: !!f.needsClarifier,
     clarifier: f.needsClarifier ? safeStr(f.clarifier) : null,
@@ -800,6 +898,7 @@ function runDomainConcierge(packet, options) {
   const routeResult = routeWithRouter(routePacket);
   const normalized = normalizeRouteAndIntent(routeResult, routePacket, config);
   const domainConfidence = normalizeDomainConfidence(routeResult, normalized.route, normalized.intent, config);
+  const protectiveEscalation = extractProtectiveEscalation(routePacket, routeResult);
   const actionDecision = decideAction(normalized.route, normalized.intent, domainConfidence, routePacket, routeResult, config);
   const clarifier = actionDecision.needsClarifier
     ? buildClarifier(normalized.route, normalized.intent, domainConfidence, routePacket, routeResult, config)
@@ -814,6 +913,8 @@ function runDomainConcierge(packet, options) {
     knowledgeDomain: normalized.knowledgeDomain,
     confidence: domainConfidence.confidence,
     domainConfidence,
+    protectiveEscalation,
+    ethicalEscalationRequired: !!protectiveEscalation.requiresEthicalGate,
     reason: actionDecision.reason,
     needsClarifier: actionDecision.needsClarifier,
     clarifier,
@@ -860,6 +961,7 @@ module.exports = {
   CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,
   STATE_SPINE_SCHEMA,
   QUESTION_SHAPE_NORMALIZATION_VERSION,
+  PROTECTIVE_ESCALATION_ROUTING_VERSION,
   DEFAULT_CONFIG,
   VALID_ACTIONS,
   HIGH_PRIORITY_INTENTS,
@@ -876,6 +978,8 @@ module.exports = {
   buildStateSpinePatch,
   buildComposerContext,
   buildConfidenceAwareResponseShapingSeed,
+  extractProtectiveEscalation,
+  hasPriorityTwoTechnicalSignal,
   domainExists,
   domainLabel,
   domainConciergeStatus,
@@ -891,6 +995,8 @@ module.exports = {
     mergeConfig,
     normalizeInputSource,
     extractText,
+    extractProtectiveEscalation,
+    hasPriorityTwoTechnicalSignal,
     confidenceBand,
     normalizeRouteAndIntent,
     isDirectiveOrTechnical,
