@@ -17,7 +17,7 @@ const fs = require("fs");
 const path = require("path");
 const domainConfidenceMod = (() => { try { return require("./domainConfidence.js"); } catch (_) { return null; } })();
 
-const VERSION = "marionDomainRegistry v1.6.1 SIX-DOMAIN-AUTHORITY-MAP + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
+const VERSION = "marionDomainRegistry v1.7.0 PRIORITY2-DOMAIN-COHESION-HARDENING + TECHNICAL-AUDIT-ALIAS-REPAIR + TALON-ALIAS-COMPAT + SIX-DOMAIN-AUTHORITY-MAP + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-AUTHORITY + PIPELINE-FORENSIC-NORMALIZATION + PATH-CACHE-STATE-CREATIVE-COMPAT-HARDENED";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const PIPELINE_FORENSIC_NORMALIZATION_VERSION = "pipeline.forensicNormalization/1.0";
 
@@ -47,7 +47,29 @@ const DOMAIN_ALIASES = Object.freeze({
   voice: "technical",
   tts: "technical",
   pipeline: "technical",
+  command_routing: "technical",
+  command_router: "technical",
+  command_normalizer: "technical",
+  marion_command_normalizer: "technical",
+  guardian_pipeline: "technical",
+  guardian_pipeline_router: "technical",
+  guardian_pipelinerouter: "technical",
+  domain_concierge: "technical",
+  domainconcierge: "technical",
+  domain_retriever: "technical",
+  domainretriever: "technical",
+  marion_domain_registry: "technical",
+  mariondomainregistry: "technical",
+  ethical_gatekeeper: "technical",
+  marion_ethical_gatekeeper: "technical",
+  protective_escalation: "technical",
+  defensive_boundary: "technical",
+  intent_justifier: "technical",
+  aster: "technical",
+  talon: "technical",
+  thalon: "technical",
   autopsy: "technical",
+  surgical_autopsy: "technical",
   audit: "technical",
   compose_marion_response: "technical",
   composed_marion_response: "technical",
@@ -67,8 +89,8 @@ const DOMAIN_ALIASES = Object.freeze({
   monetization: "business",
   sponsorship: "business",
   advertising: "business",
-  auditing: "business",
-  audit: "business",
+  business_auditing: "business",
+  business_audit: "business",
   digital_transformation: "business",
   organizational_intelligence: "business",
 
@@ -185,11 +207,13 @@ const MARION_DOMAINS = Object.freeze({
     domain: "technical",
     label: "Backend Diagnostics",
     userFacingLabel: "backend diagnostics",
-    capability: "Autopsy, line-by-line audit, route checks, widget/backend cohesion, avatar controls, voice/TTS checks, and final-envelope debugging.",
-    examples: Object.freeze(["Audit the bridge.", "Check the widget route.", "Test avatar or voice health."]),
+    capability: "Autopsy, line-by-line audit, command routing checks, Guardian pipeline routing, Domain Concierge cohesion, domain registry/retriever alignment, widget/backend cohesion, avatar controls, voice/TTS checks, ethical-boundary policy routing, and final-envelope debugging.",
+    examples: Object.freeze(["Audit the bridge.", "Check the widget route.", "Harden Priority-2 command routing.", "Validate Guardian pipeline boundaries.", "Test avatar or voice health."]),
     mode: "forensic_autopsy",
     depth: "forensic",
     preferredStyle: "autopsy_then_fix",
+    priorityTwoRuntimeAuthority: true,
+    protectionBoundaryRoutingAware: true,
     useMemory: true,
     useDomainKnowledge: true,
     exposeToUser: true,
@@ -821,6 +845,7 @@ function buildRoutingFromDomain(domain, intent = "domain_question", overrides = 
       routerCompatible: true,
       finalEnvelopeRequired: true,
       noUnsupportedDomainLeak: true,
+      priorityTwoRuntimeCompatible: true,
       stateSpineCompatible: true,
       creativeCognitiveCompatible: true,
       creativeCognitiveCompatVersion: CREATIVE_COGNITIVE_COMPAT_VERSION
