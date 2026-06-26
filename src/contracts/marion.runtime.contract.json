@@ -1,0 +1,34 @@
+{
+  "guardian": "marion",
+  "version": "1.0.0",
+  "mode": "admin_dialogue",
+  "requiredFields": [
+    "directReply",
+    "contextSummary",
+    "currentObjective",
+    "systemState",
+    "nextAction",
+    "riskLevel",
+    "approvalRequired",
+    "guardianMode",
+    "traceId"
+  ],
+  "responseShape": {
+    "directReply": "",
+    "contextSummary": "",
+    "currentObjective": "",
+    "systemState": "unknown",
+    "nextAction": "",
+    "riskLevel": "low",
+    "approvalRequired": false,
+    "guardianMode": "marion",
+    "traceId": "",
+    "rawRuntimeAvailable": true
+  },
+  "rules": {
+    "noRawTelemetryAsReply": true,
+    "noSecretExposure": true,
+    "macFacingLanguage": true,
+    "singleAuthorityPerTurn": true
+  }
+}
