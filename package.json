@@ -7,10 +7,10 @@
   "scripts": {
     "lint:syntax": "node --check index.js",
     "lint:marion-runtime": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/composeMarionResponse.js",
-    "prestart": "node --check index.js",
+    "prestart": "npm run lint:transport",
     "start": "node index.js",
     "dev": "node --check index.js && node index.js",
-    "start:prod": "NODE_ENV=production node --check index.js && NODE_ENV=production node index.js",
+    "start:prod": "node --check index.js && node index.js",
     "test": "npx jest",
     "test:lingosentinel": "npx jest tests/lingosentinel --runInBand",
     "test:lingosentinel-node": "node tests/lingosentinel/lingosentinel-core-adapter.test.js && node tests/lingosentinel/lingosentinel-request-envelope.test.js && node tests/lingosentinel/lingosentinel-response-envelope.test.js",
@@ -32,7 +32,11 @@
     "test:marion-phase6-voice-challenge": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceChallengeVerifier.js && node --check Data/marion/runtime/MarionVoiceSpeakerRegistry.js && node --check Data/marion/runtime/MarionVoiceSpeakerIdentity.js && node --check Data/marion/runtime/MarionVoiceInputEnvelope.js && node --check Data/marion/runtime/MarionVoiceAuthorizationGate.js && node --check Data/marion/runtime/MarionVoiceGateway.js && node --check Data/marion/runtime/MarionVoiceTelemetry.js && node tests/marion/marion-phase6-voice-challenge-contract.test.js",
     "test:marion-phase6": "npm run test:marion-phase6-voice-challenge",
     "test:marion-phase7-voice-continuity": "npm run lint:auth && node --check Data/marion/runtime/MarionVoiceContinuityWindow.js && node --check Data/marion/runtime/MarionVoiceChallengeVerifier.js && node --check Data/marion/runtime/MarionVoiceSpeakerIdentity.js && node --check Data/marion/runtime/MarionVoiceInputEnvelope.js && node --check Data/marion/runtime/MarionVoiceGateway.js && node tests/marion/marion-phase7-voice-continuity-contract.test.js",
-    "test:marion-phase7": "npm run test:marion-phase7-voice-continuity"
+    "test:marion-phase7": "npm run test:marion-phase7-voice-continuity",
+    "lint:transport": "node --check index.js && node -e \"JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package.json ok')\"",
+    "test:priority4": "npm run lint:transport",
+    "test:transport": "npm run lint:transport",
+    "lint:marion-priority": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionIntentRouter.js && node --check Data/marion/runtime/marionCommandNormalizer.js && node --check Data/marion/runtime/DomainConcierge.js && node --check Data/marion/runtime/marionLoopGuard.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
