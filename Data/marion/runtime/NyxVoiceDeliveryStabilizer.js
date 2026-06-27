@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'nyx.voiceDeliveryStabilizer/1.3.3-referenceerror-law-final-recovery';
+const VERSION = 'nyx.voiceDeliveryStabilizer/1.4-admin-private-voice-receive';
 const FINAL_ENVELOPE_CONTRACT = 'nyx.marion.final/1.0';
 const FINAL_SIGNATURE = 'MARION_FINAL_AUTHORITY';
 const DEFAULT_DUPLICATE_WINDOW_MS = 4500;
@@ -286,7 +286,12 @@ function adminAllowed(envelope, policy) {
   const env = safeObj(envelope);
   const pol = safeObj(policy);
   return pol.adminVoiceDeliveryAllowed === true ||
+    pol.adminVoiceRuntimeApproval === true ||
+    pol.privateVoiceDelivery === true ||
     env.adminVoiceDeliveryAllowed === true ||
+    env.adminVoiceRuntimeApproval === true ||
+    env.privateVoiceDelivery === true ||
+    env.deliveryChannel === 'marion_admin_private_voice' ||
     (env.authorizationState === 'authorized' && env.adminVoiceVerified === true);
 }
 
@@ -315,7 +320,14 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
   const windowMs = Math.max(500, Math.min(30000, Number(src.duplicateWindowMs || DEFAULT_DUPLICATE_WINDOW_MS) || DEFAULT_DUPLICATE_WINDOW_MS));
   const duplicate = currentVoiceHash ? duplicateState(cacheKey(envelope, response), currentVoiceHash, windowMs) : { duplicate: false, lastVoiceHash: '', currentVoiceHash: '', duplicateWindowMs: windowMs };
   const duplicateSuppressed = duplicate.duplicate === true;
-  const speakAllowed = allowAdmin && speakPolicyAllowed && finalApproved && !echoSuppressed && !duplicateSuppressed;
+  const privateAdminReceive = allowAdmin && (
+    envelope.privateVoiceDelivery === true ||
+    envelope.adminVoiceRuntimeApproval === true ||
+    envelope.deliveryChannel === 'marion_admin_private_voice' ||
+    policy.privateVoiceDelivery === true ||
+    policy.adminVoiceRuntimeApproval === true
+  );
+  const speakAllowed = allowAdmin && speakPolicyAllowed && finalApproved && !echoSuppressed && (!duplicateSuppressed || privateAdminReceive);
   let reason = '';
 
   if (!allowAdmin) reason = 'ADMIN_ONLY_VOICE_DELIVERY_REQUIRED';
@@ -342,7 +354,12 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
     protectedStatusIntent: isProtectedVoiceStatusIntent(envelope),
     echoSuppressed,
     duplicateSuppressed,
+    privateAdminReceive,
+    privateVoiceReceiveReady: speakAllowed && privateAdminReceive,
+    deliveryChannel: speakAllowed && privateAdminReceive ? 'marion_admin_private_voice' : '',
+    capability: speakAllowed && privateAdminReceive ? 'voice.private.receive' : '',
     adminVoiceDeliveryAllowed: allowAdmin,
+    adminVoiceRuntimeApproval: privateAdminReceive,
     replyHash: currentVoiceHash,
     lastVoiceHash: duplicate.lastVoiceHash,
     duplicateWindowMs: duplicate.duplicateWindowMs,
@@ -359,6 +376,10 @@ function stabilizeNyxVoiceDeliveryUnsafe(input) {
       voiceMode: speakAllowed ? (safeText(policy.voiceMode) || 'full') : 'silent',
       finalApproved,
       adminVoiceDeliveryAllowed: allowAdmin,
+      adminVoiceRuntimeApproval: privateAdminReceive,
+      privateVoiceDelivery: privateAdminReceive,
+      deliveryChannel: privateAdminReceive ? 'marion_admin_private_voice' : '',
+      capability: privateAdminReceive ? 'voice.private.receive' : '',
       finalReplySource: finalCandidate.source,
       transcriptOnly: true,
       noRawAudioStored: true,
