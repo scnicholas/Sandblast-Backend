@@ -6,7 +6,7 @@
 // crash on MODULE_NOT_FOUND or filename-casing drift before Express is mounted.
 
 /**
- * Sandblast Backend — index.js
+ * Sandblast Backend â€” index.js
  *
  * index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION
  * ------------------------------------------------------------
@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.81sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.81sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1";
 const SERVER_BOOT_AT = Date.now();
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
@@ -163,7 +163,7 @@ function stripUserVisibleDebugLeak(value) {
     .replace(/MARION::FINAL::[^\s.;,]+/gi, "")
     .replace(/CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2}/gi, "")
     .replace(/nyx\.marion\.(?:final|stateSpine)\/[0-9.]+/gi, "")
-    .replace(/(?:I[’\']m tracking the request,?\s*)?but the bridge blocked an invalid public reply\.?(?:\s*Please send the same prompt again and I[’\']ll answer from the active lane instead of exposing a runtime value\.?)?/gi, "")
+    .replace(/(?:I[â€™\']m tracking the request,?\s*)?but the bridge blocked an invalid public reply\.?(?:\s*Please send the same prompt again and I[â€™\']ll answer from the active lane instead of exposing a runtime value\.?)?/gi, "")
     .replace(/\s+([,.!?;:])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -776,16 +776,58 @@ function marionAdminVoiceRequestAuth(req, body) {
         verified: true,
         configured: tokens.length > 0,
         provided: true,
-        source: candidate.source
+        source: candidate.source,
+        adminVoiceRuntimeApproval: false
       };
     }
   }
+
+  // MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1:
+  // A short-lived verified admin console session may consume exactly one
+  // approved voice-delivery grant from MarionAdminConsoleGateway. This keeps
+  // public voice locked by default while allowing the admin approval flow to
+  // open a single controlled audible confirmation without exposing tokens.
+  try {
+    const session = typeof marionAdminConsoleValidateSession === "function" ? marionAdminConsoleValidateSession(req) : null;
+    if (session && session.verified === true) {
+      const gatewayStatus = typeof marionAdminConsoleGatewayStatus === "function" ? marionAdminConsoleGatewayStatus() : null;
+      const mod = gatewayStatus && gatewayStatus.mod;
+      const sessionId = cleanText(session.sessionId || (session.session && session.session.id) || "");
+      const stateFn = mod && typeof mod.getAdminVoiceRuntimeState === "function" ? mod.getAdminVoiceRuntimeState : null;
+      const consumeFn = mod && typeof mod.consumeAdminVoiceRuntimeApproval === "function" ? mod.consumeAdminVoiceRuntimeApproval : null;
+      const state = stateFn ? stateFn({ sessionId }) : null;
+      const allowed = state && state.adminVoiceDeliveryAllowed === true && (state.sessionMatches !== false);
+      if (allowed) {
+        const consumed = consumeFn ? consumeFn({ sessionId, requestId: cleanText(body && body.requestId || "") }) : state;
+        if (consumed && consumed.adminVoiceDeliveryAllowed === true) {
+          return {
+            verified: true,
+            configured: true,
+            provided: true,
+            source: "admin_console_voice_runtime_approval",
+            sessionVerified: true,
+            sessionId,
+            role: session.role || (session.session && session.session.role) || "owner",
+            capabilities: session.capabilities || (session.session && session.session.capabilities) || [],
+            adminVoiceRuntimeApproval: true,
+            approvalType: "admin_voice_delivery_once",
+            approvalRequestId: cleanText(consumed.requestId || state.requestId || ""),
+            singleUtterance: consumed.singleUtterance !== false,
+            maxSeconds: Number(consumed.maxSeconds || 3) || 3,
+            projectedVoiceMode: "voice",
+            speechSyncEnabled: true
+          };
+        }
+      }
+    }
+  } catch (_) {}
 
   return {
     verified: false,
     configured: tokens.length > 0,
     provided: candidates.length > 0,
-    source: candidates.length ? "invalid" : "none"
+    source: candidates.length ? "invalid" : "none",
+    adminVoiceRuntimeApproval: false
   };
 }
 
@@ -875,7 +917,7 @@ function marionAdminRedactText(value) {
     .replace(/\s+([,.!?;:])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
-  return text.length > 6000 ? `${text.slice(0, 6000)}…` : text;
+  return text.length > 6000 ? `${text.slice(0, 6000)}â€¦` : text;
 }
 
 function marionAdminConversationReplyText(value, depth, seen) {
@@ -948,7 +990,7 @@ function marionAdminRuntimeSafeFallbackReply(prompt, err) {
   if (deterministic) return deterministic;
   const detail = cleanText(err && (err.message || err) || "");
   if (/\bdomain\s+routing\b|\bdomain\s+router\b/i.test(prompt || detail)) {
-    return "Domain routing is Marion’s triage layer. It reads the user’s intent, selects the best knowledge lane, and sends the turn to that lane so the response comes from the right context instead of a generic fallback.";
+    return "Domain routing is Marionâ€™s triage layer. It reads the userâ€™s intent, selects the best knowledge lane, and sends the turn to that lane so the response comes from the right context instead of a generic fallback.";
   }
   if (/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/i.test(detail)) {
     return "Marion reached the runtime layer, but one backend reference was unavailable. The request stayed contained, diagnostics were kept out of the public reply, and the next fix should target the missing import, export, or symbol named in the server log.";
@@ -1064,7 +1106,7 @@ function nyxVoiceRouteNormalizeEchoText(value) {
   return cleanText(value || "")
     .toLowerCase()
     .replace(/^\s*(?:vera|nyx|marion)\s*[,:\-]?\s*/i, "")
-    .replace(/[“”"'`]/g, "")
+    .replace(/[â€œâ€"'`]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -2392,7 +2434,7 @@ function normalizePublicNyxAddress(value) {
   let text = cleanText(value || "");
   if (!text) return "";
   text = text
-    .replace(/^(\s*(?:hi|hello|hey|yo|hiya|bonjour|salut|hola|buenos\s+d[ií]as|good\s+morning|good\s+afternoon|good\s+evening)\s+)(marion)(\b|[,:\-])/i, (m, a, _name, b) => `${a}Nyx${b || ""}`)
+    .replace(/^(\s*(?:hi|hello|hey|yo|hiya|bonjour|salut|hola|buenos\s+d[iÃ­]as|good\s+morning|good\s+afternoon|good\s+evening)\s+)(marion)(\b|[,:\-])/i, (m, a, _name, b) => `${a}Nyx${b || ""}`)
     .replace(/^\s*marion\s*[,:\-]\s*/i, "Nyx, ");
   return text.replace(/\s+/g, " ").trim();
 }
@@ -2406,10 +2448,10 @@ function buildNyxPublicContextPassportSurface(surface = {}) {
   const domainLabel = (v) => ({ general: "General", ai: "AI", psychology: "Psychology", english: "English", finance: "Finance", law: "Law", cyber: "Cyber", business: "Business" }[String(v || "").toLowerCase()] || cleanText(v || "General"));
   const fallbackUsed = !!s.fallbackUsed;
   const label = fallbackUsed
-    ? `${langLabel(target)} fallback · Nyx ✓`
+    ? `${langLabel(target)} fallback Â· Nyx âœ“`
     : source && source !== "unknown" && source !== target
-      ? `${langLabel(source)} → ${langLabel(target)} · ${domainLabel(domain)} · Nyx ✓`
-      : `${langLabel(target)} · ${domainLabel(domain)} · Nyx ✓`;
+      ? `${langLabel(source)} â†’ ${langLabel(target)} Â· ${domainLabel(domain)} Â· Nyx âœ“`
+      : `${langLabel(target)} Â· ${domainLabel(domain)} Â· Nyx âœ“`;
   return {
     visible: true,
     authority: "marion",
@@ -2426,7 +2468,7 @@ function buildNyxPublicContextPassportSurface(surface = {}) {
     handoffStatus: cleanText(s.handoffStatus || "available"),
     fallbackUsed,
     label,
-    shortLabel: label.length > 52 ? `${label.slice(0, 49).trim()}…` : label
+    shortLabel: label.length > 52 ? `${label.slice(0, 49).trim()}â€¦` : label
   };
 }
 
@@ -2441,14 +2483,14 @@ function firstString(arr) {
 function clipText(v, max) {
   const s = cleanText(v);
   const n = clamp(Number(max || 280), 32, 4000);
-  return s.length > n ? `${s.slice(0, n)}…` : s;
+  return s.length > n ? `${s.slice(0, n)}â€¦` : s;
 }
 
 function maskSecret(v) {
   const s = cleanText(v);
   if (!s) return "";
   if (s.length <= 8) return "********";
-  return `${s.slice(0, 4)}…${s.slice(-4)}`;
+  return `${s.slice(0, 4)}â€¦${s.slice(-4)}`;
 }
 
 
@@ -2457,13 +2499,13 @@ function stripPublicReplyScaffold(value) {
   if (!t) return "";
   for (let i = 0; i < 14; i += 1) {
     const next = t
-      .replace(/^(?:that makes sense|polished version|i[’']?ve got you|let[’']?s keep it clean|clean version|here[’']?s the clean version)\s*[:\-–—]\s*/i, "")
+      .replace(/^(?:that makes sense|polished version|i[â€™']?ve got you|let[â€™']?s keep it clean|clean version|here[â€™']?s the clean version)\s*[:\-â€“â€”]\s*/i, "")
       .replace(/^(?:what\s+is\s+)?(?:bonjour|hola|hello|hi|hey)\s+nyx\s*,?\s*(?:please\s*)?/i, "")
       .replace(/^(?:what\s+is\s+)?(?:bonjour|hola|hello|hi|hey)\s+marion\s*,?\s*(?:please\s*)?/i, "");
     if (next === t) break;
     t = next.trim();
   }
-  t = t.replace(/\b(?:that makes sense|polished version|i[’']?ve got you|let[’']?s keep it clean|clean version|here[’']?s the clean version)\s*[:\-–—]\s*/gi, "");
+  t = t.replace(/\b(?:that makes sense|polished version|i[â€™']?ve got you|let[â€™']?s keep it clean|clean version|here[â€™']?s the clean version)\s*[:\-â€“â€”]\s*/gi, "");
   const chunks = t.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
   if (chunks && chunks.length > 1) {
     const seen = new Set();
@@ -2558,10 +2600,10 @@ function isPublicNyxGreetingIntentText(value = "") {
 
 function buildPublicNyxGreetingReply(value = "") {
   const text = normalizePublicNyxAddress(value).toLowerCase();
-  if (/\bgood\s+morning\b/i.test(text)) return "Good morning. I’m ready when you are.";
-  if (/\bgood\s+afternoon\b/i.test(text)) return "Good afternoon. I’m ready when you are.";
-  if (/\bgood\s+evening\b/i.test(text)) return "Good evening. I’m ready when you are.";
-  return "Hi. I’m Nyx. I’m ready when you are.";
+  if (/\bgood\s+morning\b/i.test(text)) return "Good morning. Iâ€™m ready when you are.";
+  if (/\bgood\s+afternoon\b/i.test(text)) return "Good afternoon. Iâ€™m ready when you are.";
+  if (/\bgood\s+evening\b/i.test(text)) return "Good evening. Iâ€™m ready when you are.";
+  return "Hi. Iâ€™m Nyx. Iâ€™m ready when you are.";
 }
 
 function buildPublicNyxRoleReply(value = "") {
@@ -2574,7 +2616,7 @@ function buildPublicNyxRoleReply(value = "") {
     return "Yes. The goal is for Nyx to keep the conversation natural while Marion carries the useful context behind the scenes, so follow-up questions stay connected instead of restarting the conversation.";
   }
   if (/\bwhy\s+is\s+that\s+important\s+for\s+nyx\b/i.test(text) || (/\bwhy\s+is\s+that\s+important\b/i.test(text) && /\bnyx|context|marion\b/i.test(text))) {
-    return "That matters because Nyx should feel continuous to the user. Marion’s job is to preserve the thread, control the final answer, and prevent the interface from exposing backend state or stale fallback language.";
+    return "That matters because Nyx should feel continuous to the user. Marionâ€™s job is to preserve the thread, control the final answer, and prevent the interface from exposing backend state or stale fallback language.";
   }
   if (/\bnext\s+steps?\b/i.test(text) && /\bnyx|marion|runtime|public|projection|context\b/i.test(text)) {
     return "Next, test the public route across five turns: greeting, Marion role, context carry, why it matters, and next steps. The pass condition is one clean public reply per turn with no diagnostics, no blank final, and no fallback loop.";
@@ -2745,7 +2787,7 @@ function buildPublicNyxContinuityHandoffReply(value = "") {
   if (/\bhow\s+does\b.{0,160}\bhelp\s+sandblast\b|\bhow\s+would\b.{0,160}\bhelp\s+sandblast\b|\bhelp\s+sandblast\b/i.test(t)) {
     return "It helps Sandblast because Nyx becomes easier to talk to and Marion keeps the useful context in the background. That means users can ask follow-up questions naturally, stay engaged longer, and move through radio, TV, news, and business prompts without the interface feeling like it resets every turn.";
   }
-  if (/^(?:next\s+steps?|what(?:'|’)?s\s+next|what\s+next|then\s+what)\??$/i.test(t) || (/\bnext\s+steps?\b/i.test(t) && /\bnyx|marion|sandblast|continuity|handoff|public\b/i.test(t))) {
+  if (/^(?:next\s+steps?|what(?:'|â€™)?s\s+next|what\s+next|then\s+what)\??$/i.test(t) || (/\bnext\s+steps?\b/i.test(t) && /\bnyx|marion|sandblast|continuity|handoff|public\b/i.test(t))) {
     return "Next steps: keep the public Nyx route clean, run the five-turn continuity test, confirm each follow-up advances the thread, then lock the stable handoff before adding new features.";
   }
   return "";
@@ -2764,12 +2806,12 @@ function buildDeterministicLastMilePublicReplyFromText(value = "") {
     return "Sandblast Channel is a media and AI interface ecosystem built around chat, radio, video, news, and multilingual support through Nyx and Marion.";
   }
   const target =
-    /\b(?:into|to|in)\s+french\b|\bfrançais\b|\bfrancais\b/i.test(source) ? "fr" :
-    /\b(?:into|to|in)\s+spanish\b|\bespañol\b|\bespanol\b/i.test(source) ? "es" :
+    /\b(?:into|to|in)\s+french\b|\bfranÃ§ais\b|\bfrancais\b/i.test(source) ? "fr" :
+    /\b(?:into|to|in)\s+spanish\b|\bespaÃ±ol\b|\bespanol\b/i.test(source) ? "es" :
     /\b(?:into|to|in)\s+english\b/i.test(source) ? "en" : "";
   if (/\btranslate\b|\bhow do you say\b|\bsay .* in\b/i.test(source)) {
     if (target === "fr" && /\bgood morning\b/i.test(source)) return "Good morning in French is: Bonjour.";
-    if (target === "es" && /\bgood morning\b/i.test(source)) return "Good morning in Spanish is: Buenos días.";
+    if (target === "es" && /\bgood morning\b/i.test(source)) return "Good morning in Spanish is: Buenos dÃ­as.";
     if (target === "en" && /\bbonjour\b/i.test(source)) return "Bonjour means hello in English.";
     if (target === "en" && /\bhola\b/i.test(source)) return "Hola means hello in English.";
     if (target === "fr") return "I can translate that into French, but I need the exact phrase to keep the answer accurate.";
@@ -2777,7 +2819,7 @@ function buildDeterministicLastMilePublicReplyFromText(value = "") {
     if (target === "en") return "I can translate that into English, but I need the exact phrase to keep the answer accurate.";
   }
   if (/\bbonjour\b/i.test(source) && /\bcomment allez[- ]?vous\b/i.test(source)) return "Bonjour, comment allez-vous? means: Hello, how are you?";
-  if (/\bhola\b/i.test(source) && /\bc[oó]mo est[aá]s\b/i.test(source)) return "Hola, ¿cómo estás? means: Hello, how are you?";
+  if (/\bhola\b/i.test(source) && /\bc[oÃ³]mo est[aÃ¡]s\b/i.test(source)) return "Hola, Â¿cÃ³mo estÃ¡s? means: Hello, how are you?";
   if (/\badapt\b/i.test(source) && /\bfrench audience\b/i.test(source)) return "For a French audience, keep the message clear, polished, and culturally respectful while preserving the original intent.";
   if (/\bteach me\b|\blearn\b/i.test(source)) {
     if (/\bthank you\b/i.test(source) && /\bspanish\b/i.test(source)) return "Thank you in Spanish is: Gracias.";
@@ -3120,8 +3162,8 @@ function cleanReplyForUser(v) {
   t = stripUserVisibleDebugLeak(t);
   if (!t) return "";
   t = stripPublicReplyScaffold(t);
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "Tell me what you need help with, and I’ll keep it focused.");
-  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "Tell me what you need help with, and I’ll keep it focused.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without bouncing you into a menu\.?/ig, "Tell me what you need help with, and Iâ€™ll keep it focused.");
+  t = t.replace(/\bthe backend hit a rough patch,?\s*but i can keep this steady without dropping you into a menu\.?/ig, "Tell me what you need help with, and Iâ€™ll keep it focused.");
   t = t.replace(/\b(bouncing|dropping)\s+you\s+into\s+a\s+menu\b/ig, "shifting gears too quickly");
   t = t.replace(/\bbackend\b/ig, "system");
   t = stripPublicReplyScaffold(t);
@@ -3151,7 +3193,7 @@ function buildLingoSentinelPublicAnswerFromPacket(packet) {
   const normalized = safeObj(src.normalized || src.norm);
   const source = collectCurrentUserIntentText(src);
   const hasLingoSentinelSubject = /\b(?:lingosentinel|lingo\s*link|language\s*sphere|languagesphere)\b/i.test(source);
-  const hasLingoSentinelAsk = /\b(?:explain|what|does|do|clear\s+sentence|one\s+sentence|multilingual|language|languages|explica|explicame|explícame|explique|que\s+hace|qué\s+hace|que\s+fait|frase\s+clara|phrase\s+claire|idioma|idiomas|langue|langues|multilingue|multilingüe|traduccion|traducción|traduction|traduire)\b/i.test(source);
+  const hasLingoSentinelAsk = /\b(?:explain|what|does|do|clear\s+sentence|one\s+sentence|multilingual|language|languages|explica|explicame|explÃ­came|explique|que\s+hace|quÃ©\s+hace|que\s+fait|frase\s+clara|phrase\s+claire|idioma|idiomas|langue|langues|multilingue|multilingÃ¼e|traduccion|traducciÃ³n|traduction|traduire)\b/i.test(source);
   if (hasLingoSentinelSubject && hasLingoSentinelAsk) {
     return "LingoSentinel helps Nyx understand different languages while Marion preserves meaning, tone, and final response quality.";
   }
@@ -3161,9 +3203,9 @@ function buildLingoSentinelPublicAnswerFromPacket(packet) {
 function isGenericGreetingStatusReply(value) {
   const text = cleanText(value).replace(/[.!?]+$/g, "").toLowerCase();
   if (!text) return false;
-  return /^hello\.?\s*i[’']?m ready when you are\.?\s*what do you need$/i.test(text) ||
-    /^hi\.?\s*i[’']?m nyx\.?\s*it[’']?s good to see you\.?\s*what would you like to work on$/i.test(text) ||
-    /^i[’']?m here and ready\.?\s*what are we getting into$/i.test(text) ||
+  return /^hello\.?\s*i[â€™']?m ready when you are\.?\s*what do you need$/i.test(text) ||
+    /^hi\.?\s*i[â€™']?m nyx\.?\s*it[â€™']?s good to see you\.?\s*what would you like to work on$/i.test(text) ||
+    /^i[â€™']?m here and ready\.?\s*what are we getting into$/i.test(text) ||
     /^ready when you are\b/i.test(text);
 }
 
@@ -3497,9 +3539,9 @@ const REQUIRED_MARION_FINAL_MARKERS = [
 ];
 const CHAT_LOOP_PHRASE_PATTERNS = [
   /^i am here with you,? and i can stay with this clearly$/i,
-  /^i['’]?m here with you,? and i can stay with this clearly$/i,
+  /^i['â€™]?m here with you,? and i can stay with this clearly$/i,
   /\bi am here with you\b.*\bstay with this clearly\b/i,
-  /\bi['’]?m here with you\b.*\bstay with this clearly\b/i,
+  /\bi['â€™]?m here with you\b.*\bstay with this clearly\b/i,
   /\bi am here with you\b.*\bone step at a time\b/i,
   /\bwe can take this one step at a time\b/i,
   /\bi can stay with this clearly\b/i,
@@ -3511,17 +3553,17 @@ const CHAT_LOOP_PHRASE_PATTERNS = [
   /\bready\. send your next message\b/i,
   /\bready\. send the next instruction\b/i,
   /\bready\. send the specific file\b/i,
-  /\bi['’]?m here\.?\s*what['’]?s next\b/i,
-  /\bi am here\.?\s*what['’]?s next\b/i,
-  /\bi['’]?m online\.?\s*what['’]?s next\b/i,
-  /\bi am online\.?\s*what['’]?s next\b/i,
-  /\bonline\.?\s*what['’]?s next\b/i,
-  /\bwhat['’]?s next\b/i,
+  /\bi['â€™]?m here\.?\s*what['â€™]?s next\b/i,
+  /\bi am here\.?\s*what['â€™]?s next\b/i,
+  /\bi['â€™]?m online\.?\s*what['â€™]?s next\b/i,
+  /\bi am online\.?\s*what['â€™]?s next\b/i,
+  /\bonline\.?\s*what['â€™]?s next\b/i,
+  /\bwhat['â€™]?s next\b/i,
   /\bare you asking about the interface,?\s*(?:the backend|radio|media|roku|business strategy|system technical work|or a support issue)/i,
   /\bwhich area should i route this to:\s*interface,?\s*backend,?\s*media\/roku,?\s*business strategy,?\s*or support/i,
-  /\bhi\s*[—-]\s*i['’]?m here,? fully online\b/i,
+  /\bhi\s*[â€”-]\s*i['â€™]?m here,? fully online\b/i,
   /\bfully online\. what are we working on\b/i,
-  /\bhi\s*[—-]\s*i[’']?m here,?\s*fully online\.?\s*what are we working on\??\b/i,
+  /\bhi\s*[â€”-]\s*i[â€™']?m here,?\s*fully online\.?\s*what are we working on\??\b/i,
   /\bwhat are we working on\??$/i,
   /\bresponse path was interrupted before marion completed the final reply\b/i,
   /\bkeeping the turn non[- ]emotional\b/i,
@@ -3979,22 +4021,22 @@ function buildIndexSafeTransportReply(norm, reason, extra) {
 }
 
 
-function normalizeEchoTextForCompare(value=""){return cleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function normalizeEchoTextForCompare(value=""){return cleanText(value).toLowerCase().replace(/[â€œâ€]/g,'"').replace(/[â€˜â€™]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function promptTextForFinalSelection(norm={}){const n=isObj(norm)?norm:{};return cleanText(n.userText||n.rawUserText||n.originalText||n.text||n.query||n.prompt||n.message||"");}
 function isPromptEchoReply(reply="",norm={}){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(promptTextForFinalSelection(norm));if(!r||!p)return false;return r===p||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
 function isExcessExpressionReply(value=""){return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(cleanText(value));}
 function deterministicAdminKnowledgeReply(norm={}){
   const t=promptTextForFinalSelection(norm).toLowerCase();
-  if(/\bmore professional\b|\bprofessional alternative\b|\bformal business\b/.test(t))return 'A more professional alternative is: “Good luck with your presentation,” “I hope it goes well,” or “You’ll do well.” These are clearer and safer than “break a leg” in a formal business setting.';
-  if(/\binstead of good luck\b|\bwhy would someone say that\b|\bwhy would someone use that phrase\b/.test(t))return 'Someone may say “break a leg” instead of “good luck” because performance culture treats direct good-luck wishes as unlucky. The phrase became a superstition-based way to encourage someone without saying “good luck” directly.';
-  if(/\bbusiness meeting\b|\bbusiness context\b|\bpitch\b|\bpresentation\b/.test(t)&&/\bappropriate|work|formal|use\b/.test(t))return 'In a casual creative setting, “break a leg” can work. In a formal business meeting or pitch, “good luck,” “you’ll do well,” or “I hope the presentation goes well” is clearer and safer.';
-  if(/\bcanada\b.*\buk\b|\buk\b.*\bcanada\b|\bculturally between\b/.test(t))return 'In Canada and the UK, “break a leg” is generally understood as a theatre-linked good-luck idiom. In business, both cultures usually favour clearer phrasing such as “good luck” or “I hope it goes well,” especially with people who may not know the idiom.';
-  if(/\bbreak a leg\b/.test(t))return 'Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, “I hope you do well.”';
-  if(/\bspill the beans\b/.test(t))return '“Spill the beans” means to reveal information that was meant to stay secret, especially a surprise, plan, or confidential detail.';
-  if(/\bbless your heart\b/.test(t))return '“Bless your heart” can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';
-  if(/\bi[’']?m fine\b/.test(t))return '“I’m fine” can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';
-  if(/\bdomain\s+routing\b|\bdomain\s+router\b|\broute\s+domains?\b/.test(t))return 'Domain routing is Marion’s triage layer. It reads the user’s intent, selects the best knowledge lane, such as technical, psychology, English, AI, cyber, law, or finance, and then sends the turn to that lane so Marion can answer from the right context instead of guessing. For this system, the router should classify the request, preserve the original question, prevent cross-domain bleed, and return one clean final reply.';
-  if(/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/.test(t))return 'A ReferenceError means a script tried to use a variable, function, or imported module that was not available in that scope at runtime. In Marion’s path, the clean fix is to capture the missing symbol, verify the import/export contract, keep the admin session valid, and make the runtime return a safe final reply instead of exposing diagnostics.';
+  if(/\bmore professional\b|\bprofessional alternative\b|\bformal business\b/.test(t))return 'A more professional alternative is: â€œGood luck with your presentation,â€ â€œI hope it goes well,â€ or â€œYouâ€™ll do well.â€ These are clearer and safer than â€œbreak a legâ€ in a formal business setting.';
+  if(/\binstead of good luck\b|\bwhy would someone say that\b|\bwhy would someone use that phrase\b/.test(t))return 'Someone may say â€œbreak a legâ€ instead of â€œgood luckâ€ because performance culture treats direct good-luck wishes as unlucky. The phrase became a superstition-based way to encourage someone without saying â€œgood luckâ€ directly.';
+  if(/\bbusiness meeting\b|\bbusiness context\b|\bpitch\b|\bpresentation\b/.test(t)&&/\bappropriate|work|formal|use\b/.test(t))return 'In a casual creative setting, â€œbreak a legâ€ can work. In a formal business meeting or pitch, â€œgood luck,â€ â€œyouâ€™ll do well,â€ or â€œI hope the presentation goes wellâ€ is clearer and safer.';
+  if(/\bcanada\b.*\buk\b|\buk\b.*\bcanada\b|\bculturally between\b/.test(t))return 'In Canada and the UK, â€œbreak a legâ€ is generally understood as a theatre-linked good-luck idiom. In business, both cultures usually favour clearer phrasing such as â€œgood luckâ€ or â€œI hope it goes well,â€ especially with people who may not know the idiom.';
+  if(/\bbreak a leg\b/.test(t))return 'Literally, â€œbreak a legâ€ means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it is a superstition-based way of saying, â€œI hope you do well.â€';
+  if(/\bspill the beans\b/.test(t))return 'â€œSpill the beansâ€ means to reveal information that was meant to stay secret, especially a surprise, plan, or confidential detail.';
+  if(/\bbless your heart\b/.test(t))return 'â€œBless your heartâ€ can be sincere or cutting depending on tone and setting. In the American South, it can mean genuine sympathy, but it can also soften criticism, pity, or disapproval. The cultural meaning depends on relationship, delivery, and context.';
+  if(/\bi[â€™']?m fine\b/.test(t))return 'â€œIâ€™m fineâ€ can be literal, but behaviourally it can also signal masking, avoidance, or a desire to end the topic. Marion should not assume distress automatically; the safer read is to examine tone, timing, context, and whether the phrase conflicts with visible behaviour.';
+  if(/\bdomain\s+routing\b|\bdomain\s+router\b|\broute\s+domains?\b/.test(t))return 'Domain routing is Marionâ€™s triage layer. It reads the userâ€™s intent, selects the best knowledge lane, such as technical, psychology, English, AI, cyber, law, or finance, and then sends the turn to that lane so Marion can answer from the right context instead of guessing. For this system, the router should classify the request, preserve the original question, prevent cross-domain bleed, and return one clean final reply.';
+  if(/\breference\s*error\b|\breferenceerror\b|\bis not defined\b|\bcannot access .* before initialization\b/.test(t))return 'A ReferenceError means a script tried to use a variable, function, or imported module that was not available in that scope at runtime. In Marionâ€™s path, the clean fix is to capture the missing symbol, verify the import/export contract, keep the admin session valid, and make the runtime return a safe final reply instead of exposing diagnostics.';
   return '';
 }
 
@@ -6179,7 +6221,7 @@ function normalizeNyxPacketBridgeText(text) {
   const raw = cleanText(text || "");
   if (!raw) return "";
   const t = raw
-    .replace(/[’]/g, "'")
+    .replace(/[â€™]/g, "'")
     .replace(/^\s*(nick|nicks|nix|mix|mike)\b/i, "Nyx")
     .replace(/\s+/g, " ")
     .trim();
@@ -6377,7 +6419,7 @@ function buildPacketBridgeFallbackSelected(norm, packetBridge) {
 
 const PACKET_FINAL_SELECTION_GENERIC_REPLY_PATTERNS = [
   /tell me the exact target\b.*\bspecific,? user-facing answer/i,
-  /i['’]?m carrying the previous answer forward rather than restarting/i,
+  /i['â€™]?m carrying the previous answer forward rather than restarting/i,
   /the next move is to build from the established priority/i,
   /give me the exact piece you want to continue/i,
   /tell me the exact piece you want to continue/i,
@@ -6912,7 +6954,7 @@ function decodeXmlEntities(value) {
     .replace(/&quot;/gi, () => bump() ? '"' : "")
     .replace(/&#8217;/gi, () => bump() ? "'" : "")
     .replace(/&#8220;|&#8221;/gi, () => bump() ? '"' : "")
-    .replace(/&#8230;/gi, () => bump() ? "…" : "")
+    .replace(/&#8230;/gi, () => bump() ? "â€¦" : "")
     .replace(/&amp;/gi, () => bump() ? "&" : "")
     .replace(/&lt;/gi, () => bump() ? "<" : "")
     .replace(/&gt;/gi, () => bump() ? ">" : "")
@@ -8630,7 +8672,7 @@ function normalizeContinuityTopicText(value) {
   let text = cleanText(value || "");
   if (!text) return "";
   text = text
-    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .replace(/^["'â€œâ€â€˜â€™]+|["'â€œâ€â€˜â€™]+$/g, "")
     .replace(/[.?!]+$/g, "")
     .replace(/^(?:nyx\s*,?\s*)?(?:please\s*)?(?:explain|define|describe|break\s+down|tell\s+me\s+about|what\s+is|what\s+are|give\s+me\s+an\s+overview\s+of|help\s+me\s+understand)\s+/i, "")
     .replace(/^(?:the|a|an)\s+/i, "")
@@ -8920,7 +8962,7 @@ function buildStateSpineInbound(norm, emotion, marion, marionContract, priorTurn
     enginePrimaryState: cleanText(continuity.currentState || contract.emotional_state || emotion?.label || "focused"),
     engineSecondaryState: cleanText(contract.support_mode || continuity.responseMode || "steady"),
     engineContinuityScore: Number(continuity.depthLevel ? Math.min(1, 0.35 + (Number(continuity.depthLevel || 1) * 0.12)) : 0.35),
-    enginePlaceholder: cleanText(shaped && shaped.ui && shaped.ui.placeholder || "Ask Nyx anything about Sandblast…"),
+    enginePlaceholder: cleanText(shaped && shaped.ui && shaped.ui.placeholder || "Ask Nyx anything about Sandblastâ€¦"),
     engineActionLabels: Array.isArray(shaped && shaped.followUpsStrings) ? shaped.followUpsStrings.slice(0, 4) : [],
     greetingActive: !!(greeting.active || greeting.intent || sessionPatch.lastGreetingIntent),
     greetingId: cleanText(greeting.id || sessionPatch.lastGreetingId || memoryPatch.lastGreetingId || ""),
@@ -9121,8 +9163,8 @@ function normalizeIndexLanguageCode(value, fallback = "") {
   if (raw === "auto") return "auto";
   if (raw === "none" || raw === "off" || raw === "false" || raw === "disabled") return "";
   if (raw.startsWith("en") || compact === "english" || compact === "anglais" || compact === "ingles") return "en";
-  if (raw.startsWith("fr") || compact === "french" || compact === "francais" || compact === "français" || compact === "francés" || compact === "frances") return "fr";
-  if (raw.startsWith("es") || compact === "spanish" || compact === "espanol" || compact === "español" || compact === "espagnol") return "es";
+  if (raw.startsWith("fr") || compact === "french" || compact === "francais" || compact === "franÃ§ais" || compact === "francÃ©s" || compact === "frances") return "fr";
+  if (raw.startsWith("es") || compact === "spanish" || compact === "espanol" || compact === "espaÃ±ol" || compact === "espagnol") return "es";
   return fallback;
 }
 
@@ -9159,7 +9201,7 @@ function extractIndexDirectTranslationCommand(value = "") {
     }
 
     sourceText = sourceText
-      .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+      .replace(/^["'â€œâ€â€˜â€™]+|["'â€œâ€â€˜â€™]+$/g, "")
       .replace(/\s+/g, " ")
       .trim();
 
@@ -9226,31 +9268,31 @@ function buildIndexDirectTranslationFallback(sourceText = "", targetLanguage = "
       "open feed": "Ouvrir le fil",
       "canada feed": "Fil du Canada",
       "sports feed": "Fil des sports",
-      "finance economics": "Finance et économie",
-      "finance and economics": "Finance et économie",
+      "finance economics": "Finance et Ã©conomie",
+      "finance and economics": "Finance et Ã©conomie",
       "play": "Lire",
       "pause": "Pause",
-      "listen live": "Écouter en direct",
+      "listen live": "Ã‰couter en direct",
       "watch now": "Regarder maintenant",
       "open player": "Ouvrir le lecteur",
       "open radio": "Ouvrir la radio",
-      "open tv": "Ouvrir la télé",
-      "sandblast gives creators a global stage": "Sandblast offre aux créateurs une scène mondiale"
+      "open tv": "Ouvrir la tÃ©lÃ©",
+      "sandblast gives creators a global stage": "Sandblast offre aux crÃ©ateurs une scÃ¨ne mondiale"
     },
     es: {
       "start reading": "Comenzar a leer",
       "open feed": "Abrir el feed",
-      "canada feed": "Feed de Canadá",
+      "canada feed": "Feed de CanadÃ¡",
       "sports feed": "Feed de deportes",
-      "finance economics": "Finanzas y economía",
-      "finance and economics": "Finanzas y economía",
+      "finance economics": "Finanzas y economÃ­a",
+      "finance and economics": "Finanzas y economÃ­a",
       "play": "Reproducir",
       "pause": "Pausa",
       "listen live": "Escuchar en vivo",
       "watch now": "Ver ahora",
       "open player": "Abrir el reproductor",
       "open radio": "Abrir la radio",
-      "open tv": "Abrir la televisión",
+      "open tv": "Abrir la televisiÃ³n",
       "sandblast gives creators a global stage": "Sandblast ofrece a los creadores un escenario global"
     }
   };
@@ -9259,7 +9301,7 @@ function buildIndexDirectTranslationFallback(sourceText = "", targetLanguage = "
 
   // Commercial-safe fallback for unsupported free-form text: never echo the command.
   // Preserve brand names and avoid claiming final translation confidence when the adapter did not transform.
-  if (/^sandblast\b/i.test(src) && target === "fr") return `Sandblast ${src.replace(/^sandblast\s+/i, "").replace(/\bgives\b/i, "offre").replace(/\bcreators\b/i, "aux créateurs").replace(/\ba global stage\b/i, "une scène mondiale")}`.replace(/\s+/g, " ").trim();
+  if (/^sandblast\b/i.test(src) && target === "fr") return `Sandblast ${src.replace(/^sandblast\s+/i, "").replace(/\bgives\b/i, "offre").replace(/\bcreators\b/i, "aux crÃ©ateurs").replace(/\ba global stage\b/i, "une scÃ¨ne mondiale")}`.replace(/\s+/g, " ").trim();
   if (/^sandblast\b/i.test(src) && target === "es") return `Sandblast ${src.replace(/^sandblast\s+/i, "").replace(/\bgives\b/i, "ofrece").replace(/\bcreators\b/i, "a los creadores").replace(/\ba global stage\b/i, "un escenario global")}`.replace(/\s+/g, " ").trim();
 
   return "";
@@ -10559,7 +10601,7 @@ function inferEmotion(text, reqCtx) {
 function normalizeSupportReply(text) {
   const cleaned = cleanReplyForUser(text);
   if (cleaned) return cleaned;
-  return "Tell me the next concrete step you want to take, and I’ll keep it direct.";
+  return "Tell me the next concrete step you want to take, and Iâ€™ll keep it direct.";
 }
 
 function buildSafeSupportReply(inputText, emotion, extras) {
@@ -10605,10 +10647,10 @@ function buildSafeSupportReply(inputText, emotion, extras) {
   if (externalReply) return normalizeSupportReply(externalReply);
 
   if (emo.distress) {
-    return "I hear the weight in this. Tell me what happened, and I’ll keep the next step grounded and practical.";
+    return "I hear the weight in this. Tell me what happened, and Iâ€™ll keep the next step grounded and practical.";
   }
 
-  return "I hear you. Send the next detail and I’ll help steady the response without recycling a support line.";
+  return "I hear you. Send the next detail and Iâ€™ll help steady the response without recycling a support line.";
 }
 
 function buildQuietUiPatch(reason, holdActive) {
@@ -10646,7 +10688,7 @@ function isTechnicalDebugTurn(text, norm) {
 function isHighRiskSupportSignal(emotion, text) {
   const emo = isObj(emotion) ? emotion : normalizeEmotion(null, text);
   const body = lower(text || "");
-  return !!(emo.sensitive || /\b(suicid(?:e|al)|self[-\s]?harm|kill myself|don['’]?t want to live|do not want to live|hurt myself)\b/i.test(body));
+  return !!(emo.sensitive || /\b(suicid(?:e|al)|self[-\s]?harm|kill myself|don['â€™]?t want to live|do not want to live|hurt myself)\b/i.test(body));
 }
 
 function shouldEnterSupportHold(text, emotion, engineResult, opts) {
@@ -18114,7 +18156,7 @@ app.post(MARION_VOICE_CHALLENGE_ROUTES.check, async (req, res) => handleMarionVo
 app.post(MARION_VOICE_CHALLENGE_ROUTES.revoke, async (req, res) => handleMarionVoiceChallenge(req, res, "revoke"));
 
 
-// MARION-VOICE-CONTINUITY-WINDOW-V1:
+// MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1:
 // Phase 7 trusted voice continuity window. A valid challenge can open a short
 // speaker/session-bound voice window, but the window remains evidence only and
 // never overrides admin/session/RBAC/escalation controls.
@@ -19386,4 +19428,5 @@ module.exports = {
   invokeMarionAdminConsoleGateway,
   applyPublicReplyHygieneToResponse
 };
+
 
