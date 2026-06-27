@@ -13,7 +13,7 @@
  *   mutate durable memory.
  */
 
-const VERSION = "marionLoopGuard v1.4.0 PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
+const VERSION = "marionLoopGuard v1.4.1 PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
 const PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION = "sandblast.guardian.protectiveEscalationLoopGuard/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
@@ -579,3 +579,31 @@ module.exports = {
   protectiveEscalationPolicyViolation,
   FINAL_RENDER_TELEMETRY_VERSION
 };
+
+
+// PRIORITY_9E_R2_CONCRETE_CONTINUATION_SIGNAL_PATCH_START
+const PRIORITY_9E_R2_CONCRETE_CONTINUATION_ENFORCEMENT_VERSION = "nyx.marion.loopGuard.priority9eR2.concreteContinuationEnforcement/1.0";
+function isPriority9ER2ConcreteContinuationLeakText(value = "") {
+  const text = oneLine(value).toLowerCase();
+  if (!text) return false;
+  return /\b(marion will continue|will continue the active task|continue the active task|one clean final reply|one clean final answer|clean final reply|clean final answer|clean public reply|active task with one clean|current task|active task|will continue with one|will respond with one|will produce one)\b/i.test(text) || isPriority9EMetaRecoveryLeakText(text);
+}
+function isPriority9ER2ConcreteContinuationCommand(text = "") {
+  const t = normalizeText(text).replace(/[.!?]+$/g, "").trim();
+  return /^(run that again|run it again|do that again|do it again|same thing|same again|repeat that|repeat the process|one more time|rerun that|rerun it|continue|carry on|keep going|proceed|redo that|again)$/.test(t);
+}
+function buildPriority9ER2ConcreteContinuationReply(prompt = "", previousReply = "") {
+  const source = oneLine([prompt, previousReply].filter(Boolean).join(" "));
+  if (/priority\s*(?:90|9c|9d)|echo|fallback|suppression|five[-\s]?turn|lane[-\s]?lock|nyx route|handoff/i.test(source)) {
+    return "Run the Priority 90/9E sequence again: confirm greeting stability, confirm lane-lock, test “Next steps,” test “Run that again,” verify fresh wording, reject meta-governor language, then mark the live continuation path passed only if the answer stays conversational.";
+  }
+  if (/priority\s*9e|loop governor|meta[-\s]?recovery|continuation enforcement|concrete continuation/i.test(source)) {
+    return "Run Priority 9E again: resolve the continuation to the active lane, generate fresh wording, block meta-governor language, confirm there is no exact replay, then keep the result as a normal conversational answer.";
+  }
+  return "Repeat the last valid Marion sequence: restate the target in fresh wording, perform the next concrete step, verify no echo or meta-language is visible, then continue from the active lane.";
+}
+module.exports.PRIORITY_9E_R2_CONCRETE_CONTINUATION_ENFORCEMENT_VERSION = PRIORITY_9E_R2_CONCRETE_CONTINUATION_ENFORCEMENT_VERSION;
+module.exports.isPriority9ER2ConcreteContinuationLeakText = isPriority9ER2ConcreteContinuationLeakText;
+module.exports.isPriority9ER2ConcreteContinuationCommand = isPriority9ER2ConcreteContinuationCommand;
+module.exports.buildPriority9ER2ConcreteContinuationReply = buildPriority9ER2ConcreteContinuationReply;
+// PRIORITY_9E_R2_CONCRETE_CONTINUATION_SIGNAL_PATCH_END
