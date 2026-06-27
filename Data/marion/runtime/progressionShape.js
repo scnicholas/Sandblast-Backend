@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionShape v1.1.2 PRIORITY-9E-CONTINUATION-INTENT-RESOLVER + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
+const VERSION = "PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionShape v1.1.2 PRIORITY-9E-CONTINUATION-INTENT-RESOLVER + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
 const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRefinement/1.1";
 
 const PROGRESSION_SIGNALS = Object.freeze({
@@ -200,3 +200,12 @@ module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_VERSION = PRIORITY_9F
 module.exports.isPriority9FDeepConversationalText = isPriority9FDeepConversationalText;
 module.exports.buildPriority9FDeepConversationProfile = buildPriority9FDeepConversationProfile;
 // PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_PATCH_END
+
+
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_SHAPE_PATCH_START
+const PRIORITY_9F_R1_LAYERED_PRECEDENCE_SHAPE_VERSION="nyx.marion.priority9fR1.layeredPrecedenceShape/1.0";
+function isPriority9FR1LayeredPrecedenceText(text=""){const t=lower(text).replace(/[_-]+/g," ");return /\b(priority\s*9f|9f\s*r1|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|full conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action)\b/i.test(t)||(/\b(disjointed|deeper|layered|multi|context|looping|loop|recovery)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next)\b/i.test(t));}
+const __priority9FR1OriginalBuildProgressionProfile=module.exports.buildProgressionProfile||buildProgressionProfile;
+function buildPriority9FR1LayeredPrecedenceProfile(text="",context={}){if(!isPriority9FR1LayeredPrecedenceText(text))return __priority9FR1OriginalBuildProgressionProfile(text,context);return {version:PRIORITY_9F_R1_LAYERED_PRECEDENCE_SHAPE_VERSION,active:true,lane:"priority9f_deep_conversational_stack",activePhase:"priority9f_deep_conversational_stack",phaseKey:"priority9f_r1",currentStep:"priority9f_r1",phaseId:"PRIORITY_9F_R1_LAYERED_PRECEDENCE",phaseLabel:"Priority 9F-R1: Layered prompt precedence",objective:"Layered conversational prompts outrank stale Priority 90/9E continuation recall.",signal:"deep_conversational_stack",lastUserIntent:"deep_conversational_stack",responseShape:"layered_conversational_stack",confidence:0.97,noUserFacingDiagnostics:true,priority9FR1LayeredPrecedence:true,updatedAt:Date.now()};}
+module.exports.PRIORITY_9F_R1_LAYERED_PRECEDENCE_SHAPE_VERSION=PRIORITY_9F_R1_LAYERED_PRECEDENCE_SHAPE_VERSION;module.exports.isPriority9FR1LayeredPrecedenceText=isPriority9FR1LayeredPrecedenceText;module.exports.buildPriority9FR1LayeredPrecedenceProfile=buildPriority9FR1LayeredPrecedenceProfile;module.exports.buildProgressionProfile=buildPriority9FR1LayeredPrecedenceProfile;module.exports.default=buildPriority9FR1LayeredPrecedenceProfile;
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_SHAPE_PATCH_END
