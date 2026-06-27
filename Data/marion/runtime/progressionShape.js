@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionShape v1.1.2 PRIORITY-9E-CONTINUATION-INTENT-RESOLVER + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
+const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionShape v1.1.2 PRIORITY-9E-CONTINUATION-INTENT-RESOLVER + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
 const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRefinement/1.1";
 
 const PROGRESSION_SIGNALS = Object.freeze({
@@ -171,3 +171,32 @@ function isPriority9EContinuationCommand(text = "") {
 module.exports.PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_VERSION = PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_VERSION;
 module.exports.isPriority9EContinuationCommand = isPriority9EContinuationCommand;
 // PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_PATCH_END
+
+
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_PATCH_START
+const PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_VERSION = "nyx.marion.priority9f.deepConversationalStackShape/1.0";
+function isPriority9FDeepConversationalText(text = "") {
+  const t = lower(text).replace(/[_-]+/g, " ");
+  return /\b(priority\s*9f|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|multi layer|multi layered|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|full conversational stack)\b/i.test(t) ||
+    (/\b(disjointed|layered|deeper|multi)\b/i.test(t) && /\b(marion|conversation|conversational|intent|context|loop|recovery|next)\b/i.test(t));
+}
+function buildPriority9FDeepConversationProfile(text = "", context = {}) {
+  const active = isPriority9FDeepConversationalText(text);
+  return {
+    version: PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_VERSION,
+    active,
+    signal: active ? "deep_conversational_stack" : PROGRESSION_SIGNALS.UNKNOWN,
+    responseShape: active ? "layered_conversational_stack" : "",
+    surfaceRequestRequired: active,
+    deeperIntentRequired: active,
+    operationalRiskRequired: active,
+    executionModeRequired: active,
+    nextActionRequired: active,
+    noUserFacingDiagnostics: true,
+    updatedAt: Date.now()
+  };
+}
+module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_VERSION = PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_VERSION;
+module.exports.isPriority9FDeepConversationalText = isPriority9FDeepConversationalText;
+module.exports.buildPriority9FDeepConversationProfile = buildPriority9FDeepConversationProfile;
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SHAPE_PATCH_END
