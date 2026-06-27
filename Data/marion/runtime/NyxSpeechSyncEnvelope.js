@@ -47,7 +47,7 @@ const motionTelemetryMod = (() => {
   }
 })();
 
-const VERSION = 'nyx.speechSyncEnvelope/1.3-phase4-speaker-identity-boundary';
+const VERSION = 'nyx.speechSyncEnvelope/1.4-admin-private-voice-receive';
 const SPEECH_SYNC_CONTRACT = 'nyx.avatar.speechSync/1.0';
 
 function safeText(value) {
@@ -243,9 +243,15 @@ function buildSpeechSyncEnvelope(input) {
     frontendReady: true,
     source: 'NyxSpeechSyncEnvelope',
     authority: 'Marion',
-    publicAgent: 'Nyx',
+    publicAgent: adminVoiceDeliveryAllowed ? 'Marion' : 'Nyx',
     finalApproved: true,
     speakAllowed: true,
+    privateVoiceReceiveReady: adminVoiceDeliveryAllowed === true,
+    privateVoiceDelivery: adminVoiceDeliveryAllowed === true,
+    adminOnlyVoiceDelivery: adminVoiceDeliveryAllowed === true,
+    adminVoiceDeliveryAllowed: adminVoiceDeliveryAllowed === true,
+    deliveryChannel: adminVoiceDeliveryAllowed ? 'marion_admin_private_voice' : '',
+    capability: adminVoiceDeliveryAllowed ? 'voice.private.receive' : '',
     voiceMode,
     text: spokenText,
     textHash: hashText(spokenText),
@@ -279,6 +285,10 @@ function buildSpeechSyncEnvelope(input) {
     phase2SpeechSyncCompatible: true,
     transcriptOnly: true,
     noRawAudioStored: true,
+    audioStored: false,
+    rawAudioStored: false,
+    diagnosticsRedacted: true,
+    privateControlPlane: adminVoiceDeliveryAllowed === true,
     audioStored: false,
     phase: 'phase3b_animation_metadata_bridge'
   };
