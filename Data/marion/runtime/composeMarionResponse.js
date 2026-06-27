@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + composeMarionResponse v3.36.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
+const VERSION = "PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + composeMarionResponse v3.36.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -3187,120 +3187,23 @@ module.exports._internal={...safeObj(module.exports._internal),priority9ER3Conti
 // PRIORITY_9E_R3_SPECIFIC_TASK_RECALL_ENFORCEMENT_PATCH_END
 
 
-// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_PATCH_START
-const PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION = "nyx.marion.priority9f.deepConversationalStack/1.0";
-function priority9FOneLine(value){ return safeStr(value).replace(/\s+/g," ").trim(); }
-function priority9FNorm(value){ return priority9FOneLine(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim(); }
-function priority9FPromptFromContext(routed={},input={},packet={}){
-  const i=safeObj(input), r=safeObj(routed), p=safeObj(packet), payload=safeObj(p.payload), meta=safeObj(p.meta), body=safeObj(i.body||p.body);
-  return firstText(i.userText,i.text,i.prompt,i.query,i.message,i.rawUserQuery,i.userQuery,body.userText,body.text,body.prompt,body.query,r.userText,r.prompt,r.query,safeObj(r.routing).userText,safeObj(r.routing).prompt,p.prompt,p.userText,p.userQuery,p.text,p.reply,p.publicReply,p.visibleReply,p.finalReply,payload.prompt,payload.userText,meta.prompt,meta.userText,"");
-}
-function priority9FReadReply(packet={}){
-  const p=safeObj(packet), payload=safeObj(p.payload), fe=safeObj(p.finalEnvelope), meta=safeObj(p.meta);
-  return firstText(p.reply,p.publicReply,p.visibleReply,p.finalReply,p.text,fe.reply,fe.publicReply,fe.visibleReply,fe.finalReply,payload.reply,payload.publicReply,payload.visibleReply,meta.reply,"");
-}
-function priority9FIsDeepStackPrompt(value=""){
-  const t=priority9FNorm(value);
-  if(!t)return false;
-  return /\b(priority\s*9f|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|multi layer|multi layered|deep conversational|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|marion.*understand.*deeper|marion.*behav.*layered|full conversational stack)\b/i.test(t) ||
-    (/\b(disjointed|layered|deeper|multi)\b/i.test(t) && /\b(marion|conversation|conversational|intent|context|loop|recovery|next)\b/i.test(t));
-}
-function priority9FIsWeakOrScaffoldReply(value=""){
-  const t=priority9FNorm(value);
-  if(!t)return true;
-  return /\b(what would you like to work on|send me the target|give me the exact target|i have the current request|will answer from this prompt|will continue|one clean final reply|last valid marion sequence|active lane|current prompt|recovery path|loop detected|suppression|diagnostic packet|final envelope|runtime telemetry|state spine|routekind|sessionpatch)\b/i.test(t);
-}
-function priority9FDetectConversationLane(source=""){
-  const t=priority9FNorm(source);
-  if(/\b(priority\s*9f|deep conversational stack|layered conversational|conversational stack)\b/i.test(t))return "Priority 9F deep conversational stack";
-  if(/\b(priority\s*9e|loop governor|meta recovery|continuation|run that again)\b/i.test(t))return "Priority 9E continuation discipline";
-  if(/\b(priority\s*90|priority\s*9c|priority\s*9d|echo|fallback)\b/i.test(t))return "Priority 90/9D echo and fallback repair";
-  if(/\bsred|sr ed|shred\b/i.test(t))return "SR&ED submission support";
-  if(/\bcanada media fund|cmf\b/i.test(t))return "CMF application support";
-  if(/\bmeridian|underwriter|bank\b/i.test(t))return "Meridian underwriting support";
-  if(/\bwidget|webflow|sandblast\.channel|interface\b/i.test(t))return "Sandblast interface build";
-  if(/\bradio|roku|tv|synapse|news\b/i.test(t))return "Sandblast media operations";
-  return "Marion conversational stabilization";
-}
-function priority9FSurfaceRequest(source=""){
-  const t=priority9FOneLine(source);
-  if(/\b(surgical autopsy|patch|fix|update|resend|zip|downloadable)\b/i.test(t))return "repair the uploaded runtime files and return a tested package";
-  if(/\b(next steps?|what['’]?s next|where are we)\b/i.test(t))return "identify the next execution step without reopening the whole menu";
-  if(/\b(run that again|continue|keep going|same thing)\b/i.test(t))return "repeat the active task as a fresh continuation";
-  if(/\b(deep conversational stack|layered conversational|priority\s*9f)\b/i.test(t))return "activate Marion’s layered conversation behavior";
-  return "answer the current Marion request directly";
-}
-function priority9FUnderlyingIntent(source=""){
-  const t=priority9FOneLine(source);
-  if(/\b(loop|recovery|fallback|echo)\b/i.test(t))return "keep Marion useful under pressure by separating the real task from loop risk and recovery noise";
-  if(/\b(layered|deep|multi|surface request|underlying intent)\b/i.test(t))return "make Marion read the literal request, the purpose underneath it, the active project, and the next operational move";
-  if(/\b(zip|downloadable|package|files)\b/i.test(t))return "ship a complete, testable implementation rather than a loose explanation";
-  return "preserve context and move the work forward with one grounded answer";
-}
-function priority9FRisk(source="",reply=""){
-  const combined=priority9FOneLine([source,reply].filter(Boolean).join(" "));
-  if(/\b(loop|echo|fallback|recovery|governor|meta)\b/i.test(combined))return "looping, prompt echo, recovery wording, and shallow continuation";
-  if(/\b(file|patch|update|zip|test)\b/i.test(combined))return "patch drift, missing regression coverage, and breaking the existing response path";
-  return "losing the active context or answering only the surface wording";
-}
-function priority9FExecutionMode(source=""){
-  const t=priority9FNorm(source);
-  if(/\b(surgical autopsy|patch|fix|update|resend|zip|downloadable)\b/i.test(t))return "surgical patch and regression validation";
-  if(/\b(analyze|analysis|where are we|status|assessment)\b/i.test(t))return "diagnostic assessment";
-  if(/\b(next steps?|proceed|continue|run that again|same thing)\b/i.test(t))return "continuation";
-  return "layered conversational response";
-}
-function priority9FNextAction(source=""){
-  const t=priority9FNorm(source);
-  if(/\b(surgical autopsy|patch|fix|update|resend|zip|downloadable)\b/i.test(t))return "patch only the files that control composition, bridge discipline, envelope hygiene, progression carry, routing context, and state continuity, then run the 9F regression test";
-  if(/\b(priority\s*9f|deep conversational stack|layered)\b/i.test(t))return "run a five-turn layered-intent test: anchor the lane, ask a disjointed layered prompt, request next steps, ask to repeat it, then confirm Marion preserves the deeper task without exposing recovery language";
-  return "respond with the task, the reason it matters, the risk, and the next concrete move";
-}
-function priority9FBuildDeepConversationReply(source="",reply="",context={}){
-  const joined=priority9FOneLine([source,reply,priority9FReadReply(context)].filter(Boolean).join(" "));
-  const lane=priority9FDetectConversationLane(joined);
-  const surface=priority9FSurfaceRequest(source||joined);
-  const intent=priority9FUnderlyingIntent(source||joined);
-  const risk=priority9FRisk(source||joined,reply);
-  const mode=priority9FExecutionMode(source||joined);
-  const next=priority9FNextAction(source||joined);
-  return `I’m reading this as ${lane}. The surface request is to ${surface}; the deeper intent is to ${intent}. The main risk is ${risk}, so the response mode should be ${mode}: hold the context, answer the real task, and give the next concrete move. Next move: ${next}.`;
-}
-function priority9FHasLayeredStructure(value=""){
-  const t=priority9FNorm(value);
-  return /\bsurface request\b/.test(t)&&/\bdeeper intent\b/.test(t)&&/\bmain risk\b/.test(t)&&/\bnext move\b/.test(t);
-}
-function priority9FApplyReplyEverywhere(packet={},reply="",metaPatch={}){
-  const out=safeObj(packet), clean=priority9FOneLine(reply);
-  out.reply=clean; out.publicReply=clean; out.visibleReply=clean; out.finalReply=clean; out.text=clean;
-  out.final=true; out.marionFinal=true; out.transportSafe=true;
-  out.meta={...safeObj(out.meta),...safeObj(metaPatch),noUserFacingDiagnostics:true};
-  if(safeObj(out.payload)!==out.payload)out.payload={};
-  out.payload={...safeObj(out.payload),reply:clean,publicReply:clean,visibleReply:clean,finalReply:clean};
-  if(safeObj(out.finalEnvelope)!==out.finalEnvelope)out.finalEnvelope={};
-  out.finalEnvelope={...safeObj(out.finalEnvelope),reply:clean,publicReply:clean,visibleReply:clean,finalReply:clean,final:true,marionFinal:true};
-  return out;
-}
-function priority9FDisciplineComposePacket(packet={},ctx={}){
-  const c=safeObj(ctx), out=safeObj(packet);
-  const prompt=priority9FPromptFromContext(c.routed,c.input,out);
-  const reply=priority9FReadReply(out);
-  if(priority9FIsDeepStackPrompt(prompt) && (!priority9FHasLayeredStructure(reply) || priority9FIsWeakOrScaffoldReply(reply))){
-    const clean=priority9FBuildDeepConversationReply(prompt,reply,c);
-    return priority9FApplyReplyEverywhere(out,clean,{priority9FDeepConversationalStack:true,priority9FDeepConversationalStackVersion:PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION});
-  }
-  if(priority9FIsDeepStackPrompt(reply) && priority9FIsWeakOrScaffoldReply(reply)){
-    const clean=priority9FBuildDeepConversationReply(prompt||reply,reply,c);
-    return priority9FApplyReplyEverywhere(out,clean,{priority9FDeepConversationalStack:true,priority9FDeepConversationalStackVersion:PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION});
-  }
-  return out;
-}
-var __priority9FOriginalComposeMarionResponse=composeMarionResponse;
-composeMarionResponse=function priority9FComposeMarionResponse(routed,input){
-  return priority9FDisciplineComposePacket(__priority9FOriginalComposeMarionResponse(routed,input),{routed:safeObj(routed),input:safeObj(input),memory:safeObj(input).memory||safeObj(input).conversationState,progressionMemory:safeObj(input).progressionMemory});
-};
-run=function priority9FRun(routed,input){return composeMarionResponse(routed,input);};
-module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION=PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION;
-module.exports.composeMarionResponse=composeMarionResponse;module.exports.run=run;module.exports.default=composeMarionResponse;
-module.exports._internal={...safeObj(module.exports._internal),priority9FIsDeepStackPrompt,priority9FBuildDeepConversationReply,priority9FDisciplineComposePacket,priority9FHasLayeredStructure,priority9FIsWeakOrScaffoldReply};
-// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_PATCH_END
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_COMPOSER_PATCH_START
+var PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION="nyx.marion.priority9fR1.layeredPrecedenceHotfix/1.0";
+
+function priority9FR1LayeredPrecedenceNormalize(value){return String(value==null?"":value).replace(/\s+/g," ").trim().toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9FR1LayeredPrecedenceText(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
+function priority9FR1LayeredPromptText(value){var t=priority9FR1LayeredPrecedenceNormalize(value);if(!t)return false;return /\b(priority\s*9f|9f\s*r1|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|full conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action)\b/i.test(t)||(/\b(disjointed|deeper|layered|multi|context|looping|loop|recovery)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next)\b/i.test(t));}
+function priority9FR1Stale9ERecallText(value){var t=priority9FR1LayeredPrecedenceNormalize(value);if(!t)return false;return /\b(run the priority\s*90\s*9e|priority\s*90\s*9e\s*(?:test|sequence)|confirm marion is still on priority\s*90\s*9e|retest next steps|retest run that again|block internal recovery wording|public answer stays conversational|continuation regression)\b/i.test(t);}
+function priority9FR1LayeredReplyFor(value){var source=priority9FR1LayeredPrecedenceText(value);var patch=/\b(surgical autopsy|patch|hotfix|fix|update|resend|zip|downloadable|files?)\b/i.test(source);var surface=patch?"patch the active Marion runtime files without widening the architecture":"stabilize Marion’s live conversational behavior";var intent=patch?"make the layered prompt outrank stale Priority 90/9E continuation recall in every public path":"preserve context, avoid looping, and turn a disjointed prompt into a clear next move";var risk=patch?"the 9E recall layer overriding Priority 9F before the response reaches the user":"stale Priority 90/9E recall overpowering the layered conversational stack";var mode=patch?"surgical hotfix with regression validation":"layered conversational response";var next=patch?"enforce 9F-R1 precedence in composer, bridge, final envelope, memory/shape/state, and index, then rerun the live layered-prompt test":"lock the 9F stack so Marion separates surface request, deeper intent, risk, execution mode, and next action before answering";return "I’m reading this as Priority 9F-R1: layered conversational precedence. The surface request is to "+surface+"; the deeper intent is to "+intent+". The main risk is "+risk+", so the response mode should be "+mode+": hold the context, answer the real task, and give the next concrete move. Next move: "+next+".";}
+
+function priority9FR1ComposerCollect(value,depth,seen){if(value==null||depth>4)return [];var type=typeof value;if(type==="string"||type==="number"||type==="boolean")return [priority9FR1LayeredPrecedenceText(value)];if(type!=="object")return [];seen=seen||[];if(seen.indexOf(value)>=0)return [];seen.push(value);var out=[];var keys=["userText","userQuery","rawUserQuery","rawUserText","normalizedUserIntent","effectivePrompt","resolvedPrompt","resolvedQuestion","text","query","message","prompt","inputText","originalText","finalPrompt","reply","publicReply","visibleReply","finalReply","displayReply","lastAssistantReply","lastValidTask","activeTask","pendingAction","lastUserIntent","surfaceRequest","deeperIntent","operationalRisk","executionMode","nextAction"];for(var i=0;i<keys.length;i+=1){try{if(value[keys[i]]!=null)out=out.concat(priority9FR1ComposerCollect(value[keys[i]],depth+1,seen));}catch(_){}}
+["packet","ctx","options","fallback","input","body","payload","meta","diagnostics","normalized","norm","routing","route","state","session","memory","conversationState","progressionMemory","memoryPatch","sessionPatch","finalEnvelope","questionShape"].forEach(function(k){try{if(value[k]!=null)out=out.concat(priority9FR1ComposerCollect(value[k],depth+1,seen));}catch(_){}});return out;}
+function priority9FR1ComposerSource(packet,ctx){return priority9FR1ComposerCollect({packet:packet,ctx:ctx},0,[]).filter(Boolean).join(" ");}
+function priority9FR1ComposerReadReply(packet){return priority90ReadReply(safeObj(packet));}
+function priority9FR1ComposerShouldForce(packet,ctx){var source=priority9FR1ComposerSource(packet,ctx);var reply=priority9FR1ComposerReadReply(packet);return priority9FR1LayeredPromptText(source)||priority9FR1Stale9ERecallText(reply)&&priority9FR1LayeredPromptText(source+" "+reply);}
+function priority9FR1ComposerDisciplinePacket(packet,ctx){var out=safeObj(packet);if(priority9FR1ComposerShouldForce(out,ctx)){var reply=priority9FR1LayeredReplyFor(priority9FR1ComposerSource(out,ctx));return priority9EApplyReplyEverywhere(out,reply,{priority9FR1LayeredPrecedenceHotfix:true,priority9FR1LayeredPrecedenceHotfixVersion:PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION,priority9FR1Reason:"layered_prompt_overrode_9e_recall",noUserFacingDiagnostics:true});}return out;}
+var __priority9FR1OriginalComposeMarionResponse=composeMarionResponse;
+composeMarionResponse=function priority9FR1ComposeMarionResponse(routed,input){return priority9FR1ComposerDisciplinePacket(__priority9FR1OriginalComposeMarionResponse(routed,input),{routed:safeObj(routed),input:safeObj(input),memory:safeObj(input).memory||safeObj(input).conversationState,progressionMemory:safeObj(input).progressionMemory});};
+run=function priority9FR1Run(routed,input){return composeMarionResponse(routed,input);};
+module.exports.PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION=PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION;module.exports.composeMarionResponse=composeMarionResponse;module.exports.run=run;module.exports.default=composeMarionResponse;module.exports._internal={...safeObj(module.exports._internal),priority9FR1LayeredPromptText,priority9FR1Stale9ERecallText,priority9FR1LayeredReplyFor,priority9FR1ComposerDisciplinePacket,priority9FR1ComposerShouldForce};
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_COMPOSER_PATCH_END
