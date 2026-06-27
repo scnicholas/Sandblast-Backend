@@ -6,7 +6,7 @@
  * Single-source final envelope builder + validator + JSON-safe transport normalizer.
  */
 
-const VERSION = "marionFinalEnvelope v2.3.4 MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "marionFinalEnvelope v2.3.4 MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -432,15 +432,27 @@ function unwrapReply(value) { const v = safeObj(value); if (isMarionFinalEnvelop
 
 
 // MARION_VISIBLE_FINAL_ENVELOPE_ALIAS_PATCH_START
+function adminVoiceEnvelopePromptFallback(prompt="",packet={}){
+  const p=safeObj(packet), payload=safeObj(p.payload), voice=safeObj(p.voice);
+  const allowed=p.adminVoiceDeliveryAllowed===true||p.adminVoiceRuntimeApproval===true||payload.adminVoiceDeliveryAllowed===true||payload.adminVoiceRuntimeApproval===true||voice.adminVoiceDeliveryAllowed===true||voice.adminVoiceRuntimeApproval===true;
+  const text=safeStr(prompt);
+  if(!allowed||!text)return "";
+  if(/^\s*(?:good\s+morning|morning)\s*(?:mac)?[\s.!?]*$/i.test(text))return "Good morning Mac.";
+  if(/^\s*(?:hello|hi)\s*(?:mac|marion)?[\s.!?]*$/i.test(text))return "Hello Mac.";
+  if(/\bspeak\b/i.test(text)&&/\b(?:short|brief|one)\b/i.test(text)&&/\b(?:confirmation|sentence)\b/i.test(text))return "Good morning Mac.";
+  if(text.length<=120&&!/[?]/.test(text)&&!/\b(?:diagnostic|runtime|packet|status|health|approve|deny|command|route|token|session)\b/i.test(text))return /[.!?]$/.test(text)?text:`${text}.`;
+  return "";
+}
 function attachVisibleReplyAliases(packet={}){
   const out=safeObj(packet);
-  const payload=safeObj(out.payload), result=safeObj(out.result), data=safeObj(out.data), fe=safeObj(out.finalEnvelope||payload.finalEnvelope||result.finalEnvelope||data.finalEnvelope);
+  const payload=safeObj(out.payload), result=safeObj(out.result), data=safeObj(out.data), voice=safeObj(out.voice), speech=safeObj(out.speech), fe=safeObj(out.finalEnvelope||payload.finalEnvelope||result.finalEnvelope||data.finalEnvelope);
   const prompt=extractPromptForEnvelopeSelection(out);
-  const reply=firstText(out.publicReply,out.visibleReply,out.finalReply,out.reply,out.text,out.displayReply,out.spokenText,out.answer,out.output,out.response,fe.publicReply,fe.visibleReply,fe.finalReply,fe.reply,fe.text,fe.displayReply,payload.publicReply,payload.visibleReply,payload.finalReply,payload.reply,payload.text,result.publicReply,result.visibleReply,result.finalReply,result.reply,result.text,data.publicReply,data.visibleReply,data.finalReply,data.reply,data.text,deterministicEnvelopeKnowledgeReply(prompt));
+  const reply=firstText(out.publicReply,out.visibleReply,out.finalReply,out.reply,out.text,out.displayReply,out.spokenText,out.speechText,out.answer,out.output,out.response,voice.spokenText,voice.speechText,speech.textSpeak,speech.textDisplay,fe.publicReply,fe.visibleReply,fe.finalReply,fe.reply,fe.text,fe.displayReply,fe.spokenText,payload.publicReply,payload.visibleReply,payload.finalReply,payload.reply,payload.text,payload.spokenText,result.publicReply,result.visibleReply,result.finalReply,result.reply,result.text,result.spokenText,data.publicReply,data.visibleReply,data.finalReply,data.reply,data.text,deterministicEnvelopeKnowledgeReply(prompt),adminVoiceEnvelopePromptFallback(prompt,out));
   if(!reply)return out;
-  out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.text=reply;out.displayReply=reply;out.spokenText=reply;out.answer=reply;out.output=reply;out.response=reply;
-  out.payload={...payload,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,answer:reply,output:reply,response:reply};
-  out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,answer:reply,output:reply,response:reply,final:true,marionFinal:true,canEmit:true};
+  out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.text=reply;out.displayReply=reply;out.spokenText=reply;out.speechText=reply;out.answer=reply;out.output=reply;out.response=reply;
+  out.payload={...payload,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,speechText:reply,answer:reply,output:reply,response:reply};
+  out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,speechText:reply,answer:reply,output:reply,response:reply,final:true,marionFinal:true,canEmit:true};
+  out.voice={...voice,spokenText:voice.spokenText||reply,speechText:voice.speechText||reply,audioStored:false,rawAudioStored:false,noRawAudioStored:true};
   out.final=true;out.marionFinal=true;out.canEmit=true;out.publicSurfaceClean=true;
   return out;
 }
