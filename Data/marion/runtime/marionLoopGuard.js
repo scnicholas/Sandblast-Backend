@@ -13,7 +13,7 @@
  *   mutate durable memory.
  */
 
-const VERSION = "marionLoopGuard v1.3.0 PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
+const VERSION = "marionLoopGuard v1.4.0 PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
 const PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION = "sandblast.guardian.protectiveEscalationLoopGuard/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
@@ -43,7 +43,19 @@ const DEFAULT_BLOCKED_PHRASES = Object.freeze([
   "route kind",
   "referenceerror",
   "typeerror",
-  "syntaxerror"
+  "syntaxerror",
+  "i have the current request",
+  "marion will answer from this prompt",
+  "will answer from this prompt",
+  "keep the reply concrete",
+  "avoid reusing a stale fallback",
+  "current prompt",
+  "current request",
+  "recovery path",
+  "loop detected",
+  "suppression",
+  "regenerating",
+  "stale fallback"
 ]);
 
 const TELEMETRY_VISIBILITY_VERSION = "nyx.marion.telemetryVisibility/1.0";
@@ -518,8 +530,30 @@ function applyLoopGuard(packet = {}, candidateReply = "", options = {}) {
   };
 }
 
+
+// PRIORITY_9E_META_RECOVERY_SUPPRESSION_PATCH_START
+const PRIORITY_9E_LOOP_GOVERNOR_VERSION = "nyx.marion.priority9e.loopGovernorMetaRecoverySuppression/1.0";
+function isPriority9EMetaRecoveryLeakText(value = "") {
+  const text = oneLine(value).toLowerCase();
+  if (!text) return false;
+  return /\b(i have the current request|marion will answer from this prompt|will answer from this prompt|answer from this prompt|keep the reply concrete|avoid reusing a stale fallback|current prompt|current request|loop detected|recovery path|meta[-\s]?recovery|suppression|regenerating|stale fallback|fallback reuse|reply concrete)\b/i.test(text);
+}
+function isPriority9EContinuationCommand(text = "") {
+  const t = normalizeText(text).replace(/[.!?]+$/g, "").trim();
+  return /^(run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it|continue|carry on|keep going|proceed)$/.test(t);
+}
+function buildPriority9EFreshContinuationReply(prompt = "", previousReply = "") {
+  const source = oneLine([prompt, previousReply].filter(Boolean).join(" "));
+  if (/priority\s*(?:9e|90|9c|9d)|loop|fallback|echo|continuation|five[-\s]?turn|nyx route|handoff/i.test(source)) {
+    return "Run the Priority 9E sequence again: verify the active lane, repeat the continuation prompt, confirm fresh wording, reject internal governor wording, then move forward only after the public answer stays conversational.";
+  }
+  return "Run the last valid task again with fresh wording, keep the active context intact, and return the next concrete action instead of describing the internal process.";
+}
+// PRIORITY_9E_META_RECOVERY_SUPPRESSION_PATCH_END
+
 module.exports = {
   VERSION,
+  PRIORITY_9E_LOOP_GOVERNOR_VERSION,
   TELEMETRY_VISIBILITY_VERSION,
   FAILURE_SIGNATURE_AUDIT_VERSION,
   PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION,
@@ -537,6 +571,9 @@ module.exports = {
   buildFailureSignatureAudit,
   isTelemetryLeakText,
   stripTelemetryLeakFromReply,
+  isPriority9EMetaRecoveryLeakText,
+  isPriority9EContinuationCommand,
+  buildPriority9EFreshContinuationReply,
   normalizeProtectiveEscalationCarry,
   extractProtectiveEscalationCarry,
   protectiveEscalationPolicyViolation,
