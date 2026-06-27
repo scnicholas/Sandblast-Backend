@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionMemory v1.1.3 PRIORITY-9E-LAST-VALID-TASK-CARRY + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
+const VERSION = "PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionMemory v1.1.3 PRIORITY-9E-LAST-VALID-TASK-CARRY + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
 const PROGRESSION_MEMORY_VERSION = "nyx.marion.progressionMemory/1.1";
 const PARALLEL_LANE_RECENCY_VERSION = "nyx.marion.parallelLaneRecency/0.1";
 const shape = require("./progressionShape.js");
@@ -172,3 +172,12 @@ module.exports.isPriority9FDeepConversationalText = isPriority9FDeepConversation
 module.exports.normalizePriority9FDeepConversationCarry = normalizePriority9FDeepConversationCarry;
 module.exports.buildPriority9FDeepConversationCarry = buildPriority9FDeepConversationCarry;
 // PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_MEMORY_PATCH_END
+
+
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_MEMORY_PATCH_START
+const PRIORITY_9F_R1_LAYERED_PRECEDENCE_MEMORY_VERSION="nyx.marion.priority9fR1.layeredPrecedenceMemory/1.0";
+function isPriority9FR1LayeredPrecedenceText(text=""){const t=safeStr(text).toLowerCase().replace(/[_-]+/g," ");return /\b(priority\s*9f|9f\s*r1|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|full conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action)\b/i.test(t)||(/\b(disjointed|deeper|layered|multi|context|looping|loop|recovery)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next)\b/i.test(t));}
+const __priority9FR1OriginalUpdateProgressionMemory=module.exports.updateProgressionMemory||updateProgressionMemory;
+function updatePriority9FR1LayeredPrecedenceMemory(args={}){const text=safeStr(args.text);if(!isPriority9FR1LayeredPrecedenceText(text))return __priority9FR1OriginalUpdateProgressionMemory(args);const prev=normalizeProgressionMemory(args.previous||{});return normalizeProgressionMemory({...prev,active:true,lane:"priority9f_deep_conversational_stack",activePhase:"priority9f_deep_conversational_stack",currentStep:"priority9f_r1",phaseKey:"priority9f_r1",phaseId:"PRIORITY_9F_R1_LAYERED_PRECEDENCE",phaseLabel:"Priority 9F-R1: Layered prompt precedence",lastUserIntent:"deep_conversational_stack",signal:"deep_conversational_stack",lastSystemAction:"layered_conversational_stack",pendingAction:"force_9f_layered_stack_before_9e_recall",responseShape:"layered_conversational_stack",confidence:0.97,lastValidTask:"Priority 9F deep conversational stack",lastPendingTask:"force 9F-R1 precedence over stale Priority 90/9E recall",lastContinuationIntent:"",noUserFacingDiagnostics:true,priority9FR1LayeredPrecedence:true,updatedAt:Date.now()});}
+module.exports.PRIORITY_9F_R1_LAYERED_PRECEDENCE_MEMORY_VERSION=PRIORITY_9F_R1_LAYERED_PRECEDENCE_MEMORY_VERSION;module.exports.isPriority9FR1LayeredPrecedenceText=isPriority9FR1LayeredPrecedenceText;module.exports.updateProgressionMemory=updatePriority9FR1LayeredPrecedenceMemory;module.exports.default=updatePriority9FR1LayeredPrecedenceMemory;
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_MEMORY_PATCH_END
