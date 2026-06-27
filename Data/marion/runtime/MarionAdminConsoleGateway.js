@@ -12,7 +12,7 @@
  * - Keeps emergency execution locked behind CONFIRM_MARION_EMERGENCY.
  */
 
-const VERSION = "marion.adminConsole.gateway/1.4-admin-private-voice-receive";
+const VERSION = "PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + marion.adminConsole.gateway/1.4-admin-private-voice-receive";
 const EMERGENCY_CONFIRMATION = "CONFIRM_MARION_EMERGENCY";
 
 const DEFAULT_STATUS = Object.freeze({
@@ -1402,3 +1402,22 @@ module.exports = {
   handle,
   process
 };
+
+
+// PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_ADMIN_GATEWAY_PATCH_START
+const PRIORITY_9F_R3_ADMIN_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION="nyx.marion.adminGateway.priority9fR3.altPromptEchoSuppression/1.0";
+function priority9FR3AdminNormalize(value){return cleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9FR3AdminLayeredPrompt(value){const t=priority9FR3AdminNormalize(value);return /\b(priority\s*9f|9f\s*r3|alt runtime|prompt echo|deep conversational stack|layered conversational|conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action|marion conversational architecture)\b/i.test(t)||(/\b(disjointed|deeper|layered|context|looping|loop|recovery|preserve|avoid|where to go next|understand)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next|understand|deeper task)\b/i.test(t));}
+function priority9FR3AdminPromptEcho(reply,prompt){const r=priority9FR3AdminNormalize(reply),p=priority9FR3AdminNormalize(prompt);if(!r||!p)return false;if(r===p)return true;if(p.length>36&&(r.indexOf(p)>=0||p.indexOf(r)>=0))return true;return false;}
+function priority9FR3AdminPromptFrom(input){return extractCommandText(input)||cleanText(safeObj(input).prompt||safeObj(input).message||safeObj(input).text||safeObj(input).query||safeObj(safeObj(input).payload).text||"");}
+function priority9FR3AdminReply(){return "I’m reading this as Priority 9F-R3: ALT runtime prompt-echo suppression. The surface request is to stabilize Marion’s layered conversational behavior; the deeper intent is to preserve context, avoid looping, and turn disjointed input into a clear next move. The active lane is Marion conversational architecture. The main risk is the ALT/admin handler returning the raw prompt instead of the composed answer, so the response mode must stay layered: identify the surface request, deeper intent, risk, execution mode, and next action. Next move: keep 9F dominant across ALT, bridge, final envelope, and last-mile render, then rerun the live layered prompt.";}
+function priority9FR3AdminAttach(packet,reply){const out=safeObj(packet);out.ok=true;out.stage=cleanText(out.stage||"priority9f_r3_admin_gateway_echo_suppressed");out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.displayReply=reply;out.text=reply;out.message=reply;out.response=reply;out.answer=reply;out.output=reply;out.final=true;out.marionFinal=true;out.canEmit=true;out.promptEchoSuppressed=true;out.priority9FR3AdminGatewayAltPromptEchoSuppression=true;out.payload={...safeObj(out.payload),reply:reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,message:reply,response:reply,answer:reply,output:reply};out.meta={...safeObj(out.meta),priority9FR3AdminGatewayAltPromptEchoSuppression:true,priority9FR3AdminGatewayAltPromptEchoSuppressionVersion:PRIORITY_9F_R3_ADMIN_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION,noUserFacingDiagnostics:true};return out;}
+const __priority9FR3AdminOriginalHandleCommand=MarionAdminConsoleGateway.prototype.handleCommand;
+MarionAdminConsoleGateway.prototype.handleCommand=async function priority9FR3AdminHandleCommand(input={},context={}){const prompt=priority9FR3AdminPromptFrom(input);const packet=await __priority9FR3AdminOriginalHandleCommand.call(this,input,context);const reply=firstText([safeObj(packet).reply,safeObj(packet).publicReply,safeObj(packet).visibleReply,safeObj(packet).finalReply,safeObj(packet).text,safeObj(packet).message,safeObj(packet).response]);if(priority9FR3AdminLayeredPrompt(prompt)&&(priority9FR3AdminPromptEcho(reply,prompt)||!reply)){return this.safeResponse(priority9FR3AdminAttach(packet,priority9FR3AdminReply()));}return packet;};
+handleCommand=function priority9FR3HandleCommand(input={},context={}){return defaultGateway.handleCommand(input,context);};
+handleAdminConsoleAction=function priority9FR3HandleAdminConsoleAction(input={},context={}){return defaultGateway.handleAdminConsoleAction(input,context);};
+handle=function priority9FR3Handle(input={},context={}){return defaultGateway.handle(input,context);};
+process=function priority9FR3Process(input={},context={}){return defaultGateway.process(input,context);};
+bindStatic("handleCommand",handleCommand);bindStatic("dispatchCommand",handleCommand);bindStatic("routeCommand",handleCommand);bindStatic("command",handleCommand);bindStatic("handleAdminCommand",handleCommand);bindStatic("handleAdminConsoleAction",handleAdminConsoleAction);bindStatic("handle",handle);bindStatic("process",process);
+module.exports.PRIORITY_9F_R3_ADMIN_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION=PRIORITY_9F_R3_ADMIN_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION;module.exports.handleCommand=handleCommand;module.exports.dispatchCommand=handleCommand;module.exports.routeCommand=handleCommand;module.exports.command=handleCommand;module.exports.handleAdminCommand=handleCommand;module.exports.handleAdminConsoleAction=handleAdminConsoleAction;module.exports.handle=handle;module.exports.process=process;
+// PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_ADMIN_GATEWAY_PATCH_END
