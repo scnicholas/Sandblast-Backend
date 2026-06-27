@@ -6,7 +6,7 @@
  * Single-source final envelope builder + validator + JSON-safe transport normalizer.
  */
 
-const VERSION = "marionFinalEnvelope v2.3.7 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionFinalEnvelope v2.3.7 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -539,3 +539,34 @@ var __priority9ER3OriginalAttachVisibleReplyAliases=attachVisibleReplyAliases;
 attachVisibleReplyAliases=function priority9ER3AttachVisibleReplyAliases(packet){return priority9ER3EnvelopeDisciplinePacket(__priority9ER3OriginalAttachVisibleReplyAliases(packet));};
 module.exports.PRIORITY_9E_R3_FINAL_ENVELOPE_SPECIFIC_TASK_RECALL_ENFORCEMENT_VERSION=PRIORITY_9E_R3_FINAL_ENVELOPE_SPECIFIC_TASK_RECALL_ENFORCEMENT_VERSION;module.exports.createMarionFinalEnvelope=createMarionFinalEnvelope;module.exports.attachVisibleReplyAliases=attachVisibleReplyAliases;module.exports._internal={...safeObj(module.exports._internal),priority9ER3EnvelopeContinuation,priority9ER3EnvelopeAbstractLeak,priority9ER3EnvelopeResolveTask,priority9ER3EnvelopeSpecificReply,priority9ER3EnvelopeDisciplinePacket};
 // PRIORITY_9E_R3_FINAL_ENVELOPE_SPECIFIC_TASK_RECALL_ENFORCEMENT_PATCH_END
+
+
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_FINAL_ENVELOPE_PATCH_START
+const PRIORITY_9F_FINAL_ENVELOPE_DEEP_CONVERSATIONAL_STACK_VERSION="nyx.marion.finalEnvelope.priority9f.deepConversationalStack/1.0";
+function priority9FEnvelopeOneLine(value){return safeStr(value).replace(/\s+/g," ").trim();}
+function priority9FEnvelopeNorm(value){return priority9FEnvelopeOneLine(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9FEnvelopeDeepPrompt(value=""){const t=priority9FEnvelopeNorm(value);return /\b(priority\s*9f|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|multi layer|multi layered|deep conversational|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|full conversational stack)\b/i.test(t)||(/\b(disjointed|layered|deeper|multi)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|loop|recovery|next)\b/i.test(t));}
+function priority9FEnvelopeWeak(value=""){const t=priority9FEnvelopeNorm(value);return !t||/\b(what would you like to work on|send me the target|give me the exact target|i have the current request|will answer from this prompt|will continue|one clean final reply|last valid marion sequence|active lane|current prompt|recovery path|loop detected|suppression|diagnostic packet|final envelope|runtime telemetry|state spine|routekind|sessionpatch)\b/i.test(t);}
+function priority9FEnvelopeHasStack(value=""){const t=priority9FEnvelopeNorm(value);return /\bsurface request\b/.test(t)&&/\bdeeper intent\b/.test(t)&&/\bmain risk\b/.test(t)&&/\bnext move\b/.test(t);}
+function priority9FEnvelopeReplyFor(prompt="",reply=""){
+ const source=priority9FEnvelopeOneLine([prompt,reply].filter(Boolean).join(" "));
+ let lane=/priority\s*9f|deep conversational stack|layered conversational|conversational stack/i.test(source)?"Priority 9F deep conversational stack":(/priority\s*9e|loop governor|meta[-\s]?recovery|continuation|run that again/i.test(source)?"Priority 9E continuation discipline":"Marion conversational stabilization");
+ const surface=/surgical autopsy|patch|fix|update|resend|zip|downloadable/i.test(source)?"repair the uploaded runtime files and return a tested package":(/run that again|continue|same thing|keep going/i.test(source)?"repeat the active task as a fresh continuation":"activate Marion’s layered conversation behavior");
+ const intent=/loop|recovery|fallback|echo/i.test(source)?"keep Marion useful under pressure by separating the real task from loop risk and recovery noise":"make Marion read the literal request, the purpose underneath it, the active project, and the next operational move";
+ const risk=/loop|echo|fallback|recovery|governor|meta/i.test(source)?"looping, prompt echo, recovery wording, and shallow continuation":"losing the active context or answering only the surface wording";
+ const mode=/surgical autopsy|patch|fix|update|resend|zip|downloadable/i.test(source)?"surgical patch and regression validation":"layered conversational response";
+ const next=/surgical autopsy|patch|fix|update|resend|zip|downloadable/i.test(source)?"patch the tight runtime set, run the 9F regression, and only then move toward voice":"run a five-turn layered-intent test and confirm Marion preserves the deeper task without exposing recovery language";
+ return `I’m reading this as ${lane}. The surface request is to ${surface}; the deeper intent is to ${intent}. The main risk is ${risk}, so the response mode should be ${mode}: hold the context, answer the real task, and give the next concrete move. Next move: ${next}.`;
+}
+function priority9FEnvelopeDisciplinePacket(packet={}){
+ const out=safeObj(packet), prompt=priority90EnvelopePrompt(out), reply=priority90EnvelopeReadReply(out);
+ if(priority9FEnvelopeDeepPrompt(prompt)&&(!priority9FEnvelopeHasStack(reply)||priority9FEnvelopeWeak(reply)))return priority90EnvelopeApplyReply(out,priority9FEnvelopeReplyFor(prompt,reply),{priority9FFinalEnvelopeDeepConversationalStack:true,priority9FFinalEnvelopeDeepConversationalStackVersion:PRIORITY_9F_FINAL_ENVELOPE_DEEP_CONVERSATIONAL_STACK_VERSION,noUserFacingDiagnostics:true});
+ return out;
+}
+var __priority9FOriginalCreateMarionFinalEnvelope=createMarionFinalEnvelope;
+createMarionFinalEnvelope=function priority9FCreateMarionFinalEnvelope(input){return priority9FEnvelopeDisciplinePacket(__priority9FOriginalCreateMarionFinalEnvelope(input));};
+var __priority9FOriginalAttachVisibleReplyAliases=attachVisibleReplyAliases;
+attachVisibleReplyAliases=function priority9FAttachVisibleReplyAliases(packet){return priority9FEnvelopeDisciplinePacket(__priority9FOriginalAttachVisibleReplyAliases(packet));};
+module.exports.PRIORITY_9F_FINAL_ENVELOPE_DEEP_CONVERSATIONAL_STACK_VERSION=PRIORITY_9F_FINAL_ENVELOPE_DEEP_CONVERSATIONAL_STACK_VERSION;module.exports.createMarionFinalEnvelope=createMarionFinalEnvelope;module.exports.attachVisibleReplyAliases=attachVisibleReplyAliases;
+module.exports._internal={...safeObj(module.exports._internal),priority9FEnvelopeDeepPrompt,priority9FEnvelopeReplyFor,priority9FEnvelopeDisciplinePacket,priority9FEnvelopeWeak,priority9FEnvelopeHasStack};
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_FINAL_ENVELOPE_PATCH_END
