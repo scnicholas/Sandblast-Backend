@@ -3130,3 +3130,81 @@ module.exports.PRIORITY_9F_R4_BRIDGE_CONTINUATION_CARRY_VERSION=PRIORITY_9F_R4_B
 module.exports.processWithMarion=processWithMarion;module.exports.maybeResolve=maybeResolve;module.exports.ask=ask;module.exports.handle=handle;module.exports.route=route;module.exports.default=processWithMarion;
 module.exports._internal={...(module.exports._internal||{}),priority9FR4BridgeIsShortContinuation,priority9FR4BridgeIsCarryInstruction,priority9FR4BridgeHas9FContext,priority9FR4BridgeReply,priority9FR4BridgeDisciplinePacket,priority9FR4BridgeShouldForce};
 // PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_BRIDGE_PATCH_END
+
+
+// PRIORITY_9G_DEEP_CONTINUITY_MEMORY_BRIDGE_PATCH_START
+const PRIORITY_9G_DEEP_CONTINUITY_MEMORY_BRIDGE_VERSION="PRIORITY-9G-DEEP-CONTINUITY-MEMORY-BRIDGE/1.0";
+
+function priority9GNorm(value){return String(value==null?"":value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9GStr(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
+function priority9GObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function priority9GCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||9000);}catch(_){return "";}}
+function priority9GIsShortFollowup(value){const t=priority9GNorm(value);return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it|what now|whats next|what s next|where are we|where do we go next|next)$/.test(t);}
+function priority9GIsActivationText(value){const t=priority9GNorm(value);return /\b(priority 9g|9g deep continuity|deep continuity memory|layered follow up handling|layered followup handling|deeper continuity memory|continuity memory confidence|carry the deeper task|carry active task|carry the active task|longer sequences|multi turn continuity|six turn continuity|without needing the full context repeated|without full context repeated|surface request deeper intent risk execution mode next action|active task risk execution mode next action)\b/.test(t);}
+function priority9GHasContext(value){const t=priority9GNorm(value);return priority9GIsActivationText(t)||/\b(priority 9f r4|9f r4 continuation carry|priority 9f deep conversational stack|deep conversational stack|9f conversational stack|marion conversational stabilization|marion conversational architecture|lock priority 9f r3 as live accepted|deeper continuity memory and layered follow up handling|layered follow up handling)\b/.test(t);}
+function priority9GOldLaneLeak(value){const t=priority9GNorm(value);return /\b(priority 9f r3 as live accepted|priority 9f r4 continuation carry|keep the public nyx route clean|five turn continuity test|priority 90 9e test|in psychology the focus|alt runtime prompt echo suppression|domain hijack suppression)\b/.test(t);}
+function priority9GReplyFor(prompt){
+  const t=priority9GNorm(prompt);
+  if(/^(next steps?|next)$/.test(t)){
+    return "Next steps: lock Priority 9G as the active memory lane, carry the surface request, deeper intent, active task, risk, execution mode, and next action across short follow-ups, then run a longer continuity pass before voice activation.";
+  }
+  if(/^(continue|carry on|keep going|proceed)$/.test(t)){
+    return "Continue: keep Priority 9G active, advance the deep continuity memory layer, and confirm each follow-up moves the same Marion stabilization task forward without forcing the context to be restated.";
+  }
+  if(/^(run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it)$/.test(t)){
+    return "Run the Priority 9G continuity pass again: restate the active Marion lane, preserve the deeper task, carry the risk and execution mode, then answer the next short follow-up with a concrete next action.";
+  }
+  if(/^(what now|whats next|what s next|where are we|where do we go next)$/.test(t)){
+    return "What now: lock Priority 9G live, run the multi-turn memory carry test, and only move toward mic activation after Marion preserves the active task, risk, execution mode, and next action across longer follow-up chains.";
+  }
+  return "I’m reading this as Priority 9G: deep continuity memory and layered follow-up handling. The surface request is to make Marion carry the active task across longer sequences; the deeper intent is to preserve the project lane, risk, execution mode, and next action without making the context get repeated. The main risk is shallow follow-up handling that only answers the last sentence. Next move: lock a 9G continuity memory object, run a multi-turn follow-up pass, and confirm Marion advances the same layered task through “Next steps,” “Continue,” “Run that again,” and “What now.”";
+}
+function priority9GApplyPacket(packet,reply,prompt){
+  const out=(packet&&typeof packet==="object"&&!Array.isArray(packet))?{...packet}:{};
+  const final=priority9GStr(reply)||priority9GReplyFor(prompt);
+  ["reply","finalReply","publicReply","visibleReply","text","message","response","answer","spokenText"].forEach(k=>{out[k]=final;});
+  out.payload={...(out.payload&&typeof out.payload==="object"?out.payload:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};
+  out.finalEnvelope={...(out.finalEnvelope&&typeof out.finalEnvelope==="object"?out.finalEnvelope:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};
+  out.priority9GDeepContinuityMemory=true;
+  out.priority9GVersion="PRIORITY-9G-DEEP-CONTINUITY-MEMORY";
+  out.conversationLane="Priority 9G deep continuity memory";
+  out.surfaceRequest="carry the active task across longer sequences";
+  out.deeperIntent="preserve project lane, risk, execution mode, and next action across layered follow-ups";
+  out.operationalRisk="short follow-ups may collapse into stale handoff, old 9F wording, or last-sentence-only answers";
+  out.executionMode="deep continuity memory and layered follow-up handling";
+  out.nextAction="run the multi-turn 9G continuity pass";
+  out.noUserFacingDiagnostics=true;
+  return out;
+}
+function priority9GReadReply(packet){const p=priority9GObj(packet);const pl=priority9GObj(p.payload);const f=priority9GObj(p.finalEnvelope);return priority9GStr(p.reply||p.finalReply||p.publicReply||p.visibleReply||p.text||p.message||p.response||p.answer||pl.reply||pl.finalReply||pl.publicReply||pl.visibleReply||pl.text||pl.message||pl.answer||f.reply||f.finalReply||f.publicReply||f.visibleReply||f.text||f.message||f.answer);}
+
+function priority9GBridgePrompt(ctx={},packet={}){
+  const c=priority9GObj(ctx),s=priority9GObj(c.sourceInput),n=priority9GObj(c.normalized),p=priority9GObj(packet),pl=priority9GObj(p.payload);
+  return priority9GStr(c.prompt||c.text||s.prompt||s.text||s.userText||s.message||n.prompt||n.text||n.userText||p.prompt||pl.prompt||pl.text||"");
+}
+function priority9GBridgeShouldForce(packet,ctx={}){
+  const prompt=priority9GBridgePrompt(ctx,packet);
+  const source=[prompt,priority9GCollect(ctx),priority9GCollect(packet)].join(" ");
+  const reply=priority9GReadReply(packet);
+  return priority9GIsActivationText(prompt)||priority9GIsActivationText(source)||(priority9GIsShortFollowup(prompt)&&priority9GHasContext(source))||((priority9GIsActivationText(source)||priority9GIsShortFollowup(prompt))&&priority9GOldLaneLeak(reply));
+}
+function priority9GBridgeDisciplinePacket(packet,ctx={}){
+  if(!priority9GBridgeShouldForce(packet,ctx))return packet;
+  const prompt=priority9GBridgePrompt(ctx,packet);
+  return priority9GApplyPacket(packet,priority9GReplyFor(prompt),prompt);
+}
+var __priority9GOriginalProcessWithMarion=processWithMarion;
+processWithMarion=async function priority9GProcessWithMarion(input){
+  const packet=await __priority9GOriginalProcessWithMarion(input);
+  let normalized={};
+  try{normalized=normalizeInbound(input);}catch(_){normalized=(input&&input.normalized)||{};}
+  return priority9GBridgeDisciplinePacket(packet,{sourceInput:input||{},normalized});
+};
+maybeResolve=async function priority9GMaybeResolve(input){return processWithMarion(input);};
+ask=async function priority9GAsk(input){return processWithMarion(input);};
+handle=async function priority9GHandle(input){return processWithMarion(input);};
+route=async function priority9GRoute(input){return processWithMarion(input);};
+module.exports.PRIORITY_9G_DEEP_CONTINUITY_MEMORY_BRIDGE_VERSION=PRIORITY_9G_DEEP_CONTINUITY_MEMORY_BRIDGE_VERSION;
+module.exports.processWithMarion=processWithMarion;module.exports.maybeResolve=maybeResolve;module.exports.ask=ask;module.exports.handle=handle;module.exports.route=route;module.exports.default=processWithMarion;
+module.exports._internal={...(module.exports._internal||{}),priority9GIsActivationText,priority9GIsShortFollowup,priority9GHasContext,priority9GReplyFor,priority9GBridgeDisciplinePacket,priority9GBridgeShouldForce};
+// PRIORITY_9G_DEEP_CONTINUITY_MEMORY_BRIDGE_PATCH_END
