@@ -12,7 +12,7 @@
  * - Keeps emergency execution locked behind CONFIRM_MARION_EMERGENCY.
  */
 
-const VERSION = "marion.adminConsole.gateway/1.3-admin-voice-output-projection";
+const VERSION = "marion.adminConsole.gateway/1.4-admin-private-voice-receive";
 const EMERGENCY_CONFIRMATION = "CONFIRM_MARION_EMERGENCY";
 
 const DEFAULT_STATUS = Object.freeze({
@@ -260,6 +260,11 @@ function publicAdminVoiceApprovalState(state) {
     projectedVoiceMode: active ? "voice" : "silent",
     rawVoiceMode: active ? "voice" : "silent",
     speechSyncEnabled: active,
+    privateVoiceReceiveReady: active,
+    privateVoiceDelivery: active,
+    adminOnlyVoiceDelivery: true,
+    deliveryChannel: active ? "marion_admin_private_voice" : "marion_admin_interface",
+    capability: active ? "voice.private.receive" : "",
     singleUtterance: s.singleUtterance !== false,
     maxSeconds: Number(s.maxSeconds || ADMIN_VOICE_MAX_SECONDS),
     expiresInMs: active ? Math.max(0, expiresAt - now()) : 0,
@@ -1267,6 +1272,38 @@ async function process(input = {}, context = {}) {
 }
 
 
+
+function buildAdminPrivateVoiceReceivePacket(input = {}) {
+  const src = safeObj(input);
+  const text = cleanText(src.spokenText || src.speechText || src.text || src.reply || "");
+  const allowed = src.adminVoiceDeliveryAllowed === true || src.adminVoiceRuntimeApproval === true || src.speakAllowed === true;
+  return {
+    ok: allowed && !!text,
+    version: "marion.adminPrivateVoiceReceive/1.0",
+    capability: "voice.private.receive",
+    stage: allowed && text ? "admin_private_voice_receive_ready" : "admin_private_voice_receive_locked",
+    deliveryChannel: allowed ? "marion_admin_private_voice" : "marion_admin_interface",
+    authority: "Marion",
+    publicSurface: "Nyx",
+    privateControlPlane: true,
+    adminOnly: true,
+    speakAllowed: allowed && !!text,
+    voiceMode: allowed && text ? "voice" : "silent",
+    projectedVoiceMode: allowed && text ? "voice" : "silent",
+    rawVoiceMode: allowed && text ? "voice" : "silent",
+    spokenText: allowed ? text : "",
+    speechText: allowed ? text : "",
+    speechSyncEnabled: allowed && !!text,
+    singleUtterance: src.singleUtterance !== false,
+    consumedForThisTurn: allowed && !!text,
+    maxSeconds: Number(src.maxSeconds || ADMIN_VOICE_MAX_SECONDS) || ADMIN_VOICE_MAX_SECONDS,
+    audioStored: false,
+    rawAudioStored: false,
+    noRawAudioStored: true,
+    diagnosticsRedacted: true
+  };
+}
+
 function getAdminVoiceRuntimeState(options = {}) {
   return defaultGateway.currentAdminVoiceApprovalState(options);
 }
@@ -1312,6 +1349,7 @@ bindStatic("safeMode", handleEmergency);
 bindStatic("getAdminVoiceRuntimeState", getAdminVoiceRuntimeState);
 bindStatic("consumeAdminVoiceRuntimeApproval", consumeAdminVoiceRuntimeApproval);
 bindStatic("getPendingApprovals", getPendingApprovals);
+bindStatic("buildAdminPrivateVoiceReceivePacket", buildAdminPrivateVoiceReceivePacket);
 bindStatic("handleAdminConsoleAction", handleAdminConsoleAction);
 bindStatic("handle", handle);
 bindStatic("process", process);
@@ -1358,6 +1396,7 @@ module.exports = {
   getAdminVoiceRuntimeState,
   consumeAdminVoiceRuntimeApproval,
   getPendingApprovals,
+  buildAdminPrivateVoiceReceivePacket,
 
   handleAdminConsoleAction,
   handle,
