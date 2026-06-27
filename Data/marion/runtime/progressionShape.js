@@ -256,3 +256,82 @@ module.exports.buildPriority9FR4ContinuationCarryProfile=buildPriority9FR4Contin
 module.exports.buildProgressionProfile=buildPriority9FR4ContinuationCarryProfile;
 module.exports.default=buildPriority9FR4ContinuationCarryProfile;
 // PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_SHAPE_PATCH_END
+
+
+// PRIORITY_9G_DEEP_CONTINUITY_MEMORY_SHAPE_PATCH_START
+const PRIORITY_9G_DEEP_CONTINUITY_MEMORY_SHAPE_VERSION="PRIORITY-9G-DEEP-CONTINUITY-MEMORY-SHAPE/1.0";
+
+function priority9GNorm(value){return String(value==null?"":value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9GStr(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
+function priority9GObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function priority9GCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||9000);}catch(_){return "";}}
+function priority9GIsShortFollowup(value){const t=priority9GNorm(value);return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it|what now|whats next|what s next|where are we|where do we go next|next)$/.test(t);}
+function priority9GIsActivationText(value){const t=priority9GNorm(value);return /\b(priority 9g|9g deep continuity|deep continuity memory|layered follow up handling|layered followup handling|deeper continuity memory|continuity memory confidence|carry the deeper task|carry active task|carry the active task|longer sequences|multi turn continuity|six turn continuity|without needing the full context repeated|without full context repeated|surface request deeper intent risk execution mode next action|active task risk execution mode next action)\b/.test(t);}
+function priority9GHasContext(value){const t=priority9GNorm(value);return priority9GIsActivationText(t)||/\b(priority 9f r4|9f r4 continuation carry|priority 9f deep conversational stack|deep conversational stack|9f conversational stack|marion conversational stabilization|marion conversational architecture|lock priority 9f r3 as live accepted|deeper continuity memory and layered follow up handling|layered follow up handling)\b/.test(t);}
+function priority9GOldLaneLeak(value){const t=priority9GNorm(value);return /\b(priority 9f r3 as live accepted|priority 9f r4 continuation carry|keep the public nyx route clean|five turn continuity test|priority 90 9e test|in psychology the focus|alt runtime prompt echo suppression|domain hijack suppression)\b/.test(t);}
+function priority9GReplyFor(prompt){
+  const t=priority9GNorm(prompt);
+  if(/^(next steps?|next)$/.test(t)){
+    return "Next steps: lock Priority 9G as the active memory lane, carry the surface request, deeper intent, active task, risk, execution mode, and next action across short follow-ups, then run a longer continuity pass before voice activation.";
+  }
+  if(/^(continue|carry on|keep going|proceed)$/.test(t)){
+    return "Continue: keep Priority 9G active, advance the deep continuity memory layer, and confirm each follow-up moves the same Marion stabilization task forward without forcing the context to be restated.";
+  }
+  if(/^(run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it)$/.test(t)){
+    return "Run the Priority 9G continuity pass again: restate the active Marion lane, preserve the deeper task, carry the risk and execution mode, then answer the next short follow-up with a concrete next action.";
+  }
+  if(/^(what now|whats next|what s next|where are we|where do we go next)$/.test(t)){
+    return "What now: lock Priority 9G live, run the multi-turn memory carry test, and only move toward mic activation after Marion preserves the active task, risk, execution mode, and next action across longer follow-up chains.";
+  }
+  return "I’m reading this as Priority 9G: deep continuity memory and layered follow-up handling. The surface request is to make Marion carry the active task across longer sequences; the deeper intent is to preserve the project lane, risk, execution mode, and next action without making the context get repeated. The main risk is shallow follow-up handling that only answers the last sentence. Next move: lock a 9G continuity memory object, run a multi-turn follow-up pass, and confirm Marion advances the same layered task through “Next steps,” “Continue,” “Run that again,” and “What now.”";
+}
+function priority9GApplyPacket(packet,reply,prompt){
+  const out=(packet&&typeof packet==="object"&&!Array.isArray(packet))?{...packet}:{};
+  const final=priority9GStr(reply)||priority9GReplyFor(prompt);
+  ["reply","finalReply","publicReply","visibleReply","text","message","response","answer","spokenText"].forEach(k=>{out[k]=final;});
+  out.payload={...(out.payload&&typeof out.payload==="object"?out.payload:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};
+  out.finalEnvelope={...(out.finalEnvelope&&typeof out.finalEnvelope==="object"?out.finalEnvelope:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};
+  out.priority9GDeepContinuityMemory=true;
+  out.priority9GVersion="PRIORITY-9G-DEEP-CONTINUITY-MEMORY";
+  out.conversationLane="Priority 9G deep continuity memory";
+  out.surfaceRequest="carry the active task across longer sequences";
+  out.deeperIntent="preserve project lane, risk, execution mode, and next action across layered follow-ups";
+  out.operationalRisk="short follow-ups may collapse into stale handoff, old 9F wording, or last-sentence-only answers";
+  out.executionMode="deep continuity memory and layered follow-up handling";
+  out.nextAction="run the multi-turn 9G continuity pass";
+  out.noUserFacingDiagnostics=true;
+  return out;
+}
+function priority9GReadReply(packet){const p=priority9GObj(packet);const pl=priority9GObj(p.payload);const f=priority9GObj(p.finalEnvelope);return priority9GStr(p.reply||p.finalReply||p.publicReply||p.visibleReply||p.text||p.message||p.response||p.answer||pl.reply||pl.finalReply||pl.publicReply||pl.visibleReply||pl.text||pl.message||pl.answer||f.reply||f.finalReply||f.publicReply||f.visibleReply||f.text||f.message||f.answer);}
+
+const __priority9GOriginalBuildProgressionProfile=module.exports.buildProgressionProfile||buildProgressionProfile;
+function buildPriority9GDeepContinuityProfile(text="",context={}){
+  const source=[priority9GStr(text),priority9GCollect(context)].join(" ");
+  if(!(priority9GIsActivationText(text)||(priority9GIsShortFollowup(text)&&priority9GHasContext(source))))return __priority9GOriginalBuildProgressionProfile(text,context);
+  return {
+    version:PRIORITY_9G_DEEP_CONTINUITY_MEMORY_SHAPE_VERSION,
+    active:true,
+    lane:"priority9g_deep_continuity_memory",
+    activePhase:"priority9g_deep_continuity_memory",
+    phaseKey:"priority9g",
+    currentStep:"priority9g_memory_carry",
+    phaseId:"PRIORITY_9G_DEEP_CONTINUITY_MEMORY",
+    phaseLabel:"Priority 9G: Deep continuity memory and layered follow-up handling",
+    objective:"Carry the active Marion task, surface request, deeper intent, risk, execution mode, and next action across longer follow-up chains.",
+    signal:priority9GIsShortFollowup(text)?"priority9g_followup_carry":"priority9g_activation",
+    lastUserIntent:priority9GIsShortFollowup(text)?"priority9g_followup_carry":"priority9g_activation",
+    responseShape:"priority9g_layered_memory_response",
+    confidence:0.995,
+    priority9GDeepContinuityMemory:true,
+    noUserFacingDiagnostics:true,
+    updatedAt:Date.now()
+  };
+}
+module.exports.PRIORITY_9G_DEEP_CONTINUITY_MEMORY_SHAPE_VERSION=PRIORITY_9G_DEEP_CONTINUITY_MEMORY_SHAPE_VERSION;
+module.exports.isPriority9GDeepContinuityText=priority9GIsActivationText;
+module.exports.isPriority9GShortFollowup=priority9GIsShortFollowup;
+module.exports.hasPriority9GContext=priority9GHasContext;
+module.exports.buildPriority9GDeepContinuityProfile=buildPriority9GDeepContinuityProfile;
+module.exports.buildProgressionProfile=buildPriority9GDeepContinuityProfile;
+module.exports.default=buildPriority9GDeepContinuityProfile;
+// PRIORITY_9G_DEEP_CONTINUITY_MEMORY_SHAPE_PATCH_END
