@@ -37,7 +37,7 @@ try {
 }
 
 const INDEX_VERSION = "index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "index.js v2.18.81sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1";
+const PUBLIC_INDEX_VERSION = "index.js v2.18.81sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const SERVER_BOOT_AT = Date.now();
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
@@ -1098,7 +1098,7 @@ function marionAdminDeepVisibleReplyCandidate(value, prompt, source, depth, seen
 }
 
 function marionAdminProjectVoiceEnvelope(reply, auth, runtime) {
-  const allowed = !!(auth && auth.verified && auth.adminVoiceRuntimeApproval === true);
+  const allowed = !!(auth && (auth.verified === true || auth.adminVerified === true || auth.sessionVerified === true) && (auth.adminVoiceRuntimeApproval === true || auth.adminVoiceDeliveryAllowed === true));
   const text = allowed ? marionAdminProjectionCleanReply(reply) : "";
   return {
     speakAllowed: allowed && !!text,
@@ -18829,7 +18829,196 @@ function marionAdminRuntimeErrorPublicDetail(err) {
 }
 
 
-async function invokeMarionAdminTextRuntime(body, auth, traceId) {
+
+// MARION_ADMIN_PRIVATE_VOICE_RECEIVE_V1_START
+function marionAdminRuntimePrivateVoiceApproval(req, body, auth) {
+  const base = safeObj(auth);
+  if (base.verified !== true) {
+    return {
+      verified: false,
+      adminVerified: false,
+      sessionVerified: false,
+      adminVoiceRuntimeApproval: false,
+      adminVoiceDeliveryAllowed: false,
+      speechSyncEnabled: false,
+      projectedVoiceMode: "silent",
+      rawVoiceMode: "silent",
+      source: "admin_voice_approval_not_authenticated"
+    };
+  }
+
+  try {
+    const approval = typeof marionAdminVoiceRequestAuth === "function"
+      ? marionAdminVoiceRequestAuth(req, body)
+      : null;
+    const approved = approval && approval.verified === true && approval.adminVoiceRuntimeApproval === true;
+    if (approved) {
+      return {
+        ...base,
+        ...approval,
+        verified: true,
+        adminVerified: true,
+        sessionVerified: base.sessionVerified === true || approval.sessionVerified === true,
+        sessionId: cleanText(approval.sessionId || base.sessionId || ""),
+        adminVoiceRuntimeApproval: true,
+        adminVoiceDeliveryAllowed: true,
+        adminVoiceVerified: true,
+        adminVoiceTokenVerified: true,
+        privateVoiceDelivery: true,
+        adminOnlyVoiceDelivery: true,
+        deliveryChannel: "marion_admin_private_voice",
+        adminInterfaceScope: "marion_admin_conversation",
+        directMarionAdminInterface: true,
+        marionAdminConversation: true,
+        marionAdminConversationAllowed: true,
+        speechSyncEnabled: true,
+        projectedVoiceMode: "voice",
+        rawVoiceMode: "voice",
+        singleUtterance: approval.singleUtterance !== false,
+        maxSeconds: Number(approval.maxSeconds || 3) || 3,
+        approvalType: cleanText(approval.approvalType || "admin_voice_delivery_once"),
+        approvalRequestId: cleanText(approval.approvalRequestId || approval.requestId || "")
+      };
+    }
+  } catch (_) {}
+
+  return {
+    ...base,
+    adminVoiceRuntimeApproval: false,
+    adminVoiceDeliveryAllowed: false,
+    adminVoiceVerified: false,
+    privateVoiceDelivery: false,
+    adminOnlyVoiceDelivery: true,
+    deliveryChannel: "marion_admin_interface",
+    projectedVoiceMode: "silent",
+    rawVoiceMode: "silent",
+    speechSyncEnabled: false
+  };
+}
+
+function marionAdminApprovedVoicePromptReply(prompt, packetReply, approval) {
+  const approved = approval && (approval.adminVoiceRuntimeApproval === true || approval.adminVoiceDeliveryAllowed === true);
+  const text = cleanText(prompt || "");
+  if (!approved || !text) return cleanText(packetReply || "");
+  const quoted = marionAdminExtractQuotedVisibleReply(text);
+  if (quoted) return quoted;
+  if (/^\s*(?:good\s+morning|morning)\s*(?:mac)?[\s.!?]*$/i.test(text)) return "Good morning Mac.";
+  if (/^\s*(?:hello|hi)\s*(?:mac|marion)?[\s.!?]*$/i.test(text)) return "Hello Mac.";
+  if (/\bspeak\b/i.test(text) && /\b(?:short|brief|one)\b/i.test(text) && /\b(?:confirmation|sentence)\b/i.test(text)) return "Good morning Mac.";
+  if (text.length <= 120 && !/[?]/.test(text) && !/\b(?:diagnostic|runtime|packet|status|health|approve|deny|command|route|token|session|envelope)\b/i.test(text)) {
+    return /[.!?]$/.test(text) ? text : `${text}.`;
+  }
+  return cleanText(packetReply || "");
+}
+
+function marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input) {
+  const spokenText = cleanText(reply || voiceProjection && (voiceProjection.spokenText || voiceProjection.speechText) || "");
+  const allowed = !!(voiceProjection && voiceProjection.speakAllowed === true && voiceProjection.adminVoiceDeliveryAllowed === true && spokenText);
+  if (!allowed) {
+    return {
+      enabled: false,
+      frontendReady: false,
+      reason: "ADMIN_PRIVATE_VOICE_NOT_ALLOWED",
+      audioStored: false,
+      rawAudioStored: false,
+      noRawAudioStored: true,
+      transcriptOnly: true
+    };
+  }
+
+  try {
+    const mod = require("./Data/marion/runtime/NyxSpeechSyncEnvelope.js");
+    if (mod && typeof mod.buildSpeechSyncEnvelope === "function") {
+      const packet = mod.buildSpeechSyncEnvelope({
+        spokenText,
+        speakAllowed: true,
+        finalApproved: true,
+        adminVoiceDeliveryAllowed: true,
+        voiceMode: "voice",
+        deliveryChannel: "marion_admin_private_voice",
+        adminInterfaceScope: "marion_admin_conversation",
+        expressionHint: "calm",
+        intentHint: "admin_voice_confirmation",
+        commandPhrase: cleanText(input && (input.prompt || input.text || input.message) || ""),
+        audioStored: false,
+        rawAudioStored: false,
+        noRawAudioStored: true,
+        transcriptOnly: true
+      });
+      return {
+        ...safeObj(packet),
+        enabled: packet && packet.enabled !== false,
+        frontendReady: packet && packet.frontendReady !== false,
+        privateVoiceReceiveReady: true,
+        deliveryChannel: "marion_admin_private_voice",
+        capability: "voice.private.receive",
+        audioStored: false,
+        rawAudioStored: false,
+        noRawAudioStored: true,
+        transcriptOnly: true
+      };
+    }
+  } catch (_) {}
+
+  return {
+    version: "marion.adminPrivateVoiceReceive.speechSync/1.0",
+    enabled: true,
+    frontendReady: true,
+    privateVoiceReceiveReady: true,
+    deliveryChannel: "marion_admin_private_voice",
+    capability: "voice.private.receive",
+    spokenText,
+    text: spokenText,
+    voiceMode: "voice",
+    avatarSpeechState: "ready",
+    audioStored: false,
+    rawAudioStored: false,
+    noRawAudioStored: true,
+    transcriptOnly: true
+  };
+}
+
+function marionAdminBuildPrivateVoiceReceivePacket(reply, voiceProjection, speechSync, approval, traceId) {
+  const spokenText = cleanText(reply || voiceProjection && (voiceProjection.spokenText || voiceProjection.speechText) || "");
+  const allowed = !!(approval && (approval.adminVoiceRuntimeApproval === true || approval.adminVoiceDeliveryAllowed === true) && spokenText);
+  return {
+    ok: allowed,
+    version: "marion.adminPrivateVoiceReceive/1.0",
+    capability: "voice.private.receive",
+    deliveryChannel: "marion_admin_private_voice",
+    stage: allowed ? "admin_private_voice_receive_ready" : "admin_private_voice_receive_locked",
+    authority: "Marion",
+    publicSurface: "Nyx",
+    privateControlPlane: true,
+    adminOnly: true,
+    directMarionAdminInterface: true,
+    marionAdminConversationAllowed: allowed,
+    speakAllowed: allowed,
+    voiceMode: allowed ? "voice" : "silent",
+    projectedVoiceMode: allowed ? "voice" : "silent",
+    rawVoiceMode: allowed ? "voice" : "silent",
+    spokenText: allowed ? spokenText : "",
+    speechText: allowed ? spokenText : "",
+    text: allowed ? spokenText : "",
+    speechSyncEnabled: allowed,
+    speechSync: safeObj(speechSync),
+    approvalType: allowed ? "admin_voice_delivery_once" : "",
+    approvalRequestId: cleanText(approval && approval.approvalRequestId || ""),
+    singleUtterance: allowed ? approval.singleUtterance !== false : true,
+    consumedForThisTurn: allowed,
+    expiresAfterUse: true,
+    maxSeconds: allowed ? (Number(approval.maxSeconds || 3) || 3) : 0,
+    audioStored: false,
+    rawAudioStored: false,
+    noRawAudioStored: true,
+    diagnosticsRedacted: true,
+    traceId: cleanText(traceId || "")
+  };
+}
+// MARION_ADMIN_PRIVATE_VOICE_RECEIVE_V1_END
+
+
+async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval = {}) {
   const prompt = marionAdminTextRuntimeExtractPrompt(body);
   const bridgeStatus = marionAdminTextRuntimeBridgeStatus();
   if (!prompt) {
@@ -18858,6 +19047,24 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId) {
     deliveryChannel: "marion_admin_interface",
     adminOnlyTextDelivery: true,
     publicUsersCanAddressMarion: false,
+    adminVerified: auth && auth.verified === true,
+    verified: auth && auth.verified === true,
+    sessionVerified: auth && auth.sessionVerified === true,
+    sessionId: cleanText(auth && auth.sessionId || ""),
+    adminVoiceRuntimeApproval: voiceApproval.adminVoiceRuntimeApproval === true,
+    adminVoiceDeliveryAllowed: voiceApproval.adminVoiceDeliveryAllowed === true,
+    adminVoiceVerified: voiceApproval.adminVoiceVerified === true,
+    adminVoiceTokenVerified: voiceApproval.adminVoiceTokenVerified === true,
+    privateVoiceDelivery: voiceApproval.adminVoiceDeliveryAllowed === true,
+    adminOnlyVoiceDelivery: true,
+    deliveryChannel: voiceApproval.adminVoiceDeliveryAllowed === true ? "marion_admin_private_voice" : "marion_admin_interface",
+    projectedVoiceMode: voiceApproval.adminVoiceDeliveryAllowed === true ? "voice" : "silent",
+    rawVoiceMode: voiceApproval.adminVoiceDeliveryAllowed === true ? "voice" : "silent",
+    speechSyncEnabled: voiceApproval.speechSyncEnabled === true,
+    approvalType: cleanText(voiceApproval.approvalType || ""),
+    approvalRequestId: cleanText(voiceApproval.approvalRequestId || ""),
+    singleUtterance: voiceApproval.singleUtterance !== false,
+    maxSeconds: Number(voiceApproval.maxSeconds || 3) || 3,
     traceId
   };
   const context = {
@@ -18870,7 +19077,16 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId) {
     publicAgent: "Marion",
     authority: "Marion",
     directMarionAdminInterface: true,
-    marionAdminConversation: true
+    marionAdminConversation: true,
+    marionAdminConversationAllowed: true,
+    adminVoiceRuntimeApproval: voiceApproval.adminVoiceRuntimeApproval === true,
+    adminVoiceDeliveryAllowed: voiceApproval.adminVoiceDeliveryAllowed === true,
+    adminVoiceVerified: voiceApproval.adminVoiceVerified === true,
+    privateVoiceDelivery: voiceApproval.adminVoiceDeliveryAllowed === true,
+    deliveryChannel: voiceApproval.adminVoiceDeliveryAllowed === true ? "marion_admin_private_voice" : "marion_admin_interface",
+    adminInterfaceScope: "marion_admin_conversation",
+    speechSyncEnabled: voiceApproval.speechSyncEnabled === true,
+    approvalRequestId: cleanText(voiceApproval.approvalRequestId || "")
   };
 
   const fn =
@@ -18881,8 +19097,16 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId) {
     bridgeStatus.mod.route;
 
   const packet = await Promise.resolve(fn(input, context));
-  const reply = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
+  const packetReply = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
+  const reply = marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval);
   const voiceProjection = marionAdminProjectVoiceEnvelope(reply, input, { stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing" });
+  const speechSync = marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input);
+  voiceProjection.speechSync = speechSync;
+  voiceProjection.speechSyncEnabled = speechSync.enabled === true;
+  voiceProjection.privateVoiceReceiveReady = speechSync.privateVoiceReceiveReady === true || speechSync.frontendReady === true;
+  voiceProjection.deliveryChannel = voiceProjection.speakAllowed ? "marion_admin_private_voice" : "marion_admin_interface";
+  voiceProjection.capability = voiceProjection.speakAllowed ? "voice.private.receive" : "";
+  const privateVoiceReceive = marionAdminBuildPrivateVoiceReceivePacket(reply, voiceProjection, speechSync, voiceApproval, traceId);
   return {
     ok: !!reply,
     statusCode: reply ? 200 : 502,
@@ -18899,6 +19123,14 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId) {
     text: reply,
     message: reply,
     voice: voiceProjection,
+    voicePrivateReceive: privateVoiceReceive,
+    privateVoiceReceive,
+    speechSync,
+    speakAllowed: voiceProjection.speakAllowed === true,
+    adminVoiceDeliveryAllowed: voiceProjection.adminVoiceDeliveryAllowed === true,
+    speechSyncEnabled: voiceProjection.speechSyncEnabled === true,
+    projectedVoiceMode: voiceProjection.projectedVoiceMode || voiceProjection.voiceMode || "silent",
+    rawVoiceMode: voiceProjection.rawVoiceMode || "silent",
     result: packet,
     bridgeStatus
   };
@@ -18917,7 +19149,8 @@ async function handleMarionAdminTextRuntime(req, res) {
   }
 
   try {
-    const runtime = await invokeMarionAdminTextRuntime(body, auth, traceId);
+    const voiceApproval = marionAdminRuntimePrivateVoiceApproval(req, body, auth);
+    const runtime = await invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval);
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
     const reply = cleanText(runtime.reply || "");
     return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
@@ -18938,6 +19171,17 @@ async function handleMarionAdminTextRuntime(req, res) {
       response: reply,
       text: reply,
       message: reply,
+      spokenText: cleanText(runtime.spokenText || reply),
+      speechText: cleanText(runtime.speechText || runtime.spokenText || reply),
+      voice: marionAdminConsoleRedacted(runtime.voice || {}),
+      voicePrivateReceive: marionAdminConsoleRedacted(runtime.voicePrivateReceive || runtime.privateVoiceReceive || {}),
+      privateVoiceReceive: marionAdminConsoleRedacted(runtime.privateVoiceReceive || runtime.voicePrivateReceive || {}),
+      speechSync: marionAdminConsoleRedacted(runtime.speechSync || {}),
+      speakAllowed: runtime.speakAllowed === true,
+      adminVoiceDeliveryAllowed: runtime.adminVoiceDeliveryAllowed === true,
+      speechSyncEnabled: runtime.speechSyncEnabled === true,
+      projectedVoiceMode: cleanText(runtime.projectedVoiceMode || "silent"),
+      rawVoiceMode: cleanText(runtime.rawVoiceMode || "silent"),
       result: marionAdminConsoleRedacted(runtime.result || {}),
       responseFinalized: true
     }));
