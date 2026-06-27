@@ -12,7 +12,7 @@
  * - Keeps emergency execution locked behind CONFIRM_MARION_EMERGENCY.
  */
 
-const VERSION = "marion.adminConsole.gateway/1.2-admin-voice-runtime-handler-connection";
+const VERSION = "marion.adminConsole.gateway/1.3-admin-voice-output-projection";
 const EMERGENCY_CONFIRMATION = "CONFIRM_MARION_EMERGENCY";
 
 const DEFAULT_STATUS = Object.freeze({
@@ -690,13 +690,16 @@ class MarionAdminConsoleGateway {
 
       return this.safeResponse({
         ...packet,
-        ok: false,
+        ok: isAdminVoiceDeliveryOnceRequest(normalized) ? true : false,
+        accepted: true,
         status: 202,
         statusCode: 202,
         stage: "approval_pending",
         type: normalized.type,
         risk,
         approvalRequired: true,
+        statusText: "pending_approval",
+        approvalPending: true,
         approvalType: isAdminVoiceDeliveryOnceRequest(normalized) ? ADMIN_VOICE_APPROVAL_TYPE : "manual_command",
         requestId: approvalId,
         approvalId,
