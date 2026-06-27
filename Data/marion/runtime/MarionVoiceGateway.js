@@ -85,7 +85,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/3.5-public-reply-contract-continuity-final';
+const VERSION = 'marion.voiceGateway/3.6-admin-voice-runtime-handler-connection';
 
 function safeRequire(path) {
   try {
@@ -429,11 +429,14 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
   const adminInterface = marionAdminInterfaceMeta(env, adminVoiceDeliveryAllowed, resolverOptions);
   const fallbackCanSpeak = adminVoiceDeliveryAllowed && fallbackUsed && (!policyReason || policyReason === 'EMPTY_RESPONSE');
   const policySpokenText = firstReplyText(policy);
+  const adminVoiceOneShotFallback = adminVoiceDeliveryAllowed && Boolean(cleanReply) && !originalReplyEchoSuppressed;
   const speakAllowed = stabilizer
-    ? stabilizer.speakAllowed === true
-    : adminVoiceDeliveryAllowed && Boolean(policySpokenText || (fallbackCanSpeak && cleanReply)) && (policy.speakAllowed === true || fallbackCanSpeak);
-  const spokenText = stabilizer ? safeText(stabilizer.spokenText) : (speakAllowed ? (policySpokenText || cleanReply) : '');
-  const projectedVoiceMode = projectVoiceMode(policy.voiceMode, speakAllowed, spokenText);
+    ? (stabilizer.speakAllowed === true || adminVoiceOneShotFallback)
+    : adminVoiceDeliveryAllowed && Boolean(policySpokenText || (fallbackCanSpeak && cleanReply) || (adminVoiceOneShotFallback && cleanReply)) && (policy.speakAllowed === true || fallbackCanSpeak || adminVoiceOneShotFallback);
+  const spokenText = stabilizer
+    ? (safeText(stabilizer.spokenText) || (adminVoiceOneShotFallback && speakAllowed ? cleanReply : ''))
+    : (speakAllowed ? (policySpokenText || cleanReply) : '');
+  const projectedVoiceMode = projectVoiceMode(policy.voiceMode || (adminVoiceOneShotFallback ? 'brief' : ''), speakAllowed, spokenText);
   const speechSync = speechSyncEnvelopeMod && typeof speechSyncEnvelopeMod.buildSpeechSyncEnvelope === 'function'
     ? speechSyncEnvelopeMod.buildSpeechSyncEnvelope({
       spokenText,
@@ -444,7 +447,7 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       voiceMatchStatus: env.voiceMatchStatus || '',
       voice: Object.assign({}, base.voice || {}, policy, stabilizer || {}),
       voiceEnvelope: env,
-      finalApproved: stabilizer ? stabilizer.finalApproved === true : false,
+      finalApproved: (stabilizer ? stabilizer.finalApproved === true : false) || (speakAllowed && adminVoiceDeliveryAllowed),
       adminVoiceDeliveryAllowed,
       sessionId: env.sessionId,
       requestId: env.requestId,
@@ -456,10 +459,21 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
       reducedMotion: base.reducedMotion === true || (base.voice && base.voice.reducedMotion === true)
     })
     : {
-      enabled: false,
-      reason: 'SPEECH_SYNC_ENVELOPE_UNAVAILABLE',
+      enabled: speakAllowed && Boolean(spokenText),
+      version: 'marion.voiceGateway.speechSyncFallback/1.0-admin-one-shot',
+      reason: speakAllowed && spokenText ? 'ADMIN_VOICE_ONE_SHOT_SYNC_READY' : 'SPEECH_SYNC_ENVELOPE_UNAVAILABLE',
+      spokenText,
+      text: spokenText,
+      voiceMode: projectedVoiceMode,
+      frontendReady: speakAllowed && Boolean(spokenText),
+      avatarSpeechState: speakAllowed && spokenText ? 'speaking' : 'silent',
+      speechState: speakAllowed && spokenText ? 'speaking' : 'silent',
       audioStored: false,
-      transcriptOnly: true
+      noRawAudioStored: true,
+      transcriptOnly: true,
+      adminVoiceDeliveryAllowed,
+      singleUtterance: true,
+      maxSeconds: 3
     };
   const voiceReason = stabilizer ? safeText(stabilizer.reason) : '';
 
