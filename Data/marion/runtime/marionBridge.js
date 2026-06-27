@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marionBridge v7.9.24 VISIBLE-FINAL-PROMPT-SCOPE-HARDLOCK + ADMIN-TEXT-CONSOLE-VOICE-PURGE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + MARION-ADMIN-INTERFACE-CARRY + PHASE2-SPEECH-SYNC-METADATA-CARRY + VOICE-CARRY-FINAL-DELIVERY-STABILIZER + VOICE-LANE-BRIDGE-CONTRACT + AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY";
+const VERSION = "marionBridge v7.9.24 VISIBLE-FINAL-PROMPT-SCOPE-HARDLOCK + ADMIN-TEXT-CONSOLE-VOICE-PURGE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + MARION-ADMIN-INTERFACE-CARRY + PHASE2-SPEECH-SYNC-METADATA-CARRY + VOICE-CARRY-FINAL-DELIVERY-STABILIZER + VOICE-LANE-BRIDGE-CONTRACT + AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_NYX_GREETING = "Hi. I’m Nyx. It’s good to see you. What would you like to work on?";
 const WARM_NYX_STATUS_REPLY = "I’m doing well, thank you. I’m ready to help. What would you like to work on today?";
@@ -1527,8 +1527,22 @@ function applyProjectRecoveryReplyOverride(packet={},ctx={}){
 function normalizeEchoTextForCompare(value=""){return safeStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function isPromptEchoReply(reply="",prompt=""){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(prompt);if(!r||!p)return false;return r===p||r===p.replace(/^(please )?/,'')||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
 function isExcessExpressionReply(value=""){const t=safeStr(value);return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(t);}
-function isUnsafeFinalSelection(reply="",prompt=""){return isInvalidPublicReplyValue(reply)||isThinPlaceholderText(reply)||isBroadLanguageClarifier(reply)||isPublicWorkflowStateLeak(reply)||isExcessExpressionReply(reply)||isPromptEchoReply(reply,prompt);}
-function bestPublicReplyCandidate(packet={},prompt=""){const p=safeObj(packet),payload=safeObj(p.payload),finalEnvelope=safeObj(p.finalEnvelope),speech=safeObj(p.speech),meta=safeObj(p.meta);const candidates=[finalEnvelope.reply,finalEnvelope.displayReply,finalEnvelope.text,finalEnvelope.spokenText,p.publicReply,p.visibleReply,p.displayReply,p.reply,p.answer,p.output,p.response,p.text,p.message,p.spokenText,payload.publicReply,payload.visibleReply,payload.displayReply,payload.reply,payload.answer,payload.output,payload.response,payload.text,payload.message,payload.spokenText,speech.textDisplay,speech.text,speech.textSpeak,meta.publicReply,meta.visibleReply];for(const item of candidates){const clean=stripTelemetryLeakFromReply(stripPublicReplyScaffold(item));if(clean&&!isUnsafeFinalSelection(clean,prompt))return clean;}const recovery=buildDeterministicLastMilePublicReplyFromText(prompt);return recovery&&!isUnsafeFinalSelection(recovery,prompt)?recovery:"";}
+function isAdminVoiceOutputProjectionContext(packet={},prompt=""){
+  const p=safeObj(packet), payload=safeObj(p.payload), voice=safeObj(p.voice), meta=safeObj(p.meta);
+  return p.adminVoiceRuntimeApproval===true||p.adminVoiceDeliveryAllowed===true||payload.adminVoiceRuntimeApproval===true||payload.adminVoiceDeliveryAllowed===true||voice.adminVoiceRuntimeApproval===true||voice.adminVoiceDeliveryAllowed===true||meta.adminVoiceRuntimeApproval===true||meta.adminVoiceDeliveryAllowed===true;
+}
+function bridgeAdminVoicePromptFallback(prompt="",packet={}){
+  if(!isAdminVoiceOutputProjectionContext(packet,prompt))return "";
+  const text=safeStr(prompt);
+  if(!text)return "";
+  if(/^\s*(?:good\s+morning|morning)\s*(?:mac)?[\s.!?]*$/i.test(text))return "Good morning Mac.";
+  if(/^\s*(?:hello|hi)\s*(?:mac|marion)?[\s.!?]*$/i.test(text))return "Hello Mac.";
+  if(/\bspeak\b/i.test(text)&&/\b(?:short|brief|one)\b/i.test(text)&&/\b(?:confirmation|sentence)\b/i.test(text))return "Good morning Mac.";
+  if(text.length<=120&&!/[?]/.test(text)&&!/\b(?:diagnostic|runtime|packet|status|health|approve|deny|command|route|token|session)\b/i.test(text))return /[.!?]$/.test(text)?text:`${text}.`;
+  return "";
+}
+function isUnsafeFinalSelection(reply="",prompt="",packet={}){return isInvalidPublicReplyValue(reply)||isThinPlaceholderText(reply)||isBroadLanguageClarifier(reply)||isPublicWorkflowStateLeak(reply)||isExcessExpressionReply(reply)||(!isAdminVoiceOutputProjectionContext(packet,prompt)&&isPromptEchoReply(reply,prompt));}
+function bestPublicReplyCandidate(packet={},prompt=""){const p=safeObj(packet),payload=safeObj(p.payload),finalEnvelope=safeObj(p.finalEnvelope),speech=safeObj(p.speech),voice=safeObj(p.voice),meta=safeObj(p.meta),result=safeObj(p.result),data=safeObj(p.data);const candidates=[finalEnvelope.publicReply,finalEnvelope.visibleReply,finalEnvelope.finalReply,finalEnvelope.reply,finalEnvelope.displayReply,finalEnvelope.text,finalEnvelope.spokenText,p.publicReply,p.visibleReply,p.finalReply,p.displayReply,p.reply,p.answer,p.output,p.response,p.text,p.message,p.spokenText,p.speechText,payload.publicReply,payload.visibleReply,payload.finalReply,payload.displayReply,payload.reply,payload.answer,payload.output,payload.response,payload.text,payload.message,payload.spokenText,payload.speechText,result.publicReply,result.visibleReply,result.finalReply,result.displayReply,result.reply,result.text,result.message,data.publicReply,data.visibleReply,data.finalReply,data.reply,data.text,speech.textDisplay,speech.text,speech.textSpeak,voice.spokenText,voice.speechText,voice.textSpeak,meta.publicReply,meta.visibleReply];for(const item of candidates){const clean=stripTelemetryLeakFromReply(stripPublicReplyScaffold(item));if(clean&&!isUnsafeFinalSelection(clean,prompt,p))return clean;}const recovery=buildDeterministicLastMilePublicReplyFromText(prompt)||bridgeAdminVoicePromptFallback(prompt,p);return recovery&&!isUnsafeFinalSelection(recovery,prompt,p)?recovery:"";}
 
 function readPublicReplyCandidate(packet={}){
   return bestPublicReplyCandidate(packet, firstText(safeObj(packet).userText,safeObj(packet).rawUserText,safeObj(packet).prompt,safeObj(packet).message,safeObj(safeObj(packet).payload).userText,safeObj(safeObj(packet).payload).prompt));
@@ -2575,7 +2589,7 @@ function forceBridgeVisibleFinalReply(packet={},ctx={}){
   let existing="";
   try{existing=deterministic?"":bestPublicReplyCandidate(out,prompt);}catch(_){existing="";}
   const forced=deterministic||existing||buildDeterministicLastMilePublicReplyFromText(prompt);
-  if(!forced||isUnsafeFinalSelection(forced,prompt)){
+  if(!forced||isUnsafeFinalSelection(forced,prompt,out)){
     out.ok=false;
     out.status=403;
     out.error="visible_final_reply_missing";
@@ -2706,6 +2720,14 @@ async function handleMarionAdminConversation(input = {}, context = {}) {
   const source = safeObj(input);
   const ctx = safeObj(context);
   const text = firstText(source.text, source.message, source.query, source.input, source.transcript, ctx.text, ctx.message, ctx.query, "");
+  const sourceVoice = safeObj(source.voice);
+  const ctxVoice = safeObj(ctx.voice);
+  const adminVoiceAllowed = source.adminVoiceDeliveryAllowed === true ||
+    ctx.adminVoiceDeliveryAllowed === true ||
+    source.adminVoiceRuntimeApproval === true ||
+    ctx.adminVoiceRuntimeApproval === true ||
+    sourceVoice.adminVoiceDeliveryAllowed === true ||
+    ctxVoice.adminVoiceDeliveryAllowed === true;
   const payload = {
     ...ctx,
     ...source,
@@ -2725,29 +2747,61 @@ async function handleMarionAdminConversation(input = {}, context = {}) {
     adminInterfaceScope: "marion_admin_conversation",
     privateTextDelivery: true,
     privateDelivery: true,
-    privateVoiceDelivery: false,
-    deliveryChannel: "marion_admin_interface",
+    privateVoiceDelivery: adminVoiceAllowed,
+    deliveryChannel: adminVoiceAllowed ? "marion_admin_private_voice" : "marion_admin_interface",
     adminOnlyTextDelivery: true,
-    adminOnlyVoiceDelivery: false,
-    adminVoiceDeliveryAllowed: false,
-    adminVoiceVerified: false,
+    adminOnlyVoiceDelivery: true,
+    adminVoiceDeliveryAllowed: adminVoiceAllowed,
+    adminVoiceRuntimeApproval: source.adminVoiceRuntimeApproval === true || ctx.adminVoiceRuntimeApproval === true,
+    adminVoiceVerified: adminVoiceAllowed,
     publicUsersCanAddressMarion: false,
     voice: {
-      ...safeObj(source.voice),
-      active: false,
+      ...sourceVoice,
+      active: adminVoiceAllowed,
       inputChannel: "text",
       source: "text",
       modality: "text",
-      textConsoleVoiceBypass: true,
+      textConsoleVoiceBypass: !adminVoiceAllowed,
       audioStored: false,
       noRawAudio: true,
       noRawAudioStored: true,
-      privateVoiceDelivery: false,
-      adminVoiceDeliveryAllowed: false,
-      adminVoiceVerified: false
+      privateVoiceDelivery: adminVoiceAllowed,
+      adminVoiceDeliveryAllowed: adminVoiceAllowed,
+      adminVoiceRuntimeApproval: source.adminVoiceRuntimeApproval === true || ctx.adminVoiceRuntimeApproval === true,
+      adminVoiceVerified: adminVoiceAllowed,
+      speakAllowed: adminVoiceAllowed,
+      voiceMode: adminVoiceAllowed ? "voice" : "silent",
+      speechSyncEnabled: adminVoiceAllowed
     }
   };
-  return processWithMarion(payload);
+  const result = await processWithMarion(payload);
+  if (adminVoiceAllowed) {
+    const reply = bestPublicReplyCandidate(result, text) || bridgeAdminVoicePromptFallback(text, payload);
+    if (reply) {
+      result.voice = {
+        ...safeObj(result.voice),
+        speakAllowed: true,
+        voiceMode: "voice",
+        rawVoiceMode: "voice",
+        projectedVoiceMode: "voice",
+        spokenText: reply,
+        speechText: reply,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed: true,
+        adminVoiceRuntimeApproval: true,
+        speechSyncEnabled: true,
+        speechSync: { enabled: true, version: "marion.adminVoice.outputProjection/1.0", avatarSpeechState: "ready", audioStored: false, rawAudioStored: false, transcriptOnly: true },
+        audioStored: false,
+        rawAudioStored: false,
+        noRawAudioStored: true
+      };
+      result.spokenText = reply;
+      result.speechText = reply;
+      result.textSpeak = reply;
+      result.textDisplay = reply;
+    }
+  }
+  return result;
 }
 async function handleVoiceInput(input = {}, context = {}) { return handleVoiceTranscript(input, context); }
 async function maybeResolve(input={}){return processWithMarion(input);}
