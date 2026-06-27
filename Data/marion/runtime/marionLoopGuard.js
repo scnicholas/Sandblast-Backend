@@ -13,7 +13,7 @@
  *   mutate durable memory.
  */
 
-const VERSION = "marionLoopGuard v1.4.1 PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
+const VERSION = "marionLoopGuard v1.4.1 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
 const PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION = "sandblast.guardian.protectiveEscalationLoopGuard/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
@@ -545,7 +545,7 @@ function isPriority9EContinuationCommand(text = "") {
 function buildPriority9EFreshContinuationReply(prompt = "", previousReply = "") {
   const source = oneLine([prompt, previousReply].filter(Boolean).join(" "));
   if (/priority\s*(?:9e|90|9c|9d)|loop|fallback|echo|continuation|five[-\s]?turn|nyx route|handoff/i.test(source)) {
-    return "Run the Priority 9E sequence again: verify the active lane, repeat the continuation prompt, confirm fresh wording, reject internal governor wording, then move forward only after the public answer stays conversational.";
+    return "Run Priority 9E again: name the Priority 9E task directly, retest the continuation command, verify fresh wording, block internal recovery wording, and pass only when Marion gives a useful action sequence.";
   }
   return "Run the last valid task again with fresh wording, keep the active context intact, and return the next concrete action instead of describing the internal process.";
 }
@@ -595,15 +595,84 @@ function isPriority9ER2ConcreteContinuationCommand(text = "") {
 function buildPriority9ER2ConcreteContinuationReply(prompt = "", previousReply = "") {
   const source = oneLine([prompt, previousReply].filter(Boolean).join(" "));
   if (/priority\s*(?:90|9c|9d)|echo|fallback|suppression|five[-\s]?turn|lane[-\s]?lock|nyx route|handoff/i.test(source)) {
-    return "Run the Priority 90/9E sequence again: confirm greeting stability, confirm lane-lock, test “Next steps,” test “Run that again,” verify fresh wording, reject meta-governor language, then mark the live continuation path passed only if the answer stays conversational.";
+    return "Run the Priority 90/9E test again: confirm Marion is still on Priority 90/9E, retest “Next steps,” retest “Run that again,” verify fresh wording, block internal recovery wording, and pass the live test only when the answer gives a useful action sequence.";
   }
   if (/priority\s*9e|loop governor|meta[-\s]?recovery|continuation enforcement|concrete continuation/i.test(source)) {
-    return "Run Priority 9E again: resolve the continuation to the active lane, generate fresh wording, block meta-governor language, confirm there is no exact replay, then keep the result as a normal conversational answer.";
+    return "Run Priority 9E again: name the Priority 9E task directly, retest the continuation command, verify fresh wording, block internal recovery wording, and pass only when Marion gives a useful action sequence.";
   }
-  return "Repeat the last valid Marion sequence: restate the target in fresh wording, perform the next concrete step, verify no echo or meta-language is visible, then continue from the active lane.";
+  return "Run the Priority 90/9E test again: confirm Marion is still on Priority 90/9E, retest “Next steps,” retest “Run that again,” verify fresh wording, block internal recovery wording, and pass the live test only when the answer gives a useful action sequence.";
 }
 module.exports.PRIORITY_9E_R2_CONCRETE_CONTINUATION_ENFORCEMENT_VERSION = PRIORITY_9E_R2_CONCRETE_CONTINUATION_ENFORCEMENT_VERSION;
 module.exports.isPriority9ER2ConcreteContinuationLeakText = isPriority9ER2ConcreteContinuationLeakText;
 module.exports.isPriority9ER2ConcreteContinuationCommand = isPriority9ER2ConcreteContinuationCommand;
 module.exports.buildPriority9ER2ConcreteContinuationReply = buildPriority9ER2ConcreteContinuationReply;
 // PRIORITY_9E_R2_CONCRETE_CONTINUATION_SIGNAL_PATCH_END
+
+
+// PRIORITY_9E_R3_SPECIFIC_TASK_RECALL_SIGNAL_PATCH_START
+const PRIORITY_9E_R3_SPECIFIC_TASK_RECALL_ENFORCEMENT_VERSION = "nyx.marion.loopGuard.priority9eR3.specificTaskRecallEnforcement/1.0";
+function isPriority9ER3SpecificTaskRecallLeakText(value = "") {
+  const text = oneLine(value).toLowerCase();
+  if (!text) return false;
+  return /\b(last valid marion sequence|last valid sequence|last valid task|active lane|active task|current task|next concrete step|meta[-\s]?language is visible|meta[-\s]?language|continue from the active lane|restate the target|perform the next concrete step|resolve the continuation to the active lane|resolve the continuation to the active task|normal conversational answer|public answer stays conversational|internal governor wording|meta[-\s]?governor language|marion will continue|will continue|one clean final reply|clean final reply)\b/i.test(text) || isPriority9ER2ConcreteContinuationLeakText(text);
+}
+function isPriority9ER3SpecificTaskRecallCommand(text = "") {
+  const t = normalizeText(text).replace(/[.!?]+$/g, "").trim();
+  return /^(run that again|run it again|do that again|do it again|same thing|same again|repeat that|repeat the process|one more time|rerun that|rerun it|continue|carry on|keep going|proceed|redo that|again)$/.test(t);
+}
+function buildPriority9ER3SpecificTaskRecallReply(prompt = "", previousReply = "") {
+  const source = oneLine([prompt, previousReply].filter(Boolean).join(" "));
+  if (/priority\s*9e[-\s]*r3|specific task recall/i.test(source)) {
+    return "Run Priority 9E-R3 again: retest “Run that again,” confirm Marion names Priority 9E-R3 in the answer, verify no abstract recovery wording appears, and pass only when the reply gives a concrete action sequence.";
+  }
+  if (/priority\s*(?:90|9c|9d)|echo|fallback|suppression|five[-\s]?turn|lane[-\s]?lock|nyx route|handoff|next steps|run that again/i.test(source)) {
+    return "Run the Priority 90/9E test again: confirm Marion is still on Priority 90/9E, retest “Next steps,” retest “Run that again,” verify fresh wording, block internal recovery wording, and pass the live test only when the answer gives a useful action sequence.";
+  }
+  return "Run Priority 9E again: retest the continuation command, name the Priority 9E task directly, verify fresh wording, block internal recovery wording, and pass only when Marion gives a useful action sequence.";
+}
+const __priority9ER3OriginalEvaluateLoop = evaluateLoop;
+evaluateLoop = function priority9ER3EvaluateLoop(packet = {}, candidateReply = "", options = {}) {
+  const result = __priority9ER3OriginalEvaluateLoop(packet, candidateReply, options);
+  if (isPriority9ER3SpecificTaskRecallLeakText(candidateReply)) {
+    const reasons = Array.isArray(result.reasons) ? result.reasons.slice() : [];
+    if (!reasons.includes("priority9e_r3_specific_task_recall_leak")) reasons.push("priority9e_r3_specific_task_recall_leak");
+    return {
+      ...result,
+      allowReply: false,
+      forceRecovery: true,
+      loopDetected: true,
+      reasons,
+      failureSignature: "LOOP_GUARD_SUPPRESSED",
+      priority9ER3SpecificTaskRecallLeak: true
+    };
+  }
+  return result;
+};
+applyLoopGuard = function priority9ER3ApplyLoopGuard(packet = {}, candidateReply = "", options = {}) {
+  const result = evaluateLoop(packet, candidateReply, options);
+  return {
+    ...result,
+    packetPatch: {
+      stateStage: result.nextStateStage,
+      loopCount: result.forceRecovery ? getLoopCount(packet) + 1 : 0,
+      recoveryRequired: result.forceRecovery,
+      lastLoopReasons: result.reasons,
+      loopGuardVersion: VERSION,
+      telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION,
+      failureSignature: result.failureSignature,
+      failureSignatureAudit: result.failureSignatureAudit,
+      finalRenderTelemetryVersion: FINAL_RENDER_TELEMETRY_VERSION,
+      finalRenderTelemetry: result.finalRenderTelemetry,
+      protectiveEscalation: result.protectiveEscalation,
+      protectiveEscalationActive: !!result.protectiveEscalationActive,
+      priority9ER3SpecificTaskRecallLeak: !!result.priority9ER3SpecificTaskRecallLeak
+    }
+  };
+};
+module.exports.PRIORITY_9E_R3_SPECIFIC_TASK_RECALL_ENFORCEMENT_VERSION = PRIORITY_9E_R3_SPECIFIC_TASK_RECALL_ENFORCEMENT_VERSION;
+module.exports.isPriority9ER3SpecificTaskRecallLeakText = isPriority9ER3SpecificTaskRecallLeakText;
+module.exports.isPriority9ER3SpecificTaskRecallCommand = isPriority9ER3SpecificTaskRecallCommand;
+module.exports.buildPriority9ER3SpecificTaskRecallReply = buildPriority9ER3SpecificTaskRecallReply;
+module.exports.evaluateLoop = evaluateLoop;
+module.exports.applyLoopGuard = applyLoopGuard;
+// PRIORITY_9E_R3_SPECIFIC_TASK_RECALL_SIGNAL_PATCH_END
