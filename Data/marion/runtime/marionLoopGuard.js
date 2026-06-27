@@ -13,7 +13,7 @@
  *   mutate durable memory.
  */
 
-const VERSION = "marionLoopGuard v1.4.1 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
+const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionLoopGuard v1.4.1 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
 const PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION = "sandblast.guardian.protectiveEscalationLoopGuard/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
@@ -676,3 +676,66 @@ module.exports.buildPriority9ER3SpecificTaskRecallReply = buildPriority9ER3Speci
 module.exports.evaluateLoop = evaluateLoop;
 module.exports.applyLoopGuard = applyLoopGuard;
 // PRIORITY_9E_R3_SPECIFIC_TASK_RECALL_SIGNAL_PATCH_END
+
+
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SIGNAL_PATCH_START
+const PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION = "nyx.marion.priority9f.deepConversationalStackSignal/1.0";
+function priority9FFirstText(){ for (let i=0;i<arguments.length;i+=1){ const v=oneLine(arguments[i]); if(v) return v; } return ""; }
+function isPriority9FDeepConversationalPrompt(text = "") {
+  const t = normalizeText(text);
+  return /\b(priority\s*9f|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|multi layer|multi layered|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|full conversational stack)\b/i.test(t) ||
+    (/\b(disjointed|layered|deeper|multi)\b/i.test(t) && /\b(marion|conversation|conversational|intent|context|loop|recovery|next)\b/i.test(t));
+}
+function isPriority9FScaffoldLeakText(value = "") {
+  const t = normalizeText(value);
+  return /\b(i have the current request|will answer from this prompt|will continue|one clean final reply|last valid marion sequence|diagnostic packet|final envelope|runtime telemetry|routekind|sessionpatch)\b/i.test(t);
+}
+function buildPriority9FDeepConversationalReply(prompt = "", previousReply = "") {
+  const source = oneLine([prompt, previousReply].filter(Boolean).join(" "));
+  const lane = /priority\s*9f|deep conversational stack|layered conversational|conversational stack/i.test(source) ? "Priority 9F deep conversational stack" : "Marion conversational stabilization";
+  const surface = /surgical autopsy|patch|fix|update|resend|zip|downloadable/i.test(source) ? "repair the uploaded runtime files and return a tested package" : "activate Marion’s layered conversation behavior";
+  const intent = /loop|recovery|fallback|echo/i.test(source) ? "keep Marion useful under pressure by separating the real task from loop risk and recovery noise" : "make Marion read the literal request, the purpose underneath it, the active project, and the next operational move";
+  const risk = /loop|echo|fallback|recovery|governor|meta/i.test(source) ? "looping, prompt echo, recovery wording, and shallow continuation" : "losing the active context or answering only the surface wording";
+  const mode = /surgical autopsy|patch|fix|update|resend|zip|downloadable/i.test(source) ? "surgical patch and regression validation" : "layered conversational response";
+  const next = /surgical autopsy|patch|fix|update|resend|zip|downloadable/i.test(source) ? "patch the tight runtime set, run the 9F regression, and only then move toward voice" : "run a five-turn layered-intent test and confirm Marion preserves the deeper task without exposing recovery language";
+  return `I’m reading this as ${lane}. The surface request is to ${surface}; the deeper intent is to ${intent}. The main risk is ${risk}, so the response mode should be ${mode}: hold the context, answer the real task, and give the next concrete move. Next move: ${next}.`;
+}
+const __priority9FOriginalEvaluateLoop = evaluateLoop;
+evaluateLoop = function priority9FEvaluateLoop(packet = {}, candidateReply = "", options = {}) {
+  const result = __priority9FOriginalEvaluateLoop(packet, candidateReply, options);
+  const prompt = priority9FFirstText(safeObj(options).prompt, safeObj(packet).prompt, safeObj(packet).userText, safeObj(packet).userQuery, "");
+  if (isPriority9FScaffoldLeakText(candidateReply) && isPriority9FDeepConversationalPrompt(prompt || candidateReply)) {
+    const reasons = Array.isArray(result.reasons) ? result.reasons.slice() : [];
+    if (!reasons.includes("priority9f_scaffold_leak")) reasons.push("priority9f_scaffold_leak");
+    return {...result, allowReply:false, forceRecovery:true, loopDetected:true, reasons, failureSignature:"LOOP_GUARD_SUPPRESSED", priority9FScaffoldLeak:true};
+  }
+  return result;
+};
+applyLoopGuard = function priority9FApplyLoopGuard(packet = {}, candidateReply = "", options = {}) {
+  const result = evaluateLoop(packet, candidateReply, options);
+  return {
+    ...result,
+    packetPatch: {
+      stateStage: result.nextStateStage,
+      loopCount: result.forceRecovery ? getLoopCount(packet) + 1 : 0,
+      recoveryRequired: result.forceRecovery,
+      lastLoopReasons: result.reasons,
+      loopGuardVersion: VERSION,
+      telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION,
+      failureSignature: result.failureSignature,
+      failureSignatureAudit: result.failureSignatureAudit,
+      finalRenderTelemetryVersion: FINAL_RENDER_TELEMETRY_VERSION,
+      finalRenderTelemetry: result.finalRenderTelemetry,
+      protectiveEscalation: result.protectiveEscalation,
+      protectiveEscalationActive: !!result.protectiveEscalationActive,
+      priority9FScaffoldLeak: !!result.priority9FScaffoldLeak
+    }
+  };
+};
+module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION = PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_VERSION;
+module.exports.isPriority9FDeepConversationalPrompt = isPriority9FDeepConversationalPrompt;
+module.exports.isPriority9FScaffoldLeakText = isPriority9FScaffoldLeakText;
+module.exports.buildPriority9FDeepConversationalReply = buildPriority9FDeepConversationalReply;
+module.exports.evaluateLoop = evaluateLoop;
+module.exports.applyLoopGuard = applyLoopGuard;
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_SIGNAL_PATCH_END
