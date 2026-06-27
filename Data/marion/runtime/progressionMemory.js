@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionMemory v1.1.3 PRIORITY-9E-LAST-VALID-TASK-CARRY + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
+const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionMemory v1.1.3 PRIORITY-9E-LAST-VALID-TASK-CARRY + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
 const PROGRESSION_MEMORY_VERSION = "nyx.marion.progressionMemory/1.1";
 const PARALLEL_LANE_RECENCY_VERSION = "nyx.marion.parallelLaneRecency/0.1";
 const shape = require("./progressionShape.js");
@@ -128,3 +128,47 @@ function extractLastValidTaskCarry(value = {}) {
   };
 }
 module.exports = { VERSION, PROGRESSION_MEMORY_VERSION, PARALLEL_LANE_RECENCY_VERSION, PRIORITY_9E_LAST_VALID_TASK_CARRY_VERSION, normalizeParallelLaneRecencyMemory, normalizeProgressionMemory, pendingActionFor, updateProgressionMemory, extractLastValidTaskCarry, default: updateProgressionMemory };
+
+
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_MEMORY_PATCH_START
+const PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_MEMORY_VERSION = "nyx.marion.priority9f.deepConversationalStackMemory/1.0";
+function isPriority9FDeepConversationalText(text = "") {
+  const t = safeStr(text).toLowerCase();
+  return /\b(priority\s*9f|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|multi[-\s]?layer|multi[-\s]?layered|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|full conversational stack)\b/i.test(t);
+}
+function normalizePriority9FDeepConversationCarry(value = {}) {
+  const v = safeObj(value);
+  return {
+    version: PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_MEMORY_VERSION,
+    active: !!v.active,
+    conversationLane: firstText(v.conversationLane, v.lane, ""),
+    surfaceRequest: firstText(v.surfaceRequest, ""),
+    deeperIntent: firstText(v.deeperIntent, ""),
+    operationalRisk: firstText(v.operationalRisk, ""),
+    executionMode: firstText(v.executionMode, ""),
+    nextAction: firstText(v.nextAction, ""),
+    lastDeepStackPrompt: firstText(v.lastDeepStackPrompt, ""),
+    noUserFacingDiagnostics: true,
+    updatedAt: Number.isFinite(Number(v.updatedAt)) ? Number(v.updatedAt) : Date.now()
+  };
+}
+function buildPriority9FDeepConversationCarry(text = "", context = {}) {
+  const src = safeStr(text);
+  const active = isPriority9FDeepConversationalText(src);
+  return normalizePriority9FDeepConversationCarry({
+    active,
+    conversationLane: active ? "Priority 9F deep conversational stack" : firstText(safeObj(context).conversationLane, ""),
+    surfaceRequest: active ? "separate the literal request from the real task" : "",
+    deeperIntent: active ? "preserve context, suppress loops, and answer with a useful next move" : "",
+    operationalRisk: active ? "shallow reply, prompt echo, and recovery-language leakage" : "",
+    executionMode: active ? "layered conversational response" : "",
+    nextAction: active ? "run the layered-intent regression before adding voice" : "",
+    lastDeepStackPrompt: active ? src : firstText(safeObj(context).lastDeepStackPrompt, ""),
+    noUserFacingDiagnostics: true
+  });
+}
+module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_MEMORY_VERSION = PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_MEMORY_VERSION;
+module.exports.isPriority9FDeepConversationalText = isPriority9FDeepConversationalText;
+module.exports.normalizePriority9FDeepConversationCarry = normalizePriority9FDeepConversationCarry;
+module.exports.buildPriority9FDeepConversationCarry = buildPriority9FDeepConversationCarry;
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_MEMORY_PATCH_END
