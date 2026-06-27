@@ -12,7 +12,7 @@
  * - Keeps emergency execution locked behind CONFIRM_MARION_EMERGENCY.
  */
 
-const VERSION = "marion.adminConsole.gateway/1.1-contract-hardlock";
+const VERSION = "marion.adminConsole.gateway/1.2-admin-voice-runtime-handler-connection";
 const EMERGENCY_CONFIRMATION = "CONFIRM_MARION_EMERGENCY";
 
 const DEFAULT_STATUS = Object.freeze({
@@ -172,6 +172,106 @@ function extractRiskHint(input) {
   return lower(firstText([src.risk, src.riskLevel, payload.risk, payload.riskLevel, command.risk, command.riskLevel]));
 }
 
+const ADMIN_VOICE_APPROVAL_TYPE = "admin_voice_delivery_once";
+const ADMIN_VOICE_APPROVAL_TTL_MS = 60 * 1000;
+const ADMIN_VOICE_MAX_SECONDS = 3;
+
+function normalizeCommandToken(value) {
+  return lower(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function requestField(input, field) {
+  const src = safeObj(input);
+  const payload = safeObj(src.payload);
+  const command = safeObj(src.command);
+  const meta = safeObj(src.metadata);
+  return firstText([src[field], payload[field], command[field], meta[field]]);
+}
+
+function isAdminVoiceDeliveryOnceRequest(request) {
+  const src = safeObj(request);
+  const raw = safeObj(src.raw);
+  const tokens = [
+    src.command,
+    src.type,
+    src.commandType,
+    src.approvalType,
+    requestField(src, "approvalType"),
+    requestField(src, "type"),
+    requestField(src, "command"),
+    raw.command,
+    raw.type,
+    raw.commandType,
+    requestField(raw, "approvalType"),
+    requestField(raw, "type"),
+    requestField(raw, "command")
+  ].map(normalizeCommandToken).filter(Boolean);
+
+  return tokens.some((token) =>
+    token === "request_admin_voice_confirmation_once" ||
+    token === "admin_voice_delivery_once" ||
+    token === "admin_voice_confirmation_once" ||
+    token === "request_admin_voice_delivery_once" ||
+    token === "request_admin_approval_voice_once" ||
+    token === "voice_delivery_once"
+  );
+}
+
+function extractVoiceConstraints(request) {
+  const src = safeObj(request);
+  const raw = safeObj(src.raw);
+  const payload = safeObj(src.payload || raw.payload);
+  const command = safeObj(src.command || raw.command);
+  const constraints = {
+    ...safeObj(payload.constraints),
+    ...safeObj(command.constraints),
+    ...safeObj(raw.constraints),
+    ...safeObj(src.constraints)
+  };
+
+  const maxSeconds = Math.max(1, Math.min(
+    Number(constraints.maxSeconds || raw.maxSeconds || src.maxSeconds || ADMIN_VOICE_MAX_SECONDS) || ADMIN_VOICE_MAX_SECONDS,
+    ADMIN_VOICE_MAX_SECONDS
+  ));
+
+  return {
+    singleUtterance: constraints.singleUtterance !== false,
+    noLoop: constraints.noLoop !== false,
+    noRepeatedPlayback: constraints.noRepeatedPlayback !== false,
+    noDiagnostics: constraints.noDiagnostics !== false,
+    maxSeconds
+  };
+}
+
+function publicAdminVoiceApprovalState(state) {
+  const s = safeObj(state);
+  const expiresAt = Number(s.expiresAt || 0);
+  const active = s.approved === true && expiresAt > now() && s.consumed !== true && s.revoked !== true;
+  return {
+    version: "marion.adminVoice.runtimeApproval/1.0",
+    approval: active ? "YES" : "NO",
+    approved: active,
+    approvalRequired: true,
+    approvalType: ADMIN_VOICE_APPROVAL_TYPE,
+    requestId: cleanText(s.requestId || ""),
+    adminVoiceTokenConfigured: true,
+    adminVoiceTokenProvided: active,
+    adminVoiceDeliveryAllowed: active,
+    projectedVoiceMode: active ? "voice" : "silent",
+    rawVoiceMode: active ? "voice" : "silent",
+    speechSyncEnabled: active,
+    singleUtterance: s.singleUtterance !== false,
+    maxSeconds: Number(s.maxSeconds || ADMIN_VOICE_MAX_SECONDS),
+    expiresInMs: active ? Math.max(0, expiresAt - now()) : 0,
+    consumed: s.consumed === true,
+    revoked: s.revoked === true,
+    audioStored: false,
+    rawAudioStored: false,
+    noRawAudioStored: true,
+    diagnosticsRedacted: true
+  };
+}
+
 class MarionAdminConsoleGateway {
   constructor(options = {}) {
     this.marionRuntime = options.marionRuntime || null;
@@ -183,7 +283,172 @@ class MarionAdminConsoleGateway {
     this.safeMode = false;
     this.lastStatus = { ...DEFAULT_STATUS };
     this.pendingApprovals = new Map();
+    this.adminVoiceApprovalState = {
+      approved: false,
+      requestId: "",
+      sessionId: "",
+      expiresAt: 0,
+      consumed: false,
+      revoked: false,
+      singleUtterance: true,
+      maxSeconds: ADMIN_VOICE_MAX_SECONDS
+    };
+    this.lastAdminVoiceApprovalRequestId = "";
   }
+
+
+  isAdminVoiceDeliveryOnce(request = {}) {
+    return isAdminVoiceDeliveryOnceRequest(request);
+  }
+
+  currentAdminVoiceApprovalState(options = {}) {
+    const opts = safeObj(options);
+    const state = safeObj(this.adminVoiceApprovalState);
+    if (state.approved === true && Number(state.expiresAt || 0) <= now()) {
+      this.adminVoiceApprovalState = {
+        ...state,
+        approved: false,
+        expired: true,
+        adminVoiceDeliveryAllowed: false
+      };
+    }
+    const publicState = publicAdminVoiceApprovalState(this.adminVoiceApprovalState);
+    if (opts.sessionId) {
+      publicState.sessionMatches = cleanText(opts.sessionId) === cleanText(this.adminVoiceApprovalState.sessionId || "");
+    }
+    return publicState;
+  }
+
+  findPendingAdminVoiceApproval(requestId = "") {
+    const wanted = cleanText(requestId || "");
+    if (wanted && this.pendingApprovals.has(wanted)) {
+      const direct = this.pendingApprovals.get(wanted);
+      if (direct && direct.approvalType === ADMIN_VOICE_APPROVAL_TYPE) return direct;
+    }
+
+    if (wanted) {
+      for (const entry of this.pendingApprovals.values()) {
+        if (!entry || entry.approvalType !== ADMIN_VOICE_APPROVAL_TYPE) continue;
+        if (cleanText(entry.requestId || "") === wanted || cleanText(entry.approvalId || "") === wanted) return entry;
+      }
+    }
+
+    const latestId = cleanText(this.lastAdminVoiceApprovalRequestId || "");
+    if (latestId && this.pendingApprovals.has(latestId)) {
+      const latest = this.pendingApprovals.get(latestId);
+      if (latest && latest.approvalType === ADMIN_VOICE_APPROVAL_TYPE) return latest;
+    }
+
+    const voiceEntries = Array.from(this.pendingApprovals.values())
+      .filter((entry) => entry && entry.approvalType === ADMIN_VOICE_APPROVAL_TYPE)
+      .sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
+
+    return voiceEntries[0] || null;
+  }
+
+  createAdminVoiceApprovalRequest(request = {}, risk = RISK_LEVELS.LOW, context = {}) {
+    const constraints = extractVoiceConstraints(request);
+    const sessionId = cleanText(
+      safeObj(request.metadata).sessionId ||
+      safeObj(request.raw).sessionId ||
+      safeObj(context).sessionId ||
+      ""
+    );
+    const requestId = cleanText(request.requestId || safeObj(request.raw).commandId || safeObj(request.raw).requestId || makeId("adminvoice"));
+    const entry = {
+      approvalId: requestId,
+      requestId,
+      approvalType: ADMIN_VOICE_APPROVAL_TYPE,
+      request,
+      risk,
+      createdAt: isoNow(),
+      createdAtMs: now(),
+      status: "pending",
+      sessionId,
+      constraints,
+      singleUtterance: constraints.singleUtterance,
+      maxSeconds: constraints.maxSeconds,
+      audioStored: false,
+      rawAudioStored: false,
+      diagnosticsRedacted: true
+    };
+    this.pendingApprovals.set(requestId, entry);
+    this.lastAdminVoiceApprovalRequestId = requestId;
+    this.adminVoiceApprovalState = {
+      approved: false,
+      requestId,
+      sessionId,
+      expiresAt: 0,
+      consumed: false,
+      revoked: false,
+      denied: false,
+      singleUtterance: constraints.singleUtterance,
+      maxSeconds: constraints.maxSeconds
+    };
+    return entry;
+  }
+
+  approveAdminVoiceDelivery(entry = {}, context = {}) {
+    const source = safeObj(entry);
+    const constraints = safeObj(source.constraints);
+    const requestId = cleanText(source.requestId || source.approvalId || this.lastAdminVoiceApprovalRequestId || makeId("adminvoice"));
+    const sessionId = cleanText(source.sessionId || safeObj(context).sessionId || "");
+    const maxSeconds = Math.max(1, Math.min(Number(source.maxSeconds || constraints.maxSeconds || ADMIN_VOICE_MAX_SECONDS) || ADMIN_VOICE_MAX_SECONDS, ADMIN_VOICE_MAX_SECONDS));
+    const expiresAt = now() + ADMIN_VOICE_APPROVAL_TTL_MS;
+    this.pendingApprovals.delete(requestId);
+    this.adminVoiceApprovalState = {
+      approved: true,
+      requestId,
+      sessionId,
+      approvedAt: isoNow(),
+      expiresAt,
+      consumed: false,
+      revoked: false,
+      denied: false,
+      singleUtterance: constraints.singleUtterance !== false,
+      noLoop: constraints.noLoop !== false,
+      noRepeatedPlayback: constraints.noRepeatedPlayback !== false,
+      noDiagnostics: constraints.noDiagnostics !== false,
+      maxSeconds
+    };
+    return publicAdminVoiceApprovalState(this.adminVoiceApprovalState);
+  }
+
+  consumeAdminVoiceDeliveryApproval(options = {}) {
+    const opts = safeObj(options);
+    const state = this.currentAdminVoiceApprovalState(opts);
+    if (state.adminVoiceDeliveryAllowed !== true) return state;
+    const expectedSessionId = cleanText(this.adminVoiceApprovalState.sessionId || "");
+    const actualSessionId = cleanText(opts.sessionId || "");
+    if (expectedSessionId && actualSessionId && expectedSessionId !== actualSessionId) {
+      return {
+        ...state,
+        approval: "NO",
+        approved: false,
+        adminVoiceTokenProvided: false,
+        adminVoiceDeliveryAllowed: false,
+        projectedVoiceMode: "silent",
+        rawVoiceMode: "silent",
+        speechSyncEnabled: false,
+        sessionMatches: false,
+        reason: "session_mismatch"
+      };
+    }
+    if (this.adminVoiceApprovalState.singleUtterance !== false) {
+      this.adminVoiceApprovalState = {
+        ...this.adminVoiceApprovalState,
+        approved: false,
+        consumed: true,
+        consumedAt: isoNow()
+      };
+    }
+    return {
+      ...state,
+      consumedForThisTurn: this.adminVoiceApprovalState.singleUtterance !== false,
+      sessionMatches: true
+    };
+  }
+
 
   makeBasePacket(action, input = {}, context = {}) {
     const ctx = safeObj(context);
@@ -227,7 +492,8 @@ class MarionAdminConsoleGateway {
         adminVerified: ctx.adminVerified === true || src.adminVerified === true,
         mfaVerified: ctx.mfaVerified === true || src.mfaVerified === true,
         route: cleanText(ctx.route || ""),
-        method: cleanText(ctx.method || "")
+        method: cleanText(ctx.method || ""),
+        sessionId: cleanText(ctx.sessionId || src.sessionId || "")
       }
     };
   }
@@ -291,10 +557,15 @@ class MarionAdminConsoleGateway {
   requiresApproval(risk, request) {
     if (!request || !request.type) return false;
     if (request.type === COMMAND_TYPES.EMERGENCY) return false;
+    if (isAdminVoiceDeliveryOnceRequest(request)) return true;
     return risk === RISK_LEVELS.HIGH || risk === RISK_LEVELS.CRITICAL;
   }
 
   createApproval(request, risk) {
+    if (isAdminVoiceDeliveryOnceRequest(request)) {
+      return this.createAdminVoiceApprovalRequest(request, risk).approvalId;
+    }
+
     const approvalId = makeId("approval");
 
     this.pendingApprovals.set(approvalId, {
@@ -302,6 +573,7 @@ class MarionAdminConsoleGateway {
       request,
       risk,
       createdAt: isoNow(),
+      createdAtMs: now(),
       status: "pending"
     });
 
@@ -321,8 +593,10 @@ class MarionAdminConsoleGateway {
         protected: true,
         runtimeContract: "ready",
         supportedActions: ["status", "command", "approve", "deny", "emergency"],
-        pendingApprovalCount: this.pendingApprovals.size
+        pendingApprovalCount: this.pendingApprovals.size,
+        adminVoiceRuntimeApproval: this.currentAdminVoiceApprovalState()
       },
+      adminVoiceRuntimeApproval: this.currentAdminVoiceApprovalState(),
       data,
       modules: {
         marion: data.marion,
@@ -423,8 +697,16 @@ class MarionAdminConsoleGateway {
         type: normalized.type,
         risk,
         approvalRequired: true,
+        approvalType: isAdminVoiceDeliveryOnceRequest(normalized) ? ADMIN_VOICE_APPROVAL_TYPE : "manual_command",
+        requestId: approvalId,
         approvalId,
-        message: "Manual approval required before execution.",
+        adminVoiceDeliveryAllowed: false,
+        projectedVoiceMode: "silent",
+        rawVoiceMode: "silent",
+        speechSyncEnabled: false,
+        message: isAdminVoiceDeliveryOnceRequest(normalized)
+          ? "Admin voice delivery request accepted and is pending approval."
+          : "Manual approval required before execution.",
         trace: this.trace(startedAt, "approval_pending", normalized)
       });
     }
@@ -476,6 +758,42 @@ class MarionAdminConsoleGateway {
       adminId: request.adminId,
       inputMode: request.inputMode
     });
+
+    if (this.isAdminVoiceDeliveryOnce(request)) {
+      const approval = this.createAdminVoiceApprovalRequest(request, risk);
+      await this.audit("admin_voice_approval_pending", {
+        requestId: approval.requestId,
+        approvalType: ADMIN_VOICE_APPROVAL_TYPE,
+        risk
+      });
+      return {
+        ok: true,
+        status: 202,
+        stage: "admin_voice_runtime_approval_pending",
+        type: COMMAND_TYPES.VOICE,
+        risk,
+        accepted: true,
+        runtimeConnected: true,
+        approvalRequired: true,
+        approvalType: ADMIN_VOICE_APPROVAL_TYPE,
+        requestId: approval.requestId,
+        approvalId: approval.approvalId,
+        statusText: "pending_approval",
+        adminVoiceTokenConfigured: true,
+        adminVoiceTokenProvided: false,
+        adminVoiceDeliveryAllowed: false,
+        projectedVoiceMode: "silent",
+        rawVoiceMode: "silent",
+        speechSyncEnabled: false,
+        constraints: approval.constraints,
+        audioStored: false,
+        rawAudioStored: false,
+        noRawAudioStored: true,
+        diagnosticsRedacted: true,
+        message: "Admin voice delivery request accepted and connected to the runtime approval handler.",
+        trace: this.trace(startedAt, "admin_voice_approval_pending", request)
+      };
+    }
 
     if (!this.marionRuntime || typeof this.marionRuntime.handleAdminCommand !== "function") {
       return {
@@ -538,12 +856,50 @@ class MarionAdminConsoleGateway {
       });
     }
 
-    const pending = this.pendingApprovals.get(requestId);
+    const pending = this.pendingApprovals.get(requestId) || this.findPendingAdminVoiceApproval(requestId);
     if (pending) {
       pending.status = "approved";
+
+      if (pending.approvalType === ADMIN_VOICE_APPROVAL_TYPE || this.isAdminVoiceDeliveryOnce(pending.request)) {
+        const voiceState = this.approveAdminVoiceDelivery(pending, context);
+        await this.audit("admin_voice_approval_granted", {
+          requestId: voiceState.requestId,
+          approvalType: ADMIN_VOICE_APPROVAL_TYPE,
+          singleUtterance: voiceState.singleUtterance,
+          maxSeconds: voiceState.maxSeconds
+        });
+        return this.safeResponse({
+          ...packet,
+          stage: "admin_voice_delivery_approved",
+          requestId: voiceState.requestId,
+          approved: true,
+          approval: "YES",
+          decision: "approved",
+          approvalType: ADMIN_VOICE_APPROVAL_TYPE,
+          adminVoiceTokenConfigured: true,
+          adminVoiceTokenProvided: true,
+          adminVoiceDeliveryAllowed: true,
+          projectedVoiceMode: "voice",
+          rawVoiceMode: "voice",
+          speechSyncEnabled: true,
+          singleUtterance: true,
+          maxSeconds: voiceState.maxSeconds,
+          expiresInMs: voiceState.expiresInMs,
+          audioStored: false,
+          rawAudioStored: false,
+          noRawAudioStored: true,
+          result: {
+            ok: true,
+            ...voiceState,
+            message: "Admin voice delivery approved for one short confirmation only."
+          }
+        });
+      }
+
       pending.request.approvalToken = requestId;
-      this.pendingApprovals.delete(requestId);
-      const result = await this.handleCommand(pending.request.raw || pending.request, context);
+      this.pendingApprovals.delete(pending.approvalId || requestId);
+      const commandRequest = { ...(pending.request.raw || pending.request), approvalToken: requestId, approvalId: requestId };
+      const result = await this.handleCommand(commandRequest, context);
       return this.safeResponse({
         ...packet,
         stage: "approve_completed_pending_command_executed",
@@ -554,19 +910,26 @@ class MarionAdminConsoleGateway {
       });
     }
 
-    await this.audit("approval_recorded", { requestId, source: "admin_console" });
+    await this.audit("approval_recorded_no_pending_request", { requestId, source: "admin_console" });
 
     return this.safeResponse({
       ...packet,
-      stage: "approve_completed",
+      stage: "approve_recorded_no_pending_request",
       requestId,
       approved: true,
       decision: "approved",
+      approval: "NO",
+      adminVoiceDeliveryAllowed: false,
+      projectedVoiceMode: "silent",
+      rawVoiceMode: "silent",
+      speechSyncEnabled: false,
       result: {
         ok: true,
         requestId,
         decision: "approved",
-        message: "Approval recorded by Marion Admin Console Gateway."
+        approval: "NO",
+        adminVoiceDeliveryAllowed: false,
+        message: "Approval recorded, but no pending admin voice delivery request was active."
       }
     });
   }
@@ -601,8 +964,21 @@ class MarionAdminConsoleGateway {
       });
     }
 
-    const pending = this.pendingApprovals.get(requestId);
-    if (pending) this.pendingApprovals.delete(requestId);
+    const pending = this.pendingApprovals.get(requestId) || this.findPendingAdminVoiceApproval(requestId);
+    if (pending) {
+      this.pendingApprovals.delete(pending.approvalId || pending.requestId || requestId);
+      if (pending.approvalType === ADMIN_VOICE_APPROVAL_TYPE || this.isAdminVoiceDeliveryOnce(pending.request)) {
+        this.adminVoiceApprovalState = {
+          ...this.adminVoiceApprovalState,
+          approved: false,
+          denied: true,
+          revoked: true,
+          requestId: cleanText(pending.requestId || pending.approvalId || requestId),
+          deniedAt: isoNow(),
+          expiresAt: 0
+        };
+      }
+    }
 
     await this.audit("approval_denied", {
       requestId,
@@ -751,6 +1127,19 @@ class MarionAdminConsoleGateway {
       authorization: "verified",
       gatewayVersion: VERSION,
       pendingApprovalCount: this.pendingApprovals.size,
+      pendingApprovals: Array.from(this.pendingApprovals.values()).slice(0, 10).map((entry) => ({
+        requestId: cleanText(entry && (entry.requestId || entry.approvalId) || ""),
+        approvalType: cleanText(entry && entry.approvalType || "manual_command"),
+        risk: cleanText(entry && entry.risk || "unknown"),
+        status: cleanText(entry && entry.status || "pending"),
+        createdAt: cleanText(entry && entry.createdAt || "")
+      })),
+      adminVoiceRuntimeApproval: this.currentAdminVoiceApprovalState(),
+      approval: this.currentAdminVoiceApprovalState().approval,
+      adminVoiceDeliveryAllowed: this.currentAdminVoiceApprovalState().adminVoiceDeliveryAllowed,
+      projectedVoiceMode: this.currentAdminVoiceApprovalState().projectedVoiceMode,
+      rawVoiceMode: this.currentAdminVoiceApprovalState().rawVoiceMode,
+      speechSyncEnabled: this.currentAdminVoiceApprovalState().speechSyncEnabled,
       checkedAt: isoNow()
     };
 
@@ -874,6 +1263,19 @@ async function process(input = {}, context = {}) {
   return defaultGateway.process(input, context);
 }
 
+
+function getAdminVoiceRuntimeState(options = {}) {
+  return defaultGateway.currentAdminVoiceApprovalState(options);
+}
+
+function consumeAdminVoiceRuntimeApproval(options = {}) {
+  return defaultGateway.consumeAdminVoiceDeliveryApproval(options);
+}
+
+function getPendingApprovals() {
+  return Array.from(defaultGateway.pendingApprovals.values()).map((entry) => defaultGateway.redact(entry));
+}
+
 function bindStatic(name, fn) {
   MarionAdminConsoleGateway[name] = fn;
 }
@@ -904,6 +1306,9 @@ bindStatic("emergency", handleEmergency);
 bindStatic("triggerEmergency", handleEmergency);
 bindStatic("enterSafeMode", handleEmergency);
 bindStatic("safeMode", handleEmergency);
+bindStatic("getAdminVoiceRuntimeState", getAdminVoiceRuntimeState);
+bindStatic("consumeAdminVoiceRuntimeApproval", consumeAdminVoiceRuntimeApproval);
+bindStatic("getPendingApprovals", getPendingApprovals);
 bindStatic("handleAdminConsoleAction", handleAdminConsoleAction);
 bindStatic("handle", handle);
 bindStatic("process", process);
@@ -946,6 +1351,10 @@ module.exports = {
   triggerEmergency: handleEmergency,
   enterSafeMode: handleEmergency,
   safeMode: handleEmergency,
+
+  getAdminVoiceRuntimeState,
+  consumeAdminVoiceRuntimeApproval,
+  getPendingApprovals,
 
   handleAdminConsoleAction,
   handle,
