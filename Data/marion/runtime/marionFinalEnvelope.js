@@ -6,7 +6,7 @@
  * Single-source final envelope builder + validator + JSON-safe transport normalizer.
  */
 
-const VERSION = "marionFinalEnvelope v2.3.4 MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "marionFinalEnvelope v2.3.4 MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -452,7 +452,13 @@ function attachVisibleReplyAliases(packet={}){
   out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.text=reply;out.displayReply=reply;out.spokenText=reply;out.speechText=reply;out.answer=reply;out.output=reply;out.response=reply;
   out.payload={...payload,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,speechText:reply,answer:reply,output:reply,response:reply};
   out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,displayReply:reply,spokenText:reply,speechText:reply,answer:reply,output:reply,response:reply,final:true,marionFinal:true,canEmit:true};
-  out.voice={...voice,spokenText:voice.spokenText||reply,speechText:voice.speechText||reply,audioStored:false,rawAudioStored:false,noRawAudioStored:true};
+  const adminVoiceAllowed=out.adminVoiceDeliveryAllowed===true||out.adminVoiceRuntimeApproval===true||payload.adminVoiceDeliveryAllowed===true||payload.adminVoiceRuntimeApproval===true||voice.adminVoiceDeliveryAllowed===true||voice.adminVoiceRuntimeApproval===true||voice.privateVoiceDelivery===true;
+  out.voice={...voice,spokenText:voice.spokenText||reply,speechText:voice.speechText||reply,speakAllowed:adminVoiceAllowed&&!!reply,voiceMode:adminVoiceAllowed&&reply?"voice":"silent",projectedVoiceMode:adminVoiceAllowed&&reply?"voice":"silent",rawVoiceMode:adminVoiceAllowed&&reply?"voice":"silent",privateVoiceDelivery:adminVoiceAllowed,privateVoiceReceiveReady:adminVoiceAllowed&&!!reply,adminVoiceDeliveryAllowed:adminVoiceAllowed,adminVoiceRuntimeApproval:adminVoiceAllowed,adminOnlyVoiceDelivery:true,deliveryChannel:adminVoiceAllowed?"marion_admin_private_voice":"",capability:adminVoiceAllowed?"voice.private.receive":"",speechSyncEnabled:adminVoiceAllowed&&!!reply,audioStored:false,rawAudioStored:false,noRawAudioStored:true};
+  if(adminVoiceAllowed&&reply){
+    out.privateVoiceReceive={ok:true,version:"marion.adminPrivateVoiceReceive.envelope/1.0",stage:"admin_private_voice_receive_ready",capability:"voice.private.receive",deliveryChannel:"marion_admin_private_voice",speakAllowed:true,voiceMode:"voice",projectedVoiceMode:"voice",rawVoiceMode:"voice",spokenText:reply,speechText:reply,text:reply,speechSyncEnabled:true,singleUtterance:true,consumedForThisTurn:true,audioStored:false,rawAudioStored:false,noRawAudioStored:true,diagnosticsRedacted:true};
+    out.adminInterface={...safeObj(out.adminInterface),directMarionAdminInterface:true,marionAdminConversationAllowed:true,adminInterfaceScope:"marion_admin_conversation",publicUsersCanAddressMarion:false,publicUserFacing:false,adminOnly:true,authority:"Marion"};
+    out.publicAgent="Marion";
+  }
   out.final=true;out.marionFinal=true;out.canEmit=true;out.publicSurfaceClean=true;
   return out;
 }
