@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionMemory v1.1.2 KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
+const VERSION = "progressionMemory v1.1.3 PRIORITY-9E-LAST-VALID-TASK-CARRY + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-CARRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY";
 const PROGRESSION_MEMORY_VERSION = "nyx.marion.progressionMemory/1.1";
 const PARALLEL_LANE_RECENCY_VERSION = "nyx.marion.parallelLaneRecency/0.1";
 const shape = require("./progressionShape.js");
@@ -55,6 +55,10 @@ function normalizeProgressionMemory(value = {}) {
     passFailState: firstText(v.passFailState, ""),
     shallowReplyBlocked: !!v.shallowReplyBlocked,
     noUserFacingDiagnostics: v.noUserFacingDiagnostics !== false,
+    lastValidTask: firstText(v.lastValidTask, v.lastTask, v.activeTask, ""),
+    lastCompletedTask: firstText(v.lastCompletedTask, v.completedTask, ""),
+    lastPendingTask: firstText(v.lastPendingTask, v.pendingTask, v.pendingAction, ""),
+    lastContinuationIntent: firstText(v.lastContinuationIntent, ""),
     parallelLaneRecency: normalizeParallelLaneRecencyMemory(v.parallelLaneRecency || v.parallelLaneCarryMaintenance),
     updatedAt: Number.isFinite(Number(v.updatedAt)) ? Number(v.updatedAt) : Date.now()
   };
@@ -81,7 +85,7 @@ function updateProgressionMemory({ text = "", reply = "", previous = {}, context
   const profile = shape.buildProgressionProfile(text, { ...safeObj(context), progressionRefinement: prev });
   const knowledgeBypass = shape && typeof shape.isKnowledgeQuestionText === "function" ? shape.isKnowledgeQuestionText(text) : false;
   const active = knowledgeBypass ? false : !!(profile.active || prev.active);
-  const shallow = active && /^\s*(continue|next|ok|done)\.?\s*$/i.test(safeStr(reply));
+  const shallow = active && /^\s*(continue|next|ok|done|run that again|do it again|same thing|repeat that)\.?\s*$/i.test(safeStr(reply));
   const next = normalizeProgressionMemory({
     active,
     lane: active ? "progression_shaping_refinement" : "",
@@ -98,6 +102,10 @@ function updateProgressionMemory({ text = "", reply = "", previous = {}, context
     replyHash: reply ? hashText(reply) : prev.replyHash,
     passFailState: profile.signal === "pass" ? "passed" : (profile.signal === "fail" ? "failed" : prev.passFailState),
     shallowReplyBlocked: shallow || prev.shallowReplyBlocked,
+    lastValidTask: active ? firstText(safeObj(context).lastValidTask, prev.lastValidTask, profile.phaseLabel, profile.phaseKey, "") : firstText(prev.lastValidTask, ""),
+    lastCompletedTask: firstText(safeObj(context).lastCompletedTask, prev.lastCompletedTask, ""),
+    lastPendingTask: active ? firstText(pendingActionFor(profile, prev), prev.lastPendingTask, prev.pendingAction, "") : firstText(prev.lastPendingTask, ""),
+    lastContinuationIntent: shape && typeof shape.isPriority9EContinuationCommand === "function" && shape.isPriority9EContinuationCommand(text) ? safeStr(text) : firstText(prev.lastContinuationIntent, ""),
     noUserFacingDiagnostics: true,
     parallelLaneRecency: normalizeParallelLaneRecencyMemory(safeObj(context).parallelLaneRecency || safeObj(context).parallelLaneCarryMaintenance || safeObj(prev).parallelLaneRecency),
     updatedAt: Date.now()
@@ -105,4 +113,18 @@ function updateProgressionMemory({ text = "", reply = "", previous = {}, context
   return { ...next, profile };
 }
 
-module.exports = { VERSION, PROGRESSION_MEMORY_VERSION, PARALLEL_LANE_RECENCY_VERSION, normalizeParallelLaneRecencyMemory, normalizeProgressionMemory, pendingActionFor, updateProgressionMemory, default: updateProgressionMemory };
+const PRIORITY_9E_LAST_VALID_TASK_CARRY_VERSION = "nyx.marion.priority9e.lastValidTaskCarry/1.0";
+function extractLastValidTaskCarry(value = {}) {
+  const v = normalizeProgressionMemory(value);
+  return {
+    version: PRIORITY_9E_LAST_VALID_TASK_CARRY_VERSION,
+    active: !!v.active,
+    lane: v.lane,
+    lastValidTask: firstText(v.lastValidTask, v.phaseLabel, v.phaseKey),
+    lastCompletedTask: v.lastCompletedTask,
+    lastPendingTask: firstText(v.lastPendingTask, v.pendingAction),
+    lastContinuationIntent: v.lastContinuationIntent,
+    noUserFacingDiagnostics: true
+  };
+}
+module.exports = { VERSION, PROGRESSION_MEMORY_VERSION, PARALLEL_LANE_RECENCY_VERSION, PRIORITY_9E_LAST_VALID_TASK_CARRY_VERSION, normalizeParallelLaneRecencyMemory, normalizeProgressionMemory, pendingActionFor, updateProgressionMemory, extractLastValidTaskCarry, default: updateProgressionMemory };
