@@ -18,7 +18,7 @@
  * - Fails closed into one clarifier only when routing confidence is genuinely weak/ambiguous.
  */
 
-const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + DomainConcierge v1.2.0 PRIORITY2-ROUTE-CLARIFY-HARDENING + DEFENSIVE-INTENT-CARRY + CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
+const VERSION = "PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + DomainConcierge v1.2.0 PRIORITY2-ROUTE-CLARIFY-HARDENING + DEFENSIVE-INTENT-CARRY + CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
 const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
@@ -1007,27 +1007,11 @@ module.exports = {
 module.exports.default = module.exports;
 
 
-// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_PATCH_START
-const PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION = "nyx.marion.domainConcierge.priority9f.deepConversationalStack/1.0";
-function isPriority9FDeepConversationalText(text = "") {
-  const t = lower(text);
-  return /\b(priority\s*9f|deep conversational stack|layered conversational|conversational stack|layered intelligence|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|full conversational stack)\b/i.test(t);
-}
-function buildPriority9FConciergeSeed(text = "", context = {}) {
-  const active = isPriority9FDeepConversationalText(text);
-  return {
-    version: PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION,
-    active,
-    action: active ? "route" : "",
-    domain: active ? "execution_context" : "",
-    intent: active ? "contextual_directive" : "",
-    responseShape: active ? "layered_conversational_stack" : "",
-    clarify: false,
-    noUserFacingDiagnostics: true
-  };
-}
-module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION = PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION;
-module.exports.isPriority9FDeepConversationalText = isPriority9FDeepConversationalText;
-module.exports.buildPriority9FConciergeSeed = buildPriority9FConciergeSeed;
-module.exports._internal = {...safeObj(module.exports._internal), isPriority9FDeepConversationalText, buildPriority9FConciergeSeed};
-// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_PATCH_END
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_DOMAIN_CONCIERGE_PATCH_START
+const PRIORITY_9F_R1_DOMAIN_CONCIERGE_LAYERED_PRECEDENCE_VERSION="nyx.marion.domainConcierge.priority9fR1.layeredPrecedence/1.0";
+function isPriority9FR1LayeredPrecedenceText(text=""){const t=lower(text).replace(/[_-]+/g," ");return /\b(priority\s*9f|9f\s*r1|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|full conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action)\b/i.test(t)||(/\b(disjointed|deeper|layered|multi|context|looping|loop|recovery)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next)\b/i.test(t));}
+const __priority9FR1OriginalRunDomainConcierge=runDomainConcierge;
+runDomainConcierge=function priority9FR1RunDomainConcierge(packet,options){const decision=__priority9FR1OriginalRunDomainConcierge(packet,options);const text=extractText(safeObj(packet));if(!isPriority9FR1LayeredPrecedenceText(text))return decision;return normalizeConciergeDecision({...decision,action:"route",route:"execution_context",intent:"contextual_directive",confidence:0.97,needsClarifier:false,clarifier:null,reason:"priority9f_r1_layered_prompt_precedence",normalizedUserIntent:text,domainConfidence:{...safeObj(decision.domainConfidence),version:DOMAIN_CONFIDENCE_VERSION,confidence:0.97,band:"high",routeLocked:true,primaryDomain:"execution_context",reason:"priority9f_r1_layered_prompt_precedence"},questionShape:{...safeObj(decision.questionShape),questionShape:"layered_conversational_stack",normalizedText:text,normalizedUserIntent:text},composerContext:{...safeObj(decision.composerContext),priority9FR1LayeredPrecedence:true,responseShape:"layered_conversational_stack"},stateSpinePatch:{...safeObj(decision.stateSpinePatch),priority9FR1LayeredPrecedence:true,responseShape:"layered_conversational_stack"},priority9FR1LayeredPrecedence:true,noUserFacingDiagnostics:true});};
+routeOrClarify=function priority9FR1RouteOrClarify(packet,options){return runDomainConcierge(packet,options);};shouldClarify=function priority9FR1ShouldClarify(packet,options){return runDomainConcierge(packet,options).needsClarifier===true;};
+module.exports.PRIORITY_9F_R1_DOMAIN_CONCIERGE_LAYERED_PRECEDENCE_VERSION=PRIORITY_9F_R1_DOMAIN_CONCIERGE_LAYERED_PRECEDENCE_VERSION;module.exports.isPriority9FR1LayeredPrecedenceText=isPriority9FR1LayeredPrecedenceText;module.exports.runDomainConcierge=runDomainConcierge;module.exports.routeOrClarify=routeOrClarify;module.exports.shouldClarify=shouldClarify;module.exports.default=module.exports;
+// PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_DOMAIN_CONCIERGE_PATCH_END
