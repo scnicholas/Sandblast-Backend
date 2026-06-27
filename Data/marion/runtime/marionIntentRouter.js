@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "marionIntentRouter v3.6.0 PRIORITY2-COMMAND-ROUTING-HARDENING + DEFENSIVE-INTENT-SIGNAL-CARRY + FOLLOWUP-CANDIDATE-SANITIZATION + UNRESOLVED-FOLLOWUP-DEADEND-BYPASS + FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionIntentRouter v3.6.0 PRIORITY2-COMMAND-ROUTING-HARDENING + DEFENSIVE-INTENT-SIGNAL-CARRY + FOLLOWUP-CANDIDATE-SANITIZATION + UNRESOLVED-FOLLOWUP-DEADEND-BYPASS + FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -2256,3 +2256,29 @@ module.exports = {
     stripTelemetryLeakFromReply
   }
 };
+
+
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_ROUTER_PATCH_START
+const PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_ROUTER_VERSION = "nyx.marion.intentRouter.priority9f.deepConversationalStack/1.0";
+function isPriority9FDeepConversationalText(text = "") {
+  const t = safeStr(text).toLowerCase();
+  return /\b(priority\s*9f|deep conversational stack|layered conversational|conversational stack|layered intelligence|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|full conversational stack)\b/i.test(t);
+}
+function buildPriority9FRouteSeed(text = "", context = {}) {
+  const active = isPriority9FDeepConversationalText(text);
+  return {
+    version: PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_ROUTER_VERSION,
+    active,
+    intent: active ? "contextual_directive" : "",
+    domain: active ? "execution_context" : "",
+    mode: active ? "contextual_execution" : "",
+    depth: active ? "continuity_deep" : "",
+    style: active ? "strategic_direct" : "",
+    noUserFacingDiagnostics: true
+  };
+}
+module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_ROUTER_VERSION = PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_ROUTER_VERSION;
+module.exports.isPriority9FDeepConversationalText = isPriority9FDeepConversationalText;
+module.exports.buildPriority9FRouteSeed = buildPriority9FRouteSeed;
+module.exports._internal = {...(module.exports._internal||{}), isPriority9FDeepConversationalText, buildPriority9FRouteSeed};
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_ROUTER_PATCH_END
