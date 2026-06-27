@@ -13,7 +13,7 @@
  *   mutate durable memory.
  */
 
-const VERSION = "PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + marionLoopGuard v1.4.1 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
+const VERSION = "PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + marionLoopGuard v1.4.1 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY3-PROTECTIVE-STATE-LOOP-HARDENING + REFERENCEERROR-SUPPRESSION";
 const PROTECTIVE_ESCALATION_LOOP_GUARD_VERSION = "sandblast.guardian.protectiveEscalationLoopGuard/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
@@ -714,3 +714,36 @@ evaluateLoop=function priority9FR3EvaluateLoop(packet={},candidateReply="",optio
 applyLoopGuard=function priority9FR3ApplyLoopGuard(packet={},candidateReply="",options={}){const result=evaluateLoop(packet,candidateReply,options);return {...safeObj(result),packetPatch:{stateStage:result.nextStateStage,loopCount:result.forceRecovery?getLoopCount(packet)+1:0,recoveryRequired:result.forceRecovery,lastLoopReasons:result.reasons,loopGuardVersion:VERSION,telemetryVisibilityVersion:TELEMETRY_VISIBILITY_VERSION,failureSignature:result.failureSignature,failureSignatureAudit:result.failureSignatureAudit,finalRenderTelemetryVersion:FINAL_RENDER_TELEMETRY_VERSION,finalRenderTelemetry:result.finalRenderTelemetry,protectiveEscalation:result.protectiveEscalation,protectiveEscalationActive:!!result.protectiveEscalationActive,priority9FR3AltPromptEchoSuppression:!!result.priority9FR3AltPromptEchoSuppression,promptEchoSuppressed:!!result.promptEchoSuppressed}};};
 module.exports.PRIORITY_9F_R3_LOOP_GUARD_ALT_PROMPT_ECHO_SUPPRESSION_VERSION=PRIORITY_9F_R3_LOOP_GUARD_ALT_PROMPT_ECHO_SUPPRESSION_VERSION;module.exports.isPriority9FR3LayeredPromptText=isPriority9FR3LayeredPromptText;module.exports.isPriority9FR3PromptEchoText=isPriority9FR3PromptEchoText;module.exports.evaluateLoop=evaluateLoop;module.exports.applyLoopGuard=applyLoopGuard;
 // PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_LOOP_GUARD_PATCH_END
+
+
+// PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_LOOP_GUARD_PATCH_START
+const PRIORITY_9F_R4_LOOP_GUARD_CONTINUATION_CARRY_VERSION = "nyx.marion.priority9fR4.continuationCarry.loopGuard/1.0";
+function priority9FR4LoopNorm(value){return oneLine(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function isPriority9FR4ContinuationCommand(value=""){const n=priority9FR4LoopNorm(value);return /^(next steps?|continue|carry on|proceed|run that again|run it again|do that again|do it again|same thing|what now|whats next|what s next|next)$/.test(n);}
+function isPriority9FR4ContinuationCarryText(value=""){const t=priority9FR4LoopNorm(value);return /\b(priority 9f r4|9f r4|continuation carry|last accepted lane|stay inside the 9f|inside the 9f conversational stack|9f conversational stack lane|short continuation|next steps continue run that again what now)\b/.test(t);}
+function isPriority9FR4OldHandoffLeakText(value=""){const t=priority9FR4LoopNorm(value);return /\b(public nyx route clean|five turn continuity test|stable handoff before adding new features|keep the public nyx route clean|priority 9f r3 alt runtime prompt echo suppression)\b/.test(t);}
+function priority9FR4LoopHas9FContext(value=""){const t=priority9FR4LoopNorm(value);return /\b(priority 9f|9f r3|9f r2|9f r1|deep conversational stack|layered conversational|conversational stack|alt runtime prompt echo suppression|domain hijack suppression|marion conversational architecture)\b/.test(t);}
+function priority9FR4LoopSource(packet={},options={}){try{return [JSON.stringify(packet||{}),JSON.stringify(options||{})].join(" ").slice(0,12000);}catch(_){return "";}}
+const __priority9FR4OriginalEvaluateLoop=evaluateLoop;
+evaluateLoop=function priority9FR4EvaluateLoop(packet={},candidateReply="",options={}){
+  const base=__priority9FR4OriginalEvaluateLoop(packet,candidateReply,options);
+  const prompt=oneLine((options&&options.prompt)||(options&&options.userText)||(packet&&packet.prompt)||(packet&&packet.userText)||(packet&&packet.rawUserText)||(packet&&packet.text)||(packet&&packet.message)||"");
+  const source=priority9FR4LoopSource(packet,options);
+  if((isPriority9FR4ContinuationCarryText(prompt)||isPriority9FR4ContinuationCarryText(source)||(isPriority9FR4ContinuationCommand(prompt)&&priority9FR4LoopHas9FContext(source)))&&isPriority9FR4OldHandoffLeakText(candidateReply)){
+    const reasons=Array.isArray(base.reasons)?base.reasons.slice():[];
+    if(!reasons.includes("priority9f_r4_old_continuity_handoff_suppressed"))reasons.push("priority9f_r4_old_continuity_handoff_suppressed");
+    return {...safeObj(base),allowReply:false,forceRecovery:true,loopDetected:true,reasons,failureSignature:"LOOP_GUARD_SUPPRESSED",priority9FR4ContinuationCarryEnforced:true,noUserFacingDiagnostics:true};
+  }
+  return base;
+};
+applyLoopGuard=function priority9FR4ApplyLoopGuard(packet={},candidateReply="",options={}){
+  const result=evaluateLoop(packet,candidateReply,options);
+  return {...safeObj(result),packetPatch:{...safeObj(result.packetPatch),stateStage:result.nextStateStage,loopCount:result.forceRecovery?getLoopCount(packet)+1:0,recoveryRequired:result.forceRecovery,lastLoopReasons:result.reasons,loopGuardVersion:VERSION,failureSignature:result.failureSignature,priority9FR4ContinuationCarryEnforced:!!result.priority9FR4ContinuationCarryEnforced}};
+};
+module.exports.PRIORITY_9F_R4_LOOP_GUARD_CONTINUATION_CARRY_VERSION=PRIORITY_9F_R4_LOOP_GUARD_CONTINUATION_CARRY_VERSION;
+module.exports.isPriority9FR4ContinuationCommand=isPriority9FR4ContinuationCommand;
+module.exports.isPriority9FR4ContinuationCarryText=isPriority9FR4ContinuationCarryText;
+module.exports.isPriority9FR4OldHandoffLeakText=isPriority9FR4OldHandoffLeakText;
+module.exports.evaluateLoop=evaluateLoop;
+module.exports.applyLoopGuard=applyLoopGuard;
+// PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_LOOP_GUARD_PATCH_END
