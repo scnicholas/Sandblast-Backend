@@ -85,7 +85,7 @@ function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   return mode === 'brief' ? 'brief' : 'full';
 }
 
-const VERSION = 'marion.voiceGateway/3.6-admin-voice-runtime-handler-connection';
+const VERSION = 'marion.voiceGateway/3.7-admin-private-voice-receive';
 
 function safeRequire(path) {
   try {
@@ -1039,13 +1039,41 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
       speechSyncEnabled: adminVoiceAllowed && Boolean(reply),
       speechSync: {
         enabled: adminVoiceAllowed && Boolean(reply),
-        version: 'marion.adminVoice.outputProjection/1.0',
+        frontendReady: adminVoiceAllowed && Boolean(reply),
+        privateVoiceReceiveReady: adminVoiceAllowed && Boolean(reply),
+        version: 'marion.adminPrivateVoiceReceive.gateway/1.0',
+        deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : '',
+        capability: adminVoiceAllowed ? 'voice.private.receive' : '',
         avatarSpeechState: adminVoiceAllowed && reply ? 'ready' : 'silent',
         audioStored: false,
         rawAudioStored: false,
+        noRawAudioStored: true,
         transcriptOnly: true
-      }
+      },
+      privateVoiceReceiveReady: adminVoiceAllowed && Boolean(reply),
+      deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
+      capability: adminVoiceAllowed ? 'voice.private.receive' : ''
     }),
+    privateVoiceReceive: {
+      ok: adminVoiceAllowed && Boolean(reply),
+      version: 'marion.adminPrivateVoiceReceive.gateway/1.0',
+      stage: adminVoiceAllowed && reply ? 'admin_private_voice_receive_ready' : 'admin_private_voice_receive_locked',
+      capability: adminVoiceAllowed ? 'voice.private.receive' : '',
+      deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
+      speakAllowed: adminVoiceAllowed && Boolean(reply),
+      voiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
+      projectedVoiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
+      rawVoiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
+      spokenText: adminVoiceAllowed ? reply : '',
+      speechText: adminVoiceAllowed ? reply : '',
+      speechSyncEnabled: adminVoiceAllowed && Boolean(reply),
+      singleUtterance: true,
+      consumedForThisTurn: adminVoiceAllowed && Boolean(reply),
+      audioStored: false,
+      rawAudioStored: false,
+      noRawAudioStored: true,
+      diagnosticsRedacted: true
+    },
     meta: Object.assign({}, base.meta || {}, {
       textConsoleVoiceBypass: !adminVoiceAllowed,
       adminVoiceOutputProjection: adminVoiceAllowed,
@@ -1142,8 +1170,8 @@ async function handleMarionAdminConversation(input, options) {
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
     adminVoiceRuntimeApproval: payload.adminVoiceRuntimeApproval === true || opts.adminVoiceRuntimeApproval === true,
     adminVerified,
-    adminVoiceVerified: false,
-    adminVoiceDeliveryAllowed: false,
+    adminVoiceVerified: adminVoiceAllowed,
+    adminVoiceDeliveryAllowed: adminVoiceAllowed,
     publicUsersCanAddressMarion: false,
     voice: {
       active: adminVoiceAllowed,
