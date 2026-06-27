@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "progressionShape v1.1.1 KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
+const VERSION = "progressionShape v1.1.2 PRIORITY-9E-CONTINUATION-INTENT-RESOLVER + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
 const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRefinement/1.1";
 
 const PROGRESSION_SIGNALS = Object.freeze({
@@ -76,7 +76,7 @@ function detectProgressionSignal(text = "", context = {}) {
 
   if (/^\s*(pass(?:ed)?|all passed|green|success|works|complete|locked)\s*[.!?]*\s*$/i.test(t) || /\b(all passed|tests? passed|phase passed|green|successfully passed)\b/i.test(t)) return PROGRESSION_SIGNALS.PASS;
   if (/^\s*(fail(?:ed)?|red|error|broke|not working|still failing|didn'?t pass|issue)\s*[.!?]*\s*$/i.test(t) || /\b(failed|still failing|didn'?t pass|not working|broke|error)\b/i.test(t)) return PROGRESSION_SIGNALS.FAIL;
-  if (/^\s*(continue|carry on|keep going|proceed)\s*[.!?]*\s*$/i.test(t)) return PROGRESSION_SIGNALS.CONTINUE;
+  if (/^\s*(continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it)\s*[.!?]*\s*$/i.test(t)) return PROGRESSION_SIGNALS.CONTINUE;
   if (/\b(next steps?|what now|what'?s next|next phase|after that|move on)\b/i.test(t)) return PROGRESSION_SIGNALS.NEXT_STEPS;
   if (/\b(update|patch|fix|make the change|apply|resend|zip|downloadable|replace)\b/i.test(t)) return PROGRESSION_SIGNALS.EXECUTION;
   if (/\b(test|smoke|regression|validate|check|verify|run)\b/i.test(t)) return PROGRESSION_SIGNALS.TESTING;
@@ -160,3 +160,14 @@ module.exports = {
   buildProgressionProfile,
   default: buildProgressionProfile
 };
+
+
+// PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_PATCH_START
+const PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_VERSION = "nyx.marion.priority9e.continuationIntentResolver/1.0";
+function isPriority9EContinuationCommand(text = "") {
+  const t = lower(text).replace(/[.!?]+$/g, "").trim();
+  return /^(continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it)$/.test(t);
+}
+module.exports.PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_VERSION = PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_VERSION;
+module.exports.isPriority9EContinuationCommand = isPriority9EContinuationCommand;
+// PRIORITY_9E_CONTINUATION_INTENT_RESOLVER_PATCH_END
