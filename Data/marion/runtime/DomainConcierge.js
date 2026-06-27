@@ -18,7 +18,7 @@
  * - Fails closed into one clarifier only when routing confidence is genuinely weak/ambiguous.
  */
 
-const VERSION = "DomainConcierge v1.2.0 PRIORITY2-ROUTE-CLARIFY-HARDENING + DEFENSIVE-INTENT-CARRY + CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
+const VERSION = "PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + DomainConcierge v1.2.0 PRIORITY2-ROUTE-CLARIFY-HARDENING + DEFENSIVE-INTENT-CARRY + CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
 const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
@@ -1005,3 +1005,29 @@ module.exports = {
 };
 
 module.exports.default = module.exports;
+
+
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_PATCH_START
+const PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION = "nyx.marion.domainConcierge.priority9f.deepConversationalStack/1.0";
+function isPriority9FDeepConversationalText(text = "") {
+  const t = lower(text);
+  return /\b(priority\s*9f|deep conversational stack|layered conversational|conversational stack|layered intelligence|surface request|underlying intent|deeper intent|operational risk|execution mode|next action|full conversational stack)\b/i.test(t);
+}
+function buildPriority9FConciergeSeed(text = "", context = {}) {
+  const active = isPriority9FDeepConversationalText(text);
+  return {
+    version: PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION,
+    active,
+    action: active ? "route" : "",
+    domain: active ? "execution_context" : "",
+    intent: active ? "contextual_directive" : "",
+    responseShape: active ? "layered_conversational_stack" : "",
+    clarify: false,
+    noUserFacingDiagnostics: true
+  };
+}
+module.exports.PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION = PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_VERSION;
+module.exports.isPriority9FDeepConversationalText = isPriority9FDeepConversationalText;
+module.exports.buildPriority9FConciergeSeed = buildPriority9FConciergeSeed;
+module.exports._internal = {...safeObj(module.exports._internal), isPriority9FDeepConversationalText, buildPriority9FConciergeSeed};
+// PRIORITY_9F_DEEP_CONVERSATIONAL_STACK_CONCIERGE_PATCH_END
