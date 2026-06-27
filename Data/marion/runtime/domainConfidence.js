@@ -13,7 +13,7 @@
  * - Keeps telemetry/internal confidence fields private and transport-safe.
  */
 
-const VERSION = "domainConfidence v1.0.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + domainConfidence v1.0.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.2";
@@ -269,3 +269,14 @@ module.exports = {
   default: buildDomainConfidenceProfile
 ,
   FINAL_RENDER_TELEMETRY_VERSION};
+
+// PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_DOMAIN_CONFIDENCE_PATCH_START
+const PRIORITY_9F_R2_DOMAIN_CONFIDENCE_DOMAIN_HIJACK_SUPPRESSION_VERSION="nyx.marion.domainConfidence.priority9fR2.domainHijackSuppression/1.0";
+function priority9FR2FirstText(){for(let i=0;i<arguments.length;i+=1){const v=safeStr(arguments[i]);if(v)return v;}return "";}
+function isPriority9FR2DomainConfidenceLayeredText(value=""){const t=lower(value).replace(/[_-]+/g," ");return /\b(priority\s*9f|9f\s*r2|domain hijack|domain fallback|six domain fallback|deep conversational stack|layered conversational|conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action|marion conversational architecture)\b/i.test(t)||(/\b(disjointed|deeper|layered|context|looping|loop|recovery|preserve|avoid|where to go next)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next|understand)\b/i.test(t));}
+const __priority9FR2OriginalDetectCandidates=detectCandidates;
+detectCandidates=function priority9FR2DetectCandidates(text="",context={}){if(isPriority9FR2DomainConfidenceLayeredText(text))return [{domain:"execution_context",confidence:0.99,reasons:["priority9f_r2_domain_hijack_suppression"],knowledgeDomain:""},{domain:"technical",confidence:0.2,reasons:["suppressed_secondary"],knowledgeDomain:""}];return __priority9FR2OriginalDetectCandidates(text,context);};
+const __priority9FR2OriginalBuildDomainConfidenceProfile=buildDomainConfidenceProfile;
+buildDomainConfidenceProfile=function priority9FR2BuildDomainConfidenceProfile(args={}){const a=safeObj(args);const text=priority9FR2FirstText(a.text,safeObj(a.routing).rawTurnText,safeObj(a.routing).normalizedUserIntent,safeObj(a.marionIntent).turnText,safeObj(a.marionIntent).normalizedUserIntent);if(!isPriority9FR2DomainConfidenceLayeredText(text))return __priority9FR2OriginalBuildDomainConfidenceProfile(args);return normalizeDomainConfidenceProfile({}, {rawText:text,intent:"contextual_directive",domain:"execution_context",knowledgeDomain:"",candidates:detectCandidates(text,{}),confidence:0.99,reason:"priority9f_r2_domain_hijack_suppression"});};
+module.exports.PRIORITY_9F_R2_DOMAIN_CONFIDENCE_DOMAIN_HIJACK_SUPPRESSION_VERSION=PRIORITY_9F_R2_DOMAIN_CONFIDENCE_DOMAIN_HIJACK_SUPPRESSION_VERSION;module.exports.isPriority9FR2DomainConfidenceLayeredText=isPriority9FR2DomainConfidenceLayeredText;module.exports.detectCandidates=detectCandidates;module.exports.buildDomainConfidenceProfile=buildDomainConfidenceProfile;module.exports.default=buildDomainConfidenceProfile;
+// PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_DOMAIN_CONFIDENCE_PATCH_END
