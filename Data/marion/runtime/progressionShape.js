@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionShape v1.1.2 PRIORITY-9E-CONTINUATION-INTENT-RESOLVER + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
+const VERSION = "PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + progressionShape v1.1.2 PRIORITY-9E-CONTINUATION-INTENT-RESOLVER + KNOWLEDGE-QUESTION-BYPASS + RESPONSE-EXPANSION-HARDLOCK";
 const PROGRESSION_SHAPING_REFINEMENT_VERSION = "nyx.marion.progressionShapingRefinement/1.1";
 
 const PROGRESSION_SIGNALS = Object.freeze({
@@ -217,3 +217,42 @@ const __priority9FR2OriginalBuildProgressionProfile=module.exports.buildProgress
 function buildPriority9FR2DomainHijackSuppressionProfile(text="",context={}){if(!isPriority9FR2DomainHijackSuppressionText(text))return __priority9FR2OriginalBuildProgressionProfile(text,context);return {version:PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_SHAPE_VERSION,active:true,lane:"priority9f_deep_conversational_stack",activePhase:"priority9f_deep_conversational_stack",phaseKey:"priority9f_r2",currentStep:"priority9f_r2",phaseId:"PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION",phaseLabel:"Priority 9F-R2: Domain hijack suppression",objective:"Layered conversational prompts must stay in Marion conversational architecture and cannot be answered by psychology, English, or general reasoning fallback.",signal:"deep_conversational_stack",lastUserIntent:"deep_conversational_stack",responseShape:"layered_conversational_stack",confidence:0.99,domainHijackSuppressed:true,noUserFacingDiagnostics:true,priority9FR2DomainHijackSuppression:true,updatedAt:Date.now()};}
 module.exports.PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_SHAPE_VERSION=PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_SHAPE_VERSION;module.exports.isPriority9FR2DomainHijackSuppressionText=isPriority9FR2DomainHijackSuppressionText;module.exports.buildPriority9FR2DomainHijackSuppressionProfile=buildPriority9FR2DomainHijackSuppressionProfile;module.exports.buildProgressionProfile=buildPriority9FR2DomainHijackSuppressionProfile;module.exports.default=buildPriority9FR2DomainHijackSuppressionProfile;
 // PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_SHAPE_PATCH_END
+
+
+// PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_SHAPE_PATCH_START
+const PRIORITY_9F_R4_CONTINUATION_CARRY_SHAPE_VERSION = "nyx.marion.progressionShape.priority9fR4.continuationCarry/1.0";
+function priority9FR4ShapeNorm(value){return safeStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function isPriority9FR4ContinuationCommand(value=""){const n=priority9FR4ShapeNorm(value);return /^(next steps?|continue|carry on|proceed|run that again|run it again|do that again|do it again|same thing|what now|whats next|what s next|next)$/.test(n);}
+function isPriority9FR4ContinuationCarryText(value=""){const t=priority9FR4ShapeNorm(value);return /\b(priority 9f r4|9f r4|continuation carry|last accepted lane|stay inside the 9f|inside the 9f conversational stack|9f conversational stack lane|short continuation|next steps continue run that again what now)\b/.test(t);}
+function priority9FR4ShapeHas9FContext(value=""){const t=priority9FR4ShapeNorm(value);return /\b(priority 9f|9f r3|9f r2|9f r1|deep conversational stack|layered conversational|conversational stack|alt runtime prompt echo suppression|domain hijack suppression|marion conversational architecture|priority9f deep conversational stack|layered conversational stack)\b/.test(t);}
+function priority9FR4ShapeContextText(context={}){try{return JSON.stringify(context||{}).slice(0,8000);}catch(_){return "";}}
+const __priority9FR4OriginalBuildProgressionProfile=module.exports.buildProgressionProfile||buildProgressionProfile;
+function buildPriority9FR4ContinuationCarryProfile(text="",context={}){
+  const source=[safeStr(text),priority9FR4ShapeContextText(context)].join(" ");
+  if(!(isPriority9FR4ContinuationCarryText(text)||(isPriority9FR4ContinuationCommand(text)&&priority9FR4ShapeHas9FContext(source))))return __priority9FR4OriginalBuildProgressionProfile(text,context);
+  return {
+    version:PRIORITY_9F_R4_CONTINUATION_CARRY_SHAPE_VERSION,
+    active:true,
+    lane:"priority9f_deep_conversational_stack",
+    activePhase:"priority9f_deep_conversational_stack",
+    phaseKey:"priority9f_r4",
+    currentStep:"priority9f_r4",
+    phaseId:"PRIORITY_9F_R4_CONTINUATION_CARRY",
+    phaseLabel:"Priority 9F-R4: Continuation carry enforcement",
+    objective:"Short follow-ups must inherit the last accepted Priority 9F / 9F-R3 lane instead of reverting to older continuity handoff templates.",
+    signal:"priority9f_continuation_carry",
+    lastUserIntent:"priority9f_continuation_carry",
+    responseShape:"priority9f_continuation_carry",
+    confidence:0.99,
+    noUserFacingDiagnostics:true,
+    priority9FR4ContinuationCarry:true,
+    updatedAt:Date.now()
+  };
+}
+module.exports.PRIORITY_9F_R4_CONTINUATION_CARRY_SHAPE_VERSION=PRIORITY_9F_R4_CONTINUATION_CARRY_SHAPE_VERSION;
+module.exports.isPriority9FR4ContinuationCommand=isPriority9FR4ContinuationCommand;
+module.exports.isPriority9FR4ContinuationCarryText=isPriority9FR4ContinuationCarryText;
+module.exports.buildPriority9FR4ContinuationCarryProfile=buildPriority9FR4ContinuationCarryProfile;
+module.exports.buildProgressionProfile=buildPriority9FR4ContinuationCarryProfile;
+module.exports.default=buildPriority9FR4ContinuationCarryProfile;
+// PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_SHAPE_PATCH_END
