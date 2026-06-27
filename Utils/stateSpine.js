@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + stateSpine v2.17.1 PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + stateSpine v2.17.0 PRIORITY3-PROTECTIVE-STATE-CARRY + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + stateSpine v2.17.1 PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + stateSpine v2.17.0 PRIORITY3-PROTECTIVE-STATE-CARRY + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -3248,3 +3248,33 @@ function isPriority9FR2DomainHijackSuppressionStateText(text=""){const t=oneLine
 function buildPriority9FR2DomainHijackSuppressionState(text="",previous={}){const active=isPriority9FR2DomainHijackSuppressionStateText(text);const prev=safeObj(previous);return {version:PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_STATE_VERSION,active:active||!!prev.active,conversationLane:active?"Priority 9F-R2 domain hijack suppression":oneLine(prev.conversationLane||""),surfaceRequest:active?"keep Marion in the layered conversational architecture lane":oneLine(prev.surfaceRequest||""),deeperIntent:active?"preserve context, avoid looping, and block six-domain fallback replies":oneLine(prev.deeperIntent||""),operationalRisk:active?"psychology, English, or general reasoning hijacking the 9F answer":oneLine(prev.operationalRisk||""),executionMode:active?"layered conversational response with domain hijack suppression":oneLine(prev.executionMode||""),nextAction:active?"force 9F-R2 before domain fallback and rerun the live layered prompt":oneLine(prev.nextAction||""),domainHijackSuppressed:active||!!prev.domainHijackSuppressed,noUserFacingDiagnostics:true,updatedAt:Date.now()};}
 module.exports.PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_STATE_VERSION=PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_STATE_VERSION;module.exports.isPriority9FR2DomainHijackSuppressionStateText=isPriority9FR2DomainHijackSuppressionStateText;module.exports.buildPriority9FR2DomainHijackSuppressionState=buildPriority9FR2DomainHijackSuppressionState;
 // PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_STATE_PATCH_END
+
+
+// PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_STATE_PATCH_START
+const PRIORITY_9F_R4_CONTINUATION_CARRY_STATE_VERSION = "nyx.marion.stateSpine.priority9fR4.continuationCarry/1.0";
+function priority9FR4StateNorm(value){return oneLine(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function isPriority9FR4ContinuationStateText(value=""){const n=priority9FR4StateNorm(value);return /^(next steps?|continue|carry on|proceed|run that again|run it again|do that again|do it again|same thing|what now|whats next|what s next|next)$/.test(n);}
+function isPriority9FR4ContinuationCarryStateText(value=""){const t=priority9FR4StateNorm(value);return /\b(priority 9f r4|9f r4|continuation carry|last accepted lane|stay inside the 9f|inside the 9f conversational stack|9f conversational stack lane|short continuation|next steps continue run that again what now)\b/.test(t);}
+function priority9FR4StateHas9FContext(value=""){const t=priority9FR4StateNorm(value);return /\b(priority 9f|9f r3|9f r2|9f r1|deep conversational stack|layered conversational|conversational stack|alt runtime prompt echo suppression|domain hijack suppression|marion conversational architecture|priority9f deep conversational stack|layered conversational stack)\b/.test(t);}
+function buildPriority9FR4ContinuationState(text="",previous={}){const prev=safeObj(previous);return {version:PRIORITY_9F_R4_CONTINUATION_CARRY_STATE_VERSION,active:true,conversationLane:"Priority 9F-R4 continuation carry enforcement",surfaceRequest:"keep short follow-ups inside the accepted 9F lane",deeperIntent:"preserve layered conversational context across Next steps, Continue, Run that again, and What now",operationalRisk:"older public-continuity handoff or R3 diagnostic wording overriding 9F carry",executionMode:"9F-specific continuation plan",nextAction:"lock 9F-R3 as live accepted, enforce R4 carry, and run the short follow-up continuity pass",priority9FR4ContinuationCarry:true,noUserFacingDiagnostics:true,updatedAt:Date.now()};}
+const __priority9FR4OriginalFinalizeTurn=typeof finalizeTurn==="function"?finalizeTurn:null;
+if(__priority9FR4OriginalFinalizeTurn){
+  finalizeTurn=function priority9FR4FinalizeTurn(params={}){
+    const out=__priority9FR4OriginalFinalizeTurn(params);
+    const inbound=isPlainObject(params&&params.inbound)?params.inbound:{};
+    const prev=isPlainObject(params&&params.prevState)?params.prevState:{};
+    const text=oneLine(inbound.text||inbound.prompt||inbound.userText||params.text||params.prompt||"");
+    const source=[text,oneLine(prev.conversationLane||prev.summary||prev.activePhase||""),oneLine(JSON.stringify(params&&params.memoryPatch||{}).slice(0,2000))].join(" ");
+    if(isPriority9FR4ContinuationCarryStateText(text)||(isPriority9FR4ContinuationStateText(text)&&priority9FR4StateHas9FContext(source))){
+      const carry=buildPriority9FR4ContinuationState(text, prev.priority9FContinuationCarry||{});
+      return {...safeObj(out),priority9FContinuationCarry:carry,priority9FR4ContinuationCarry:true,conversationLane:carry.conversationLane,nextAction:carry.nextAction,noUserFacingDiagnostics:true};
+    }
+    return out;
+  };
+  module.exports.finalizeTurn=finalizeTurn;
+}
+module.exports.PRIORITY_9F_R4_CONTINUATION_CARRY_STATE_VERSION=PRIORITY_9F_R4_CONTINUATION_CARRY_STATE_VERSION;
+module.exports.isPriority9FR4ContinuationStateText=isPriority9FR4ContinuationStateText;
+module.exports.isPriority9FR4ContinuationCarryStateText=isPriority9FR4ContinuationCarryStateText;
+module.exports.buildPriority9FR4ContinuationState=buildPriority9FR4ContinuationState;
+// PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_STATE_PATCH_END
