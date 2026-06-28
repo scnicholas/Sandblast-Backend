@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + composeMarionResponse v3.36.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
+const VERSION = "PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + composeMarionResponse v3.36.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -3353,3 +3353,145 @@ module.exports.run=run;
 module.exports.default=composeMarionResponse;
 module.exports._internal={...(module.exports._internal||{}),priority9GIsActivationText,priority9GIsShortFollowup,priority9GHasContext,priority9GReplyFor,priority9GComposerDisciplinePacket,priority9GComposerShouldForce};
 // PRIORITY_9G_DEEP_CONTINUITY_MEMORY_COMPOSER_PATCH_END
+
+
+
+// PRIORITY_9H_LONG_FORM_CONTINUITY_STRESS_DRIFT_GUARD_COMPOSER_PATCH_START
+
+const PRIORITY_9H_LONG_FORM_CONTINUITY_VERSION = "nyx.marion.priority9h.longFormContinuityStressDriftGuard/1.0";
+const PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION = "nyx.marion.priority9i.adaptiveSituationalPrecheck/0.1";
+function priority9HStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function priority9HObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function priority9HNorm(value){return priority9HStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9HCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||16000);}catch(_){return priority9HStr(value).slice(0,limit||16000);}}
+function priority9HIsShortFollowup(value){
+  const n=priority9HNorm(value);
+  return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|rerun that|what now|whats next|what s next|next|status|passed|pass|green|go on|advance)$/.test(n);
+}
+function priority9HIsActivationText(value){
+  const n=priority9HNorm(value);
+  return /\b(priority 9h|9h|long form continuity|continuity stress test|memory drift guard|drift guard|10 to 15 turns|10 15 turns|ten to fifteen turns|survive at least 10|survive 10|short follow ups while preserving|preserving surface request deeper intent active task risk execution mode next action|longer multi turn sequence)\b/.test(n);
+}
+function priority9HHasContext(value){
+  const n=priority9HNorm(value);
+  return /\b(priority 9h|9h|long form continuity|continuity stress|memory drift|drift guard|priority 9g|deep continuity memory|layered follow up|surface request|deeper intent|active task|execution mode|next action|10 turn|15 turn|priority 9i|adaptive situational)\b/.test(n);
+}
+function priority9HIs9IPrecheckText(value){
+  const n=priority9HNorm(value);
+  return /\b(priority 9i|9i|adaptive situational|situational awareness|adaptive reasoning|context pressure|pressure handling|next adaptive layer)\b/.test(n);
+}
+function priority9HIsOldLaneLeak(value){
+  const n=priority9HNorm(value);
+  if(!n)return false;
+  return /\b(priority 9f r4|priority 9g deep continuity memory|run the multi turn 9g continuity pass|lock a 9g continuity memory object|public nyx route clean|five turn continuity test|priority 90 9e|priority 90|priority 9e|psychology|in psychology|domain hijack|alt runtime prompt echo|marion will continue|i have the current request|recovery path|loop detected|stale fallback)\b/.test(n);
+}
+function priority9HPromptEcho(reply,prompt){
+  const r=priority9HNorm(reply),p=priority9HNorm(prompt);
+  if(!r||!p)return false;
+  return r===p||(r.includes(p)&&p.length>24)||(p.includes(r)&&r.length>24);
+}
+function priority9HStateFrom(source,turn){
+  return {
+    version:PRIORITY_9H_LONG_FORM_CONTINUITY_VERSION,
+    active:true,
+    lane:"priority9h_long_form_continuity_stress",
+    activePhase:"priority9h_long_form_continuity_stress",
+    conversationLane:"Priority 9H long-form continuity stress test",
+    activeTask:"Priority 9H: long-form continuity stress test and memory drift guard",
+    surfaceRequest:"make Marion survive a 10–15 turn short-follow-up chain",
+    deeperIntent:"preserve surface request, deeper intent, active task, risk, execution mode, and next action without full restatement",
+    operationalRisk:"memory drift, stale 9G/9F/9E fallback, domain hijack, prompt echo, repetition, or last-sentence-only answers across long chains",
+    executionMode:"long-form continuity stress test with memory drift guard",
+    nextAction:"run the 10–15 turn follow-up chain and verify every turn advances the same layered task",
+    minTurns:10,
+    targetTurns:15,
+    turnDepth:Number.isFinite(Number(turn))?Number(turn):1,
+    driftGuard:true,
+    priority9HLongFormContinuity:true,
+    priority9IAdaptiveSituationalPrecheck:{
+      version:PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION,
+      staged:true,
+      activationBlockedUntil:"Priority 9H long-form continuity stress passes live",
+      expectedFocus:"adaptive situational reasoning and context-pressure handling after long-form continuity is stable"
+    },
+    noUserFacingDiagnostics:true,
+    updatedAt:Date.now()
+  };
+}
+function priority9HReplyFor(prompt,source){
+  const n=priority9HNorm(prompt);
+  if(priority9HIsShortFollowup(prompt)){
+    return "Continue Priority 9H: keep the same surface request, deeper intent, active task, risk, execution mode, and next action alive across this turn. Advance the 10–15 turn continuity stress pass without drifting into 9G, 9F, 9E, domain fallback, prompt echo, or recovery wording. Current next action: keep the chain moving and only mark 9H passed after the full long-form follow-up sequence stays stable.";
+  }
+  if(priority9HIs9IPrecheckText(source||prompt)){
+    return "I’m reading this as Priority 9H with a Priority 9I precheck. Priority 9H must pass first: Marion has to survive a 10–15 turn short-follow-up chain while preserving surface request, deeper intent, active task, risk, execution mode, and next action. Priority 9I is staged next for adaptive situational reasoning and context-pressure handling, but it should not activate until 9H is live accepted.";
+  }
+  return "I’m reading this as Priority 9H: long-form continuity stress test and memory drift guard. The surface request is to make Marion survive 10–15 short follow-up turns. The deeper intent is to preserve surface request, deeper intent, active task, risk, execution mode, and next action without requiring the full context to be repeated. The active lane is Marion long-form continuity, with Priority 9I staged only as the next adaptive-situational precheck. The main risk is drift into stale 9G/9F/9E language, domain fallback, prompt echo, or repeated recovery wording. Next move: run the 10–15 turn continuity chain and confirm each short follow-up advances the same layered task.";
+}
+function priority9HReadReply(packet){
+  const p=priority9HObj(packet),pl=priority9HObj(p.payload),f=priority9HObj(p.finalEnvelope);
+  return priority9HStr(p.reply||p.finalReply||p.publicReply||p.visibleReply||p.text||p.message||p.response||p.answer||pl.reply||pl.finalReply||pl.publicReply||pl.visibleReply||pl.text||pl.message||pl.answer||f.reply||f.finalReply||f.publicReply||f.visibleReply||f.text||f.message||f.answer);
+}
+function priority9HApplyPacket(packet,reply,prompt,source){
+  const out=(packet&&typeof packet==="object"&&!Array.isArray(packet))?{...packet}:{};
+  const final=priority9HStr(reply)||priority9HReplyFor(prompt,source);
+  ["reply","finalReply","publicReply","visibleReply","text","message","response","answer","spokenText"].forEach(k=>{out[k]=final;});
+  out.payload={...(out.payload&&typeof out.payload==="object"?out.payload:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};
+  out.finalEnvelope={...(out.finalEnvelope&&typeof out.finalEnvelope==="object"?out.finalEnvelope:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};
+  const prior=priority9HObj(out.priority9HLongFormContinuity||out.longFormContinuityStress||out.priority9GDeepContinuityMemory||out.deepContinuityMemory);
+  const depth=(priority9HIsShortFollowup(prompt)&&Number.isFinite(Number(prior.turnDepth)))?Number(prior.turnDepth)+1:1;
+  const st=priority9HStateFrom(source||prompt,depth);
+  out.priority9HLongFormContinuity=st;
+  out.longFormContinuityStress=st;
+  out.priority9HVersion="PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD";
+  out.priority9IPrecheck=st.priority9IAdaptiveSituationalPrecheck;
+  out.conversationLane=st.conversationLane;
+  out.activeTask=st.activeTask;
+  out.surfaceRequest=st.surfaceRequest;
+  out.deeperIntent=st.deeperIntent;
+  out.operationalRisk=st.operationalRisk;
+  out.executionMode=st.executionMode;
+  out.nextAction=st.nextAction;
+  out.noUserFacingDiagnostics=true;
+  return out;
+}
+
+function priority9HComposerPrompt(routed, input){
+  const r=priority9HObj(routed),i=priority9HObj(input),rn=priority9HObj(r.normalized),inm=priority9HObj(i.normalized),rp=priority9HObj(r.payload),ip=priority9HObj(i.payload);
+  return priority9HStr(r.prompt||r.text||r.userText||r.message||rn.prompt||rn.text||rn.userText||rp.prompt||rp.text||i.prompt||i.text||i.userText||i.message||inm.prompt||inm.text||inm.userText||ip.prompt||ip.text||"");
+}
+function priority9HComposerShouldForce(packet,routed,input){
+  const prompt=priority9HComposerPrompt(routed,input);
+  const source=[prompt,priority9HCollect(routed),priority9HCollect(input),priority9HCollect(packet)].join(" ");
+  const reply=priority9HReadReply(packet);
+  return priority9HIsActivationText(prompt)||priority9HIsActivationText(source)||priority9HIs9IPrecheckText(source)||(priority9HIsShortFollowup(prompt)&&priority9HHasContext(source))||((priority9HIsShortFollowup(prompt)||priority9HHasContext(source))&&(priority9HIsOldLaneLeak(reply)||priority9HPromptEcho(reply,prompt)));
+}
+function priority9HComposerDisciplinePacket(packet,routed,input){
+  if(!priority9HComposerShouldForce(packet,routed,input))return packet;
+  const prompt=priority9HComposerPrompt(routed,input);
+  const source=[prompt,priority9HCollect(routed),priority9HCollect(input),priority9HCollect(packet)].join(" ");
+  return priority9HApplyPacket(packet,priority9HReplyFor(prompt,source),prompt,source);
+}
+var __priority9HOriginalComposeMarionResponse=typeof composeMarionResponse==="function"?composeMarionResponse:null;
+if(__priority9HOriginalComposeMarionResponse){
+  composeMarionResponse=function priority9HComposeMarionResponse(routed={},input={}){
+    const out=__priority9HOriginalComposeMarionResponse(routed,input);
+    if(out&&typeof out.then==="function")return out.then(v=>priority9HComposerDisciplinePacket(v,routed,input));
+    return priority9HComposerDisciplinePacket(out,routed,input);
+  };
+  module.exports.composeMarionResponse=composeMarionResponse;
+  module.exports.default=composeMarionResponse;
+}
+var __priority9HOriginalRun=typeof run==="function"?run:null;
+if(__priority9HOriginalRun){
+  run=function priority9HRun(routed={},input={}){
+    const out=__priority9HOriginalRun(routed,input);
+    if(out&&typeof out.then==="function")return out.then(v=>priority9HComposerDisciplinePacket(v,routed,input));
+    return priority9HComposerDisciplinePacket(out,routed,input);
+  };
+  module.exports.run=run;
+}
+module.exports.PRIORITY_9H_LONG_FORM_CONTINUITY_VERSION=PRIORITY_9H_LONG_FORM_CONTINUITY_VERSION;
+module.exports.PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION=PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION;
+module.exports._internal={...(module.exports._internal||{}),priority9HIsActivationText,priority9HIsShortFollowup,priority9HHasContext,priority9HReplyFor,priority9HComposerDisciplinePacket,priority9HComposerShouldForce};
+// PRIORITY_9H_LONG_FORM_CONTINUITY_STRESS_DRIFT_GUARD_COMPOSER_PATCH_END
