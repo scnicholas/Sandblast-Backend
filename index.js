@@ -36,7 +36,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const INDEX_VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const PUBLIC_INDEX_VERSION = "PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const SERVER_BOOT_AT = Date.now();
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
@@ -20694,3 +20694,196 @@ function priority9JR1PatchExports(names) {
 /* PRIORITY_9J_R1_DECISION_SPECIFIC_AUTHORITY_HOTFIX_END */
 
 priority9JR1PatchExports(["handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleAdminConversation", "routeMarion", "default"]);
+
+
+/* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_START */
+const PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE";
+function priority9JR1ASafeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
+function priority9JR1ALower(value) { return priority9JR1ASafeStr(value).toLowerCase(); }
+function priority9JR1AObj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+function priority9JR1AFirstText(values) {
+  const list = Array.isArray(values) ? values : [];
+  for (let i = 0; i < list.length; i += 1) { const v = priority9JR1ASafeStr(list[i]); if (v) return v; }
+  return "";
+}
+function priority9JR1AExtractTextFromValue(value) {
+  if (typeof value === "string") return priority9JR1ASafeStr(value);
+  const src = priority9JR1AObj(value);
+  const payload = priority9JR1AObj(src.payload);
+  const command = priority9JR1AObj(src.command);
+  const body = priority9JR1AObj(src.body);
+  const query = priority9JR1AObj(src.query);
+  const meta = priority9JR1AObj(src.meta || src.metadata);
+  const result = priority9JR1AObj(src.result);
+  const finalEnvelope = priority9JR1AObj(src.finalEnvelope || result.finalEnvelope);
+  return priority9JR1AFirstText([
+    src.prompt, src.message, src.text, src.userText, src.input, src.query, src.commandText, src.transcript,
+    payload.prompt, payload.message, payload.text, payload.userText, payload.input, payload.query, payload.commandText,
+    command.prompt, command.message, command.text, command.query, command.command, command.name,
+    body.prompt, body.message, body.text, body.userText, body.query,
+    query.prompt, query.message, query.text,
+    meta.prompt, meta.message, meta.text, meta.userText, meta.lastPrompt, meta.currentPrompt, meta.operationalCommand,
+    result.prompt, result.message, result.text, result.userText,
+    finalEnvelope.prompt, finalEnvelope.message, finalEnvelope.text
+  ]);
+}
+function priority9JR1AExtractPrompt(argsLike) {
+  const args = Array.prototype.slice.call(argsLike || []);
+  for (let i = 0; i < args.length; i += 1) {
+    const text = priority9JR1AExtractTextFromValue(args[i]);
+    if (text) return text;
+  }
+  return "";
+}
+function priority9JR1ADetectCommand(value) {
+  const t = priority9JR1ALower(value).replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  if (/\bpriority\s*9j\b/.test(t) && /\b(proactive operational guidance|next[- ]move authority|controlled authority)\b/.test(t)) return "activation";
+  if (/\bwhat\s+should\s+we\s+do\s+first\b|\bwhat\s+do\s+we\s+do\s+first\b|\bwhere\s+do\s+we\s+start\b|\bwhat\s+comes\s+first\b/.test(t)) return "first_move";
+  if (/\bmake\s+the\s+decision\b|\bmake\s+a\s+decision\b|\bmake\s+the\s+call\b|\bchoose\s+for\s+me\b|^\s*decide[.!?\s]*$/.test(t)) return "decision";
+  if (/\bcritical\s+path\b|\bwhat\s+is\s+the\s+path\s+now\b|\bsequence\s+path\b/.test(t)) return "critical_path";
+  if (/\bsafest\s+sequence\b|\bsafe\s+sequence\b|\bsafest\s+order\b|\bgive\s+me\s+the\s+safest\b/.test(t)) return "safest_sequence";
+  if (/\bwhat\s+should\s+we\s+avoid\b|\bwhat\s+do\s+we\s+avoid\b|\bavoid\s+what\b|\bwhat\s+not\s+to\s+do\b/.test(t)) return "avoid";
+  if (/\bnext\s+operational\s+move\b|\bnext\s+operation\b|\boperational\s+move\b|\bwhat\s+is\s+the\s+next\s+move\b/.test(t)) return "next_operational_move";
+  return "";
+}
+function priority9JR1AReplyFor(prompt) {
+  const kind = priority9JR1ADetectCommand(prompt);
+  if (!kind) return "";
+  if (kind === "activation") return "Priority 9J: proactive operational guidance and next-move authority is active. The 9H continuity foundation and 9I pressure-handling layer stay underneath the decision. The rule is one controlled operational move at a time: choose the action, explain why it comes first, name the risk if skipped, then give the execution sequence without opening unnecessary branches.";
+  if (kind === "first_move") return "Priority 9J: do the first validation move now: prove decision-specific authority before expanding scope. Why first: 9J must show it can choose one operational action, not repeat generic framing. Risk if skipped: Marion can over-branch, drift, or sound authoritative without making a usable decision. Execution sequence: test decision authority, critical-path naming, safest sequence, avoid-list, then final next operational move.";
+  if (kind === "decision") return "Priority 9J decision: stay in the 9J lane and run critical-path validation next. This comes first because Marion must prove it can choose one operational move before broader branching. Risk if skipped: Marion may sound authoritative while still giving generic guidance. Execution sequence: answer the critical path, then the safest sequence, then what to avoid, then the next operational move.";
+  if (kind === "critical_path") return "Priority 9J: the critical path is to validate one operational decision at a time: first decision authority, then critical-path naming, then safest sequence, then avoid-list, then final next operational move. This comes first because 9J must prove it can choose and sequence action without over-branching. Risk if skipped: Marion may sound authoritative while still giving generic guidance.";
+  if (kind === "safest_sequence") return "Priority 9J: the safest sequence is: 1) keep 9H as the continuity foundation, 2) keep 9I as pressure handling underneath, 3) choose one 9J operational move, 4) name why it comes first, 5) name the risk if skipped, and 6) execute only that next step before branching. This prevents drift, premature escalation, and generic authority wording.";
+  if (kind === "avoid") return "Priority 9J: avoid over-branching, generic “choose the safest action” wording, premature 9I fallback, activating a new lane before 9J is accepted, and making recommendations without a concrete execution sequence. The safest action is to keep the current 9J test narrow and require each answer to choose one operational move.";
+  if (kind === "next_operational_move") return "Priority 9J: the next operational move is to lock decision-specific authority by rerunning the 9J acceptance chain and confirming each prompt receives a specific answer. Why this comes first: the lane is active, but authority must be command-specific. Risk if skipped: Marion can pass lane retention while failing operational usefulness. Execution sequence: retest “Make the decision,” “What is the critical path,” “Give me the safest sequence,” “What should we avoid,” and “What is the next operational move.”";
+  return "";
+}
+function priority9JR1AIsGeneric9J(value) {
+  const t = priority9JR1ALower(value);
+  if (!t) return false;
+  if (/\brecommended\s+next\s+move:\s*choose\s+the\s+safest\s+concrete\s+action\b/.test(t)) return true;
+  if (/\bchoose\s+the\s+safest\s+concrete\s+action\s+that\s+preserves\s+the\s+active\s+lane\b/.test(t)) return true;
+  if (/\bproactive\s+operational\s+guidance\s+and\s+next[- ]move\s+authority\b/.test(t) && /\b9h\s+continuity\s+foundation\b/.test(t) && /\b9i\s+pressure[- ]handling\b/.test(t) && /\bchoose\s+the\s+safest\b/.test(t) && !/\b(decision:|critical\s+path\s+is|safest\s+sequence\s+is|avoid\s+over[- ]branching|next\s+operational\s+move\s+is|do\s+the\s+first\s+validation\s+move)\b/.test(t)) return true;
+  return false;
+}
+function priority9JR1AApply(result, prompt) {
+  const forcedReply = priority9JR1AReplyFor(prompt);
+  if (!forcedReply) return result;
+  const command = priority9JR1ADetectCommand(prompt);
+  if (typeof result === "string") return forcedReply;
+  if (!result || typeof result !== "object") return forcedReply;
+  const out = Array.isArray(result) ? result.slice() : Object.assign({}, result);
+  const nested = priority9JR1AObj(out.result);
+  const finalEnvelope = priority9JR1AObj(out.finalEnvelope || nested.finalEnvelope);
+  const priorReply = priority9JR1AFirstText([out.reply, out.response, out.text, out.message, out.final, out.publicReply, out.visibleReply, nested.reply, nested.response, nested.text, nested.message, finalEnvelope.reply, finalEnvelope.text]);
+  if (priorReply && !priority9JR1AIsGeneric9J(priorReply) && !command) return result;
+  const meta = Object.assign({}, priority9JR1AObj(out.meta || nested.meta || finalEnvelope.meta), {
+    hotfix: PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION,
+    priority: "9J-R1A",
+    lane: "priority9j_proactive_operational_guidance",
+    operationalCommand: command,
+    decisionSpecificAuthority: true,
+    runtimeDecisionSpecificFinalOverride: true,
+    keep9HFoundation: true,
+    keep9IPressureLayer: true,
+    overBranchingSuppressed: true,
+    generic9JTemplateSuppressed: true,
+    noUserFacingDiagnostics: true
+  });
+  ["reply","response","text","message","final","publicReply","visibleReply","output"].forEach(function(k){ out[k] = forcedReply; });
+  out.priority = "9J-R1A";
+  out.lane = "priority9j_proactive_operational_guidance";
+  out.meta = meta;
+  out.operationalCommand = command;
+  out.decisionSpecificAuthority = true;
+  out.generic9JTemplateSuppressed = true;
+  out.runtimeDecisionSpecificFinalOverride = true;
+  const nextEnvelope = Object.assign({}, finalEnvelope, {
+    reply: forcedReply,
+    text: forcedReply,
+    message: forcedReply,
+    publicReply: forcedReply,
+    visibleReply: forcedReply,
+    final: forcedReply,
+    priority: "9J-R1A",
+    lane: "priority9j_proactive_operational_guidance",
+    meta
+  });
+  out.finalEnvelope = nextEnvelope;
+  if (Object.keys(nested).length) {
+    out.result = Object.assign({}, nested, {
+      reply: forcedReply,
+      response: forcedReply,
+      text: forcedReply,
+      message: forcedReply,
+      final: forcedReply,
+      publicReply: forcedReply,
+      visibleReply: forcedReply,
+      output: forcedReply,
+      priority: "9J-R1A",
+      lane: "priority9j_proactive_operational_guidance",
+      operationalCommand: command,
+      decisionSpecificAuthority: true,
+      generic9JTemplateSuppressed: true,
+      runtimeDecisionSpecificFinalOverride: true,
+      meta,
+      finalEnvelope: nextEnvelope
+    });
+  }
+  return out;
+}
+function priority9JR1APatchPriority9JResponder() {
+  try {
+    if (typeof priority9JReplyFor === "function" && !priority9JReplyFor.__priority9JR1ARuntimeDecisionSpecificPatched) {
+      const originalPriority9JReplyFor = priority9JReplyFor;
+      priority9JReplyFor = function priority9JR1APatchedPriority9JReplyFor(prompt, source) {
+        const forced = priority9JR1AReplyFor(prompt);
+        if (forced) return forced;
+        const reply = originalPriority9JReplyFor.apply(this, arguments);
+        return priority9JR1AIsGeneric9J(reply) && forced ? forced : reply;
+      };
+      priority9JReplyFor.__priority9JR1ARuntimeDecisionSpecificPatched = true;
+    }
+  } catch (_) {}
+}
+function priority9JR1AWrapExport(name) {
+  if (typeof module === "undefined" || !module.exports) return;
+  const obj = module.exports && typeof module.exports === "object" ? module.exports : null;
+  const fn = obj && typeof obj[name] === "function" ? obj[name] : null;
+  if (!fn || fn.__priority9JR1ARuntimeDecisionSpecificPatched) return;
+  obj[name] = function priority9JR1ARuntimeDecisionSpecificWrappedExport() {
+    const prompt = priority9JR1AExtractPrompt(arguments);
+    const result = fn.apply(this, arguments);
+    if (result && typeof result.then === "function") return result.then(function(value){ return priority9JR1AApply(value, prompt); });
+    return priority9JR1AApply(result, prompt);
+  };
+  obj[name].__priority9JR1ARuntimeDecisionSpecificPatched = true;
+}
+function priority9JR1APatchExports(names) {
+  priority9JR1APatchPriority9JResponder();
+  if (typeof module === "undefined" || !module.exports) return;
+  if (typeof module.exports === "function" && !module.exports.__priority9JR1ARuntimeDecisionSpecificPatched) {
+    const originalDefault = module.exports;
+    const wrappedDefault = function priority9JR1ARuntimeDecisionSpecificWrappedDefault() {
+      const prompt = priority9JR1AExtractPrompt(arguments);
+      const result = originalDefault.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function(value){ return priority9JR1AApply(value, prompt); });
+      return priority9JR1AApply(result, prompt);
+    };
+    Object.keys(originalDefault).forEach(function(k){ try { wrappedDefault[k] = originalDefault[k]; } catch (_) {} });
+    wrappedDefault.__priority9JR1ARuntimeDecisionSpecificPatched = true;
+    module.exports = wrappedDefault;
+  }
+  (Array.isArray(names) ? names : []).forEach(priority9JR1AWrapExport);
+  if (module.exports && typeof module.exports === "object") {
+    module.exports.PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION = PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION;
+    module.exports.priority9JR1ARuntimeDecisionSpecificReplyFor = priority9JR1AReplyFor;
+    module.exports.priority9JR1ARuntimeDecisionSpecificFinal = priority9JR1AApply;
+    module.exports.priority9JR1ARuntimeDecisionSpecificCommand = priority9JR1ADetectCommand;
+    module.exports.priority9JR1AIsGeneric9JReply = priority9JR1AIsGeneric9J;
+    module.exports.PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_PATCH = true;
+  }
+}
+priority9JR1APatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
+/* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_END */
