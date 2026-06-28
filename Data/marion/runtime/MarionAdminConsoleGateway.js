@@ -12,7 +12,7 @@
  * - Keeps emergency execution locked behind CONFIRM_MARION_EMERGENCY.
  */
 
-const VERSION = "PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + marion.adminConsole.gateway/1.4-admin-private-voice-receive";
+const VERSION = "PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + marion.adminConsole.gateway/1.4-admin-private-voice-receive";
 const EMERGENCY_CONFIRMATION = "CONFIRM_MARION_EMERGENCY";
 
 const DEFAULT_STATUS = Object.freeze({
@@ -1710,3 +1710,156 @@ function priority9IR2PatchCommonExports(names) {
 priority9IR2PatchCommonExports(["handleAdminConsoleCommand","handleTextCommand","processAdminText","routeAdminCommand","executeAdminConsoleAction","handle","process","default"]);
 module.exports.PRIORITY_9I_R2_PRESSURE_SPECIFIC_ANSWER_SHAPING_PATCH = true;
 /* PRIORITY_9I_R2_PRESSURE_SPECIFIC_ANSWER_SHAPING_PATCH_END */
+
+
+/* PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_START */
+const PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_VERSION = "nyx.marion.priority9i.r2a.altPressureSpecificFinalOverride/1.0";
+function priority9IR2AString(value){return value == null ? "" : String(value).replace(/\s+/g," ").trim();}
+function priority9IR2ALower(value){return priority9IR2AString(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'");}
+function priority9IR2AObj(value){return value && typeof value === "object" && !Array.isArray(value) ? value : {};}
+function priority9IR2APickText(){
+  for (var i=0;i<arguments.length;i+=1){var t=priority9IR2AString(arguments[i]);if(t)return t;}
+  return "";
+}
+function priority9IR2AExtractText(value, depth){
+  if(value == null) return "";
+  if(typeof value === "string") return priority9IR2AString(value);
+  if(depth > 3) return "";
+  if(Array.isArray(value)){
+    for(var i=0;i<value.length;i+=1){var a=priority9IR2AExtractText(value[i], (depth||0)+1); if(a) return a;}
+    return "";
+  }
+  var v=priority9IR2AObj(value), payload=priority9IR2AObj(v.payload), command=priority9IR2AObj(v.command), body=priority9IR2AObj(v.body);
+  var context=priority9IR2AObj(v.context || v.memory || v.state || v.turnMemory || v.conversationState);
+  return priority9IR2APickText(
+    v.text, v.message, v.prompt, v.query, v.input, v.commandText, v.transcript, v.userText, v.rawUserText,
+    payload.text, payload.message, payload.prompt, payload.query, payload.input, payload.commandText, payload.transcript,
+    command.text, command.message, command.prompt, command.query, command.command, command.input,
+    body.text, body.message, body.prompt, body.query, body.input, body.transcript,
+    context.text, context.message, context.prompt, context.lastUserText, context.lastPrompt, context.activePrompt
+  );
+}
+function priority9IR2AExplicit9J(value){
+  var t=priority9IR2ALower(value);
+  return /\b(priority\s*9j|9j\b|proactive operational guidance|next-move authority|next move authority)\b/.test(t) &&
+    !/\bstaged\b|\bstage\b|\bdo not activate\b|\bnot activate\b|\bkeep\s+9j\b|\bkeep\s+priority\s*9j\b/.test(t);
+}
+function priority9IR2APressureKind(value){
+  var t=priority9IR2ALower(value);
+  if(!t || priority9IR2AExplicit9J(t)) return "";
+  if(/\bwhat(?:'s| is)?\s+the\s+risk\s+now\??\b|\brisk\s+now\??\b|\bcurrent\s+risk\b|\bactive\s+risk\b/.test(t)) return "risk";
+  if(/\bno[, ]+not that\b|\bstay\s+on\s+the\s+architecture\b|\barchitecture\s+focus\b|\bstay\s+architectural\b|\bnot\s+that\b/.test(t)) return "correction";
+  if(/\burgent\b|\burgency\b|\bimmediate\b|\btime[-\s]?sensitive\b|\bcritical now\b|\bpressure is high\b/.test(t)) return "urgency";
+  if(/\bpivot\b|\bchange direction\b|\bshift direction\b|\bnew direction\b/.test(t)) return "pivot";
+  if(/^\s*slow\s+down[.!?]*\s*$|\bslow\s+down\b|\bone step at a time\b|\btoo fast\b|\bpace\b/.test(t)) return "pace";
+  if(/^\s*go\s+deeper[.!?]*\s*$|\bgo\s+deeper\b|\bdeeper\b|\bmore depth\b|\bdrill down\b/.test(t)) return "depth";
+  if(/\bdo\s+the\s+safest\s+next\s+move\b|\bsafest\s+next\s+move\b|\bsafest\s+action\b|\bsafe\s+next\s+action\b/.test(t)) return "safety";
+  return "";
+}
+function priority9IR2AReplyFor(value){
+  var kind=priority9IR2APressureKind(value);
+  if(kind==="risk") return "Priority 9I: the risk now is premature escalation into 9J, generic pressure-template reuse, or losing the 9H continuity foundation. Execution mode is risk-specific containment: name the risk directly, keep 9J staged, and choose the safest next action inside 9I.";
+  if(kind==="correction") return "Priority 9I: correction received. Stay on the architecture. Preserve the 9H continuity foundation, treat this as a context-pressure correction, update execution mode to architectural focus, and continue the safest next action without activating 9J.";
+  if(kind==="urgency") return "Priority 9I: urgency detected. The risk is rushing into 9J authority or skipping pressure triage. Keep 9H as the continuity foundation, update execution mode to urgent containment, and choose the safest next action inside 9I before any next-move authority activates.";
+  if(kind==="pivot") return "Priority 9I: pivot received. The pressure change is directional, not a 9J activation. Preserve the 9H foundation, compare the pivot against the active task, update risk and execution mode, then continue with the safest next action while 9J remains staged.";
+  if(kind==="pace") return "Priority 9I: slow down. The pressure type is pace control. Preserve the 9H continuity foundation, narrow the next response to one step, reduce branching, and keep 9J staged until next-move authority is explicitly requested.";
+  if(kind==="depth") return "Priority 9I: go deeper means add pressure-specific analysis, not activate 9J. Preserve 9H, identify what changed, separate risk from execution mode, and give the safest next action with 9J still staged.";
+  if(kind==="safety") return "Priority 9I: the safest next move is to stay in the pressure-handling lane, name the active risk, preserve 9H continuity, and avoid activating 9J until the user explicitly asks for proactive next-move authority.";
+  return "";
+}
+function priority9IR2AReplyText(value, depth, seen){
+  if(value == null) return "";
+  if(typeof value === "string") return priority9IR2AString(value);
+  if(depth > 4) return "";
+  if(!seen) seen=[];
+  if(seen.indexOf(value)!==-1) return "";
+  seen.push(value);
+  if(Array.isArray(value)){
+    for(var i=0;i<value.length;i+=1){var arr=priority9IR2AReplyText(value[i], (depth||0)+1, seen); if(arr) return arr;}
+    return "";
+  }
+  var v=priority9IR2AObj(value), payload=priority9IR2AObj(v.payload), finalEnvelope=priority9IR2AObj(v.finalEnvelope), result=priority9IR2AObj(v.result);
+  return priority9IR2APickText(
+    v.reply, v.finalReply, v.publicReply, v.visibleReply, v.displayReply, v.response, v.text, v.message, v.spokenText, v.speechText,
+    payload.reply, payload.finalReply, payload.publicReply, payload.visibleReply, payload.text, payload.message,
+    finalEnvelope.reply, finalEnvelope.finalReply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.text, finalEnvelope.message,
+    result.reply, result.finalReply, result.publicReply, result.visibleReply, result.text, result.message
+  );
+}
+function priority9IR2AIsGeneric9IReply(value){
+  var t=priority9IR2ALower(value);
+  if(!t) return false;
+  return /\bcontinue priority\s*9i:\s*preserve the 9h continuity foundation,?\s*read the current pressure shift,?\s*update operational risk and execution mode,?\s*then give the safest next action\b/.test(t) ||
+    /\bpreserve the 9h continuity foundation,?\s*read the current pressure shift,?\s*update operational risk and execution mode\b/.test(t);
+}
+function priority9IR2AShouldOverride(prompt, candidate){
+  var kind=priority9IR2APressureKind(prompt);
+  if(!kind) return false;
+  var current=priority9IR2AReplyText(candidate);
+  if(!current) return true;
+  var c=priority9IR2ALower(current);
+  if(priority9IR2AIsGeneric9IReply(current)) return true;
+  if(/\bpriority\s*9j\b/.test(c) && !/\bstaged\b|\bstage\b|\bnot activate\b|\bkeep\s+9j\b|\bkeep\s+priority\s*9j\b/.test(c)) return true;
+  if(kind==="risk" && !/\brisk now is\b|\bpremature escalation\b|\bgeneric pressure-template reuse\b|\brisk-specific containment\b/.test(c)) return true;
+  if(kind==="pace" && !/\bslow down\b|\bpace control\b|\bone step\b/.test(c)) return true;
+  if(kind==="depth" && !/\bgo deeper means\b|\bpressure-specific analysis\b|\bseparate risk from execution mode\b/.test(c)) return true;
+  if(kind==="safety" && !/\bsafest next move is\b|\bpressure-handling lane\b|\bname the active risk\b/.test(c)) return true;
+  if(kind==="correction" && !/\bcorrection received\b|\bstay on the architecture\b|\barchitectural focus\b/.test(c)) return true;
+  if(kind==="urgency" && !/\burgency detected\b|\burgent containment\b|\brushing into 9j\b/.test(c)) return true;
+  if(kind==="pivot" && !/\bpivot received\b|\bdirectional\b|\bcompare the pivot\b/.test(c)) return true;
+  return false;
+}
+function priority9IR2AApplyVisibleReply(output, reply, kind){
+  if(typeof output === "string") return reply;
+  var out = output && typeof output === "object" && !Array.isArray(output) ? Object.assign({}, output) : {};
+  out.reply=reply; out.text=reply; out.message=reply; out.response=reply; out.finalReply=reply; out.visibleReply=reply; out.publicReply=reply; out.displayReply=reply;
+  if(typeof out.spokenText === "string") out.spokenText=reply;
+  if(typeof out.speechText === "string") out.speechText=reply;
+  out.priority9I=Object.assign({}, priority9IR2AObj(out.priority9I), {active:true, lane:"priority9i_adaptive_situational_reasoning", pressureKind:kind, pressureSpecificAnswer:true, r2aAltFinalOverride:true, keep9HFoundation:true, keep9JStaged:true});
+  out.priority9J=Object.assign({}, priority9IR2AObj(out.priority9J), {staged:true, active:false, blockedReason:"Priority 9I-R2A pressure-specific prompt"});
+  out.priority9IR2A={active:true, hotfix:"Priority 9I-R2A ALT pressure-specific final override", pressureKind:kind};
+  if(out.payload && typeof out.payload === "object" && !Array.isArray(out.payload)){out.payload=Object.assign({}, out.payload, {reply:reply,text:reply,message:reply,finalReply:reply,visibleReply:reply,publicReply:reply});}
+  if(out.finalEnvelope && typeof out.finalEnvelope === "object" && !Array.isArray(out.finalEnvelope)){out.finalEnvelope=Object.assign({}, out.finalEnvelope, {reply:reply,text:reply,message:reply,finalReply:reply,visibleReply:reply,publicReply:reply});}
+  return out;
+}
+function priority9IR2AAltPressureSpecificFinal(prompt, candidate){
+  var source=priority9IR2AExtractText(prompt);
+  var kind=priority9IR2APressureKind(source);
+  if(!kind) return candidate;
+  var reply=priority9IR2AReplyFor(source);
+  if(!reply) return candidate;
+  if(priority9IR2AShouldOverride(source, candidate)) return priority9IR2AApplyVisibleReply(candidate, reply, kind);
+  return candidate;
+}
+function priority9IR2AWrapExport(name){
+  if(typeof module === "undefined" || !module.exports || typeof module.exports[name] !== "function") return;
+  var original=module.exports[name];
+  if(original.__priority9IR2AWrapped) return;
+  var wrapped=function priority9IR2AExportWrapper(){
+    var input=arguments.length>0?arguments[0]:{};
+    var prompt=priority9IR2AExtractText(input);
+    var out=original.apply(this, arguments);
+    if(out && typeof out.then === "function"){
+      return out.then(function(value){return priority9IR2AAltPressureSpecificFinal(prompt, value);});
+    }
+    return priority9IR2AAltPressureSpecificFinal(prompt, out);
+  };
+  wrapped.__priority9IR2AWrapped=true;
+  module.exports[name]=wrapped;
+}
+function priority9IR2APatchExports(names){
+  (Array.isArray(names)?names:[]).forEach(priority9IR2AWrapExport);
+  if(typeof module !== "undefined" && module.exports){
+    module.exports.PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_VERSION=PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_VERSION;
+    module.exports.isPriority9IR2AAltPressureSpecificText=function(value){return !!priority9IR2APressureKind(value);};
+    module.exports.priority9IR2AAltPressureKind=priority9IR2APressureKind;
+    module.exports.priority9IR2AAltPressureSpecificReplyFor=priority9IR2AReplyFor;
+    module.exports.priority9IR2AAltPressureSpecificFinal=priority9IR2AAltPressureSpecificFinal;
+    module.exports.priority9IR2AIsGeneric9IReply=priority9IR2AIsGeneric9IReply;
+    module.exports.PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_PATCH=true;
+  }
+}
+/* PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_END */
+
+priority9IR2APatchExports(["handleAdminConsoleCommand", "handleTextCommand", "processAdminText", "routeAdminCommand", "executeAdminConsoleAction", "handle", "process", "default"]);
+
