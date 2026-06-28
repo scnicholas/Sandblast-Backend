@@ -752,20 +752,22 @@ module.exports.applyLoopGuard=applyLoopGuard;
 
 // PRIORITY_9H_LONG_FORM_CONTINUITY_STRESS_DRIFT_GUARD_LOOP_PATCH_START
 const PRIORITY_9H_LONG_FORM_CONTINUITY_LOOP_VERSION = "nyx.marion.priority9h.longFormContinuityStressDriftGuard.loopGuard/1.0";
+const PRIORITY_9H_R1_ADVANCEMENT_SHAPE_LOOP_VERSION = "nyx.marion.priority9h.r1AdvancementShapeHotfix.loopGuard/1.0";
 function priority9HLoopNorm(value){return oneLine(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function priority9HLoopIsShortFollowup(value){const n=priority9HLoopNorm(value);return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|rerun that|what now|whats next|what s next|next|status|passed|pass|green|go on|advance)$/.test(n);}
+function priority9HLoopIsShortFollowup(value){const n=priority9HLoopNorm(value);return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|rerun that|what now|whats next|what s next|next|status|passed|pass|green|go on|advance|same lane|same thread|stay in lane|stay in the same lane|continue from there|from there|what is the risk|what s the risk|risk|what is the active task|what s the active task|active task|current task|what is the next action|what s the next action|next action|next move|summarize where we are|summarise where we are|where are we|recap|summary|do not drift|don t drift|dont drift|no drift|final check|final status|check)$/.test(n);}
 function priority9HLoopIsActivationText(value){const n=priority9HLoopNorm(value);return /\b(priority 9h|9h|long form continuity|continuity stress test|memory drift guard|drift guard|10 to 15 turns|ten to fifteen turns|survive 10|short follow ups while preserving|surface request deeper intent active task risk execution mode next action|priority 9i|adaptive situational)\b/.test(n);}
 function priority9HLoopHasContext(value){const n=priority9HLoopNorm(value);return /\b(priority 9h|long form continuity|memory drift|drift guard|priority 9g|deep continuity memory|layered follow up|surface request|deeper intent|active task|execution mode|next action|priority 9i)\b/.test(n);}
 function priority9HLoopOldLeak(value){const n=priority9HLoopNorm(value);return /\b(priority 9g deep continuity memory|run the multi turn 9g continuity pass|lock a 9g continuity memory object|priority 9f r4|public nyx route clean|five turn continuity test|priority 90 9e|priority 9e|in psychology|domain hijack|prompt echo|recovery path|loop detected|stale fallback)\b/.test(n);}
+function priority9HLoopReactivationWording(value){const n=priority9HLoopNorm(value);return /\b(i m reading this as priority 9h with a priority 9i precheck|i am reading this as priority 9h with a priority 9i precheck|priority 9h must pass first|priority 9i is staged next for adaptive situational reasoning)\b/.test(n);}
 function priority9HLoopSource(packet,options){try{return [JSON.stringify(packet||{}),JSON.stringify(options||{})].join(" ").slice(0,16000);}catch(_){return "";}}
 const __priority9HOriginalEvaluateLoop=evaluateLoop;
 evaluateLoop=function priority9HEvaluateLoop(packet={},candidateReply="",options={}){
   const base=__priority9HOriginalEvaluateLoop(packet,candidateReply,options);
   const prompt=oneLine((options&&options.prompt)||(options&&options.userText)||(packet&&packet.prompt)||(packet&&packet.userText)||(packet&&packet.rawUserText)||(packet&&packet.text)||(packet&&packet.message)||"");
   const source=priority9HLoopSource(packet,options);
-  if((priority9HLoopIsActivationText(prompt)||priority9HLoopIsActivationText(source)||(priority9HLoopIsShortFollowup(prompt)&&priority9HLoopHasContext(source)))&&priority9HLoopOldLeak(candidateReply)){
+  if((priority9HLoopIsActivationText(prompt)||priority9HLoopIsActivationText(source)||(priority9HLoopIsShortFollowup(prompt)&&priority9HLoopHasContext(source)))&&priority9HLoopOldLeak(candidateReply)||(priority9HLoopIsShortFollowup(prompt)&&priority9HLoopReactivationWording(candidateReply))){
     const reasons=Array.isArray(base.reasons)?base.reasons.slice():[];
-    if(!reasons.includes("priority9h_memory_drift_suppressed"))reasons.push("priority9h_memory_drift_suppressed");
+    if(!reasons.includes("priority9h_r1_advancement_shape_suppressed"))reasons.push("priority9h_r1_advancement_shape_suppressed");
     return {...safeObj(base),allowReply:false,forceRecovery:true,loopDetected:true,reasons,failureSignature:"LOOP_GUARD_SUPPRESSED",priority9HMemoryDriftGuard:true,noUserFacingDiagnostics:true};
   }
   return base;
@@ -775,6 +777,7 @@ applyLoopGuard=function priority9HApplyLoopGuard(packet={},candidateReply="",opt
   return {...safeObj(result),packetPatch:{...safeObj(result.packetPatch),stateStage:result.nextStateStage,loopCount:result.forceRecovery?getLoopCount(packet)+1:0,recoveryRequired:result.forceRecovery,lastLoopReasons:result.reasons,loopGuardVersion:VERSION,failureSignature:result.failureSignature,priority9HMemoryDriftGuard:!!result.priority9HMemoryDriftGuard}};
 };
 module.exports.PRIORITY_9H_LONG_FORM_CONTINUITY_LOOP_VERSION=PRIORITY_9H_LONG_FORM_CONTINUITY_LOOP_VERSION;
+module.exports.PRIORITY_9H_R1_ADVANCEMENT_SHAPE_LOOP_VERSION=PRIORITY_9H_R1_ADVANCEMENT_SHAPE_LOOP_VERSION;
 module.exports.evaluateLoop=evaluateLoop;
 module.exports.applyLoopGuard=applyLoopGuard;
 module.exports.isPriority9HMemoryDriftLeak=priority9HLoopOldLeak;
