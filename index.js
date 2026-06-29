@@ -36,7 +36,7 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const INDEX_VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const PUBLIC_INDEX_VERSION = "PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const SERVER_BOOT_AT = Date.now();
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
@@ -1106,6 +1106,23 @@ function marionAdminDeepVisibleReplyCandidate(value, prompt, source, depth, seen
 
   return "";
 }
+
+
+/* PRIORITY_9J_R1B_ADMIN_VISIBLE_EXTRACTION_HELPER_START */
+function priority9JR1BAdminVisibleReply(value, prompt) {
+  const promptText = cleanText(prompt || "");
+  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
+  if (forced && !/^\s*\[object object\]\s*$/i.test(forced)) return forced;
+  const deep = marionAdminDeepVisibleReplyCandidate(value, promptText, {}, 0, new Set());
+  if (deep && !/^\s*\[object object\]\s*$/i.test(deep)) return deep;
+  if (typeof value === "string") {
+    const clean = marionAdminProjectionCleanReply(value);
+    if (clean && !/^\s*\[object object\]\s*$/i.test(clean)) return clean;
+  }
+  return "";
+}
+/* PRIORITY_9J_R1B_ADMIN_VISIBLE_EXTRACTION_HELPER_END */
+
 
 function marionAdminProjectVoiceEnvelope(reply, auth, runtime) {
   const allowed = !!(auth && (auth.verified === true || auth.adminVerified === true || auth.sessionVerified === true) && (auth.adminVoiceRuntimeApproval === true || auth.adminVoiceDeliveryAllowed === true));
@@ -18765,6 +18782,8 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
   const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || result.finalEnvelope);
   const synthesis = safeObj(src.synthesis || payload.synthesis || result.synthesis);
   const norm = { prompt: promptText, userText: promptText, rawUserText: promptText, text: promptText, message: promptText };
+  const priority9JR1BDirectReply = priority9JR1BAdminVisibleReply("", promptText);
+  if (priority9JR1BDirectReply) return priority9JR1BDirectReply;
   const candidates = [
     finalEnvelope.final, finalEnvelope.finalAnswer, finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.message, finalEnvelope.spokenText,
     synthesis.final, synthesis.finalAnswer, synthesis.finalReply, synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.displayReply, synthesis.answer, synthesis.output, synthesis.response, synthesis.text, synthesis.message, synthesis.spokenText,
@@ -19117,8 +19136,8 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     bridgeStatus.mod.route;
 
   const packet = await Promise.resolve(fn(input, context));
-  const packetReply = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
-  const reply = marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval);
+  const packetReply = priority9JR1BAdminVisibleReply(marionAdminTextRuntimeReplyFromPacket(packet, prompt, input), prompt) || priority9JR1BAdminVisibleReply(packet, prompt) || "";
+  const reply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
   const voiceProjection = marionAdminProjectVoiceEnvelope(reply, input, { stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing" });
   const speechSync = marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input);
   voiceProjection.speechSync = speechSync;
@@ -19172,7 +19191,8 @@ async function handleMarionAdminTextRuntime(req, res) {
     const voiceApproval = marionAdminRuntimePrivateVoiceApproval(req, body, auth);
     const runtime = await invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval);
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
-    const reply = cleanText(runtime.reply || "");
+    const runtimePrompt = marionAdminTextRuntimeExtractPrompt(body);
+    const reply = priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || priority9JR1BAdminVisibleReply(runtime, runtimePrompt) || "";
     return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ok: !!runtime.ok,
       stage: cleanText(runtime.stage || ""),
@@ -19191,8 +19211,8 @@ async function handleMarionAdminTextRuntime(req, res) {
       response: reply,
       text: reply,
       message: reply,
-      spokenText: cleanText(runtime.spokenText || reply),
-      speechText: cleanText(runtime.speechText || runtime.spokenText || reply),
+      spokenText: priority9JR1BAdminVisibleReply(runtime.spokenText, runtimePrompt) || reply,
+      speechText: priority9JR1BAdminVisibleReply(runtime.speechText, runtimePrompt) || priority9JR1BAdminVisibleReply(runtime.spokenText, runtimePrompt) || reply,
       voice: marionAdminConsoleRedacted(runtime.voice || {}),
       voicePrivateReceive: marionAdminConsoleRedacted(runtime.voicePrivateReceive || runtime.privateVoiceReceive || {}),
       privateVoiceReceive: marionAdminConsoleRedacted(runtime.privateVoiceReceive || runtime.voicePrivateReceive || {}),
@@ -20887,3 +20907,184 @@ function priority9JR1APatchExports(names) {
 }
 priority9JR1APatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_END */
+
+
+/* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_START */
+const PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD";
+function priority9JR1BString(value) {
+  if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
+  if (value == null) return "";
+  if (typeof value === "number" || typeof value === "boolean") return String(value).replace(/\s+/g, " ").trim();
+  return "";
+}
+function priority9JR1BIsBadVisible(value) {
+  const t = priority9JR1BString(value);
+  return !t || /^\s*(?:\[object object\]|undefined|null|false|true)\s*$/i.test(t);
+}
+function priority9JR1BObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function priority9JR1BDetectPromptFromValue(value, depth, seen) {
+  if (typeof priority9JR1AExtractTextFromValue === "function") {
+    const direct = priority9JR1AExtractTextFromValue(value);
+    if (direct && !priority9JR1BIsBadVisible(direct)) return direct;
+  }
+  if (!value || typeof value !== "object") return "";
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 7) return "";
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+  const keys = ["prompt","userText","rawUserText","input","query","commandText","message","text","transcript","currentPrompt","lastPrompt"];
+  for (const key of keys) {
+    const item = value[key];
+    const s = priority9JR1BString(item);
+    if (s && !priority9JR1BIsBadVisible(s)) return s;
+  }
+  const nestedKeys = ["payload","body","command","meta","metadata","result","request","data","finalEnvelope"];
+  for (const key of nestedKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BDetectPromptFromValue(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function priority9JR1BVisibleFromObject(value, depth, seen) {
+  if (typeof value === "string") {
+    const s = priority9JR1BString(value);
+    return priority9JR1BIsBadVisible(s) ? "" : s;
+  }
+  if (!value || typeof value !== "object") return "";
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 10) return "";
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+  const priorityKeys = [
+    "visibleReply","publicReply","finalReply","displayReply","adminReply","marionReply","privateReply",
+    "reply","response","text","message","answer","output","final","finalAnswer","spokenText","speechText"
+  ];
+  for (const key of priorityKeys) {
+    const item = value[key];
+    if (typeof item === "string") {
+      const s = priority9JR1BString(item);
+      if (s && !priority9JR1BIsBadVisible(s)) return s;
+    }
+  }
+  for (const key of priorityKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  const nestedKeys = ["finalEnvelope","marionFinal","synthesis","payload","result","data","packet","envelope","message","reply","response","text","output","final"];
+  for (const key of nestedKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  for (const key of Object.keys(value)) {
+    if (priorityKeys.indexOf(key) !== -1 || nestedKeys.indexOf(key) !== -1) continue;
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function priority9JR1BVisibleReply(value, prompt) {
+  const promptText = priority9JR1BString(prompt) || priority9JR1BDetectPromptFromValue(value, 0, new Set());
+  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
+  if (forced && !priority9JR1BIsBadVisible(forced)) return forced;
+  const direct = priority9JR1BVisibleFromObject(value, 0, new Set());
+  if (direct && !priority9JR1BIsBadVisible(direct)) return direct;
+  return "";
+}
+function priority9JR1BPopulateVisibleFields(target, reply, prompt) {
+  if (!target || typeof target !== "object" || !reply) return target;
+  const command = (typeof priority9JR1ADetectCommand === "function") ? priority9JR1ADetectCommand(prompt || "") : "";
+  ["reply","response","text","message","final","publicReply","visibleReply","finalReply","displayReply","output","answer"].forEach(function(key) {
+    target[key] = reply;
+  });
+  target.priority = "9J-R1B";
+  target.lane = "priority9j_proactive_operational_guidance";
+  target.operationalCommand = command || target.operationalCommand || "";
+  target.decisionSpecificAuthority = true;
+  target.objectReplySerializationGuard = true;
+  target.noObjectVisibleReply = true;
+  const meta = Object.assign({}, priority9JR1BObject(target.meta), {
+    hotfix: PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION,
+    priority: "9J-R1B",
+    lane: "priority9j_proactive_operational_guidance",
+    operationalCommand: command || target.operationalCommand || "",
+    decisionSpecificAuthority: true,
+    objectReplySerializationGuard: true,
+    noObjectVisibleReply: true,
+    noUserFacingDiagnostics: true
+  });
+  target.meta = meta;
+  const nestedKeys = ["finalEnvelope","result","payload","marionFinal","synthesis","data","packet"];
+  nestedKeys.forEach(function(key) {
+    if (target[key] && typeof target[key] === "object") {
+      target[key] = priority9JR1BPopulateVisibleFields(Array.isArray(target[key]) ? target[key].slice() : Object.assign({}, target[key]), reply, prompt);
+    }
+  });
+  return target;
+}
+function priority9JR1BApply(result, prompt, mode) {
+  const promptText = priority9JR1BString(prompt) || priority9JR1BDetectPromptFromValue(result, 0, new Set());
+  const reply = priority9JR1BVisibleReply(result, promptText);
+  if (!reply) return result;
+  if (mode === "string") return reply;
+  if (!result || typeof result !== "object") return reply;
+  const out = Array.isArray(result) ? result.slice() : Object.assign({}, result);
+  return priority9JR1BPopulateVisibleFields(out, reply, promptText);
+}
+function priority9JR1BExportNeedsString(name) {
+  return /^(?:handleMarionAdminTextRuntime|invokeMarionAdminTextRuntime|handleTextRuntime|handler|run|default|composeMarionResponse|compose|buildReply|routeMarion)$/i.test(String(name || ""));
+}
+function priority9JR1BWrapExport(name) {
+  if (typeof module === "undefined" || !module.exports) return;
+  const obj = module.exports && typeof module.exports === "object" ? module.exports : null;
+  const fn = obj && typeof obj[name] === "function" ? obj[name] : null;
+  if (!fn || fn.__priority9JR1BObjectReplySerializationGuardPatched) return;
+  obj[name] = function priority9JR1BObjectReplySerializationGuardWrappedExport() {
+    const prompt = (typeof priority9JR1AExtractPrompt === "function" ? priority9JR1AExtractPrompt(arguments) : "") || priority9JR1BDetectPromptFromValue(arguments && arguments[0], 0, new Set());
+    const result = fn.apply(this, arguments);
+    const mode = priority9JR1BExportNeedsString(name) ? "string" : "object";
+    if (result && typeof result.then === "function") return result.then(function(value) { return priority9JR1BApply(value, prompt, mode); });
+    return priority9JR1BApply(result, prompt, mode);
+  };
+  obj[name].__priority9JR1BObjectReplySerializationGuardPatched = true;
+}
+function priority9JR1BPatchExports(names) {
+  if (typeof module === "undefined" || !module.exports) return;
+  if (typeof module.exports === "function" && !module.exports.__priority9JR1BObjectReplySerializationGuardPatched) {
+    const originalDefault = module.exports;
+    const wrappedDefault = function priority9JR1BObjectReplySerializationGuardWrappedDefault() {
+      const prompt = (typeof priority9JR1AExtractPrompt === "function" ? priority9JR1AExtractPrompt(arguments) : "") || priority9JR1BDetectPromptFromValue(arguments && arguments[0], 0, new Set());
+      const result = originalDefault.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function(value) { return priority9JR1BApply(value, prompt, "string"); });
+      return priority9JR1BApply(result, prompt, "string");
+    };
+    Object.keys(originalDefault).forEach(function(k){ try { wrappedDefault[k] = originalDefault[k]; } catch (_) {} });
+    wrappedDefault.__priority9JR1BObjectReplySerializationGuardPatched = true;
+    module.exports = wrappedDefault;
+  }
+  (Array.isArray(names) ? names : []).forEach(priority9JR1BWrapExport);
+  if (module.exports && typeof module.exports === "object") {
+    module.exports.PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION = PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION;
+    module.exports.priority9JR1BObjectReplySerializationGuardFinal = priority9JR1BApply;
+    module.exports.priority9JR1BVisibleReply = priority9JR1BVisibleReply;
+    module.exports.PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_PATCH = true;
+  }
+}
+priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
+/* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
+
