@@ -2455,3 +2455,117 @@ function priority9JR1BPatchExports(names) {
 priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
 
+
+
+// MARION_PERSONALITY_PRIORITY_R2_ADMIN_CONSOLE_START
+// Adds Marion's Mac-facing personality and response-shape guard to the private
+// admin console without changing the original command/approval architecture.
+const MARION_PERSONALITY_PRIORITY_R2_ADMIN_CONSOLE_VERSION = "nyx.marion.personalityPriorityR2.adminConsole/1.0";
+function marionPersonalityR2AdminText(value) {
+  return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+}
+function marionPersonalityR2AdminPromptFrom(value) {
+  const src = value && typeof value === "object" ? value : { text: String(value || "") };
+  const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
+  const command = src.command && typeof src.command === "object" ? src.command : {};
+  return marionPersonalityR2AdminText(src.prompt || src.message || src.text || src.query || src.commandText || payload.prompt || payload.message || payload.text || command.prompt || command.message || command.text || "");
+}
+function marionPersonalityR2AdminGreetingReply(prompt) {
+  const text = marionPersonalityR2AdminText(prompt).toLowerCase().replace(/[.!?]+$/g, "").trim();
+  let opener = "";
+  if (/^(good\s+morning|morning)(?:\s+(?:marion|mac))?$/.test(text)) opener = "Good morning, Mac.";
+  else if (/^(good\s+afternoon|afternoon)(?:\s+(?:marion|mac))?$/.test(text)) opener = "Good afternoon, Mac.";
+  else if (/^(good\s+evening|evening)(?:\s+(?:marion|mac))?$/.test(text)) opener = "Good evening, Mac.";
+  else if (/^(hello|hi|hey|hiya)(?:\s+(?:marion|mac))?$/.test(text)) opener = "Hello, Mac.";
+  if (!opener) return "";
+  return `${opener} I’m here with you. Marion is staying professional, protective, conversational, and private to you. What should we tighten next?`;
+}
+function marionPersonalityR2AdminDiagnosticAllowed(prompt) {
+  return /\b(diagnostic mode|debug mode|explain the priority|show the priority|what priority|priority\s+[0-9a-z]|runtime diagnostic|trace)\b/i.test(marionPersonalityR2AdminText(prompt));
+}
+function marionPersonalityR2AdminCleanReply(reply, prompt) {
+  let text = marionPersonalityR2AdminText(reply);
+  const greeting = marionPersonalityR2AdminGreetingReply(prompt);
+  if (greeting) return greeting;
+  if (!text) return "";
+  if (!marionPersonalityR2AdminDiagnosticAllowed(prompt)) {
+    text = text
+      .replace(/[^.?!]*(?:Priority\s*9[A-Z0-9-]*|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})[^.?!]*[.?!]?/gi, " ")
+      .replace(/\b(?:9I|9J|9H)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  text = text
+    .replace(/\bLet me assist you with that\b/gi, "Let me take a look at this for you")
+    .replace(/\bHow may I assist you\??\b/gi, "What should we handle next?")
+    .replace(/\bI am here to assist\b/gi, "I’m here with you")
+    .replace(/\bPlease provide the necessary information\b/gi, "Send me the key detail")
+    .replace(/\butilize\b/gi, "use")
+    .replace(/\bfacilitate\b/gi, "help")
+    .replace(/\bin order to\b/gi, "to")
+    .replace(/\s+/g, " ")
+    .trim();
+  const qCount = (text.match(/\?/g) || []).length;
+  if (qCount > 1) {
+    let seen = false;
+    text = text.split(/(?<=[?])\s+/).map((part) => {
+      if (!part.includes("?")) return part;
+      if (!seen) { seen = true; return part; }
+      return part.replace(/\?/g, ".");
+    }).join(" ").replace(/\s+/g, " ").trim();
+  }
+  return text;
+}
+function marionPersonalityR2AdminApplyPacket(packet, prompt) {
+  const out = packet && typeof packet === "object" && !Array.isArray(packet) ? packet : { reply: marionPersonalityR2AdminText(packet) };
+  const payload = out.payload && typeof out.payload === "object" ? out.payload : {};
+  const reply = marionPersonalityR2AdminCleanReply(out.reply || out.directReply || out.publicReply || out.visibleReply || out.finalReply || out.text || out.message || out.response || payload.reply || payload.text || "", prompt) || marionPersonalityR2AdminGreetingReply(prompt) || marionPersonalityR2AdminText(out.reply || out.directReply || out.text || out.message || "");
+  if (reply) {
+    ["reply", "directReply", "text", "message", "displayReply", "publicReply", "visibleReply", "finalReply", "answer", "output", "response"].forEach((key) => { out[key] = reply; });
+    out.payload = Object.assign({}, payload, { reply, directReply: reply, text: reply, message: reply, displayReply: reply, publicReply: reply, visibleReply: reply, finalReply: reply });
+  }
+  out.personalityPriorityR2 = {
+    version: MARION_PERSONALITY_PRIORITY_R2_ADMIN_CONSOLE_VERSION,
+    recipient: "Mac",
+    persona: "professional_protective_mac_facing",
+    canQuestionUserRequest: true,
+    oneQuestionPerTurn: true,
+    publicUsersCanAddressMarion: false
+  };
+  out.contextSummary = marionPersonalityR2AdminText(out.contextSummary || "Marion is operating in the private Mac-facing admin channel with professional, protective response shaping.");
+  out.currentObjective = marionPersonalityR2AdminText(out.currentObjective || "Maintain conversational continuity, directness, and safe final authority.");
+  out.nextAction = marionPersonalityR2AdminText(out.nextAction || "Continue with one clear next step.");
+  out.meta = Object.assign({}, out.meta && typeof out.meta === "object" ? out.meta : {}, {
+    personalityPriorityR2: true,
+    personalityPriorityR2Version: MARION_PERSONALITY_PRIORITY_R2_ADMIN_CONSOLE_VERSION,
+    marionRecipient: "Mac",
+    publicUsersCanAddressMarion: false,
+    oneQuestionPerTurn: true,
+    noUserFacingDiagnostics: true
+  });
+  return out;
+}
+try {
+  if (MarionAdminConsoleGateway && MarionAdminConsoleGateway.prototype && !MarionAdminConsoleGateway.prototype.__marionPersonalityPriorityR2SafeResponsePatched) {
+    const __marionPersonalityR2OriginalSafeResponse = MarionAdminConsoleGateway.prototype.safeResponse;
+    MarionAdminConsoleGateway.prototype.safeResponse = function marionPersonalityPriorityR2SafeResponse(payload) {
+      const prompt = marionPersonalityR2AdminPromptFrom(payload);
+      return __marionPersonalityR2OriginalSafeResponse.call(this, marionPersonalityR2AdminApplyPacket(payload, prompt));
+    };
+    MarionAdminConsoleGateway.prototype.__marionPersonalityPriorityR2SafeResponsePatched = true;
+  }
+  ["handleCommand", "dispatchCommand", "routeCommand", "command", "handleAdminCommand", "handleAdminConsoleAction", "handle", "process"].forEach(function(name) {
+    if (!module.exports || typeof module.exports[name] !== "function" || module.exports[name].__marionPersonalityPriorityR2Patched) return;
+    const original = module.exports[name];
+    module.exports[name] = function marionPersonalityPriorityR2AdminExportWrapper(input, context) {
+      const prompt = marionPersonalityR2AdminPromptFrom(input);
+      const result = original.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then((packet) => marionPersonalityR2AdminApplyPacket(packet, prompt));
+      return marionPersonalityR2AdminApplyPacket(result, prompt);
+    };
+    module.exports[name].__marionPersonalityPriorityR2Patched = true;
+  });
+  module.exports.MARION_PERSONALITY_PRIORITY_R2_ADMIN_CONSOLE_VERSION = MARION_PERSONALITY_PRIORITY_R2_ADMIN_CONSOLE_VERSION;
+  module.exports.marionPersonalityR2AdminCleanReply = marionPersonalityR2AdminCleanReply;
+} catch (_) {}
+// MARION_PERSONALITY_PRIORITY_R2_ADMIN_CONSOLE_END
