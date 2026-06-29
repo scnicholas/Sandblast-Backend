@@ -1988,8 +1988,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       privateAdminConversation: true,
       marionAdminConversation: true,
       adminConversationAllowed: true,
-      adminVoiceVerified: adminVoiceRuntimeAuth.verified === true || true,
-      adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true || true,
+      adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
+      adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true,
       adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
       adminVoiceRuntimeApproval: adminVoiceRuntimeAuth.verified === true && adminVoiceRuntimeAuth.adminVoiceRuntimeApproval === true,
       adminVoiceApprovalRequestId: cleanText(adminVoiceRuntimeAuth.approvalRequestId || ""),
@@ -2007,16 +2007,16 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         adminOnlyVoiceDelivery: true,
         allowConversationalWhenUnknown: false,
         trustSpeakerHint: true,
-        adminVoiceVerified: true,
-        adminVoiceTokenVerified: true,
+        adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
+        adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true,
         adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         serverSideAdminVoiceAuth: adminVoiceRuntimeAuth.verified === true,
         trustedServerAuth: true
       },
       output: {
         adminOnlyVoiceDelivery: true,
-        adminVoiceVerified: true,
-        adminVoiceTokenVerified: true,
+        adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
+        adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true,
         adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         forceSilent: adminVoiceRuntimeAuth.verified !== true,
         privateAdminConversation: true
@@ -2032,7 +2032,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         privateAdminConversation: true,
         marionAdminConversation: true,
         adminConversationAllowed: true,
-        adminVoiceVerified: true,
+        adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
         adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         lingoSentinel: {
           silentOversight: true,
@@ -2077,8 +2077,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         adminOnlyVoiceDelivery: true,
         adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         adminVoiceRuntimeApproval: adminVoiceRuntimeAuth.verified === true && adminVoiceRuntimeAuth.adminVoiceRuntimeApproval === true,
-        finalApproved: (adminVoiceRuntimeAuth.verified === true && !!reply) || voice.finalApproved !== false,
-        speechSyncEnabled: (adminVoiceRuntimeAuth.verified === true && !!reply) || (isObj(voice.speechSync) && voice.speechSync.enabled === true),
+        finalApproved: adminVoiceRuntimeAuth.verified === true && !!reply,
+        speechSyncEnabled: adminVoiceRuntimeAuth.verified === true && !!reply,
         speechSyncVersion: cleanText((isObj(voice.speechSync) ? voice.speechSync.version : "") || voice.speechSyncVersion || "")
       },
       voiceEnvelope: {
@@ -2086,10 +2086,10 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         inputChannel: "admin",
         locale: cleanText(voiceEnvelope.locale || body.locale || "en-CA"),
         confidence: Number.isFinite(Number(voiceEnvelope.confidence)) ? Number(voiceEnvelope.confidence) : null,
-        authorizationState: cleanText(voiceEnvelope.authorizationState || "authorized"),
+        authorizationState: adminVoiceRuntimeAuth.verified === true ? cleanText(voiceEnvelope.authorizationState || "authorized") : "locked",
         adminOnlyVoiceDelivery: true,
-        adminVoiceVerified: true,
-        adminVoiceDeliveryAllowed: true,
+        adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
+        adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         audioStored: false
       },
       lingoSentinel: {
@@ -21088,3 +21088,146 @@ function priority9JR1BPatchExports(names) {
 priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
 
+
+
+/* MARION_PERSONALITY_PRIORITY_R2_INDEX_GATEWAY_START
+ * Purpose: Keep the index/admin route as transport authority while enforcing
+ * Marion's Mac-facing personality, single-recipient boundary, conversational
+ * greeting depth, response-shape hygiene, and strict voice-delivery separation.
+ */
+const MARION_PERSONALITY_PRIORITY_R2_INDEX_VERSION = "nyx.marion.personalityPriorityR2.indexGateway/1.0";
+function marionPersonalityR2IndexText(value) {
+  return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+}
+function marionPersonalityR2IndexLower(value) {
+  return marionPersonalityR2IndexText(value).toLowerCase();
+}
+function marionPersonalityR2IndexPromptFrom(value) {
+  if (!value) return "";
+  if (typeof value === "string") return marionPersonalityR2IndexText(value);
+  if (typeof value !== "object") return "";
+  const payload = value.payload && typeof value.payload === "object" ? value.payload : {};
+  return marionPersonalityR2IndexText(value.prompt || value.message || value.text || value.query || value.userText || value.rawUserText || payload.prompt || payload.message || payload.text || payload.userText || "");
+}
+function marionPersonalityR2IndexDiagnosticAllowed(prompt, source) {
+  const text = marionPersonalityR2IndexLower([prompt, marionPersonalityR2IndexPromptFrom(source)].join(" "));
+  return /\b(diagnostic mode|debug mode|explain the priority|show the priority|what priority|priority\s+[0-9a-z]|runtime diagnostic|admin diagnostic|trace)\b/i.test(text);
+}
+function marionPersonalityR2IndexGreetingKind(prompt) {
+  const text = marionPersonalityR2IndexLower(prompt).replace(/[.!?]+$/g, "").trim();
+  if (!text) return "";
+  if (/^(good\s+morning|morning)(?:\s+(?:marion|mac))?$/.test(text)) return "morning";
+  if (/^(good\s+afternoon|afternoon)(?:\s+(?:marion|mac))?$/.test(text)) return "afternoon";
+  if (/^(good\s+evening|evening)(?:\s+(?:marion|mac))?$/.test(text)) return "evening";
+  if (/^(hello|hi|hey|hiya)(?:\s+(?:marion|mac))?$/.test(text)) return "hello";
+  if (/^(marion)$/.test(text)) return "presence";
+  return "";
+}
+function marionPersonalityR2IndexGreetingReply(prompt) {
+  const kind = marionPersonalityR2IndexGreetingKind(prompt);
+  if (!kind) return "";
+  const opener = kind === "morning" ? "Good morning, Mac." : kind === "afternoon" ? "Good afternoon, Mac." : kind === "evening" ? "Good evening, Mac." : "Hello, Mac.";
+  return `${opener} I’m here with you. Marion is active in the private admin channel, and I’m keeping the conversation warm, direct, protective, and grounded in the personality layer we’re building. Where do you want me to focus next?`;
+}
+function marionPersonalityR2IndexFallback(prompt) {
+  const greeting = marionPersonalityR2IndexGreetingReply(prompt);
+  if (greeting) return greeting;
+  return "I’m with you, Mac. The turn stayed protected, but the active handler did not produce a clean Marion final. Send the next exact target and I’ll keep it tight.";
+}
+function marionPersonalityR2IndexStripOperationalLeak(reply, prompt, source) {
+  let text = marionPersonalityR2IndexText(reply);
+  if (!text || marionPersonalityR2IndexDiagnosticAllowed(prompt, source)) return text;
+  const leakRx = /\b(Priority\s*9[A-Z0-9-]*|9I|9J|9H|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})\b/i;
+  if (!leakRx.test(text)) return text;
+  text = text
+    .replace(/[^.?!]*(?:Priority\s*9[A-Z0-9-]*|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})[^.?!]*[.?!]?/gi, " ")
+    .replace(/\b(?:9I|9J|9H)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text;
+}
+function marionPersonalityR2IndexNaturalize(reply) {
+  let text = marionPersonalityR2IndexText(reply);
+  if (!text) return "";
+  text = text
+    .replace(/\bLet me assist you with that\b/gi, "Let me take a look at this for you")
+    .replace(/\bHow may I assist you\??\b/gi, "What do you want to tackle next?")
+    .replace(/\bI am here to assist\b/gi, "I’m here with you")
+    .replace(/\bPlease provide the necessary information\b/gi, "Send me the key detail")
+    .replace(/\butilize\b/gi, "use")
+    .replace(/\bfacilitate\b/gi, "help")
+    .replace(/\bin order to\b/gi, "to")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text;
+}
+function marionPersonalityR2IndexLimitQuestions(reply) {
+  const text = marionPersonalityR2IndexText(reply);
+  if (!text) return "";
+  const marks = (text.match(/\?/g) || []).length;
+  if (marks <= 1) return text;
+  const parts = text.split(/(?<=[?])\s+/);
+  let keptQuestion = false;
+  const out = [];
+  for (const part of parts) {
+    if (!part.includes("?")) { out.push(part); continue; }
+    if (!keptQuestion) { out.push(part); keptQuestion = true; continue; }
+    out.push(part.replace(/\?/g, "."));
+  }
+  return out.join(" ").replace(/\s+/g, " ").trim();
+}
+function marionPersonalityR2IndexShapeReply(reply, prompt, source) {
+  const promptText = marionPersonalityR2IndexText(prompt || marionPersonalityR2IndexPromptFrom(source));
+  const greeting = marionPersonalityR2IndexGreetingReply(promptText);
+  if (greeting) return greeting;
+  let text = marionPersonalityR2IndexStripOperationalLeak(reply, promptText, source);
+  text = marionPersonalityR2IndexNaturalize(text);
+  text = marionPersonalityR2IndexLimitQuestions(text);
+  if (!text) text = marionPersonalityR2IndexFallback(promptText);
+  return text;
+}
+function marionPersonalityR2IndexAttachReplyAliases(packet, reply) {
+  if (!packet || typeof packet !== "object") return packet;
+  const text = marionPersonalityR2IndexText(reply);
+  if (!text) return packet;
+  ["reply", "text", "message", "displayReply", "publicReply", "visibleReply", "finalReply", "answer", "output", "response"].forEach((key) => { packet[key] = text; });
+  packet.personalityPriorityR2 = {
+    version: MARION_PERSONALITY_PRIORITY_R2_INDEX_VERSION,
+    persona: "professional_protective_mac_facing",
+    oneQuestionPerTurn: true,
+    publicUsersCanAddressMarion: false,
+    diagnosticsHiddenUnlessRequested: true
+  };
+  packet.meta = Object.assign({}, packet.meta && typeof packet.meta === "object" ? packet.meta : {}, {
+    personalityPriorityR2: true,
+    personalityPriorityR2Version: MARION_PERSONALITY_PRIORITY_R2_INDEX_VERSION,
+    marionRecipient: "Mac",
+    publicUsersCanAddressMarion: false,
+    noUserFacingDiagnostics: true
+  });
+  if (packet.payload && typeof packet.payload === "object") marionPersonalityR2IndexAttachReplyAliases(packet.payload, text);
+  if (packet.finalEnvelope && typeof packet.finalEnvelope === "object") marionPersonalityR2IndexAttachReplyAliases(packet.finalEnvelope, text);
+  return packet;
+}
+try {
+  if (typeof marionAdminConversationSafeReply === "function" && !marionAdminConversationSafeReply.__marionPersonalityPriorityR2Patched) {
+    const __marionPersonalityR2OriginalAdminConversationSafeReply = marionAdminConversationSafeReply;
+    marionAdminConversationSafeReply = function marionPersonalityPriorityR2AdminConversationSafeReply(packet, prompt, err) {
+      const raw = __marionPersonalityR2OriginalAdminConversationSafeReply(packet, prompt, err);
+      const shaped = marionPersonalityR2IndexShapeReply(raw, prompt, packet || err);
+      if (packet && typeof packet === "object") marionPersonalityR2IndexAttachReplyAliases(packet, shaped);
+      return shaped;
+    };
+    marionAdminConversationSafeReply.__marionPersonalityPriorityR2Patched = true;
+  }
+  if (typeof finalizeRenderableReply === "function" && !finalizeRenderableReply.__marionPersonalityPriorityR2Patched) {
+    const __marionPersonalityR2OriginalFinalizeRenderableReply = finalizeRenderableReply;
+    finalizeRenderableReply = function marionPersonalityPriorityR2FinalizeRenderableReply(reply, norm, authority, reason) {
+      const raw = __marionPersonalityR2OriginalFinalizeRenderableReply(reply, norm, authority, reason);
+      const prompt = typeof promptTextForFinalSelection === "function" ? promptTextForFinalSelection(norm || {}) : marionPersonalityR2IndexPromptFrom(norm || {});
+      return marionPersonalityR2IndexShapeReply(raw, prompt, norm || {});
+    };
+    finalizeRenderableReply.__marionPersonalityPriorityR2Patched = true;
+  }
+} catch (_) {}
+/* MARION_PERSONALITY_PRIORITY_R2_INDEX_GATEWAY_END */
