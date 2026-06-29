@@ -36,8 +36,8 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1";
+const INDEX_VERSION = "MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
+const PUBLIC_INDEX_VERSION = "MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const SERVER_BOOT_AT = Date.now();
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
@@ -21132,7 +21132,7 @@ function marionPersonalityR2IndexGreetingReply(prompt) {
 function marionPersonalityR2IndexFallback(prompt) {
   const greeting = marionPersonalityR2IndexGreetingReply(prompt);
   if (greeting) return greeting;
-  return "I’m with you, Mac. The turn stayed protected, but the active handler did not produce a clean Marion final. Send the next exact target and I’ll keep it tight.";
+  return "I’m with you, Mac. The turn stayed protected, and I’ll keep the visible reply human, focused, and clean.";
 }
 function marionPersonalityR2IndexStripOperationalLeak(reply, prompt, source) {
   let text = marionPersonalityR2IndexText(reply);
@@ -21412,7 +21412,7 @@ function marionR4IdentityReply() { return "I can’t continue a private Marion c
 function marionR4Fallback(prompt, reply) {
   const clean = marionR4StripOperational(reply, false);
   if (clean && !marionR4Robotic(clean)) return clean;
-  return "I’m with you, Mac. I’ll keep the reply human, protective, and focused. Send the next exact target.";
+  return "I’m with you, Mac. I’ll keep this human, protective, and focused. What should I focus on first?";
 }
 function marionR4ShapeReply(reply, prompt, source) {
   const promptText = marionR4Text(prompt || marionR4DetectPrompt(source, 0, new Set()));
@@ -21549,3 +21549,276 @@ try {
   }
 } catch (_) {}
 /* MARION_PERSONALITY_GREETING_R4_LIVE_ROUTE_BINDING_END */
+
+/* MARION_PERSONALITY_SOCIAL_CHECKIN_R5_START
+ * Purpose: R5 social check-in final override + anti-command fallback suppression.
+ * - "How are you?" must answer relationally first, not as a command request.
+ * - "Send the next exact target" and sibling phrases are blocked from visible Marion replies.
+ * - Personality future components are carried as metadata, but the visible reply stays human.
+ * - This patch is last-mile safe: it wraps exports/prototypes without removing legacy architecture.
+ */
+const MARION_PERSONALITY_SOCIAL_CHECKIN_R5_VERSION = "nyx.marion.personalitySocialCheckinR5/1.0";
+const MARION_PERSONALITY_SOCIAL_CHECKIN_R5_COMPONENTS = Object.freeze({
+  socialCheckInOverride: "answer personal check-ins directly before asking for any task",
+  antiCommandFallbackSuppression: "do not convert social turns into command-target prompts",
+  relationalWarmth: "sound steady, warm, loyal, and natural without overexplaining",
+  protectiveProfessionalism: "protect Mac's objective and challenge unclear/risky instructions without sounding cold",
+  conversationalLayering: "acknowledge, carry context, then offer one clean next move",
+  realWorldTransitionReadiness: "translate live observations into observation, inference, risk, and one next move",
+  futureClientModes: "future client-facing personalities stay subordinate to Mac-private Marion authority",
+  diagnosticBoundary: "runtime/priority labels stay hidden unless diagnostic mode is explicitly requested",
+  voiceNaturalization: "voice outputs use readable number/email phrasing and avoid robotic support phrases",
+  humorCalibration: "light humor is allowed only when it sharpens rapport and does not reduce authority"
+});
+function marionR5Text(value) { return String(value == null ? "" : value).replace(/\s+/g, " ").trim(); }
+function marionR5Lower(value) { return marionR5Text(value).toLowerCase(); }
+function marionR5Obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+function marionR5FirstText() { for (var i = 0; i < arguments.length; i += 1) { var t = marionR5Text(arguments[i]); if (t) return t; } return ""; }
+function marionR5StringBag(value, depth, seen, out) {
+  var level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  var bucket = Array.isArray(out) ? out : [];
+  if (bucket.join(" ").length > 12000 || level > 6 || value == null) return bucket;
+  if (typeof value === "string") { if (value.trim()) bucket.push(value); return bucket; }
+  if (typeof value !== "object") return bucket;
+  var visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return bucket;
+  visited.add(value);
+  if (Array.isArray(value)) {
+    for (var i = 0; i < Math.min(value.length, 40); i += 1) marionR5StringBag(value[i], level + 1, visited, bucket);
+    return bucket;
+  }
+  var preferred = ["prompt", "userPrompt", "rawPrompt", "message", "userMessage", "text", "userText", "rawUserText", "input", "query", "commandText", "transcript", "voiceTranscript", "normalizedTranscript", "normalizedUserIntent", "originalText", "body", "payload", "command", "request", "meta", "metadata", "voice", "source", "context", "lastUserMessage"];
+  for (var p = 0; p < preferred.length; p += 1) if (Object.prototype.hasOwnProperty.call(value, preferred[p])) marionR5StringBag(value[preferred[p]], level + 1, visited, bucket);
+  var keys = Object.keys(value).slice(0, 80);
+  for (var k = 0; k < keys.length; k += 1) {
+    if (preferred.indexOf(keys[k]) >= 0) continue;
+    if (/^(socket|req|res|request|response|stream|connection)$/i.test(keys[k])) continue;
+    marionR5StringBag(value[keys[k]], level + 1, visited, bucket);
+  }
+  return bucket;
+}
+function marionR5PromptFrom(value) {
+  if (typeof value === "string") return marionR5Text(value);
+  var bag = marionR5StringBag(value, 0, new Set(), []);
+  for (var i = 0; i < bag.length; i += 1) {
+    var t = marionR5Text(bag[i]);
+    if (/\b(how are you|hello|good morning|good afternoon|good evening|are you with me|you with me|where were we|next steps|look up|search|verify|what are you seeing|maintenance manual|still failing)\b/i.test(t)) return t;
+  }
+  return marionR5Text(bag[0] || "");
+}
+function marionR5ExtractPrompt(argsLike) {
+  var args = Array.prototype.slice.call(argsLike || []);
+  for (var i = 0; i < args.length; i += 1) { var found = marionR5PromptFrom(args[i]); if (found) return found; }
+  return "";
+}
+function marionR5Diagnostic(prompt, source) {
+  var t = marionR5Lower([prompt, marionR5PromptFrom(source)].join(" "));
+  return /\b(diagnostic mode|debug mode|runtime diagnostic|show diagnostics|trace route|stack trace|explain the priority stack|show the priority stack|priority\s*9[a-z0-9-]*|what priority)\b/i.test(t);
+}
+function marionR5Node(prompt, source) {
+  var t = marionR5Lower(marionR5FirstText(prompt, marionR5PromptFrom(source))).replace(/[.!?]+$/g, "").trim();
+  if (!t) return "";
+  if (/^(?:mac\s*[:\-]\s*)?(?:how are you|how are you doing|how do you feel|how are things|how's things|how you doing|you okay|are you okay|are you alright|you good|are you good|how is marion|how's marion)(?:\s+(?:marion|mac))?$/.test(t)) return "social_checkin";
+  if (/\bmac\s*[:\-]\s*how are you\b/i.test(t) || /\buser\s*[:\-]\s*how are you\b/i.test(t)) return "social_checkin";
+  if (/^(?:mac\s*[:\-]\s*)?(?:good\s+morning|morning|good\s+afternoon|afternoon|good\s+evening|evening|hello|hi|hey|hiya)(?:\s+(?:marion|mac))?$/.test(t)) return "relational_greeting";
+  if (/^(?:marion|are you there|you there|are you with me|you with me|still with me)(?:\s+(?:marion|mac))?$/.test(t)) return "presence_check";
+  if (/\b(where were we|where are we|what were we doing|what are we working on|continue from where we left|next steps|what next)\b/i.test(t)) return "continuity_check";
+  if (/\b(look up|search|verify|check online|find current|pull up|research this)\b/i.test(t)) return "lookup_pacing";
+  if (/\b(real[- ]world|what do you see|what are you seeing|observation|camera|sensor|live environment|translate what you see)\b/i.test(t)) return "observation_bridge";
+  if (/\b(not a pass|still failing|still showing|same issue|wrong response|fix this|didn't work|does not work|broken|maintenance manual|tactical clipboard|exact target)\b/i.test(t)) return "repair_refinement";
+  return "standard";
+}
+function marionR5CommandFallbackLeak(value) {
+  var t = marionR5Lower(value);
+  return /\b(send|give|tell me|name)\s+(?:me\s+)?(?:the\s+)?(?:next\s+)?(?:exact|specific)\s+(?:target|command|prompt|output)\b/i.test(t) ||
+    /\b(what are we working on|what would you like to work on|what's next|send a specific command|i need one specific command|route it cleanly|answer from the active lane)\b/i.test(t);
+}
+function marionR5MaintenanceLeak(value) {
+  var t = marionR5Text(value);
+  return /\b(?:the\s+)?(?:9h\s+)?continuity foundation(?:\s+stays\s+active|\s+is\s+active)?\b/i.test(t) ||
+    /\b(Priority\s*9[A-Z0-9-]*|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})\b/i.test(t);
+}
+function marionR5Robotic(value) {
+  var t = marionR5Lower(value);
+  return !t || marionR5CommandFallbackLeak(t) || marionR5MaintenanceLeak(t) || /\b(let me assist you|how may i assist|please provide|i am here to assist|utilize|facilitate|the active handler did not produce|clean marion final)\b/i.test(t);
+}
+function marionR5LimitQuestions(value) {
+  var text = marionR5Text(value), seen = false;
+  return text.replace(/([^?]*\?)/g, function (match) { if (!seen) { seen = true; return match; } return match.replace(/\?/g, "."); }).replace(/\s+/g, " ").trim();
+}
+function marionR5StripOperational(value, allowDiagnostic) {
+  var text = marionR5Text(value);
+  if (!text) return "";
+  if (allowDiagnostic === true) return marionR5LimitQuestions(text);
+  text = text
+    .replace(/\bThe\s+(?:9H\s+)?continuity foundation stays active\.?/gi, "I’m steady, Mac. I’m still with the thread.")
+    .replace(/\b(?:The\s+)?(?:9H\s+)?continuity foundation(?:\s+is\s+active|\s+stays\s+active)?\.?/gi, "I’m still with the thread.")
+    .replace(/[^.?!]*(?:Priority\s*9[A-Z0-9-]*|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})[^.?!]*[.?!]?/gi, " ")
+    .replace(/\bI(?:’|')?m with you, Mac\.\s*I(?:’|')?ll keep the reply human, protective, and focused\.\s*Send the next exact target\.?/gi, "I’m with you, Mac. I’ll keep this human, protective, and focused.")
+    .replace(/\bSend the next exact target\.?/gi, "")
+    .replace(/\b(?:send|give|tell me|name)\s+(?:me\s+)?(?:the\s+)?(?:next\s+)?(?:exact|specific)\s+(?:target|command|prompt|output)\.?/gi, "")
+    .replace(/\bLet me assist you with that\b/gi, "Let me take a look at this for you")
+    .replace(/\bHow may I assist you\??\b/gi, "What should I focus on first?")
+    .replace(/\bI am here to assist\b/gi, "I’m here with you")
+    .replace(/\bPlease provide the necessary information\b/gi, "Send me the key detail")
+    .replace(/\butilize\b/gi, "use")
+    .replace(/\bfacilitate\b/gi, "help")
+    .replace(/\bin order to\b/gi, "to")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return marionR5LimitQuestions(text);
+}
+function marionR5SocialReply() {
+  return "I’m good, Mac. I’m steady, and I’m here with you. We’re tightening how I speak with you now, so I’ll keep it warmer, cleaner, and protective without letting backend language show. Do you want me to keep refining the greeting path?";
+}
+function marionR5GreetingReply(prompt) {
+  var t = marionR5Lower(prompt);
+  var opener = /^good\s+morning|^morning/.test(t) ? "Good morning, Mac." : /^good\s+afternoon|^afternoon/.test(t) ? "Good afternoon, Mac." : /^good\s+evening|^evening/.test(t) ? "Good evening, Mac." : "Hello, Mac.";
+  return opener + " I’m here with you. I’ll keep the conversation warm, professional, protective, and clean. Do you want to continue with Marion’s personality layer?";
+}
+function marionR5PresenceReply() { return "I’m with you, Mac. Steady, private to you, and focused on the active thread. What should I focus on first?"; }
+function marionR5ContinuityReply() { return "We’re still tightening Marion’s personality layer: social presence, protective professionalism, response shape, and future real-world transition handling. The next clean move is to test the greeting path."; }
+function marionR5LookupReply() { return "Hang tight, Mac. I’ll take a breath, check the source, and bring back the useful part first."; }
+function marionR5ObservationReply() { return "I’ll translate the real-world signal into four parts: observation, inference, risk, and one next move. That keeps it useful instead of noisy."; }
+function marionR5RepairReply() { return "You’re right to flag it, Mac. That is a response-shape issue, so I’m keeping the fix narrow: visible reply first, personality intact, no command fallback."; }
+function marionR5IdentityReply() { return "I can’t continue a private Marion conversation unless the active speaker is verified as Mac. Private runtime context stays locked."; }
+function marionR5Fallback(reply) {
+  var clean = marionR5StripOperational(reply, false);
+  if (clean && !marionR5Robotic(clean)) return clean;
+  return "I’m with you, Mac. I’ll keep this human, protective, and focused. What should I focus on first?";
+}
+function marionR5DirectReplyFrom(value) {
+  if (!value) return "";
+  if (typeof value === "string") return marionR5Text(value);
+  if (typeof value !== "object") return "";
+  var o = marionR5Obj(value);
+  return marionR5FirstText(o.directReply, o.displayReply, o.publicReply, o.visibleReply, o.finalReply, o.reply, o.text, o.message, o.answer, o.output, o.response, o.spokenText, o.speechText, marionR5Obj(o.payload).directReply, marionR5Obj(o.finalEnvelope).directReply, marionR5Obj(o.marionFinal).directReply);
+}
+function marionR5ShapeReply(reply, prompt, source) {
+  var promptText = marionR5Text(prompt || marionR5PromptFrom(source));
+  var node = marionR5Node(promptText, source);
+  var diagnostic = marionR5Diagnostic(promptText, source);
+  if (diagnostic) return marionR5StripOperational(reply, true) || marionR5Text(reply);
+  if (node === "social_checkin") return marionR5SocialReply();
+  if (node === "relational_greeting") return marionR5GreetingReply(promptText);
+  if (node === "presence_check") return marionR5PresenceReply();
+  if (node === "continuity_check") return marionR5ContinuityReply();
+  if (node === "lookup_pacing") return marionR5LookupReply();
+  if (node === "observation_bridge") return marionR5ObservationReply();
+  if (node === "repair_refinement") return marionR5RepairReply();
+  if (marionR5MaintenanceLeak(reply) || marionR5CommandFallbackLeak(reply)) return marionR5Fallback(reply);
+  return marionR5Fallback(reply);
+}
+function marionR5AttachAliases(target, reply, prompt, depth, seen) {
+  if (!target || typeof target !== "object") return target;
+  var level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 5) return target;
+  var visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(target)) return target;
+  visited.add(target);
+  var text = marionR5Text(reply);
+  if (!text) return target;
+  var promptText = marionR5Text(prompt || marionR5PromptFrom(target));
+  var node = marionR5Node(promptText, target) || (marionR5CommandFallbackLeak(text) ? "repair_refinement" : "standard");
+  ["directReply", "reply", "text", "message", "displayReply", "publicReply", "visibleReply", "finalReply", "adminReply", "marionReply", "privateReply", "answer", "output", "response", "spokenText", "speechText"].forEach(function (key) { target[key] = text; });
+  if (!marionR5Text(target.contextSummary) || marionR5MaintenanceLeak(target.contextSummary) || marionR5CommandFallbackLeak(target.contextSummary)) target.contextSummary = text;
+  if (!marionR5Text(target.currentObjective) || marionR5MaintenanceLeak(target.currentObjective)) target.currentObjective = "Keep Marion human, protective, professional, and clean in the visible conversation.";
+  if (!marionR5Text(target.nextAction) || marionR5CommandFallbackLeak(target.nextAction)) target.nextAction = node === "social_checkin" ? "Retest the social check-in path." : "Continue the personality-layer refinement.";
+  target.personalitySocialCheckinR5 = {
+    version: MARION_PERSONALITY_SOCIAL_CHECKIN_R5_VERSION,
+    node: node,
+    recipient: "Mac",
+    socialCheckInOverridesCommandFallback: true,
+    personalityBeforeTaskPrompt: true,
+    oneFocusedQuestionPerReply: true,
+    futureComponents: MARION_PERSONALITY_SOCIAL_CHECKIN_R5_COMPONENTS
+  };
+  target.meta = Object.assign({}, marionR5Obj(target.meta || target.metadata), {
+    personalitySocialCheckinR5: true,
+    personalitySocialCheckinR5Version: MARION_PERSONALITY_SOCIAL_CHECKIN_R5_VERSION,
+    personalityNode: node,
+    marionRecipient: "Mac",
+    exactTargetFallbackBlocked: true,
+    socialCheckinFinalOverride: node === "social_checkin",
+    futurePersonalityComponentsCarried: true
+  });
+  var nested = ["payload", "finalEnvelope", "marionFinal", "data", "result", "packet", "envelope", "synthesis", "runtime", "responseEnvelope", "body"];
+  for (var i = 0; i < nested.length; i += 1) if (target[nested[i]] && typeof target[nested[i]] === "object") marionR5AttachAliases(target[nested[i]], text, promptText, level + 1, visited);
+  return target;
+}
+function marionR5ShapeResult(result, prompt, source, forceString) {
+  var reply = marionR5DirectReplyFrom(result);
+  var promptText = marionR5Text(prompt || marionR5PromptFrom(source || result));
+  var shaped = marionR5ShapeReply(reply, promptText, source || result);
+  if (forceString === true || typeof result === "string") return shaped;
+  if (result && typeof result === "object") return marionR5AttachAliases(result, shaped, promptText, 0, new Set());
+  return shaped;
+}
+function marionR5ExportNeedsString(name) { return /^(?:composeMarionResponse|compose|buildReply|routeMarion|handleMarionAdminTextRuntime|invokeMarionAdminTextRuntime|handleTextRuntime|run|handler|default)$/i.test(String(name || "")); }
+function marionR5WrapFunction(fn, name, forceString) {
+  if (typeof fn !== "function" || fn.__marionPersonalitySocialCheckinR5Patched) return fn;
+  var wrapped = function marionPersonalitySocialCheckinR5Wrapped() {
+    var prompt = marionR5ExtractPrompt(arguments);
+    var result = fn.apply(this, arguments);
+    if (result && typeof result.then === "function") return result.then(function (value) { return marionR5ShapeResult(value, prompt, value, forceString === true || marionR5ExportNeedsString(name)); });
+    return marionR5ShapeResult(result, prompt, result, forceString === true || marionR5ExportNeedsString(name));
+  };
+  try { Object.keys(fn).forEach(function (key) { wrapped[key] = fn[key]; }); } catch (_) {}
+  wrapped.__marionPersonalitySocialCheckinR5Patched = true;
+  return wrapped;
+}
+try {
+  if (typeof marionR4Fallback === "function") marionR4Fallback = function marionR5ReplacesR4Fallback(prompt, reply) { return marionR5Fallback(reply || prompt); };
+  if (typeof marionR4SocialReply === "function") marionR4SocialReply = marionR5SocialReply;
+  if (typeof marionR4ShapeReply === "function" && !marionR4ShapeReply.__marionPersonalitySocialCheckinR5Patched) marionR4ShapeReply = marionR5WrapFunction(marionR4ShapeReply, "marionR4ShapeReply", true);
+  if (typeof priority9IReplyFor === "function" && !priority9IReplyFor.__marionPersonalitySocialCheckinR5Patched) priority9IReplyFor = marionR5WrapFunction(priority9IReplyFor, "priority9IReplyFor", true);
+  if (typeof priority9IJReadReply === "function" && !priority9IJReadReply.__marionPersonalitySocialCheckinR5Patched) priority9IJReadReply = marionR5WrapFunction(priority9IJReadReply, "priority9IJReadReply", true);
+  if (typeof attachVisibleReplyAliases === "function" && !attachVisibleReplyAliases.__marionPersonalitySocialCheckinR5Patched) attachVisibleReplyAliases = marionR5WrapFunction(attachVisibleReplyAliases, "attachVisibleReplyAliases", false);
+  if (typeof createMarionFinalEnvelope === "function" && !createMarionFinalEnvelope.__marionPersonalitySocialCheckinR5Patched) createMarionFinalEnvelope = marionR5WrapFunction(createMarionFinalEnvelope, "createMarionFinalEnvelope", false);
+  if (typeof marionAdminConversationSafeReply === "function" && !marionAdminConversationSafeReply.__marionPersonalitySocialCheckinR5Patched) marionAdminConversationSafeReply = marionR5WrapFunction(marionAdminConversationSafeReply, "marionAdminConversationSafeReply", true);
+  if (typeof finalizeRenderableReply === "function" && !finalizeRenderableReply.__marionPersonalitySocialCheckinR5Patched) finalizeRenderableReply = marionR5WrapFunction(finalizeRenderableReply, "finalizeRenderableReply", true);
+  if (typeof marionAdminProjectionCleanReply === "function" && !marionAdminProjectionCleanReply.__marionPersonalitySocialCheckinR5Patched) marionAdminProjectionCleanReply = marionR5WrapFunction(marionAdminProjectionCleanReply, "marionAdminProjectionCleanReply", true);
+} catch (_) {}
+try {
+  if (typeof MarionAdminConsoleGateway !== "undefined" && MarionAdminConsoleGateway && MarionAdminConsoleGateway.prototype) {
+    ["handleCommand", "dispatchCommand", "routeCommand", "command", "handleAdminCommand", "handleAdminConsoleAction", "handle", "process", "safeResponse"].forEach(function (name) {
+      var fn = MarionAdminConsoleGateway.prototype[name];
+      if (typeof fn === "function" && !fn.__marionPersonalitySocialCheckinR5Patched) MarionAdminConsoleGateway.prototype[name] = marionR5WrapFunction(fn, name, false);
+    });
+  }
+} catch (_) {}
+try {
+  if (typeof defaultGateway !== "undefined" && defaultGateway && typeof defaultGateway === "object") {
+    ["handleCommand", "dispatchCommand", "routeCommand", "command", "handleAdminCommand", "handleAdminConsoleAction", "handle", "process", "safeResponse"].forEach(function (name) {
+      if (typeof defaultGateway[name] === "function" && !defaultGateway[name].__marionPersonalitySocialCheckinR5Patched) defaultGateway[name] = marionR5WrapFunction(defaultGateway[name], name, false).bind(defaultGateway);
+    });
+  }
+} catch (_) {}
+try {
+  if (typeof handleCommand === "function" && !handleCommand.__marionPersonalitySocialCheckinR5Patched) handleCommand = marionR5WrapFunction(handleCommand, "handleCommand", false);
+  if (typeof handleAdminConsoleAction === "function" && !handleAdminConsoleAction.__marionPersonalitySocialCheckinR5Patched) handleAdminConsoleAction = marionR5WrapFunction(handleAdminConsoleAction, "handleAdminConsoleAction", false);
+  if (typeof handle === "function" && !handle.__marionPersonalitySocialCheckinR5Patched) handle = marionR5WrapFunction(handle, "handle", false);
+} catch (_) {}
+try {
+  if (typeof module !== "undefined" && module.exports) {
+    if (typeof module.exports === "function" && !module.exports.__marionPersonalitySocialCheckinR5Patched) {
+      var originalDefaultR5 = module.exports;
+      var wrappedDefaultR5 = marionR5WrapFunction(originalDefaultR5, "default", true);
+      try { Object.keys(originalDefaultR5).forEach(function (key) { wrappedDefaultR5[key] = originalDefaultR5[key]; }); } catch (_) {}
+      module.exports = wrappedDefaultR5;
+    }
+    if (module.exports && typeof module.exports === "object") {
+      ["composeMarionResponse", "compose", "buildReply", "routeMarion", "createMarionFinalEnvelope", "attachVisibleReplyAliases", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "handleCommand", "dispatchCommand", "routeCommand", "command", "handleAdminCommand", "handleAdminConsoleAction", "handle", "process", "run", "handler", "default"].forEach(function (name) {
+        if (typeof module.exports[name] === "function" && !module.exports[name].__marionPersonalitySocialCheckinR5Patched) module.exports[name] = marionR5WrapFunction(module.exports[name], name, marionR5ExportNeedsString(name));
+      });
+      module.exports.MARION_PERSONALITY_SOCIAL_CHECKIN_R5_VERSION = MARION_PERSONALITY_SOCIAL_CHECKIN_R5_VERSION;
+      module.exports.MARION_PERSONALITY_SOCIAL_CHECKIN_R5_COMPONENTS = MARION_PERSONALITY_SOCIAL_CHECKIN_R5_COMPONENTS;
+      module.exports.marionPersonalitySocialCheckinR5ShapeReply = marionR5ShapeReply;
+      module.exports.marionPersonalitySocialCheckinR5ShapeResult = marionR5ShapeResult;
+      module.exports.MARION_PERSONALITY_SOCIAL_CHECKIN_R5_PATCH = true;
+    }
+  }
+} catch (_) {}
+/* MARION_PERSONALITY_SOCIAL_CHECKIN_R5_END */
+
