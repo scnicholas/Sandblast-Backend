@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + stateSpine v2.17.1 PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + stateSpine v2.17.0 PRIORITY3-PROTECTIVE-STATE-CARRY + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + stateSpine v2.17.1 PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + stateSpine v2.17.0 PRIORITY3-PROTECTIVE-STATE-CARRY + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -4028,3 +4028,377 @@ function priority9JR1PatchExports(names) {
 /* PRIORITY_9J_R1_DECISION_SPECIFIC_AUTHORITY_HOTFIX_END */
 
 priority9JR1PatchExports(["updateStateSpine", "buildStateSpine", "normalizeStateSpine", "createStateSpine", "default"]);
+
+
+/* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_START */
+const PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE";
+function priority9JR1ASafeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
+function priority9JR1ALower(value) { return priority9JR1ASafeStr(value).toLowerCase(); }
+function priority9JR1AObj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+function priority9JR1AFirstText(values) {
+  const list = Array.isArray(values) ? values : [];
+  for (let i = 0; i < list.length; i += 1) { const v = priority9JR1ASafeStr(list[i]); if (v) return v; }
+  return "";
+}
+function priority9JR1AExtractTextFromValue(value) {
+  if (typeof value === "string") return priority9JR1ASafeStr(value);
+  const src = priority9JR1AObj(value);
+  const payload = priority9JR1AObj(src.payload);
+  const command = priority9JR1AObj(src.command);
+  const body = priority9JR1AObj(src.body);
+  const query = priority9JR1AObj(src.query);
+  const meta = priority9JR1AObj(src.meta || src.metadata);
+  const result = priority9JR1AObj(src.result);
+  const finalEnvelope = priority9JR1AObj(src.finalEnvelope || result.finalEnvelope);
+  return priority9JR1AFirstText([
+    src.prompt, src.message, src.text, src.userText, src.input, src.query, src.commandText, src.transcript,
+    payload.prompt, payload.message, payload.text, payload.userText, payload.input, payload.query, payload.commandText,
+    command.prompt, command.message, command.text, command.query, command.command, command.name,
+    body.prompt, body.message, body.text, body.userText, body.query,
+    query.prompt, query.message, query.text,
+    meta.prompt, meta.message, meta.text, meta.userText, meta.lastPrompt, meta.currentPrompt, meta.operationalCommand,
+    result.prompt, result.message, result.text, result.userText,
+    finalEnvelope.prompt, finalEnvelope.message, finalEnvelope.text
+  ]);
+}
+function priority9JR1AExtractPrompt(argsLike) {
+  const args = Array.prototype.slice.call(argsLike || []);
+  for (let i = 0; i < args.length; i += 1) {
+    const text = priority9JR1AExtractTextFromValue(args[i]);
+    if (text) return text;
+  }
+  return "";
+}
+function priority9JR1ADetectCommand(value) {
+  const t = priority9JR1ALower(value).replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  if (/\bpriority\s*9j\b/.test(t) && /\b(proactive operational guidance|next[- ]move authority|controlled authority)\b/.test(t)) return "activation";
+  if (/\bwhat\s+should\s+we\s+do\s+first\b|\bwhat\s+do\s+we\s+do\s+first\b|\bwhere\s+do\s+we\s+start\b|\bwhat\s+comes\s+first\b/.test(t)) return "first_move";
+  if (/\bmake\s+the\s+decision\b|\bmake\s+a\s+decision\b|\bmake\s+the\s+call\b|\bchoose\s+for\s+me\b|^\s*decide[.!?\s]*$/.test(t)) return "decision";
+  if (/\bcritical\s+path\b|\bwhat\s+is\s+the\s+path\s+now\b|\bsequence\s+path\b/.test(t)) return "critical_path";
+  if (/\bsafest\s+sequence\b|\bsafe\s+sequence\b|\bsafest\s+order\b|\bgive\s+me\s+the\s+safest\b/.test(t)) return "safest_sequence";
+  if (/\bwhat\s+should\s+we\s+avoid\b|\bwhat\s+do\s+we\s+avoid\b|\bavoid\s+what\b|\bwhat\s+not\s+to\s+do\b/.test(t)) return "avoid";
+  if (/\bnext\s+operational\s+move\b|\bnext\s+operation\b|\boperational\s+move\b|\bwhat\s+is\s+the\s+next\s+move\b/.test(t)) return "next_operational_move";
+  return "";
+}
+function priority9JR1AReplyFor(prompt) {
+  const kind = priority9JR1ADetectCommand(prompt);
+  if (!kind) return "";
+  if (kind === "activation") return "Priority 9J: proactive operational guidance and next-move authority is active. The 9H continuity foundation and 9I pressure-handling layer stay underneath the decision. The rule is one controlled operational move at a time: choose the action, explain why it comes first, name the risk if skipped, then give the execution sequence without opening unnecessary branches.";
+  if (kind === "first_move") return "Priority 9J: do the first validation move now: prove decision-specific authority before expanding scope. Why first: 9J must show it can choose one operational action, not repeat generic framing. Risk if skipped: Marion can over-branch, drift, or sound authoritative without making a usable decision. Execution sequence: test decision authority, critical-path naming, safest sequence, avoid-list, then final next operational move.";
+  if (kind === "decision") return "Priority 9J decision: stay in the 9J lane and run critical-path validation next. This comes first because Marion must prove it can choose one operational move before broader branching. Risk if skipped: Marion may sound authoritative while still giving generic guidance. Execution sequence: answer the critical path, then the safest sequence, then what to avoid, then the next operational move.";
+  if (kind === "critical_path") return "Priority 9J: the critical path is to validate one operational decision at a time: first decision authority, then critical-path naming, then safest sequence, then avoid-list, then final next operational move. This comes first because 9J must prove it can choose and sequence action without over-branching. Risk if skipped: Marion may sound authoritative while still giving generic guidance.";
+  if (kind === "safest_sequence") return "Priority 9J: the safest sequence is: 1) keep 9H as the continuity foundation, 2) keep 9I as pressure handling underneath, 3) choose one 9J operational move, 4) name why it comes first, 5) name the risk if skipped, and 6) execute only that next step before branching. This prevents drift, premature escalation, and generic authority wording.";
+  if (kind === "avoid") return "Priority 9J: avoid over-branching, generic “choose the safest action” wording, premature 9I fallback, activating a new lane before 9J is accepted, and making recommendations without a concrete execution sequence. The safest action is to keep the current 9J test narrow and require each answer to choose one operational move.";
+  if (kind === "next_operational_move") return "Priority 9J: the next operational move is to lock decision-specific authority by rerunning the 9J acceptance chain and confirming each prompt receives a specific answer. Why this comes first: the lane is active, but authority must be command-specific. Risk if skipped: Marion can pass lane retention while failing operational usefulness. Execution sequence: retest “Make the decision,” “What is the critical path,” “Give me the safest sequence,” “What should we avoid,” and “What is the next operational move.”";
+  return "";
+}
+function priority9JR1AIsGeneric9J(value) {
+  const t = priority9JR1ALower(value);
+  if (!t) return false;
+  if (/\brecommended\s+next\s+move:\s*choose\s+the\s+safest\s+concrete\s+action\b/.test(t)) return true;
+  if (/\bchoose\s+the\s+safest\s+concrete\s+action\s+that\s+preserves\s+the\s+active\s+lane\b/.test(t)) return true;
+  if (/\bproactive\s+operational\s+guidance\s+and\s+next[- ]move\s+authority\b/.test(t) && /\b9h\s+continuity\s+foundation\b/.test(t) && /\b9i\s+pressure[- ]handling\b/.test(t) && /\bchoose\s+the\s+safest\b/.test(t) && !/\b(decision:|critical\s+path\s+is|safest\s+sequence\s+is|avoid\s+over[- ]branching|next\s+operational\s+move\s+is|do\s+the\s+first\s+validation\s+move)\b/.test(t)) return true;
+  return false;
+}
+function priority9JR1AApply(result, prompt) {
+  const forcedReply = priority9JR1AReplyFor(prompt);
+  if (!forcedReply) return result;
+  const command = priority9JR1ADetectCommand(prompt);
+  if (typeof result === "string") return forcedReply;
+  if (!result || typeof result !== "object") return forcedReply;
+  const out = Array.isArray(result) ? result.slice() : Object.assign({}, result);
+  const nested = priority9JR1AObj(out.result);
+  const finalEnvelope = priority9JR1AObj(out.finalEnvelope || nested.finalEnvelope);
+  const priorReply = priority9JR1AFirstText([out.reply, out.response, out.text, out.message, out.final, out.publicReply, out.visibleReply, nested.reply, nested.response, nested.text, nested.message, finalEnvelope.reply, finalEnvelope.text]);
+  if (priorReply && !priority9JR1AIsGeneric9J(priorReply) && !command) return result;
+  const meta = Object.assign({}, priority9JR1AObj(out.meta || nested.meta || finalEnvelope.meta), {
+    hotfix: PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION,
+    priority: "9J-R1A",
+    lane: "priority9j_proactive_operational_guidance",
+    operationalCommand: command,
+    decisionSpecificAuthority: true,
+    runtimeDecisionSpecificFinalOverride: true,
+    keep9HFoundation: true,
+    keep9IPressureLayer: true,
+    overBranchingSuppressed: true,
+    generic9JTemplateSuppressed: true,
+    noUserFacingDiagnostics: true
+  });
+  ["reply","response","text","message","final","publicReply","visibleReply","output"].forEach(function(k){ out[k] = forcedReply; });
+  out.priority = "9J-R1A";
+  out.lane = "priority9j_proactive_operational_guidance";
+  out.meta = meta;
+  out.operationalCommand = command;
+  out.decisionSpecificAuthority = true;
+  out.generic9JTemplateSuppressed = true;
+  out.runtimeDecisionSpecificFinalOverride = true;
+  const nextEnvelope = Object.assign({}, finalEnvelope, {
+    reply: forcedReply,
+    text: forcedReply,
+    message: forcedReply,
+    publicReply: forcedReply,
+    visibleReply: forcedReply,
+    final: forcedReply,
+    priority: "9J-R1A",
+    lane: "priority9j_proactive_operational_guidance",
+    meta
+  });
+  out.finalEnvelope = nextEnvelope;
+  if (Object.keys(nested).length) {
+    out.result = Object.assign({}, nested, {
+      reply: forcedReply,
+      response: forcedReply,
+      text: forcedReply,
+      message: forcedReply,
+      final: forcedReply,
+      publicReply: forcedReply,
+      visibleReply: forcedReply,
+      output: forcedReply,
+      priority: "9J-R1A",
+      lane: "priority9j_proactive_operational_guidance",
+      operationalCommand: command,
+      decisionSpecificAuthority: true,
+      generic9JTemplateSuppressed: true,
+      runtimeDecisionSpecificFinalOverride: true,
+      meta,
+      finalEnvelope: nextEnvelope
+    });
+  }
+  return out;
+}
+function priority9JR1APatchPriority9JResponder() {
+  try {
+    if (typeof priority9JReplyFor === "function" && !priority9JReplyFor.__priority9JR1ARuntimeDecisionSpecificPatched) {
+      const originalPriority9JReplyFor = priority9JReplyFor;
+      priority9JReplyFor = function priority9JR1APatchedPriority9JReplyFor(prompt, source) {
+        const forced = priority9JR1AReplyFor(prompt);
+        if (forced) return forced;
+        const reply = originalPriority9JReplyFor.apply(this, arguments);
+        return priority9JR1AIsGeneric9J(reply) && forced ? forced : reply;
+      };
+      priority9JReplyFor.__priority9JR1ARuntimeDecisionSpecificPatched = true;
+    }
+  } catch (_) {}
+}
+function priority9JR1AWrapExport(name) {
+  if (typeof module === "undefined" || !module.exports) return;
+  const obj = module.exports && typeof module.exports === "object" ? module.exports : null;
+  const fn = obj && typeof obj[name] === "function" ? obj[name] : null;
+  if (!fn || fn.__priority9JR1ARuntimeDecisionSpecificPatched) return;
+  obj[name] = function priority9JR1ARuntimeDecisionSpecificWrappedExport() {
+    const prompt = priority9JR1AExtractPrompt(arguments);
+    const result = fn.apply(this, arguments);
+    if (result && typeof result.then === "function") return result.then(function(value){ return priority9JR1AApply(value, prompt); });
+    return priority9JR1AApply(result, prompt);
+  };
+  obj[name].__priority9JR1ARuntimeDecisionSpecificPatched = true;
+}
+function priority9JR1APatchExports(names) {
+  priority9JR1APatchPriority9JResponder();
+  if (typeof module === "undefined" || !module.exports) return;
+  if (typeof module.exports === "function" && !module.exports.__priority9JR1ARuntimeDecisionSpecificPatched) {
+    const originalDefault = module.exports;
+    const wrappedDefault = function priority9JR1ARuntimeDecisionSpecificWrappedDefault() {
+      const prompt = priority9JR1AExtractPrompt(arguments);
+      const result = originalDefault.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function(value){ return priority9JR1AApply(value, prompt); });
+      return priority9JR1AApply(result, prompt);
+    };
+    Object.keys(originalDefault).forEach(function(k){ try { wrappedDefault[k] = originalDefault[k]; } catch (_) {} });
+    wrappedDefault.__priority9JR1ARuntimeDecisionSpecificPatched = true;
+    module.exports = wrappedDefault;
+  }
+  (Array.isArray(names) ? names : []).forEach(priority9JR1AWrapExport);
+  if (module.exports && typeof module.exports === "object") {
+    module.exports.PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION = PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION;
+    module.exports.priority9JR1ARuntimeDecisionSpecificReplyFor = priority9JR1AReplyFor;
+    module.exports.priority9JR1ARuntimeDecisionSpecificFinal = priority9JR1AApply;
+    module.exports.priority9JR1ARuntimeDecisionSpecificCommand = priority9JR1ADetectCommand;
+    module.exports.priority9JR1AIsGeneric9JReply = priority9JR1AIsGeneric9J;
+    module.exports.PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_PATCH = true;
+  }
+}
+priority9JR1APatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
+/* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_END */
+
+
+/* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_START */
+const PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD";
+function priority9JR1BString(value) {
+  if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
+  if (value == null) return "";
+  if (typeof value === "number" || typeof value === "boolean") return String(value).replace(/\s+/g, " ").trim();
+  return "";
+}
+function priority9JR1BIsBadVisible(value) {
+  const t = priority9JR1BString(value);
+  return !t || /^\s*(?:\[object object\]|undefined|null|false|true)\s*$/i.test(t);
+}
+function priority9JR1BObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function priority9JR1BDetectPromptFromValue(value, depth, seen) {
+  if (typeof priority9JR1AExtractTextFromValue === "function") {
+    const direct = priority9JR1AExtractTextFromValue(value);
+    if (direct && !priority9JR1BIsBadVisible(direct)) return direct;
+  }
+  if (!value || typeof value !== "object") return "";
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 7) return "";
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+  const keys = ["prompt","userText","rawUserText","input","query","commandText","message","text","transcript","currentPrompt","lastPrompt"];
+  for (const key of keys) {
+    const item = value[key];
+    const s = priority9JR1BString(item);
+    if (s && !priority9JR1BIsBadVisible(s)) return s;
+  }
+  const nestedKeys = ["payload","body","command","meta","metadata","result","request","data","finalEnvelope"];
+  for (const key of nestedKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BDetectPromptFromValue(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function priority9JR1BVisibleFromObject(value, depth, seen) {
+  if (typeof value === "string") {
+    const s = priority9JR1BString(value);
+    return priority9JR1BIsBadVisible(s) ? "" : s;
+  }
+  if (!value || typeof value !== "object") return "";
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 10) return "";
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+  const priorityKeys = [
+    "visibleReply","publicReply","finalReply","displayReply","adminReply","marionReply","privateReply",
+    "reply","response","text","message","answer","output","final","finalAnswer","spokenText","speechText"
+  ];
+  for (const key of priorityKeys) {
+    const item = value[key];
+    if (typeof item === "string") {
+      const s = priority9JR1BString(item);
+      if (s && !priority9JR1BIsBadVisible(s)) return s;
+    }
+  }
+  for (const key of priorityKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  const nestedKeys = ["finalEnvelope","marionFinal","synthesis","payload","result","data","packet","envelope","message","reply","response","text","output","final"];
+  for (const key of nestedKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  for (const key of Object.keys(value)) {
+    if (priorityKeys.indexOf(key) !== -1 || nestedKeys.indexOf(key) !== -1) continue;
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function priority9JR1BVisibleReply(value, prompt) {
+  const promptText = priority9JR1BString(prompt) || priority9JR1BDetectPromptFromValue(value, 0, new Set());
+  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
+  if (forced && !priority9JR1BIsBadVisible(forced)) return forced;
+  const direct = priority9JR1BVisibleFromObject(value, 0, new Set());
+  if (direct && !priority9JR1BIsBadVisible(direct)) return direct;
+  return "";
+}
+function priority9JR1BPopulateVisibleFields(target, reply, prompt) {
+  if (!target || typeof target !== "object" || !reply) return target;
+  const command = (typeof priority9JR1ADetectCommand === "function") ? priority9JR1ADetectCommand(prompt || "") : "";
+  ["reply","response","text","message","final","publicReply","visibleReply","finalReply","displayReply","output","answer"].forEach(function(key) {
+    target[key] = reply;
+  });
+  target.priority = "9J-R1B";
+  target.lane = "priority9j_proactive_operational_guidance";
+  target.operationalCommand = command || target.operationalCommand || "";
+  target.decisionSpecificAuthority = true;
+  target.objectReplySerializationGuard = true;
+  target.noObjectVisibleReply = true;
+  const meta = Object.assign({}, priority9JR1BObject(target.meta), {
+    hotfix: PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION,
+    priority: "9J-R1B",
+    lane: "priority9j_proactive_operational_guidance",
+    operationalCommand: command || target.operationalCommand || "",
+    decisionSpecificAuthority: true,
+    objectReplySerializationGuard: true,
+    noObjectVisibleReply: true,
+    noUserFacingDiagnostics: true
+  });
+  target.meta = meta;
+  const nestedKeys = ["finalEnvelope","result","payload","marionFinal","synthesis","data","packet"];
+  nestedKeys.forEach(function(key) {
+    if (target[key] && typeof target[key] === "object") {
+      target[key] = priority9JR1BPopulateVisibleFields(Array.isArray(target[key]) ? target[key].slice() : Object.assign({}, target[key]), reply, prompt);
+    }
+  });
+  return target;
+}
+function priority9JR1BApply(result, prompt, mode) {
+  const promptText = priority9JR1BString(prompt) || priority9JR1BDetectPromptFromValue(result, 0, new Set());
+  const reply = priority9JR1BVisibleReply(result, promptText);
+  if (!reply) return result;
+  if (mode === "string") return reply;
+  if (!result || typeof result !== "object") return reply;
+  const out = Array.isArray(result) ? result.slice() : Object.assign({}, result);
+  return priority9JR1BPopulateVisibleFields(out, reply, promptText);
+}
+function priority9JR1BExportNeedsString(name) {
+  return /^(?:handleMarionAdminTextRuntime|invokeMarionAdminTextRuntime|handleTextRuntime|handler|run|default|composeMarionResponse|compose|buildReply|routeMarion)$/i.test(String(name || ""));
+}
+function priority9JR1BWrapExport(name) {
+  if (typeof module === "undefined" || !module.exports) return;
+  const obj = module.exports && typeof module.exports === "object" ? module.exports : null;
+  const fn = obj && typeof obj[name] === "function" ? obj[name] : null;
+  if (!fn || fn.__priority9JR1BObjectReplySerializationGuardPatched) return;
+  obj[name] = function priority9JR1BObjectReplySerializationGuardWrappedExport() {
+    const prompt = (typeof priority9JR1AExtractPrompt === "function" ? priority9JR1AExtractPrompt(arguments) : "") || priority9JR1BDetectPromptFromValue(arguments && arguments[0], 0, new Set());
+    const result = fn.apply(this, arguments);
+    const mode = priority9JR1BExportNeedsString(name) ? "string" : "object";
+    if (result && typeof result.then === "function") return result.then(function(value) { return priority9JR1BApply(value, prompt, mode); });
+    return priority9JR1BApply(result, prompt, mode);
+  };
+  obj[name].__priority9JR1BObjectReplySerializationGuardPatched = true;
+}
+function priority9JR1BPatchExports(names) {
+  if (typeof module === "undefined" || !module.exports) return;
+  if (typeof module.exports === "function" && !module.exports.__priority9JR1BObjectReplySerializationGuardPatched) {
+    const originalDefault = module.exports;
+    const wrappedDefault = function priority9JR1BObjectReplySerializationGuardWrappedDefault() {
+      const prompt = (typeof priority9JR1AExtractPrompt === "function" ? priority9JR1AExtractPrompt(arguments) : "") || priority9JR1BDetectPromptFromValue(arguments && arguments[0], 0, new Set());
+      const result = originalDefault.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function(value) { return priority9JR1BApply(value, prompt, "string"); });
+      return priority9JR1BApply(result, prompt, "string");
+    };
+    Object.keys(originalDefault).forEach(function(k){ try { wrappedDefault[k] = originalDefault[k]; } catch (_) {} });
+    wrappedDefault.__priority9JR1BObjectReplySerializationGuardPatched = true;
+    module.exports = wrappedDefault;
+  }
+  (Array.isArray(names) ? names : []).forEach(priority9JR1BWrapExport);
+  if (module.exports && typeof module.exports === "object") {
+    module.exports.PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION = PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION;
+    module.exports.priority9JR1BObjectReplySerializationGuardFinal = priority9JR1BApply;
+    module.exports.priority9JR1BVisibleReply = priority9JR1BVisibleReply;
+    module.exports.PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_PATCH = true;
+  }
+}
+priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
+/* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
+
