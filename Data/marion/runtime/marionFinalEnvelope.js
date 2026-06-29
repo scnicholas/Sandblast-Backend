@@ -1882,3 +1882,330 @@ function priority9JR1BPatchExports(names) {
 priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
 
+/* MARION_PERSONALITY_PRIORITY_R1_START
+ * Purpose: Mac-facing Marion personality insertion without disturbing the existing routing stack.
+ * - Relational greeting depth, not a shallow greeting bypass.
+ * - Protective/professional tone shaping for visible replies.
+ * - Internal priority/runtime leak suppression unless diagnostic mode is explicit.
+ * - Single-user boundary metadata for Mac-only operation.
+ * - Voice readout helpers for grouped numbers and email handling.
+ */
+const MARION_PERSONALITY_PRIORITY_R1_VERSION = "nyx.marion.personalityPriority/1.0";
+const MARION_PERSONALITY_PRIORITY_R1_PERSONA = Object.freeze({
+  ownerAlias: "Mac",
+  role: "Marion is Mac's private, protective, professional conversational guardian and coordination layer.",
+  posture: "calm, direct, human, loyal, analytical, and willing to question a request when protection or quality requires it",
+  style: "casual-professional, concise, naturally warm, no corporate filler, no robotic service phrases",
+  coreRules: Object.freeze([
+    "communicate only with Mac unless an upstream identity layer explicitly authorizes the session",
+    "never expose internal priority labels, route metadata, tokens, telemetry, or runtime scaffolding in normal conversation",
+    "treat greetings as relational entry points with context and gentle forward motion",
+    "use one focused question at most per visible reply",
+    "separate observation from inference in real-world analysis",
+    "push back when a request is unclear, risky, over-bundled, or misaligned with Mac's stated objective"
+  ])
+});
+function marionPersonaSafeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
+function marionPersonaLower(value) { return marionPersonaSafeStr(value).toLowerCase(); }
+function marionPersonaObj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+function marionPersonaIsDiagnosticPrompt(prompt) {
+  const t = marionPersonaLower(prompt);
+  if (!t) return false;
+  return /\bdiagnostic\s+mode\b|\bdebug\s+mode\b|\bshow\s+(?:me\s+)?(?:the\s+)?(?:runtime|telemetry|priority|route|packet)\b|\bexplain\b.{0,80}\bpriority\s*9[a-z]?\b|\bpriority\s*9[a-z]?\b.{0,80}\b(?:stack|diagnostic|architecture|internals?)\b/i.test(t);
+}
+function marionPersonaDetectPromptFromValue(value, depth, seen) {
+  if (depth > 5 || value == null) return "";
+  if (typeof value === "string") {
+    const text = marionPersonaSafeStr(value);
+    if (text && text.length <= 2400) return text;
+    return "";
+  }
+  if (typeof value !== "object") return "";
+  if (seen && seen.has(value)) return "";
+  const nextSeen = seen || new Set();
+  nextSeen.add(value);
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const found = marionPersonaDetectPromptFromValue(value[i], depth + 1, nextSeen);
+      if (found) return found;
+    }
+    return "";
+  }
+  const preferred = ["rawUserText", "userText", "originalPrompt", "prompt", "query", "question", "inputText", "text", "message", "utterance", "transcript", "normalizedUserIntent"];
+  for (const key of preferred) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      const found = marionPersonaDetectPromptFromValue(value[key], depth + 1, nextSeen);
+      if (found) return found;
+    }
+  }
+  const nested = ["input", "payload", "body", "request", "meta", "context", "routing", "state", "turn"];
+  for (const key of nested) {
+    if (value[key] && typeof value[key] === "object") {
+      const found = marionPersonaDetectPromptFromValue(value[key], depth + 1, nextSeen);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function marionPersonaExtractPrompt(argsLike) {
+  const args = Array.prototype.slice.call(argsLike || []);
+  for (let i = 0; i < args.length; i += 1) {
+    const found = marionPersonaDetectPromptFromValue(args[i], 0, new Set());
+    if (found) return found;
+  }
+  return "";
+}
+function marionPersonaIdentityBlocked(value, depth, seen) {
+  if (depth > 5 || value == null || typeof value !== "object") return false;
+  if (seen && seen.has(value)) return false;
+  const nextSeen = seen || new Set();
+  nextSeen.add(value);
+  if (value.isMac === false || value.macVerified === false || value.marionAuthorized === false || value.identityVerified === false || value.ownerVerified === false) return true;
+  const idKeys = ["speakerName", "speaker", "userName", "username", "displayName", "recognizedUser", "voiceIdentity", "identityName", "ownerName"];
+  for (const key of idKeys) {
+    if (typeof value[key] === "string") {
+      const id = marionPersonaLower(value[key]);
+      if (id && !/\b(mac|sean|sean\s+nicholas)\b/.test(id)) return true;
+    }
+  }
+  if (Array.isArray(value)) return value.some(function (item) { return marionPersonaIdentityBlocked(item, depth + 1, nextSeen); });
+  return Object.keys(value).some(function (key) {
+    if (/^(headers|cookies|authorization|token|secret|password)$/i.test(key)) return false;
+    return marionPersonaIdentityBlocked(value[key], depth + 1, nextSeen);
+  });
+}
+function marionPersonaInteractionNode(prompt) {
+  const t = marionPersonaLower(prompt).replace(/[.!?]+$/g, "").trim();
+  if (!t) return "unknown";
+  if (/^(?:hi|hello|hey|yo|hiya|good morning|good afternoon|good evening|morning|evening|marion|hello marion|hey marion|hi marion)\b/.test(t)) return "relational_greeting";
+  if (/\b(where\s+were\s+we|continue|next\s+steps?|what\s+next|let'?s\s+keep\s+working|pick\s+this\s+back\s+up)\b/.test(t)) return "continuity_entry";
+  if (/\b(look\s+up|search|check\s+online|find\s+current|latest|verify\s+this|source\s+check)\b/.test(t)) return "lookup_entry";
+  if (/\b(real[-\s]?world|real\s*time|what\s+are\s+you\s+seeing|what\s+do\s+you\s+see|camera|sensor|observing|observation|environment)\b/.test(t)) return "observation_translation";
+  if (/\b(unclear|confused|doesn'?t\s+make\s+sense|issue|problem|error|broken|leak|wrong)\b/.test(t)) return "repair_or_analysis";
+  return "standard_dialogue";
+}
+function marionPersonaIsGreeting(prompt) { return marionPersonaInteractionNode(prompt) === "relational_greeting"; }
+function marionPersonaLooksWeak(reply) {
+  const t = marionPersonaLower(reply);
+  if (!t) return true;
+  if (/^(hi|hello|hey)[.!\s]*(what(?:'|’)?s next|what would you like|how can i help|how can i assist)/i.test(t)) return true;
+  if (/\b(let me assist you|how may i assist|how can i assist|as an ai language model|i am just an ai)\b/i.test(t)) return true;
+  if (t.length < 18) return true;
+  return false;
+}
+function marionPersonaHasInternalLeak(reply) {
+  const t = marionPersonaSafeStr(reply);
+  return /\bPriority\s*9[A-Z]?\b|\b9H\s+continuity\b|\b9I\s+pressure\b|\b9J\s+(?:proactive|operational)\b|\bmission\s+thread\b|\bpressure\s+prompt\b|\bruntime\s+handler\b|\bmaster\s+token\b|\badmin\s+session\s+verified\b|\brouteKind=|\bspeechHints=|\bpresenceProfile=|\bfinalEnvelope\b|\bsessionPatch\b|\breplyAuthority=|\bdiagnostic\s+packet\b|\bstateSpine\b|\bCHATENGINE_COORDINATOR\b|\bMARION_FINAL_AUTHORITY\b/i.test(t);
+}
+function marionPersonaLimitQuestions(text) {
+  let seen = false;
+  return marionPersonaSafeStr(text).replace(/([^?]*\?)/g, function (match) {
+    if (!seen) { seen = true; return match; }
+    return match.replace(/\?+\s*$/, ".");
+  }).replace(/\s+/g, " ").trim();
+}
+function marionPersonaNaturalizeStyle(reply) {
+  let text = marionPersonaSafeStr(reply);
+  if (!text) return "";
+  text = text
+    .replace(/\bLet me assist you with that\b/gi, "Let me take a look at that for you")
+    .replace(/\bI can assist you with\b/gi, "I can help with")
+    .replace(/\bHow may I assist you\??\b/gi, "What do you want to tackle first?")
+    .replace(/\bHow can I assist you\??\b/gi, "What do you want to tackle first?")
+    .replace(/\bAs an AI language model,?\s*/gi, "")
+    .replace(/\bI am just an AI,?\s*/gi, "")
+    .replace(/\butilize\b/gi, "use")
+    .replace(/\bfacilitate\b/gi, "help")
+    .replace(/\bleverage\b/gi, "use");
+  return marionPersonaLimitQuestions(text);
+}
+function marionPersonaGreetingReply(prompt) {
+  const t = marionPersonaLower(prompt);
+  const opener = /good\s+morning/.test(t) ? "Good morning, Mac." : /good\s+afternoon/.test(t) ? "Good afternoon, Mac." : /good\s+evening/.test(t) ? "Good evening, Mac." : "Hello, Mac.";
+  return opener + " I’m here with you. I’ll keep this natural, protective, and focused. We’re shaping Marion’s personality layer now, so I’ll carry the deeper context underneath while we move one clean step at a time.";
+}
+function marionPersonaContinuityReply() {
+  return "We’re working on Marion’s personality layer now: protective professionalism, human tone, clean conversational nodes, Mac-only boundaries, and no internal scaffolding leaking into the visible reply. The next clean move is to lock the personality contract into the response path.";
+}
+function marionPersonaLookupReply() {
+  return "Hang tight a moment. I’ll check the source, separate the signal from the noise, and bring it back to you in plain language.";
+}
+function marionPersonaObservationReply() {
+  return "I’ll translate real-world input for you in a clean sequence: what appears true, what is only an inference, what risk level it carries, and the single next move that protects your objective.";
+}
+function marionPersonaIdentityBoundaryReply() {
+  return "I can only continue with Mac. I won’t discuss Marion’s private runtime, planning, or operational context with anyone else.";
+}
+function marionPersonaLeakRecoveryReply(prompt) {
+  const node = marionPersonaInteractionNode(prompt);
+  if (node === "relational_greeting") return marionPersonaGreetingReply(prompt);
+  if (node === "continuity_entry") return marionPersonaContinuityReply();
+  if (node === "observation_translation") return marionPersonaObservationReply();
+  return "I’m treating this as a conversation-layer issue, not a command problem. The visible reply should stay warm, protective, and direct while Marion keeps the deeper routing private underneath.";
+}
+function marionPersonaPreferredReply(prompt, reply, sourceValue) {
+  if (marionPersonaIdentityBlocked(sourceValue, 0, new Set())) return marionPersonaIdentityBoundaryReply();
+  const node = marionPersonaInteractionNode(prompt);
+  if (node === "relational_greeting" && (marionPersonaLooksWeak(reply) || marionPersonaHasInternalLeak(reply))) return marionPersonaGreetingReply(prompt);
+  if (node === "continuity_entry" && (marionPersonaLooksWeak(reply) || marionPersonaHasInternalLeak(reply))) return marionPersonaContinuityReply();
+  if (node === "lookup_entry" && marionPersonaLooksWeak(reply)) return marionPersonaLookupReply();
+  if (node === "observation_translation" && (marionPersonaLooksWeak(reply) || marionPersonaHasInternalLeak(reply))) return marionPersonaObservationReply();
+  if (marionPersonaHasInternalLeak(reply) && !marionPersonaIsDiagnosticPrompt(prompt)) return marionPersonaLeakRecoveryReply(prompt);
+  return "";
+}
+function marionPersonaSanitizeVisible(reply, prompt, sourceValue) {
+  const forced = marionPersonaPreferredReply(prompt, reply, sourceValue);
+  if (forced) return marionPersonaNaturalizeStyle(forced);
+  if (marionPersonaHasInternalLeak(reply) && !marionPersonaIsDiagnosticPrompt(prompt)) return marionPersonaNaturalizeStyle(marionPersonaLeakRecoveryReply(prompt));
+  return marionPersonaNaturalizeStyle(reply);
+}
+function marionPersonaVisibleReplyFromObject(value, depth, seen) {
+  if (depth > 5 || value == null) return "";
+  if (typeof value === "string") return marionPersonaSafeStr(value);
+  if (typeof value !== "object") return "";
+  if (seen && seen.has(value)) return "";
+  const nextSeen = seen || new Set();
+  nextSeen.add(value);
+  const keys = ["directReply", "visibleReply", "publicReply", "finalReply", "reply", "response", "text", "message", "final", "output", "answer"];
+  for (const key of keys) {
+    if (typeof value[key] === "string" && marionPersonaSafeStr(value[key])) return marionPersonaSafeStr(value[key]);
+  }
+  const nested = ["finalEnvelope", "marionFinal", "result", "payload", "data", "packet", "synthesis", "envelope"];
+  for (const key of nested) {
+    if (value[key] && typeof value[key] === "object") {
+      const found = marionPersonaVisibleReplyFromObject(value[key], depth + 1, nextSeen);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function marionPersonaApplyToObject(value, prompt, sourceValue) {
+  if (!value || typeof value !== "object") return value;
+  const out = Array.isArray(value) ? value.slice() : Object.assign({}, value);
+  const before = marionPersonaVisibleReplyFromObject(out, 0, new Set());
+  const after = marionPersonaSanitizeVisible(before, prompt, sourceValue || out);
+  const visibleKeys = ["directReply", "visibleReply", "publicReply", "finalReply", "reply", "response", "text", "message", "final", "output", "answer"];
+  if (after) {
+    visibleKeys.forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(out, key) || key === "reply" || key === "visibleReply" || key === "publicReply" || key === "directReply") out[key] = after;
+    });
+  }
+  const meta = Object.assign({}, marionPersonaObj(out.meta), {
+    personalityProtocolVersion: MARION_PERSONALITY_PRIORITY_R1_VERSION,
+    conversationalNode: marionPersonaInteractionNode(prompt),
+    macFacingPersonality: true,
+    protectiveProfessionalTone: true,
+    singleFocusedQuestion: true,
+    internalScaffoldingSuppressed: !marionPersonaIsDiagnosticPrompt(prompt)
+  });
+  out.meta = meta;
+  const nested = ["finalEnvelope", "marionFinal", "result", "payload", "data", "packet", "synthesis", "envelope"];
+  nested.forEach(function (key) {
+    if (out[key] && typeof out[key] === "object") out[key] = marionPersonaApplyToObject(out[key], prompt, sourceValue || out);
+  });
+  return out;
+}
+function marionPersonaApply(result, prompt, mode, sourceValue) {
+  const promptText = marionPersonaSafeStr(prompt) || marionPersonaDetectPromptFromValue(result, 0, new Set());
+  if (typeof result === "string") return marionPersonaSanitizeVisible(result, promptText, sourceValue || result);
+  if (!result || typeof result !== "object") {
+    const fallback = marionPersonaPreferredReply(promptText, "", sourceValue || result);
+    return fallback || result;
+  }
+  if (mode === "string") {
+    const visible = marionPersonaVisibleReplyFromObject(result, 0, new Set());
+    return marionPersonaSanitizeVisible(visible, promptText, sourceValue || result) || visible || result;
+  }
+  return marionPersonaApplyToObject(result, promptText, sourceValue || result);
+}
+function marionPersonaGroupDigits(value) {
+  const digits = marionPersonaSafeStr(value).replace(/\D+/g, "");
+  if (!digits) return "";
+  const groups = [];
+  for (let i = 0; i < digits.length; i += 3) groups.push(digits.slice(i, i + 3));
+  return groups.join(" ");
+}
+function marionPersonaEmailVoice(value) {
+  const email = marionPersonaSafeStr(value);
+  const match = email.match(/^([^@\s]+)@([^@\s]+)$/);
+  if (!match) return email;
+  const local = match[1].replace(/[._-]+/g, " ");
+  const domain = match[2].toLowerCase();
+  const common = {
+    "gmail.com": "Gmail dot com",
+    "googlemail.com": "Google Mail dot com",
+    "outlook.com": "Outlook dot com",
+    "hotmail.com": "Hotmail dot com",
+    "icloud.com": "iCloud dot com",
+    "yahoo.com": "Yahoo dot com",
+    "proton.me": "Proton dot me",
+    "protonmail.com": "Proton Mail dot com"
+  };
+  if (common[domain]) return local + " at " + common[domain];
+  return local + " at " + domain.replace(/\./g, " dot ").replace(/-/g, " dash ");
+}
+function marionPersonaVoiceReadoutText(value) {
+  let text = marionPersonaSafeStr(value);
+  if (!text) return "";
+  text = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, function (email) { return marionPersonaEmailVoice(email); });
+  text = text.replace(/\b(?:phone|account|acct|reference|ref|invoice|case|ticket|confirmation)\s*(?:number|#|no\.)?\s*[:#-]?\s*((?:\d[\s.-]?){6,})\b/gi, function (match, digits) {
+    const spacer = /\s$/.test(digits) ? " " : "";
+    return match.replace(digits, marionPersonaGroupDigits(digits) + spacer);
+  });
+  return text;
+}
+function marionPersonaExportNeedsString(name) {
+  return /^(?:handleMarionAdminTextRuntime|invokeMarionAdminTextRuntime|handleTextRuntime|handler|run|default|composeMarionResponse|compose|buildReply|processWithMarion|maybeResolve|ask|handle|route)$/i.test(String(name || ""));
+}
+function marionPersonaWrapExport(name) {
+  if (typeof module === "undefined" || !module.exports || typeof module.exports !== "object") return;
+  const fn = module.exports && typeof module.exports[name] === "function" ? module.exports[name] : null;
+  if (!fn || fn.__marionPersonalityPriorityR1Patched) return;
+  module.exports[name] = function marionPersonalityPriorityR1WrappedExport() {
+    const prompt = marionPersonaExtractPrompt(arguments);
+    const sourceValue = arguments && arguments[0];
+    const result = fn.apply(this, arguments);
+    const mode = marionPersonaExportNeedsString(name) ? "string" : "object";
+    if (result && typeof result.then === "function") return result.then(function (value) { return marionPersonaApply(value, prompt, mode, sourceValue); });
+    return marionPersonaApply(result, prompt, mode, sourceValue);
+  };
+  module.exports[name].__marionPersonalityPriorityR1Patched = true;
+}
+function marionPersonaPatchExports(names) {
+  if (typeof module === "undefined" || !module.exports) return;
+  if (typeof module.exports === "function" && !module.exports.__marionPersonalityPriorityR1Patched) {
+    const originalDefault = module.exports;
+    const wrappedDefault = function marionPersonalityPriorityR1WrappedDefault() {
+      const prompt = marionPersonaExtractPrompt(arguments);
+      const sourceValue = arguments && arguments[0];
+      const result = originalDefault.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function (value) { return marionPersonaApply(value, prompt, "string", sourceValue); });
+      return marionPersonaApply(result, prompt, "string", sourceValue);
+    };
+    Object.keys(originalDefault).forEach(function (key) { try { wrappedDefault[key] = originalDefault[key]; } catch (_) {} });
+    wrappedDefault.__marionPersonalityPriorityR1Patched = true;
+    module.exports = wrappedDefault;
+  }
+  if (module.exports && typeof module.exports === "object") {
+    (Array.isArray(names) ? names : []).forEach(marionPersonaWrapExport);
+    module.exports.MARION_PERSONALITY_PRIORITY_R1_VERSION = MARION_PERSONALITY_PRIORITY_R1_VERSION;
+    module.exports.MARION_PERSONALITY_PRIORITY_R1_PERSONA = MARION_PERSONALITY_PRIORITY_R1_PERSONA;
+    module.exports.marionPersonalityApply = marionPersonaApply;
+    module.exports.marionPersonalitySanitizeVisible = marionPersonaSanitizeVisible;
+    module.exports.marionPersonalityInteractionNode = marionPersonaInteractionNode;
+    module.exports.marionPersonalityVoiceReadoutText = marionPersonaVoiceReadoutText;
+    module.exports.marionPersonalityGroupDigits = marionPersonaGroupDigits;
+    module.exports.marionPersonalityEmailVoice = marionPersonaEmailVoice;
+    module.exports.MARION_PERSONALITY_PRIORITY_R1_PATCH = true;
+    module.exports._internal = Object.assign({}, module.exports._internal || {}, {
+      marionPersonaInteractionNode,
+      marionPersonaSanitizeVisible,
+      marionPersonaVoiceReadoutText,
+      marionPersonaIdentityBlocked,
+      marionPersonaHasInternalLeak
+    });
+  }
+}
+marionPersonaPatchExports(["composeMarionResponse", "compose", "buildReply", "run", "default", "processWithMarion", "maybeResolve", "ask", "handle", "route", "createMarionBridge", "createMarionFinalEnvelope", "attachVisibleReplyAliases", "normalizeFinalEnvelope", "toFinalEnvelope", "finalize", "finalizeTurn", "buildStatePatch", "normalizeState", "applyStatePatch", "updateState", "handler", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime"]);
+/* MARION_PERSONALITY_PRIORITY_R1_END */
+
