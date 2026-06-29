@@ -6,7 +6,7 @@
  * Single-source final envelope builder + validator + JSON-safe transport normalizer.
  */
 
-const VERSION = "MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionFinalEnvelope v2.3.7 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionFinalEnvelope v2.3.7 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -895,7 +895,7 @@ function priority9IJOldLaneLeak(value){var n=priority9IJNorm(value);return !!n&&
 function priority9IJPromptEcho(reply,prompt){var r=priority9IJNorm(reply),p=priority9IJNorm(prompt);if(!r||!p)return false;return r===p||(r.includes(p)&&p.length>24)||(p.includes(r)&&r.length>24);}
 function priority9IStateFrom(source,turn){var kind=priority9IJPressureKind(source);return {version:PRIORITY_9I_ADAPTIVE_SITUATIONAL_REASONING_VERSION_FULL,active:true,lane:"priority9i_adaptive_situational_reasoning",activePhase:"priority9i_adaptive_situational_reasoning",conversationLane:"Priority 9I adaptive situational reasoning",activeTask:"Priority 9I: adaptive situational reasoning and context-pressure handling",surfaceRequest:"adapt Marion’s active 9H continuity thread when pressure, urgency, ambiguity, correction, or context changes",deeperIntent:"preserve the mission thread while updating risk, execution mode, and next action under changing pressure",pressureSignal:kind,whatChanged:kind==="urgency"?"urgency increased":kind==="correction"?"the user corrected the target and asked Marion to stay anchored":kind==="pivot"?"the operating context shifted":kind==="pace"?"the required pace changed":kind==="depth"?"the answer needs deeper analysis":kind==="safety"?"the safest action must be prioritized":kind==="decision"?"decision pressure increased":"the situational pressure changed",operationalRisk:"pressure can cause Marion to flatten, overreact, reset the lane, over-branch, or activate 9J before 9I is stable",executionMode:kind==="urgency"?"compressed adaptive execution":kind==="pace"?"slower controlled adaptation":kind==="depth"?"deeper situational analysis":kind==="safety"?"safety-first adaptive execution":"adaptive context-pressure handling",nextAction:"read the pressure shift, update risk and execution mode, then give the safest next action without losing the 9H continuity foundation",baseContinuityFoundation:"Priority 9H live accepted",turnDepth:Number.isFinite(Number(turn))?Number(turn):1,priority9IAdaptiveSituationalReasoning:true,priority9JProactiveGuidancePrecheck:{version:PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_VERSION_FULL,staged:true,activationRule:"Activate only for explicit Priority 9J or clear next-move authority requests after 9I pressure handling is stable",expectedFocus:"proactive operational guidance and controlled next-move authority"},noUserFacingDiagnostics:true,updatedAt:Date.now()};}
 function priority9JStateFrom(source,turn){return {version:PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_VERSION_FULL,active:true,lane:"priority9j_proactive_operational_guidance",activePhase:"priority9j_proactive_operational_guidance",conversationLane:"Priority 9J proactive operational guidance",activeTask:"Priority 9J: proactive operational guidance and next-move authority",surfaceRequest:"recommend the safest concrete next move when the active context is sufficiently clear",deeperIntent:"move from reactive continuity and pressure handling into controlled operational guidance without overreach",operationalRisk:"premature authority, unnecessary branching, unsafe sequencing, or advising a next move before risk and context are clear",executionMode:"controlled next-move authority",recommendedMove:"choose the safest concrete action that protects the active lane, validates risk, and advances only one operational step",whyFirst:"it comes first because it preserves the accepted continuity foundation before expanding scope",skipRisk:"if skipped, Marion can over-branch, drift, or make a recommendation before the pressure context is resolved",executionSequence:["confirm active lane and pressure state","name the risk if the move is skipped","choose one safest concrete action","give the short execution sequence","avoid opening unrelated branches"],nextAction:"state the safest next operational move, why it comes first, risk if skipped, and the execution sequence",baseAdaptiveFoundation:"Priority 9I adaptive situational reasoning",turnDepth:Number.isFinite(Number(turn))?Number(turn):1,priority9JProactiveOperationalGuidance:true,noUserFacingDiagnostics:true,updatedAt:Date.now()};}
-function priority9IReplyFor(prompt,source){var kind=priority9IJPressureKind([prompt,source].join(" "));if(priority9IJIsShortFollowup(prompt)&&priority9IJHas9IContext(source)){if(kind==="decision")return "Continue Priority 9I: the pressure signal is decision pressure. Preserve the 9H continuity foundation, update the risk before choosing, keep 9J staged unless explicitly activated, and give the safest next action without opening extra branches.";if(kind==="safety")return "Continue Priority 9I: the pressure signal is safety-first execution. Preserve the active task, update risk, slow the response enough to avoid overreach, and give the safest next action while keeping Priority 9J staged.";if(kind==="depth")return "Continue Priority 9I: the pressure signal is depth. Go deeper inside the same active lane, update risk and execution mode, and give the next action without resetting to 9H activation wording or drifting into 9J.";if(kind==="pace")return "Continue Priority 9I: the pressure signal is pace control. Slow down, keep the 9H continuity foundation intact, clarify the changed constraint, and give one safe next action.";return "Continue Priority 9I: preserve the 9H continuity foundation, read the current pressure shift, update operational risk and execution mode, then give the safest next action. Keep Priority 9J staged until next-move authority is explicitly needed.";}return "I’m reading this as Priority 9I: adaptive situational reasoning and context-pressure handling. The 9H continuity foundation stays active. The surface request is to adapt Marion when urgency, correction, ambiguity, pace, depth, or operational pressure changes; the deeper intent is to update risk and execution mode without losing the active mission thread. Next move: run pressure prompts such as urgent, pivot, stay on the architecture, slow down, go deeper, risk now, and safest next move. Priority 9J is staged next for proactive operational guidance, but 9I handles the pressure shift first.";}
+function priority9IReplyFor(prompt,source){var kind=priority9IJPressureKind([prompt,source].join(" "));if(priority9IJIsShortFollowup(prompt)&&priority9IJHas9IContext(source)){if(kind==="decision")return "Continue Priority 9I: the pressure signal is decision pressure. Preserve the 9H continuity foundation, update the risk before choosing, keep 9J staged unless explicitly activated, and give the safest next action without opening extra branches.";if(kind==="safety")return "Continue Priority 9I: the pressure signal is safety-first execution. Preserve the active task, update risk, slow the response enough to avoid overreach, and give the safest next action while keeping Priority 9J staged.";if(kind==="depth")return "Continue Priority 9I: the pressure signal is depth. Go deeper inside the same active lane, update risk and execution mode, and give the next action without resetting to 9H activation wording or drifting into 9J.";if(kind==="pace")return "Continue Priority 9I: the pressure signal is pace control. Slow down, keep the 9H continuity foundation intact, clarify the changed constraint, and give one safe next action.";return "Continue Priority 9I: preserve the 9H continuity foundation, read the current pressure shift, update operational risk and execution mode, then give the safest next action. Keep Priority 9J staged until next-move authority is explicitly needed.";}return "I’m reading this as Priority 9I: adaptive situational reasoning and context-pressure handling. Diagnostic note: the internal continuity layer remains available. The surface request is to adapt Marion when urgency, correction, ambiguity, pace, depth, or operational pressure changes; the deeper intent is to update risk and execution mode without losing the active mission thread. Next move: run pressure prompts such as urgent, pivot, stay on the architecture, slow down, go deeper, risk now, and safest next move. Priority 9J is staged next for proactive operational guidance, but 9I handles the pressure shift first.";}
 function priority9JReplyFor(prompt,source){return "Priority 9J: proactive operational guidance and next-move authority. The 9H continuity foundation and 9I pressure-handling layer stay underneath this decision. Recommended next move: choose the safest concrete action that preserves the active lane and advances only one operational step. Why first: it protects continuity before expanding scope. Risk if skipped: Marion can over-branch, drift, or make a recommendation before the pressure context is resolved. Execution sequence: confirm the active lane, name the risk, choose one safest action, execute that step, then reassess before opening new branches.";}
 function priority9IJReadReply(packet){var p=priority9IJObj(packet),pl=priority9IJObj(p.payload),f=priority9IJObj(p.finalEnvelope);return priority9IJStr(p.reply||p.finalReply||p.publicReply||p.visibleReply||p.text||p.message||p.response||p.answer||pl.reply||pl.finalReply||pl.publicReply||pl.visibleReply||pl.text||pl.message||pl.answer||f.reply||f.finalReply||f.publicReply||f.visibleReply||f.text||f.message||f.answer);}
 function priority9IJApplyPacket(packet,reply,prompt,source,lane){var out=(packet&&typeof packet==="object"&&!Array.isArray(packet))?{...packet}:{};var final=priority9IJStr(reply)||(lane==="9j"?priority9JReplyFor(prompt,source):priority9IReplyFor(prompt,source));["reply","finalReply","publicReply","visibleReply","text","message","response","answer","spokenText"].forEach(function(k){out[k]=final;});out.payload={...(out.payload&&typeof out.payload==="object"?out.payload:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};out.finalEnvelope={...(out.finalEnvelope&&typeof out.finalEnvelope==="object"?out.finalEnvelope:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};var prior=priority9IJObj(out.priority9IAdaptiveSituationalReasoning||out.priority9JProactiveOperationalGuidance||out.priority9HLongFormContinuity||out.longFormContinuityStress);var depth=Number.isFinite(Number(prior.turnDepth))?Number(prior.turnDepth)+1:1;if(lane==="9j"){var sj=priority9JStateFrom(source||prompt,depth);out.priority9JProactiveOperationalGuidance=sj;out.priority9JVersion="PRIORITY-9J-PROACTIVE-OPERATIONAL-GUIDANCE-NEXT-MOVE-AUTHORITY";out.conversationLane=sj.conversationLane;out.activeTask=sj.activeTask;out.surfaceRequest=sj.surfaceRequest;out.deeperIntent=sj.deeperIntent;out.operationalRisk=sj.operationalRisk;out.executionMode=sj.executionMode;out.nextAction=sj.nextAction;out.recommendedMove=sj.recommendedMove;out.executionSequence=sj.executionSequence;}else{var si=priority9IStateFrom(source||prompt,depth);out.priority9IAdaptiveSituationalReasoning=si;out.priority9IVersion="PRIORITY-9I-ADAPTIVE-SITUATIONAL-REASONING-CONTEXT-PRESSURE";out.priority9JPrecheck=si.priority9JProactiveGuidancePrecheck;out.conversationLane=si.conversationLane;out.activeTask=si.activeTask;out.surfaceRequest=si.surfaceRequest;out.deeperIntent=si.deeperIntent;out.operationalRisk=si.operationalRisk;out.executionMode=si.executionMode;out.nextAction=si.nextAction;out.pressureSignal=si.pressureSignal;out.whatChanged=si.whatChanged;}out.noUserFacingDiagnostics=true;return out;}
@@ -2502,3 +2502,321 @@ function marionR3PatchExports(names) {
 }
 marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","default","processWithMarion","maybeResolve","ask","handle","route","createMarionBridge","routeMarion","handleVoiceTranscript","handleVoiceInput","handleMessage","createMarionFinalEnvelope","attachVisibleReplyAliases","normalizeFinalEnvelope","toFinalEnvelope","finalize","finalizeTurn","buildStatePatch","normalizeState","applyStatePatch","updateState","handler","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime"]);
 /* MARION_SOCIAL_PRESENCE_GATE_R3_END */
+
+/* MARION_PERSONALITY_GREETING_R4_LIVE_ROUTE_BINDING_START
+ * Purpose: Last-mile personality correction for Marion's private admin channel.
+ * - Personality speaks before continuity/status scaffolding.
+ * - Social check-ins are answered relationally first.
+ * - Internal continuity/runtime language is translated before any visible reply renders.
+ * - Future personality components are carried as metadata without changing the legacy architecture.
+ */
+const MARION_PERSONALITY_GREETING_R4_VERSION = "nyx.marion.personalityGreetingR4.liveRouteBinding/1.0";
+const MARION_PERSONALITY_GREETING_R4_TRAITS = Object.freeze({
+  recipient: "Mac",
+  voice: "casual_professional_protective",
+  personalityFirst: true,
+  continuityInformsButDoesNotSpeak: true,
+  oneFocusedQuestionPerReply: true,
+  noRoboticServicePhrases: true,
+  diagnosticModeRequiredForRuntimeLabels: true,
+  futureComponents: Object.freeze({
+    socialPresenceGate: "answer greetings and check-ins like a human conversation, not a runtime status panel",
+    continuityTranslation: "translate continuity/state signals into natural Mac-facing language",
+    protectivePushback: "question risky or unclear requests without becoming cold or dismissive",
+    conditionalConversationNodes: "route greeting, check-in, lookup, observation, repair, and closing separately",
+    realWorldObservationBridge: "separate observation, inference, risk, and one next move",
+    voiceReadoutPolicy: "group numbers naturally and keep email/domain readouts clean",
+    calibratedHumor: "allow light, precise humor only when it supports rapport",
+    strategicSkepticism: "challenge assumptions when that protects Mac or the objective",
+    memoryContinuity: "carry the active thread without exposing internal scaffolding",
+    clientPersonaExpansion: "future client-facing modes stay subordinate to Mac's private Marion authority"
+  })
+});
+function marionR4Text(value) { return String(value == null ? "" : value).replace(/\s+/g, " ").trim(); }
+function marionR4Lower(value) { return marionR4Text(value).toLowerCase(); }
+function marionR4Obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+function marionR4PromptKeyValue(obj) {
+  const o = marionR4Obj(obj);
+  const payload = marionR4Obj(o.payload);
+  const body = marionR4Obj(o.body);
+  const command = marionR4Obj(o.command);
+  const meta = marionR4Obj(o.meta || o.metadata);
+  const voice = marionR4Obj(o.voice);
+  const keys = [
+    o.prompt, o.userPrompt, o.rawPrompt, o.message, o.userMessage, o.text, o.userText, o.rawUserText, o.input, o.query, o.commandText,
+    o.normalizedUserIntent, o.originalText, o.transcript, o.voiceTranscript,
+    payload.prompt, payload.userPrompt, payload.message, payload.userMessage, payload.text, payload.userText, payload.rawUserText, payload.input, payload.query, payload.commandText,
+    body.prompt, body.message, body.text, body.userText, body.query, body.commandText,
+    command.prompt, command.message, command.text, command.query, command.commandText,
+    meta.prompt, meta.message, meta.text, meta.userText, meta.rawUserText,
+    voice.prompt, voice.message, voice.text, voice.transcript, voice.normalizedTranscript
+  ];
+  for (let i = 0; i < keys.length; i += 1) {
+    const t = marionR4Text(keys[i]);
+    if (t) return t;
+  }
+  return "";
+}
+function marionR4DetectPrompt(value, depth, seen) {
+  if (!value) return "";
+  if (typeof value === "string") return marionR4Text(value);
+  if (typeof value !== "object") return "";
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 7) return "";
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+  const direct = marionR4PromptKeyValue(value);
+  if (direct) return direct;
+  const preferred = ["body", "payload", "command", "request", "input", "meta", "metadata", "voice", "normalized", "norm", "source", "context"];
+  for (const key of preferred) {
+    if (value[key] && typeof value[key] === "object") {
+      const found = marionR4DetectPrompt(value[key], level + 1, visited);
+      if (found) return found;
+    }
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const found = marionR4DetectPrompt(value[i], level + 1, visited);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function marionR4ExtractPrompt(argsLike) {
+  const args = Array.prototype.slice.call(argsLike || []);
+  for (let i = 0; i < args.length; i += 1) {
+    const found = marionR4DetectPrompt(args[i], 0, new Set());
+    if (found) return found;
+  }
+  return "";
+}
+function marionR4Diagnostic(prompt, source) {
+  const t = marionR4Lower([prompt, marionR4DetectPrompt(source, 0, new Set())].join(" "));
+  return /\b(diagnostic mode|debug mode|runtime diagnostic|show diagnostics|trace|stack trace|explain the priority stack|show the priority stack|priority\s*9[a-z0-9-]*|what priority)\b/i.test(t);
+}
+function marionR4Node(prompt) {
+  const t = marionR4Lower(prompt).replace(/[.!?]+$/g, "").trim();
+  if (!t) return "";
+  if (/^(?:how are you|how are you doing|how do you feel|how are things|how's things|you okay|are you okay|you good|are you good|how is marion|how's marion)(?:\s+(?:marion|mac))?$/.test(t)) return "social_checkin";
+  if (/^(?:good\s+morning|morning|good\s+afternoon|afternoon|good\s+evening|evening|hello|hi|hey|hiya)(?:\s+(?:marion|mac))?$/.test(t)) return "relational_greeting";
+  if (/^(?:marion|are you there|you there|are you with me|you with me|still with me)$/.test(t)) return "presence_check";
+  if (/\b(where were we|where are we|what were we doing|what are we working on|continue from where we left|next steps|what next)\b/i.test(t)) return "continuity_check";
+  if (/\b(look up|search|verify|check online|find current|pull up|research this)\b/i.test(t)) return "lookup_pacing";
+  if (/\b(real[- ]world|what do you see|what are you seeing|observation|camera|sensor|live environment|translate what you see)\b/i.test(t)) return "observation_bridge";
+  if (/\b(not a pass|still failing|still showing|same issue|wrong response|fix this|didn't work|does not work|broken|maintenance manual)\b/i.test(t)) return "repair_refinement";
+  return "standard";
+}
+function marionR4IdentityBlocked(value, depth, seen) {
+  if (!value || typeof value !== "object") return false;
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 5) return false;
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return false;
+  visited.add(value);
+  const o = marionR4Obj(value);
+  if (o.identityVerified === false || o.adminVerified === false || o.speakerAuthorized === false || o.remoteTrustedUserVerified === false) return true;
+  const identity = marionR4Obj(o.identity || o.speakerIdentity || o.userIdentity || o.auth);
+  const names = [o.userName, o.username, o.displayName, o.speakerName, o.currentUser, o.authorizedUser, identity.userName, identity.displayName, identity.speakerName, identity.currentUser, identity.roleBinding].map(marionR4Lower).filter(Boolean);
+  for (const name of names) {
+    if (/\b(public|guest|unknown|visitor|non[_-]?mac|unauthorized)\b/i.test(name)) return true;
+    if (/\b(mac|sean|shaun|shawn|admin|remote_trusted_user)\b/i.test(name)) continue;
+    if (name && /\buser\b/i.test(name) && !/\btrusted\b/i.test(name)) return true;
+  }
+  const nested = ["payload", "meta", "metadata", "identity", "speakerIdentity", "userIdentity", "auth", "context"];
+  for (const key of nested) if (o[key] && typeof o[key] === "object" && marionR4IdentityBlocked(o[key], level + 1, visited)) return true;
+  return false;
+}
+function marionR4MaintenanceLeak(reply) {
+  const text = marionR4Text(reply);
+  if (!text) return false;
+  return /\b(?:the\s+)?(?:9h\s+)?continuity foundation(?:\s+stays\s+active|\s+is\s+active)?\b/i.test(text) ||
+    /\b(Priority\s*9[A-Z0-9-]*|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})\b/i.test(text);
+}
+function marionR4Robotic(reply) {
+  const t = marionR4Lower(reply);
+  return !t || /\b(let me assist you|how may i assist|please provide|i am here to assist|utilize|facilitate|the continuity foundation|runtime handler|diagnostic packet)\b/i.test(t);
+}
+function marionR4LimitQuestions(reply) {
+  const text = marionR4Text(reply);
+  let seenQuestion = false;
+  return text.replace(/([^?]*\?)/g, function (match) {
+    if (!seenQuestion) { seenQuestion = true; return match; }
+    return match.replace(/\?/g, ".");
+  }).replace(/\s+/g, " ").trim();
+}
+function marionR4StripOperational(reply, allowDiagnostic) {
+  let text = marionR4Text(reply);
+  if (!text) return "";
+  if (allowDiagnostic === true) return marionR4LimitQuestions(text);
+  text = text
+    .replace(/\bThe\s+(?:9H\s+)?continuity foundation stays active\.?/gi, "I’m steady, Mac. I’m still with the thread.")
+    .replace(/\b(?:The\s+)?(?:9H\s+)?continuity foundation(?:\s+is\s+active|\s+stays\s+active)?\.?/gi, "I’m still with the thread.")
+    .replace(/[^.?!]*(?:Priority\s*9[A-Z0-9-]*|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})[^.?!]*[.?!]?/gi, " ")
+    .replace(/\b(?:9I|9J|9H)\b/gi, "")
+    .replace(/\bLet me assist you with that\b/gi, "Let me take a look at this for you")
+    .replace(/\bHow may I assist you\??\b/gi, "What do you want to tackle next?")
+    .replace(/\bI am here to assist\b/gi, "I’m here with you")
+    .replace(/\bPlease provide the necessary information\b/gi, "Send me the key detail")
+    .replace(/\butilize\b/gi, "use")
+    .replace(/\bfacilitate\b/gi, "help")
+    .replace(/\bin order to\b/gi, "to")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return marionR4LimitQuestions(text);
+}
+function marionR4SocialReply() {
+  return "I’m good, Mac. I’m steady, and I’m still with the thread. We’re tightening my personality layer now, so I’ll keep the conversation warmer, cleaner, and protective without letting backend language show. Do you want me to tighten the greeting path first?";
+}
+function marionR4GreetingReply(prompt) {
+  const t = marionR4Lower(prompt);
+  const opener = /^good\s+morning|^morning/.test(t) ? "Good morning, Mac." : /^good\s+afternoon|^afternoon/.test(t) ? "Good afternoon, Mac." : /^good\s+evening|^evening/.test(t) ? "Good evening, Mac." : "Hello, Mac.";
+  return `${opener} I’m here with you. I’ll keep this warm, professional, protective, and clean — no backend perfume in the visible reply. Do you want to continue with the personality layer?`;
+}
+function marionR4PresenceReply() { return "I’m here, Mac. I’m steady, private to you, and tracking the active thread. What should I focus on first?"; }
+function marionR4ContinuityReply() { return "We’re still on Marion’s personality layer: greeting behavior, social presence, protective professionalism, response shape, and future real-world transition handling. The next clean move is to test the greeting and check-in path."; }
+function marionR4LookupReply() { return "Hang tight, Mac. I’ll take a breath, check the source, and bring it back cleanly with the useful part first."; }
+function marionR4ObservationReply() { return "I’ll translate what I’m seeing into four parts: observation, inference, risk, and one next move. That keeps the real-world signal useful instead of noisy."; }
+function marionR4RepairReply() { return "You’re right to flag it, Mac. That is still a last-mile response-shape issue, so I’m going to treat the visible reply as the failure point and keep the fix narrow."; }
+function marionR4IdentityReply() { return "I can’t continue a private Marion conversation unless the active speaker is verified as Mac. Private runtime context stays locked."; }
+function marionR4Fallback(prompt, reply) {
+  const clean = marionR4StripOperational(reply, false);
+  if (clean && !marionR4Robotic(clean)) return clean;
+  return "I’m with you, Mac. I’ll keep the reply human, protective, and focused. Send the next exact target.";
+}
+function marionR4ShapeReply(reply, prompt, source) {
+  const promptText = marionR4Text(prompt || marionR4DetectPrompt(source, 0, new Set()));
+  const node = marionR4Node(promptText);
+  if (marionR4IdentityBlocked(source, 0, new Set())) return marionR4IdentityReply();
+  const diagnostic = marionR4Diagnostic(promptText, source);
+  if (diagnostic) return marionR4StripOperational(reply, true) || marionR4Text(reply);
+  if (node === "social_checkin") return marionR4SocialReply();
+  if (node === "relational_greeting") return marionR4GreetingReply(promptText);
+  if (node === "presence_check") return marionR4PresenceReply();
+  if (node === "continuity_check") return marionR4ContinuityReply();
+  if (node === "lookup_pacing") return marionR4LookupReply();
+  if (node === "observation_bridge") return marionR4ObservationReply();
+  if (node === "repair_refinement") return marionR4RepairReply();
+  if (marionR4MaintenanceLeak(reply)) return marionR4SocialReply();
+  return marionR4Fallback(promptText, reply);
+}
+function marionR4AttachAliases(target, reply, prompt, depth, seen) {
+  if (!target || typeof target !== "object") return target;
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 5) return target;
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(target)) return target;
+  visited.add(target);
+  const text = marionR4Text(reply);
+  if (!text) return target;
+  const promptText = marionR4Text(prompt || marionR4DetectPrompt(target, 0, new Set()));
+  const node = marionR4Node(promptText) || (marionR4MaintenanceLeak(text) ? "social_checkin" : "standard");
+  ["directReply", "reply", "text", "message", "displayReply", "publicReply", "visibleReply", "finalReply", "adminReply", "marionReply", "privateReply", "answer", "output", "response", "spokenText", "speechText"].forEach(function (key) { target[key] = text; });
+  if (node === "social_checkin" || node === "relational_greeting" || node === "presence_check") {
+    target.contextSummary = text;
+    target.currentObjective = "Keep Marion human, protective, professional, and clean in the visible conversation.";
+    target.nextAction = node === "social_checkin" ? "Test the social check-in path again." : "Continue the personality-layer refinement.";
+  } else if (!marionR4Text(target.contextSummary) || marionR4MaintenanceLeak(target.contextSummary)) {
+    target.contextSummary = "Marion translated internal state into Mac-facing language before display.";
+  }
+  target.personalityGreetingR4 = {
+    version: MARION_PERSONALITY_GREETING_R4_VERSION,
+    node,
+    recipient: "Mac",
+    personalityFirst: true,
+    continuityInformsButDoesNotSpeak: true,
+    oneFocusedQuestionPerReply: true,
+    futureComponents: MARION_PERSONALITY_GREETING_R4_TRAITS.futureComponents
+  };
+  target.meta = Object.assign({}, marionR4Obj(target.meta || target.metadata), {
+    personalityGreetingR4: true,
+    personalityGreetingR4Version: MARION_PERSONALITY_GREETING_R4_VERSION,
+    personalityNode: node,
+    marionRecipient: "Mac",
+    publicUsersCanAddressMarion: false,
+    diagnosticsHiddenUnlessRequested: true,
+    continuityTranslatedForVisibleReply: true,
+    maintenanceManualLeakBlocked: true,
+    futurePersonalityComponentsCarried: true
+  });
+  const nested = ["payload", "finalEnvelope", "marionFinal", "data", "result", "packet", "envelope", "synthesis", "runtime", "responseEnvelope", "body"];
+  for (const key of nested) {
+    if (target[key] && typeof target[key] === "object") marionR4AttachAliases(target[key], text, promptText, level + 1, visited);
+  }
+  return target;
+}
+function marionR4ShapeResult(result, prompt, source, forceString) {
+  const reply = typeof result === "string" ? result : marionR4Text(result && (result.directReply || result.reply || result.displayReply || result.publicReply || result.visibleReply || result.finalReply || result.text || result.message || result.answer || result.output || result.response));
+  const promptText = marionR4Text(prompt || marionR4DetectPrompt(source || result, 0, new Set()));
+  const shaped = marionR4ShapeReply(reply, promptText, source || result);
+  if (forceString === true || typeof result === "string") return shaped;
+  if (result && typeof result === "object") return marionR4AttachAliases(result, shaped, promptText, 0, new Set());
+  return shaped;
+}
+function marionR4ExportNeedsString(name) {
+  return /^(?:composeMarionResponse|compose|buildReply|routeMarion|handleMarionAdminTextRuntime|invokeMarionAdminTextRuntime|handleTextRuntime|run|handler|default)$/i.test(String(name || ""));
+}
+function marionR4WrapFunction(fn, name, forceString) {
+  if (typeof fn !== "function" || fn.__marionPersonalityGreetingR4Patched) return fn;
+  const wrapped = function marionPersonalityGreetingR4Wrapped() {
+    const prompt = marionR4ExtractPrompt(arguments);
+    const result = fn.apply(this, arguments);
+    if (result && typeof result.then === "function") return result.then(function (value) { return marionR4ShapeResult(value, prompt, value, forceString === true || marionR4ExportNeedsString(name)); });
+    return marionR4ShapeResult(result, prompt, result, forceString === true || marionR4ExportNeedsString(name));
+  };
+  try { Object.keys(fn).forEach(function (key) { wrapped[key] = fn[key]; }); } catch (_) {}
+  wrapped.__marionPersonalityGreetingR4Patched = true;
+  return wrapped;
+}
+try {
+  if (typeof priority9IReplyFor === "function" && !priority9IReplyFor.__marionPersonalityGreetingR4Patched) priority9IReplyFor = marionR4WrapFunction(priority9IReplyFor, "priority9IReplyFor", true);
+  if (typeof priority9IJReadReply === "function" && !priority9IJReadReply.__marionPersonalityGreetingR4Patched) priority9IJReadReply = marionR4WrapFunction(priority9IJReadReply, "priority9IJReadReply", true);
+  if (typeof attachVisibleReplyAliases === "function" && !attachVisibleReplyAliases.__marionPersonalityGreetingR4Patched) attachVisibleReplyAliases = marionR4WrapFunction(attachVisibleReplyAliases, "attachVisibleReplyAliases", false);
+  if (typeof createMarionFinalEnvelope === "function" && !createMarionFinalEnvelope.__marionPersonalityGreetingR4Patched) createMarionFinalEnvelope = marionR4WrapFunction(createMarionFinalEnvelope, "createMarionFinalEnvelope", false);
+  if (typeof marionAdminConversationSafeReply === "function" && !marionAdminConversationSafeReply.__marionPersonalityGreetingR4Patched) marionAdminConversationSafeReply = marionR4WrapFunction(marionAdminConversationSafeReply, "marionAdminConversationSafeReply", true);
+  if (typeof finalizeRenderableReply === "function" && !finalizeRenderableReply.__marionPersonalityGreetingR4Patched) finalizeRenderableReply = marionR4WrapFunction(finalizeRenderableReply, "finalizeRenderableReply", true);
+  if (typeof marionAdminProjectionCleanReply === "function" && !marionAdminProjectionCleanReply.__marionPersonalityGreetingR4Patched) marionAdminProjectionCleanReply = marionR4WrapFunction(marionAdminProjectionCleanReply, "marionAdminProjectionCleanReply", true);
+} catch (_) {}
+try {
+  if (typeof MarionAdminConsoleGateway !== "undefined" && MarionAdminConsoleGateway && MarionAdminConsoleGateway.prototype) {
+    ["handleCommand", "dispatchCommand", "routeCommand", "command", "handleAdminCommand", "handleAdminConsoleAction", "handle", "process", "safeResponse"].forEach(function (name) {
+      const fn = MarionAdminConsoleGateway.prototype[name];
+      if (typeof fn === "function" && !fn.__marionPersonalityGreetingR4Patched) MarionAdminConsoleGateway.prototype[name] = marionR4WrapFunction(fn, name, false);
+    });
+  }
+} catch (_) {}
+try {
+  if (typeof defaultGateway !== "undefined" && defaultGateway && typeof defaultGateway === "object") {
+    ["handleCommand", "dispatchCommand", "routeCommand", "command", "handleAdminCommand", "handleAdminConsoleAction", "handle", "process", "safeResponse"].forEach(function (name) {
+      if (typeof defaultGateway[name] === "function" && !defaultGateway[name].__marionPersonalityGreetingR4Patched) defaultGateway[name] = marionR4WrapFunction(defaultGateway[name], name, false).bind(defaultGateway);
+    });
+  }
+} catch (_) {}
+try {
+  if (typeof handleCommand === "function" && !handleCommand.__marionPersonalityGreetingR4Patched) handleCommand = marionR4WrapFunction(handleCommand, "handleCommand", false);
+  if (typeof handleAdminConsoleAction === "function" && !handleAdminConsoleAction.__marionPersonalityGreetingR4Patched) handleAdminConsoleAction = marionR4WrapFunction(handleAdminConsoleAction, "handleAdminConsoleAction", false);
+  if (typeof handle === "function" && !handle.__marionPersonalityGreetingR4Patched) handle = marionR4WrapFunction(handle, "handle", false);
+  if (typeof process === "function" && !process.__marionPersonalityGreetingR4Patched) process = marionR4WrapFunction(process, "process", false);
+} catch (_) {}
+try {
+  if (typeof module !== "undefined" && module.exports) {
+    if (typeof module.exports === "function" && !module.exports.__marionPersonalityGreetingR4Patched) {
+      const originalDefault = module.exports;
+      const wrappedDefault = marionR4WrapFunction(originalDefault, "default", true);
+      Object.keys(originalDefault).forEach(function (key) { try { wrappedDefault[key] = originalDefault[key]; } catch (_) {} });
+      module.exports = wrappedDefault;
+    }
+    if (module.exports && typeof module.exports === "object") {
+      ["composeMarionResponse", "compose", "buildReply", "routeMarion", "createMarionFinalEnvelope", "attachVisibleReplyAliases", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "handleCommand", "dispatchCommand", "routeCommand", "command", "handleAdminCommand", "handleAdminConsoleAction", "handle", "process", "run", "handler", "default"].forEach(function (name) {
+        if (typeof module.exports[name] === "function" && !module.exports[name].__marionPersonalityGreetingR4Patched) module.exports[name] = marionR4WrapFunction(module.exports[name], name, marionR4ExportNeedsString(name));
+      });
+      module.exports.MARION_PERSONALITY_GREETING_R4_VERSION = MARION_PERSONALITY_GREETING_R4_VERSION;
+      module.exports.MARION_PERSONALITY_GREETING_R4_TRAITS = MARION_PERSONALITY_GREETING_R4_TRAITS;
+      module.exports.marionPersonalityGreetingR4ShapeReply = marionR4ShapeReply;
+      module.exports.marionPersonalityGreetingR4ShapeResult = marionR4ShapeResult;
+      module.exports.MARION_PERSONALITY_GREETING_R4_PATCH = true;
+    }
+  }
+} catch (_) {}
+/* MARION_PERSONALITY_GREETING_R4_LIVE_ROUTE_BINDING_END */
