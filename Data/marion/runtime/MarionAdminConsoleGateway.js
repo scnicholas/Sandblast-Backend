@@ -12,7 +12,7 @@
  * - Keeps emergency execution locked behind CONFIRM_MARION_EMERGENCY.
  */
 
-const VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + marion.adminConsole.gateway/1.4-admin-private-voice-receive";
+const VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + marion.adminConsole.gateway/1.4-admin-private-voice-receive";
 const EMERGENCY_CONFIRMATION = "CONFIRM_MARION_EMERGENCY";
 
 const DEFAULT_STATUS = Object.freeze({
@@ -2274,3 +2274,184 @@ function priority9JR1APatchExports(names) {
 }
 priority9JR1APatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_END */
+
+
+/* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_START */
+const PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD";
+function priority9JR1BString(value) {
+  if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
+  if (value == null) return "";
+  if (typeof value === "number" || typeof value === "boolean") return String(value).replace(/\s+/g, " ").trim();
+  return "";
+}
+function priority9JR1BIsBadVisible(value) {
+  const t = priority9JR1BString(value);
+  return !t || /^\s*(?:\[object object\]|undefined|null|false|true)\s*$/i.test(t);
+}
+function priority9JR1BObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function priority9JR1BDetectPromptFromValue(value, depth, seen) {
+  if (typeof priority9JR1AExtractTextFromValue === "function") {
+    const direct = priority9JR1AExtractTextFromValue(value);
+    if (direct && !priority9JR1BIsBadVisible(direct)) return direct;
+  }
+  if (!value || typeof value !== "object") return "";
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 7) return "";
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+  const keys = ["prompt","userText","rawUserText","input","query","commandText","message","text","transcript","currentPrompt","lastPrompt"];
+  for (const key of keys) {
+    const item = value[key];
+    const s = priority9JR1BString(item);
+    if (s && !priority9JR1BIsBadVisible(s)) return s;
+  }
+  const nestedKeys = ["payload","body","command","meta","metadata","result","request","data","finalEnvelope"];
+  for (const key of nestedKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BDetectPromptFromValue(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function priority9JR1BVisibleFromObject(value, depth, seen) {
+  if (typeof value === "string") {
+    const s = priority9JR1BString(value);
+    return priority9JR1BIsBadVisible(s) ? "" : s;
+  }
+  if (!value || typeof value !== "object") return "";
+  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
+  if (level > 10) return "";
+  const visited = seen instanceof Set ? seen : new Set();
+  if (visited.has(value)) return "";
+  visited.add(value);
+  const priorityKeys = [
+    "visibleReply","publicReply","finalReply","displayReply","adminReply","marionReply","privateReply",
+    "reply","response","text","message","answer","output","final","finalAnswer","spokenText","speechText"
+  ];
+  for (const key of priorityKeys) {
+    const item = value[key];
+    if (typeof item === "string") {
+      const s = priority9JR1BString(item);
+      if (s && !priority9JR1BIsBadVisible(s)) return s;
+    }
+  }
+  for (const key of priorityKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  const nestedKeys = ["finalEnvelope","marionFinal","synthesis","payload","result","data","packet","envelope","message","reply","response","text","output","final"];
+  for (const key of nestedKeys) {
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  for (const key of Object.keys(value)) {
+    if (priorityKeys.indexOf(key) !== -1 || nestedKeys.indexOf(key) !== -1) continue;
+    const item = value[key];
+    if (item && typeof item === "object") {
+      const found = priority9JR1BVisibleFromObject(item, level + 1, visited);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+function priority9JR1BVisibleReply(value, prompt) {
+  const promptText = priority9JR1BString(prompt) || priority9JR1BDetectPromptFromValue(value, 0, new Set());
+  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
+  if (forced && !priority9JR1BIsBadVisible(forced)) return forced;
+  const direct = priority9JR1BVisibleFromObject(value, 0, new Set());
+  if (direct && !priority9JR1BIsBadVisible(direct)) return direct;
+  return "";
+}
+function priority9JR1BPopulateVisibleFields(target, reply, prompt) {
+  if (!target || typeof target !== "object" || !reply) return target;
+  const command = (typeof priority9JR1ADetectCommand === "function") ? priority9JR1ADetectCommand(prompt || "") : "";
+  ["reply","response","text","message","final","publicReply","visibleReply","finalReply","displayReply","output","answer"].forEach(function(key) {
+    target[key] = reply;
+  });
+  target.priority = "9J-R1B";
+  target.lane = "priority9j_proactive_operational_guidance";
+  target.operationalCommand = command || target.operationalCommand || "";
+  target.decisionSpecificAuthority = true;
+  target.objectReplySerializationGuard = true;
+  target.noObjectVisibleReply = true;
+  const meta = Object.assign({}, priority9JR1BObject(target.meta), {
+    hotfix: PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION,
+    priority: "9J-R1B",
+    lane: "priority9j_proactive_operational_guidance",
+    operationalCommand: command || target.operationalCommand || "",
+    decisionSpecificAuthority: true,
+    objectReplySerializationGuard: true,
+    noObjectVisibleReply: true,
+    noUserFacingDiagnostics: true
+  });
+  target.meta = meta;
+  const nestedKeys = ["finalEnvelope","result","payload","marionFinal","synthesis","data","packet"];
+  nestedKeys.forEach(function(key) {
+    if (target[key] && typeof target[key] === "object") {
+      target[key] = priority9JR1BPopulateVisibleFields(Array.isArray(target[key]) ? target[key].slice() : Object.assign({}, target[key]), reply, prompt);
+    }
+  });
+  return target;
+}
+function priority9JR1BApply(result, prompt, mode) {
+  const promptText = priority9JR1BString(prompt) || priority9JR1BDetectPromptFromValue(result, 0, new Set());
+  const reply = priority9JR1BVisibleReply(result, promptText);
+  if (!reply) return result;
+  if (mode === "string") return reply;
+  if (!result || typeof result !== "object") return reply;
+  const out = Array.isArray(result) ? result.slice() : Object.assign({}, result);
+  return priority9JR1BPopulateVisibleFields(out, reply, promptText);
+}
+function priority9JR1BExportNeedsString(name) {
+  return /^(?:handleMarionAdminTextRuntime|invokeMarionAdminTextRuntime|handleTextRuntime|handler|run|default|composeMarionResponse|compose|buildReply|routeMarion)$/i.test(String(name || ""));
+}
+function priority9JR1BWrapExport(name) {
+  if (typeof module === "undefined" || !module.exports) return;
+  const obj = module.exports && typeof module.exports === "object" ? module.exports : null;
+  const fn = obj && typeof obj[name] === "function" ? obj[name] : null;
+  if (!fn || fn.__priority9JR1BObjectReplySerializationGuardPatched) return;
+  obj[name] = function priority9JR1BObjectReplySerializationGuardWrappedExport() {
+    const prompt = (typeof priority9JR1AExtractPrompt === "function" ? priority9JR1AExtractPrompt(arguments) : "") || priority9JR1BDetectPromptFromValue(arguments && arguments[0], 0, new Set());
+    const result = fn.apply(this, arguments);
+    const mode = priority9JR1BExportNeedsString(name) ? "string" : "object";
+    if (result && typeof result.then === "function") return result.then(function(value) { return priority9JR1BApply(value, prompt, mode); });
+    return priority9JR1BApply(result, prompt, mode);
+  };
+  obj[name].__priority9JR1BObjectReplySerializationGuardPatched = true;
+}
+function priority9JR1BPatchExports(names) {
+  if (typeof module === "undefined" || !module.exports) return;
+  if (typeof module.exports === "function" && !module.exports.__priority9JR1BObjectReplySerializationGuardPatched) {
+    const originalDefault = module.exports;
+    const wrappedDefault = function priority9JR1BObjectReplySerializationGuardWrappedDefault() {
+      const prompt = (typeof priority9JR1AExtractPrompt === "function" ? priority9JR1AExtractPrompt(arguments) : "") || priority9JR1BDetectPromptFromValue(arguments && arguments[0], 0, new Set());
+      const result = originalDefault.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function(value) { return priority9JR1BApply(value, prompt, "string"); });
+      return priority9JR1BApply(result, prompt, "string");
+    };
+    Object.keys(originalDefault).forEach(function(k){ try { wrappedDefault[k] = originalDefault[k]; } catch (_) {} });
+    wrappedDefault.__priority9JR1BObjectReplySerializationGuardPatched = true;
+    module.exports = wrappedDefault;
+  }
+  (Array.isArray(names) ? names : []).forEach(priority9JR1BWrapExport);
+  if (module.exports && typeof module.exports === "object") {
+    module.exports.PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION = PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_VERSION;
+    module.exports.priority9JR1BObjectReplySerializationGuardFinal = priority9JR1BApply;
+    module.exports.priority9JR1BVisibleReply = priority9JR1BVisibleReply;
+    module.exports.PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_PATCH = true;
+  }
+}
+priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
+/* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
+
