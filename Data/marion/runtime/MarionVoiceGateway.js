@@ -1319,3 +1319,163 @@ const __priority9FR3VoiceOriginalHandleMarionAdminConversation=handleMarionAdmin
 handleMarionAdminConversation=async function priority9FR3HandleMarionAdminConversation(input,options){const payload=input&&typeof input==='object'?input:{text:String(input||'')};const prompt=safeText(payload.text||payload.message||payload.query||payload.input||payload.transcript||'');const out=await __priority9FR3VoiceOriginalHandleMarionAdminConversation(input,options);const reply=firstReplyText(out)||directReplyText(out);if(priority9FR3VoiceLayeredPrompt(prompt)&&(priority9FR3VoicePromptEcho(reply,prompt)||!reply)){return priority9FR3VoiceAttach(out,priority9FR3VoiceReply());}return out;};
 module.exports.PRIORITY_9F_R3_VOICE_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION=PRIORITY_9F_R3_VOICE_GATEWAY_ALT_PROMPT_ECHO_SUPPRESSION_VERSION;module.exports.handleMarionAdminConversation=handleMarionAdminConversation;
 // PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_VOICE_GATEWAY_PATCH_END
+
+
+// MARION_PERSONALITY_PRIORITY_R2_VOICE_GATEWAY_START
+// Continues Marion's personality layer into the private text/voice lane while
+// preventing general admin verification from becoming voice-delivery proof.
+const MARION_PERSONALITY_PRIORITY_R2_VOICE_GATEWAY_VERSION = 'nyx.marion.personalityPriorityR2.voiceGateway/1.0';
+function marionPersonalityR2VoiceText(value) {
+  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+function marionPersonalityR2VoicePromptFrom(value) {
+  const src = value && typeof value === 'object' ? value : { text: String(value || '') };
+  const payload = src.payload && typeof src.payload === 'object' ? src.payload : {};
+  return marionPersonalityR2VoiceText(src.transcript || src.text || src.message || src.query || src.input || src.prompt || payload.transcript || payload.text || payload.message || payload.prompt || '');
+}
+function marionPersonalityR2VoiceGreetingKind(prompt) {
+  const text = marionPersonalityR2VoiceText(prompt).toLowerCase().replace(/[.!?]+$/g, '').trim();
+  if (/^(good\s+morning|morning)(?:\s+(?:marion|mac))?$/.test(text)) return 'morning';
+  if (/^(good\s+afternoon|afternoon)(?:\s+(?:marion|mac))?$/.test(text)) return 'afternoon';
+  if (/^(good\s+evening|evening)(?:\s+(?:marion|mac))?$/.test(text)) return 'evening';
+  if (/^(hello|hi|hey|hiya)(?:\s+(?:marion|mac))?$/.test(text)) return 'hello';
+  return '';
+}
+function marionPersonalityR2VoiceGreetingReply(prompt) {
+  const kind = marionPersonalityR2VoiceGreetingKind(prompt);
+  if (!kind) return '';
+  const opener = kind === 'morning' ? 'Good morning, Mac.' : kind === 'afternoon' ? 'Good afternoon, Mac.' : kind === 'evening' ? 'Good evening, Mac.' : 'Hello, Mac.';
+  return `${opener} I’m here with you. Marion is staying private to you, carrying the thread, and keeping the tone professional, protective, and human. What should we tighten next?`;
+}
+function marionPersonalityR2StrictAdminVoiceProof(input, options) {
+  const payload = input && typeof input === 'object' ? input : {};
+  const opts = options && typeof options === 'object' ? options : {};
+  const payloadVoice = payload.voice && typeof payload.voice === 'object' ? payload.voice : {};
+  const output = opts.output && typeof opts.output === 'object' ? opts.output : {};
+  const authorization = opts.authorization && typeof opts.authorization === 'object' ? opts.authorization : {};
+  const context = opts.context && typeof opts.context === 'object' ? opts.context : {};
+  const contextVoice = context.voice && typeof context.voice === 'object' ? context.voice : {};
+  return payload.adminVoiceRuntimeApproval === true ||
+    payload.adminVoiceDeliveryAllowed === true ||
+    payload.adminVoiceVerified === true ||
+    payload.adminVoiceTokenVerified === true ||
+    payloadVoice.adminVoiceRuntimeApproval === true ||
+    payloadVoice.adminVoiceDeliveryAllowed === true ||
+    opts.adminVoiceRuntimeApproval === true ||
+    opts.adminVoiceDeliveryAllowed === true ||
+    opts.adminVoiceVerified === true ||
+    opts.adminVoiceTokenVerified === true ||
+    output.adminVoiceRuntimeApproval === true ||
+    output.adminVoiceDeliveryAllowed === true ||
+    output.adminVoiceVerified === true ||
+    output.adminVoiceTokenVerified === true ||
+    authorization.adminVoiceRuntimeApproval === true ||
+    authorization.adminVoiceDeliveryAllowed === true ||
+    authorization.adminVoiceVerified === true ||
+    authorization.adminVoiceTokenVerified === true ||
+    context.adminVoiceRuntimeApproval === true ||
+    context.adminVoiceDeliveryAllowed === true ||
+    context.adminVoiceVerified === true ||
+    context.adminVoiceTokenVerified === true ||
+    contextVoice.adminVoiceRuntimeApproval === true ||
+    contextVoice.adminVoiceDeliveryAllowed === true;
+}
+function marionPersonalityR2VoiceDiagnosticAllowed(prompt) {
+  return /\b(diagnostic mode|debug mode|explain the priority|show the priority|what priority|priority\s+[0-9a-z]|trace|runtime diagnostic)\b/i.test(marionPersonalityR2VoiceText(prompt));
+}
+function marionPersonalityR2VoiceSanitize(reply, prompt) {
+  let text = marionPersonalityR2VoiceText(reply);
+  if (!text) return '';
+  if (!marionPersonalityR2VoiceDiagnosticAllowed(prompt)) {
+    text = text
+      .replace(/[^.?!]*(?:Priority\s*9[A-Z0-9-]*|mission thread|pressure prompt|runtime handler|routeKind|speechHints|presenceProfile|replyAuthority|sessionPatch|finalEnvelope|state spine|progression shaping|diagnostic packet|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_\d{4}_\d{2}_\d{2})[^.?!]*[.?!]?/gi, ' ')
+      .replace(/\b(?:9I|9J|9H)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  text = text
+    .replace(/\bLet me assist you with that\b/gi, 'Let me take a look at this for you')
+    .replace(/\bHow may I assist you\??\b/gi, 'What should we handle next?')
+    .replace(/\bI am here to assist\b/gi, 'I’m here with you')
+    .replace(/\butilize\b/gi, 'use')
+    .replace(/\bfacilitate\b/gi, 'help')
+    .replace(/\bin order to\b/gi, 'to')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const qCount = (text.match(/\?/g) || []).length;
+  if (qCount > 1) {
+    let seen = false;
+    text = text.split(/(?<=[?])\s+/).map((part) => {
+      if (!part.includes('?')) return part;
+      if (!seen) { seen = true; return part; }
+      return part.replace(/\?/g, '.');
+    }).join(' ').replace(/\s+/g, ' ').trim();
+  }
+  return text;
+}
+function marionPersonalityR2VoiceApply(packet, prompt, input, options) {
+  const out = packet && typeof packet === 'object' ? packet : { reply: marionPersonalityR2VoiceText(packet) };
+  const current = firstReplyText(out) || directReplyText(out) || out.reply || '';
+  const shaped = marionPersonalityR2VoiceGreetingReply(prompt) || marionPersonalityR2VoiceSanitize(current, prompt) || 'I’m with you, Mac. Marion stayed protected, but that turn did not produce a clean response. Send the exact target and I’ll keep it tight.';
+  ['reply', 'text', 'message', 'displayReply', 'publicReply', 'visibleReply', 'finalReply', 'answer', 'output', 'response'].forEach((key) => { out[key] = shaped; });
+  out.payload = Object.assign({}, out.payload && typeof out.payload === 'object' ? out.payload : {}, { reply: shaped, text: shaped, message: shaped, displayReply: shaped, publicReply: shaped, visibleReply: shaped, finalReply: shaped });
+  out.finalEnvelope = Object.assign({}, out.finalEnvelope && typeof out.finalEnvelope === 'object' ? out.finalEnvelope : {}, { reply: shaped, text: shaped, message: shaped, displayReply: shaped, publicReply: shaped, visibleReply: shaped, finalReply: shaped, final: true, marionFinal: true });
+  const strictVoiceAllowed = marionPersonalityR2StrictAdminVoiceProof(input, options) === true;
+  const voice = out.voice && typeof out.voice === 'object' ? out.voice : {};
+  out.voice = Object.assign({}, voice, {
+    adminOnlyVoiceDelivery: true,
+    adminVoiceDeliveryAllowed: strictVoiceAllowed,
+    adminVoiceRuntimeApproval: strictVoiceAllowed && (voice.adminVoiceRuntimeApproval === true || (input && input.adminVoiceRuntimeApproval === true)),
+    speakAllowed: strictVoiceAllowed && Boolean(shaped),
+    voiceMode: strictVoiceAllowed && shaped ? 'voice' : 'silent',
+    rawVoiceMode: strictVoiceAllowed && shaped ? 'voice' : 'silent',
+    projectedVoiceMode: strictVoiceAllowed && shaped ? 'voice' : 'silent',
+    spokenText: strictVoiceAllowed ? shaped : '',
+    speechText: strictVoiceAllowed ? shaped : '',
+    privateVoiceDelivery: strictVoiceAllowed,
+    deliveryChannel: strictVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
+    audioStored: false,
+    rawAudioStored: false,
+    noRawAudioStored: true,
+    speechSyncEnabled: strictVoiceAllowed && Boolean(shaped)
+  });
+  out.privateVoiceDelivery = strictVoiceAllowed;
+  out.adminVoiceDeliveryAllowed = strictVoiceAllowed;
+  out.deliveryChannel = strictVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface';
+  out.personalityPriorityR2 = {
+    version: MARION_PERSONALITY_PRIORITY_R2_VOICE_GATEWAY_VERSION,
+    persona: 'professional_protective_mac_facing',
+    macOnly: true,
+    oneQuestionPerTurn: true,
+    strictVoiceProofRequired: true
+  };
+  out.meta = Object.assign({}, out.meta && typeof out.meta === 'object' ? out.meta : {}, {
+    personalityPriorityR2: true,
+    personalityPriorityR2Version: MARION_PERSONALITY_PRIORITY_R2_VOICE_GATEWAY_VERSION,
+    marionRecipient: 'Mac',
+    publicUsersCanAddressMarion: false,
+    strictVoiceProofRequired: true,
+    adminVoiceDeliveryAllowed: strictVoiceAllowed,
+    noUserFacingDiagnostics: true
+  });
+  return out;
+}
+try {
+  if (typeof buildAdminTextDeterministicReply === 'function' && !buildAdminTextDeterministicReply.__marionPersonalityPriorityR2Patched) {
+    const __marionPersonalityR2OriginalBuildAdminTextDeterministicReply = buildAdminTextDeterministicReply;
+    buildAdminTextDeterministicReply = function marionPersonalityPriorityR2BuildAdminTextDeterministicReply(prompt) {
+      return marionPersonalityR2VoiceGreetingReply(prompt) || __marionPersonalityR2OriginalBuildAdminTextDeterministicReply(prompt);
+    };
+    buildAdminTextDeterministicReply.__marionPersonalityPriorityR2Patched = true;
+  }
+  const __marionPersonalityR2OriginalHandleMarionAdminConversation = module.exports.handleMarionAdminConversation || handleMarionAdminConversation;
+  handleMarionAdminConversation = async function marionPersonalityPriorityR2HandleMarionAdminConversation(input, options) {
+    const prompt = marionPersonalityR2VoicePromptFrom(input);
+    const result = await __marionPersonalityR2OriginalHandleMarionAdminConversation(input, options);
+    return marionPersonalityR2VoiceApply(result, prompt, input, options);
+  };
+  module.exports.handleMarionAdminConversation = handleMarionAdminConversation;
+  module.exports.MARION_PERSONALITY_PRIORITY_R2_VOICE_GATEWAY_VERSION = MARION_PERSONALITY_PRIORITY_R2_VOICE_GATEWAY_VERSION;
+  module.exports.marionPersonalityR2StrictAdminVoiceProof = marionPersonalityR2StrictAdminVoiceProof;
+} catch (_) {}
+// MARION_PERSONALITY_PRIORITY_R2_VOICE_GATEWAY_END
