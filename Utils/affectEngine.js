@@ -841,3 +841,6 @@ module.exports = {
   extractConversationPackSignals,
   applyPackCohesionToAffectState
 };
+
+/* R17A: affect continuity hint */
+(function(){try{const V="affectEngine/R17A-continuity";function t(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function n(v){return t(v).toLowerCase()}function emo(v){v=n(v);if(/frustr|stuck|annoyed|tired/.test(v))return"steady_repair";if(/pass|good|held/.test(v))return"confident_continuation";if(/still there|are you there/.test(v))return"reassuring_presence";return"warm_focus"}const old=module.exports.runAffectEngine;if(typeof old==="function"){module.exports.runAffectEngine=function(input,opts){const out=old.apply(this,arguments);if(out&&typeof out==="object"){const e=emo([input&&input.text,input&&input.prompt,input&&input.assistantDraft].join(" "));out.r17aContinuity={version:V,emotionalContinuity:e,naturalContinuation:true,responseVariation:true};out.affectState=Object.assign({},out.affectState||{},{r17aEmotion:e});out.unifiedTurn=Object.assign({},out.unifiedTurn||{},{r17aContinuity:e});}return out};}module.exports.MARION_R17A_AFFECT_VERSION=V;}catch(_){}})();
