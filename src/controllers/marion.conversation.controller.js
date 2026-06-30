@@ -2,7 +2,7 @@ import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js"
 import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
 import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
 
-const CONTROLLER_VERSION = "1.3.0-r17b";
+const CONTROLLER_VERSION = "1.4.0-r17c-stability";
 const DEFAULT_GUARDIAN = "marion";
 const DEFAULT_MODE = "admin_dialogue";
 const DEFAULT_ROUTE = "marion.admin.runtime";
@@ -40,7 +40,7 @@ function safeError(error) {
   const data = error.data && typeof error.data === "object" ? error.data : null;
   return {
     name: cleanText(error.name || "RuntimeError", 80),
-    message: cleanText(error.message || data?.message || data?.error || "Runtime call failed.", 500),
+    message: cleanText(error.message || data?.message || data?.error || "The turn did not complete cleanly.", 500),
     status: error.status || data?.status || null,
     code: data?.code || data?.error || null
   };
@@ -62,7 +62,11 @@ function ensurePacketShape(packet = {}, fallback = {}) {
     timestamp: cleanText(packet.timestamp || fallback.timestamp || nowIso(), 80),
     route: cleanText(packet.route || fallback.route || DEFAULT_ROUTE, 120),
     rawRuntimeAvailable: packet.rawRuntimeAvailable !== false,
-    controllerVersion: CONTROLLER_VERSION
+    controllerVersion: CONTROLLER_VERSION,
+    r17cStability: true,
+    voiceTextParity: true,
+    longSessionStressGuard: true,
+    finalBaseline: "r16m-r17b"
   };
 }
 
@@ -86,6 +90,10 @@ function applyR17AContinuity(packet, input, memory = {}) {
   shaped.microPersonality = "steady_mac_facing";
   shaped.longSessionCoherence = turns >= 8 ? "active" : "priming";
   shaped.turnRhythm = `${shaped.conversationPacing}:${turns}`;
+  shaped.fullRegressionConsolidation = true;
+  shaped.voiceTextParity = true;
+  shaped.longSessionStressGuard = turns >= 12 ? "active" : "priming";
+  shaped.finalBaseline = "r16m-r17b";
   shaped.contextSummary = cleanText(shaped.contextSummary || prior || "Conversation continuity is active.", 2000);
   shaped.currentObjective = cleanText(shaped.currentObjective || prior || "Keep Marion replies paced, natural, and coherent.", 1000);
   if (!shaped.nextAction || /review runtime|continue validation|inspect/i.test(shaped.nextAction)) shaped.nextAction = "Continue the same thread with steady pacing.";
@@ -112,11 +120,11 @@ function createRuntimeClientMissingPacket({ guardian, traceId, route }) {
   return ensurePacketShape({
     guardian,
     guardianMode: guardian,
-    directReply: "Marion cannot complete the turn because no runtime client was supplied.",
+    directReply: "I can't complete that turn yet, Mac. The live line is not connected.",
     contextSummary: "The conversation controller needs a runtimeClient function to reach Marion's backend/runtime route.",
     currentObjective: "Wire Marion conversation flow to the runtime client.",
     systemState: "blocked",
-    nextAction: "Pass a runtimeClient into handleMarionConversation before testing live turns.",
+    nextAction: "Reconnect the Marion runtime line before live turns.",
     riskLevel: "medium",
     approvalRequired: false,
     traceId,
