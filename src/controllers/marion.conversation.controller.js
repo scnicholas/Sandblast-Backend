@@ -2,7 +2,7 @@ import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js"
 import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
 import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
 
-const CONTROLLER_VERSION = "1.1.0";
+const CONTROLLER_VERSION = "1.2.0-r17a";
 const DEFAULT_GUARDIAN = "marion";
 const DEFAULT_MODE = "admin_dialogue";
 const DEFAULT_ROUTE = "marion.admin.runtime";
@@ -64,6 +64,26 @@ function ensurePacketShape(packet = {}, fallback = {}) {
     rawRuntimeAvailable: packet.rawRuntimeAvailable !== false,
     controllerVersion: CONTROLLER_VERSION
   };
+}
+
+
+function r17aKind(input) {
+  const t = cleanText(input, 600).toLowerCase();
+  if (/frustr|stuck|annoyed|tired|not working/.test(t)) return "strained";
+  if (/pass|good|held|works/.test(t)) return "positive";
+  if (/still there|are you there|you there/.test(t)) return "presence";
+  return "steady";
+}
+function applyR17AContinuity(packet, input, memory = {}) {
+  const shaped = ensurePacketShape(packet, { traceId: packet?.traceId });
+  const prior = cleanText(memory?.lastTopic || memory?.currentObjective || "", 600);
+  shaped.emotionalContinuity = r17aKind(`${input} ${shaped.directReply}`);
+  shaped.naturalContinuation = Boolean(prior || input);
+  shaped.responseVariation = true;
+  shaped.contextSummary = cleanText(shaped.contextSummary || prior || "Conversation continuity is active.", 2000);
+  shaped.currentObjective = cleanText(shaped.currentObjective || prior || "Keep Marion replies clear and connected.", 1000);
+  if (!shaped.nextAction || /review runtime|continue validation|inspect/i.test(shaped.nextAction)) shaped.nextAction = "Continue the same thread with a clear next reply.";
+  return shaped;
 }
 
 function createEmptyInputPacket({ guardian = DEFAULT_GUARDIAN, traceId = makeTraceId("marion") } = {}) {
@@ -149,7 +169,7 @@ export async function handleMarionConversation({
       source
     });
 
-    const packet = ensurePacketShape(adaptGuardianResponse(raw, fallback), fallback);
+    const packet = applyR17AContinuity(ensurePacketShape(adaptGuardianResponse(raw, fallback), fallback), cleanInput, memory);
 
     rememberTurn(activeGuardian, {
       input: cleanInput,
@@ -178,7 +198,7 @@ export async function handleMarionConversation({
     return packet;
   } catch (error) {
     const err = safeError(error);
-    const packet = ensurePacketShape(adaptGuardianResponse({
+    const packet = applyR17AContinuity(ensurePacketShape(adaptGuardianResponse({
       ok: false,
       guardian: activeGuardian,
       directReply: "Marion runtime hit a controller or backend failure. Review Output diagnostics before continuing.",
@@ -190,7 +210,7 @@ export async function handleMarionConversation({
       approvalRequired: false,
       traceId,
       error: err
-    }, fallback), fallback);
+    }, fallback), fallback), cleanInput, memory);
 
     rememberTurn(activeGuardian, {
       input: cleanInput,
