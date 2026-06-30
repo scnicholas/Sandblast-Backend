@@ -232,3 +232,6 @@ module.exports = {
   listGuardianMemory
 };
 module.exports.default = module.exports;
+
+/* R17A: memory continuity carry */
+(function(){try{const V="guardian.memory.bridge/R17A-continuity";function t(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function n(v){return t(v).toLowerCase()}function mood(v){v=n(v);if(/frustr|stuck|annoyed|tired|too many|not working/.test(v))return"strained";if(/pass|good|works|fixed/.test(v))return"positive";if(/still there|are you there/.test(v))return"presence_check";return"steady"}function topic(turn){turn=turn&&typeof turn==="object"?turn:{};return t(turn.topic||turn.currentObjective||turn.input||turn.prompt||turn.text).slice(0,700)}const old=module.exports.rememberTurn;module.exports.rememberTurn=function(g,turn,opt){turn=Object.assign({},turn||{});turn.emotionalContinuity=mood([turn.input,turn.reply,turn.nextAction].join(" "));turn.naturalContinuationTopic=topic(turn);turn.responseVariationKey=n(turn.reply||turn.decision||turn.nextAction).slice(0,160);return old.call(this,g,turn,opt)};module.exports.MARION_R17A_MEMORY_CARRY_VERSION=V;}catch(_){}})();
