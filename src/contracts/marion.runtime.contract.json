@@ -1,9 +1,9 @@
 {
   "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.6.0-r17b-pacing-personality-coherence",
+  "version": "1.7.0-r17c-stability-consolidation",
   "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks.",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging.",
   "requiredFields": [
     "guardian",
     "guardianMode",
@@ -42,7 +42,12 @@
     "conversationPacing": "",
     "microPersonality": "",
     "longSessionCoherence": false,
-    "turnRhythm": ""
+    "turnRhythm": "",
+    "fullRegressionConsolidation": false,
+    "voiceTextParity": false,
+    "longSessionStressGuard": false,
+    "finalBaseline": "",
+    "r17cStability": false
   },
   "allowedValues": {
     "guardian": [
@@ -117,7 +122,16 @@
     "longSessionCoherenceActive": true,
     "doNotFlattenLongSessions": true,
     "subtlePersonalityOnly": true,
-    "avoidSameSentenceRhythm": true
+    "avoidSameSentenceRhythm": true,
+    "r17cStabilityConsolidationActive": true,
+    "preserveR16MAntiRepeatLock": true,
+    "preserveR17AContinuityLock": true,
+    "preserveR17BPacingLock": true,
+    "voiceTextParityMustShareVisibleReplyPolicy": true,
+    "longSessionStressGuardActive": true,
+    "finalBaselinePackagingRequired": true,
+    "noRegressionToTestLanguage": true,
+    "noRegressionToInternalLabels": true
   },
   "security": {
     "redactKeys": [
@@ -275,7 +289,7 @@
       "preferredPhrases": [
         "Let me take a look at that for you.",
         "Hang tight a moment.",
-        "I’m going to separate the signal from the noise."
+        "I\u2019m going to separate the signal from the noise."
       ]
     },
     "conversationNodes": {
@@ -384,9 +398,9 @@
         "runtime state"
       ],
       "preferredTranslation": {
-        "The continuity foundation stays active.": "I’m steady, Mac. I’m still with the thread.",
+        "The continuity foundation stays active.": "I\u2019m steady, Mac. I\u2019m still with the thread.",
         "runtime context is active": "I remember where we are.",
-        "mission thread is active": "I’m still tracking the work with you."
+        "mission thread is active": "I\u2019m still tracking the work with you."
       }
     },
     "gapRefinementsAddressed": [
