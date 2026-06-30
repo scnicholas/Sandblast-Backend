@@ -2,7 +2,7 @@ import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js"
 import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
 import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
 
-const CONTROLLER_VERSION = "1.2.0-r17a";
+const CONTROLLER_VERSION = "1.3.0-r17b";
 const DEFAULT_GUARDIAN = "marion";
 const DEFAULT_MODE = "admin_dialogue";
 const DEFAULT_ROUTE = "marion.admin.runtime";
@@ -80,9 +80,15 @@ function applyR17AContinuity(packet, input, memory = {}) {
   shaped.emotionalContinuity = r17aKind(`${input} ${shaped.directReply}`);
   shaped.naturalContinuation = Boolean(prior || input);
   shaped.responseVariation = true;
+  const turns = Array.isArray(memory?.turns) ? memory.turns.length : 0;
+  const joined = cleanText(`${input} ${shaped.directReply}`, 1200).toLowerCase();
+  shaped.conversationPacing = /frustr|stuck|annoyed|tired/.test(joined) ? "slow_grounded" : /next|continue|keep going/.test(joined) ? "measured_forward" : /pass|good|held/.test(joined) ? "brief_confident" : "steady";
+  shaped.microPersonality = "steady_mac_facing";
+  shaped.longSessionCoherence = turns >= 8 ? "active" : "priming";
+  shaped.turnRhythm = `${shaped.conversationPacing}:${turns}`;
   shaped.contextSummary = cleanText(shaped.contextSummary || prior || "Conversation continuity is active.", 2000);
-  shaped.currentObjective = cleanText(shaped.currentObjective || prior || "Keep Marion replies clear and connected.", 1000);
-  if (!shaped.nextAction || /review runtime|continue validation|inspect/i.test(shaped.nextAction)) shaped.nextAction = "Continue the same thread with a clear next reply.";
+  shaped.currentObjective = cleanText(shaped.currentObjective || prior || "Keep Marion replies paced, natural, and coherent.", 1000);
+  if (!shaped.nextAction || /review runtime|continue validation|inspect/i.test(shaped.nextAction)) shaped.nextAction = "Continue the same thread with steady pacing.";
   return shaped;
 }
 
