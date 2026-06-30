@@ -1,9 +1,9 @@
 {
   "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.4.0-personality-social-presence-r3",
+  "version": "1.5.0-r17a-emotional-continuity",
   "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation.",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private.",
   "requiredFields": [
     "guardian",
     "guardianMode",
@@ -35,7 +35,10 @@
     "ethicalGate": {},
     "defensiveEscalation": {},
     "defensiveJustification": {},
-    "adapterVersion": ""
+    "adapterVersion": "",
+    "emotionalContinuity": "",
+    "naturalContinuation": false,
+    "responseVariation": false
   },
   "allowedValues": {
     "guardian": [
@@ -98,7 +101,13 @@
     "howAreYouMustNotReturnStatusScaffold": true,
     "visibleReplyMustSoundHumanProtectiveAndFocused": true,
     "singleForwardQuestionMaximum": true,
-    "observationsMustRemainActionableForMac": true
+    "observationsMustRemainActionableForMac": true,
+    "emotionalContinuityActive": true,
+    "naturalContinuationActive": true,
+    "responseVariationActive": true,
+    "shortPromptMustCarryTone": true,
+    "repeatedPromptsMustVaryNaturally": true,
+    "continuationMustUsePriorThread": true
   },
   "security": {
     "redactKeys": [
