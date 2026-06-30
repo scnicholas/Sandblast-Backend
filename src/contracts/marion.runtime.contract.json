@@ -1,9 +1,9 @@
 {
   "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.5.0-r17a-emotional-continuity",
+  "version": "1.6.0-r17b-pacing-personality-coherence",
   "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private.",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks.",
   "requiredFields": [
     "guardian",
     "guardianMode",
@@ -38,7 +38,11 @@
     "adapterVersion": "",
     "emotionalContinuity": "",
     "naturalContinuation": false,
-    "responseVariation": false
+    "responseVariation": false,
+    "conversationPacing": "",
+    "microPersonality": "",
+    "longSessionCoherence": false,
+    "turnRhythm": ""
   },
   "allowedValues": {
     "guardian": [
@@ -107,7 +111,13 @@
     "responseVariationActive": true,
     "shortPromptMustCarryTone": true,
     "repeatedPromptsMustVaryNaturally": true,
-    "continuationMustUsePriorThread": true
+    "continuationMustUsePriorThread": true,
+    "conversationPacingActive": true,
+    "microPersonalityActive": true,
+    "longSessionCoherenceActive": true,
+    "doNotFlattenLongSessions": true,
+    "subtlePersonalityOnly": true,
+    "avoidSameSentenceRhythm": true
   },
   "security": {
     "redactKeys": [
