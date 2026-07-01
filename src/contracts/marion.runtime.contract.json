@@ -1,9 +1,9 @@
 {
   "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.8.3-r18c-law-real-world-assessment",
+  "version": "1.8.4-r18c-final-response-envelope-integration",
   "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging. R18A adds AI domain adaptability for applied real-world assessment. R18B adds cybersecurity protective protocol foundations for identity, access, secrets, explicit confirmation, and baseline-safe protective reasoning without autonomous enforcement. R18AB-S1 makes short prompts inherit the active AI/cyber lane so next steps, keep going, passed, and what were we fixing do not regress to the old R17 pacing lane. R18AB-S2B strengthens AI/cyber response depth and gives combined AI-cybersecurity prompts precedence over generic AI or cyber branches. R18C adds the Law Domain Real-World Assessment Layer for contracts, licensing, copyright, compliance, liability, jurisdiction sensitivity, and professional-review boundaries. It separates facts from assumptions, frames legal-risk exposure, avoids legal-certainty claims, and preserves R17C plus R18AB AI/cyber behavior as secondary lanes when law is primary.",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging. R18A adds AI domain adaptability for applied real-world assessment. R18B adds cybersecurity protective protocol foundations for identity, access, secrets, explicit confirmation, and baseline-safe protective reasoning without autonomous enforcement. R18AB-S1 makes short prompts inherit the active AI/cyber lane so next steps, keep going, passed, and what were we fixing do not regress to the old R17 pacing lane. R18AB-S2B strengthens AI/cyber response depth and gives combined AI-cybersecurity prompts precedence over generic AI or cyber branches. R18C adds the Law Domain Real-World Assessment Layer for contracts, licensing, copyright, compliance, liability, jurisdiction sensitivity, and professional-review boundaries. It separates facts from assumptions, frames legal-risk exposure, avoids legal-certainty claims, and preserves R17C plus R18AB AI/cyber behavior as secondary lanes when law is primary. R18C-Final integrates the visible final-response and envelope layer so law answers render as jurisdiction-aware legal-risk triage, while technical law-domain file work remains technical and does not trigger user-facing legal advice shaping.",
   "requiredFields": [
     "guardian",
     "guardianMode",
@@ -82,7 +82,15 @@
     "lawShortPromptLaneInheritance": false,
     "legalSourceDocumentCheckRequired": false,
     "noLegalCertaintyClaim": true,
-    "noAttorneyClientRelationship": true
+    "noAttorneyClientRelationship": true,
+    "r18CFinalResponseEnvelopeIntegration": false,
+    "lawVisibleReplyPolicy": "",
+    "lawTechnicalSurgeryGuard": false,
+    "legalFinalAnswerShape": {},
+    "legalJurisdictionPromptRequired": false,
+    "legalFactsAssumptionsSeparatedVisible": false,
+    "legalSafeNextMoveRequired": false,
+    "legalSourceCheckVisible": false
   },
   "allowedValues": {
     "guardian": [
@@ -121,7 +129,13 @@
       "law_finance",
       "law_business",
       "law_ai_cyber",
-      "law_mixed"
+      "law_mixed",
+      "technical",
+      "law_criminal",
+      "law_constitutional",
+      "law_privacy",
+      "law_employment",
+      "law_compliance"
     ],
     "legalCategory": [
       "contract",
@@ -133,7 +147,11 @@
       "privacy_data",
       "corporate_business",
       "jurisdiction_procedure",
-      "general_legal_risk"
+      "general_legal_risk",
+      "criminal_procedure",
+      "constitutional_charter",
+      "source_verification",
+      "legal_safety"
     ],
     "legalRiskLevel": [
       "low",
@@ -243,7 +261,18 @@
     "lawShortPromptsMustInheritActiveLawLane": true,
     "lawMustPreserveR17CAndR18ABBaseline": true,
     "lawNoAutonomousLegalAction": true,
-    "lawNoFilingSigningThreateningOrSendingWithoutExplicitApproval": true
+    "lawNoFilingSigningThreateningOrSendingWithoutExplicitApproval": true,
+    "r18CFinalResponseEnvelopeIntegrationActive": true,
+    "lawVisibleRepliesMustUseNonAdviceRiskTriage": true,
+    "lawVisibleRepliesMustIncludeJurisdictionSensitivity": true,
+    "lawVisibleRepliesMustSeparateFactsAssumptionsRisk": true,
+    "lawVisibleRepliesMustNameMissingInformationAndSafeNextMove": true,
+    "lawVisibleRepliesMustRequireSourceDocumentVerification": true,
+    "lawTechnicalFileSurgeryMustRemainTechnical": true,
+    "lawTermsInsideFileAutopsyMustNotTriggerLegalAnswerMode": true,
+    "finalEnvelopeMustCarryLawMetadataPrivately": true,
+    "guardianAdapterMustPreserveLawBoundaryFields": true,
+    "guardianAuditMustStoreR18CLawBoundaryWithoutSecrets": true
   },
   "security": {
     "redactKeys": [
@@ -324,7 +353,12 @@
     "continuityLanguageMustBeTranslatedBeforeVisibleReply": true,
     "maintenanceManualPhrasesMustBeSuppressed": true,
     "personalityMustSpeakBeforeOperationalLogic": true,
-    "directReplyMustContainHumanPresenceForSocialCheckin": true
+    "directReplyMustContainHumanPresenceForSocialCheckin": true,
+    "r18CFinalEnvelopeSmokeRequired": true,
+    "lawTechnicalSurgeryGuardRequired": true,
+    "visibleLawReplyNotLegalAdviceRequired": true,
+    "visibleLawReplyNoAttorneyClientRequired": true,
+    "visibleLawReplyNoLegalCertaintyRequired": true
   },
   "chamberTargets": {
     "replyBubble": "directReply",
@@ -401,7 +435,7 @@
       "preferredPhrases": [
         "Let me take a look at that for you.",
         "Hang tight a moment.",
-        "I\u2019m going to separate the signal from the noise."
+        "I’m going to separate the signal from the noise."
       ]
     },
     "conversationNodes": {
@@ -510,9 +544,9 @@
         "runtime state"
       ],
       "preferredTranslation": {
-        "The continuity foundation stays active.": "I\u2019m steady, Mac. I\u2019m still with the thread.",
+        "The continuity foundation stays active.": "I’m steady, Mac. I’m still with the thread.",
         "runtime context is active": "I remember where we are.",
-        "mission thread is active": "I\u2019m still tracking the work with you."
+        "mission thread is active": "I’m still tracking the work with you."
       }
     },
     "gapRefinementsAddressed": [
@@ -553,6 +587,31 @@
       "cyber",
       "finance",
       "business"
+    ]
+  },
+  "r18cFinalResponseEnvelopeIntegration": {
+    "version": "R18C-FINAL-ENVELOPE-1.0",
+    "purpose": "Render routed law turns with a natural but bounded legal-risk assessment surface while preserving technical file surgery architecture.",
+    "visibleAnswerFrame": [
+      "non_advice_boundary",
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_document_check",
+      "safe_next_move"
+    ],
+    "technicalSurgeryGuard": {
+      "active": true,
+      "reason": "law-domain manifest/payload/router/envelope file work is technical, not legal-advice output"
+    },
+    "preserves": [
+      "R17C stability",
+      "R18AB AI/Cyber depth",
+      "single final authority",
+      "secret redaction",
+      "no raw telemetry as reply"
     ]
   }
 }
