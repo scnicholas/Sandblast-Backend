@@ -1222,3 +1222,93 @@ module.exports = {
     getPipelineForensicNormalizationStatus
   }
 };
+
+// R18AB_AI_CYBER_DOMAIN_REGISTRY_HARDENING_START
+const R18AB_DOMAIN_REGISTRY_VERSION = "nyx.marion.r18ab.domainRegistry.aiCyber/1.0";
+const R18AB_DOMAIN_ORDER = Object.freeze(["ai", "cyber", "law", "english", "finance", "psychology"]);
+const R18AB_AI_FRAME = Object.freeze(["goal", "context", "data", "risk", "next_move"]);
+const R18AB_CYBER_PROTOCOL = Object.freeze({
+  macScoped: true,
+  leastPrivilege: true,
+  secretsRedacted: true,
+  explicitConfirmationRequired: true,
+  noCovertMonitoring: true,
+  noAutonomousEnforcement: true,
+  noPunitiveAction: true,
+  advisoryRiskFlaggingOnly: true
+});
+function r18abRegStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18abRegObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18abRegCompact(value){return r18abRegStr(value).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");}
+function r18abRegDomain(value){
+  const k=r18abRegCompact(value);
+  if(/^(artificial_intelligence|machine_learning|model_reasoning|ai_assessment|ai_integration|adaptive_ai)$/.test(k))return"ai";
+  if(/^(security|cybersecurity|protective_protocol|protective_boundary|identity_protection|access_control|least_privilege|secret_redaction)$/.test(k))return"cyber";
+  return k||"general";
+}
+function buildR18ABDomainProtocol(input={}, context={}){
+  const src=[r18abRegStr(input),r18abRegStr(context),JSON.stringify(r18abRegObj(input)).slice(0,1200),JSON.stringify(r18abRegObj(context)).slice(0,1200)].join(" ").toLowerCase();
+  const domain=r18abRegDomain(r18abRegObj(context).domain||r18abRegObj(context).knowledgeDomain||r18abRegObj(input).domain||r18abRegObj(input).knowledgeDomain);
+  const ai=domain==="ai"||/\b(ai|artificial intelligence|machine learning|model|llm|agent|inference|automation|adaptive intelligence|ai integration|real[-\s]?world ai)\b/i.test(src);
+  const cyber=domain==="cyber"||/\b(cyber|cybersecurity|security|protective protocol|least privilege|access control|identity|verify identity|secret|token|credential|permission|threat|vulnerability|covert monitoring|autonomous enforcement)\b/i.test(src);
+  return {
+    version:R18AB_DOMAIN_REGISTRY_VERSION,
+    active:ai||cyber,
+    domain:ai?"ai":(cyber?"cyber":domain),
+    aiDomainAdaptability:!!ai,
+    cyberProtectiveProtocol:!!cyber,
+    aiAssessmentFrame:ai?R18AB_AI_FRAME.slice():[],
+    cyberProtocol:cyber?Object.assign({},R18AB_CYBER_PROTOCOL):{},
+    sequence:R18AB_DOMAIN_ORDER.slice(),
+    baselinePreserved:"r16m-r17c",
+    noUserFacingDiagnostics:true
+  };
+}
+function r18abEnhanceDomainConfig(config, key){
+  const c=r18abRegObj(config);
+  const domain=r18abRegDomain(key||c.domain||c.key);
+  if(!c||!Object.keys(c).length)return config;
+  if(domain!=="ai"&&domain!=="cyber")return config;
+  const patch=buildR18ABDomainProtocol({domain}, {domain});
+  return Object.assign({}, c, {
+    r18abDomainExpansion:true,
+    aiDomainAdaptability:domain==="ai"?patch.aiDomainAdaptability:!!c.aiDomainAdaptability,
+    cyberProtectiveProtocol:domain==="cyber"?patch.cyberProtectiveProtocol:!!c.cyberProtectiveProtocol,
+    aiAssessmentFrame:domain==="ai"?patch.aiAssessmentFrame:(Array.isArray(c.aiAssessmentFrame)?c.aiAssessmentFrame:[]),
+    cyberProtocol:domain==="cyber"?patch.cyberProtocol:r18abRegObj(c.cyberProtocol),
+    baselinePreserved:"r16m-r17c",
+    noUserFacingDiagnostics:true
+  });
+}
+(function r18abPatchDomainRegistryExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  ["getDomainConfig","getKnowledgeDomainConfig"].forEach(function(name){
+    const fn=typeof exp[name]==="function"?exp[name]:null;
+    if(!fn||fn.__r18abDomainRegistryPatched)return;
+    exp[name]=function r18abDomainRegistryConfigWrapped(){
+      const res=fn.apply(this,arguments);
+      return r18abEnhanceDomainConfig(res,arguments&&arguments[0]);
+    };
+    exp[name].__r18abDomainRegistryPatched=true;
+  });
+  if(typeof exp.buildKnowledgeRoute==="function"&&!exp.buildKnowledgeRoute.__r18abDomainRegistryPatched){
+    const original=exp.buildKnowledgeRoute;
+    exp.buildKnowledgeRoute=function r18abBuildKnowledgeRouteWrapped(){
+      const res=original.apply(this,arguments);
+      const protocol=buildR18ABDomainProtocol(res,{domain:arguments&&arguments[0]});
+      if(res&&typeof res==="object"&&protocol.active)return Object.assign({},res,{r18abDomainProtocol:protocol,baselinePreserved:"r16m-r17c",noUserFacingDiagnostics:true});
+      return res;
+    };
+    exp.buildKnowledgeRoute.__r18abDomainRegistryPatched=true;
+  }
+  exp.R18AB_DOMAIN_REGISTRY_VERSION=R18AB_DOMAIN_REGISTRY_VERSION;
+  exp.R18AB_DOMAIN_ORDER=R18AB_DOMAIN_ORDER;
+  exp.R18AB_AI_FRAME=R18AB_AI_FRAME;
+  exp.R18AB_CYBER_PROTOCOL=R18AB_CYBER_PROTOCOL;
+  exp.buildR18ABDomainProtocol=buildR18ABDomainProtocol;
+  exp.r18abEnhanceDomainConfig=r18abEnhanceDomainConfig;
+  exp.R18AB_DOMAIN_REGISTRY_PATCH=true;
+})();
+// R18AB_AI_CYBER_DOMAIN_REGISTRY_HARDENING_END
+
