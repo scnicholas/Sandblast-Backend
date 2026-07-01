@@ -277,7 +277,11 @@
     "under_specified_goals",
     "unsafe_autonomous_actions",
     "context_window_loss",
-    "error_propagation_across_agent_handoffs"
+    "error_propagation_across_agent_handoffs",
+    "authority_boundary_confusion",
+    "tool_permission_overreach",
+    "insufficient_human_approval",
+    "security_protocol_bypass"
   ],
   "governance_and_safety_controls": [
     "permission_bounded_tool_use",
@@ -289,7 +293,10 @@
     "fallback_and_degradation_modes",
     "role_separation_between_planning_and_execution",
     "auditing_and_trace_logging",
-    "termination_and_loop_guards"
+    "termination_and_loop_guards",
+    "explicit_approval_before_sensitive_tool_use",
+    "mac_scoped_authority_boundary",
+    "cyber_protective_protocol_handoff"
   ],
   "recommended_subtopics": [
     {
@@ -343,9 +350,12 @@
     "Use this pack as the systems trunk that links foundations, psychology, cybersecurity, and governance into one operational picture.",
     "Keep agent analysis architecture-first: state, memory, planning, tools, control boundaries, and evaluation.",
     "Do not confuse fluent text generation with competent agency. Real agents require planning, environment interaction, memory discipline, and safe execution controls.",
-    "Cross-link this pack later into ethics/law for accountability and into cybersecurity for tool-use and autonomy risk."
+    "Cross-link this pack later into ethics/law for accountability and into cybersecurity for tool-use and autonomy risk.",
+    "R18A responses should use the applied frame: goal, context, data, risk, and next move.",
+    "Do not answer AI questions as generic trend commentary when a real-world assessment can be given.",
+    "When the AI topic touches access, secrets, identity, tools, or deployment, defer to the R18B cybersecurity protective protocol."
   ],
-  "schemaVersion": "1.2.0-normalized",
+  "schemaVersion": "1.3.0-r18a-ai-domain-hardening",
   "packId": "ai_agents_systems",
   "manifestPackKey": "agentsSystems",
   "retrieval": {
@@ -356,14 +366,16 @@
       "systems",
       "orchestration",
       "multi_agent",
-      "planning"
+      "planning",
+      "tool_routing"
     ],
     "crossLinks": [
       "foundations",
       "ai_cybersecurity",
       "ai_psychology",
       "ethics_law",
-      "case_studies"
+      "case_studies",
+      "ai_marketing"
     ],
     "preferredQueryTerms": [
       "agent_architecture",
@@ -373,7 +385,13 @@
       "memory_systems",
       "tool_use_and_api_orchestration",
       "reasoning_acting_loops",
-      "task_decomposition"
+      "task_decomposition",
+      "applied_ai_assessment",
+      "goal_context_data_risk_next_move",
+      "human_in_the_loop",
+      "model_evaluation",
+      "ai_system_design",
+      "operational_risk"
     ],
     "ingestionPriority": [
       "Artificial Intelligence: A Modern Approach",
@@ -390,7 +408,16 @@
     "sourceCoverage": {
       "hasBibliographicReferences": true,
       "hasDirectUrlsOrPersistentIds": false
-    }
+    },
+    "canonicalDomain": "ai",
+    "runtimeDomainKey": "ai",
+    "r18aFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ]
   },
   "qualityAudit": {
     "status": "needs_source_attachment",
@@ -407,6 +434,13 @@
       "Keep manifest and pack versions synchronized.",
       "Use alias routing when layer labels differ from case-study domain labels.",
       "Preserve bibliographic references without embedding copyrighted chapters."
+    ],
+    "criticalFixesApplied": [
+      "added_r18a_applied_assessment_frame",
+      "added_baseline_preservation_contract",
+      "added_ai_cybersecurity_protective_protocol_compatibility",
+      "added_runtime_domain_key_and_deploy_path_metadata",
+      "added_no_autonomous_action_and_explicit_approval_constraints"
     ]
   },
   "runtimePath": "Data/Domains/ai/packs/ai_agents_systems_v1.json",
@@ -425,5 +459,69 @@
     "conflictMarkersRemoved": 1,
     "runtimePathConfirmed": true,
     "batch2Hardened": true
-  }
+  },
+  "canonicalDomain": "ai",
+  "runtimeFolder": "Data/Domains/ai",
+  "r18aRuntimeIntegration": {
+    "version": "nyx.marion.r18a.aiDomainAdaptability/1.0",
+    "baselinePreserved": "r16m-r17c",
+    "purpose": "Convert the AI domain from static reference material into an applied assessment lane while preserving Marion's stable conversation baseline.",
+    "appliedAssessmentFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ],
+    "responseContract": {
+      "answerStyle": "applied_clear_grounded",
+      "avoidGenericAIClaims": true,
+      "separateObservationInferenceRiskNextMove": true,
+      "askOnlyOneMissingDetailWhenNeeded": true,
+      "preserveMarionTone": true
+    },
+    "stabilityGuards": {
+      "noBaselineRegression": true,
+      "noInternalDiagnosticsInUserReply": true,
+      "noUnsupportedCapabilityClaims": true,
+      "noAutonomousAction": true,
+      "highImpactAdviceRequiresHumanOversight": true
+    },
+    "securityBridge": {
+      "cyberProtectiveProtocolCompatible": true,
+      "defensiveCyberOnly": true,
+      "leastPrivilegeForTools": true,
+      "explicitApprovalBeforeSensitiveAction": true,
+      "noCovertMonitoring": true,
+      "noPunitiveAction": true
+    }
+  },
+  "safetyConstraints": {
+    "noInvestmentAdvice": true,
+    "noLegalAdvice": true,
+    "noMedicalAdvice": true,
+    "defensiveCyberOnly": true,
+    "privacyMinimization": true,
+    "humanOversightRecommended": true,
+    "noAutonomousAction": true,
+    "explicitApprovalForHighImpactAI": true,
+    "sourceGroundedWherePossible": true,
+    "protectMacBoundary": true
+  },
+  "runtimeCompatibility": {
+    "targetRuntime": "Marion/Nyx",
+    "activeBaseline": "R17C-stability + R18AB-core",
+    "compatibleWith": [
+      "R16M",
+      "R17A",
+      "R17B",
+      "R17C",
+      "R18A",
+      "R18B"
+    ],
+    "mustNotWeakenConversationBaseline": true,
+    "mustNotBypassCyberProtectiveProtocol": true
+  },
+  "manifestPath": "Data/Domains/ai/manifest.json",
+  "deployPath": "Data/Domains/ai/packs/ai_agents_systems_v1.json"
 }
