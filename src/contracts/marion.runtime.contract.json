@@ -1,9 +1,9 @@
 {
   "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.8.0-r18ab-ai-domain-cyber-protection",
+  "version": "1.8.2-r18ab-s2b-ai-cyber-depth",
   "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging. R18A adds AI domain adaptability for applied real-world assessment. R18B adds cybersecurity protective protocol foundations for identity, access, secrets, explicit confirmation, and baseline-safe protective reasoning without autonomous enforcement.",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging. R18A adds AI domain adaptability for applied real-world assessment. R18B adds cybersecurity protective protocol foundations for identity, access, secrets, explicit confirmation, and baseline-safe protective reasoning without autonomous enforcement. R18AB-S1 makes short prompts inherit the active AI/cyber lane so next steps, keep going, passed, and what were we fixing do not regress to the old R17 pacing lane. R18AB-S2B strengthens AI/cyber response depth and gives combined AI-cybersecurity prompts precedence over generic AI or cyber branches.",
   "requiredFields": [
     "guardian",
     "guardianMode",
@@ -60,7 +60,15 @@
     "secretRedaction": false,
     "noCovertMonitoring": true,
     "noAutonomousEnforcement": true,
-    "noPunitiveAction": true
+    "noPunitiveAction": true,
+    "r18abSurfaceContinuity": false,
+    "activeFeatureLane": "",
+    "shortPromptLaneInheritance": false,
+    "aiCyberValidationMode": "",
+    "surfaceContinuityBaseline": "",
+    "r18abResponseDepthLock": false,
+    "aiCyberBranchPrecedence": false,
+    "aiCyberDepthMode": ""
   },
   "allowedValues": {
     "guardian": [
@@ -85,6 +93,12 @@
       "medium",
       "high",
       "critical"
+    ],
+    "activeFeatureLane": [
+      "ai_cyber",
+      "ai",
+      "cyber",
+      "baseline"
     ]
   },
   "rules": {
@@ -160,7 +174,21 @@
     "noPunitiveAction": true,
     "noSecurityTheaterOrOverreach": true,
     "baselinePreservationRequiredDuringFeatureLaneExpansion": true,
-    "r16mR17aR17bR17cLocksMustRemainActive": true
+    "r16mR17aR17bR17cLocksMustRemainActive": true,
+    "r18ABSurfaceContinuityActive": true,
+    "shortPromptsMustInheritActiveR18ABLane": true,
+    "nextStepsMustUseActiveFeatureLane": true,
+    "keepGoingMustContinueActiveFeatureLane": true,
+    "passedMustConfirmActiveFeatureLane": true,
+    "whatWereWeFixingMustNameAICyberLane": true,
+    "doNotRegressShortPromptsToR17PacingLane": true,
+    "aiCyberTestsMustBeFluidButControlled": true,
+    "r17CBaselineMustRemainPreservedDuringR18ABSurfacePatch": true,
+    "r18abResponseDepthLockActive": true,
+    "aiCyberCombinedPromptsMustRouteBeforeGenericAI": true,
+    "aiCyberDepthMustMentionTrustedUntrustedInputsToolsSecretsApproval": true,
+    "cyberDepthMustMentionIdentityAccessSecretsLeastPrivilegeApprovalNoAutonomy": true,
+    "thinAICyberRepliesMustBeOverridden": true
   },
   "security": {
     "redactKeys": [
