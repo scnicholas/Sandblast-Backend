@@ -939,3 +939,67 @@ module.exports = {
   isTelemetryLeakText,
   stripTelemetryLeakFromReply,
 };
+
+// R18AB_AI_CYBER_DOMAIN_ROUTER_HARDENING_START
+const R18AB_DOMAIN_ROUTER_VERSION = "nyx.marion.r18ab.domainRouter.aiCyber/1.0";
+function r18abRouterStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18abRouterObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18abRouterText(norm={},session={},cog={}){
+  const n=r18abRouterObj(norm),s=r18abRouterObj(session),c=r18abRouterObj(cog);
+  return [n.text,n.userText,n.message,n.prompt,n.normalizedUserIntent,n.rawUserText,s.lastUserText,c.lastUserText,JSON.stringify(n).slice(0,1000)].map(r18abRouterStr).join(" ");
+}
+function buildR18ABRouteSignals(norm={},session={},cog={}){
+  const src=r18abRouterText(norm,session,cog).toLowerCase();
+  const ai=/\b(ai|artificial intelligence|machine learning|model|llm|agent|inference|automation|adaptive intelligence|ai integration|real[-\s]?world ai)\b/i.test(src);
+  const cyber=/\b(cyber|cybersecurity|security|protective protocol|least privilege|zero trust|access control|identity|verify identity|secret|token|credential|permission|threat|vulnerability)\b/i.test(src);
+  return {
+    version:R18AB_DOMAIN_ROUTER_VERSION,
+    active:ai||cyber,
+    primary:ai?"ai":(cyber?"cyber":""),
+    aiDomainAdaptability:!!ai,
+    cyberProtectiveProtocol:!!cyber,
+    confidence:ai?0.88:(cyber?0.93:0),
+    noCrossDomainBleed:true,
+    baselinePreserved:"r16m-r17c",
+    noUserFacingDiagnostics:true
+  };
+}
+function r18abApplyRouterSignals(result,norm,session,cog){
+  if(!result||typeof result!=="object")return result;
+  const sig=buildR18ABRouteSignals(norm,session,cog);
+  if(!sig.active)return result;
+  const out=Array.isArray(result)?result.slice():Object.assign({},result);
+  if(sig.primary){
+    out.primary=out.primary&&out.primary!=="general"&&out.primary!=="general_reasoning"?out.primary:sig.primary;
+    out.selectedDomain=out.selectedDomain||out.primary;
+  }
+  const r18abCurrentConfidence=(typeof out.confidence==="number"?out.confidence:(out.confidence&&typeof out.confidence==="object"?Number(out.confidence.confidence||out.confidence.score||out.confidenceScore):Number(out.confidence)))||0;
+  out.confidence=Math.max(r18abCurrentConfidence,sig.confidence);
+  out.r18abRouteSignals=sig;
+  out.noCrossDomainBleed=true;
+  out.baselinePreserved="r16m-r17c";
+  out.noUserFacingDiagnostics=true;
+  const r18abDc=r18abRouterObj(out.domainConfidence);
+  out.domainConfidence=Object.assign({},r18abDc,{r18abDomainRouter:sig,routeLocked:true,confidence:Math.max(Number(r18abDc.confidence||r18abDc.confidenceScore)||0,sig.confidence)});
+  return out;
+}
+(function r18abPatchDomainRouterExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  ["scoreDomains","routeDomain"].forEach(function(name){
+    const fn=typeof exp[name]==="function"?exp[name]:null;
+    if(!fn||fn.__r18abDomainRouterPatched)return;
+    exp[name]=function r18abDomainRouterWrapped(norm,session,cog,opts){
+      const result=fn.apply(this,arguments);
+      if(result&&typeof result.then==="function")return result.then(function(v){return r18abApplyRouterSignals(v,norm,session,cog);});
+      return r18abApplyRouterSignals(result,norm,session,cog);
+    };
+    exp[name].__r18abDomainRouterPatched=true;
+  });
+  exp.R18AB_DOMAIN_ROUTER_VERSION=R18AB_DOMAIN_ROUTER_VERSION;
+  exp.buildR18ABRouteSignals=buildR18ABRouteSignals;
+  exp.r18abApplyRouterSignals=r18abApplyRouterSignals;
+  exp.R18AB_DOMAIN_ROUTER_PATCH=true;
+})();
+// R18AB_AI_CYBER_DOMAIN_ROUTER_HARDENING_END
+
