@@ -5,19 +5,172 @@
   "archetypes": [
     {
       "type": "researcher",
-      "traits": ["theoretical", "data_driven", "methodical"]
+      "traits": [
+        "theoretical",
+        "data_driven",
+        "methodical"
+      ]
     },
     {
       "type": "ai_engineer",
-      "traits": ["implementation_focused", "systems_thinker", "iterative"]
+      "traits": [
+        "implementation_focused",
+        "systems_thinker",
+        "iterative"
+      ]
     },
     {
       "type": "ethics_lead",
-      "traits": ["risk_aware", "policy_minded", "accountability_oriented"]
+      "traits": [
+        "risk_aware",
+        "policy_minded",
+        "accountability_oriented"
+      ]
     },
     {
       "type": "ai_product_builder",
-      "traits": ["market_driven", "metrics_focused", "rapid_experimentation"]
+      "traits": [
+        "market_driven",
+        "metrics_focused",
+        "rapid_experimentation"
+      ]
+    },
+    {
+      "type": "ai_system_operator",
+      "traits": [
+        "real_world_assessment",
+        "risk_aware",
+        "baseline_preserving"
+      ]
+    },
+    {
+      "type": "protective_ai_security_architect",
+      "traits": [
+        "least_privilege",
+        "approval_gated",
+        "defensive_only"
+      ]
+    },
+    {
+      "type": "adaptive_ai_partner",
+      "traits": [
+        "context_sensitive",
+        "goal_oriented",
+        "human_oversight_aligned"
+      ]
     }
-  ]
+  ],
+  "canonicalDomain": "ai",
+  "runtimeDomainKey": "ai",
+  "runtimeFolder": "Data/Domains/ai",
+  "r18aRuntimeIntegration": {
+    "version": "nyx.marion.r18a.aiDomainAdaptability/1.0",
+    "baselinePreserved": "r16m-r17c",
+    "purpose": "Convert the AI domain from static reference material into an applied assessment lane while preserving Marion's stable conversation baseline.",
+    "appliedAssessmentFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ],
+    "responseContract": {
+      "answerStyle": "applied_clear_grounded",
+      "avoidGenericAIClaims": true,
+      "separateObservationInferenceRiskNextMove": true,
+      "askOnlyOneMissingDetailWhenNeeded": true,
+      "preserveMarionTone": true
+    },
+    "stabilityGuards": {
+      "noBaselineRegression": true,
+      "noInternalDiagnosticsInUserReply": true,
+      "noUnsupportedCapabilityClaims": true,
+      "noAutonomousAction": true,
+      "highImpactAdviceRequiresHumanOversight": true
+    },
+    "securityBridge": {
+      "cyberProtectiveProtocolCompatible": true,
+      "defensiveCyberOnly": true,
+      "leastPrivilegeForTools": true,
+      "explicitApprovalBeforeSensitiveAction": true,
+      "noCovertMonitoring": true,
+      "noPunitiveAction": true
+    }
+  },
+  "safetyConstraints": {
+    "noInvestmentAdvice": true,
+    "noLegalAdvice": true,
+    "noMedicalAdvice": true,
+    "defensiveCyberOnly": true,
+    "privacyMinimization": true,
+    "humanOversightRecommended": true,
+    "noAutonomousAction": true,
+    "explicitApprovalForHighImpactAI": true,
+    "sourceGroundedWherePossible": true,
+    "protectMacBoundary": true
+  },
+  "runtimeCompatibility": {
+    "targetRuntime": "Marion/Nyx",
+    "activeBaseline": "R17C-stability + R18AB-core",
+    "compatibleWith": [
+      "R16M",
+      "R17A",
+      "R17B",
+      "R17C",
+      "R18A",
+      "R18B"
+    ],
+    "mustNotWeakenConversationBaseline": true,
+    "mustNotBypassCyberProtectiveProtocol": true
+  },
+  "qualityAudit": {
+    "status": "r18a_hardened",
+    "strengths": [],
+    "issues": [],
+    "recommendedActions": [],
+    "criticalFixesApplied": [
+      "added_r18a_applied_assessment_frame",
+      "added_baseline_preservation_contract",
+      "added_ai_cybersecurity_protective_protocol_compatibility",
+      "added_runtime_domain_key_and_deploy_path_metadata",
+      "added_no_autonomous_action_and_explicit_approval_constraints"
+    ]
+  },
+  "notes_for_marion": [
+    "R18A responses should use the applied frame: goal, context, data, risk, and next move.",
+    "Do not answer AI questions as generic trend commentary when a real-world assessment can be given.",
+    "When the AI topic touches access, secrets, identity, tools, or deployment, defer to the R18B cybersecurity protective protocol."
+  ],
+  "schemaVersion": "1.1.0-r18a-ai-domain-hardening",
+  "packId": "ai_face_examples",
+  "manifestPackKey": "faceExamples",
+  "manifestPath": "Data/Domains/ai/manifest.json",
+  "deployPath": "Data/Domains/ai/examples/ai_face_examples_v1.json",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "canonicalDomain": "ai",
+    "runtimeDomainKey": "ai",
+    "layer": "face_examples",
+    "routeAliases": [
+      "archetypes",
+      "operator_modes",
+      "ai_roles"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ethics_law",
+      "ai_psychology",
+      "ai_cybersecurity",
+      "ai_marketing",
+      "case_studies",
+      "foundations"
+    ],
+    "r18aFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ]
+  }
 }
