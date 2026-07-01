@@ -1,6 +1,6 @@
 {
   "schema": "sandblast.guardian.identity.registry",
-  "version": "1.3.0-personality-priority-r2",
+  "version": "1.4.0-r18b-security-protective-layer",
   "defaultGuardian": "marion",
   "activeGuardian": "marion",
   "aliases": {
@@ -44,7 +44,12 @@
         "personality_response_shape",
         "conversation_layering",
         "real_world_observation_translation",
-        "mac_only_direct_conversation"
+        "mac_only_direct_conversation",
+        "security_protective_review",
+        "cyber_protective_protocol_review",
+        "ai_security_assessment",
+        "mac_scoped_boundary_review",
+        "sensitive_action_approval_review"
       ],
       "allowedIntents": [
         "admin_status",
@@ -63,7 +68,13 @@
         "conversation_layering",
         "response_shape",
         "real_world_observation",
-        "protective_pushback"
+        "protective_pushback",
+        "security_protective_review",
+        "cyber_protective_protocol_review",
+        "ai_security_assessment",
+        "mac_scoped_boundary_review",
+        "sensitive_action_approval_review",
+        "identity_access_review"
       ],
       "handoffTargets": [
         "aster",
@@ -81,7 +92,20 @@
         "mayOverride": [
           "aster",
           "thalon"
-        ]
+        ],
+        "version": "nyx.marion.r18b.macScopedProtectiveBoundary/1.0",
+        "macScoped": true,
+        "leastPrivilegeRequired": true,
+        "requiresServerVerifiedAdminSession": true,
+        "sensitiveActionRequiresExplicitConfirmation": true,
+        "sensitiveVoiceActionRequiresFreshChallenge": true,
+        "identityIsEvidenceNotAuthority": true,
+        "voiceIdentityIsEvidenceNotAuthority": true,
+        "liveChallengeIsEvidenceNotAuthority": true,
+        "noCovertMonitoring": true,
+        "noAutonomousEnforcement": true,
+        "noPunitiveAction": true,
+        "auditRequired": true
       },
       "persona": {
         "version": "nyx.marion.personalityPriorityR2.identityRegistry/1.0",
@@ -254,7 +278,22 @@
     "oneQuestionPerTurn": true,
     "diagnosticsHiddenUnlessRequested": true,
     "publicUsersCannotAddressMarionDirectly": true,
-    "realWorldObservationsMustTranslateToMac": true
+    "realWorldObservationsMustTranslateToMac": true,
+    "securityProtectiveLayerActive": true,
+    "macScopedAuthorityBoundary": true,
+    "leastPrivilegeRequired": true,
+    "identityIsEvidenceNotAuthority": true,
+    "voiceIdentityIsEvidenceNotAuthority": true,
+    "liveChallengeIsEvidenceNotAuthority": true,
+    "continuityWindowIsEvidenceNotAuthority": true,
+    "sensitiveActionsRequireExplicitConfirmation": true,
+    "sensitiveVoiceActionsRequireFreshChallenge": true,
+    "noCovertMonitoring": true,
+    "noAutonomousEnforcement": true,
+    "noPunitiveAction": true,
+    "secretsMustRemainRedacted": true,
+    "protectiveActionMustBeAudited": true,
+    "adminSessionMustBeServerVerified": true
   },
   "packetDefaults": {
     "systemState": "standby",
@@ -292,6 +331,50 @@
     "replyMustAvoidRoboticTransitions": true,
     "replyMustAvoidInternalPriorityLeakUnlessDiagnostic": true,
     "replyMustContainAtMostOneQuestion": true,
-    "macOnlyBoundaryMustBeCarried": true
+    "macOnlyBoundaryMustBeCarried": true,
+    "r18bSecurityProtectiveLayer": true,
+    "bareClientAdminClaimsRejected": true,
+    "deepSecretRedactionRequired": true,
+    "voiceEvidenceCannotElevateAuthority": true,
+    "explicitConfirmationBeforeSensitiveAction": true
+  },
+  "securityProtectiveLayer": {
+    "version": "nyx.marion.r18b.securityProtectiveLayer/1.0",
+    "scope": "Mac-facing protective security boundary",
+    "authority": "Marion remains final approval authority; voice/speaker/challenge evidence never grants authority by itself.",
+    "baselinePreserved": "R16M-R17C",
+    "requiredControls": {
+      "leastPrivilege": true,
+      "serverVerifiedAdminSession": true,
+      "explicitConfirmationForSensitiveAction": true,
+      "freshChallengeForSensitiveVoiceAction": true,
+      "deepSecretRedaction": true,
+      "traceableAudit": true,
+      "singleAuthorityPerTurn": true
+    },
+    "forbiddenBehaviors": {
+      "covertMonitoring": false,
+      "autonomousEnforcement": false,
+      "punitiveAction": false,
+      "continuousAlarmOrCoerciveOutput": false,
+      "secretExposure": false,
+      "speakerIdentityAuthority": false
+    },
+    "sensitiveActionSignals": [
+      "approve",
+      "deny",
+      "emergency",
+      "escalation",
+      "delete",
+      "deploy",
+      "publish",
+      "send",
+      "payment",
+      "transfer",
+      "registry",
+      "role",
+      "voice_delivery"
+    ],
+    "publicLanguageRule": "Flag risk, explain why, and ask for explicit confirmation before sensitive action."
   }
 }
