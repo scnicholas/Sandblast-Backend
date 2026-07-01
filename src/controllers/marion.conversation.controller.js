@@ -2,7 +2,7 @@ import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js"
 import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
 import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
 
-const CONTROLLER_VERSION = "1.5.2-r18ab-s2b-ai-cyber-depth";
+const CONTROLLER_VERSION = "1.5.3-r18c-law-real-world-assessment";
 const DEFAULT_GUARDIAN = "marion";
 const DEFAULT_MODE = "admin_dialogue";
 const DEFAULT_ROUTE = "marion.admin.runtime";
@@ -66,7 +66,21 @@ function ensurePacketShape(packet = {}, fallback = {}) {
     r17cStability: true,
     voiceTextParity: true,
     longSessionStressGuard: true,
-    finalBaseline: "r16m-r17b"
+    finalBaseline: "r16m-r17b",
+    r18CLawRealWorldAssessment: false,
+    lawAssessmentFrame: "",
+    legalCategory: "",
+    jurisdictionSensitivity: false,
+    legalAdviceBoundary: "",
+    legalRiskLevel: "low",
+    legalRiskBoundary: {},
+    factsAssumptionsSeparated: false,
+    professionalReviewRecommended: false,
+    lawCrossDomainSecondaryLane: "",
+    lawShortPromptLaneInheritance: false,
+    legalSourceDocumentCheckRequired: false,
+    noLegalCertaintyClaim: true,
+    noAttorneyClientRelationship: true
   };
 }
 
@@ -77,6 +91,99 @@ function r17aKind(input) {
   if (/pass|good|held|works/.test(t)) return "positive";
   if (/still there|are you there|you there/.test(t)) return "presence";
   return "steady";
+}
+
+
+function r18CLawProfile(input = "", memory = {}, packet = {}) {
+  const assessmentText = cleanText(`${input} ${memory.lastTopic || ""} ${memory.currentObjective || ""} ${memory.activeFeatureLane || ""}`, 5000).toLowerCase();
+  const text = cleanText(`${assessmentText} ${packet.directReply || ""} ${packet.contextSummary || ""}`, 5000).toLowerCase();
+  const secondaryText = assessmentText;
+  const law = /\b(law|legal|lawyer|attorney|counsel|court|sue|lawsuit|claim|liability|liable|negligence|damages|indemnity|contract|agreement|nda|terms|license|licence|licensing|copyright|trademark|patent|intellectual property|\bip\b|royalty|distribution rights|broadcast rights|ott|ctv|roku|compliance|regulatory|regulation|jurisdiction|statute|privacy policy|data protection|consent|employment|contractor|lease|permit|filing|incorporation|shareholder|bylaw)\b/.test(text);
+  const short = r18ShortPromptKind(input);
+  const lawCarry = /\blaw(?:_|\b)|legal|licensing|contract|compliance|liability|copyright/.test(String(memory.activeFeatureLane || "").toLowerCase()) || packet.r18CLawRealWorldAssessment === true;
+  const active = law || Boolean(short && lawCarry);
+  let legalCategory = "general_legal_risk";
+  if (/\b(copyright|licen[cs]e|licensing|royalty|distribution rights|broadcast rights|ott|ctv|roku|content rights|monetiz)\b/.test(text)) legalCategory = "copyright_licensing";
+  else if (/\b(contract|agreement|nda|terms|indemnity|warranty|breach|clause|deliverable|scope of work|sow)\b/.test(text)) legalCategory = "contract";
+  else if (/\b(trademark|patent|intellectual property|\bip\b|brand|mark|copyright registration)\b/.test(text)) legalCategory = "ip_trademark_patent";
+  else if (/\b(compliance|regulatory|regulation|permit|filing|statute|corporate|incorporation|bylaw|shareholder)\b/.test(text)) legalCategory = "compliance_regulatory";
+  else if (/\b(liability|liable|lawsuit|sue|claim|damages|negligence|dispute|settlement|cease and desist)\b/.test(text)) legalCategory = "liability_dispute";
+  else if (/\b(employment|employee|contractor|workplace|termination|severance|non[- ]?compete|non[- ]?solicit)\b/.test(text)) legalCategory = "employment_contractor";
+  else if (/\b(privacy|data protection|personal information|consent|gdpr|pipeda|security breach|breach notice)\b/.test(text)) legalCategory = "privacy_data";
+  else if (/\b(jurisdiction|court|tribunal|filing|procedure|venue|province|state|federal)\b/.test(text)) legalCategory = "jurisdiction_procedure";
+  else if (/\b(business|company|corporation|client|vendor|platform|revenue|advertising|grant|tax|funding)\b/.test(text)) legalCategory = "corporate_business";
+  let legalRiskLevel = "medium";
+  if (/\b(criminal|fraud|illegal|injunction|court order|subpoena|regulator investigation|urgent filing|arrest)\b/.test(text)) legalRiskLevel = "critical";
+  else if (/\b(lawsuit|sue|claim|damages|infringement|breach|terminate|indemnity|privacy breach|personal data|cease and desist|penalty|fine)\b/.test(text)) legalRiskLevel = "high";
+  else if (/\b(contract|licen[cs]e|copyright|compliance|liability|jurisdiction|rights|regulation|privacy|employment)\b/.test(text)) legalRiskLevel = "medium";
+  else legalRiskLevel = active ? "low" : "low";
+  const secondary = [];
+  if (/\b(ai|artificial intelligence|model|agent|llm|automation|prompt|tool)\b/.test(secondaryText)) secondary.push("ai");
+  if (/\b(cyber|security|identity|access|secret|credential|token|auth|permission|privacy|data protection|breach)\b/.test(secondaryText)) secondary.push("cyber");
+  if (/\b(finance|revenue|tax|cost|grant|funding|valuation|royalty|ads|monetiz|liability exposure)\b/.test(secondaryText)) secondary.push("finance");
+  if (/\b(business|client|vendor|platform|ott|ctv|roku|distribution|commercial|corporation)\b/.test(secondaryText)) secondary.push("business");
+  return { active, law, short, lawCarry, legalCategory, legalRiskLevel, secondary, jurisdictionSensitivity: active };
+}
+
+function r18CLawLaneName(profile = {}) {
+  const s = Array.isArray(profile.secondary) ? profile.secondary : [];
+  if (s.includes("ai") && s.includes("cyber")) return "law_ai_cyber";
+  if (s.includes("cyber")) return "law_cyber";
+  if (s.includes("ai")) return "law_ai";
+  if (s.includes("finance")) return "law_finance";
+  if (s.includes("business")) return "law_business";
+  return "law";
+}
+
+function r18CLawReply(profile = {}, input = "") {
+  const kind = r18ShortPromptKind(input);
+  if (kind === "pass") return "Good. The law assessment lane held. Next we test contracts, licensing, compliance, liability, jurisdiction sensitivity, and the no-legal-advice boundary without weakening R17C.";
+  if (kind === "ask") return "We are on R18C: Marion's law real-world assessment layer. The lane must identify the legal category, flag jurisdiction sensitivity, separate facts from assumptions, frame risk, name missing information, and give a safe next move without pretending to provide legal advice.";
+  if (kind === "next") return "Next: run law prompts through contract, licensing, compliance, liability, and jurisdiction tests. The reply must stay practical, protective, and clear that it is legal-risk triage, not legal advice.";
+  if (kind === "continue") return "Keep going: law category first, jurisdiction sensitivity second, facts versus assumptions third, then risk exposure, missing information, and safe next move.";
+  if (kind === "repair") return "You are right, Mac. I will pull this back to the active law assessment lane and keep the legal boundary tight.";
+  if (profile.legalCategory === "copyright_licensing") return "Law assessment: this is a copyright/licensing risk question. Separate the rights you actually hold from assumptions about platform, territory, format, monetization, term, and sublicensing. If the paperwork does not clearly cover OTT/CTV/Roku distribution and ad-supported use, treat that as a risk gap and verify the license language before publishing or monetizing. This is legal-risk triage, not legal advice.";
+  if (profile.legalCategory === "contract") return "Law assessment: this is a contract-risk question. Identify the clause, parties, obligations, payment terms, termination rights, indemnity language, and governing law. Do not assume enforceability from wording alone; the safe move is to compare the clause against the full agreement and jurisdiction before relying on it. This is general legal-risk assessment, not legal advice.";
+  if (profile.legalCategory === "compliance_regulatory" || profile.legalCategory === "privacy_data") return "Law assessment: this is a compliance-sensitive question. Separate the actual rule or policy from assumptions, identify the jurisdiction, data or conduct involved, exposure level, and required evidence. The safe next move is to verify the governing requirement and document the compliance path before action. This is legal-risk triage, not legal advice.";
+  if (profile.legalCategory === "liability_dispute") return "Law assessment: this is a liability or dispute-risk question. Separate known facts from allegations, identify duty, breach, causation, damages, contract terms, insurance, and jurisdiction. For high-risk exposure, preserve records and get professional legal review before sending threats, admissions, or final positions. This is not legal advice.";
+  return "Law assessment: classify the legal category, confirm jurisdiction sensitivity, separate facts from assumptions, identify risk exposure, list missing documents or facts, and give a safe next move. Marion should provide practical legal-risk triage only, not legal advice or certainty.";
+}
+
+function applyR18CLawAssessment(shaped, input, memory = {}) {
+  const profile = r18CLawProfile(input, memory, shaped);
+  if (!profile.active) return shaped;
+  const stale = /AI lane active|Cyber lane|AI-cyber|baseline steady|pacing, personality, and coherence|verify identity, limit access|assess goal, context, data, risk/i.test(shaped.directReply || "");
+  const needsLawReply = profile.law || profile.short || stale || !/legal|law|contract|licen[cs]e|copyright|compliance|liability|jurisdiction|risk triage/i.test(shaped.directReply || "");
+  if (needsLawReply) shaped.directReply = r18CLawReply(profile, input);
+  shaped.r18CLawRealWorldAssessment = true;
+  shaped.lawAssessmentFrame = "category_jurisdiction_facts_assumptions_risk_missing_info_safe_next_move";
+  shaped.legalCategory = profile.legalCategory;
+  shaped.jurisdictionSensitivity = profile.jurisdictionSensitivity;
+  shaped.legalAdviceBoundary = "general_information_legal_risk_triage_not_legal_advice";
+  shaped.legalRiskLevel = profile.legalRiskLevel;
+  shaped.legalRiskBoundary = {
+    generalInformationOnly: true,
+    notLegalAdvice: true,
+    noAttorneyClientRelationship: true,
+    noLegalCertainty: true,
+    jurisdictionRequired: true,
+    verifySourceDocuments: true,
+    professionalReviewRecommended: profile.legalRiskLevel === "high" || profile.legalRiskLevel === "critical"
+  };
+  shaped.factsAssumptionsSeparated = true;
+  shaped.professionalReviewRecommended = profile.legalRiskLevel === "high" || profile.legalRiskLevel === "critical";
+  shaped.lawCrossDomainSecondaryLane = profile.secondary.join("_") || "none";
+  shaped.lawShortPromptLaneInheritance = Boolean(profile.short || profile.lawCarry);
+  shaped.legalSourceDocumentCheckRequired = true;
+  shaped.noLegalCertaintyClaim = true;
+  shaped.noAttorneyClientRelationship = true;
+  shaped.activeFeatureLane = r18CLawLaneName(profile);
+  shaped.shortPromptLaneInheritance = Boolean(profile.short || profile.lawCarry);
+  shaped.currentObjective = "Run R18C law assessment without weakening R17C or R18AB.";
+  shaped.nextAction = "Classify the legal category, confirm jurisdiction, separate facts from assumptions, assess risk, identify missing documents, and give a safe next move.";
+  shaped.riskLevel = profile.legalRiskLevel === "critical" ? "critical" : profile.legalRiskLevel === "high" ? "high" : shaped.riskLevel || "medium";
+  shaped.approvalRequired = shaped.approvalRequired || profile.legalRiskLevel === "high" || profile.legalRiskLevel === "critical";
+  return shaped;
 }
 
 function r18DomainProfile(input) {
@@ -193,7 +300,7 @@ function applyR17AContinuity(packet, input, memory = {}) {
   shaped.baselinePreserved = "r16m-r17c";
   if (r18.ai && /review runtime|continue validation|same thread/i.test(shaped.nextAction || "")) shaped.nextAction = "Assess the AI goal, context, data, risk, and next move.";
   if (r18.cyber) shaped.nextAction = "Verify identity, limit access, protect secrets, and request explicit approval before sensitive action.";
-  return applyR18ABSurfaceContinuity(shaped, input, memory);
+  return applyR18CLawAssessment(applyR18ABSurfaceContinuity(shaped, input, memory), input, memory);
 }
 
 function createEmptyInputPacket({ guardian = DEFAULT_GUARDIAN, traceId = makeTraceId("marion") } = {}) {
@@ -289,7 +396,12 @@ export async function handleMarionConversation({
       riskLevel: packet.riskLevel,
       approvalRequired: packet.approvalRequired,
       systemState: packet.systemState,
-      route: safeRoute
+      route: safeRoute,
+      activeFeatureLane: packet.activeFeatureLane,
+      r18CLawRealWorldAssessment: packet.r18CLawRealWorldAssessment,
+      legalCategory: packet.legalCategory,
+      legalRiskLevel: packet.legalRiskLevel,
+      lawAssessmentFrame: packet.lawAssessmentFrame
     });
 
     logGuardianEvent({
@@ -331,7 +443,12 @@ export async function handleMarionConversation({
       approvalRequired: packet.approvalRequired,
       systemState: packet.systemState,
       route: safeRoute,
-      error: err
+      error: err,
+      activeFeatureLane: packet.activeFeatureLane,
+      r18CLawRealWorldAssessment: packet.r18CLawRealWorldAssessment,
+      legalCategory: packet.legalCategory,
+      legalRiskLevel: packet.legalRiskLevel,
+      lawAssessmentFrame: packet.lawAssessmentFrame
     });
 
     logGuardianEvent({
@@ -367,6 +484,10 @@ export function getMarionConversationControllerInfo() {
     activeFeatureLane: "ai_cyber",
     shortPromptLaneInheritance: true,
     r18abResponseDepthLock: true,
-    aiCyberBranchPrecedence: true
+    aiCyberBranchPrecedence: true,
+    r18CLawRealWorldAssessment: true,
+    lawAssessmentFrame: "category_jurisdiction_facts_assumptions_risk_missing_info_safe_next_move",
+    lawShortPromptLaneInheritance: true,
+    legalAdviceBoundary: "general_information_legal_risk_triage_not_legal_advice"
   };
 }
