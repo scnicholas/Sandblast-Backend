@@ -12,7 +12,7 @@
  * - Prevent emotional, identity, and recovery turns from falling into dead-loop fallback handling.
  */
 
-const VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + marionIntentRouter v3.6.0 PRIORITY2-COMMAND-ROUTING-HARDENING + DEFENSIVE-INTENT-SIGNAL-CARRY + FOLLOWUP-CANDIDATE-SANITIZATION + UNRESOLVED-FOLLOWUP-DEADEND-BYPASS + FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT";
+const VERSION = "PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + marionIntentRouter v3.6.0 PRIORITY2-COMMAND-ROUTING-HARDENING + DEFENSIVE-INTENT-SIGNAL-CARRY + FOLLOWUP-CANDIDATE-SANITIZATION + UNRESOLVED-FOLLOWUP-DEADEND-BYPASS + FOLLOWUP-EFFECTIVE-PROMPT-BINDING-HARDLOCK + FOLLOWUP-DETECTION-TOPIC-INFERENCE-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HOTFIX + ANSWERABLE-TOPIC-CLARIFIER-BYPASS-LOCK + QUESTION-SHAPE-NORMALIZER-MODULE-LOCK + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-TOPLEVEL + REGISTRY-COHESION-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + R18C-LAW-INTENT-ROUTING";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/0.1-prep";
 const QUESTION_SHAPE_NORMALIZATION_VERSION = "nyx.marion.questionShapeNormalization/1.0";
@@ -3307,3 +3307,82 @@ function priority9JR1BPatchExports(names) {
 priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
 
+// R18C_LAW_ROUTING_REGISTRY_PATCH_START
+const R18C_INTENT_ROUTER_VERSION = "nyx.marion.r18c.intentRouter.lawAssessment/1.0";
+const R18C_LAW_INTENT_FRAME = Object.freeze(["legal_category","jurisdiction_sensitivity","facts_vs_assumptions","risk_exposure","missing_information","safe_next_move"]);
+const R18C_LAW_INTENT_BOUNDARY = Object.freeze({generalInformationOnly:true,noLegalAdvice:true,noAttorneyClientRelationship:true,noLegalCertaintyClaim:true,jurisdictionRequired:true,sourceDocumentReviewRequired:true,professionalReviewRecommendedForHighRisk:true});
+function r18cIrStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18cIrObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18cIrFirst(){for(let i=0;i<arguments.length;i+=1){const v=r18cIrStr(arguments[i]);if(v)return v;}return"";}
+function r18cExtractText(packet){const p=r18cIrObj(packet),payload=r18cIrObj(p.payload),meta=r18cIrObj(p.meta),session=r18cIrObj(p.session);return r18cIrFirst(p.text,p.userText,p.message,p.prompt,p.query,p.rawUserText,p.normalizedUserIntent,p.effectivePrompt,payload.text,payload.userText,payload.message,meta.text,session.lastUserText);}
+function r18cLawCategories(text=""){
+  const t=r18cIrStr(text).toLowerCase(), out=[]; const add=(key,rx)=>{if(rx.test(t)&&!out.includes(key))out.push(key);};
+  add("contract",/\b(contract|agreement|nda|terms|clause|consideration|breach|indemnity|warranty|termination|assignment)\b/i);
+  add("copyright_licensing",/\b(copyright|copyrighted|licen[cs]e|licen[cs]ing|distribution rights?|broadcast rights?|ott rights?|roku rights?|streaming rights?|content rights?|fair use|public domain|royalty)\b/i);
+  add("intellectual_property",/\b(ip|intellectual property|trademark|trade mark|patent|trade secret|brand mark|logo ownership|copyright ownership)\b/i);
+  add("compliance_regulatory",/\b(compliance|regulatory|regulation|policy|statute|permit|filing|reporting requirement|tax credit|grant eligibility)\b/i);
+  add("liability_dispute",/\b(liability|liable|negligence|duty of care|damages|claim|lawsuit|litigation|settlement|dispute|legal exposure)\b/i);
+  add("employment_contractor",/\b(employee|employment|contractor|independent contractor|worker classification|termination|severance|non[-\s]?compete|non[-\s]?solicit)\b/i);
+  add("privacy_data",/\b(privacy|pipeda|gdpr|personal information|personal data|consent|data protection|data retention|user data)\b/i);
+  add("corporate_business",/\b(incorporat(?:e|ion)|corporation|shareholder|director|officer|bylaw|articles|business registration|operating agreement)\b/i);
+  add("jurisdiction_procedure",/\b(jurisdiction|province|federal|ontario|canada|canadian law|court|tribunal|legal process|procedure|venue)\b/i);
+  return out;
+}
+function r18cIsTechnicalFileOperation(text=""){
+  const t=r18cIrStr(text).toLowerCase();
+  return /\b(surgical autopsy|autopsy|audit|patch|update|resend|zip|downloadable|files?|node --check|domain routing|domain registry|domainrouter|mariondomainregistry|marionintentrouter|domainconcierge|domainconfidence|runtime file|javascript|\.js)\b/i.test(t) && r18cLawCategories(t).length===0 && !/\b(r18c|law domain|legal domain)\b/i.test(t);
+}
+function r18cDetectLawIntentSignals(text="", context={}){
+  const src=[r18cIrStr(text),JSON.stringify(r18cIrObj(context)).slice(0,1400)].join(" ");
+  const categories=r18cLawCategories(src);
+  const explicit=/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(src);
+  const active=(categories.length>0||explicit)&&!r18cIsTechnicalFileOperation(text);
+  const secondary=[];
+  if(/\b(ai|artificial intelligence|model|llm|automation|agent)\b/i.test(src))secondary.push("ai");
+  if(/\b(cyber|security|privacy|data protection|credential|access|identity)\b/i.test(src))secondary.push("cyber");
+  if(/\b(revenue|pricing|cost|grant|funding|tax credit|moneti[sz]e|royalty|fee|damages)\b/i.test(src))secondary.push("finance");
+  if(/\b(roku|ott|streaming|channel|distribution|commercial|business)\b/i.test(src))secondary.push("business");
+  return {version:R18C_INTENT_ROUTER_VERSION,active,knowledgeDomain:active?"law":"",domain:active?"law":"",legalCategory:categories[0]||"general_legal_risk",legalCategories:categories,secondaryDomains:Array.from(new Set(secondary.filter(d=>d!=="law"))).slice(0,4),confidence:active?(explicit?0.97:0.94):0,answerMode:"grounded",assessmentFrame:R18C_LAW_INTENT_FRAME.slice(),legalBoundary:Object.assign({},R18C_LAW_INTENT_BOUNDARY),highStakes:!!active,routeLocked:!!active,noCrossDomainBleed:true,noUserFacingDiagnostics:true};
+}
+function r18cLawDomainConfidence(sig){
+  return {version:DOMAIN_CONFIDENCE_VERSION,confidence:sig.confidence,confidenceScore:sig.confidence,band:"high",confidenceBand:"high",margin:0.16,ambiguous:false,routeLocked:true,needsClarifier:false,failClosed:false,reason:"r18c_law_real_world_assessment_precedence",primaryIntent:"domain_question",primaryDomain:"law",selectedDomain:"law",secondaryDomains:sig.secondaryDomains||[],knowledgeDomain:"law",candidates:[{domain:"law",confidence:sig.confidence,reasons:["r18c_law_real_world_assessment_signal",sig.legalCategory],knowledgeDomain:"law"}],answerMode:"grounded",highStakes:true,legalCategory:sig.legalCategory,legalCategories:sig.legalCategories,assessmentFrame:sig.assessmentFrame,legalBoundary:sig.legalBoundary,r18cLawAssessment:sig,noCrossDomainBleed:true,noUserFacingDiagnostics:true};
+}
+function r18cApplyLawIntentRoute(result,packet){
+  if(!result||typeof result!=="object")return result;
+  const text=r18cExtractText(packet)||result.effectivePrompt||result.normalizedUserIntent||result.text||"";
+  const sig=r18cDetectLawIntentSignals(text,result);
+  if(!sig.active)return result;
+  const out=Array.isArray(result)?result.slice():Object.assign({},result);
+  const dc=r18cLawDomainConfidence(sig);
+  out.marionIntent=Object.assign({},r18cIrObj(out.marionIntent),{intent:"domain_question",subIntent:"law_real_world_assessment",confidence:sig.confidence,reason:"r18c_law_real_world_assessment_precedence",knowledgeDomain:"law",knowledgeDomainExplicit:true,knowledgeDomainReason:"r18c_law_signal",secondaryDomains:sig.secondaryDomains,answerMode:"grounded",routeLock:true,legalCategory:sig.legalCategory,legalCategories:sig.legalCategories,assessmentFrame:sig.assessmentFrame,legalBoundary:sig.legalBoundary,r18cLawAssessment:sig,highStakes:true,noUserFacingDiagnostics:true});
+  out.routing=Object.assign({},r18cIrObj(out.routing),{domain:"law",intent:"domain_question",mode:"law_real_world_assessment",depth:"jurisdiction_aware_grounded",preferredStyle:"risk_assessment_not_legal_advice",knowledgeDomain:"law",primaryDomain:"law",selectedDomain:"law",secondaryDomains:sig.secondaryDomains,answerMode:"grounded",routeLock:true,domainConfidence:dc,r18cLawAssessment:sig,noCrossDomainBleed:true});
+  out.domainConfidence=dc;
+  out.domainConciergeSeed=Object.assign({},r18cIrObj(out.domainConciergeSeed),{route:"law",intent:"domain_question",knowledgeDomain:"law",confidence:sig.confidence,answerMode:"grounded",r18cLawAssessment:sig,domainConfidence:dc,noUserFacingDiagnostics:true});
+  out.stateSpinePatch=Object.assign({},r18cIrObj(out.stateSpinePatch),{intent:"domain_question",selectedDomain:"law",knowledgeDomain:"law",routeLock:true,domainConfidence:dc,r18cLawAssessment:sig,noCrossDomainBleed:true});
+  out.meta=Object.assign({},r18cIrObj(out.meta),{knowledgeDomain:"law",r18cLawAssessment:sig,domainConfidence:dc,noUserFacingDiagnostics:true});
+  out.r18cLawAssessment=sig;
+  return out;
+}
+(function r18cPatchIntentRouterExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  if(typeof exp.detectKnowledgeDomain==="function"&&!exp.detectKnowledgeDomain.__r18cLawIntentPatched){
+    const original=exp.detectKnowledgeDomain;
+    exp.detectKnowledgeDomain=function r18cDetectKnowledgeDomainWrapped(text){const sig=r18cDetectLawIntentSignals(text,{}); if(sig.active)return {knowledgeDomain:"law",explicit:true,reason:"r18c_law_real_world_assessment_signal",secondaryDomains:sig.secondaryDomains,answerMode:"grounded",crossDomainProfile:{primary:"law",secondary:sig.secondaryDomains,reason:"r18c_law_real_world_assessment_signal",answerMode:"grounded",confidence:sig.confidence}}; return original.apply(this,arguments);};
+    exp.detectKnowledgeDomain.__r18cLawIntentPatched=true;
+  }
+  if(typeof exp.routeMarionIntent==="function"&&!exp.routeMarionIntent.__r18cLawIntentPatched){
+    const original=exp.routeMarionIntent;
+    exp.routeMarionIntent=function r18cRouteMarionIntentWrapped(packet){const result=original.apply(this,arguments); if(result&&typeof result.then==="function")return result.then(function(v){return r18cApplyLawIntentRoute(v,packet);}); return r18cApplyLawIntentRoute(result,packet);};
+    exp.routeMarionIntent.__r18cLawIntentPatched=true;
+  }
+  exp.R18C_INTENT_ROUTER_VERSION=R18C_INTENT_ROUTER_VERSION;
+  exp.R18C_LAW_INTENT_FRAME=R18C_LAW_INTENT_FRAME;
+  exp.R18C_LAW_INTENT_BOUNDARY=R18C_LAW_INTENT_BOUNDARY;
+  exp.r18cLawCategories=r18cLawCategories;
+  exp.r18cDetectLawIntentSignals=r18cDetectLawIntentSignals;
+  exp.r18cApplyLawIntentRoute=r18cApplyLawIntentRoute;
+  exp.R18C_LAW_ROUTING_REGISTRY_PATCH=true;
+  exp.default=exp.routeMarionIntent;
+})();
+// R18C_LAW_ROUTING_REGISTRY_PATCH_END
