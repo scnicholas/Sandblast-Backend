@@ -187,7 +187,7 @@
     ]
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -195,18 +195,30 @@
     "retrievalAliases": [
       "constitutional_charter_v1",
       "law_constitutional_charter",
-      "law_constitutional_charter_v1"
+      "law_constitutional_charter_v1",
+      "constitutional",
+      "charter",
+      "rights",
+      "section_1",
+      "lawConstitutionalCharter"
     ],
     "sourceFile": "law_constitutional_charter_v1.json",
     "pipelineRole": "knowledge_pack",
-    "jurisdictionDefault": "CA",
+    "jurisdictionDefault": "Canada",
     "crossLinks": [
       "law_foundations_v1",
       "law_research_methods_v1",
       "law_safety_and_posture_v1",
       "law_source_ladder_v2"
     ],
-    "sourceIntegrity": "moderate"
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_constitutional_charter_v1.json",
+    "runtimeFilename": "law_constitutional_charter_v1.json",
+    "expectedFilename": "law_constitutional_charter_v1.json",
+    "manifestPackKey": "lawConstitutionalCharter",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "packType": "framework",
   "retrievalHints": {
@@ -236,12 +248,27 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "jurisdictionDisclosureRequired": true,
+    "noAttorneyClientRelationship": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
   },
   "retrievalIndex": {
     "domain": "law",
     "packId": "law_constitutional_charter_v1",
-    "aliases": [],
+    "aliases": [
+      "constitutional_charter_v1",
+      "law_constitutional_charter",
+      "law_constitutional_charter_v1",
+      "constitutional",
+      "charter",
+      "rights",
+      "section_1",
+      "lawConstitutionalCharter"
+    ],
     "keywords": [
       "constitutional supremacy",
       "section 52",
@@ -270,7 +297,16 @@
       "notwithstanding clause",
       "section 33",
       "override",
-      "can government override"
+      "can government override",
+      "Division of Powers (Federal vs Provincial)",
+      "Structure of the Charter",
+      "Section 1 and the Oakes Test",
+      "Charter Remedies (Section 24)",
+      "Notwithstanding Clause (Section 33)",
+      "constitutional_charter",
+      "division_of_powers",
+      "section_1",
+      "charter_remedies"
     ],
     "primaryFields": [
       "packId",
@@ -286,14 +322,69 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "r18cLawAssessmentLayer"
+    ],
+    "manifestPackKey": "lawConstitutionalCharter",
+    "assessmentCategories": [
+      "constitutional_charter",
+      "division_of_powers",
+      "section_1",
+      "charter_remedies"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "r18c_law_content_hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-07-01",
+    "runtimePathConfirmed": true,
+    "manifestAligned": true,
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "constitutional_charter",
+    "manifestPackKey": "lawConstitutionalCharter",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "constitutional_charter",
+      "division_of_powers",
+      "section_1",
+      "charter_remedies"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
