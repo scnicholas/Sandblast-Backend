@@ -1877,3 +1877,74 @@ function priority9JR1APatchExports(names) {
 }
 priority9JR1APatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_END */
+
+// R18AB_AI_CYBER_CONCIERGE_HARDENING_START
+const R18AB_DOMAIN_CONCIERGE_VERSION = "nyx.marion.r18ab.domainConcierge.aiCyber/1.0";
+function r18abConStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18abConObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18abConFirst(){for(let i=0;i<arguments.length;i+=1){const v=r18abConStr(arguments[i]);if(v)return v;}return"";}
+function r18abExtractText(packet){const p=r18abConObj(packet),payload=r18abConObj(p.payload),meta=r18abConObj(p.meta),session=r18abConObj(p.session);return r18abConFirst(p.text,p.userText,p.message,p.prompt,p.rawUserText,p.normalizedUserIntent,payload.text,payload.userText,payload.message,meta.text,session.lastUserText);}
+function buildR18ABConciergeProtocol(packet={}, base={}){
+  const text=r18abExtractText(packet)||r18abConFirst(r18abConObj(base).rawUserText,r18abConObj(base).normalizedUserIntent);
+  const src=[text,JSON.stringify(r18abConObj(base)).slice(0,1200)].join(" ").toLowerCase();
+  const ai=/\b(ai|artificial intelligence|machine learning|model|llm|agent|inference|automation|adaptive intelligence|ai integration|real[-\s]?world ai)\b/i.test(src);
+  const cyber=/\b(cyber|cybersecurity|security|protective protocol|least privilege|access control|identity|verify identity|secret|token|credential|permission|threat|vulnerability|covert monitoring|autonomous enforcement)\b/i.test(src);
+  return {
+    version:R18AB_DOMAIN_CONCIERGE_VERSION,
+    active:ai||cyber,
+    route:ai?"ai":(cyber?"cyber":""),
+    knowledgeDomain:ai?"ai":(cyber?"cyber":""),
+    aiDomainAdaptability:!!ai,
+    cyberProtectiveProtocol:!!cyber,
+    aiAssessmentFrame:ai?["goal","context","data","risk","next_move"]:[],
+    cyberBoundary:cyber?{
+      macScoped:true,
+      leastPrivilege:true,
+      secretsRedacted:true,
+      explicitConfirmationRequired:true,
+      noCovertMonitoring:true,
+      noAutonomousEnforcement:true,
+      noPunitiveAction:true
+    }:{},
+    baselinePreserved:"r16m-r17c",
+    noUserFacingDiagnostics:true
+  };
+}
+function r18abApplyConciergeProtocol(result, packet){
+  if(!result||typeof result!=="object")return result;
+  const protocol=buildR18ABConciergeProtocol(packet,result);
+  if(!protocol.active)return result;
+  const out=Array.isArray(result)?result.slice():Object.assign({},result);
+  out.r18abDomainExpansion=protocol;
+  out.baselinePreserved="r16m-r17c";
+  out.noUserFacingDiagnostics=true;
+  if(protocol.route){
+    out.knowledgeDomain=out.knowledgeDomain||protocol.knowledgeDomain;
+    out.route=out.route&&out.route!=="general"?out.route:protocol.route;
+    out.confidence=Math.max(Number(out.confidence)||0,0.84);
+  }
+  out.confidenceAwareResponseShaping=Object.assign({},r18abConObj(out.confidenceAwareResponseShaping),{r18abDomainExpansion:true,aiDomainAdaptability:protocol.aiDomainAdaptability,cyberProtectiveProtocol:protocol.cyberProtectiveProtocol,noUserFacingDiagnostics:true});
+  out.composerContext=Object.assign({},r18abConObj(out.composerContext),{r18abDomainExpansion:protocol});
+  out.stateSpinePatch=Object.assign({},r18abConObj(out.stateSpinePatch),{r18abDomainExpansion:protocol});
+  return out;
+}
+(function r18abPatchDomainConciergeExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  ["runDomainConcierge","routeOrClarify"].forEach(function(name){
+    const fn=typeof exp[name]==="function"?exp[name]:null;
+    if(!fn||fn.__r18abDomainConciergePatched)return;
+    exp[name]=function r18abDomainConciergeWrapped(packet){
+      const result=fn.apply(this,arguments);
+      if(result&&typeof result.then==="function")return result.then(function(v){return r18abApplyConciergeProtocol(v,packet);});
+      return r18abApplyConciergeProtocol(result,packet);
+    };
+    exp[name].__r18abDomainConciergePatched=true;
+  });
+  exp.R18AB_DOMAIN_CONCIERGE_VERSION=R18AB_DOMAIN_CONCIERGE_VERSION;
+  exp.buildR18ABConciergeProtocol=buildR18ABConciergeProtocol;
+  exp.r18abApplyConciergeProtocol=r18abApplyConciergeProtocol;
+  exp.R18AB_DOMAIN_CONCIERGE_PATCH=true;
+})();
+// R18AB_AI_CYBER_CONCIERGE_HARDENING_END
+
