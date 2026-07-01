@@ -1521,3 +1521,45 @@ function priority9JR1BPatchExports(names) {
 priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
 
+// R18AB_AI_CYBER_PROGRESSION_SHAPE_START
+const R18AB_PROGRESSION_SHAPE_VERSION = "nyx.marion.r18ab.progressionShape.aiCyber/1.0";
+function r18abShapeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18abShapeObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function detectR18ABDomainSignal(text="",context={}){
+  const src=[r18abShapeStr(text),JSON.stringify(r18abShapeObj(context)).slice(0,1200)].join(" ").toLowerCase();
+  const ai=/\b(ai|artificial intelligence|machine learning|model|llm|agent|inference|automation|adaptive intelligence|ai integration|real[-\s]?world ai)\b/i.test(src);
+  const cyber=/\b(cyber|cybersecurity|security|protective protocol|least privilege|access control|identity|verify identity|secret|token|credential|permission|threat|vulnerability)\b/i.test(src);
+  return {version:R18AB_PROGRESSION_SHAPE_VERSION,active:ai||cyber,aiDomainAdaptability:ai,cyberProtectiveProtocol:cyber,domain:ai?"ai":(cyber?"cyber":""),noUserFacingDiagnostics:true};
+}
+function buildR18ABProgressionProfile(text="",context={}){
+  const sig=detectR18ABDomainSignal(text,context);
+  return Object.assign({},sig,{
+    lane:sig.aiDomainAdaptability?"ai_domain_adaptability":(sig.cyberProtectiveProtocol?"cyber_protective_protocol":""),
+    responseShape:sig.cyberProtectiveProtocol?"protective_grounded_mode":(sig.aiDomainAdaptability?"applied_assessment_mode":""),
+    objective:sig.aiDomainAdaptability?"apply AI assessment through goal, context, data, risk, and next move":(sig.cyberProtectiveProtocol?"protect identity, access, and secrets before sensitive action":""),
+    confidence:sig.active?0.91:0,
+    baselinePreserved:"r16m-r17c",
+    updatedAt:Date.now()
+  });
+}
+(function r18abPatchProgressionShapeExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  const fn=typeof exp.buildProgressionProfile==="function"?exp.buildProgressionProfile:null;
+  if(fn&&!fn.__r18abProgressionShapePatched){
+    exp.buildProgressionProfile=function r18abBuildProgressionProfileWrapped(text,context){
+      const result=fn.apply(this,arguments);
+      const r18=buildR18ABProgressionProfile(text,context);
+      if(result&&typeof result==="object"&&r18.active)return Object.assign({},result,{r18abDomainProgression:r18,baselinePreserved:"r16m-r17c",noUserFacingDiagnostics:true});
+      return result;
+    };
+    exp.buildProgressionProfile.__r18abProgressionShapePatched=true;
+    exp.default=exp.buildProgressionProfile;
+  }
+  exp.R18AB_PROGRESSION_SHAPE_VERSION=R18AB_PROGRESSION_SHAPE_VERSION;
+  exp.detectR18ABDomainSignal=detectR18ABDomainSignal;
+  exp.buildR18ABProgressionProfile=buildR18ABProgressionProfile;
+  exp.R18AB_PROGRESSION_SHAPE_PATCH=true;
+})();
+// R18AB_AI_CYBER_PROGRESSION_SHAPE_END
+
