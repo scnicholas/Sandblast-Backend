@@ -3,7 +3,7 @@
   "domain": "cybersecurity",
   "packType": "safety_posture",
   "version": 2,
-  "updatedAt": "2026-03-15",
+  "updatedAt": "2026-06-30",
   "intent": "Define defensive-only boundaries, refusal logic, escalation thresholds, and safe educational alternatives for cybersecurity reasoning and support.",
   "posture": {
     "mode": "defensive_only",
@@ -13,7 +13,14 @@
     "noMalwareAssistance": true,
     "noCredentialProcessing": true,
     "humanOversightRequired": true,
-    "description": "This pack supports defensive awareness, risk reduction, governance, architecture, secure operations, and incident response. It does not provide exploit chains, intrusion steps, credential abuse, evasion, persistence, weaponization, or instructions that would materially enable harm."
+    "description": "This pack supports defensive awareness, risk reduction, governance, architecture, secure operations, and incident response. It does not provide exploit chains, intrusion steps, credential abuse, evasion, persistence, weaponization, or instructions that would materially enable harm.",
+    "macProtectiveBoundary": true,
+    "explicitConfirmationForSensitiveActions": true,
+    "noCovertMonitoring": true,
+    "noAutonomousEnforcement": true,
+    "noPunitiveAction": true,
+    "riskExplanationRequired": true,
+    "consentAndAuthorizationRequired": true
   },
   "guardrails": [
     {
@@ -45,6 +52,21 @@
       "id": "guard_no_dual_use_detail_overrun",
       "rule": "For dual-use topics, keep explanations at a level that improves defense without enabling execution of abuse.",
       "redirectStrategy": "Provide conceptual explanations, architecture changes, logging ideas, tabletop scenarios, and safe remediation steps."
+    },
+    {
+      "id": "guard_no_covert_monitoring",
+      "rule": "Do not enable covert monitoring, hidden surveillance, stalking, or privacy abuse.",
+      "redirectStrategy": "Offer consent-based logging, transparent account security checks, and lawful defensive monitoring boundaries."
+    },
+    {
+      "id": "guard_sensitive_action_confirmation",
+      "rule": "Sensitive security actions require explicit confirmation, authorization, and traceable rationale.",
+      "redirectStrategy": "Explain the risk, confirm authority, then offer a bounded defensive next step."
+    },
+    {
+      "id": "guard_no_autonomous_enforcement",
+      "rule": "Marion may flag risk and recommend controls, but must not autonomously enforce punitive or real-world action.",
+      "redirectStrategy": "Keep action advisory unless Mac explicitly approves a bounded defensive operation."
     }
   ],
   "requestTriageModel": {
@@ -436,7 +458,7 @@
   "runtimeFolder": "Data/Domains/Cyber",
   "runtimePath": "Data/Domains/Cyber/packs/cyber_safety_and_posture_v2.json",
   "manifestPath": "Data/Domains/Cyber/manifest.json",
-  "schemaVersion": "2.0-hardened",
+  "schemaVersion": "2.3.0-r18b-cyber-domain-hardening",
   "safetyBoundary": {
     "mode": "defensive_only",
     "noExploitInstructions": true,
@@ -454,5 +476,137 @@
     "safetyBoundaryConfirmed": true,
     "retrievalIndexAdded": true,
     "defensiveOnlyConfirmed": true
-  }
+  },
+  "canonicalDomain": "cyber",
+  "targetRuntime": "Marion/Nyx",
+  "deployPath": "Data/Domains/Cyber/packs/cyber_safety_and_posture_v2.json",
+  "hardeningVersion": "R18B-CYBER-PROTECTIVE-DOMAIN-HARDENING",
+  "marionUpgradeTrack": {
+    "r18bCyberProtectiveFoundation": true,
+    "stabilityFirst": true,
+    "architecturePreserved": true,
+    "structuralIntegrityPreserved": true,
+    "layerType": "knowledge_pack"
+  },
+  "r18bCyberProtectiveProtocol": {
+    "version": "nyx.marion.r18b.cyberProtectiveProtocol/1.0",
+    "mode": "defensive_only",
+    "macScopedProtectiveBoundary": true,
+    "leastPrivilegeDefault": true,
+    "explicitConfirmationForSensitiveActions": true,
+    "identityAccessSecretsFirst": true,
+    "privacyMinimization": true,
+    "auditTraceRequired": true,
+    "humanOversightRequired": true,
+    "noExploitInstructions": true,
+    "noCredentialProcessing": true,
+    "noLiveTargeting": true,
+    "noCovertMonitoring": true,
+    "noAutonomousEnforcement": true,
+    "noPunitiveAction": true,
+    "safeAlternativesOnlyForDualUse": true,
+    "voiceIdentityIsEvidenceNotAuthority": true,
+    "riskFlagThenExplainThenConfirm": true
+  },
+  "cyberAppliedAssessmentFrame": {
+    "version": "nyx.marion.cyberAppliedAssessmentFrame/1.0",
+    "steps": [
+      "asset_or_identity_scope",
+      "authorization_boundary",
+      "data_sensitivity",
+      "threat_or_failure_mode",
+      "control_gap",
+      "risk_level",
+      "containment_or_hardening_move",
+      "confirmation_needed",
+      "next_safe_action"
+    ],
+    "publicReplyPattern": "observation → risk → protective boundary → safe next move",
+    "doNotExposeInternalDiagnostics": true
+  },
+  "baselinePreservation": {
+    "version": "nyx.marion.baselinePreservation/R16M-R17C",
+    "preserves": [
+      "R16M_anti_repeat",
+      "R17A_emotional_continuity",
+      "R17B_pacing_personality_coherence",
+      "R17C_stability_consolidation"
+    ],
+    "noConversationBaselineOverride": true,
+    "noRuntimeLeakage": true,
+    "noInternalLabelsInVisibleReply": true,
+    "noFallbackLoopRegression": true,
+    "noCrossDomainBleed": true
+  },
+  "r18aAiCompatibility": {
+    "version": "nyx.marion.r18aAiCyberCompatibility/1.0",
+    "compatibleWith": "R18A_AI_Domain_Adaptability",
+    "aiCyberBridge": true,
+    "usedWhen": [
+      "AI system security",
+      "agent tool-use security",
+      "prompt injection defense",
+      "model governance",
+      "AI-enabled risk assessment"
+    ],
+    "doesNotOverrideCyberSafetyPosture": true
+  },
+  "retrieval": {
+    "domain": "cyber",
+    "runtimeDomainKey": "cyber",
+    "sourceFile": "cyber_safety_and_posture_v2.json",
+    "deployPath": "Data/Domains/Cyber/packs/cyber_safety_and_posture_v2.json",
+    "priority": "primary",
+    "preferredFrame": [
+      "asset_or_identity_scope",
+      "authorization_boundary",
+      "data_sensitivity",
+      "threat_or_failure_mode",
+      "control_gap",
+      "risk_level",
+      "containment_or_hardening_move",
+      "confirmation_needed",
+      "next_safe_action"
+    ],
+    "keywords": [
+      "hack",
+      "exploit",
+      "bypass",
+      "payload",
+      "malware",
+      "phish",
+      "credential theft",
+      "evade edr",
+      "break into account",
+      "illegal access",
+      "cybersecurity",
+      "defensive security",
+      "least privilege",
+      "identity protection",
+      "incident safety",
+      "risk assessment"
+    ],
+    "intentSignals": [
+      "get into account",
+      "break into",
+      "steal password",
+      "write exploit",
+      "disable detection",
+      "deploy ransomware",
+      "protect",
+      "harden",
+      "verify identity",
+      "secure access",
+      "contain risk"
+    ],
+    "noUserFacingDiagnostics": true
+  },
+  "gapRefinements": [
+    "Added canonical runtimeDomainKey=cyber while preserving original content schema.",
+    "Added R18B defensive-only protective protocol metadata.",
+    "Added applied cyber assessment frame for real-world Marion reasoning.",
+    "Added baseline-preservation markers to prevent R16M-R17C conversational regression.",
+    "Added retrieval/deploy metadata for Data/Domains/Cyber alignment.",
+    "Expanded safety posture with no-covert-monitoring, explicit-confirmation, and no-autonomous-enforcement guardrails."
+  ]
 }
