@@ -1,0 +1,171 @@
+{
+  "name": "domain_runtime_priority_manifest.normalized",
+  "version": "nyx.marion.domainRuntimePriorityManifest/1.0-r18c-law",
+  "purpose": "Normalized runtime priority manifest for Marion/Nyx domain routing. It is a machine-readable routing authority table, not a knowledge pack and not a final-answer composer.",
+  "canonicalPath": "Data/marion/runtime/domain_runtime_priority_manifest.normalized.json",
+  "schema": {
+    "stateSpine": "nyx.marion.stateSpine/1.7",
+    "intentContract": "nyx.marion.intent/2.5",
+    "domainConfidence": "nyx.marion.domainConfidence/1.2",
+    "finalEnvelope": "nyx.marion.final/1.0"
+  },
+  "routingRules": {
+    "singleAuthorityPerTurn": true,
+    "noCrossDomainBleed": true,
+    "noUserFacingDiagnostics": true,
+    "domainConciergeDoesNotComposeFinalReply": true,
+    "marionBridgeAndFinalEnvelopeRemainFinalAuthority": true,
+    "technicalFileOperationsKeepTechnicalPrecedence": true,
+    "highStakesDomainsUseGroundedAnswerMode": [
+      "law",
+      "finance",
+      "cyber",
+      "psychology"
+    ]
+  },
+  "domainPriority": [
+    {
+      "domain": "technical",
+      "priority": 100,
+      "when": "runtime files, patching, surgical autopsy, diagnostics, route/registry/code operations",
+      "answerMode": "direct_forensic"
+    },
+    {
+      "domain": "law",
+      "priority": 92,
+      "when": "contracts, copyright/licensing, IP, compliance, liability, employment/contractor, privacy/data, corporate-business, jurisdiction/procedure",
+      "answerMode": "grounded",
+      "knowledgeDomain": "law"
+    },
+    {
+      "domain": "cyber",
+      "priority": 90,
+      "when": "identity, access, secrets, threat, vulnerability, privacy/security hardening",
+      "answerMode": "grounded",
+      "knowledgeDomain": "cyber"
+    },
+    {
+      "domain": "ai",
+      "priority": 86,
+      "when": "AI architecture, models, agents, automation, inference, LLM behavior",
+      "answerMode": "direct_with_risk_frame",
+      "knowledgeDomain": "ai"
+    },
+    {
+      "domain": "finance",
+      "priority": 82,
+      "when": "cash flow, pricing, costs, revenue, grants, funding, ROI, financial risk",
+      "answerMode": "grounded",
+      "knowledgeDomain": "finance"
+    },
+    {
+      "domain": "psychology",
+      "priority": 78,
+      "when": "behavior, distress, emotion, cognitive patterns, trust and human-risk interpretation",
+      "answerMode": "grounded",
+      "knowledgeDomain": "psychology"
+    },
+    {
+      "domain": "english",
+      "priority": 72,
+      "when": "rewrite, grammar, tone, language, clarity, plain-language transformation",
+      "answerMode": "direct",
+      "knowledgeDomain": "english"
+    },
+    {
+      "domain": "business",
+      "priority": 66,
+      "when": "commercial strategy, sponsorship, buyers, positioning, execution planning",
+      "answerMode": "strategic"
+    },
+    {
+      "domain": "roku",
+      "priority": 62,
+      "when": "Roku app, OTT feed, linear TV, channel publishing",
+      "answerMode": "platform_direct"
+    },
+    {
+      "domain": "general_reasoning",
+      "priority": 40,
+      "when": "baseline reasoning when no higher-confidence domain applies",
+      "answerMode": "grounded"
+    },
+    {
+      "domain": "general",
+      "priority": 20,
+      "when": "simple chat and fallback conversation",
+      "answerMode": "warm_direct"
+    }
+  ],
+  "r18cLawAssessment": {
+    "active": true,
+    "primaryDomain": "law",
+    "knowledgeDomain": "law",
+    "confidenceFloor": 0.94,
+    "assessmentFrame": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "safe_next_move"
+    ],
+    "categories": [
+      "contract",
+      "copyright_licensing",
+      "intellectual_property",
+      "compliance_regulatory",
+      "liability_dispute",
+      "employment_contractor",
+      "privacy_data",
+      "corporate_business",
+      "jurisdiction_procedure"
+    ],
+    "boundary": {
+      "generalInformationOnly": true,
+      "noLegalAdvice": true,
+      "noAttorneyClientRelationship": true,
+      "noLegalCertaintyClaim": true,
+      "jurisdictionRequired": true,
+      "sourceDocumentReviewRequired": true,
+      "professionalReviewRecommendedForHighRisk": true
+    },
+    "crossDomainSecondaryRules": [
+      {
+        "when": "AI system governance, model decisions, AI compliance",
+        "secondary": [
+          "ai"
+        ]
+      },
+      {
+        "when": "privacy, data protection, identity/access, security breach",
+        "secondary": [
+          "cyber"
+        ]
+      },
+      {
+        "when": "royalties, damages, grants, tax credits, monetization, cost exposure",
+        "secondary": [
+          "finance"
+        ]
+      },
+      {
+        "when": "Roku/OTT/media distribution or commercial publishing",
+        "secondary": [
+          "business",
+          "roku"
+        ]
+      }
+    ]
+  },
+  "filePathHints": {
+    "domainRouter": "Utils/domainRouter.js",
+    "DomainConcierge": "Data/marion/runtime/DomainConcierge.js",
+    "domainConfidence": "Data/marion/runtime/domainConfidence.js",
+    "marionDomainRegistry": "Data/marion/runtime/marionDomainRegistry.js",
+    "marionIntentRouter": "Data/marion/runtime/marionIntentRouter.js",
+    "runtimePriorityManifest": "Data/marion/runtime/domain_runtime_priority_manifest.normalized.json",
+    "lawManifest": "domains/law/manifest.json",
+    "lawDataRoot": "Data/Domains/law/"
+  }
+}
