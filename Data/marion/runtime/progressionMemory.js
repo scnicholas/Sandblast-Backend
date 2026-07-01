@@ -1516,3 +1516,45 @@ function priority9JR1BPatchExports(names) {
 priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1B_OBJECT_REPLY_SERIALIZATION_GUARD_END */
 
+// R18AB_AI_CYBER_PROGRESSION_MEMORY_START
+const R18AB_PROGRESSION_MEMORY_VERSION = "nyx.marion.r18ab.progressionMemory.aiCyber/1.0";
+function r18abMemStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18abMemObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function buildR18ABDomainProgressionMemory(text="",context={}){
+  const src=[r18abMemStr(text),JSON.stringify(r18abMemObj(context)).slice(0,1200)].join(" ").toLowerCase();
+  const ai=/\b(ai|artificial intelligence|machine learning|model|llm|agent|inference|automation|adaptive intelligence|ai integration|real[-\s]?world ai)\b/i.test(src);
+  const cyber=/\b(cyber|cybersecurity|security|protective protocol|least privilege|access control|identity|verify identity|secret|token|credential|permission|threat|vulnerability)\b/i.test(src);
+  return {
+    version:R18AB_PROGRESSION_MEMORY_VERSION,
+    active:ai||cyber,
+    lane:ai?"ai_domain_adaptability":(cyber?"cyber_protective_protocol":""),
+    aiDomainAdaptability:!!ai,
+    cyberProtectiveProtocol:!!cyber,
+    currentObjective:ai?"assess AI decisions through goal, context, data, risk, and next move":(cyber?"protect identity, access, and secrets before sensitive action":""),
+    baselinePreserved:"r16m-r17c",
+    noUserFacingDiagnostics:true,
+    updatedAt:Date.now()
+  };
+}
+(function r18abPatchProgressionMemoryExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  const fn=typeof exp.updateProgressionMemory==="function"?exp.updateProgressionMemory:null;
+  if(fn&&!fn.__r18abProgressionMemoryPatched){
+    exp.updateProgressionMemory=function r18abUpdateProgressionMemoryWrapped(opts){
+      let result;
+      try{ result=fn.apply(this,arguments); }catch(err){ result={version:typeof PROGRESSION_MEMORY_VERSION!=="undefined"?PROGRESSION_MEMORY_VERSION:R18AB_PROGRESSION_MEMORY_VERSION,active:false,recoveredByR18AB:true,safeErrorName:r18abMemStr(err&&err.name),noUserFacingDiagnostics:true,updatedAt:Date.now()}; }
+      const o=r18abMemObj(opts);
+      const patch=buildR18ABDomainProgressionMemory(o.text,r18abMemObj(o.context));
+      if(result&&typeof result==="object"&&patch.active)return Object.assign({},result,{r18abDomainProgression:patch,baselinePreserved:"r16m-r17c",noUserFacingDiagnostics:true});
+      return result;
+    };
+    exp.updateProgressionMemory.__r18abProgressionMemoryPatched=true;
+    exp.default=exp.updateProgressionMemory;
+  }
+  exp.R18AB_PROGRESSION_MEMORY_VERSION=R18AB_PROGRESSION_MEMORY_VERSION;
+  exp.buildR18ABDomainProgressionMemory=buildR18ABDomainProgressionMemory;
+  exp.R18AB_PROGRESSION_MEMORY_PATCH=true;
+})();
+// R18AB_AI_CYBER_PROGRESSION_MEMORY_END
+
