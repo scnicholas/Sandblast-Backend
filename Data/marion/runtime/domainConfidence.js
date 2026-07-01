@@ -13,7 +13,7 @@
  * - Keeps telemetry/internal confidence fields private and transport-safe.
  */
 
-const VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + domainConfidence v1.0.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + domainConfidence v1.0.0 DOMAIN-CONFIDENCE-SCORING-HARDLOCK + FINAL-RENDER-TELEMETRY-HARDLOCK + R18C-LAW-DOMAIN-CONFIDENCE";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.2";
@@ -1191,3 +1191,97 @@ function r18abEnhanceDomainConfidenceProfile(profile={},text="",context={}){
 })();
 // R18AB_AI_CYBER_DOMAIN_CONFIDENCE_HARDENING_END
 
+// R18C_LAW_ROUTING_REGISTRY_PATCH_START
+const R18C_DOMAIN_CONFIDENCE_VERSION = "nyx.marion.r18c.domainConfidence.lawAssessment/1.0";
+const R18C_LAW_CONFIDENCE_FRAME = Object.freeze(["legal_category","jurisdiction_sensitivity","facts_vs_assumptions","risk_exposure","missing_information","safe_next_move"]);
+const R18C_LAW_CONFIDENCE_BOUNDARY = Object.freeze({generalInformationOnly:true,noLegalAdvice:true,noAttorneyClientRelationship:true,noLegalCertaintyClaim:true,jurisdictionRequired:true,sourceDocumentReviewRequired:true,professionalReviewRecommendedForHighRisk:true});
+function r18cDcStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18cDcObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18cDcCategories(text=""){
+  const t=r18cDcStr(text).toLowerCase(), out=[];
+  const add=(key,rx)=>{if(rx.test(t)&&!out.includes(key))out.push(key);};
+  add("contract",/\b(contract|agreement|nda|terms|clause|consideration|breach|indemnity|warranty|termination|assignment)\b/i);
+  add("copyright_licensing",/\b(copyright|copyrighted|licen[cs]e|licen[cs]ing|distribution rights?|broadcast rights?|ott rights?|roku rights?|streaming rights?|content rights?|fair use|public domain|royalty)\b/i);
+  add("intellectual_property",/\b(ip|intellectual property|trademark|trade mark|patent|trade secret|brand mark|logo ownership|copyright ownership)\b/i);
+  add("compliance_regulatory",/\b(compliance|regulatory|regulation|policy|statute|permit|filing|reporting requirement|tax credit|grant eligibility)\b/i);
+  add("liability_dispute",/\b(liability|liable|negligence|duty of care|damages|claim|lawsuit|litigation|settlement|dispute|legal exposure)\b/i);
+  add("employment_contractor",/\b(employee|employment|contractor|independent contractor|worker classification|termination|severance|non[-\s]?compete|non[-\s]?solicit)\b/i);
+  add("privacy_data",/\b(privacy|pipeda|gdpr|personal information|personal data|consent|data protection|data retention|user data)\b/i);
+  add("corporate_business",/\b(incorporat(?:e|ion)|corporation|shareholder|director|officer|bylaw|articles|business registration|operating agreement)\b/i);
+  add("jurisdiction_procedure",/\b(jurisdiction|province|federal|ontario|canada|canadian law|court|tribunal|legal process|procedure|venue)\b/i);
+  return out;
+}
+function r18cDcSuppressedByTechnical(text=""){
+  const t=r18cDcStr(text).toLowerCase();
+  return /\b(surgical autopsy|autopsy|audit|patch|update|resend|zip|downloadable|files?|node --check|domain routing|domain registry|domainrouter|mariondomainregistry|marionintentrouter|domainconcierge|domainconfidence|runtime file|javascript|\.js)\b/i.test(t) && r18cDcCategories(t).length===0 && !/\b(r18c|law domain|legal domain)\b/i.test(t);
+}
+function r18cDetectLawConfidenceSignals(text="",context={}){
+  const src=[r18cDcStr(text),JSON.stringify(r18cDcObj(context)).slice(0,1400)].join(" ");
+  const categories=r18cDcCategories(src);
+  const explicit=/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(src);
+  const active=(categories.length>0||explicit)&&!r18cDcSuppressedByTechnical(text);
+  const secondary=[];
+  if(/\b(ai|artificial intelligence|model|llm|automation|agent)\b/i.test(src))secondary.push("ai");
+  if(/\b(cyber|security|privacy|data protection|credential|access|identity)\b/i.test(src))secondary.push("cyber");
+  if(/\b(revenue|pricing|cost|grant|funding|tax credit|moneti[sz]e|royalty|fee|damages)\b/i.test(src))secondary.push("finance");
+  if(/\b(roku|ott|streaming|channel|distribution|commercial|business)\b/i.test(src))secondary.push("business");
+  return {version:R18C_DOMAIN_CONFIDENCE_VERSION,active,domain:"law",knowledgeDomain:active?"law":"",legalCategory:categories[0]||"general_legal_risk",legalCategories:categories,secondaryDomains:Array.from(new Set(secondary.filter(d=>d!=="law"))).slice(0,4),confidence:active?(explicit?0.97:0.94):0,answerMode:"grounded",highStakes:!!active,routeLocked:!!active,assessmentFrame:R18C_LAW_CONFIDENCE_FRAME.slice(),legalBoundary:Object.assign({},R18C_LAW_CONFIDENCE_BOUNDARY),noCrossDomainBleed:true,noUserFacingDiagnostics:true};
+}
+function r18cEnhanceLawConfidenceProfile(profile={},text="",context={}){
+  if(!profile||typeof profile!=="object")return profile;
+  const sig=r18cDetectLawConfidenceSignals(text||profile.rawText||profile.normalizedUserIntent||profile.text,context||profile);
+  if(!sig.active)return profile;
+  const out=Array.isArray(profile)?profile.slice():Object.assign({},profile);
+  const previousPrimary=out.primaryDomain||out.selectedDomain||out.domain||out.primary||"";
+  const secondary=Array.from(new Set([...(sig.secondaryDomains||[]),...(Array.isArray(out.secondaryDomains)?out.secondaryDomains:[]),previousPrimary].filter(Boolean).filter(d=>d!=="law"))).slice(0,4);
+  const candidates=Array.isArray(out.candidates)?out.candidates.slice():[];
+  const lawCandidate={domain:"law",confidence:sig.confidence,reasons:["r18c_law_real_world_assessment_signal",sig.legalCategory],knowledgeDomain:"law"};
+  const idx=candidates.findIndex(c=>c&&c.domain==="law");
+  if(idx>=0)candidates[idx]=Object.assign({},candidates[idx],lawCandidate,{confidence:Math.max(Number(candidates[idx].confidence)||0,sig.confidence)}); else candidates.unshift(lawCandidate);
+  out.primaryDomain="law"; out.selectedDomain="law"; out.domain="law"; out.primary="law"; out.knowledgeDomain="law";
+  out.secondaryDomains=secondary; out.confidence=Math.max(Number(out.confidence||out.confidenceScore)||0,sig.confidence); out.confidenceScore=out.confidence;
+  out.band="high"; out.confidenceBand="high"; out.margin=Math.max(Number(out.margin)||0,0.16);
+  out.ambiguous=false; out.routeLocked=true; out.failClosed=false; out.needsClarifier=false; out.answerMode="grounded"; out.highStakes=true;
+  out.legalCategory=sig.legalCategory; out.legalCategories=sig.legalCategories; out.assessmentFrame=sig.assessmentFrame; out.legalBoundary=sig.legalBoundary;
+  out.r18cLawAssessment=sig; out.candidates=candidates; out.reason="r18c_law_real_world_assessment_precedence";
+  out.noCrossDomainBleed=true; out.noUserFacingDiagnostics=true;
+  return out;
+}
+(function r18cPatchDomainConfidenceExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  ["buildDomainConfidenceProfile","normalizeDomainConfidenceProfile","default"].forEach(function(name){
+    const fn=typeof exp[name]==="function"?exp[name]:null;
+    if(!fn||fn.__r18cLawConfidencePatched)return;
+    exp[name]=function r18cLawDomainConfidenceWrapped(){
+      const result=fn.apply(this,arguments);
+      const first=arguments&&arguments[0];
+      const context=arguments&&arguments[1];
+      const text=(first&&typeof first==="object")?r18cDcStr(first.text||first.rawText||first.normalizedUserIntent||first.message||first.prompt||JSON.stringify(first).slice(0,1400)):first;
+      return r18cEnhanceLawConfidenceProfile(result,text,context||first);
+    };
+    exp[name].__r18cLawConfidencePatched=true;
+  });
+  if(typeof exp.detectCandidates==="function"&&!exp.detectCandidates.__r18cLawConfidencePatched){
+    const original=exp.detectCandidates;
+    exp.detectCandidates=function r18cDetectCandidatesWrapped(text,context){
+      const raw=original.apply(this,arguments);
+      const list=Array.isArray(raw)?raw.slice():[];
+      const sig=r18cDetectLawConfidenceSignals(text,context);
+      if(!sig.active)return list;
+      const lawCandidate={domain:"law",confidence:sig.confidence,reasons:["r18c_law_real_world_assessment_signal",sig.legalCategory],knowledgeDomain:"law"};
+      const idx=list.findIndex(c=>c&&c.domain==="law");
+      if(idx>=0)list[idx]=Object.assign({},list[idx],lawCandidate,{confidence:Math.max(Number(list[idx].confidence)||0,sig.confidence)}); else list.unshift(lawCandidate);
+      return list.sort((a,b)=>(Number(b&&b.confidence)||0)-(Number(a&&a.confidence)||0)).slice(0,6);
+    };
+    exp.detectCandidates.__r18cLawConfidencePatched=true;
+  }
+  exp.R18C_DOMAIN_CONFIDENCE_VERSION=R18C_DOMAIN_CONFIDENCE_VERSION;
+  exp.R18C_LAW_CONFIDENCE_FRAME=R18C_LAW_CONFIDENCE_FRAME;
+  exp.R18C_LAW_CONFIDENCE_BOUNDARY=R18C_LAW_CONFIDENCE_BOUNDARY;
+  exp.r18cDcCategories=r18cDcCategories;
+  exp.r18cDetectLawConfidenceSignals=r18cDetectLawConfidenceSignals;
+  exp.r18cEnhanceLawConfidenceProfile=r18cEnhanceLawConfidenceProfile;
+  exp.R18C_LAW_ROUTING_REGISTRY_PATCH=true;
+})();
+// R18C_LAW_ROUTING_REGISTRY_PATCH_END
