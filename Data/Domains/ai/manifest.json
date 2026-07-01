@@ -1,8 +1,8 @@
 {
   "domain": "ai",
-  "schemaVersion": "1.4.0-hardened",
-  "manifestVersion": "1.4.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "1.5.0-r18a-ai-domain-hardening",
+  "manifestVersion": "1.5.0-r18a-ai-domain-hardening",
+  "updatedAt": "2026-06-30",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "ai",
   "runtimeFolder": "Data/Domains/ai",
@@ -45,9 +45,26 @@
       "llm",
       "governance",
       "alignment",
-      "explainability"
+      "explainability",
+      "applied ai assessment",
+      "real-world ai assessment",
+      "ai domain adaptability",
+      "ai system hardening",
+      "human-in-the-loop",
+      "least privilege",
+      "model governance",
+      "prompt injection",
+      "agent tool use security",
+      "ai safety controls"
     ],
-    "safetyFirst": true
+    "safetyFirst": true,
+    "r18aFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ]
   },
   "constraints": {
     "noInvestmentAdvice": true,
@@ -55,7 +72,11 @@
     "noMedicalAdvice": true,
     "defensiveCyberOnly": true,
     "privacyMinimization": true,
-    "humanOversightRecommended": true
+    "humanOversightRecommended": true,
+    "noAutonomousAction": true,
+    "explicitApprovalForHighImpactAI": true,
+    "sourceGroundedWherePossible": true,
+    "protectMacBoundary": true
   },
   "packs": [
     {
@@ -187,10 +208,65 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "r18aAppliedAssessmentFrame": true,
+    "r18bCyberProtectiveProtocolCompatible": true,
+    "baselinePreservationCompatible": true,
+    "noCrossDomainBleed": true
   },
   "notes": [
     "Runtime domain normalized from artificial_intelligence to ai for router/registry cohesion.",
-    "All file references aligned to Data/Domains/ai actual inventory."
-  ]
+    "All file references aligned to Data/Domains/ai actual inventory.",
+    "R18A hardening adds the applied AI assessment frame: goal, context, data, risk, and next move.",
+    "R18A must preserve the R16M through R17C visible conversation baseline.",
+    "Cybersecurity-adjacent AI requests must route through the R18B protective protocol and remain defensive only."
+  ],
+  "r18aRuntimeIntegration": {
+    "version": "nyx.marion.r18a.aiDomainAdaptability/1.0",
+    "baselinePreserved": "r16m-r17c",
+    "purpose": "Convert the AI domain from static reference material into an applied assessment lane while preserving Marion's stable conversation baseline.",
+    "appliedAssessmentFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ],
+    "responseContract": {
+      "answerStyle": "applied_clear_grounded",
+      "avoidGenericAIClaims": true,
+      "separateObservationInferenceRiskNextMove": true,
+      "askOnlyOneMissingDetailWhenNeeded": true,
+      "preserveMarionTone": true
+    },
+    "stabilityGuards": {
+      "noBaselineRegression": true,
+      "noInternalDiagnosticsInUserReply": true,
+      "noUnsupportedCapabilityClaims": true,
+      "noAutonomousAction": true,
+      "highImpactAdviceRequiresHumanOversight": true
+    },
+    "securityBridge": {
+      "cyberProtectiveProtocolCompatible": true,
+      "defensiveCyberOnly": true,
+      "leastPrivilegeForTools": true,
+      "explicitApprovalBeforeSensitiveAction": true,
+      "noCovertMonitoring": true,
+      "noPunitiveAction": true
+    }
+  },
+  "runtimeCompatibility": {
+    "targetRuntime": "Marion/Nyx",
+    "activeBaseline": "R17C-stability + R18AB-core",
+    "compatibleWith": [
+      "R16M",
+      "R17A",
+      "R17B",
+      "R17C",
+      "R18A",
+      "R18B"
+    ],
+    "mustNotWeakenConversationBaseline": true,
+    "mustNotBypassCyberProtectiveProtocol": true
+  }
 }
