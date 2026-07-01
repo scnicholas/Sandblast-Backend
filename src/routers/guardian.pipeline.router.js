@@ -2,6 +2,7 @@
 
 const VERSION = "guardian.pipeline.router v1.3.0 MARION-PERSONALITY-PRIORITY-R2 + PRIORITY2-GUARDIAN-BOUNDARY-ROUTING + TALON-ALIAS-COMPAT + DEFENSIVE-INTENT-APPROVAL-GATE";
 const PROTECTIVE_ESCALATION_ROUTING_VERSION = "nyx.marion.protectiveEscalationRouting/1.0";
+const SECURITY_PROTECTIVE_LAYER_VERSION = "nyx.marion.r18b.securityProtectiveLayer/1.0";
 
 const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
   schema: "sandblast.guardian.identity.registry",
@@ -74,7 +75,16 @@ const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
     macOnlyMarionDirectCommunication: true,
     marionPersonalityResponseShapeRequired: true,
     diagnosticsHiddenUnlessRequested: true,
-    oneQuestionPerTurn: true
+    oneQuestionPerTurn: true,
+    securityProtectiveLayerActive: true,
+    macScopedAuthorityBoundary: true,
+    leastPrivilegeRequired: true,
+    identityIsEvidenceNotAuthority: true,
+    voiceIdentityIsEvidenceNotAuthority: true,
+    sensitiveActionsRequireExplicitConfirmation: true,
+    noCovertMonitoring: true,
+    noAutonomousEnforcement: true,
+    noPunitiveAction: true
   },
   packetDefaults: {
     systemState: "standby",
@@ -115,6 +125,67 @@ function normalizeIntentKey(value = "conversation") {
 export function deriveIntent(payload = {}) {
   const raw = payload.intent || payload.command || payload.action || payload.type || "conversation";
   return normalizeIntentKey(raw);
+}
+
+
+function protectiveText(payload = {}) {
+  const p = payload && typeof payload === "object" ? payload : {};
+  return String([p.intent, p.command, p.action, p.type, p.text, p.message, p.input, p.prompt, p.directReply].filter(Boolean).join(" ")).replace(/\s+/g, " ").trim();
+}
+function isSensitiveProtectiveAction(payload = {}, intent = "") {
+  const text = protectiveText(payload);
+  return /\b(approve|deny|emergency|escalat|delete|deploy|publish|send|payment|transfer|registry|role|owner|admin|voice delivery|private voice|runtime|disable|shutdown|kill switch|credential|token|secret)\b/i.test(`${intent} ${text}`);
+}
+function isServerVerifiedAdminContext(payload = {}, dependencies = {}) {
+  const p = payload && typeof payload === "object" ? payload : {};
+  const d = dependencies && typeof dependencies === "object" ? dependencies : {};
+  return p.adminVerified === true || p.mfaVerified === true || p.ownerVerified === true || p.trustedServerAuth === true || p.serverSideAdminAuth === true || d.adminVerified === true || d.mfaVerified === true || d.ownerVerified === true || d.trustedServerAuth === true || d.serverSideAdminAuth === true;
+}
+export function buildSecurityProtectiveBoundary(payload = {}, intent = "conversation", guardian = "marion", profile = {}) {
+  const sensitive = isSensitiveProtectiveAction(payload, intent);
+  const verified = isServerVerifiedAdminContext(payload, {});
+  return {
+    version: SECURITY_PROTECTIVE_LAYER_VERSION,
+    active: sensitive || guardian === "marion",
+    guardian,
+    guardianRole: profile && profile.role || "unknown",
+    intent: normalizeIntentKey(intent),
+    macScoped: true,
+    leastPrivilege: true,
+    identityIsAuthority: false,
+    voiceIdentityIsAuthority: false,
+    challengeIsAuthority: false,
+    continuityIsAuthority: false,
+    authorityStillRequiresRBAC: true,
+    explicitConfirmationRequired: sensitive,
+    approvalRequired: sensitive && !verified,
+    adminSessionServerVerified: verified,
+    noCovertMonitoring: true,
+    noAutonomousEnforcement: true,
+    noPunitiveAction: true,
+    secretsRedacted: true,
+    traceableAudit: true,
+    reason: sensitive && !verified ? "sensitive_action_requires_server_verified_admin_context" : "protective_boundary_recorded"
+  };
+}
+function shapeMarionGuardianReply(reply = "", context = {}) {
+  const text = String(reply || "Guardian packet created.").replace(/\s+/g, " ").trim();
+  if (/token|secret|password|authorization|cookie/i.test(text)) return "I blocked sensitive material from the visible reply. I can continue with the safe summary.";
+  if (/\b(runtime|diagnostic|routeKind|finalEnvelope|stateSpine)\b/i.test(text) && context && context.diagnosticsRequested !== true) return "Marion has the route. I’ll keep the visible reply clean and preserve the boundary.";
+  return text;
+}
+function buildMarionPersonaBoundary(context = {}) {
+  const guardian = normalizeGuardian(context.guardian || "marion");
+  return {
+    version: "nyx.marion.personaBoundary.r18b/1.0",
+    guardian,
+    recipient: "Mac",
+    macFacing: guardian === "marion",
+    professionalProtective: true,
+    oneQuestionPerTurn: true,
+    diagnosticsHiddenUnlessRequested: true,
+    securityProtectiveLayer: SECURITY_PROTECTIVE_LAYER_VERSION
+  };
 }
 
 export function isProtectiveEscalationIntent(intent = "", payload = {}) {
@@ -180,8 +251,9 @@ export function buildGuardianPacket(overrides = {}, registry = DEFAULT_GUARDIAN_
     route: overrides.route || "guardian.pipeline.router",
     routerVersion: VERSION,
     ethicalBoundary: overrides.ethicalBoundary || null,
+    securityProtectiveLayer: overrides.securityProtectiveLayer || buildSecurityProtectiveBoundary(overrides, overrides.intent || "conversation", guardian, profile),
     persona: buildMarionPersonaBoundary({ ...overrides, guardian, profile }),
-    meta: sanitizeMeta({ routerVersion: VERSION, personalityPriorityR2: true, marionRecipient: "Mac", ...(overrides.meta || {}) })
+    meta: sanitizeMeta({ routerVersion: VERSION, personalityPriorityR2: true, marionRecipient: "Mac", r18bSecurityProtectiveLayer: true, macScopedSecurityBoundary: true, ...(overrides.meta || {}) })
   };
 }
 
@@ -205,6 +277,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
   }
 
   ethicalBoundary = buildGuardianEthicalBoundary(payload, intent, guardian, profile || {});
+  const securityProtectiveLayer = buildSecurityProtectiveBoundary(payload, intent, guardian, profile || {});
 
   if (!isIntentAllowed(profile, intent)) {
     const packet = buildGuardianPacket({
@@ -218,6 +291,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
       currentObjective: "Preserve Guardian authority boundaries.",
       nextAction: "Route this request through Marion for review.",
       ethicalBoundary,
+      securityProtectiveLayer,
       meta: { intent, requestedGuardian: requested, rule: "intent_not_allowed", ethicalBoundary }
     }, registry);
     await safeAudit(dependencies, packet, payload, "blocked_intent");
@@ -244,7 +318,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
     }
 
     const result = await marionHandler({ ...payload, guardian: "marion", guardianMode: "marion", intent, traceId });
-    const packet = buildGuardianPacket({ ...result, guardian: "marion", guardianMode: "marion", traceId, ethicalBoundary, route: "guardian.pipeline.router:marion", meta: { ...(result && result.meta || {}), ethicalBoundary } }, registry);
+    const packet = buildGuardianPacket({ ...result, guardian: "marion", guardianMode: "marion", traceId, ethicalBoundary, securityProtectiveLayer, route: "guardian.pipeline.router:marion", meta: { ...(result && result.meta || {}), ethicalBoundary } }, registry);
     await safeAudit(dependencies, packet, payload, "marion_routed");
     return packet;
   }
@@ -262,6 +336,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
       currentObjective: "Keep advisory Guardians registered without letting them override Marion.",
       nextAction: ethicalBoundary && ethicalBoundary.active ? `Route ${profile.name || guardian} protective output to Marion for verified approval before any escalation.` : `Activate the ${profile.name || guardian} controller only after Marion's runtime pattern is stable.`,
       ethicalBoundary,
+      securityProtectiveLayer,
       meta: { intent, requestedGuardian: requested, requiresApprovalFrom: profile.requiresApprovalFrom || null, ethicalBoundary }
     }, registry);
     await safeAudit(dependencies, packet, payload, "guardian_standby");
@@ -313,10 +388,25 @@ function normalizeRisk(value = "low") {
 
 function sanitizeMeta(meta = {}) {
   if (!meta || typeof meta !== "object") return {};
-  const blocked = /token|secret|password|apikey|api_key|authorization|cookie|session/i;
-  return Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, blocked.test(key) ? "[REDACTED]" : value]));
+  const blocked = /token|secret|password|apikey|api_key|authorization|cookie|session|credential|private[_-]?key/i;
+  const redactText = (value) => String(value == null ? "" : value).replace(/(bearer\s+)[a-z0-9._~+/-]+=*|((?:token|secret|password|api[_-]?key|session[_-]?token|runtime[_-]?token|master[_-]?token|authorization)\s*[:=]\s*)[^\s,"'}]+/gi, (_m, a, b) => `${a || b || ""}[REDACTED]`);
+  const walk = (value, seen = new WeakSet()) => {
+    if (value == null) return value;
+    if (typeof value === "string") return redactText(value);
+    if (typeof value === "number" || typeof value === "boolean") return value;
+    if (typeof value !== "object") return redactText(value);
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
+    if (Array.isArray(value)) return value.slice(0, 80).map((item) => walk(item, seen));
+    const out = {};
+    for (const [key, item] of Object.entries(value)) out[key] = blocked.test(key) ? "[REDACTED]" : walk(item, seen);
+    return out;
+  };
+  return walk(meta);
 }
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
+
+export { SECURITY_PROTECTIVE_LAYER_VERSION };
