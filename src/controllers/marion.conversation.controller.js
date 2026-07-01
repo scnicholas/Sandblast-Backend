@@ -2,7 +2,7 @@ import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js"
 import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
 import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
 
-const CONTROLLER_VERSION = "1.5.0-r18ab-ai-cyber-protection";
+const CONTROLLER_VERSION = "1.5.1-r18ab-surface-continuity";
 const DEFAULT_GUARDIAN = "marion";
 const DEFAULT_MODE = "admin_dialogue";
 const DEFAULT_ROUTE = "marion.admin.runtime";
@@ -86,6 +86,61 @@ function r18DomainProfile(input) {
   return { ai, cyber };
 }
 
+
+function r18ShortPromptKind(input) {
+  const t = cleanText(input, 400).toLowerCase().replace(/[.!?]+$/g, "").trim();
+  if (/^(pass|passed|locked|green|success)$/.test(t)) return "pass";
+  if (/^(next|next steps|what now|what's next|what is next)$/.test(t)) return "next";
+  if (/^(continue|keep going|carry on|proceed)$/.test(t)) return "continue";
+  if (/what were we fixing|where were we|active lane|what are we doing/.test(t)) return "ask";
+  if (/frustr|stuck|annoyed|tired|wrong lane|not working/.test(t)) return "repair";
+  return "";
+}
+
+function r18ActiveLane(memory = {}, packet = {}, input = "") {
+  const text = cleanText(`${input} ${packet.directReply || ""} ${packet.currentObjective || ""} ${packet.contextSummary || ""} ${memory.lastTopic || ""} ${memory.currentObjective || ""} ${memory.activeFeatureLane || ""}`, 3000).toLowerCase();
+  return /\b(ai|artificial intelligence|agent|model|llm|automation|cyber|security|identity|access|secret|least privilege|credential|approval|ai_cyber)\b/.test(text) || r18ShortPromptKind(input);
+}
+
+function r18SurfaceReply(kind) {
+  if (kind === "pass") return "Good. The AI/cyber lane held. Next we validate without loosening the R17C baseline.";
+  if (kind === "ask") return "We are fixing AI adaptability and cybersecurity protection: goal, context, data, risk, then identity, access, secrets, and approval.";
+  if (kind === "next") return "Next, validate AI routing, then verify identity, access, secrets, and explicit approval.";
+  if (kind === "continue") return "Keep going: AI assessment first, then cybersecurity boundary checks.";
+  if (kind === "repair") return "You are right, Mac. I will pull the reply back to the active AI/cyber lane and keep the baseline steady.";
+  return "AI/cyber lane active: assess goal, context, data, risk, then protect identity, access, and secrets.";
+}
+
+function applyR18ABSurfaceContinuity(shaped, input, memory = {}) {
+  const kind = r18ShortPromptKind(input);
+  const active = r18ActiveLane(memory, shaped, input);
+  if (!active) return shaped;
+  const stale = /pacing, personality, and coherence|next, we run it longer|steady rhythm|keep the tone steady|baseline steady|same baseline/i.test(shaped.directReply || "");
+  if (kind || stale || !shaped.r18AIDomainAdaptability && !shaped.r18CybersecurityProtectiveProtocol) shaped.directReply = r18SurfaceReply(kind || "domain");
+  shaped.r18abSurfaceContinuity = true;
+  shaped.activeFeatureLane = "ai_cyber";
+  shaped.shortPromptLaneInheritance = true;
+  shaped.r18AIDomainAdaptability = true;
+  shaped.aiAssessmentFrame = "goal_context_data_risk_next_move";
+  shaped.aiAdaptabilityMode = "applied_real_world_assessment";
+  shaped.r18CybersecurityProtectiveProtocol = true;
+  shaped.cybersecurityBoundary = "identity_access_secret_approval";
+  shaped.protectiveBoundary = {
+    macScoped: true,
+    leastPrivilege: true,
+    explicitConfirmationRequired: true,
+    noCovertMonitoring: true,
+    noAutonomousEnforcement: true,
+    noPunitiveAction: true,
+    secretRedaction: true
+  };
+  shaped.baselinePreserved = "r16m-r17c";
+  shaped.currentObjective = "Keep AI adaptability and cybersecurity protection active without weakening R17C.";
+  shaped.nextAction = "Validate AI assessment, then identity, access, secrets, and explicit approval.";
+  return shaped;
+}
+
+
 function applyR17AContinuity(packet, input, memory = {}) {
   const shaped = ensurePacketShape(packet, { traceId: packet?.traceId });
   const prior = cleanText(memory?.lastTopic || memory?.currentObjective || "", 600);
@@ -124,7 +179,7 @@ function applyR17AContinuity(packet, input, memory = {}) {
   shaped.baselinePreserved = "r16m-r17c";
   if (r18.ai && /review runtime|continue validation|same thread/i.test(shaped.nextAction || "")) shaped.nextAction = "Assess the AI goal, context, data, risk, and next move.";
   if (r18.cyber) shaped.nextAction = "Verify identity, limit access, protect secrets, and request explicit approval before sensitive action.";
-  return shaped;
+  return applyR18ABSurfaceContinuity(shaped, input, memory);
 }
 
 function createEmptyInputPacket({ guardian = DEFAULT_GUARDIAN, traceId = makeTraceId("marion") } = {}) {
@@ -293,6 +348,9 @@ export function getMarionConversationControllerInfo() {
     maxInputLength: MAX_INPUT_LENGTH,
     r18AIDomainAdaptability: true,
     r18CybersecurityProtectiveProtocol: true,
-    baselinePreserved: "r16m-r17c"
+    baselinePreserved: "r16m-r17c",
+    r18abSurfaceContinuity: true,
+    activeFeatureLane: "ai_cyber",
+    shortPromptLaneInheritance: true
   };
 }
