@@ -88,6 +88,21 @@
       "manifest/registry/router autopsy",
       "zip/package generation",
       "node validation"
+    ],
+    "categoryPriority": [
+      "legal_safety",
+      "criminal",
+      "constitutional_charter",
+      "employment_contractor",
+      "copyright_licensing",
+      "intellectual_property",
+      "privacy_data",
+      "compliance_regulatory",
+      "liability_dispute",
+      "contract",
+      "jurisdiction_procedure",
+      "source_verification",
+      "general_law"
     ]
   },
   "constraints": {
@@ -485,6 +500,27 @@
       "professionalReferralForHighStakes": true,
       "privacyMinimizationRequired": true,
       "documentReviewRequiredForSpecificLegalPosition": true
+    },
+    "categoryPriority": [
+      "legal_safety",
+      "criminal",
+      "constitutional_charter",
+      "employment_contractor",
+      "copyright_licensing",
+      "intellectual_property",
+      "privacy_data",
+      "compliance_regulatory",
+      "liability_dispute",
+      "contract",
+      "jurisdiction_procedure",
+      "source_verification",
+      "general_law"
+    ],
+    "categoryTieBreakers": {
+      "employment_contractor_over_contract": "If a prompt includes fired, severance, employment status, contractor classification, worker status, or a release connected to termination, classify as employment_contractor before generic contract.",
+      "copyright_licensing_over_business_or_roku": "If a prompt asks whether content, movies, music, broadcasts, or media rights can be used/distributed/monetized, classify as copyright_licensing even when Roku, OTT, business, or paperwork terms are present.",
+      "privacy_data_over_cyber": "If a prompt asks about consent, personal information handling, vendor data sharing, PIPEDA, or legal compliance, classify as privacy_data before cybersecurity unless the core issue is access control, identity, credentials, or threat response.",
+      "source_verification_as_supporting_layer": "If source verification appears with a substantive legal issue, keep the substantive legal category primary and use source_verification as a support layer; use source_verification primary only when the user is asking where/how to verify law."
     }
   },
   "contentInventory": [
