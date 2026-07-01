@@ -192,7 +192,7 @@
     ]
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -200,7 +200,13 @@
     "retrievalAliases": [
       "contracts_sources_index_v2",
       "law_contracts_sources_index",
-      "law_contracts_sources_index_v2"
+      "law_contracts_sources_index_v2",
+      "contracts",
+      "sources",
+      "index",
+      "curriculum",
+      "law_contracts_sources_index_v1",
+      "lawContractsSourcesIndex"
     ],
     "sourceFile": "law_contracts_sources_index_v1.json",
     "pipelineRole": "knowledge_pack",
@@ -208,10 +214,18 @@
     "crossLinks": [
       "law_contracts_v2",
       "law_source_ladder_v2",
-      "law_research_methods_v1"
+      "law_research_methods_v1",
+      "law_safety_and_posture_v1",
+      "law_foundations_v1"
     ],
-    "expectedFilename": "law_contracts_sources_index_v2.json",
-    "sourceIntegrity": "strong"
+    "expectedFilename": "law_contracts_sources_index_v1.json",
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_contracts_sources_index_v1.json",
+    "runtimeFilename": "law_contracts_sources_index_v1.json",
+    "manifestPackKey": "lawContractsSourcesIndex",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "packType": "sources",
   "retrievalHints": {
@@ -226,13 +240,34 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "jurisdictionDisclosureRequired": true,
+    "noAttorneyClientRelationship": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
   },
   "retrievalIndex": {
     "domain": "law",
     "packId": "law_contracts_sources_index_v2",
-    "aliases": [],
-    "keywords": [],
+    "aliases": [
+      "contracts_sources_index_v2",
+      "law_contracts_sources_index",
+      "law_contracts_sources_index_v2",
+      "contracts",
+      "sources",
+      "index",
+      "curriculum",
+      "law_contracts_sources_index_v1",
+      "lawContractsSourcesIndex"
+    ],
+    "keywords": [
+      "contract_sources",
+      "curriculum",
+      "case_clusters",
+      "doctrinal_anchors"
+    ],
     "primaryFields": [
       "packId",
       "version",
@@ -250,14 +285,69 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "r18cLawAssessmentLayer"
+    ],
+    "manifestPackKey": "lawContractsSourcesIndex",
+    "assessmentCategories": [
+      "contract_sources",
+      "curriculum",
+      "case_clusters",
+      "doctrinal_anchors"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "r18c_law_content_hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-07-01",
+    "runtimePathConfirmed": true,
+    "manifestAligned": true,
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "contracts_sources_index",
+    "manifestPackKey": "lawContractsSourcesIndex",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "contract_sources",
+      "curriculum",
+      "case_clusters",
+      "doctrinal_anchors"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
