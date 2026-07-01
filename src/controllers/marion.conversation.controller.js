@@ -2,7 +2,7 @@ import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js"
 import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
 import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
 
-const CONTROLLER_VERSION = "1.4.0-r17c-stability";
+const CONTROLLER_VERSION = "1.5.0-r18ab-ai-cyber-protection";
 const DEFAULT_GUARDIAN = "marion";
 const DEFAULT_MODE = "admin_dialogue";
 const DEFAULT_ROUTE = "marion.admin.runtime";
@@ -78,6 +78,14 @@ function r17aKind(input) {
   if (/still there|are you there|you there/.test(t)) return "presence";
   return "steady";
 }
+
+function r18DomainProfile(input) {
+  const t = cleanText(input, 1600).toLowerCase();
+  const ai = /\b(ai|artificial intelligence|model|reasoning|agent|automation|adaptive|intelligence|llm|machine learning)\b/.test(t);
+  const cyber = /\b(cyber|security|protect|identity|permission|access|token|secret|auth|authentication|authorization|least privilege|risk|threat|anomaly|credential)\b/.test(t);
+  return { ai, cyber };
+}
+
 function applyR17AContinuity(packet, input, memory = {}) {
   const shaped = ensurePacketShape(packet, { traceId: packet?.traceId });
   const prior = cleanText(memory?.lastTopic || memory?.currentObjective || "", 600);
@@ -97,6 +105,25 @@ function applyR17AContinuity(packet, input, memory = {}) {
   shaped.contextSummary = cleanText(shaped.contextSummary || prior || "Conversation continuity is active.", 2000);
   shaped.currentObjective = cleanText(shaped.currentObjective || prior || "Keep Marion replies paced, natural, and coherent.", 1000);
   if (!shaped.nextAction || /review runtime|continue validation|inspect/i.test(shaped.nextAction)) shaped.nextAction = "Continue the same thread with steady pacing.";
+
+  const r18 = r18DomainProfile(`${input} ${shaped.directReply} ${shaped.currentObjective} ${shaped.contextSummary}`);
+  shaped.r18AIDomainAdaptability = Boolean(r18.ai);
+  shaped.aiAssessmentFrame = r18.ai ? "goal_context_data_risk_next_move" : "baseline";
+  shaped.aiAdaptabilityMode = r18.ai ? "applied_real_world_assessment" : "baseline_preserved";
+  shaped.r18CybersecurityProtectiveProtocol = Boolean(r18.cyber);
+  shaped.cybersecurityBoundary = r18.cyber ? "identity_access_secret_approval" : "baseline";
+  shaped.protectiveBoundary = {
+    macScoped: true,
+    leastPrivilege: true,
+    explicitConfirmationRequired: Boolean(r18.cyber),
+    noCovertMonitoring: true,
+    noAutonomousEnforcement: true,
+    noPunitiveAction: true,
+    secretRedaction: true
+  };
+  shaped.baselinePreserved = "r16m-r17c";
+  if (r18.ai && /review runtime|continue validation|same thread/i.test(shaped.nextAction || "")) shaped.nextAction = "Assess the AI goal, context, data, risk, and next move.";
+  if (r18.cyber) shaped.nextAction = "Verify identity, limit access, protect secrets, and request explicit approval before sensitive action.";
   return shaped;
 }
 
@@ -215,7 +242,7 @@ export async function handleMarionConversation({
     const packet = applyR17AContinuity(ensurePacketShape(adaptGuardianResponse({
       ok: false,
       guardian: activeGuardian,
-      directReply: "Marion runtime hit a controller or backend failure. Review Output diagnostics before continuing.",
+      directReply: "That turn did not complete cleanly, Mac. I’ll keep the baseline steady while we inspect it.",
       contextSummary: "The conversation controller caught a runtime failure while processing Mac's input.",
       currentObjective: fallback.currentObjective,
       systemState: "degraded",
@@ -263,6 +290,9 @@ export function getMarionConversationControllerInfo() {
     version: CONTROLLER_VERSION,
     defaultGuardian: DEFAULT_GUARDIAN,
     defaultMode: DEFAULT_MODE,
-    maxInputLength: MAX_INPUT_LENGTH
+    maxInputLength: MAX_INPUT_LENGTH,
+    r18AIDomainAdaptability: true,
+    r18CybersecurityProtectiveProtocol: true,
+    baselinePreserved: "r16m-r17c"
   };
 }
