@@ -196,7 +196,7 @@
     ]
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -204,11 +204,16 @@
     "retrievalAliases": [
       "foundations_v1",
       "law_foundations",
-      "law_foundations_v1"
+      "law_foundations_v1",
+      "foundations",
+      "jurisdiction",
+      "source_of_law",
+      "burden",
+      "lawFoundations"
     ],
     "sourceFile": "law_foundations_v1.json",
     "pipelineRole": "knowledge_pack",
-    "jurisdictionDefault": "CA",
+    "jurisdictionDefault": "Canada",
     "crossLinks": [
       "law_research_methods_v1",
       "law_constitutional_charter_v1",
@@ -216,9 +221,17 @@
       "law_torts_v1",
       "law_criminal_v1",
       "law_safety_and_posture_v1",
-      "law_source_ladder_v2"
+      "law_source_ladder_v2",
+      "law_foundations_v1"
     ],
-    "sourceIntegrity": "moderate"
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_foundations_v1.json",
+    "runtimeFilename": "law_foundations_v1.json",
+    "expectedFilename": "law_foundations_v1.json",
+    "manifestPackKey": "lawFoundations",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "packType": "framework",
   "retrievalHints": {
@@ -243,19 +256,166 @@
   },
   "runtimePath": "Data/Domains/law/packs/law_foundations_v1.json",
   "runtimeDomainKey": "law",
-  "safetyBoundary": "general_legal_information_only_not_legal_advice",
+  "safetyBoundary": {
+    "stance": "general_legal_information_only_not_legal_advice",
+    "jurisdiction": "Canada",
+    "jurisdictionDisclosureRequired": true,
+    "requiresProvinceForProcedure": true,
+    "noAttorneyClientRelationship": true,
+    "noOutcomeGuarantees": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "professionalReferralForHighStakes": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
+  },
   "retrievalIndex": {
     "aliases": [
       "law_foundations_v1",
       "law",
-      "framework"
+      "framework",
+      "foundations_v1",
+      "law_foundations",
+      "foundations",
+      "jurisdiction",
+      "source_of_law",
+      "burden",
+      "lawFoundations"
     ],
-    "source": "batch2_hardening_v1_1"
+    "source": "batch2_hardening_v1_1",
+    "domain": "law",
+    "packId": "law_foundations_v1",
+    "manifestPackKey": "lawFoundations",
+    "keywords": [
+      "burden of proof",
+      "federal or provincial",
+      "jurisdiction",
+      "primary authority",
+      "reasonable doubt",
+      "source of law",
+      "standard of proof",
+      "statute",
+      "which court",
+      "how much proof",
+      "what do they need to prove",
+      "where does this law come from",
+      "which law applies",
+      "who has authority",
+      "authority",
+      "Jurisdiction (Federal vs Provincial Authority)",
+      "precedent",
+      "Sources of Law in Canada",
+      "balance of probabilities",
+      "Burden and Standard of Proof",
+      "interpretation",
+      "meaning of section",
+      "legislative intent",
+      "modern principle",
+      "what does this section mean",
+      "Statutory Interpretation (Modern Principle)",
+      "remedy",
+      "damages",
+      "injunction",
+      "compensation",
+      "what can I get",
+      "what happens if",
+      "Legal Remedies",
+      "appeal",
+      "motion",
+      "trial stage",
+      "procedure",
+      "can I appeal",
+      "what happens next",
+      "Procedural Posture",
+      "jurisdiction_procedure",
+      "sources_of_law",
+      "burden_standard",
+      "statutory_interpretation",
+      "remedies"
+    ],
+    "assessmentCategories": [
+      "jurisdiction_procedure",
+      "sources_of_law",
+      "burden_standard",
+      "statutory_interpretation",
+      "remedies"
+    ],
+    "primaryFields": [
+      "packId",
+      "version",
+      "domain",
+      "jurisdiction",
+      "description",
+      "topics",
+      "meta",
+      "runtime",
+      "packType",
+      "retrievalHints",
+      "runtimePath",
+      "runtimeDomainKey",
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "manifestPackKey",
+      "safetyBoundaryLegacy",
+      "r18cLawAssessmentLayer"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
     "jsonValid": true,
     "conflictMarkersRemoved": 0,
     "runtimePathConfirmed": true,
-    "batch2Hardened": true
+    "batch2Hardened": true,
+    "status": "r18c_law_content_hardened",
+    "validatedJson": true,
+    "preservedStructuralIntegrity": true,
+    "manifestAligned": true,
+    "normalizedAt": "2026-07-01",
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "manifestPackKey": "lawFoundations",
+  "safetyBoundaryLegacy": "general_legal_information_only_not_legal_advice",
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "foundations",
+    "manifestPackKey": "lawFoundations",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "jurisdiction_procedure",
+      "sources_of_law",
+      "burden_standard",
+      "statutory_interpretation",
+      "remedies"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
