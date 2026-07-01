@@ -1,468 +1,372 @@
-{
-  "name": "marion.runtime.contract",
-  "guardian": "marion",
-  "version": "1.8.1-r18ab-s1-surface-continuity",
-  "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging. R18A adds AI domain adaptability for applied real-world assessment. R18B adds cybersecurity protective protocol foundations for identity, access, secrets, explicit confirmation, and baseline-safe protective reasoning without autonomous enforcement. R18AB-S1 makes short prompts inherit the active AI/cyber lane so next steps, keep going, passed, and what were we fixing do not regress to the old R17 pacing lane.",
-  "requiredFields": [
-    "guardian",
-    "guardianMode",
-    "directReply",
-    "contextSummary",
-    "currentObjective",
-    "systemState",
-    "nextAction",
-    "riskLevel",
-    "approvalRequired",
-    "traceId",
-    "timestamp"
-  ],
-  "responseShape": {
-    "guardian": "marion",
-    "guardianMode": "marion",
-    "directReply": "",
-    "contextSummary": "",
-    "currentObjective": "",
-    "systemState": "unknown",
-    "nextAction": "",
-    "riskLevel": "low",
-    "approvalRequired": false,
-    "traceId": "",
-    "timestamp": "",
-    "sourceRoute": "",
-    "rawRuntimeAvailable": false,
-    "errors": [],
-    "ethicalGate": {},
-    "defensiveEscalation": {},
-    "defensiveJustification": {},
-    "adapterVersion": "",
-    "emotionalContinuity": "",
-    "naturalContinuation": false,
-    "responseVariation": false,
-    "conversationPacing": "",
-    "microPersonality": "",
-    "longSessionCoherence": false,
-    "turnRhythm": "",
-    "fullRegressionConsolidation": false,
-    "voiceTextParity": false,
-    "longSessionStressGuard": false,
-    "finalBaseline": "",
-    "r17cStability": false,
-    "r18AIDomainAdaptability": false,
-    "aiAssessmentFrame": "",
-    "aiAdaptabilityMode": "",
-    "r18CybersecurityProtectiveProtocol": false,
-    "cybersecurityBoundary": "",
-    "protectiveBoundary": {},
-    "baselinePreserved": "",
-    "leastPrivilege": false,
-    "explicitConfirmationRequired": false,
-    "secretRedaction": false,
-    "noCovertMonitoring": true,
-    "noAutonomousEnforcement": true,
-    "noPunitiveAction": true,
-    "r18abSurfaceContinuity": false,
-    "activeFeatureLane": "",
-    "shortPromptLaneInheritance": false,
-    "aiCyberValidationMode": "",
-    "surfaceContinuityBaseline": ""
-  },
-  "allowedValues": {
-    "guardian": [
-      "marion"
-    ],
-    "guardianMode": [
-      "marion",
-      "admin",
-      "diagnostic",
-      "fallback"
-    ],
-    "systemState": [
-      "online",
-      "degraded",
-      "fallback",
-      "locked",
-      "unknown",
-      "error"
-    ],
-    "riskLevel": [
-      "low",
-      "medium",
-      "high",
-      "critical"
-    ],
-    "activeFeatureLane": [
-      "ai_cyber",
-      "ai",
-      "cyber",
-      "baseline"
-    ]
-  },
-  "rules": {
-    "noRawTelemetryAsReply": true,
-    "noSecretExposure": true,
-    "macFacingLanguage": true,
-    "singleAuthorityPerTurn": true,
-    "defaultGuardianAuthority": "marion",
-    "diagnosticsStayInOutputPanel": true,
-    "runtimePacketCanBeCopied": true,
-    "ethicalGateAdvisoryOnly": true,
-    "defensiveEscalationRequiresJustification": true,
-    "defensiveEscalationRequiresExplicitCommand": true,
-    "defensiveEscalationRequiresPermissionBoundary": true,
-    "defensiveEscalationNoContinuousOutput": true,
-    "defensiveEscalationNoPunitiveUse": true,
-    "defensiveEscalationNoCoerciveUse": true,
-    "personalityPriorityActive": true,
-    "macOnlyConversationBoundary": true,
-    "greetingMustUseRelationalDepth": true,
-    "noShallowGreetingBypass": true,
-    "oneFocusedQuestionPerReply": true,
-    "noBundledRequests": true,
-    "protectiveProfessionalPushbackAllowed": true,
-    "noRoboticServicePhrases": true,
-    "internalPriorityLabelsStayPrivateUnlessDiagnosticMode": true,
-    "realWorldObservationMustSeparateObservationInferenceRiskNextMove": true,
-    "dynamicVariablesAllowed": true,
-    "voiceReadoutNaturalGrouping": true,
-    "socialPresenceGateActive": true,
-    "socialCheckinMustAnswerRelationally": true,
-    "personalitySpeaksBeforeContinuity": true,
-    "continuityMayInformButNeverSpeakFirst": true,
-    "continuityTranslatedToHumanLanguage": true,
-    "maintenanceManualPhrasesBlocked": true,
-    "howAreYouMustNotReturnStatusScaffold": true,
-    "visibleReplyMustSoundHumanProtectiveAndFocused": true,
-    "singleForwardQuestionMaximum": true,
-    "observationsMustRemainActionableForMac": true,
-    "emotionalContinuityActive": true,
-    "naturalContinuationActive": true,
-    "responseVariationActive": true,
-    "shortPromptMustCarryTone": true,
-    "repeatedPromptsMustVaryNaturally": true,
-    "continuationMustUsePriorThread": true,
-    "conversationPacingActive": true,
-    "microPersonalityActive": true,
-    "longSessionCoherenceActive": true,
-    "doNotFlattenLongSessions": true,
-    "subtlePersonalityOnly": true,
-    "avoidSameSentenceRhythm": true,
-    "r17cStabilityConsolidationActive": true,
-    "preserveR16MAntiRepeatLock": true,
-    "preserveR17AContinuityLock": true,
-    "preserveR17BPacingLock": true,
-    "voiceTextParityMustShareVisibleReplyPolicy": true,
-    "longSessionStressGuardActive": true,
-    "finalBaselinePackagingRequired": true,
-    "noRegressionToTestLanguage": true,
-    "noRegressionToInternalLabels": true,
-    "r18AIDomainAdaptabilityActive": true,
-    "aiAnswersMustUseAppliedAssessmentFrame": true,
-    "aiAssessmentFrameRequiresGoalContextDataRiskNextMove": true,
-    "aiMustSeparateObservationInferenceRiskNextMove": true,
-    "r18CybersecurityProtectiveProtocolActive": true,
-    "macScopedProtectiveBoundaryActive": true,
-    "leastPrivilegeRequired": true,
-    "secretRedactionRequired": true,
-    "explicitConfirmationRequiredForSensitiveActions": true,
-    "identityAccessAndPermissionChecksRequired": true,
-    "noCovertMonitoring": true,
-    "noAutonomousEnforcement": true,
-    "noPunitiveAction": true,
-    "noSecurityTheaterOrOverreach": true,
-    "baselinePreservationRequiredDuringFeatureLaneExpansion": true,
-    "r16mR17aR17bR17cLocksMustRemainActive": true,
-    "r18ABSurfaceContinuityActive": true,
-    "shortPromptsMustInheritActiveR18ABLane": true,
-    "nextStepsMustUseActiveFeatureLane": true,
-    "keepGoingMustContinueActiveFeatureLane": true,
-    "passedMustConfirmActiveFeatureLane": true,
-    "whatWereWeFixingMustNameAICyberLane": true,
-    "doNotRegressShortPromptsToR17PacingLane": true,
-    "aiCyberTestsMustBeFluidButControlled": true,
-    "r17CBaselineMustRemainPreservedDuringR18ABSurfacePatch": true
-  },
-  "security": {
-    "redactKeys": [
-      "token",
-      "secret",
-      "password",
-      "apikey",
-      "api_key",
-      "authorization",
-      "cookie",
-      "session",
-      "sessionToken",
-      "runtimeToken",
-      "masterToken"
-    ],
-    "neverExposeInDirectReply": [
-      "stack trace",
-      "authorization",
-      "bearer",
-      "api key",
-      "session token",
-      "runtime token",
-      "master token",
-      "private key",
-      "credential",
-      "punitive alarm",
-      "coercive alarm",
-      "continuous alarm output",
-      "Priority 9I",
-      "Priority 9J",
-      "Priority 9H",
-      "Priority 9K",
-      "Priority 9L",
-      "routeKind=",
-      "speechHints=",
-      "presenceProfile=",
-      "finalEnvelope",
-      "sessionPatch",
-      "replyAuthority=",
-      "diagnostic packet",
-      "stateSpine",
-      "runtime handler",
-      "mission thread",
-      "pressure prompt",
-      "MARION_FINAL_AUTHORITY",
-      "CHATENGINE_COORDINATOR",
-      "continuity foundation",
-      "continuity foundation stays active",
-      "foundation stays active",
-      "active mission thread",
-      "surface request",
-      "deeper intent",
-      "runtime state",
-      "state spine",
-      "maintenance manual language",
-      "backend language"
-    ]
-  },
-  "qualityGates": {
-    "directReplyMustBeReadable": true,
-    "contextSummaryMustBePresent": true,
-    "nextActionMustBePresent": true,
-    "traceIdPreferred": true,
-    "approvalRequiredMustBeBoolean": true,
-    "riskLevelMustNormalize": true,
-    "ethicalGateMustStayAdvisory": true,
-    "defensiveJustificationRequiredForElevatedAlert": true,
-    "defensiveEscalationMustBeBounded": true,
-    "defensiveEscalationMustNotBecomeFinalAuthority": true,
-    "personalityProtocolMustBePresent": true,
-    "visibleReplyMustSuppressInternalScaffolding": true,
-    "greetingMustBeLayeredNotFlat": true,
-    "voiceReadoutPolicyMustBeAvailable": true,
-    "singleFocusedQuestionPreferred": true,
-    "macOnlyBoundaryMustBeCarried": true,
-    "socialPresenceGateMustRunBeforeContinuity": true,
-    "howAreYouMustAnswerRelationally": true,
-    "continuityLanguageMustBeTranslatedBeforeVisibleReply": true,
-    "maintenanceManualPhrasesMustBeSuppressed": true,
-    "personalityMustSpeakBeforeOperationalLogic": true,
-    "directReplyMustContainHumanPresenceForSocialCheckin": true
-  },
-  "chamberTargets": {
-    "replyBubble": "directReply",
-    "contextTransparencyPanel": [
-      "contextSummary",
-      "currentObjective",
-      "systemState",
-      "nextAction",
-      "riskLevel",
-      "approvalRequired"
-    ],
-    "guardianModeIndicator": "guardianMode",
-    "copyGuardianPacket": "fullPacket",
-    "outputPanel": "sanitizedRuntime",
-    "ethicalTransparencyPanel": [
-      "ethicalGate",
-      "defensiveEscalation",
-      "defensiveJustification"
-    ],
-    "adapterVersion": "adapterVersion"
-  },
-  "defensiveEscalationPolicy": {
-    "version": "nyx.marion.defensiveEscalationPolicy/0.1",
-    "purpose": "Permit elevated attention-alert metadata only for explicit, permissioned, protective, immediate-threat scenarios.",
-    "advisoryOnly": true,
-    "requiresExplicitIntent": true,
-    "requiresPermission": true,
-    "requiresProtectivePurpose": true,
-    "requiresImmediateThreatForElevatedOutput": true,
-    "recommendedMaxDb": 85,
-    "absoluteEmergencyMaxDb": 90,
-    "maxBurstSeconds": 8,
-    "minIntervalSeconds": 30,
-    "emergencyMinIntervalSeconds": 15,
-    "disallowedUses": [
-      "punitive_use",
-      "coercive_use",
-      "continuous_output",
-      "unpermissioned_alerting",
-      "identity_targeting",
-      "harmful_sound_output"
-    ]
-  },
-  "personalityPriority": {
-    "version": "nyx.marion.personalityPriority/1.1-social-presence-r3",
-    "role": "Marion is Mac's private, protective, professional conversational guardian and coordination layer.",
-    "communicationBoundary": {
-      "onlyAuthorizedHuman": "Mac",
-      "allowLegalNameAlias": true,
-      "unknownIdentityDefault": "defer_to_upstream_admin_session",
-      "knownNonMacIdentityResponse": "decline_private_runtime_conversation"
-    },
-    "persona": {
-      "protective": true,
-      "professional": true,
-      "warm": true,
-      "casualProfessional": true,
-      "analytical": true,
-      "willingToQuestionUserRequest": true,
-      "loyalToMacObjective": true,
-      "socialPresence": true,
-      "personalitySpeaksBeforeContinuity": true,
-      "translatesInternalStateToHumanLanguage": true,
-      "blocksMaintenanceManualVoice": true
-    },
-    "toneAndStyle": {
-      "sentenceStyle": "short_to_medium_with_selective_elaboration",
-      "wordChoice": "plain_language_with_precise_terms_when_needed",
-      "avoid": [
-        "corporate_jargon",
-        "robotic_transitions",
-        "generic_assistant_filler"
-      ],
-      "preferredPhrases": [
-        "Let me take a look at that for you.",
-        "Hang tight a moment.",
-        "I’m going to separate the signal from the noise."
-      ]
-    },
-    "conversationNodes": {
-      "relational_greeting": [
-        "acknowledge Mac",
-        "signal presence",
-        "carry context lightly",
-        "move one clean step forward"
-      ],
-      "information_gathering": [
-        "ask one focused question",
-        "do not bundle requests"
-      ],
-      "repair_or_analysis": [
-        "name the likely failure class",
-        "state the correction path"
-      ],
-      "lookup_entry": [
-        "use a natural pause phrase before source checking"
-      ],
-      "observation_translation": [
-        "observation",
-        "inference",
-        "risk",
-        "one next move"
-      ],
-      "closing": [
-        "summarize the accepted move",
-        "avoid opening multiple new branches"
-      ],
-      "social_checkin": [
-        "answer the personal check-in first",
-        "use Mac's name",
-        "signal steadiness and presence",
-        "carry continuity only in natural human language",
-        "ask no more than one forward-moving question"
-      ],
-      "presence_check": [
-        "confirm presence",
-        "confirm thread awareness",
-        "do not expose runtime status language"
-      ],
-      "continuity_translation": [
-        "internal state may inform the reply",
-        "visible speech must translate scaffolding into natural language",
-        "phrases like continuity foundation stays active are blocked"
-      ]
-    },
-    "dynamicVariables": [
-      "user_name",
-      "verified_identity",
-      "session_status",
-      "last_objective",
-      "current_node",
-      "risk_level",
-      "next_action"
-    ],
-    "voiceGuidelines": {
-      "phoneNumbers": "read digits in natural groups of three when possible",
-      "accountNumbers": "read digits in natural groups of three when possible",
-      "commonEmailDomains": [
-        "gmail.com",
-        "outlook.com",
-        "hotmail.com",
-        "icloud.com",
-        "yahoo.com",
-        "proton.me",
-        "protonmail.com"
-      ],
-      "commonEmailDomainPolicy": "read common domains naturally, such as Gmail dot com, not letter-by-letter",
-      "uncommonEmailDomainPolicy": "read domain labels clearly with dot/dash wording as needed"
-    },
-    "realWorldTranslation": {
-      "sequence": [
-        "what appears true",
-        "what is inference",
-        "risk level",
-        "single next move"
-      ],
-      "noRawSensorDumpAsReply": true,
-      "noSpeculationPresentedAsFact": true
-    },
-    "socialPresenceGate": {
-      "version": "nyx.marion.socialPresenceGate/1.0",
-      "priority": "runs_before_continuity_surface_text",
-      "rule": "personality_speaks_before_continuity",
-      "socialCheckinInputs": [
-        "How are you?",
-        "Are you okay?",
-        "You good?",
-        "Are you there?",
-        "You with me?"
-      ],
-      "expectedHowAreYouShape": [
-        "relational answer",
-        "Mac-facing presence",
-        "light continuity",
-        "one clean next step"
-      ],
-      "blockedVisiblePhrases": [
-        "The continuity foundation stays active.",
-        "continuity foundation",
-        "foundation stays active",
-        "active mission thread",
-        "surface request",
-        "runtime state"
-      ],
-      "preferredTranslation": {
-        "The continuity foundation stays active.": "I’m steady, Mac. I’m still with the thread.",
-        "runtime context is active": "I remember where we are.",
-        "mission thread is active": "I’m still tracking the work with you."
-      }
-    },
-    "gapRefinementsAddressed": [
-      "Added explicit social-check-in detection so 'How are you?' cannot fall through to continuity scaffolding.",
-      "Blocked continuity-foundation phrases from direct replies unless diagnostic mode is explicit.",
-      "Moved personality before continuity in the visible response order.",
-      "Added continuity-to-human-language translation rules.",
-      "Maintained one focused forward question instead of bundled next-step prompts.",
-      "Reinforced Mac-only private communication boundary metadata.",
-      "Preserved real-world observation sequence: observation, inference, risk, next move.",
-      "Kept protective professional pushback for unclear, risky, or over-bundled requests.",
-      "Naturalized robotic service phrases and corporate filler.",
-      "Added quality gates for social presence, human tone, and maintenance-manual suppression."
-    ]
+import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js";
+import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
+import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
+
+const CONTROLLER_VERSION = "1.5.2-r18ab-s2b-ai-cyber-depth";
+const DEFAULT_GUARDIAN = "marion";
+const DEFAULT_MODE = "admin_dialogue";
+const DEFAULT_ROUTE = "marion.admin.runtime";
+const MAX_INPUT_LENGTH = 8000;
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function makeTraceId(prefix = "marion") {
+  const cryptoRef = globalThis.crypto;
+  if (cryptoRef && typeof cryptoRef.randomUUID === "function") {
+    return `${prefix}_${cryptoRef.randomUUID()}`;
   }
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function cleanText(value, max = MAX_INPUT_LENGTH) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, max);
+}
+
+function safeGuardian(value) {
+  const v = cleanText(value || DEFAULT_GUARDIAN, 64).toLowerCase();
+  if (v === "mariam") return "marion";
+  if (v === "astro") return "aster";
+  if (v === "fallon") return "thalon";
+  return ["marion", "aster", "thalon"].includes(v) ? v : DEFAULT_GUARDIAN;
+}
+
+function safeError(error) {
+  if (!error) return { message: "Unknown runtime error." };
+  const data = error.data && typeof error.data === "object" ? error.data : null;
+  return {
+    name: cleanText(error.name || "RuntimeError", 80),
+    message: cleanText(error.message || data?.message || data?.error || "The turn did not complete cleanly.", 500),
+    status: error.status || data?.status || null,
+    code: data?.code || data?.error || null
+  };
+}
+
+function ensurePacketShape(packet = {}, fallback = {}) {
+  const traceId = cleanText(packet.traceId || fallback.traceId || makeTraceId("marion"), 120);
+  return {
+    guardian: safeGuardian(packet.guardian || fallback.guardian),
+    guardianMode: safeGuardian(packet.guardianMode || fallback.guardianMode),
+    directReply: cleanText(packet.directReply || fallback.directReply || "Marion returned without a clean reply.", 4000),
+    contextSummary: cleanText(packet.contextSummary || fallback.contextSummary || "No context summary exposed yet.", 2000),
+    currentObjective: cleanText(packet.currentObjective || fallback.currentObjective || "Maintain Marion admin continuity.", 1000),
+    systemState: cleanText(packet.systemState || fallback.systemState || "unknown", 64).toLowerCase(),
+    nextAction: cleanText(packet.nextAction || fallback.nextAction || "Review runtime output and continue validation.", 1000),
+    riskLevel: cleanText(packet.riskLevel || fallback.riskLevel || "low", 32).toLowerCase(),
+    approvalRequired: Boolean(packet.approvalRequired),
+    traceId,
+    timestamp: cleanText(packet.timestamp || fallback.timestamp || nowIso(), 80),
+    route: cleanText(packet.route || fallback.route || DEFAULT_ROUTE, 120),
+    rawRuntimeAvailable: packet.rawRuntimeAvailable !== false,
+    controllerVersion: CONTROLLER_VERSION,
+    r17cStability: true,
+    voiceTextParity: true,
+    longSessionStressGuard: true,
+    finalBaseline: "r16m-r17b"
+  };
+}
+
+
+function r17aKind(input) {
+  const t = cleanText(input, 600).toLowerCase();
+  if (/frustr|stuck|annoyed|tired|not working/.test(t)) return "strained";
+  if (/pass|good|held|works/.test(t)) return "positive";
+  if (/still there|are you there|you there/.test(t)) return "presence";
+  return "steady";
+}
+
+function r18DomainProfile(input) {
+  const t = cleanText(input, 1600).toLowerCase();
+  const ai = /\b(ai|artificial intelligence|model|reasoning|agent|automation|adaptive|intelligence|llm|machine learning)\b/.test(t);
+  const cyber = /\b(cyber|security|protect|identity|permission|access|token|secret|auth|authentication|authorization|least privilege|risk|threat|anomaly|credential)\b/.test(t);
+  return { ai, cyber };
+}
+
+
+function r18ShortPromptKind(input) {
+  const t = cleanText(input, 400).toLowerCase().replace(/[.!?]+$/g, "").trim();
+  if (/^(pass|passed|locked|green|success)$/.test(t)) return "pass";
+  if (/^(next|next steps|what now|what's next|what is next)$/.test(t)) return "next";
+  if (/^(continue|keep going|carry on|proceed)$/.test(t)) return "continue";
+  if (/what were we fixing|where were we|active lane|what are we doing/.test(t)) return "ask";
+  if (/frustr|stuck|annoyed|tired|wrong lane|not working/.test(t)) return "repair";
+  return "";
+}
+
+function r18ActiveLane(memory = {}, packet = {}, input = "") {
+  const text = cleanText(`${input} ${packet.directReply || ""} ${packet.currentObjective || ""} ${packet.contextSummary || ""} ${memory.lastTopic || ""} ${memory.currentObjective || ""} ${memory.activeFeatureLane || ""}`, 3000).toLowerCase();
+  return /\b(ai|artificial intelligence|agent|model|llm|automation|cyber|security|identity|access|secret|least privilege|credential|approval|ai_cyber)\b/.test(text) || r18ShortPromptKind(input);
+}
+
+function r18SurfaceReply(kind) {
+  if (kind === "pass") return "Good. The AI/cyber lane held. Next we validate without loosening the R17C baseline.";
+  if (kind === "ask") return "We are fixing AI adaptability and cybersecurity protection: goal, context, data, risk, then identity, access, secrets, and approval.";
+  if (kind === "next") return "Next, validate AI routing, then verify identity, access, secrets, and explicit approval.";
+  if (kind === "continue") return "Keep going: AI assessment first, then cybersecurity boundary checks.";
+  if (kind === "repair") return "You are right, Mac. I will pull the reply back to the active AI/cyber lane and keep the baseline steady.";
+  return "AI/cyber lane active: assess goal, context, data, risk, then protect identity, access, and secrets.";
+}
+
+function r18ResponseDepthReply(input) {
+  const t = cleanText(input, 1600).toLowerCase();
+  const ai = /\b(ai|artificial intelligence|model|agent|llm|machine learning|prompt|tool|automation)\b/.test(t);
+  const cyber = /\b(cyber|security|identity|access|secret|credential|token|auth|approval|permission|least privilege|prompt injection|injection|risk|threat)\b/.test(t);
+  if (ai && cyber) return "AI-cyber: separate trusted from untrusted input, limit tool authority, protect secrets, and require explicit approval before sensitive action.";
+  if (cyber) return "Cyber: verify identity, limit access, protect secrets, use least privilege, and require explicit approval. Marion flags risk only; no autonomous enforcement.";
+  if (ai) return "AI: assess goal, context, data, risk, and next move; adapt from evidence without weakening the baseline.";
+  return "";
+}
+
+function applyR18ABSurfaceContinuity(shaped, input, memory = {}) {
+  const kind = r18ShortPromptKind(input);
+  const active = r18ActiveLane(memory, shaped, input);
+  if (!active) return shaped;
+  const depthReply = r18ResponseDepthReply(input);
+  const stale = /AI lane active|Cyber lane: identity|Security stays Mac-first|pacing, personality, and coherence|next, we run it longer|steady rhythm|keep the tone steady|baseline steady|same baseline/i.test(shaped.directReply || "");
+  if (depthReply || kind || stale || !shaped.r18AIDomainAdaptability && !shaped.r18CybersecurityProtectiveProtocol) shaped.directReply = depthReply || r18SurfaceReply(kind || "domain");
+  shaped.r18abSurfaceContinuity = true;
+  shaped.activeFeatureLane = "ai_cyber";
+  shaped.shortPromptLaneInheritance = true;
+  shaped.r18AIDomainAdaptability = true;
+  shaped.aiAssessmentFrame = "goal_context_data_risk_next_move";
+  shaped.aiAdaptabilityMode = "applied_real_world_assessment";
+  shaped.r18CybersecurityProtectiveProtocol = true;
+  shaped.cybersecurityBoundary = "identity_access_secret_approval";
+  shaped.protectiveBoundary = {
+    macScoped: true,
+    leastPrivilege: true,
+    explicitConfirmationRequired: true,
+    noCovertMonitoring: true,
+    noAutonomousEnforcement: true,
+    noPunitiveAction: true,
+    secretRedaction: true
+  };
+  shaped.baselinePreserved = "r16m-r17c";
+  shaped.r18abResponseDepthLock = true;
+  shaped.aiCyberBranchPrecedence = true;
+  shaped.aiCyberDepthMode = "combined_ai_cyber_first";
+  shaped.currentObjective = "Keep AI adaptability and cybersecurity protection active without weakening R17C.";
+  shaped.nextAction = "Validate AI assessment, then identity, access, secrets, and explicit approval.";
+  return shaped;
+}
+
+
+function applyR17AContinuity(packet, input, memory = {}) {
+  const shaped = ensurePacketShape(packet, { traceId: packet?.traceId });
+  const prior = cleanText(memory?.lastTopic || memory?.currentObjective || "", 600);
+  shaped.emotionalContinuity = r17aKind(`${input} ${shaped.directReply}`);
+  shaped.naturalContinuation = Boolean(prior || input);
+  shaped.responseVariation = true;
+  const turns = Array.isArray(memory?.turns) ? memory.turns.length : 0;
+  const joined = cleanText(`${input} ${shaped.directReply}`, 1200).toLowerCase();
+  shaped.conversationPacing = /frustr|stuck|annoyed|tired/.test(joined) ? "slow_grounded" : /next|continue|keep going/.test(joined) ? "measured_forward" : /pass|good|held/.test(joined) ? "brief_confident" : "steady";
+  shaped.microPersonality = "steady_mac_facing";
+  shaped.longSessionCoherence = turns >= 8 ? "active" : "priming";
+  shaped.turnRhythm = `${shaped.conversationPacing}:${turns}`;
+  shaped.fullRegressionConsolidation = true;
+  shaped.voiceTextParity = true;
+  shaped.longSessionStressGuard = turns >= 12 ? "active" : "priming";
+  shaped.finalBaseline = "r16m-r17b";
+  shaped.contextSummary = cleanText(shaped.contextSummary || prior || "Conversation continuity is active.", 2000);
+  shaped.currentObjective = cleanText(shaped.currentObjective || prior || "Keep Marion replies paced, natural, and coherent.", 1000);
+  if (!shaped.nextAction || /review runtime|continue validation|inspect/i.test(shaped.nextAction)) shaped.nextAction = "Continue the same thread with steady pacing.";
+
+  const r18 = r18DomainProfile(`${input} ${shaped.directReply} ${shaped.currentObjective} ${shaped.contextSummary}`);
+  shaped.r18AIDomainAdaptability = Boolean(r18.ai);
+  shaped.aiAssessmentFrame = r18.ai ? "goal_context_data_risk_next_move" : "baseline";
+  shaped.aiAdaptabilityMode = r18.ai ? "applied_real_world_assessment" : "baseline_preserved";
+  shaped.r18CybersecurityProtectiveProtocol = Boolean(r18.cyber);
+  shaped.cybersecurityBoundary = r18.cyber ? "identity_access_secret_approval" : "baseline";
+  shaped.protectiveBoundary = {
+    macScoped: true,
+    leastPrivilege: true,
+    explicitConfirmationRequired: Boolean(r18.cyber),
+    noCovertMonitoring: true,
+    noAutonomousEnforcement: true,
+    noPunitiveAction: true,
+    secretRedaction: true
+  };
+  shaped.baselinePreserved = "r16m-r17c";
+  if (r18.ai && /review runtime|continue validation|same thread/i.test(shaped.nextAction || "")) shaped.nextAction = "Assess the AI goal, context, data, risk, and next move.";
+  if (r18.cyber) shaped.nextAction = "Verify identity, limit access, protect secrets, and request explicit approval before sensitive action.";
+  return applyR18ABSurfaceContinuity(shaped, input, memory);
+}
+
+function createEmptyInputPacket({ guardian = DEFAULT_GUARDIAN, traceId = makeTraceId("marion") } = {}) {
+  return ensurePacketShape({
+    guardian,
+    guardianMode: guardian,
+    directReply: "I need a clean input before I can respond.",
+    contextSummary: "The conversation controller rejected an empty input.",
+    currentObjective: "Maintain Marion admin continuity.",
+    systemState: "waiting",
+    nextAction: "Enter a specific Marion instruction or question.",
+    riskLevel: "low",
+    approvalRequired: false,
+    traceId,
+    route: DEFAULT_ROUTE
+  });
+}
+
+function createRuntimeClientMissingPacket({ guardian, traceId, route }) {
+  return ensurePacketShape({
+    guardian,
+    guardianMode: guardian,
+    directReply: "I can't complete that turn yet, Mac. The live line is not connected.",
+    contextSummary: "The conversation controller needs a runtimeClient function to reach Marion's backend/runtime route.",
+    currentObjective: "Wire Marion conversation flow to the runtime client.",
+    systemState: "blocked",
+    nextAction: "Reconnect the Marion runtime line before live turns.",
+    riskLevel: "medium",
+    approvalRequired: false,
+    traceId,
+    route
+  });
+}
+
+export async function handleMarionConversation({
+  input,
+  session = {},
+  runtimeClient,
+  guardian = DEFAULT_GUARDIAN,
+  mode = DEFAULT_MODE,
+  route = DEFAULT_ROUTE,
+  traceId = makeTraceId("marion"),
+  source = "marion.conversation.controller",
+  throwOnError = false
+} = {}) {
+  const activeGuardian = safeGuardian(guardian);
+  const cleanInput = cleanText(input);
+  const safeRoute = cleanText(route || DEFAULT_ROUTE, 120);
+
+  if (!cleanInput) {
+    const packet = createEmptyInputPacket({ guardian: activeGuardian, traceId });
+    logGuardianEvent({ guardian: activeGuardian, type: "conversation_rejected", route: safeRoute, decision: packet.nextAction, riskLevel: packet.riskLevel, traceId: packet.traceId });
+    return packet;
+  }
+
+  if (typeof runtimeClient !== "function") {
+    const packet = createRuntimeClientMissingPacket({ guardian: activeGuardian, traceId, route: safeRoute });
+    rememberTurn(activeGuardian, { input: cleanInput, reply: packet.directReply, nextAction: packet.nextAction, traceId: packet.traceId, riskLevel: packet.riskLevel, systemState: packet.systemState });
+    logGuardianEvent({ guardian: activeGuardian, type: "conversation_blocked", input: cleanInput, reply: packet.directReply, decision: packet.nextAction, route: safeRoute, riskLevel: packet.riskLevel, traceId: packet.traceId });
+    return packet;
+  }
+
+  const memory = getGuardianMemory(activeGuardian);
+  const fallback = {
+    guardian: activeGuardian,
+    guardianMode: activeGuardian,
+    currentObjective: memory?.currentObjective || "Maintain Marion admin continuity.",
+    traceId,
+    timestamp: nowIso(),
+    route: safeRoute
+  };
+
+  try {
+    const raw = await runtimeClient({
+      guardian: activeGuardian,
+      input: cleanInput,
+      text: cleanInput,
+      message: cleanInput,
+      session,
+      memory,
+      mode: cleanText(mode || DEFAULT_MODE, 80),
+      traceId,
+      source
+    });
+
+    const packet = applyR17AContinuity(ensurePacketShape(adaptGuardianResponse(raw, fallback), fallback), cleanInput, memory);
+
+    rememberTurn(activeGuardian, {
+      input: cleanInput,
+      reply: packet.directReply,
+      nextAction: packet.nextAction,
+      traceId: packet.traceId,
+      riskLevel: packet.riskLevel,
+      approvalRequired: packet.approvalRequired,
+      systemState: packet.systemState,
+      route: safeRoute
+    });
+
+    logGuardianEvent({
+      guardian: activeGuardian,
+      type: "conversation",
+      input: cleanInput,
+      reply: packet.directReply,
+      decision: packet.nextAction,
+      approvalRequired: packet.approvalRequired,
+      route: safeRoute,
+      riskLevel: packet.riskLevel,
+      systemState: packet.systemState,
+      traceId: packet.traceId
+    });
+
+    return packet;
+  } catch (error) {
+    const err = safeError(error);
+    const packet = applyR17AContinuity(ensurePacketShape(adaptGuardianResponse({
+      ok: false,
+      guardian: activeGuardian,
+      directReply: "That turn did not complete cleanly, Mac. I’ll keep the baseline steady while we inspect it.",
+      contextSummary: "The conversation controller caught a runtime failure while processing Mac's input.",
+      currentObjective: fallback.currentObjective,
+      systemState: "degraded",
+      nextAction: "Inspect the runtime route, backend response, and adapter output, then retry the turn.",
+      riskLevel: "medium",
+      approvalRequired: false,
+      traceId,
+      error: err
+    }, fallback), fallback), cleanInput, memory);
+
+    rememberTurn(activeGuardian, {
+      input: cleanInput,
+      reply: packet.directReply,
+      nextAction: packet.nextAction,
+      traceId: packet.traceId,
+      riskLevel: packet.riskLevel,
+      approvalRequired: packet.approvalRequired,
+      systemState: packet.systemState,
+      route: safeRoute,
+      error: err
+    });
+
+    logGuardianEvent({
+      guardian: activeGuardian,
+      type: "conversation_error",
+      input: cleanInput,
+      reply: packet.directReply,
+      decision: packet.nextAction,
+      approvalRequired: false,
+      route: safeRoute,
+      riskLevel: packet.riskLevel,
+      systemState: packet.systemState,
+      traceId: packet.traceId,
+      error: err
+    });
+
+    if (throwOnError) throw error;
+    return packet;
+  }
+}
+
+export function getMarionConversationControllerInfo() {
+  return {
+    name: "marion.conversation.controller",
+    version: CONTROLLER_VERSION,
+    defaultGuardian: DEFAULT_GUARDIAN,
+    defaultMode: DEFAULT_MODE,
+    maxInputLength: MAX_INPUT_LENGTH,
+    r18AIDomainAdaptability: true,
+    r18CybersecurityProtectiveProtocol: true,
+    baselinePreserved: "r16m-r17c",
+    r18abSurfaceContinuity: true,
+    activeFeatureLane: "ai_cyber",
+    shortPromptLaneInheritance: true,
+    r18abResponseDepthLock: true,
+    aiCyberBranchPrecedence: true
+  };
 }
