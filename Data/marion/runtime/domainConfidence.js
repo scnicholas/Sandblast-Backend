@@ -1126,3 +1126,68 @@ function priority9JR1APatchExports(names) {
 }
 priority9JR1APatchExports(["composeMarionResponse", "compose", "buildReply", "routeMarion", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "run", "handler", "default"]);
 /* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_END */
+
+// R18AB_AI_CYBER_DOMAIN_CONFIDENCE_HARDENING_START
+const R18AB_DOMAIN_CONFIDENCE_VERSION = "nyx.marion.r18ab.domainConfidence.aiCyber/1.0";
+function r18abDcStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18abDcObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18abDcCompact(value){return r18abDcStr(value).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");}
+function r18abDetectDomainSignals(text="",context={}){
+  const src=[r18abDcStr(text),JSON.stringify(r18abDcObj(context)).slice(0,1200)].join(" ").toLowerCase();
+  const ai=/\b(ai|artificial intelligence|machine learning|model|llm|agent|inference|automation|adaptive intelligence|ai integration|real[-\s]?world ai)\b/i.test(src);
+  const cyber=/\b(cyber|cybersecurity|security|protective protocol|least privilege|zero trust|access control|identity|verify identity|secret|token|credential|permission|threat|vulnerability|covert monitoring|autonomous enforcement)\b/i.test(src);
+  return {version:R18AB_DOMAIN_CONFIDENCE_VERSION,ai,cyber,active:ai||cyber,noUserFacingDiagnostics:true};
+}
+function r18abEnhanceDomainConfidenceProfile(profile={},text="",context={}){
+  if(!profile||typeof profile!=="object")return profile;
+  const sig=r18abDetectDomainSignals(text||profile.rawText||profile.normalizedUserIntent,context||profile);
+  if(!sig.active)return profile;
+  const out=Array.isArray(profile)?profile.slice():Object.assign({},profile);
+  const target=sig.ai?"ai":"cyber";
+  out.primaryDomain=out.primaryDomain&&out.primaryDomain!=="general_reasoning"?out.primaryDomain:target;
+  out.knowledgeDomain=out.knowledgeDomain||target;
+  out.confidence=Math.max(Number(out.confidence)||0,sig.ai?0.88:0.91);
+  out.band=typeof confidenceBand==="function"?confidenceBand(out.confidence):(out.confidence>=0.82?"high":"medium");
+  out.answerMode=target==="cyber"?"grounded":"direct";
+  out.routeLocked=true;
+  out.r18abDomainConfidence=sig;
+  out.aiDomainAdaptability=!!sig.ai;
+  out.cyberProtectiveProtocol=!!sig.cyber;
+  out.highStakes=target==="cyber"?true:!!out.highStakes;
+  out.noUserFacingDiagnostics=true;
+  return out;
+}
+(function r18abPatchDomainConfidenceExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  ["buildDomainConfidenceProfile","normalizeDomainConfidenceProfile","default"].forEach(function(name){
+    const fn=typeof exp[name]==="function"?exp[name]:null;
+    if(!fn||fn.__r18abDomainConfidencePatched)return;
+    exp[name]=function r18abDomainConfidenceWrapped(){
+      const result=fn.apply(this,arguments);
+      const first=arguments&&arguments[0];
+      const context=arguments&&arguments[1];
+      const text=(first&&typeof first==="object")?JSON.stringify(first).slice(0,1400):first;
+      return r18abEnhanceDomainConfidenceProfile(result,text,context||first);
+    };
+    exp[name].__r18abDomainConfidencePatched=true;
+  });
+  if(typeof exp.detectCandidates==="function"&&!exp.detectCandidates.__r18abDomainConfidencePatched){
+    const original=exp.detectCandidates;
+    exp.detectCandidates=function r18abDetectCandidatesWrapped(text,context){
+      const list=Array.isArray(original.apply(this,arguments))?original.apply(this,arguments):[];
+      const sig=r18abDetectDomainSignals(text,context);
+      const out=list.slice();
+      if(sig.ai&&!out.some(c=>c&&c.domain==="ai"))out.push({domain:"ai",confidence:0.88,reasons:["r18ab_ai_adaptability_signal"],knowledgeDomain:"ai"});
+      if(sig.cyber&&!out.some(c=>c&&c.domain==="cyber"))out.push({domain:"cyber",confidence:0.91,reasons:["r18ab_cyber_protective_signal"],knowledgeDomain:"cyber"});
+      return out;
+    };
+    exp.detectCandidates.__r18abDomainConfidencePatched=true;
+  }
+  exp.R18AB_DOMAIN_CONFIDENCE_VERSION=R18AB_DOMAIN_CONFIDENCE_VERSION;
+  exp.r18abDetectDomainSignals=r18abDetectDomainSignals;
+  exp.r18abEnhanceDomainConfidenceProfile=r18abEnhanceDomainConfidenceProfile;
+  exp.R18AB_DOMAIN_CONFIDENCE_PATCH=true;
+})();
+// R18AB_AI_CYBER_DOMAIN_CONFIDENCE_HARDENING_END
+
