@@ -229,7 +229,7 @@
     ]
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -237,17 +237,30 @@
     "retrievalAliases": [
       "law_research_methods",
       "law_research_methods_v1",
-      "research_methods_v1"
+      "research_methods_v1",
+      "research",
+      "methods",
+      "verification",
+      "limitations",
+      "lawResearchMethods"
     ],
     "sourceFile": "law_research_methods_v1.json",
     "pipelineRole": "knowledge_pack",
-    "jurisdictionDefault": "CA",
+    "jurisdictionDefault": "Canada",
     "crossLinks": [
       "law_foundations_v1",
       "law_source_ladder_v2",
-      "law_safety_and_posture_v1"
+      "law_safety_and_posture_v1",
+      "law_research_methods_v1"
     ],
-    "sourceIntegrity": "moderate"
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_research_methods_v1.json",
+    "runtimeFilename": "law_research_methods_v1.json",
+    "expectedFilename": "law_research_methods_v1.json",
+    "manifestPackKey": "lawResearchMethods",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "packType": "methods",
   "retrievalHints": {
@@ -279,12 +292,27 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "jurisdictionDisclosureRequired": true,
+    "noAttorneyClientRelationship": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
   },
   "retrievalIndex": {
     "domain": "law",
     "packId": "law_research_methods_v1",
-    "aliases": [],
+    "aliases": [
+      "law_research_methods",
+      "law_research_methods_v1",
+      "research_methods_v1",
+      "research",
+      "methods",
+      "verification",
+      "limitations",
+      "lawResearchMethods"
+    ],
     "keywords": [
       "where do i find",
       "research",
@@ -324,7 +352,19 @@
       "limitation",
       "deadline",
       "statute of limitations",
-      "am i too late to sue"
+      "am i too late to sue",
+      "Hierarchy of Legal Sources in Canada",
+      "Finding Statutes and Regulations",
+      "Case Law Research",
+      "How to Read a Case",
+      "Noting Up and Validating Authority",
+      "Using Secondary Sources",
+      "Researching Limitation Periods",
+      "source_ladder",
+      "statutes_regulations",
+      "case_law",
+      "noting_up",
+      "limitations_deadlines"
     ],
     "primaryFields": [
       "packId",
@@ -340,16 +380,73 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "r18cLawAssessmentLayer"
+    ],
+    "manifestPackKey": "lawResearchMethods",
+    "assessmentCategories": [
+      "source_ladder",
+      "statutes_regulations",
+      "case_law",
+      "noting_up",
+      "limitations_deadlines"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "r18c_law_content_hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-22",
+    "normalizedAt": "2026-07-01",
     "duplicateRootObjectRemoved": true,
-    "parseFaultResolved": "removed_concatenated_duplicate_json_root_object"
+    "parseFaultResolved": "removed_concatenated_duplicate_json_root_object",
+    "runtimePathConfirmed": true,
+    "manifestAligned": true,
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "research_methods",
+    "manifestPackKey": "lawResearchMethods",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "source_ladder",
+      "statutes_regulations",
+      "case_law",
+      "noting_up",
+      "limitations_deadlines"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
