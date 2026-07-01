@@ -18,6 +18,136 @@
     {
       "context": "ai_marketing",
       "example": "What behavioral signals most strongly predict conversion likelihood?"
+    },
+    {
+      "context": "real_world_ai_assessment",
+      "example": "What is the goal, what data do we have, what risk changes the decision, and what is the next move?"
+    },
+    {
+      "context": "ai_system_hardening",
+      "example": "Before this AI tool acts, what permissions, logs, approvals, and fallback limits are required?"
+    },
+    {
+      "context": "ai_cyber_protective_boundary",
+      "example": "Does this request involve access, identity, secrets, or deployment authority that should trigger protective review?"
+    },
+    {
+      "context": "ai_adaptability",
+      "example": "What changed in the environment that Marion should adapt to before giving a recommendation?"
     }
-  ]
+  ],
+  "canonicalDomain": "ai",
+  "runtimeDomainKey": "ai",
+  "runtimeFolder": "Data/Domains/ai",
+  "r18aRuntimeIntegration": {
+    "version": "nyx.marion.r18a.aiDomainAdaptability/1.0",
+    "baselinePreserved": "r16m-r17c",
+    "purpose": "Convert the AI domain from static reference material into an applied assessment lane while preserving Marion's stable conversation baseline.",
+    "appliedAssessmentFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ],
+    "responseContract": {
+      "answerStyle": "applied_clear_grounded",
+      "avoidGenericAIClaims": true,
+      "separateObservationInferenceRiskNextMove": true,
+      "askOnlyOneMissingDetailWhenNeeded": true,
+      "preserveMarionTone": true
+    },
+    "stabilityGuards": {
+      "noBaselineRegression": true,
+      "noInternalDiagnosticsInUserReply": true,
+      "noUnsupportedCapabilityClaims": true,
+      "noAutonomousAction": true,
+      "highImpactAdviceRequiresHumanOversight": true
+    },
+    "securityBridge": {
+      "cyberProtectiveProtocolCompatible": true,
+      "defensiveCyberOnly": true,
+      "leastPrivilegeForTools": true,
+      "explicitApprovalBeforeSensitiveAction": true,
+      "noCovertMonitoring": true,
+      "noPunitiveAction": true
+    }
+  },
+  "safetyConstraints": {
+    "noInvestmentAdvice": true,
+    "noLegalAdvice": true,
+    "noMedicalAdvice": true,
+    "defensiveCyberOnly": true,
+    "privacyMinimization": true,
+    "humanOversightRecommended": true,
+    "noAutonomousAction": true,
+    "explicitApprovalForHighImpactAI": true,
+    "sourceGroundedWherePossible": true,
+    "protectMacBoundary": true
+  },
+  "runtimeCompatibility": {
+    "targetRuntime": "Marion/Nyx",
+    "activeBaseline": "R17C-stability + R18AB-core",
+    "compatibleWith": [
+      "R16M",
+      "R17A",
+      "R17B",
+      "R17C",
+      "R18A",
+      "R18B"
+    ],
+    "mustNotWeakenConversationBaseline": true,
+    "mustNotBypassCyberProtectiveProtocol": true
+  },
+  "qualityAudit": {
+    "status": "r18a_hardened",
+    "strengths": [],
+    "issues": [],
+    "recommendedActions": [],
+    "criticalFixesApplied": [
+      "added_r18a_applied_assessment_frame",
+      "added_baseline_preservation_contract",
+      "added_ai_cybersecurity_protective_protocol_compatibility",
+      "added_runtime_domain_key_and_deploy_path_metadata",
+      "added_no_autonomous_action_and_explicit_approval_constraints"
+    ]
+  },
+  "notes_for_marion": [
+    "R18A responses should use the applied frame: goal, context, data, risk, and next move.",
+    "Do not answer AI questions as generic trend commentary when a real-world assessment can be given.",
+    "When the AI topic touches access, secrets, identity, tools, or deployment, defer to the R18B cybersecurity protective protocol."
+  ],
+  "schemaVersion": "1.1.0-r18a-ai-domain-hardening",
+  "packId": "ai_dialogue_snippets",
+  "manifestPackKey": "dialogue",
+  "manifestPath": "Data/Domains/ai/manifest.json",
+  "deployPath": "Data/Domains/ai/examples/ai_dialogue_snippets_v1.json",
+  "retrieval": {
+    "domain": "artificial_intelligence",
+    "canonicalDomain": "ai",
+    "runtimeDomainKey": "ai",
+    "layer": "dialogue",
+    "routeAliases": [
+      "snippets",
+      "prompting",
+      "questions",
+      "assessment_prompts"
+    ],
+    "crossLinks": [
+      "agents_systems",
+      "ethics_law",
+      "ai_psychology",
+      "ai_cybersecurity",
+      "ai_marketing",
+      "case_studies",
+      "foundations"
+    ],
+    "r18aFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ]
+  }
 }
