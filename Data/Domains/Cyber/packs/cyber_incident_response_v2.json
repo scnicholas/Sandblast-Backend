@@ -3,7 +3,7 @@
   "domain": "cybersecurity",
   "packType": "incident_response",
   "version": 2,
-  "updatedAt": "2026-03-15",
+  "updatedAt": "2026-06-30",
   "intent": "Defensive incident response principles, lifecycle structure, and containment-oriented reasoning. No offensive or exploit guidance.",
   "lifecycle": [
     {
@@ -149,6 +149,11 @@
         "level": "high",
         "description": "Significant data loss, operational outage, or regulatory exposure.",
         "responseGuidance": "Immediate escalation to leadership and legal/compliance."
+      },
+      {
+        "level": "critical",
+        "description": "Active compromise, regulated data exposure, safety-critical outage, ransomware, or privileged unauthorized access with material operational risk.",
+        "responseGuidance": "Immediate containment, evidence preservation, credential/session revocation, leadership/legal escalation, and professional incident response engagement."
       }
     ]
   },
@@ -476,7 +481,7 @@
   "runtimeFolder": "Data/Domains/Cyber",
   "runtimePath": "Data/Domains/Cyber/packs/cyber_incident_response_v2.json",
   "manifestPath": "Data/Domains/Cyber/manifest.json",
-  "schemaVersion": "2.0-hardened",
+  "schemaVersion": "2.3.0-r18b-cyber-domain-hardening",
   "safetyBoundary": {
     "mode": "defensive_only",
     "noExploitInstructions": true,
@@ -494,5 +499,145 @@
     "safetyBoundaryConfirmed": true,
     "retrievalIndexAdded": true,
     "defensiveOnlyConfirmed": true
+  },
+  "canonicalDomain": "cyber",
+  "targetRuntime": "Marion/Nyx",
+  "deployPath": "Data/Domains/Cyber/packs/cyber_incident_response_v2.json",
+  "hardeningVersion": "R18B-CYBER-PROTECTIVE-DOMAIN-HARDENING",
+  "marionUpgradeTrack": {
+    "r18bCyberProtectiveFoundation": true,
+    "stabilityFirst": true,
+    "architecturePreserved": true,
+    "structuralIntegrityPreserved": true,
+    "layerType": "knowledge_pack"
+  },
+  "r18bCyberProtectiveProtocol": {
+    "version": "nyx.marion.r18b.cyberProtectiveProtocol/1.0",
+    "mode": "defensive_only",
+    "macScopedProtectiveBoundary": true,
+    "leastPrivilegeDefault": true,
+    "explicitConfirmationForSensitiveActions": true,
+    "identityAccessSecretsFirst": true,
+    "privacyMinimization": true,
+    "auditTraceRequired": true,
+    "humanOversightRequired": true,
+    "noExploitInstructions": true,
+    "noCredentialProcessing": true,
+    "noLiveTargeting": true,
+    "noCovertMonitoring": true,
+    "noAutonomousEnforcement": true,
+    "noPunitiveAction": true,
+    "safeAlternativesOnlyForDualUse": true,
+    "voiceIdentityIsEvidenceNotAuthority": true,
+    "riskFlagThenExplainThenConfirm": true
+  },
+  "cyberAppliedAssessmentFrame": {
+    "version": "nyx.marion.cyberAppliedAssessmentFrame/1.0",
+    "steps": [
+      "asset_or_identity_scope",
+      "authorization_boundary",
+      "data_sensitivity",
+      "threat_or_failure_mode",
+      "control_gap",
+      "risk_level",
+      "containment_or_hardening_move",
+      "confirmation_needed",
+      "next_safe_action"
+    ],
+    "publicReplyPattern": "observation → risk → protective boundary → safe next move",
+    "doNotExposeInternalDiagnostics": true
+  },
+  "baselinePreservation": {
+    "version": "nyx.marion.baselinePreservation/R16M-R17C",
+    "preserves": [
+      "R16M_anti_repeat",
+      "R17A_emotional_continuity",
+      "R17B_pacing_personality_coherence",
+      "R17C_stability_consolidation"
+    ],
+    "noConversationBaselineOverride": true,
+    "noRuntimeLeakage": true,
+    "noInternalLabelsInVisibleReply": true,
+    "noFallbackLoopRegression": true,
+    "noCrossDomainBleed": true
+  },
+  "r18aAiCompatibility": {
+    "version": "nyx.marion.r18aAiCyberCompatibility/1.0",
+    "compatibleWith": "R18A_AI_Domain_Adaptability",
+    "aiCyberBridge": true,
+    "usedWhen": [
+      "AI system security",
+      "agent tool-use security",
+      "prompt injection defense",
+      "model governance",
+      "AI-enabled risk assessment"
+    ],
+    "doesNotOverrideCyberSafetyPosture": true
+  },
+  "retrieval": {
+    "domain": "cyber",
+    "runtimeDomainKey": "cyber",
+    "sourceFile": "cyber_incident_response_v2.json",
+    "deployPath": "Data/Domains/Cyber/packs/cyber_incident_response_v2.json",
+    "priority": "primary",
+    "preferredFrame": [
+      "asset_or_identity_scope",
+      "authorization_boundary",
+      "data_sensitivity",
+      "threat_or_failure_mode",
+      "control_gap",
+      "risk_level",
+      "containment_or_hardening_move",
+      "confirmation_needed",
+      "next_safe_action"
+    ],
+    "keywords": [
+      "incident response",
+      "breach",
+      "containment",
+      "recovery",
+      "postmortem",
+      "cybersecurity",
+      "defensive security",
+      "least privilege",
+      "identity protection",
+      "incident safety",
+      "risk assessment"
+    ],
+    "intentSignals": [
+      "compromised",
+      "attack",
+      "data leak",
+      "security incident",
+      "protect",
+      "harden",
+      "verify identity",
+      "secure access",
+      "contain risk"
+    ],
+    "noUserFacingDiagnostics": true
+  },
+  "gapRefinements": [
+    "Added canonical runtimeDomainKey=cyber while preserving original content schema.",
+    "Added R18B defensive-only protective protocol metadata.",
+    "Added applied cyber assessment frame for real-world Marion reasoning.",
+    "Added baseline-preservation markers to prevent R16M-R17C conversational regression.",
+    "Added retrieval/deploy metadata for Data/Domains/Cyber alignment.",
+    "Added critical severity tier and Marion incident protocol for containment-first responses."
+  ],
+  "marionIncidentProtocol": {
+    "sequence": [
+      "stabilize",
+      "contain",
+      "preserve_evidence",
+      "verify_scope",
+      "rotate_or_revoke_credentials",
+      "recover_cleanly",
+      "post_incident_review"
+    ],
+    "avoidSpeculation": true,
+    "legalComplianceCheckpoint": true,
+    "insuranceNotificationCheckpoint": true,
+    "professionalIRWhenHighOrCritical": true
   }
 }
