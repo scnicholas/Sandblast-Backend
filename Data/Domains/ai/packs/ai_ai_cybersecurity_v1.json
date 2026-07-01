@@ -35,7 +35,10 @@
     "secure_inference_and_serving",
     "guardrails_and_runtime_controls",
     "defensive_red_teaming",
-    "trustworthy_monitoring_and_auditability"
+    "trustworthy_monitoring_and_auditability",
+    "mac_scoped_protective_boundary",
+    "identity_access_secret_protection",
+    "human_confirmed_sensitive_action"
   ],
   "institutional_alignment": [
     "NIST_AI_RMF",
@@ -319,7 +322,9 @@
     "reason_about_model_hardening_monitoring_and_safe_degradation",
     "map_ai_security_threats_to_control_families_and_operational_defenses",
     "understand_the_role_of_governance_and_risk_management_in_secure_ai",
-    "evaluate_defensive_case_studies_and_frameworks_for_practical_use"
+    "evaluate_defensive_case_studies_and_frameworks_for_practical_use",
+    "apply_r18b_protective_protocol_to_ai_tool_use",
+    "separate_anomaly_flagging_from_autonomous_enforcement"
   ],
   "ingestion_priority": [
     "NIST AI 100-2e2025 Adversarial Machine Learning",
@@ -335,9 +340,12 @@
     "Keep this pack defensive only. Do not expand into offensive exploitation guidance or procedural attack instructions.",
     "Use this file as the AI security trunk for later cross-links into agents, governance, privacy, compliance, and infrastructure reliability.",
     "Prioritize institutional guidance and canonical references before vendor or blog-style material.",
-    "Map future entries to training, deployment, monitoring, and incident response stages so Marion can reason in lifecycle terms."
+    "Map future entries to training, deployment, monitoring, and incident response stages so Marion can reason in lifecycle terms.",
+    "R18A responses should use the applied frame: goal, context, data, risk, and next move.",
+    "Do not answer AI questions as generic trend commentary when a real-world assessment can be given.",
+    "When the AI topic touches access, secrets, identity, tools, or deployment, defer to the R18B cybersecurity protective protocol."
   ],
-  "schemaVersion": "1.2.0-normalized",
+  "schemaVersion": "1.3.0-r18a-ai-domain-hardening",
   "packId": "ai_ai_cybersecurity",
   "manifestPackKey": "aiCybersecurity",
   "retrieval": {
@@ -353,7 +361,9 @@
       "agents_systems",
       "ethics_law",
       "foundations",
-      "case_studies"
+      "case_studies",
+      "ai_psychology",
+      "ai_marketing"
     ],
     "preferredQueryTerms": [
       "secure_ai_system_development_lifecycle",
@@ -363,7 +373,13 @@
       "evasion_and_inference_attacks",
       "model_extraction_and_model_theft",
       "backdoor_and_trojan_detection",
-      "prompt_injection_and_indirect_prompt_injection"
+      "prompt_injection_and_indirect_prompt_injection",
+      "applied_ai_assessment",
+      "goal_context_data_risk_next_move",
+      "human_in_the_loop",
+      "model_evaluation",
+      "ai_system_design",
+      "operational_risk"
     ],
     "ingestionPriority": [
       "NIST AI 100-2e2025 Adversarial Machine Learning",
@@ -378,7 +394,16 @@
     "sourceCoverage": {
       "hasBibliographicReferences": true,
       "hasDirectUrlsOrPersistentIds": false
-    }
+    },
+    "canonicalDomain": "ai",
+    "runtimeDomainKey": "ai",
+    "r18aFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ]
   },
   "qualityAudit": {
     "status": "hardened_runtime_valid_pending_source_attachment",
@@ -402,7 +427,12 @@
       "Confirmed valid JSON parse after hardening.",
       "Added canonical runtimeDomainKey/runtimeFolder/runtimePath metadata.",
       "Added retrievalIndex for registry and Compose consumption.",
-      "Added explicit safetyBoundary aligned to layer risk."
+      "Added explicit safetyBoundary aligned to layer risk.",
+      "added_r18a_applied_assessment_frame",
+      "added_baseline_preservation_contract",
+      "added_ai_cybersecurity_protective_protocol_compatibility",
+      "added_runtime_domain_key_and_deploy_path_metadata",
+      "added_no_autonomous_action_and_explicit_approval_constraints"
     ]
   },
   "canonicalDomain": "ai",
@@ -472,5 +502,67 @@
     "composeConsumable": true,
     "sourceAttachmentPending": true,
     "hardenedAt": "2026-05-03"
-  }
+  },
+  "r18aRuntimeIntegration": {
+    "version": "nyx.marion.r18a.aiDomainAdaptability/1.0",
+    "baselinePreserved": "r16m-r17c",
+    "purpose": "Convert the AI domain from static reference material into an applied assessment lane while preserving Marion's stable conversation baseline.",
+    "appliedAssessmentFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ],
+    "responseContract": {
+      "answerStyle": "applied_clear_grounded",
+      "avoidGenericAIClaims": true,
+      "separateObservationInferenceRiskNextMove": true,
+      "askOnlyOneMissingDetailWhenNeeded": true,
+      "preserveMarionTone": true
+    },
+    "stabilityGuards": {
+      "noBaselineRegression": true,
+      "noInternalDiagnosticsInUserReply": true,
+      "noUnsupportedCapabilityClaims": true,
+      "noAutonomousAction": true,
+      "highImpactAdviceRequiresHumanOversight": true
+    },
+    "securityBridge": {
+      "cyberProtectiveProtocolCompatible": true,
+      "defensiveCyberOnly": true,
+      "leastPrivilegeForTools": true,
+      "explicitApprovalBeforeSensitiveAction": true,
+      "noCovertMonitoring": true,
+      "noPunitiveAction": true
+    }
+  },
+  "safetyConstraints": {
+    "noInvestmentAdvice": true,
+    "noLegalAdvice": true,
+    "noMedicalAdvice": true,
+    "defensiveCyberOnly": true,
+    "privacyMinimization": true,
+    "humanOversightRecommended": true,
+    "noAutonomousAction": true,
+    "explicitApprovalForHighImpactAI": true,
+    "sourceGroundedWherePossible": true,
+    "protectMacBoundary": true
+  },
+  "runtimeCompatibility": {
+    "targetRuntime": "Marion/Nyx",
+    "activeBaseline": "R17C-stability + R18AB-core",
+    "compatibleWith": [
+      "R16M",
+      "R17A",
+      "R17B",
+      "R17C",
+      "R18A",
+      "R18B"
+    ],
+    "mustNotWeakenConversationBaseline": true,
+    "mustNotBypassCyberProtectiveProtocol": true
+  },
+  "manifestPath": "Data/Domains/ai/manifest.json",
+  "deployPath": "Data/Domains/ai/packs/ai_ai_cybersecurity_v1.json"
 }
