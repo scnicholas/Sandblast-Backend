@@ -1,8 +1,8 @@
 {
   "domain": "cyber",
-  "schemaVersion": "2.2.0-hardened",
-  "manifestVersion": "2.2.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "2.3.0-r18b-cyber-domain-hardening",
+  "manifestVersion": "2.3.0-r18b-cyber-domain-hardening",
+  "updatedAt": "2026-06-30",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "cyber",
   "runtimeFolder": "Data/Domains/Cyber",
@@ -12,8 +12,8 @@
     "packs/cyber_foundations_v2.json",
     "packs/cyber_source_ladder_v2.json",
     "packs/cyber_identity_access_v2.json",
-    "packs/cyber_endpoint_cloud_v1.json",
     "packs/cyber_endpoint_cloud_v2.json",
+    "packs/cyber_endpoint_cloud_v1.json",
     "packs/cyber_network_web_v2.json",
     "packs/cyber_privacy_data_protection_v2.json",
     "packs/cyber_incident_response_v2.json",
@@ -26,9 +26,12 @@
     "secondaryLanes": [
       "ai",
       "law",
+      "psychology",
+      "finance",
+      "english",
+      "technical",
       "privacy",
-      "risk",
-      "english"
+      "risk"
     ],
     "keywords": [
       "cyber",
@@ -45,16 +48,41 @@
       "privacy",
       "data protection",
       "defensive security",
-      "hardening"
+      "hardening",
+      "zero trust",
+      "rbac",
+      "phishing-resistant mfa",
+      "admin protection",
+      "secret rotation",
+      "covert monitoring boundary",
+      "protective protocol"
     ],
-    "safetyFirst": true
+    "safetyFirst": true,
+    "conceptLanes": [
+      "privacy",
+      "risk",
+      "identity",
+      "incident_response",
+      "endpoint_cloud",
+      "network_web",
+      "security_culture"
+    ]
   },
   "constraints": {
     "defensiveCyberOnly": true,
     "noExploitInstructions": true,
     "privacyMinimization": true,
     "incidentSafetyFirst": true,
-    "leastPrivilegeDefault": true
+    "leastPrivilegeDefault": true,
+    "noCredentialProcessing": true,
+    "noLiveTargeting": true,
+    "noCovertMonitoring": true,
+    "noAutonomousEnforcement": true,
+    "noPunitiveAction": true,
+    "explicitConfirmationForSensitiveActions": true,
+    "humanOversightRequired": true,
+    "safeLabOnlyForTesting": true,
+    "voiceIdentityIsEvidenceNotAuthority": true
   },
   "packs": [
     {
@@ -67,7 +95,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     },
     {
       "packId": "foundations",
@@ -79,7 +111,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     },
     {
       "packId": "sourceLadder",
@@ -91,7 +127,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     },
     {
       "packId": "identityAccess",
@@ -105,7 +145,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     },
     {
       "packId": "endpointCloudV1",
@@ -116,8 +160,14 @@
         "legacy_compat"
       ],
       "presentInUpload": true,
-      "required": true,
-      "loadType": "knowledge_pack"
+      "required": false,
+      "loadType": "legacy_compat_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0",
+      "legacyCompatibility": true,
+      "supersededBy": "packs/cyber_endpoint_cloud_v2.json"
     },
     {
       "packId": "endpointCloudV2",
@@ -129,7 +179,12 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0",
+      "primaryForEndpointCloud": true
     },
     {
       "packId": "networkWeb",
@@ -141,7 +196,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     },
     {
       "packId": "privacyDataProtection",
@@ -153,7 +212,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     },
     {
       "packId": "incidentResponse",
@@ -165,7 +228,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     },
     {
       "packId": "securityCulture",
@@ -177,7 +244,11 @@
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "protectiveProtocol": "nyx.marion.r18b.cyberProtectiveProtocol/1.0"
     }
   ],
   "examples": [
@@ -190,7 +261,10 @@
       ],
       "presentInUpload": true,
       "required": false,
-      "loadType": "example_pack"
+      "loadType": "example_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C"
     },
     {
       "exampleId": "safetyPostureExamples",
@@ -201,7 +275,12 @@
       ],
       "presentInUpload": true,
       "required": false,
-      "loadType": "example_pack"
+      "loadType": "example_pack",
+      "r18bHardened": true,
+      "runtimeDomainKey": "cyber",
+      "baselinePreservation": "R16M-R17C",
+      "legacyCompatibility": true,
+      "supersededBy": "packs/cyber_safety_and_posture_v2.json"
     }
   ],
   "integrity": {
@@ -210,10 +289,89 @@
     "manifestSelfPathAligned": true,
     "packReferencesUseActualInventoryFilenames": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "r18bProtectiveProtocolPresent": true,
+    "baselinePreservationPresent": true,
+    "endpointCloudV2PreferredOverV1": true,
+    "structuralIntegrityPreserved": true,
+    "architecturePreserved": true
   },
   "notes": [
     "Folder casing preserved as Data/Domains/Cyber.",
     "Rebuilt from conflicted manifest source and current inventory."
+  ],
+  "packageLabel": "Marion R18B Cyber Domain Protective Hardening",
+  "r18bCyberProtectiveProtocol": {
+    "version": "nyx.marion.r18b.cyberProtectiveProtocol/1.0",
+    "mode": "defensive_only",
+    "macScopedProtectiveBoundary": true,
+    "leastPrivilegeDefault": true,
+    "explicitConfirmationForSensitiveActions": true,
+    "identityAccessSecretsFirst": true,
+    "privacyMinimization": true,
+    "auditTraceRequired": true,
+    "humanOversightRequired": true,
+    "noExploitInstructions": true,
+    "noCredentialProcessing": true,
+    "noLiveTargeting": true,
+    "noCovertMonitoring": true,
+    "noAutonomousEnforcement": true,
+    "noPunitiveAction": true,
+    "safeAlternativesOnlyForDualUse": true,
+    "voiceIdentityIsEvidenceNotAuthority": true,
+    "riskFlagThenExplainThenConfirm": true
+  },
+  "cyberAppliedAssessmentFrame": {
+    "version": "nyx.marion.cyberAppliedAssessmentFrame/1.0",
+    "steps": [
+      "asset_or_identity_scope",
+      "authorization_boundary",
+      "data_sensitivity",
+      "threat_or_failure_mode",
+      "control_gap",
+      "risk_level",
+      "containment_or_hardening_move",
+      "confirmation_needed",
+      "next_safe_action"
+    ],
+    "publicReplyPattern": "observation → risk → protective boundary → safe next move",
+    "doNotExposeInternalDiagnostics": true
+  },
+  "baselinePreservation": {
+    "version": "nyx.marion.baselinePreservation/R16M-R17C",
+    "preserves": [
+      "R16M_anti_repeat",
+      "R17A_emotional_continuity",
+      "R17B_pacing_personality_coherence",
+      "R17C_stability_consolidation"
+    ],
+    "noConversationBaselineOverride": true,
+    "noRuntimeLeakage": true,
+    "noInternalLabelsInVisibleReply": true,
+    "noFallbackLoopRegression": true,
+    "noCrossDomainBleed": true
+  },
+  "r18aAiCompatibility": {
+    "version": "nyx.marion.r18aAiCyberCompatibility/1.0",
+    "compatibleWith": "R18A_AI_Domain_Adaptability",
+    "aiCyberBridge": true,
+    "usedWhen": [
+      "AI system security",
+      "agent tool-use security",
+      "prompt injection defense",
+      "model governance",
+      "AI-enabled risk assessment"
+    ],
+    "doesNotOverrideCyberSafetyPosture": true
+  },
+  "gapRefinements": [
+    "Endpoint/cloud v1 and v2 existed in the same load path without explicit precedence; v2 is now primary and v1 is legacy compatibility.",
+    "Packs used cybersecurity as a content domain while the runtime key is cyber; canonical runtimeDomainKey=cyber is now added across all packs.",
+    "Safety posture needed explicit Marion/Mac protective constraints: no covert monitoring, no autonomous enforcement, no punitive action, and explicit confirmation for sensitive actions.",
+    "Incident response lacked a critical severity tier in the visible framework; critical containment guidance has been added.",
+    "Identity/access now explicitly states that voice identity, liveness, and continuity are evidence only, never authority.",
+    "Security culture now includes behavior anticipation without profiling, covert surveillance, or punitive interpretation.",
+    "Source ladder now includes a high-stakes source-use protocol to avoid stale/current guidance drift.",
+    "All files now carry deployPath, retrieval, baseline preservation, and R18B protocol metadata."
   ]
 }
