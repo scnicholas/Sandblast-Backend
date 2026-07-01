@@ -939,7 +939,7 @@
     ]
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -947,19 +947,32 @@
     "retrievalAliases": [
       "contracts_v2",
       "law_contracts",
-      "law_contracts_v2"
+      "law_contracts_v2",
+      "contracts",
+      "agreement",
+      "licensing",
+      "business_terms",
+      "law_contracts_v1",
+      "lawContracts"
     ],
     "sourceFile": "law_contracts_v1.json",
     "pipelineRole": "knowledge_pack",
-    "jurisdictionDefault": "CA",
+    "jurisdictionDefault": "Canada",
     "crossLinks": [
       "law_contracts_sources_index_v2",
       "law_source_ladder_v2",
       "law_foundations_v1",
-      "law_safety_and_posture_v1"
+      "law_safety_and_posture_v1",
+      "law_research_methods_v1"
     ],
-    "expectedFilename": "law_contracts_v2.json",
-    "sourceIntegrity": "strong"
+    "expectedFilename": "law_contracts_v1.json",
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_contracts_v1.json",
+    "runtimeFilename": "law_contracts_v1.json",
+    "manifestPackKey": "lawContracts",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "runtimeDomainKey": "law",
   "runtimePath": "Data/Domains/law/packs/law_contracts_v1.json",
@@ -969,12 +982,28 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "jurisdictionDisclosureRequired": true,
+    "noAttorneyClientRelationship": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
   },
   "retrievalIndex": {
     "domain": "law",
     "packId": "law_contracts_v2",
-    "aliases": [],
+    "aliases": [
+      "contracts_v2",
+      "law_contracts",
+      "law_contracts_v2",
+      "contracts",
+      "agreement",
+      "licensing",
+      "business_terms",
+      "law_contracts_v1",
+      "lawContracts"
+    ],
     "keywords": [
       "offer",
       "acceptance",
@@ -1056,7 +1085,24 @@
       "contract",
       "unconscionability",
       "can i get out of this",
-      "can they terminate"
+      "can they terminate",
+      "Formation: Offer and Acceptance",
+      "Intention and Capacity",
+      "Contract Interpretation",
+      "Breach of Contract",
+      "Damages and Remedies",
+      "Common Contract Defences",
+      "Good Faith and Honest Performance",
+      "Standard Form Contracts, Inequality of Bargaining Power, and Unconscionability",
+      "Privity, Assignment, and Third-Party Effects",
+      "Conditions, Warranties, Innominate Terms, and Termination",
+      "Equitable Relief: Specific Performance, Rectification, and Rescission",
+      "Contract Drafting Architecture",
+      "copyright_licensing",
+      "commercial_terms",
+      "consumer_standard_form",
+      "good_faith",
+      "remedies"
     ],
     "primaryFields": [
       "packId",
@@ -1081,14 +1127,73 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "r18cLawAssessmentLayer"
+    ],
+    "manifestPackKey": "lawContracts",
+    "assessmentCategories": [
+      "contract",
+      "copyright_licensing",
+      "commercial_terms",
+      "consumer_standard_form",
+      "good_faith",
+      "remedies"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "r18c_law_content_hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-07-01",
+    "runtimePathConfirmed": true,
+    "manifestAligned": true,
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "contracts",
+    "manifestPackKey": "lawContracts",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "contract",
+      "copyright_licensing",
+      "commercial_terms",
+      "consumer_standard_form",
+      "good_faith",
+      "remedies"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
