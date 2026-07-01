@@ -47,3 +47,42 @@ function shapeProgressionReply({ reply = "", text = "", profile = {}, memory = {
 }
 
 module.exports = { VERSION, RESPONSE_POLICY_VERSION, shapeProgressionReply, validationForPhase, nextPhaseLabel, isThinProgressionReply, default: shapeProgressionReply };
+
+// R18AB_AI_CYBER_RESPONSE_POLICY_START
+const R18AB_RESPONSE_POLICY_VERSION = "nyx.marion.r18ab.progressionResponsePolicy.aiCyber/1.0";
+function r18abPolStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18abPolicyKind(text="",memory={}){
+  const src=[r18abPolStr(text),JSON.stringify(memory&&typeof memory==="object"?memory:{}).slice(0,1000)].join(" ").toLowerCase();
+  if(/\b(cyber|cybersecurity|security|protective protocol|least privilege|access control|identity|verify identity|secret|token|credential|permission|threat|vulnerability)\b/i.test(src))return"cyber";
+  if(/\b(ai|artificial intelligence|machine learning|model|llm|agent|inference|automation|adaptive intelligence|ai integration|real[-\s]?world ai)\b/i.test(src))return"ai";
+  return"";
+}
+function shapeR18ABDomainReply(reply="",text="",memory={}){
+  const kind=r18abPolicyKind(text,memory);
+  if(!kind)return r18abPolStr(reply);
+  const thin=/^\s*(continue|next|ok|done|proceed|keep going|passed)\.?\s*$/i.test(r18abPolStr(reply));
+  if(kind==="ai"&&thin)return"AI lane stays active: assess the goal, context, data, risk, and next move before changing the system.";
+  if(kind==="cyber"&&thin)return"Security lane stays active: verify identity, protect access and secrets, then require explicit confirmation before sensitive action.";
+  return r18abPolStr(reply);
+}
+(function r18abPatchResponsePolicyExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  const fn=typeof exp.shapeProgressionReply==="function"?exp.shapeProgressionReply:null;
+  if(fn&&!fn.__r18abResponsePolicyPatched){
+    exp.shapeProgressionReply=function r18abShapeProgressionReplyWrapped(opts){
+      let result;
+      try{ result=fn.apply(this,arguments); }catch(err){ result=r18abPolStr(opts&&opts.reply)||""; }
+      const o=opts&&typeof opts==="object"?opts:{};
+      return shapeR18ABDomainReply(result,o.text,o.memory);
+    };
+    exp.shapeProgressionReply.__r18abResponsePolicyPatched=true;
+    exp.default=exp.shapeProgressionReply;
+  }
+  exp.R18AB_RESPONSE_POLICY_VERSION=R18AB_RESPONSE_POLICY_VERSION;
+  exp.shapeR18ABDomainReply=shapeR18ABDomainReply;
+  exp.r18abPolicyKind=r18abPolicyKind;
+  exp.R18AB_RESPONSE_POLICY_PATCH=true;
+})();
+// R18AB_AI_CYBER_RESPONSE_POLICY_END
+
