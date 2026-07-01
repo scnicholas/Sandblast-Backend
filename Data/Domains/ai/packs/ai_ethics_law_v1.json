@@ -328,7 +328,9 @@
     "product_counsel_analysis",
     "policy_and_governance_design",
     "human_rights_assessment",
-    "professional_responsibility_and_safe_deployment"
+    "professional_responsibility_and_safe_deployment",
+    "ai_governance_review_for_assistive_agents",
+    "human_oversight_and_authority_boundary_analysis"
   ],
   "ingestion_priority": [
     "EU Artificial Intelligence Act",
@@ -350,9 +352,12 @@
     "This pack should reason like a lawyer: identify doctrine, jurisdiction, standard, facts, burden, and remedy before offering conclusions.",
     "Keep ethics and law linked but distinct. Ethics can inform governance, but legal analysis must remain source- and jurisdiction-specific.",
     "Treat AI law as an overlap field touching constitutional law, administrative law, IP, privacy, antidiscrimination, torts, contracts, and evidence.",
-    "Do not present unresolved policy debates as settled law. Mark contested areas such as AI training fair use, liability allocation, and autonomous decision accountability as legally dynamic."
+    "Do not present unresolved policy debates as settled law. Mark contested areas such as AI training fair use, liability allocation, and autonomous decision accountability as legally dynamic.",
+    "R18A responses should use the applied frame: goal, context, data, risk, and next move.",
+    "Do not answer AI questions as generic trend commentary when a real-world assessment can be given.",
+    "When the AI topic touches access, secrets, identity, tools, or deployment, defer to the R18B cybersecurity protective protocol."
   ],
-  "schemaVersion": "1.2.0-normalized",
+  "schemaVersion": "1.3.0-r18a-ai-domain-hardening",
   "packId": "ai_ethics_law",
   "manifestPackKey": "ethicsLaw",
   "retrieval": {
@@ -370,7 +375,8 @@
       "ai_psychology",
       "ai_marketing",
       "ai_cybersecurity",
-      "case_studies"
+      "case_studies",
+      "foundations"
     ],
     "preferredQueryTerms": [
       "algorithmic_bias_and_discrimination",
@@ -380,7 +386,13 @@
       "ai_regulation_and_administrative_governance",
       "privacy_surveillance_and_biometric_governance",
       "alignment_safety_and_human_oversight",
-      "intellectual_property_and_authorship"
+      "intellectual_property_and_authorship",
+      "applied_ai_assessment",
+      "goal_context_data_risk_next_move",
+      "human_in_the_loop",
+      "model_evaluation",
+      "ai_system_design",
+      "operational_risk"
     ],
     "ingestionPriority": [
       "EU Artificial Intelligence Act",
@@ -401,7 +413,16 @@
     "sourceCoverage": {
       "hasBibliographicReferences": true,
       "hasDirectUrlsOrPersistentIds": false
-    }
+    },
+    "canonicalDomain": "ai",
+    "runtimeDomainKey": "ai",
+    "r18aFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ]
   },
   "qualityAudit": {
     "status": "hardened_runtime_valid_pending_source_attachment",
@@ -425,7 +446,12 @@
       "Confirmed valid JSON parse after hardening.",
       "Added canonical runtimeDomainKey/runtimeFolder/runtimePath metadata.",
       "Added retrievalIndex for registry and Compose consumption.",
-      "Added explicit safetyBoundary aligned to layer risk."
+      "Added explicit safetyBoundary aligned to layer risk.",
+      "added_r18a_applied_assessment_frame",
+      "added_baseline_preservation_contract",
+      "added_ai_cybersecurity_protective_protocol_compatibility",
+      "added_runtime_domain_key_and_deploy_path_metadata",
+      "added_no_autonomous_action_and_explicit_approval_constraints"
     ]
   },
   "canonicalDomain": "ai",
@@ -497,5 +523,67 @@
     "composeConsumable": true,
     "sourceAttachmentPending": true,
     "hardenedAt": "2026-05-03"
-  }
+  },
+  "r18aRuntimeIntegration": {
+    "version": "nyx.marion.r18a.aiDomainAdaptability/1.0",
+    "baselinePreserved": "r16m-r17c",
+    "purpose": "Convert the AI domain from static reference material into an applied assessment lane while preserving Marion's stable conversation baseline.",
+    "appliedAssessmentFrame": [
+      "goal",
+      "context",
+      "data",
+      "risk",
+      "next_move"
+    ],
+    "responseContract": {
+      "answerStyle": "applied_clear_grounded",
+      "avoidGenericAIClaims": true,
+      "separateObservationInferenceRiskNextMove": true,
+      "askOnlyOneMissingDetailWhenNeeded": true,
+      "preserveMarionTone": true
+    },
+    "stabilityGuards": {
+      "noBaselineRegression": true,
+      "noInternalDiagnosticsInUserReply": true,
+      "noUnsupportedCapabilityClaims": true,
+      "noAutonomousAction": true,
+      "highImpactAdviceRequiresHumanOversight": true
+    },
+    "securityBridge": {
+      "cyberProtectiveProtocolCompatible": true,
+      "defensiveCyberOnly": true,
+      "leastPrivilegeForTools": true,
+      "explicitApprovalBeforeSensitiveAction": true,
+      "noCovertMonitoring": true,
+      "noPunitiveAction": true
+    }
+  },
+  "safetyConstraints": {
+    "noInvestmentAdvice": true,
+    "noLegalAdvice": true,
+    "noMedicalAdvice": true,
+    "defensiveCyberOnly": true,
+    "privacyMinimization": true,
+    "humanOversightRecommended": true,
+    "noAutonomousAction": true,
+    "explicitApprovalForHighImpactAI": true,
+    "sourceGroundedWherePossible": true,
+    "protectMacBoundary": true
+  },
+  "runtimeCompatibility": {
+    "targetRuntime": "Marion/Nyx",
+    "activeBaseline": "R17C-stability + R18AB-core",
+    "compatibleWith": [
+      "R16M",
+      "R17A",
+      "R17B",
+      "R17C",
+      "R18A",
+      "R18B"
+    ],
+    "mustNotWeakenConversationBaseline": true,
+    "mustNotBypassCyberProtectiveProtocol": true
+  },
+  "manifestPath": "Data/Domains/ai/manifest.json",
+  "deployPath": "Data/Domains/ai/packs/ai_ethics_law_v1.json"
 }
