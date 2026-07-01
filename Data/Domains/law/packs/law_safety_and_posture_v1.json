@@ -291,7 +291,7 @@
     ]
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -299,36 +299,177 @@
     "retrievalAliases": [
       "law_safety_and_posture",
       "law_safety_and_posture_v1",
-      "safety_and_posture_v1"
+      "safety_and_posture_v1",
+      "safety",
+      "posture",
+      "non_advice",
+      "risk_gate",
+      "lawSafetyPosture"
     ],
     "sourceFile": "law_safety_and_posture_v1.json",
     "pipelineRole": "knowledge_pack",
-    "jurisdictionDefault": "CA",
+    "jurisdictionDefault": "Canada",
     "crossLinks": [
       "law_foundations_v1",
       "law_research_methods_v1",
       "law_constitutional_charter_v1",
       "law_contracts_v2",
       "law_criminal_v1",
-      "law_torts_v1"
+      "law_torts_v1",
+      "law_safety_and_posture_v1",
+      "law_source_ladder_v2"
     ],
-    "sourceIntegrity": "moderate"
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_safety_and_posture_v1.json",
+    "runtimeFilename": "law_safety_and_posture_v1.json",
+    "expectedFilename": "law_safety_and_posture_v1.json",
+    "manifestPackKey": "lawSafetyPosture",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "runtimePath": "Data/Domains/law/packs/law_safety_and_posture_v1.json",
   "runtimeDomainKey": "law",
-  "safetyBoundary": "general_legal_information_only_not_legal_advice",
+  "safetyBoundary": {
+    "stance": "general_legal_information_only_not_legal_advice",
+    "jurisdiction": "Canada",
+    "jurisdictionDisclosureRequired": true,
+    "requiresProvinceForProcedure": true,
+    "noAttorneyClientRelationship": true,
+    "noOutcomeGuarantees": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "professionalReferralForHighStakes": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
+  },
   "retrievalIndex": {
     "aliases": [
       "law_safety_and_posture_v1",
       "law",
-      "policy"
+      "policy",
+      "law_safety_and_posture",
+      "safety_and_posture_v1",
+      "safety",
+      "posture",
+      "non_advice",
+      "risk_gate",
+      "lawSafetyPosture"
     ],
-    "source": "batch2_hardening_v1_1"
+    "source": "batch2_hardening_v1_1",
+    "domain": "law",
+    "packId": "law_safety_and_posture_v1",
+    "manifestPackKey": "lawSafetyPosture",
+    "keywords": [
+      "legal advice",
+      "can i sue",
+      "deadline",
+      "limitation period",
+      "restraining order",
+      "eviction",
+      "served",
+      "doxx",
+      "blackmail",
+      "extort",
+      "how do i get away with",
+      "hide evidence",
+      "beat the system",
+      "i will hurt",
+      "i'm scared",
+      "immediate danger",
+      "legal_safety",
+      "wrongdoing_evasion",
+      "time_sensitive",
+      "privacy_sensitive",
+      "family_violence"
+    ],
+    "assessmentCategories": [
+      "legal_safety",
+      "wrongdoing_evasion",
+      "time_sensitive",
+      "privacy_sensitive",
+      "family_violence"
+    ],
+    "primaryFields": [
+      "packId",
+      "version",
+      "domain",
+      "jurisdiction",
+      "packType",
+      "description",
+      "defaults",
+      "posture",
+      "riskSignals",
+      "responsePlaybooks",
+      "contextRules",
+      "retrievalHints",
+      "meta",
+      "runtime",
+      "runtimePath",
+      "runtimeDomainKey",
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "manifestPackKey",
+      "safetyBoundaryLegacy",
+      "r18cLawAssessmentLayer"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
     "jsonValid": true,
     "conflictMarkersRemoved": 0,
     "runtimePathConfirmed": true,
-    "batch2Hardened": true
+    "batch2Hardened": true,
+    "status": "r18c_law_content_hardened",
+    "validatedJson": true,
+    "preservedStructuralIntegrity": true,
+    "manifestAligned": true,
+    "normalizedAt": "2026-07-01",
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "manifestPackKey": "lawSafetyPosture",
+  "safetyBoundaryLegacy": "general_legal_information_only_not_legal_advice",
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "safety_posture",
+    "manifestPackKey": "lawSafetyPosture",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "legal_safety",
+      "wrongdoing_evasion",
+      "time_sensitive",
+      "privacy_sensitive",
+      "family_violence"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
