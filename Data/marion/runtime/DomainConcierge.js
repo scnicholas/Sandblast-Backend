@@ -18,7 +18,7 @@
  * - Fails closed into one clarifier only when routing confidence is genuinely weak/ambiguous.
  */
 
-const VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + DomainConcierge v1.2.0 PRIORITY2-ROUTE-CLARIFY-HARDENING + DEFENSIVE-INTENT-CARRY + CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK";
+const VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + DomainConcierge v1.2.0 PRIORITY2-ROUTE-CLARIFY-HARDENING + DEFENSIVE-INTENT-CARRY + CONFIDENCE-AWARE-SHAPING-CARRY + CORE-RUNTIME-ROUTE-CLARIFY-FALLBACK-LOCK + R18C-LAW-DOMAIN-CONCIERGE";
 const DOMAIN_CONCIERGE_VERSION = "nyx.marion.domainConcierge/1.0";
 const DOMAIN_CONFIDENCE_VERSION = "nyx.marion.domainConfidence/1.1";
 const CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION = "nyx.marion.confidenceAwareResponseShaping/1.0";
@@ -1948,3 +1948,76 @@ function r18abApplyConciergeProtocol(result, packet){
 })();
 // R18AB_AI_CYBER_CONCIERGE_HARDENING_END
 
+// R18C_LAW_ROUTING_REGISTRY_PATCH_START
+const R18C_DOMAIN_CONCIERGE_VERSION = "nyx.marion.r18c.domainConcierge.lawAssessment/1.0";
+const R18C_LAW_CONCIERGE_FRAME = Object.freeze(["legal_category","jurisdiction_sensitivity","facts_vs_assumptions","risk_exposure","missing_information","safe_next_move"]);
+const R18C_LAW_CONCIERGE_BOUNDARY = Object.freeze({generalInformationOnly:true,noLegalAdvice:true,noAttorneyClientRelationship:true,noLegalCertaintyClaim:true,jurisdictionRequired:true,sourceDocumentReviewRequired:true,professionalReviewRecommendedForHighRisk:true});
+function r18cConStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18cConObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18cConFirst(){for(let i=0;i<arguments.length;i+=1){const v=r18cConStr(arguments[i]);if(v)return v;}return"";}
+function r18cConExtractText(packet){const p=r18cConObj(packet),payload=r18cConObj(p.payload),meta=r18cConObj(p.meta),session=r18cConObj(p.session);return r18cConFirst(p.text,p.userText,p.message,p.prompt,p.query,p.rawUserText,p.normalizedUserIntent,p.effectivePrompt,payload.text,payload.userText,payload.message,meta.text,session.lastUserText);}
+function r18cConCategories(text=""){
+  const t=r18cConStr(text).toLowerCase(), out=[]; const add=(key,rx)=>{if(rx.test(t)&&!out.includes(key))out.push(key);};
+  add("contract",/\b(contract|agreement|nda|terms|clause|consideration|breach|indemnity|warranty|termination|assignment)\b/i);
+  add("copyright_licensing",/\b(copyright|copyrighted|licen[cs]e|licen[cs]ing|distribution rights?|broadcast rights?|ott rights?|roku rights?|streaming rights?|content rights?|fair use|public domain|royalty)\b/i);
+  add("intellectual_property",/\b(ip|intellectual property|trademark|trade mark|patent|trade secret|brand mark|logo ownership|copyright ownership)\b/i);
+  add("compliance_regulatory",/\b(compliance|regulatory|regulation|policy|statute|permit|filing|reporting requirement|tax credit|grant eligibility)\b/i);
+  add("liability_dispute",/\b(liability|liable|negligence|duty of care|damages|claim|lawsuit|litigation|settlement|dispute|legal exposure)\b/i);
+  add("employment_contractor",/\b(employee|employment|contractor|independent contractor|worker classification|termination|severance|non[-\s]?compete|non[-\s]?solicit)\b/i);
+  add("privacy_data",/\b(privacy|pipeda|gdpr|personal information|personal data|consent|data protection|data retention|user data)\b/i);
+  add("corporate_business",/\b(incorporat(?:e|ion)|corporation|shareholder|director|officer|bylaw|articles|business registration|operating agreement)\b/i);
+  add("jurisdiction_procedure",/\b(jurisdiction|province|federal|ontario|canada|canadian law|court|tribunal|legal process|procedure|venue)\b/i);
+  return out;
+}
+function r18cConTechnicalSuppressed(text=""){
+  const t=r18cConStr(text).toLowerCase();
+  return /\b(surgical autopsy|autopsy|audit|patch|update|resend|zip|downloadable|files?|node --check|domain routing|domain registry|domainrouter|mariondomainregistry|marionintentrouter|domainconcierge|domainconfidence|runtime file|javascript|\.js)\b/i.test(t) && r18cConCategories(t).length===0 && !/\b(r18c|law domain|legal domain)\b/i.test(t);
+}
+function buildR18CLawConciergeProtocol(packet={},base={}){
+  const text=r18cConExtractText(packet)||r18cConFirst(r18cConObj(base).rawUserText,r18cConObj(base).normalizedUserIntent,r18cConObj(base).text);
+  const src=[text,JSON.stringify(r18cConObj(base)).slice(0,1400)].join(" ");
+  const categories=r18cConCategories(src);
+  const explicit=/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(src);
+  const active=(categories.length>0||explicit)&&!r18cConTechnicalSuppressed(text);
+  const secondary=[];
+  if(/\b(ai|artificial intelligence|model|llm|automation|agent)\b/i.test(src))secondary.push("ai");
+  if(/\b(cyber|security|privacy|data protection|credential|access|identity)\b/i.test(src))secondary.push("cyber");
+  if(/\b(revenue|pricing|cost|grant|funding|tax credit|moneti[sz]e|royalty|fee|damages)\b/i.test(src))secondary.push("finance");
+  if(/\b(roku|ott|streaming|channel|distribution|commercial|business)\b/i.test(src))secondary.push("business");
+  return {version:R18C_DOMAIN_CONCIERGE_VERSION,active,route:active?"law":"",intent:active?"domain_question":"",knowledgeDomain:active?"law":"",legalCategory:categories[0]||"general_legal_risk",legalCategories:categories,secondaryDomains:Array.from(new Set(secondary.filter(d=>d!=="law"))).slice(0,4),confidence:active?(explicit?0.97:0.94):0,answerMode:"grounded",assessmentFrame:R18C_LAW_CONCIERGE_FRAME.slice(),legalBoundary:Object.assign({},R18C_LAW_CONCIERGE_BOUNDARY),highStakes:!!active,routeLocked:!!active,noCrossDomainBleed:true,noUserFacingDiagnostics:true};
+}
+function r18cLawConciergeDomainConfidence(protocol){return {version:DOMAIN_CONFIDENCE_VERSION,confidence:protocol.confidence,confidenceScore:protocol.confidence,band:"high",confidenceBand:"high",margin:0.16,ambiguous:false,routeLocked:true,needsClarifier:false,failClosed:false,primaryDomain:"law",selectedDomain:"law",secondaryDomains:protocol.secondaryDomains||[],knowledgeDomain:"law",answerMode:"grounded",highStakes:true,reason:"r18c_law_real_world_assessment_precedence",legalCategory:protocol.legalCategory,legalCategories:protocol.legalCategories,assessmentFrame:protocol.assessmentFrame,legalBoundary:protocol.legalBoundary,r18cLawAssessment:protocol,candidates:[{domain:"law",confidence:protocol.confidence,reasons:["r18c_law_real_world_assessment_signal",protocol.legalCategory],knowledgeDomain:"law"}],noCrossDomainBleed:true,noUserFacingDiagnostics:true};}
+function r18cApplyLawConciergeProtocol(result,packet){
+  if(!result||typeof result!=="object")return result;
+  const protocol=buildR18CLawConciergeProtocol(packet,result);
+  if(!protocol.active)return result;
+  const dc=r18cLawConciergeDomainConfidence(protocol);
+  const out=Array.isArray(result)?result.slice():Object.assign({},result);
+  out.action="route"; out.route="law"; out.intent="domain_question"; out.knowledgeDomain="law"; out.confidence=Math.max(Number(out.confidence)||0,protocol.confidence); out.confidenceBand="high"; out.needsClarifier=false; out.clarifier=""; out.answerMode="grounded"; out.highStakes=true; out.routeLocked=true; out.reason="r18c_law_real_world_assessment_precedence";
+  out.domainConfidence=dc; out.r18cLawAssessment=protocol; out.noCrossDomainBleed=true; out.noUserFacingDiagnostics=true;
+  out.confidenceAwareResponseShaping=Object.assign({},r18cConObj(out.confidenceAwareResponseShaping),{active:true,action:"route",mode:"grounded",route:"law",intent:"domain_question",knowledgeDomain:"law",confidence:protocol.confidence,confidenceBand:"high",highStakes:true,needsClarifier:false,legalCategory:protocol.legalCategory,assessmentFrame:protocol.assessmentFrame,legalBoundary:protocol.legalBoundary,r18cLawAssessment:protocol,noUserFacingDiagnostics:true});
+  out.stateSpinePatch=Object.assign({},r18cConObj(out.stateSpinePatch),{lastConciergeAction:"route",lastRoute:"law",lastIntent:"domain_question",selectedDomain:"law",knowledgeDomain:"law",lastRouteConfidence:protocol.confidence,routeLock:true,routeFailClosed:false,domainConfidence:dc,r18cLawAssessment:protocol,noCrossDomainBleed:true});
+  out.composerContext=Object.assign({},r18cConObj(out.composerContext),{routing:{domain:"law",intent:"domain_question",mode:"law_real_world_assessment",depth:"jurisdiction_aware_grounded",routeLock:true,domainConfidence:dc},marionIntent:{intent:"domain_question",confidence:protocol.confidence,reason:"r18c_law_real_world_assessment_precedence",knowledgeDomain:"law",answerMode:"grounded"},domainConfidence:dc,r18cLawAssessment:protocol,noUserFacingDiagnostics:true});
+  return out;
+}
+(function r18cPatchDomainConciergeExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  ["runDomainConcierge","routeOrClarify"].forEach(function(name){
+    const fn=typeof exp[name]==="function"?exp[name]:null;
+    if(!fn||fn.__r18cLawConciergePatched)return;
+    exp[name]=function r18cLawDomainConciergeWrapped(packet){const result=fn.apply(this,arguments); if(result&&typeof result.then==="function")return result.then(function(v){return r18cApplyLawConciergeProtocol(v,packet);}); return r18cApplyLawConciergeProtocol(result,packet);};
+    exp[name].__r18cLawConciergePatched=true;
+  });
+  if(typeof exp.shouldClarify==="function"&&!exp.shouldClarify.__r18cLawConciergePatched){
+    const original=exp.shouldClarify; exp.shouldClarify=function r18cLawShouldClarifyWrapped(packet){const protocol=buildR18CLawConciergeProtocol(packet,{}); if(protocol.active)return false; return original.apply(this,arguments);}; exp.shouldClarify.__r18cLawConciergePatched=true;
+  }
+  exp.R18C_DOMAIN_CONCIERGE_VERSION=R18C_DOMAIN_CONCIERGE_VERSION;
+  exp.R18C_LAW_CONCIERGE_FRAME=R18C_LAW_CONCIERGE_FRAME;
+  exp.R18C_LAW_CONCIERGE_BOUNDARY=R18C_LAW_CONCIERGE_BOUNDARY;
+  exp.buildR18CLawConciergeProtocol=buildR18CLawConciergeProtocol;
+  exp.r18cApplyLawConciergeProtocol=r18cApplyLawConciergeProtocol;
+  exp.R18C_LAW_ROUTING_REGISTRY_PATCH=true;
+  exp.default=exp;
+})();
+// R18C_LAW_ROUTING_REGISTRY_PATCH_END
