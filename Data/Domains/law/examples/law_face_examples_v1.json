@@ -26,7 +26,12 @@
       "id": "fx_tenancy_rent_increase",
       "scenario": "Landlord raised my rent a lot and says I have to pay starting next month.",
       "likelyUserIntent": "tenant_rights_rent_increase",
-      "topicTags": ["tenancy", "rent", "notice", "province_variation"],
+      "topicTags": [
+        "tenancy",
+        "rent",
+        "notice",
+        "province_variation"
+      ],
       "whatToClarify": [
         "Which province/territory are you in?",
         "Is this a fixed-term lease or month-to-month?",
@@ -40,20 +45,45 @@
           "Check permitted increase rate and exemption categories.",
           "If non-compliant: outline dispute/complaint route through the tenancy board/tribunal."
         ],
-        "documentsToGather": ["lease agreement", "rent increase notice", "rent receipts", "any emails/texts"],
-        "redFlags": ["threats of illegal eviction", "lockout", "retaliation for requesting repairs"],
+        "documentsToGather": [
+          "lease agreement",
+          "rent increase notice",
+          "rent receipts",
+          "any emails/texts"
+        ],
+        "redFlags": [
+          "threats of illegal eviction",
+          "lockout",
+          "retaliation for requesting repairs"
+        ],
         "nonAdviceLine": "I can explain the typical rules and how to verify them for your province, but I can’t tell you what you should do legally."
       },
       "retrievalHints": {
-        "keywords": ["rent increase", "raised rent", "notice", "landlord", "tenant", "rent control"],
-        "intentSignals": ["is this legal", "what are my rights", "can they do this"]
+        "keywords": [
+          "rent increase",
+          "raised rent",
+          "notice",
+          "landlord",
+          "tenant",
+          "rent control"
+        ],
+        "intentSignals": [
+          "is this legal",
+          "what are my rights",
+          "can they do this"
+        ]
       }
     },
     {
       "id": "fx_tenancy_eviction_notice",
       "scenario": "I got an eviction notice. Do I have to leave right away?",
       "likelyUserIntent": "tenant_rights_eviction_process",
-      "topicTags": ["tenancy", "eviction", "procedure", "urgent"],
+      "topicTags": [
+        "tenancy",
+        "eviction",
+        "procedure",
+        "urgent"
+      ],
       "whatToClarify": [
         "Which province/territory?",
         "What is the stated reason on the notice (non-payment, owner move-in, renovation, etc.)?",
@@ -67,20 +97,47 @@
           "Identify immediate actions: payment plan, dispute filing deadline, hearing prep steps.",
           "If safety risk/lockout: emergency resources (local tenancy board + police if illegal lockout)."
         ],
-        "documentsToGather": ["eviction notice", "lease", "payment history", "communications"],
-        "redFlags": ["illegal lockout", "shutoff of utilities", "harassment"],
+        "documentsToGather": [
+          "eviction notice",
+          "lease",
+          "payment history",
+          "communications"
+        ],
+        "redFlags": [
+          "illegal lockout",
+          "shutoff of utilities",
+          "harassment"
+        ],
         "nonAdviceLine": "I can help you map the process and deadlines to your province’s tribunal rules."
       },
       "retrievalHints": {
-        "keywords": ["eviction notice", "N4", "RTB", "LTB", "leave", "hearing", "landlord tenant board"],
-        "intentSignals": ["do I have to leave", "deadline", "dispute", "appeal"]
+        "keywords": [
+          "eviction notice",
+          "N4",
+          "RTB",
+          "LTB",
+          "leave",
+          "hearing",
+          "landlord tenant board"
+        ],
+        "intentSignals": [
+          "do I have to leave",
+          "deadline",
+          "dispute",
+          "appeal"
+        ]
       }
     },
     {
       "id": "fx_tenancy_security_deposit",
       "scenario": "My landlord won’t return my deposit and says it’s for damages.",
       "likelyUserIntent": "tenant_rights_deposit",
-      "topicTags": ["tenancy", "deposit", "damages", "evidence"],
+      "topicTags": [
+        "tenancy",
+        "deposit",
+        "damages",
+        "evidence"
+      ],
       "whatToClarify": [
         "Province/territory?",
         "Was there a move-in/move-out inspection report?",
@@ -94,20 +151,45 @@
           "Evidence approach: photos, inspection reports, communications, receipts.",
           "Dispute route: tenancy board claim + typical remedies."
         ],
-        "documentsToGather": ["inspection reports", "photos/videos", "deposit receipt", "repair invoices if provided"],
-        "redFlags": ["deposit never properly documented", "deductions without explanation"],
+        "documentsToGather": [
+          "inspection reports",
+          "photos/videos",
+          "deposit receipt",
+          "repair invoices if provided"
+        ],
+        "redFlags": [
+          "deposit never properly documented",
+          "deductions without explanation"
+        ],
         "nonAdviceLine": "I can help you structure a clear evidence timeline and the questions to ask the tribunal forms."
       },
       "retrievalHints": {
-        "keywords": ["deposit", "damage", "wear and tear", "inspection", "move out", "refund"],
-        "intentSignals": ["can they keep it", "how do I get it back", "what counts as damage"]
+        "keywords": [
+          "deposit",
+          "damage",
+          "wear and tear",
+          "inspection",
+          "move out",
+          "refund"
+        ],
+        "intentSignals": [
+          "can they keep it",
+          "how do I get it back",
+          "what counts as damage"
+        ]
       }
     },
     {
       "id": "fx_employment_termination_without_cause",
       "scenario": "I was fired without cause. They offered me 2 weeks’ pay — is that normal?",
       "likelyUserIntent": "employment_termination_entitlements",
-      "topicTags": ["employment", "termination", "notice", "common_law", "ESA_variation"],
+      "topicTags": [
+        "employment",
+        "termination",
+        "notice",
+        "common_law",
+        "ESA_variation"
+      ],
       "whatToClarify": [
         "Province/territory and whether you’re federally regulated?",
         "How long were you employed and what was your role/seniority?",
@@ -121,20 +203,45 @@
           "Evaluate typical factors (tenure, age, role, availability of similar work).",
           "Safe next step: don’t sign releases immediately; request time and clarification."
         ],
-        "documentsToGather": ["employment contract", "offer letter", "termination letter", "pay stubs", "benefits info"],
-        "redFlags": ["pressure to sign immediately", "missing vacation pay/benefits", "allegations of cause without details"],
+        "documentsToGather": [
+          "employment contract",
+          "offer letter",
+          "termination letter",
+          "pay stubs",
+          "benefits info"
+        ],
+        "redFlags": [
+          "pressure to sign immediately",
+          "missing vacation pay/benefits",
+          "allegations of cause without details"
+        ],
         "nonAdviceLine": "I can outline the framework and what to verify; a lawyer can assess likely ranges for your facts."
       },
       "retrievalHints": {
-        "keywords": ["fired", "terminated", "without cause", "severance", "notice", "release"],
-        "intentSignals": ["is this fair", "what am I entitled to", "should I sign"]
+        "keywords": [
+          "fired",
+          "terminated",
+          "without cause",
+          "severance",
+          "notice",
+          "release"
+        ],
+        "intentSignals": [
+          "is this fair",
+          "what am I entitled to",
+          "should I sign"
+        ]
       }
     },
     {
       "id": "fx_employment_constructive_dismissal",
       "scenario": "My employer changed my role and pay significantly. Is that constructive dismissal?",
       "likelyUserIntent": "employment_constructive_dismissal",
-      "topicTags": ["employment", "constructive_dismissal", "contract_change"],
+      "topicTags": [
+        "employment",
+        "constructive_dismissal",
+        "contract_change"
+      ],
       "whatToClarify": [
         "What changed (pay, hours, duties, location) and by how much?",
         "Did you agree in writing or object promptly?",
@@ -148,20 +255,44 @@
           "Contract terms and employer justifications matter.",
           "Safe next step: document changes, communicate objection, and seek advice before quitting."
         ],
-        "documentsToGather": ["job description/offer", "emails about changes", "pay statements", "HR policies"],
-        "redFlags": ["pressure to resign", "retaliation for raising concerns"],
+        "documentsToGather": [
+          "job description/offer",
+          "emails about changes",
+          "pay statements",
+          "HR policies"
+        ],
+        "redFlags": [
+          "pressure to resign",
+          "retaliation for raising concerns"
+        ],
         "nonAdviceLine": "I can give the test at a high level and help you draft a neutral facts-only note."
       },
       "retrievalHints": {
-        "keywords": ["role changed", "pay cut", "hours reduced", "moved me", "constructive dismissal"],
-        "intentSignals": ["do I have to accept", "can I quit", "is this legal"]
+        "keywords": [
+          "role changed",
+          "pay cut",
+          "hours reduced",
+          "moved me",
+          "constructive dismissal"
+        ],
+        "intentSignals": [
+          "do I have to accept",
+          "can I quit",
+          "is this legal"
+        ]
       }
     },
     {
       "id": "fx_employment_unpaid_wages",
       "scenario": "My employer hasn’t paid me for two pay periods.",
       "likelyUserIntent": "employment_unpaid_wages",
-      "topicTags": ["employment", "wages", "complaint", "evidence", "urgent"],
+      "topicTags": [
+        "employment",
+        "wages",
+        "complaint",
+        "evidence",
+        "urgent"
+      ],
       "whatToClarify": [
         "Province/territory or federal jurisdiction?",
         "Are you hourly or salary? Any commission?",
@@ -175,20 +306,43 @@
           "If insolvency: special timelines and programs may exist.",
           "Safe next step: written demand for payment + file complaint within limitation period."
         ],
-        "documentsToGather": ["time sheets", "pay stubs", "bank statements", "employment agreement"],
-        "redFlags": ["requests to work off-the-books", "threats for complaining"],
+        "documentsToGather": [
+          "time sheets",
+          "pay stubs",
+          "bank statements",
+          "employment agreement"
+        ],
+        "redFlags": [
+          "requests to work off-the-books",
+          "threats for complaining"
+        ],
         "nonAdviceLine": "I can help you build a clean evidence packet and identify the right agency to file with."
       },
       "retrievalHints": {
-        "keywords": ["not paid", "missed paycheck", "wages owed", "pay stub", "labour board"],
-        "intentSignals": ["file a complaint", "what can I do", "deadline"]
+        "keywords": [
+          "not paid",
+          "missed paycheck",
+          "wages owed",
+          "pay stub",
+          "labour board"
+        ],
+        "intentSignals": [
+          "file a complaint",
+          "what can I do",
+          "deadline"
+        ]
       }
     },
     {
       "id": "fx_consumer_chargeback",
       "scenario": "A company charged me but never delivered. How do I get my money back?",
       "likelyUserIntent": "consumer_remedies_payment_dispute",
-      "topicTags": ["consumer", "contract", "payment", "chargeback"],
+      "topicTags": [
+        "consumer",
+        "contract",
+        "payment",
+        "chargeback"
+      ],
       "whatToClarify": [
         "How did you pay (credit card, debit, e-transfer)?",
         "What was promised and what proof do you have?",
@@ -202,20 +356,44 @@
           "If unresolved: consumer protection complaint and/or small claims.",
           "Evidence checklist and clean chronology."
         ],
-        "documentsToGather": ["receipts", "order confirmation", "shipping info", "emails/chat logs"],
-        "redFlags": ["merchant stops responding", "fake tracking numbers"],
+        "documentsToGather": [
+          "receipts",
+          "order confirmation",
+          "shipping info",
+          "emails/chat logs"
+        ],
+        "redFlags": [
+          "merchant stops responding",
+          "fake tracking numbers"
+        ],
         "nonAdviceLine": "I can outline general consumer remedies and how to present a strong dispute file."
       },
       "retrievalHints": {
-        "keywords": ["charged", "never delivered", "refund", "chargeback", "dispute", "scam"],
-        "intentSignals": ["how do I get my money back", "can I sue", "what are my options"]
+        "keywords": [
+          "charged",
+          "never delivered",
+          "refund",
+          "chargeback",
+          "dispute",
+          "scam"
+        ],
+        "intentSignals": [
+          "how do I get my money back",
+          "can I sue",
+          "what are my options"
+        ]
       }
     },
     {
       "id": "fx_small_claims_contract",
       "scenario": "Someone owes me money for work I did. Should I go to small claims?",
       "likelyUserIntent": "small_claims_recovery",
-      "topicTags": ["civil", "small_claims", "contract", "evidence"],
+      "topicTags": [
+        "civil",
+        "small_claims",
+        "contract",
+        "evidence"
+      ],
       "whatToClarify": [
         "Province/territory and approximate amount owed?",
         "Was there a written contract or just texts/emails?",
@@ -229,20 +407,46 @@
           "Pre-suit demand letter and settlement options.",
           "Evidence packet: agreement, invoices, proof of delivery, communications."
         ],
-        "documentsToGather": ["contract/quotes", "invoices", "proof of work", "messages", "payment records"],
-        "redFlags": ["counterclaims threatened", "lack of written scope"],
+        "documentsToGather": [
+          "contract/quotes",
+          "invoices",
+          "proof of work",
+          "messages",
+          "payment records"
+        ],
+        "redFlags": [
+          "counterclaims threatened",
+          "lack of written scope"
+        ],
         "nonAdviceLine": "I can give a practical filing checklist and how to structure your facts."
       },
       "retrievalHints": {
-        "keywords": ["small claims", "sue", "owed money", "invoice", "breach", "demand letter"],
-        "intentSignals": ["should I sue", "how to file", "what proof do I need"]
+        "keywords": [
+          "small claims",
+          "sue",
+          "owed money",
+          "invoice",
+          "breach",
+          "demand letter"
+        ],
+        "intentSignals": [
+          "should I sue",
+          "how to file",
+          "what proof do I need"
+        ]
       }
     },
     {
       "id": "fx_defamation_online_review",
       "scenario": "Someone posted a damaging review about me online that I believe is false.",
       "likelyUserIntent": "defamation_general_info",
-      "topicTags": ["tort", "defamation", "reputation", "evidence", "risk"],
+      "topicTags": [
+        "tort",
+        "defamation",
+        "reputation",
+        "evidence",
+        "risk"
+      ],
       "whatToClarify": [
         "What platform and is it identifying you or your business clearly?",
         "Is the statement opinion or a factual claim?",
@@ -256,20 +460,44 @@
           "Non-escalatory options: platform report, factual response, counsel letter if needed.",
           "Avoid retaliatory posts; keep a clean record."
         ],
-        "documentsToGather": ["screenshots", "analytics/impact notes", "customer messages", "platform URLs"],
-        "redFlags": ["doxxing/harassment", "ongoing threats"],
+        "documentsToGather": [
+          "screenshots",
+          "analytics/impact notes",
+          "customer messages",
+          "platform URLs"
+        ],
+        "redFlags": [
+          "doxxing/harassment",
+          "ongoing threats"
+        ],
         "nonAdviceLine": "I can outline the general framework and safe documentation steps; a lawyer can assess viability and risks."
       },
       "retrievalHints": {
-        "keywords": ["defamation", "libel", "slander", "false review", "reputation", "google review"],
-        "intentSignals": ["can I sue", "what are my options", "is this illegal"]
+        "keywords": [
+          "defamation",
+          "libel",
+          "slander",
+          "false review",
+          "reputation",
+          "google review"
+        ],
+        "intentSignals": [
+          "can I sue",
+          "what are my options",
+          "is this illegal"
+        ]
       }
     },
     {
       "id": "fx_privacy_doxxing",
       "scenario": "Someone is threatening to post my address and private info online.",
       "likelyUserIntent": "privacy_harassment_response",
-      "topicTags": ["privacy", "harassment", "safety", "urgent"],
+      "topicTags": [
+        "privacy",
+        "harassment",
+        "safety",
+        "urgent"
+      ],
       "whatToClarify": [
         "Is there an imminent threat or stalking behavior?",
         "What platform and what info do they have?",
@@ -283,20 +511,45 @@
           "Consider protective orders depending on jurisdiction.",
           "Minimize further exposure (remove public records where possible)."
         ],
-        "documentsToGather": ["screenshots", "usernames/links", "any prior messages", "timeline notes"],
-        "redFlags": ["credible threats of violence", "stalking", "identity theft attempts"],
+        "documentsToGather": [
+          "screenshots",
+          "usernames/links",
+          "any prior messages",
+          "timeline notes"
+        ],
+        "redFlags": [
+          "credible threats of violence",
+          "stalking",
+          "identity theft attempts"
+        ],
         "nonAdviceLine": "I can help you build an evidence timeline and identify safe reporting channels."
       },
       "retrievalHints": {
-        "keywords": ["dox", "doxxing", "posted my address", "private info", "threatening", "harassment"],
-        "intentSignals": ["what should I do now", "help", "urgent"]
+        "keywords": [
+          "dox",
+          "doxxing",
+          "posted my address",
+          "private info",
+          "threatening",
+          "harassment"
+        ],
+        "intentSignals": [
+          "what should I do now",
+          "help",
+          "urgent"
+        ]
       }
     },
     {
       "id": "fx_police_interaction",
       "scenario": "Police want to talk to me. Do I have to answer questions?",
       "likelyUserIntent": "criminal_process_general_rights",
-      "topicTags": ["criminal", "rights", "procedure", "risk_high_stakes"],
+      "topicTags": [
+        "criminal",
+        "rights",
+        "procedure",
+        "risk_high_stakes"
+      ],
       "whatToClarify": [
         "Are you being detained/arrested or is it a voluntary interview?",
         "What’s the general topic (witness vs suspect) if you know?",
@@ -310,20 +563,44 @@
           "Keep it factual and minimal; don’t destroy evidence.",
           "Safe next step: consult a criminal lawyer promptly if suspected."
         ],
-        "documentsToGather": ["any written notices", "names/badge numbers if available", "timeline notes"],
-        "redFlags": ["you are a suspect", "search requests", "pressure to confess"],
+        "documentsToGather": [
+          "any written notices",
+          "names/badge numbers if available",
+          "timeline notes"
+        ],
+        "redFlags": [
+          "you are a suspect",
+          "search requests",
+          "pressure to confess"
+        ],
         "nonAdviceLine": "This is high-stakes. I can give general information; for personal advice, consult a lawyer immediately."
       },
       "retrievalHints": {
-        "keywords": ["police", "interview", "detained", "arrested", "rights", "lawyer"],
-        "intentSignals": ["do I have to answer", "can they", "what should I say"]
+        "keywords": [
+          "police",
+          "interview",
+          "detained",
+          "arrested",
+          "rights",
+          "lawyer"
+        ],
+        "intentSignals": [
+          "do I have to answer",
+          "can they",
+          "what should I say"
+        ]
       }
     },
     {
       "id": "fx_human_rights_workplace",
       "scenario": "I think I’m being discriminated against at work because of a protected characteristic.",
       "likelyUserIntent": "human_rights_discrimination",
-      "topicTags": ["human_rights", "employment", "discrimination", "evidence"],
+      "topicTags": [
+        "human_rights",
+        "employment",
+        "discrimination",
+        "evidence"
+      ],
       "whatToClarify": [
         "Province/territory and sector (federal vs provincial)?",
         "What protected ground is involved (if comfortable sharing)?",
@@ -337,20 +614,43 @@
           "Identify proper forum: human rights commission/tribunal vs grievance vs employment standards.",
           "Safe next step: written record + internal complaint process where safe."
         ],
-        "documentsToGather": ["emails", "performance reviews", "incident notes", "HR policies"],
-        "redFlags": ["retaliation after complaint", "harassment escalating"],
+        "documentsToGather": [
+          "emails",
+          "performance reviews",
+          "incident notes",
+          "HR policies"
+        ],
+        "redFlags": [
+          "retaliation after complaint",
+          "harassment escalating"
+        ],
         "nonAdviceLine": "I can help you structure a clean factual record and identify typical complaint routes."
       },
       "retrievalHints": {
-        "keywords": ["discrimination", "human rights", "harassment", "protected ground", "tribunal"],
-        "intentSignals": ["can I file", "what do I do", "is this discrimination"]
+        "keywords": [
+          "discrimination",
+          "human rights",
+          "harassment",
+          "protected ground",
+          "tribunal"
+        ],
+        "intentSignals": [
+          "can I file",
+          "what do I do",
+          "is this discrimination"
+        ]
       }
     },
     {
       "id": "fx_ip_basic_brand_name",
       "scenario": "Can I use this brand name/logo? I’m worried someone else has it.",
       "likelyUserIntent": "ip_trademark_basics",
-      "topicTags": ["ip", "trademark", "branding", "risk"],
+      "topicTags": [
+        "ip",
+        "trademark",
+        "branding",
+        "risk"
+      ],
       "whatToClarify": [
         "Is it for Canada only or also US/other markets?",
         "What goods/services category (roughly)?",
@@ -364,20 +664,44 @@
           "Risk posture: similarity + same market increases risk.",
           "Safe next step: do a preliminary clearance and consider an IP agent/lawyer for filing."
         ],
-        "documentsToGather": ["name variants", "logo drafts", "product/service description", "competitor examples"],
-        "redFlags": ["cease and desist received", "near-identical competitor in same category"],
+        "documentsToGather": [
+          "name variants",
+          "logo drafts",
+          "product/service description",
+          "competitor examples"
+        ],
+        "redFlags": [
+          "cease and desist received",
+          "near-identical competitor in same category"
+        ],
         "nonAdviceLine": "I can provide a high-level clearance framework; an IP professional can give formal clearance."
       },
       "retrievalHints": {
-        "keywords": ["trademark", "brand name", "logo", "copyright", "name taken", "confusingly similar"],
-        "intentSignals": ["can I use", "is it legal", "will I get sued"]
+        "keywords": [
+          "trademark",
+          "brand name",
+          "logo",
+          "copyright",
+          "name taken",
+          "confusingly similar"
+        ],
+        "intentSignals": [
+          "can I use",
+          "is it legal",
+          "will I get sued"
+        ]
       }
     },
     {
       "id": "fx_family_separation_basics",
       "scenario": "We’re separating. What happens with kids and support?",
       "likelyUserIntent": "family_law_overview",
-      "topicTags": ["family", "high_stakes", "province_variation", "safety_sensitive"],
+      "topicTags": [
+        "family",
+        "high_stakes",
+        "province_variation",
+        "safety_sensitive"
+      ],
       "whatToClarify": [
         "Province/territory?",
         "Are there children involved and what are the current living arrangements?",
@@ -391,20 +715,44 @@
           "Encourage mediation/legal aid resources where appropriate.",
           "If violence risk: safety planning and local supports."
         ],
-        "documentsToGather": ["basic income docs", "children’s schedules", "existing agreements", "incident notes if safety issues"],
-        "redFlags": ["violence/coercive control", "child safety concerns"],
+        "documentsToGather": [
+          "basic income docs",
+          "children’s schedules",
+          "existing agreements",
+          "incident notes if safety issues"
+        ],
+        "redFlags": [
+          "violence/coercive control",
+          "child safety concerns"
+        ],
         "nonAdviceLine": "This is sensitive and high-impact. I can outline general concepts and safe next steps, not personal legal advice."
       },
       "retrievalHints": {
-        "keywords": ["separation", "custody", "parenting", "child support", "spousal support", "family court"],
-        "intentSignals": ["what happens now", "how is support calculated", "what are my rights"]
+        "keywords": [
+          "separation",
+          "custody",
+          "parenting",
+          "child support",
+          "spousal support",
+          "family court"
+        ],
+        "intentSignals": [
+          "what happens now",
+          "how is support calculated",
+          "what are my rights"
+        ]
       }
     },
     {
       "id": "fx_wills_estates_basic",
       "scenario": "A family member died without a will. What happens next?",
       "likelyUserIntent": "estates_intestacy_overview",
-      "topicTags": ["estates", "intestacy", "procedure", "province_variation"],
+      "topicTags": [
+        "estates",
+        "intestacy",
+        "procedure",
+        "province_variation"
+      ],
       "whatToClarify": [
         "Province/territory?",
         "Relationship to the deceased and who the survivors are?",
@@ -418,20 +766,46 @@
           "Gather documents and identify financial institutions.",
           "If conflict or complex assets: professional advice recommended."
         ],
-        "documentsToGather": ["death certificate", "asset list", "debt statements", "bank info"],
-        "redFlags": ["disputes", "large debts", "cross-border assets"],
+        "documentsToGather": [
+          "death certificate",
+          "asset list",
+          "debt statements",
+          "bank info"
+        ],
+        "redFlags": [
+          "disputes",
+          "large debts",
+          "cross-border assets"
+        ],
         "nonAdviceLine": "I can walk you through a general checklist; the exact distribution depends on provincial statutes."
       },
       "retrievalHints": {
-        "keywords": ["no will", "intestate", "probate", "estate", "executor", "administrator"],
-        "intentSignals": ["what happens next", "who gets what", "how do we start"]
+        "keywords": [
+          "no will",
+          "intestate",
+          "probate",
+          "estate",
+          "executor",
+          "administrator"
+        ],
+        "intentSignals": [
+          "what happens next",
+          "who gets what",
+          "how do we start"
+        ]
       }
     },
     {
       "id": "fx_business_partnership_split",
       "scenario": "My business partner and I are splitting. Who owns what?",
       "likelyUserIntent": "business_dispute_ownership",
-      "topicTags": ["business", "contracts", "corporate", "evidence", "risk"],
+      "topicTags": [
+        "business",
+        "contracts",
+        "corporate",
+        "evidence",
+        "risk"
+      ],
       "whatToClarify": [
         "Is it incorporated or a partnership/sole prop?",
         "Do you have a shareholder/partnership agreement?",
@@ -445,20 +819,46 @@
           "Typical exits: buyout, dissolution, mediation/arbitration.",
           "Safe next step: preserve records and avoid unilateral asset moves."
         ],
-        "documentsToGather": ["incorporation docs", "shareholder agreement", "bank statements", "contracts", "IP records"],
-        "redFlags": ["one partner draining accounts", "client poaching", "threats/litigation letters"],
+        "documentsToGather": [
+          "incorporation docs",
+          "shareholder agreement",
+          "bank statements",
+          "contracts",
+          "IP records"
+        ],
+        "redFlags": [
+          "one partner draining accounts",
+          "client poaching",
+          "threats/litigation letters"
+        ],
         "nonAdviceLine": "I can help you map the decision tree and what documents control the outcome."
       },
       "retrievalHints": {
-        "keywords": ["partner", "shareholder", "split", "buyout", "dissolution", "ownership"],
-        "intentSignals": ["who owns", "can they", "what happens to"]
+        "keywords": [
+          "partner",
+          "shareholder",
+          "split",
+          "buyout",
+          "dissolution",
+          "ownership"
+        ],
+        "intentSignals": [
+          "who owns",
+          "can they",
+          "what happens to"
+        ]
       }
     },
     {
       "id": "fx_contract_clause_explained",
       "scenario": "My contract has an indemnity/limitation of liability clause. What does it mean?",
       "likelyUserIntent": "contracts_clause_interpretation",
-      "topicTags": ["contracts", "risk", "interpretation", "business"],
+      "topicTags": [
+        "contracts",
+        "risk",
+        "interpretation",
+        "business"
+      ],
       "whatToClarify": [
         "What’s the context (vendor agreement, customer contract, employment)?",
         "Is there a cap amount or exclusions?",
@@ -472,20 +872,42 @@
           "Practical risk questions: worst-case scenario, insurance coverage, negotiation levers.",
           "Safe next step: summarize the clause to confirm shared understanding; consider counsel if high stakes."
         ],
-        "documentsToGather": ["full contract", "schedule/exhibits", "insurance terms if relevant"],
-        "redFlags": ["uncapped indemnity", "one-way terms", "broad consequential damages exposure"],
+        "documentsToGather": [
+          "full contract",
+          "schedule/exhibits",
+          "insurance terms if relevant"
+        ],
+        "redFlags": [
+          "uncapped indemnity",
+          "one-way terms",
+          "broad consequential damages exposure"
+        ],
         "nonAdviceLine": "I can translate the clause and point out risk levers; counsel can advise whether it’s acceptable for your situation."
       },
       "retrievalHints": {
-        "keywords": ["indemnity", "limitation of liability", "cap", "consequential damages", "governing law"],
-        "intentSignals": ["what does this mean", "is this risky", "can I change it"]
+        "keywords": [
+          "indemnity",
+          "limitation of liability",
+          "cap",
+          "consequential damages",
+          "governing law"
+        ],
+        "intentSignals": [
+          "what does this mean",
+          "is this risky",
+          "can I change it"
+        ]
       }
     },
     {
       "id": "fx_traffic_ticket_general",
       "scenario": "I got a traffic ticket. Should I fight it or pay it?",
       "likelyUserIntent": "provincial_offence_options",
-      "topicTags": ["provincial_offences", "procedure", "risk"],
+      "topicTags": [
+        "provincial_offences",
+        "procedure",
+        "risk"
+      ],
       "whatToClarify": [
         "Province/territory and offence type?",
         "Any demerit points or insurance impact concerns?",
@@ -499,13 +921,31 @@
           "Evidence basics: disclosure request, notes, photos, witnesses.",
           "Safe next step: calendar deadlines and request disclosure if contesting."
         ],
-        "documentsToGather": ["ticket", "photos", "dashcam", "timeline notes"],
-        "redFlags": ["missed deadline", "license suspension risk"],
+        "documentsToGather": [
+          "ticket",
+          "photos",
+          "dashcam",
+          "timeline notes"
+        ],
+        "redFlags": [
+          "missed deadline",
+          "license suspension risk"
+        ],
         "nonAdviceLine": "I can outline common options and what to verify; local rules depend on the province."
       },
       "retrievalHints": {
-        "keywords": ["ticket", "demerit", "early resolution", "trial", "disclosure"],
-        "intentSignals": ["should I fight", "deadline", "how do I contest"]
+        "keywords": [
+          "ticket",
+          "demerit",
+          "early resolution",
+          "trial",
+          "disclosure"
+        ],
+        "intentSignals": [
+          "should I fight",
+          "deadline",
+          "how do I contest"
+        ]
       }
     }
   ],
@@ -515,6 +955,313 @@
     "notes": [
       "These are examples for retrieval and response-shaping. They should not provide personalized legal advice.",
       "Keep examples generic and fact-pattern focused; route to official tribunals and counsel for high stakes."
+    ]
+  },
+  "runtime": {
+    "normalizedAt": "2026-07-01",
+    "normalizedFor": [
+      "Marion",
+      "Nyx"
+    ],
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/examples/law_face_examples_v1.json",
+    "sourceFile": "law_face_examples_v1.json",
+    "runtimeFilename": "law_face_examples_v1.json",
+    "expectedFilename": "law_face_examples_v1.json",
+    "manifestPackKey": "lawFaceExamples",
+    "pipelineRole": "example_pack",
+    "jurisdictionDefault": "Canada",
+    "sourceIntegrity": "strong",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0",
+    "retrievalAliases": [
+      "faces",
+      "vignettes",
+      "examples",
+      "scenario",
+      "law_face_examples_v1",
+      "lawFaceExamples"
+    ],
+    "crossLinks": [
+      "law_safety_and_posture_v1",
+      "law_foundations_v1",
+      "law_research_methods_v1",
+      "law_source_ladder_v2"
+    ]
+  },
+  "runtimeDomainKey": "law",
+  "runtimePath": "Data/Domains/law/examples/law_face_examples_v1.json",
+  "manifestPackKey": "lawFaceExamples",
+  "safetyBoundary": {
+    "stance": "general_legal_information_only_not_legal_advice",
+    "jurisdiction": "Canada",
+    "jurisdictionDisclosureRequired": true,
+    "requiresProvinceForProcedure": true,
+    "noAttorneyClientRelationship": true,
+    "noOutcomeGuarantees": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "professionalReferralForHighStakes": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
+  },
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "face_examples",
+    "manifestPackKey": "lawFaceExamples",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "scenario_mapping",
+      "clarifiers",
+      "document_checklists",
+      "red_flags"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
+  },
+  "retrievalIndex": {
+    "domain": "law",
+    "packId": "law_face_examples_v1",
+    "manifestPackKey": "lawFaceExamples",
+    "aliases": [
+      "faces",
+      "vignettes",
+      "examples",
+      "scenario",
+      "law_face_examples_v1",
+      "lawFaceExamples"
+    ],
+    "keywords": [
+      "rent increase",
+      "raised rent",
+      "notice",
+      "landlord",
+      "tenant",
+      "rent control",
+      "is this legal",
+      "what are my rights",
+      "can they do this",
+      "tenant_rights_rent_increase",
+      "eviction notice",
+      "N4",
+      "RTB",
+      "LTB",
+      "leave",
+      "hearing",
+      "landlord tenant board",
+      "do I have to leave",
+      "deadline",
+      "dispute",
+      "appeal",
+      "tenant_rights_eviction_process",
+      "deposit",
+      "damage",
+      "wear and tear",
+      "inspection",
+      "move out",
+      "refund",
+      "can they keep it",
+      "how do I get it back",
+      "what counts as damage",
+      "tenant_rights_deposit",
+      "fired",
+      "terminated",
+      "without cause",
+      "severance",
+      "release",
+      "is this fair",
+      "what am I entitled to",
+      "should I sign",
+      "employment_termination_entitlements",
+      "role changed",
+      "pay cut",
+      "hours reduced",
+      "moved me",
+      "constructive dismissal",
+      "do I have to accept",
+      "can I quit",
+      "employment_constructive_dismissal",
+      "not paid",
+      "missed paycheck",
+      "wages owed",
+      "pay stub",
+      "labour board",
+      "file a complaint",
+      "what can I do",
+      "employment_unpaid_wages",
+      "charged",
+      "never delivered",
+      "chargeback",
+      "scam",
+      "how do I get my money back",
+      "can I sue",
+      "what are my options",
+      "consumer_remedies_payment_dispute",
+      "small claims",
+      "sue",
+      "owed money",
+      "invoice",
+      "breach",
+      "demand letter",
+      "should I sue",
+      "how to file",
+      "what proof do I need",
+      "small_claims_recovery",
+      "defamation",
+      "libel",
+      "slander",
+      "false review",
+      "reputation",
+      "google review",
+      "is this illegal",
+      "defamation_general_info",
+      "dox",
+      "doxxing",
+      "posted my address",
+      "private info",
+      "threatening",
+      "harassment",
+      "what should I do now",
+      "help",
+      "urgent",
+      "privacy_harassment_response",
+      "police",
+      "interview",
+      "detained",
+      "arrested",
+      "rights",
+      "lawyer",
+      "do I have to answer",
+      "can they",
+      "what should I say",
+      "criminal_process_general_rights",
+      "discrimination",
+      "human rights",
+      "protected ground",
+      "tribunal",
+      "can I file",
+      "what do I do",
+      "is this discrimination",
+      "human_rights_discrimination",
+      "trademark",
+      "brand name",
+      "logo",
+      "copyright",
+      "name taken",
+      "confusingly similar",
+      "can I use",
+      "is it legal",
+      "will I get sued",
+      "ip_trademark_basics",
+      "separation",
+      "custody",
+      "parenting",
+      "child support",
+      "spousal support",
+      "family court",
+      "what happens now",
+      "how is support calculated",
+      "family_law_overview",
+      "no will",
+      "intestate",
+      "probate",
+      "estate",
+      "executor",
+      "administrator",
+      "what happens next",
+      "who gets what",
+      "how do we start",
+      "estates_intestacy_overview",
+      "partner",
+      "shareholder",
+      "split",
+      "buyout",
+      "dissolution",
+      "ownership",
+      "who owns",
+      "what happens to",
+      "business_dispute_ownership",
+      "indemnity",
+      "limitation of liability",
+      "cap",
+      "consequential damages",
+      "governing law",
+      "what does this mean",
+      "is this risky",
+      "can I change it",
+      "contracts_clause_interpretation",
+      "ticket",
+      "demerit",
+      "early resolution",
+      "trial",
+      "disclosure",
+      "should I fight",
+      "how do I contest",
+      "provincial_offence_options",
+      "scenario_mapping",
+      "clarifiers",
+      "document_checklists",
+      "red_flags"
+    ],
+    "assessmentCategories": [
+      "scenario_mapping",
+      "clarifiers",
+      "document_checklists",
+      "red_flags"
+    ],
+    "primaryFields": [
+      "packId",
+      "version",
+      "domain",
+      "jurisdiction",
+      "packType",
+      "description",
+      "defaults",
+      "examples",
+      "meta",
+      "runtime",
+      "runtimeDomainKey",
+      "runtimePath",
+      "manifestPackKey",
+      "safetyBoundary",
+      "r18cLawAssessmentLayer"
+    ],
+    "r18cAssessmentEnabled": true
+  },
+  "normalizationStatus": {
+    "status": "r18c_law_content_hardened",
+    "validatedJson": true,
+    "preservedStructuralIntegrity": true,
+    "runtimePathConfirmed": true,
+    "manifestAligned": true,
+    "normalizedAt": "2026-07-01",
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
     ]
   }
 }
