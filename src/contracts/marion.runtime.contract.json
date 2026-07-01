@@ -1,9 +1,9 @@
 {
   "name": "marion.runtime.contract",
   "guardian": "marion",
-  "version": "1.8.2-r18ab-s2b-ai-cyber-depth",
+  "version": "1.8.3-r18c-law-real-world-assessment",
   "mode": "admin_dialogue",
-  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging. R18A adds AI domain adaptability for applied real-world assessment. R18B adds cybersecurity protective protocol foundations for identity, access, secrets, explicit confirmation, and baseline-safe protective reasoning without autonomous enforcement. R18AB-S1 makes short prompts inherit the active AI/cyber lane so next steps, keep going, passed, and what were we fixing do not regress to the old R17 pacing lane. R18AB-S2B strengthens AI/cyber response depth and gives combined AI-cybersecurity prompts precedence over generic AI or cyber branches.",
+  "purpose": "Normalize Marion runtime output into a Mac-facing Guardian packet for the admin chamber, future clients, and Guardian pipeline reuse. Adds Marion personality priority plus R3 Social Presence Gate: social check-ins answer relationally first, continuity is translated into human language, maintenance-manual phrases are blocked from direct replies, and Marion maintains protective professional Mac-facing conversation. R17A adds emotional continuity, natural continuation, and response variation while keeping internal labels private. R17B adds conversation pacing, micro-personality, and long-session coherence while preserving the R17A emotional-continuity and anti-repeat locks. R17C consolidates the R16M/R17A/R17B locks with full regression protection, voice/text parity markers, long-session stress guard, and final baseline packaging. R18A adds AI domain adaptability for applied real-world assessment. R18B adds cybersecurity protective protocol foundations for identity, access, secrets, explicit confirmation, and baseline-safe protective reasoning without autonomous enforcement. R18AB-S1 makes short prompts inherit the active AI/cyber lane so next steps, keep going, passed, and what were we fixing do not regress to the old R17 pacing lane. R18AB-S2B strengthens AI/cyber response depth and gives combined AI-cybersecurity prompts precedence over generic AI or cyber branches. R18C adds the Law Domain Real-World Assessment Layer for contracts, licensing, copyright, compliance, liability, jurisdiction sensitivity, and professional-review boundaries. It separates facts from assumptions, frames legal-risk exposure, avoids legal-certainty claims, and preserves R17C plus R18AB AI/cyber behavior as secondary lanes when law is primary.",
   "requiredFields": [
     "guardian",
     "guardianMode",
@@ -68,7 +68,21 @@
     "surfaceContinuityBaseline": "",
     "r18abResponseDepthLock": false,
     "aiCyberBranchPrecedence": false,
-    "aiCyberDepthMode": ""
+    "aiCyberDepthMode": "",
+    "r18CLawRealWorldAssessment": false,
+    "lawAssessmentFrame": "",
+    "legalCategory": "",
+    "jurisdictionSensitivity": false,
+    "legalAdviceBoundary": "",
+    "legalRiskLevel": "low",
+    "legalRiskBoundary": {},
+    "factsAssumptionsSeparated": false,
+    "professionalReviewRecommended": false,
+    "lawCrossDomainSecondaryLane": "",
+    "lawShortPromptLaneInheritance": false,
+    "legalSourceDocumentCheckRequired": false,
+    "noLegalCertaintyClaim": true,
+    "noAttorneyClientRelationship": true
   },
   "allowedValues": {
     "guardian": [
@@ -86,7 +100,9 @@
       "fallback",
       "locked",
       "unknown",
-      "error"
+      "error",
+      "waiting",
+      "blocked"
     ],
     "riskLevel": [
       "low",
@@ -98,7 +114,32 @@
       "ai_cyber",
       "ai",
       "cyber",
-      "baseline"
+      "baseline",
+      "law",
+      "law_ai",
+      "law_cyber",
+      "law_finance",
+      "law_business",
+      "law_ai_cyber",
+      "law_mixed"
+    ],
+    "legalCategory": [
+      "contract",
+      "copyright_licensing",
+      "ip_trademark_patent",
+      "compliance_regulatory",
+      "liability_dispute",
+      "employment_contractor",
+      "privacy_data",
+      "corporate_business",
+      "jurisdiction_procedure",
+      "general_legal_risk"
+    ],
+    "legalRiskLevel": [
+      "low",
+      "medium",
+      "high",
+      "critical"
     ]
   },
   "rules": {
@@ -188,7 +229,21 @@
     "aiCyberCombinedPromptsMustRouteBeforeGenericAI": true,
     "aiCyberDepthMustMentionTrustedUntrustedInputsToolsSecretsApproval": true,
     "cyberDepthMustMentionIdentityAccessSecretsLeastPrivilegeApprovalNoAutonomy": true,
-    "thinAICyberRepliesMustBeOverridden": true
+    "thinAICyberRepliesMustBeOverridden": true,
+    "r18CLawRealWorldAssessmentActive": true,
+    "lawAnswersMustUseRealWorldAssessmentFrame": true,
+    "lawAssessmentRequiresCategoryJurisdictionFactsAssumptionsRiskMissingInfoNextMove": true,
+    "lawMustSeparateFactsAssumptionsAndRisk": true,
+    "lawMustAvoidLegalAdviceCertainty": true,
+    "lawMustNotCreateAttorneyClientRelationship": true,
+    "lawJurisdictionSensitivityRequired": true,
+    "lawSourceDocumentCheckRequiredForContractsLicensesAndCompliance": true,
+    "lawProfessionalReviewRecommendedForHighRiskOrJurisdictionSpecificMatters": true,
+    "lawMayRouteSecondaryToAICyberFinanceOrBusiness": true,
+    "lawShortPromptsMustInheritActiveLawLane": true,
+    "lawMustPreserveR17CAndR18ABBaseline": true,
+    "lawNoAutonomousLegalAction": true,
+    "lawNoFilingSigningThreateningOrSendingWithoutExplicitApproval": true
   },
   "security": {
     "redactKeys": [
@@ -346,7 +401,7 @@
       "preferredPhrases": [
         "Let me take a look at that for you.",
         "Hang tight a moment.",
-        "I’m going to separate the signal from the noise."
+        "I\u2019m going to separate the signal from the noise."
       ]
     },
     "conversationNodes": {
@@ -455,9 +510,9 @@
         "runtime state"
       ],
       "preferredTranslation": {
-        "The continuity foundation stays active.": "I’m steady, Mac. I’m still with the thread.",
+        "The continuity foundation stays active.": "I\u2019m steady, Mac. I\u2019m still with the thread.",
         "runtime context is active": "I remember where we are.",
-        "mission thread is active": "I’m still tracking the work with you."
+        "mission thread is active": "I\u2019m still tracking the work with you."
       }
     },
     "gapRefinementsAddressed": [
@@ -471,6 +526,33 @@
       "Kept protective professional pushback for unclear, risky, or over-bundled requests.",
       "Naturalized robotic service phrases and corporate filler.",
       "Added quality gates for social presence, human tone, and maintenance-manual suppression."
+    ]
+  },
+  "r18cAssessmentLayer": {
+    "name": "Law Domain Real-World Assessment Layer",
+    "version": "R18C",
+    "frame": [
+      "category",
+      "jurisdiction",
+      "facts",
+      "assumptions",
+      "riskExposure",
+      "missingInformation",
+      "safeNextMove"
+    ],
+    "primaryBoundaries": [
+      "generalLegalInformationOnly",
+      "noLegalCertainty",
+      "noAttorneyClientRelationship",
+      "jurisdictionSensitive",
+      "sourceDocumentsRequired",
+      "professionalReviewForHighRisk"
+    ],
+    "secondaryLanes": [
+      "ai",
+      "cyber",
+      "finance",
+      "business"
     ]
   }
 }
