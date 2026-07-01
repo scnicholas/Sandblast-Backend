@@ -22,7 +22,7 @@
 
 const domainConfidenceMod = (() => { try { return require("../Data/marion/runtime/domainConfidence.js"); } catch (_) { return null; } })();
 
-const ROUTER_VERSION = "domainRouter v1.5.7 REFERENCEERROR-TRIAD-HARDENING-V1 + REFERENCEERROR-ENTRYPOINT-HARDENED + SIX-DOMAIN-DEFINITION-SCORE-AUTHORITY + SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED";
+const ROUTER_VERSION = "domainRouter v1.5.7 REFERENCEERROR-TRIAD-HARDENING-V1 + REFERENCEERROR-ENTRYPOINT-HARDENED + SIX-DOMAIN-DEFINITION-SCORE-AUTHORITY + SIX-DOMAIN-COVERAGE-CARRY + CROSS-DOMAIN-SECONDARY-LANE-SCORING-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + CYBER-LEAST-PRIVILEGE-PRECISION + TOPLEVEL-CONFIDENCE + TECHNICAL-INFRA-PRECEDENCE-HARDENED + R18C-LAW-DOMAIN-ROUTING-REGISTRY";
 
 // -------------------------
 // helpers
@@ -1003,3 +1003,159 @@ function r18abApplyRouterSignals(result,norm,session,cog){
 })();
 // R18AB_AI_CYBER_DOMAIN_ROUTER_HARDENING_END
 
+// R18C_LAW_ROUTING_REGISTRY_PATCH_START
+const R18C_DOMAIN_ROUTER_VERSION = "nyx.marion.r18c.domainRouter.lawAssessment/1.0";
+const R18C_LAW_ASSESSMENT_FRAME = Object.freeze(["legal_category","jurisdiction_sensitivity","facts_vs_assumptions","risk_exposure","missing_information","safe_next_move"]);
+const R18C_LAW_BOUNDARY = Object.freeze({
+  generalInformationOnly: true,
+  noLegalAdvice: true,
+  noAttorneyClientRelationship: true,
+  noLegalCertaintyClaim: true,
+  jurisdictionRequired: true,
+  sourceDocumentReviewRequired: true,
+  professionalReviewRecommendedForHighRisk: true
+});
+function r18cRouterStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function r18cRouterObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+function r18cRouterText(norm={},session={},cog={}){
+  const n=r18cRouterObj(norm),s=r18cRouterObj(session),c=r18cRouterObj(cog);
+  return [n.text,n.userText,n.message,n.prompt,n.query,n.normalizedUserIntent,n.rawUserText,s.lastUserText,c.lastUserText,JSON.stringify(n).slice(0,1400)].map(r18cRouterStr).join(" ");
+}
+function r18cLawCategories(text=""){
+  const t=r18cRouterStr(text).toLowerCase();
+  const out=[];
+  const add=(key,rx)=>{ if(rx.test(t)&&!out.includes(key)) out.push(key); };
+  add("contract",/\b(contract|agreement|nda|terms|clause|consideration|breach|indemnity|warranty|termination|assignment)\b/i);
+  add("copyright_licensing",/\b(copyright|copyrighted|licen[cs]e|licen[cs]ing|distribution rights?|broadcast rights?|ott rights?|roku rights?|streaming rights?|content rights?|fair use|public domain|royalty)\b/i);
+  add("intellectual_property",/\b(ip|intellectual property|trademark|trade mark|patent|trade secret|brand mark|logo ownership|copyright ownership)\b/i);
+  add("compliance_regulatory",/\b(compliance|regulatory|regulation|policy|statute|legal requirement|permit|filing|reporting requirement|tax credit|grant eligibility)\b/i);
+  add("liability_dispute",/\b(liability|liable|negligence|duty of care|damages|claim|lawsuit|litigation|settlement|dispute|risk exposure|legal exposure)\b/i);
+  add("employment_contractor",/\b(employee|employment|contractor|independent contractor|worker classification|termination|severance|non[-\s]?compete|non[-\s]?solicit)\b/i);
+  add("privacy_data",/\b(privacy|pipeda|gdpr|personal information|personal data|consent|data protection|data retention|user data)\b/i);
+  add("corporate_business",/\b(incorporat(?:e|ion)|corporation|shareholder|director|officer|bylaw|articles|business registration|operating agreement)\b/i);
+  add("jurisdiction_procedure",/\b(jurisdiction|province|federal|ontario|canada|canadian law|court|tribunal|legal process|procedure|venue)\b/i);
+  return out;
+}
+function r18cLegalTechnicalSuppression(text=""){
+  const t=r18cRouterStr(text).toLowerCase();
+  const tech=/\b(surgical autopsy|autopsy|audit|patch|update|resend|zip|downloadable|files?|node --check|domain routing|domain registry|domainrouter|mariondomainregistry|marionintentrouter|domainconcierge|domainconfidence|runtime file|javascript|\.js)\b/i.test(t);
+  const legal=r18cLawCategories(t).length>0 || /\b(r18c|law domain|legal domain)\b/i.test(t);
+  return tech && !legal;
+}
+function buildR18CLawRouteSignals(norm={},session={},cog={}){
+  const text=r18cRouterText(norm,session,cog);
+  const categories=r18cLawCategories(text);
+  const explicit=/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(text);
+  const active=(categories.length>0||explicit)&&!r18cLegalTechnicalSuppression(text);
+  const secondary=[];
+  const lower=text.toLowerCase();
+  if(/\b(ai|artificial intelligence|model|llm|automation|agent)\b/i.test(lower))secondary.push("ai");
+  if(/\b(cyber|security|privacy|data protection|credential|access|identity)\b/i.test(lower))secondary.push("cyber");
+  if(/\b(revenue|pricing|cost|grant|funding|tax credit|moneti[sz]e|royalty|fee|damages)\b/i.test(lower))secondary.push("finance");
+  if(/\b(strategy|commercial|business|roku|ott|streaming|channel|distribution|sponsor|advertis)\b/i.test(lower))secondary.push("strategy");
+  return {
+    version:R18C_DOMAIN_ROUTER_VERSION,
+    active,
+    primary:active?"law":"",
+    knowledgeDomain:active?"law":"",
+    legalCategories:categories,
+    legalCategory:categories[0]||"general_legal_risk",
+    secondaryDomains:Array.from(new Set(secondary.filter(d=>d!=="law"))).slice(0,4),
+    assessmentFrame:R18C_LAW_ASSESSMENT_FRAME.slice(),
+    legalBoundary:Object.assign({},R18C_LAW_BOUNDARY),
+    confidence:active?(explicit?0.97:0.94):0,
+    answerMode:active?"grounded":"",
+    highStakes:!!active,
+    routeLocked:!!active,
+    noCrossDomainBleed:true,
+    baselinePreserved:"r16m-r17c+r18ab",
+    noUserFacingDiagnostics:true
+  };
+}
+function r18cPatchLawCoverage(coverage=[],sig={}){
+  return (Array.isArray(coverage)?coverage:[]).map(function(item){
+    if(!item||typeof item!=="object")return item;
+    if(item.domain!=="law")return item;
+    return Object.assign({},item,{score:Math.max(Number(item.score)||0,sig.confidence||0.94),confidence:Math.max(Number(item.confidence)||0,sig.confidence||0.94),selected:true,accessible:true,r18cLawAssessment:true});
+  });
+}
+function r18cLawDomainConfidence(existing={},sig={}){
+  const e=r18cRouterObj(existing);
+  const candidates=Array.isArray(e.candidates)?e.candidates.slice():[];
+  if(!candidates.some(c=>c&&c.domain==="law")) candidates.unshift({domain:"law",confidence:sig.confidence||0.94,reasons:["r18c_law_real_world_assessment_signal"],knowledgeDomain:"law"});
+  const secondary=Array.from(new Set([...(sig.secondaryDomains||[]),...(Array.isArray(e.secondaryDomains)?e.secondaryDomains:[]),e.primaryDomain,e.selectedDomain].filter(Boolean).filter(d=>d!=="law"))).slice(0,4);
+  return Object.assign({},e,{
+    version:e.version||"nyx.marion.domainConfidence/1.2",
+    active:true,
+    confidence:Math.max(Number(e.confidence||e.confidenceScore)||0,sig.confidence||0.94),
+    confidenceScore:Math.max(Number(e.confidence||e.confidenceScore)||0,sig.confidence||0.94),
+    band:"high",
+    confidenceBand:"high",
+    primaryDomain:"law",
+    selectedDomain:"law",
+    knowledgeDomain:"law",
+    secondaryDomains:secondary,
+    routeLocked:true,
+    ambiguous:false,
+    failClosed:false,
+    needsClarifier:false,
+    answerMode:"grounded",
+    highStakes:true,
+    legalCategory:sig.legalCategory,
+    legalCategories:sig.legalCategories,
+    assessmentFrame:sig.assessmentFrame,
+    legalBoundary:sig.legalBoundary,
+    r18cLawAssessment:sig,
+    candidates,
+    reason:"r18c_law_real_world_assessment_precedence",
+    noCrossDomainBleed:true,
+    noUserFacingDiagnostics:true
+  });
+}
+function r18cApplyLawRouterSignals(result,norm,session,cog){
+  if(!result||typeof result!=="object")return result;
+  const sig=buildR18CLawRouteSignals(norm,session,cog);
+  if(!sig.active)return result;
+  const out=Array.isArray(result)?result.slice():Object.assign({},result);
+  out.primary="law"; out.primaryDomain="law"; out.selectedDomain="law"; out.knowledgeDomain="law";
+  out.secondary=Array.from(new Set([...(sig.secondaryDomains||[]),...(Array.isArray(out.secondary)?out.secondary:[]),...(Array.isArray(out.secondaryDomains)?out.secondaryDomains:[])].filter(Boolean).filter(d=>d!=="law"))).slice(0,5);
+  out.secondaryDomains=out.secondary.slice();
+  out.answerMode="grounded"; out.highStakes=true; out.routeLocked=true;
+  out.r18cLawRouteSignals=sig;
+  out.noCrossDomainBleed=true; out.noUserFacingDiagnostics=true; out.baselinePreserved="r16m-r17c+r18ab";
+  if(out.scores&&typeof out.scores==="object") out.scores.law=Math.max(Number(out.scores.law)||0,sig.confidence||0.94);
+  out.domainConfidence=r18cLawDomainConfidence(out.domainConfidence,sig);
+  out.sixDomainCoverage=r18cPatchLawCoverage(out.sixDomainCoverage,sig);
+  if(out.routing&&typeof out.routing==="object"){
+    out.routing=Object.assign({},out.routing,{domain:"law",primaryDomain:"law",selectedDomain:"law",knowledgeDomain:"law",secondaryDomains:out.secondaryDomains,answerMode:"grounded",domainConfidence:out.domainConfidence,sixDomainCoverage:out.sixDomainCoverage,r18cLawAssessment:sig,noCrossDomainBleed:true,finalAuthorityExpected:"marionFinalEnvelope"});
+  }
+  if(out.reason&&typeof out.reason==="object"){
+    out.reason=Object.assign({},out.reason,{primary:"law",secondary:out.secondaryDomains,domainConfidence:out.domainConfidence,r18cLawAssessment:sig,finalAuthorityExpected:"marionFinalEnvelope"});
+  }
+  if(out.stateSpinePatch&&typeof out.stateSpinePatch==="object"){
+    out.stateSpinePatch=Object.assign({},out.stateSpinePatch,{selectedDomain:"law",knowledgeDomain:"law",secondaryDomains:out.secondaryDomains,domainConfidence:out.domainConfidence,sixDomainCoverage:out.sixDomainCoverage,r18cLawAssessment:sig,noCrossDomainBleed:true});
+  }
+  return out;
+}
+(function r18cPatchDomainRouterExports(){
+  if(typeof module==="undefined"||!module.exports||typeof module.exports!=="object")return;
+  const exp=module.exports;
+  ["scoreDomains","routeDomain"].forEach(function(name){
+    const fn=typeof exp[name]==="function"?exp[name]:null;
+    if(!fn||fn.__r18cLawRouterPatched)return;
+    exp[name]=function r18cLawDomainRouterWrapped(norm,session,cog,opts){
+      const result=fn.apply(this,arguments);
+      if(result&&typeof result.then==="function")return result.then(function(v){return r18cApplyLawRouterSignals(v,norm,session,cog);});
+      return r18cApplyLawRouterSignals(result,norm,session,cog);
+    };
+    exp[name].__r18cLawRouterPatched=true;
+  });
+  exp.R18C_DOMAIN_ROUTER_VERSION=R18C_DOMAIN_ROUTER_VERSION;
+  exp.R18C_LAW_ASSESSMENT_FRAME=R18C_LAW_ASSESSMENT_FRAME;
+  exp.R18C_LAW_BOUNDARY=R18C_LAW_BOUNDARY;
+  exp.r18cLawCategories=r18cLawCategories;
+  exp.buildR18CLawRouteSignals=buildR18CLawRouteSignals;
+  exp.r18cApplyLawRouterSignals=r18cApplyLawRouterSignals;
+  exp.R18C_LAW_ROUTING_REGISTRY_PATCH=true;
+})();
+// R18C_LAW_ROUTING_REGISTRY_PATCH_END
