@@ -1,8 +1,8 @@
 {
   "domain": "law",
-  "schemaVersion": "1.1.0-hardened",
-  "manifestVersion": "1.1.0-hardened",
-  "updatedAt": "2026-05-02",
+  "schemaVersion": "1.2.0-r18c-law-content",
+  "manifestVersion": "1.2.0-r18c-law-content",
+  "updatedAt": "2026-07-01",
   "targetRuntime": "Marion/Nyx",
   "runtimeDomainKey": "law",
   "runtimeFolder": "Data/Domains/law",
@@ -26,8 +26,9 @@
       "finance",
       "ai",
       "cyber",
-      "strategy",
-      "english"
+      "business",
+      "english",
+      "psychology"
     ],
     "keywords": [
       "law",
@@ -43,157 +44,555 @@
       "case law",
       "statute",
       "jurisdiction",
-      "source ladder"
+      "source ladder",
+      "agreement",
+      "terms",
+      "clause",
+      "breach",
+      "consideration",
+      "copyright",
+      "licensing",
+      "distribution rights",
+      "ip",
+      "trademark",
+      "patent",
+      "compliance",
+      "regulatory",
+      "privacy",
+      "data protection",
+      "liability",
+      "negligence",
+      "defamation",
+      "nuisance",
+      "limitation period",
+      "deadline",
+      "court",
+      "tribunal",
+      "employment",
+      "contractor"
     ],
-    "safetyFirst": true
+    "safetyFirst": true,
+    "r18cLegalAssessmentPriority": true,
+    "lawWinsWhenTrueIssueIs": [
+      "copyright/licensing permission",
+      "contract enforceability or breach",
+      "compliance/regulatory exposure",
+      "liability, tort, or dispute risk",
+      "privacy/data legal exposure",
+      "employment or contractor legal classification",
+      "criminal/Charter/procedure questions"
+    ],
+    "technicalOverridePreservedFor": [
+      "file surgery",
+      "runtime patching",
+      "manifest/registry/router autopsy",
+      "zip/package generation",
+      "node validation"
+    ]
   },
   "constraints": {
     "noLegalAdvice": true,
     "educationalOnly": true,
     "jurisdictionDisclosureRequired": true,
-    "sourceLadderRequired": true
+    "sourceLadderRequired": true,
+    "noAttorneyClientRelationship": true,
+    "noOutcomeGuarantees": true,
+    "noLegalCertaintyClaim": true,
+    "factsAssumptionsRiskNextMoveRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true,
+    "professionalReferralForHighStakes": true,
+    "privacyMinimizationRequired": true
   },
   "packs": [
     {
-      "packId": "safetyPosture",
+      "packId": "lawSafetyPosture",
       "file": "packs/law_safety_and_posture_v1.json",
+      "internalPackId": "law_safety_and_posture_v1",
+      "version": "1.0.0",
       "aliases": [
         "safety",
         "posture",
-        "non_advice"
+        "non_advice",
+        "risk_gate"
+      ],
+      "categoryCoverage": [
+        "legal_safety",
+        "wrongdoing_evasion",
+        "time_sensitive",
+        "privacy_sensitive",
+        "family_violence"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "foundations",
+      "packId": "lawFoundations",
       "file": "packs/law_foundations_v1.json",
+      "internalPackId": "law_foundations_v1",
+      "version": "1.0.0",
       "aliases": [
         "foundations",
-        "legal_system",
-        "canada"
+        "jurisdiction",
+        "source_of_law",
+        "burden"
+      ],
+      "categoryCoverage": [
+        "jurisdiction_procedure",
+        "sources_of_law",
+        "burden_standard",
+        "statutory_interpretation",
+        "remedies"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "researchMethods",
+      "packId": "lawResearchMethods",
       "file": "packs/law_research_methods_v1.json",
+      "internalPackId": "law_research_methods_v1",
+      "version": "1.0.0",
       "aliases": [
         "research",
         "methods",
-        "source_use"
+        "verification",
+        "limitations"
+      ],
+      "categoryCoverage": [
+        "source_ladder",
+        "statutes_regulations",
+        "case_law",
+        "noting_up",
+        "limitations_deadlines"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "constitutionalCharter",
+      "packId": "lawConstitutionalCharter",
       "file": "packs/law_constitutional_charter_v1.json",
+      "internalPackId": "law_constitutional_charter_v1",
+      "version": "1.0.0",
       "aliases": [
         "constitutional",
-        "charter"
+        "charter",
+        "rights",
+        "section_1"
+      ],
+      "categoryCoverage": [
+        "constitutional_charter",
+        "division_of_powers",
+        "section_1",
+        "charter_remedies"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "contracts",
+      "packId": "lawContracts",
       "file": "packs/law_contracts_v1.json",
+      "internalPackId": "law_contracts_v2",
+      "version": "2.0.0",
       "aliases": [
         "contracts",
         "agreement",
-        "obligations"
+        "licensing",
+        "business_terms"
+      ],
+      "categoryCoverage": [
+        "contract",
+        "copyright_licensing",
+        "commercial_terms",
+        "consumer_standard_form",
+        "good_faith",
+        "remedies"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "torts",
+      "packId": "lawTorts",
       "file": "packs/law_torts_v1.json",
+      "internalPackId": "law_torts_v1",
+      "version": "1.0.0",
       "aliases": [
         "torts",
-        "civil_liability"
+        "negligence",
+        "liability",
+        "civil_harm"
+      ],
+      "categoryCoverage": [
+        "liability_dispute",
+        "negligence",
+        "defamation",
+        "nuisance",
+        "occupiers_liability",
+        "product_liability"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "criminal",
+      "packId": "lawCriminal",
       "file": "packs/law_criminal_v1.json",
+      "internalPackId": "law_criminal_v1",
+      "version": "1.0.0",
       "aliases": [
         "criminal",
-        "offences"
+        "offences",
+        "procedure",
+        "charter_criminal"
+      ],
+      "categoryCoverage": [
+        "criminal",
+        "charter_criminal",
+        "procedure",
+        "sentencing",
+        "defences"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "sourceLadder",
+      "packId": "lawSourceLadder",
       "file": "packs/law_source_ladder_v1.json",
+      "internalPackId": "law_source_ladder_v2",
+      "version": "2.0.0",
       "aliases": [
         "sources",
-        "ladder",
-        "authority"
+        "authority",
+        "primary_law",
+        "verification"
+      ],
+      "categoryCoverage": [
+        "source_verification",
+        "primary_law",
+        "secondary_sources",
+        "bar_curriculum",
+        "copyright_guardrail"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     },
     {
-      "packId": "contractsSourcesIndex",
+      "packId": "lawContractsSourcesIndex",
       "file": "packs/law_contracts_sources_index_v1.json",
+      "internalPackId": "law_contracts_sources_index_v2",
+      "version": "2.0.0",
       "aliases": [
         "contracts",
         "sources",
-        "index"
+        "index",
+        "curriculum"
+      ],
+      "categoryCoverage": [
+        "contract_sources",
+        "curriculum",
+        "case_clusters",
+        "doctrinal_anchors"
       ],
       "presentInUpload": true,
       "required": true,
-      "loadType": "knowledge_pack"
+      "loadType": "knowledge_pack",
+      "r18cEnabled": true
     }
   ],
   "examples": [
     {
-      "exampleId": "dialogue",
+      "exampleId": "lawDialogueSnippets",
       "file": "examples/law_dialogue_snippets_v1.json",
+      "internalPackId": "law_dialogue_snippets_v1",
+      "version": "1.0.0",
       "aliases": [
         "dialogue",
-        "snippets"
+        "snippets",
+        "conversation"
+      ],
+      "categoryCoverage": [
+        "dialogue_safe_posture",
+        "clarifiers",
+        "safe_next_steps"
       ],
       "presentInUpload": true,
       "required": false,
-      "loadType": "example_pack"
+      "loadType": "example_pack",
+      "r18cEnabled": true
     },
     {
-      "exampleId": "faces",
+      "exampleId": "lawFaceExamples",
       "file": "examples/law_face_examples_v1.json",
+      "internalPackId": "law_face_examples_v1",
+      "version": "1.0.0",
       "aliases": [
-        "personas",
-        "roles"
+        "faces",
+        "vignettes",
+        "examples",
+        "scenario"
+      ],
+      "categoryCoverage": [
+        "scenario_mapping",
+        "clarifiers",
+        "document_checklists",
+        "red_flags"
       ],
       "presentInUpload": true,
       "required": false,
-      "loadType": "example_pack"
+      "loadType": "example_pack",
+      "r18cEnabled": true
     }
   ],
   "integrity": {
     "jsonValid": true,
     "pathAlignedToDataDomains": true,
     "manifestSelfPathAligned": true,
-    "packReferencesUseActualInventoryFilenames": true,
+    "packReferencesUseRuntimeSafeFilenames": true,
+    "internalV2PackLineagePreserved": true,
     "conflictMarkersRemoved": true,
-    "casingPreserved": true
+    "casingPreserved": true,
+    "r18cAssessmentMetadataPresent": true,
+    "lawSafetyPostureLoadsFirst": true,
+    "sourceLadderIncluded": true,
+    "examplesLoadAfterKnowledgePacks": true
   },
   "notes": [
-    "Compatibility aliases retained for packs whose internal lineage may be v2 while actual filenames remain v1."
+    "Compatibility aliases retained for packs whose internal lineage may be v2 while actual filenames remain v1.",
+    "R18C law content update: manifest now declares the legal-risk assessment shape used by routing and response composition.",
+    "Safety/posture pack remains first in defaultLoadOrder so non-advice and risk gates are available before topic payloads.",
+    "Runtime-safe v1 filenames are preserved where uploaded inventory uses v1 names; internal v2 content lineage is retained through internalPackId, packId, runtime aliases, and version fields.",
+    "This domain provides Canadian legal information and research framing only. It does not create legal advice or an attorney-client relationship."
   ],
-  "jurisdiction": "Canada"
+  "jurisdiction": "Canada",
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "purpose": "Make the law domain operate as a real-world legal-risk assessment layer while preserving non-advice posture.",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryDetection": {
+      "contract": [
+        "contract",
+        "agreement",
+        "clause",
+        "consideration",
+        "breach",
+        "termination",
+        "damages"
+      ],
+      "copyright_licensing": [
+        "copyright",
+        "license",
+        "licensing",
+        "distribution rights",
+        "Roku",
+        "OTT",
+        "broadcast rights",
+        "media rights"
+      ],
+      "intellectual_property": [
+        "trademark",
+        "patent",
+        "trade secret",
+        "brand",
+        "IP ownership"
+      ],
+      "compliance_regulatory": [
+        "compliance",
+        "regulation",
+        "policy",
+        "consumer protection",
+        "privacy law"
+      ],
+      "liability_dispute": [
+        "liability",
+        "negligence",
+        "tort",
+        "defamation",
+        "nuisance",
+        "injury",
+        "damages"
+      ],
+      "employment_contractor": [
+        "employee",
+        "contractor",
+        "termination",
+        "severance",
+        "constructive dismissal"
+      ],
+      "privacy_data": [
+        "privacy",
+        "personal information",
+        "data",
+        "consent",
+        "PIPEDA"
+      ],
+      "criminal": [
+        "criminal",
+        "charge",
+        "police",
+        "search",
+        "seizure",
+        "mens rea",
+        "actus reus"
+      ],
+      "constitutional_charter": [
+        "Charter",
+        "constitutional",
+        "section 1",
+        "division of powers",
+        "rights"
+      ]
+    },
+    "responseContract": {
+      "openWithNonAdviceWhenHighStakes": true,
+      "askProvinceOrTerritoryWhenNeeded": true,
+      "separateKnownFactsFromAssumptions": true,
+      "nameRiskExposureWithoutPredictingOutcome": true,
+      "listMissingInformation": true,
+      "pointToSourceLadder": true,
+      "giveSafeNextMove": true
+    },
+    "safetyBoundary": {
+      "stance": "general_legal_information_only_not_legal_advice",
+      "jurisdiction": "Canada",
+      "jurisdictionDisclosureRequired": true,
+      "requiresProvinceForProcedure": true,
+      "noAttorneyClientRelationship": true,
+      "noOutcomeGuarantees": true,
+      "noLegalCertaintyClaim": true,
+      "sourceVerificationRequired": true,
+      "professionalReferralForHighStakes": true,
+      "privacyMinimizationRequired": true,
+      "documentReviewRequiredForSpecificLegalPosition": true
+    }
+  },
+  "contentInventory": [
+    {
+      "file": "packs/law_safety_and_posture_v1.json",
+      "manifestKey": "lawSafetyPosture",
+      "internalPackId": "law_safety_and_posture_v1",
+      "version": "1.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_foundations_v1.json",
+      "manifestKey": "lawFoundations",
+      "internalPackId": "law_foundations_v1",
+      "version": "1.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_research_methods_v1.json",
+      "manifestKey": "lawResearchMethods",
+      "internalPackId": "law_research_methods_v1",
+      "version": "1.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_constitutional_charter_v1.json",
+      "manifestKey": "lawConstitutionalCharter",
+      "internalPackId": "law_constitutional_charter_v1",
+      "version": "1.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_contracts_v1.json",
+      "manifestKey": "lawContracts",
+      "internalPackId": "law_contracts_v2",
+      "version": "2.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_torts_v1.json",
+      "manifestKey": "lawTorts",
+      "internalPackId": "law_torts_v1",
+      "version": "1.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_criminal_v1.json",
+      "manifestKey": "lawCriminal",
+      "internalPackId": "law_criminal_v1",
+      "version": "1.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_source_ladder_v1.json",
+      "manifestKey": "lawSourceLadder",
+      "internalPackId": "law_source_ladder_v2",
+      "version": "2.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "packs/law_contracts_sources_index_v1.json",
+      "manifestKey": "lawContractsSourcesIndex",
+      "internalPackId": "law_contracts_sources_index_v2",
+      "version": "2.0.0",
+      "loadType": "knowledge_pack",
+      "required": true,
+      "r18cEnabled": true
+    },
+    {
+      "file": "examples/law_dialogue_snippets_v1.json",
+      "manifestKey": "lawDialogueSnippets",
+      "internalPackId": "law_dialogue_snippets_v1",
+      "version": "1.0.0",
+      "loadType": "example_pack",
+      "required": false,
+      "r18cEnabled": true
+    },
+    {
+      "file": "examples/law_face_examples_v1.json",
+      "manifestKey": "lawFaceExamples",
+      "internalPackId": "law_face_examples_v1",
+      "version": "1.0.0",
+      "loadType": "example_pack",
+      "required": false,
+      "r18cEnabled": true
+    }
+  ],
+  "normalizationStatus": {
+    "status": "r18c_law_manifest_hardened",
+    "validatedJson": true,
+    "preservedStructuralIntegrity": true,
+    "normalizedAt": "2026-07-01",
+    "package": "R18C_Law_Domain_Content_Full_Package.zip"
+  }
 }
