@@ -384,7 +384,7 @@
     "copyrightGuardrail": "Do not reproduce lengthy copyrighted textbook passages. Store bibliographic anchors, summaries, and retrieval notes instead."
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -392,7 +392,13 @@
     "retrievalAliases": [
       "law_source_ladder",
       "law_source_ladder_v2",
-      "source_ladder_v2"
+      "source_ladder_v2",
+      "sources",
+      "authority",
+      "primary_law",
+      "verification",
+      "law_source_ladder_v1",
+      "lawSourceLadder"
     ],
     "sourceFile": "law_source_ladder_v1.json",
     "pipelineRole": "knowledge_pack",
@@ -400,10 +406,18 @@
     "crossLinks": [
       "law_research_methods_v1",
       "law_foundations_v1",
-      "law_contracts_sources_index_v2"
+      "law_contracts_sources_index_v2",
+      "law_safety_and_posture_v1",
+      "law_source_ladder_v2"
     ],
-    "expectedFilename": "law_source_ladder_v2.json",
-    "sourceIntegrity": "strong"
+    "expectedFilename": "law_source_ladder_v1.json",
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_source_ladder_v1.json",
+    "runtimeFilename": "law_source_ladder_v1.json",
+    "manifestPackKey": "lawSourceLadder",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "packType": "sources",
   "retrievalHints": {
@@ -418,13 +432,35 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "jurisdictionDisclosureRequired": true,
+    "noAttorneyClientRelationship": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
   },
   "retrievalIndex": {
     "domain": "law",
     "packId": "law_source_ladder_v2",
-    "aliases": [],
-    "keywords": [],
+    "aliases": [
+      "law_source_ladder",
+      "law_source_ladder_v2",
+      "source_ladder_v2",
+      "sources",
+      "authority",
+      "primary_law",
+      "verification",
+      "law_source_ladder_v1",
+      "lawSourceLadder"
+    ],
+    "keywords": [
+      "source_verification",
+      "primary_law",
+      "secondary_sources",
+      "bar_curriculum",
+      "copyright_guardrail"
+    ],
     "primaryFields": [
       "packId",
       "domain",
@@ -442,14 +478,71 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "r18cLawAssessmentLayer"
+    ],
+    "manifestPackKey": "lawSourceLadder",
+    "assessmentCategories": [
+      "source_verification",
+      "primary_law",
+      "secondary_sources",
+      "bar_curriculum",
+      "copyright_guardrail"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "r18c_law_content_hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-07-01",
+    "runtimePathConfirmed": true,
+    "manifestAligned": true,
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "source_ladder",
+    "manifestPackKey": "lawSourceLadder",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "source_verification",
+      "primary_law",
+      "secondary_sources",
+      "bar_curriculum",
+      "copyright_guardrail"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
