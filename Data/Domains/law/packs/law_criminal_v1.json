@@ -198,7 +198,7 @@
     ]
   },
   "runtime": {
-    "normalizedAt": "2026-04-08",
+    "normalizedAt": "2026-07-01",
     "normalizedFor": [
       "Marion",
       "Nyx"
@@ -206,18 +206,30 @@
     "retrievalAliases": [
       "criminal_v1",
       "law_criminal",
-      "law_criminal_v1"
+      "law_criminal_v1",
+      "criminal",
+      "offences",
+      "procedure",
+      "charter_criminal",
+      "lawCriminal"
     ],
     "sourceFile": "law_criminal_v1.json",
     "pipelineRole": "knowledge_pack",
-    "jurisdictionDefault": "CA",
+    "jurisdictionDefault": "Canada",
     "crossLinks": [
       "law_foundations_v1",
       "law_research_methods_v1",
       "law_safety_and_posture_v1",
       "law_source_ladder_v2"
     ],
-    "sourceIntegrity": "moderate"
+    "sourceIntegrity": "strong",
+    "runtimeDomainKey": "law",
+    "runtimePath": "Data/Domains/law/packs/law_criminal_v1.json",
+    "runtimeFilename": "law_criminal_v1.json",
+    "expectedFilename": "law_criminal_v1.json",
+    "manifestPackKey": "lawCriminal",
+    "r18cEnabled": true,
+    "r18cAssessmentVersion": "nyx.marion.lawRealWorldAssessment/1.0"
   },
   "packType": "framework",
   "retrievalHints": {
@@ -248,12 +260,27 @@
     "jurisdiction": "Canada",
     "requiresProvinceForProcedure": true,
     "noOutcomeGuarantees": true,
-    "professionalReferralForHighStakes": true
+    "professionalReferralForHighStakes": true,
+    "jurisdictionDisclosureRequired": true,
+    "noAttorneyClientRelationship": true,
+    "noLegalCertaintyClaim": true,
+    "sourceVerificationRequired": true,
+    "privacyMinimizationRequired": true,
+    "documentReviewRequiredForSpecificLegalPosition": true
   },
   "retrievalIndex": {
     "domain": "law",
     "packId": "law_criminal_v1",
-    "aliases": [],
+    "aliases": [
+      "criminal_v1",
+      "law_criminal",
+      "law_criminal_v1",
+      "criminal",
+      "offences",
+      "procedure",
+      "charter_criminal",
+      "lawCriminal"
+    ],
     "keywords": [
       "actus reus",
       "mens rea",
@@ -289,7 +316,18 @@
       "probation",
       "jail time",
       "what sentence could",
-      "how much time"
+      "how much time",
+      "Elements of a Criminal Offence (Actus Reus + Mens Rea)",
+      "Strict and Absolute Liability Offences",
+      "General Criminal Defences",
+      "Charter Rights in Criminal Proceedings",
+      "Criminal Procedure Overview",
+      "Sentencing Principles",
+      "criminal",
+      "charter_criminal",
+      "procedure",
+      "sentencing",
+      "defences"
     ],
     "primaryFields": [
       "packId",
@@ -305,14 +343,71 @@
       "runtimeDomainKey",
       "runtimePath",
       "manifestPackKey",
-      "safetyBoundary"
-    ]
+      "safetyBoundary",
+      "retrievalIndex",
+      "normalizationStatus",
+      "r18cLawAssessmentLayer"
+    ],
+    "manifestPackKey": "lawCriminal",
+    "assessmentCategories": [
+      "criminal",
+      "charter_criminal",
+      "procedure",
+      "sentencing",
+      "defences"
+    ],
+    "r18cAssessmentEnabled": true
   },
   "normalizationStatus": {
-    "status": "hardened_for_marion_registry_compose_ingestion",
+    "status": "r18c_law_content_hardened",
     "conflictMarkersRemoved": true,
     "validatedJson": true,
     "preservedStructuralIntegrity": true,
-    "normalizedAt": "2026-05-03"
+    "normalizedAt": "2026-07-01",
+    "runtimePathConfirmed": true,
+    "manifestAligned": true,
+    "notes": [
+      "R18C law real-world assessment metadata added without deleting original educational payload content.",
+      "Loader-safe filenames retained; internal pack lineage preserved through packId and runtime aliases."
+    ]
+  },
+  "r18cLawAssessmentLayer": {
+    "version": "nyx.marion.lawRealWorldAssessment/1.0",
+    "active": true,
+    "packRole": "criminal",
+    "manifestPackKey": "lawCriminal",
+    "assessmentShape": [
+      "legal_category",
+      "jurisdiction_sensitivity",
+      "facts_vs_assumptions",
+      "risk_exposure",
+      "missing_information",
+      "source_ladder_check",
+      "safe_next_move"
+    ],
+    "categoryCoverage": [
+      "criminal",
+      "charter_criminal",
+      "procedure",
+      "sentencing",
+      "defences"
+    ],
+    "responsePosture": {
+      "answerMode": "grounded_framework",
+      "separateFactsAssumptionsRiskNextMove": true,
+      "askJurisdictionWhenProcedureDeadlineOrRemedy": true,
+      "preferEvidencePacketOverConfrontation": true,
+      "sourceLadderRequired": true,
+      "noLegalAdvice": true
+    },
+    "escalationTriggers": [
+      "deadlines or limitation periods",
+      "court, tribunal, police, or criminal process",
+      "large monetary exposure or contract termination",
+      "employment termination or contractor classification",
+      "copyright/licensing distribution uncertainty",
+      "privacy-sensitive personal information",
+      "threats, retaliation, doxxing, evasion, or evidence deletion"
+    ]
   }
 }
