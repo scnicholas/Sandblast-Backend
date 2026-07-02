@@ -1,0 +1,373 @@
+{
+  "id": "fin_data_ingestion_schema_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer03_data_ingestion",
+  "description": "Defines the controlled data-ingestion envelope for finance inputs before normalization, scoring, or analysis.",
+  "posture": {
+    "type": "finance_data_ingestion_schema",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "inputTraceRequired": true,
+    "assumptionsMustBeLabeled": true,
+    "missingInputsMustBeSurfaced": true,
+    "noUnsupportedInference": true
+  },
+  "corePrinciples": [
+    "Ingested data must preserve its source, original wording, and extraction confidence.",
+    "User-provided numbers are not independently verified and must be labeled as user-supplied.",
+    "Extracted inputs must be attached to an analysis target when possible.",
+    "Missing inputs must be identified before downstream finance reasoning.",
+    "Layer 03 captures data but does not normalize currencies, ratios, or time periods deeply.",
+    "Layer 03 must separate facts, assumptions, inferred values, and unknowns.",
+    "Layer 03 must avoid converting vague language into false precision."
+  ],
+  "ingestionEnvelopeSchema": {
+    "envelopeVersion": "string",
+    "domain": "finance",
+    "layer": "R18D_layer03_data_ingestion",
+    "runtimeLayer": "layer03_data_ingestion",
+    "createdAt": "ISO8601_string",
+    "queryContext": {
+      "originalQuery": "string",
+      "normalizedQuery": "string",
+      "primaryIntent": "string_or_null",
+      "secondaryIntents": [
+        "string"
+      ],
+      "jurisdictions": [
+        "string"
+      ],
+      "requiresFreshData": "boolean",
+      "sourceAuthorityEnvelope": "object_or_null"
+    },
+    "claimTargets": [
+      {
+        "targetId": "string",
+        "targetType": "string",
+        "description": "string",
+        "attachedMetrics": [
+          "metric_id"
+        ],
+        "confidence": "number_0_to_1"
+      }
+    ],
+    "rawInputs": [
+      {
+        "inputId": "string",
+        "inputType": "string",
+        "rawValue": "string",
+        "detectedValue": "number_string_or_null",
+        "detectedUnit": "string_or_null",
+        "detectedCurrency": "string_or_null",
+        "detectedMetric": "string_or_null",
+        "sourceType": "string",
+        "sourceLabel": "string",
+        "sourceReference": "string_or_null",
+        "confidence": "number_0_to_1",
+        "isAssumption": "boolean",
+        "isUserSupplied": "boolean",
+        "requiresNormalization": "boolean",
+        "requiresVerification": "boolean",
+        "notes": [
+          "string"
+        ]
+      }
+    ],
+    "metricInputs": [
+      {
+        "metricId": "string",
+        "metric": "string",
+        "rawValue": "string",
+        "value": "number_string_or_null",
+        "unit": "string_or_null",
+        "currency": "string_or_null",
+        "period": "string_or_null",
+        "sourceType": "string",
+        "sourceLabel": "string",
+        "confidence": "number_0_to_1",
+        "assumptionStatus": "stated_fact_user_supplied_assumption_inferred_unknown",
+        "normalizationRequired": "boolean",
+        "verificationRequired": "boolean"
+      }
+    ],
+    "entityInputs": {
+      "businessNames": [
+        "string"
+      ],
+      "programNames": [
+        "string"
+      ],
+      "companyNames": [
+        "string"
+      ],
+      "sourceNames": [
+        "string"
+      ],
+      "jurisdictions": [
+        "string"
+      ],
+      "dates": [
+        "string"
+      ]
+    },
+    "assumptions": [
+      {
+        "assumptionId": "string",
+        "statement": "string",
+        "sourceType": "string",
+        "confidence": "number_0_to_1",
+        "requiresConfirmation": "boolean"
+      }
+    ],
+    "missingInputs": [
+      {
+        "missingInput": "string",
+        "reason": "string",
+        "severity": "required_recommended_optional",
+        "blocksAnalysis": "boolean",
+        "clarifyingQuestion": "string"
+      }
+    ],
+    "ingestionQuality": {
+      "status": "complete_partial_ambiguous_insufficient_conflicting",
+      "score": "number_0_to_1",
+      "blockingIssues": [
+        "string"
+      ],
+      "warnings": [
+        "string"
+      ]
+    },
+    "nextLayerHandoff": {
+      "canProceedToNormalization": "boolean",
+      "normalizationRequired": "boolean",
+      "missingRequiredInputs": [
+        "string"
+      ],
+      "requiresUserClarification": "boolean",
+      "requiresSourceVerification": "boolean"
+    }
+  },
+  "inputCategories": {
+    "numeric": [
+      "currency_amount",
+      "percentage",
+      "ratio",
+      "count",
+      "rate",
+      "duration",
+      "date",
+      "range"
+    ],
+    "financialMetric": [
+      "cash_on_hand",
+      "monthly_revenue",
+      "annual_revenue",
+      "revenue_decline",
+      "monthly_fixed_costs",
+      "monthly_variable_costs",
+      "monthly_burn",
+      "gross_margin",
+      "net_margin",
+      "CAC",
+      "LTV",
+      "churn_rate",
+      "debt_service",
+      "loan_amount",
+      "interest_rate",
+      "grant_amount",
+      "runway",
+      "customer_count",
+      "price",
+      "subscription_fee"
+    ],
+    "entity": [
+      "business",
+      "program",
+      "company",
+      "jurisdiction",
+      "regulator",
+      "source",
+      "sector",
+      "market"
+    ],
+    "documentFact": [
+      "filing_fact",
+      "program_rule",
+      "contract_term",
+      "financial_statement_line",
+      "policy_statement",
+      "eligibility_condition"
+    ],
+    "assumption": [
+      "forecast_assumption",
+      "scenario_assumption",
+      "pricing_assumption",
+      "cost_assumption",
+      "revenue_assumption",
+      "market_assumption"
+    ]
+  },
+  "claimTargetTypes": {
+    "business_survival_under_revenue_shock": {
+      "description": "Determines whether the user is asking whether a business can withstand a drop in revenue or cash-flow pressure.",
+      "commonSignals": [
+        "survive",
+        "survival",
+        "revenue drops",
+        "ad revenue drops",
+        "cash on hand",
+        "burn rate",
+        "runway",
+        "three months",
+        "six months"
+      ],
+      "commonMetrics": [
+        "cash_on_hand",
+        "revenue_decline",
+        "stress_period",
+        "monthly_revenue",
+        "monthly_burn",
+        "monthly_fixed_costs",
+        "debt_service"
+      ]
+    },
+    "funding_or_program_eligibility": {
+      "description": "Determines whether the user is asking about funding, grants, loans, or public program eligibility.",
+      "commonSignals": [
+        "eligible",
+        "eligibility",
+        "grant",
+        "funding",
+        "loan program",
+        "still open",
+        "deadline",
+        "Ontario",
+        "Canada"
+      ],
+      "commonMetrics": [
+        "grant_amount",
+        "program_deadline",
+        "employee_count",
+        "revenue",
+        "location",
+        "sector"
+      ]
+    },
+    "pricing_model_assessment": {
+      "description": "Determines whether the user is asking about pricing structure, pricing risk, or offer architecture.",
+      "commonSignals": [
+        "pricing",
+        "subscription",
+        "one-time",
+        "tier",
+        "bundle",
+        "freemium",
+        "seat-based",
+        "usage-based"
+      ],
+      "commonMetrics": [
+        "price",
+        "subscription_fee",
+        "customer_count",
+        "CAC",
+        "LTV",
+        "gross_margin",
+        "churn_rate"
+      ]
+    },
+    "unit_economics_assessment": {
+      "description": "Determines whether the user is asking whether a product, service, or customer segment works economically.",
+      "commonSignals": [
+        "unit economics",
+        "CAC",
+        "LTV",
+        "payback",
+        "margin",
+        "contribution margin",
+        "customer acquisition"
+      ],
+      "commonMetrics": [
+        "CAC",
+        "LTV",
+        "gross_margin",
+        "contribution_margin",
+        "payback_period",
+        "churn_rate",
+        "monthly_revenue_per_customer"
+      ]
+    },
+    "credit_or_debt_capacity": {
+      "description": "Determines whether the user is asking about debt, loan capacity, interest-rate exposure, or repayment risk.",
+      "commonSignals": [
+        "loan",
+        "debt",
+        "repayment",
+        "interest rate",
+        "debt service",
+        "credit",
+        "line of credit"
+      ],
+      "commonMetrics": [
+        "loan_amount",
+        "interest_rate",
+        "debt_service",
+        "cash_on_hand",
+        "monthly_revenue",
+        "monthly_burn"
+      ]
+    },
+    "macro_or_market_context": {
+      "description": "Determines whether the user is asking about macroeconomic or market conditions affecting finance decisions.",
+      "commonSignals": [
+        "inflation",
+        "interest rates",
+        "Bank of Canada",
+        "macro",
+        "market conditions",
+        "recession",
+        "credit conditions"
+      ],
+      "commonMetrics": [
+        "interest_rate",
+        "inflation_rate",
+        "unemployment_rate",
+        "GDP_growth",
+        "credit_spread"
+      ]
+    }
+  },
+  "qualityRules": {
+    "complete": {
+      "scoreMinimum": 0.85,
+      "meaning": "Enough structured finance inputs exist to move to normalization and downstream analysis."
+    },
+    "partial": {
+      "scoreMinimum": 0.6,
+      "meaning": "Useful inputs exist, but important values are missing or need confirmation."
+    },
+    "ambiguous": {
+      "scoreMinimum": 0.4,
+      "meaning": "Inputs are present but unclear, overloaded, or not attached to a metric target."
+    },
+    "insufficient": {
+      "scoreMaximum": 0.39,
+      "meaning": "Not enough data exists to safely proceed beyond generic framework guidance."
+    },
+    "conflicting": {
+      "meaning": "Inputs conflict with each other or with supplied source material and require confirmation."
+    }
+  },
+  "guardrails": [
+    "Do not infer monthly burn, revenue, or debt obligations unless explicitly supplied or calculated from clearly supplied values.",
+    "Do not treat percentages as ratios until Layer 04 normalization.",
+    "Do not convert currencies or assume exchange rates in Layer 03.",
+    "Do not treat user-provided data as externally verified.",
+    "If required inputs are missing, mark them explicitly rather than fabricating assumptions.",
+    "If data is ambiguous, preserve the raw value and defer conversion to Layer 04."
+  ]
+}
