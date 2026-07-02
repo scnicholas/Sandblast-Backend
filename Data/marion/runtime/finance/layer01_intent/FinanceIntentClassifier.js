@@ -64,6 +64,58 @@ function matchList(matchText, values = [], matcher = includesKeyword) {
   );
 }
 
+function detectsSurvivalOrRevenueShock(normalized) {
+  const matchText = normalized && normalized.matchText ? normalized.matchText : "";
+
+  const directShockPattern =
+    /\b(survive|survival|runway|burn rate|cashflow|cash flow|cash pressure|cash squeeze|cash gap|liquidity pressure|operating pressure|revenue drop|revenue drops|revenue decline|revenue shortfall|ad revenue drops|advertising revenue drops|sales drop|income drop)\b/;
+
+  const revenueDeclinePattern =
+    /\b(revenue|sales|income|ad revenue|advertising revenue)\b/.test(matchText) &&
+    /\b(drop|drops|decline|declines|fall|falls|decrease|decreases|down|shortfall|contraction)\b/.test(matchText);
+
+  const timeBoundSurvivalPattern =
+    /\b(three months|3 months|six months|6 months|quarter|year)\b/.test(matchText) &&
+    /\b(survive|survival|runway|cash|revenue|sales|income)\b/.test(matchText);
+
+  return directShockPattern.test(matchText) || revenueDeclinePattern || timeBoundSurvivalPattern;
+}
+
+function detectsPricingOrRevenueModelPressure(normalized) {
+  const matchText = normalized && normalized.matchText ? normalized.matchText : "";
+
+  return (
+    /\b(pricing|price|subscription|tier|offer|revenue model|unit economics|margin|ltv|cac|payback|churn|retention)\b/.test(matchText) ||
+    (
+      /\b(revenue|ad revenue|sales|income)\b/.test(matchText) &&
+      /\b(drop|drops|decline|pressure|shortfall|margin)\b/.test(matchText)
+    )
+  );
+}
+
+function detectsMacroRatePolicyShock(normalized) {
+  const matchText = normalized && normalized.matchText ? normalized.matchText : "";
+
+  const centralBankPattern =
+    /\b(bank of canada|federal reserve|central bank|policy rate|monetary policy|monetary tightening|monetary easing)\b/;
+
+  const ratePattern =
+    /\b(interest rate|interest rates|rates|rate hike|rate hikes|rate cut|rate cuts|rates stay high|higher rates|borrowing costs|bond yields|credit conditions)\b/;
+
+  const macroVariablePattern =
+    /\b(inflation|gdp|recession|unemployment|labour market|consumer spending|credit tightening|liquidity)\b/;
+
+  return (
+    centralBankPattern.test(matchText) ||
+    macroVariablePattern.test(matchText) ||
+    (
+      ratePattern.test(matchText) &&
+      /\b(stay high|higher|rise|rises|increase|increases|cut|cuts|fall|falls|drop|drops|this year|this quarter|current)\b/.test(matchText)
+    )
+  );
+}
+
+
 class FinanceIntentClassifier {
   constructor(options = {}) {
     this.routeMap = options.routeMap || new FinanceDomainRouteMap({
@@ -80,7 +132,12 @@ class FinanceIntentClassifier {
     const matchedMarkers = [];
 
     Object.entries(markers).forEach(([jurisdiction, terms]) => {
-      const matches = matchList(normalized.matchText, terms, includesPhrase);
+      /**
+       * Use keyword matching here, not simple phrase includes.
+       * Short jurisdiction markers such as "us" must not match inside words like
+       * "business". This prevents false U.S. jurisdiction hits.
+       */
+      const matches = matchList(normalized.matchText, terms, includesKeyword);
 
       if (matches.length > 0) {
         detectedJurisdictions.push(jurisdiction);
@@ -141,11 +198,15 @@ class FinanceIntentClassifier {
       const keywordMatches = matchList(normalized.matchText, keywords, includesKeyword);
       const phraseMatches = matchList(normalized.matchText, phrases, includesPhrase);
 
+      const secondaryHintMatches = Array.isArray(pattern.secondaryIntentHints)
+        ? pattern.secondaryIntentHints.filter((hint) => includesKeyword(normalized.matchText, hint.replace(/_/g, " ")))
+        : [];
+
       return this.confidence.scoreIntent({
         intentId: lane.id,
         keywordMatches,
         phraseMatches,
-        secondaryHintMatches: [],
+        secondaryHintMatches,
         laneConfig: lane,
         normalized,
         advisoryBoundaryHit: detections.boundaryTriggers.length > 0,
@@ -184,6 +245,22 @@ class FinanceIntentClassifier {
       boost("commercial_risk", 0.12, "forced_rule:risk_shape");
     }
 
+    if (detectsSurvivalOrRevenueShock(normalized)) {
+      boost("cashflow", 0.24, "forced_rule:survival_or_revenue_shock");
+      boost("commercial_risk", 0.2, "forced_rule:survival_or_revenue_shock");
+      boost("unit_economics", 0.06, "forced_rule:revenue_model_pressure");
+    }
+
+    if (detectsPricingOrRevenueModelPressure(normalized)) {
+      boost("unit_economics", 0.05, "forced_rule:pricing_or_revenue_model_pressure");
+    }
+
+    if (detectsMacroRatePolicyShock(normalized)) {
+      boost("macro", 0.24, "forced_rule:macro_rate_policy_shock");
+      boost("public_policy", 0.12, "forced_rule:macro_rate_policy_shock");
+      boost("credit_debt", 0.08, "forced_rule:macro_rate_policy_credit_channel");
+    }
+
     if (normalized.shape.asksForFramework) {
       boost("case_study", 0.06, "forced_rule:framework_shape");
     }
@@ -192,11 +269,61 @@ class FinanceIntentClassifier {
     return this.confidence.rankScores(Array.from(scoreMap.values()), priority);
   }
 
+
+  expandSecondaryIntents(primaryIntent, currentSecondary = [], rankedScores = [], queryPatterns = {}) {
+    const intentPatterns = queryPatterns.intentPatterns || {};
+    const primaryPattern = intentPatterns[primaryIntent] || {};
+    const primaryHints = Array.isArray(primaryPattern.secondaryIntentHints)
+      ? primaryPattern.secondaryIntentHints
+      : [];
+
+    const scoreByIntent = new Map(rankedScores.map((score) => [score.intentId, score]));
+    const highSignalRanked = rankedScores
+      .filter((score) => score.intentId !== primaryIntent && score.score >= 0.4)
+      .map((score) => score.intentId);
+
+    const curatedHintMap = {
+      macro: ["public_policy", "credit_debt"],
+      pricing: ["unit_economics", "micro"],
+      cashflow: ["commercial_risk", "unit_economics", "credit_debt"],
+      commercial_risk: ["cashflow", "unit_economics", "compliance", "public_policy"],
+      compliance: ["public_policy", "source_lookup", "commercial_risk"],
+      source_lookup: ["macro", "compliance", "public_policy"],
+      credit_debt: ["capital_markets", "cashflow", "macro"],
+      unit_economics: ["pricing", "cashflow", "commercial_risk"],
+      public_policy: ["macro", "compliance", "commercial_risk"],
+      case_study: ["commercial_risk", "unit_economics"]
+    };
+
+    const curatedHints = curatedHintMap[primaryIntent] || primaryHints;
+
+    const expanded = uniqueArray([
+      ...currentSecondary,
+      ...curatedHints,
+      ...highSignalRanked
+    ]);
+
+    return expanded
+      .filter((intentId) => this.routeMap.getIntentLane(intentId))
+      .filter((intentId) => intentId !== primaryIntent)
+      .filter((intentId) => {
+        const score = scoreByIntent.get(intentId);
+
+        if (highSignalRanked.includes(intentId)) return true;
+        if (curatedHints.includes(intentId)) return true;
+
+        return score && score.score >= 0.4;
+      })
+      .slice(0, 4);
+  }
+
+
   selectPrimaryAndSecondary(rankedScores) {
     const viable = rankedScores.filter((score) => score.score >= 0.35);
 
     if (viable.length === 0) {
-      const fallback = rankedScores[0] || {
+      const commercialFallback = rankedScores.find((score) => score.intentId === "commercial_risk");
+      const fallback = commercialFallback || rankedScores[0] || {
         intentId: "commercial_risk",
         score: 0.35,
         band: "low"
@@ -310,6 +437,13 @@ class FinanceIntentClassifier {
     const rankedScores = this.applyForcedIntentRules(rawScores, normalized, detections);
 
     const selection = this.selectPrimaryAndSecondary(rankedScores);
+    selection.secondary = this.expandSecondaryIntents(
+      selection.primary,
+      selection.secondary,
+      rankedScores,
+      queryPatterns
+    );
+
     const route = this.routeMap.resolveRoute(
       selection.primary,
       selection.secondary,
