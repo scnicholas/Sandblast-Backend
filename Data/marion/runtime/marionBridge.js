@@ -6898,7 +6898,8 @@ try{
 /* R18C_FINAL_ANSWER_MATERIALIZER_START */
 (function(){
   "use strict";
-  const V = "nyx.marion.r18c.finalAnswerMaterializer/1.0";
+  const V = "nyx.marion.r18c.finalAnswerMaterializer/1.1-precedence-repair";
+  const PRECEDENCE_VERSION = "nyx.marion.r18c.finalMaterializerPrecedenceRepair/1.0";
   if (typeof module === "undefined" || !module.exports) return;
   if (module.exports.__r18cFinalAnswerMaterializerPatched) return;
   module.exports.__r18cFinalAnswerMaterializerPatched = true;
@@ -6989,7 +6990,26 @@ try{
     if (!r) return true;
     if (/^(true|false|null|undefined|\[object object\]|ok|success)$/i.test(r)) return true;
     return /^(i[’']?m here(?:,\s*mac)?|i am here(?:,\s*mac)?|still with you(?:,\s*mac)?|line open with you|ready when you are|what would you like to work on|hi\.?\s*i[’']?m nyx\.?\s*it[’']?s good to see you\.?\s*what would you like to work on)$/i.test(r) ||
-      (/\b(i[’']?m here|still with you|what would you like to work on)\b/i.test(r) && r.length < 140);
+      (/\b(i[’']?m here|still with you|what would you like to work on)\b/i.test(r) && r.length < 180);
+  }
+  function isSocialContinuityLeak(value){
+    const r = L(value);
+    if (!r) return false;
+    return /\b(i[’']?m with you|i am with you|conversation natural|system noise out of view|social response pass|continue the social response|line open with you|good to see you|ready to help|what would you like to work on|still with you|i[’']?m here)\b/i.test(r);
+  }
+  function isSubstantiveLawAnswer(value, p){
+    const r = L(value);
+    const cat = T(p && p.legalCategory).toLowerCase();
+    if (!r || r.length < 120) return false;
+    if (isPresenceFallback(r) || isSocialContinuityLeak(r) || hasRawRuntimeLeak(r)) return false;
+    if (!/\b(legal|law|not legal advice|general legal|jurisdiction|risk|rights|agreement|contract|source document|safe next move|review|copyright|licens|privacy|data|liability|employment|release|defamation)\b/i.test(r)) return false;
+    if (cat === "copyright_licensing") return /\b(copyright|licens|rights|distribution|streaming|roku|ott|movie|moneti[sz]e|chain of title|source documents?)\b/i.test(r);
+    if (cat === "privacy_data") return /\b(privacy|data|customer data|vendor|agreement|breach|retention|deletion|security)\b/i.test(r);
+    if (cat === "employment_contractor") return /\b(employment|contractor|terminated|fired|release|severance|termination|sign)\b/i.test(r);
+    if (cat === "liability_dispute") return /\b(liability|dispute|defamation|false claims|reputation|damages|evidence|claim)\b/i.test(r);
+    if (cat === "source_verification") return /\b(source|verify|statute|case law|official|legal research|canlii)\b/i.test(r);
+    if (cat === "contract") return /\b(contract|agreement|clause|breach|terms|governing law)\b/i.test(r);
+    return true;
   }
   function technicalLawFileWork(text){
     const t = L(text);
@@ -7115,13 +7135,15 @@ try{
     }
     return "I can give general legal-risk triage, not legal advice. Legal category: " + T(cat).replace(/_/g, "/") + ". " + jurisdiction + " Facts vs assumptions: I can only work from the facts and documents provided, and missing documents can change the answer. Risk exposure may include rights, liability, compliance, timing, cost, or platform restrictions depending on the matter. Missing information: governing agreement, dates, parties, province/territory, source documents, and the outcome you want. Safe next move: gather the documents and timeline first, then verify the governing source or have a lawyer/legal clinic review the high-risk parts.";
   }
-  function badVisibleReply(reply, prompt, packet){
+  function badVisibleReply(reply, prompt, packet, prof){
     const r = T(reply, 6000);
+    const p = prof || profile(prompt, packet);
     if (!r) return true;
     if (isPresenceFallback(r)) return true;
+    if (isSocialContinuityLeak(r)) return true;
     if (hasRawRuntimeLeak(r)) return true;
     if (/^\s*[\{\[]/.test(r) && /"(primaryDomain|selectedDomain|knowledgeDomain|legalCategory|lawAssessmentFrame|legalRiskBoundary)"/i.test(r)) return true;
-    if (profile(prompt, packet).active && r.length < 80 && !/\b(copyright|licens|contract|privacy|data|liability|jurisdiction|legal|agreement|source|document|not legal advice)\b/i.test(r)) return true;
+    if (p && p.active && !isSubstantiveLawAnswer(r, p)) return true;
     return false;
   }
   function setReplyFields(obj, reply, p){
@@ -7144,6 +7166,7 @@ try{
     obj.secondaryDomains = p.secondaryDomains;
     obj.r18CLawRealWorldAssessment = true;
     obj.r18CFinalAnswerMaterializer = true;
+    obj.r18CFinalMaterializerPrecedenceRepair = true;
     obj.lawAssessmentFrame = p.lawAssessmentFrame;
     obj.legalAdviceBoundary = p.legalAdviceBoundary;
     obj.jurisdictionSensitivity = true;
@@ -7161,6 +7184,7 @@ try{
     obj.finalEnvelope.finalSignature = obj.finalEnvelope.finalSignature || "MARION_FINAL_AUTHORITY";
     obj.finalEnvelope.source = obj.finalEnvelope.source || "marion";
     obj.finalEnvelope.visibleReplyMaterialized = true;
+    obj.finalEnvelope.r18CFinalMaterializerPrecedenceRepair = true;
     return obj;
   }
   function apply(packet, opt, seen){
@@ -7177,8 +7201,8 @@ try{
     stack.push(packet);
 
     const current = extractReply(packet);
-    if (badVisibleReply(current, prompt, packet)) setReplyFields(packet, reply, p);
-    else setReplyFields(packet, current, p);
+    const chosen = (badVisibleReply(current, prompt, packet, p) || !isSubstantiveLawAnswer(current, p)) ? reply : current;
+    setReplyFields(packet, chosen, p);
     ensureFinalEnvelope(packet, packet.reply, p);
 
     const nested = ["result","payload","guardianPacket","marionFinal","marion","data","output"];
@@ -7189,9 +7213,11 @@ try{
     if (packet.meta && typeof packet.meta === "object") {
       packet.meta.r18CFinalAnswerMaterializer = {
         version: V,
+        precedenceVersion: PRECEDENCE_VERSION,
         active: true,
         legalCategory: p.legalCategory,
         visibleReplyMaterialized: true,
+        socialContinuityOverride: true,
         userVisibleDiagnosticsBlocked: true
       };
     }
@@ -7203,7 +7229,7 @@ try{
     const p = profile(prompt, packet);
     if (!p.active) return packet;
     const fixed = apply(packet, { prompt: prompt });
-    const reply = extractReply(fixed) || materialize(prompt, p);
+    const reply = isSubstantiveLawAnswer(extractReply(fixed), p) ? extractReply(fixed) : materialize(prompt, p);
     return {
       ok: true,
       guardian: "marion",
@@ -7238,6 +7264,8 @@ try{
         active: true,
         visibleReplyMaterialized: true,
         metadataProjectionBlocked: true,
+        socialContinuityOverride: true,
+        precedenceVersion: PRECEDENCE_VERSION,
         legalCategory: p.legalCategory
       }
     };
@@ -7303,7 +7331,7 @@ try{
                 }
               } else if (body && typeof body === "object") parsed = body;
               if (parsed) body = JSON.stringify(projectForUser(parsed, { prompt: prompt }));
-              else if (typeof body === "string" && badVisibleReply(body, prompt, {})) body = materialize(prompt, p);
+              else if (typeof body === "string" && badVisibleReply(body, prompt, {}, p)) body = materialize(prompt, p);
             }
           } catch(_err) {}
           return oldSend.call(this, body);
@@ -7318,5 +7346,7 @@ try{
   module.exports.marionR18CFinalAnswerMaterializerProfile = profile;
   module.exports.marionR18CFinalAnswerMaterializerReply = materialize;
   module.exports.marionR18CFinalAnswerMaterializerHasRuntimeLeak = hasRawRuntimeLeak;
+  module.exports.marionR18CFinalMaterializerPrecedenceRepairVersion = PRECEDENCE_VERSION;
+  module.exports.marionR18CFinalMaterializerPrecedenceRepairIsSocialContinuityLeak = isSocialContinuityLeak;
 })();
 /* R18C_FINAL_ANSWER_MATERIALIZER_END */
