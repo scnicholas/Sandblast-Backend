@@ -105,8 +105,8 @@
       ],
       "examples": [
         "CFA Institute",
-        "professional_accounting_firm_research",
         "Corporate Finance Institute",
+        "professional_accounting_firm_research",
         "industry_association_report"
       ],
       "citationRequired": true
@@ -268,7 +268,8 @@
         "securities_law_context",
         "issuer_rules",
         "financial_promotion_boundary",
-        "market_regulation"
+        "market_regulation",
+        "official_filing_access"
       ],
       "requiresFreshness": true
     },
@@ -295,6 +296,17 @@
       ],
       "requiresFreshness": true
     },
+    "official_legislation_portal": {
+      "preferredTier": "primary_official",
+      "authorityWeight": 0.95,
+      "bestFor": [
+        "statutory_context",
+        "regulatory_text",
+        "legal_rule_reference",
+        "compliance_boundary"
+      ],
+      "requiresFreshness": true
+    },
     "regulatory_filings": {
       "preferredTier": "primary_filings",
       "authorityWeight": 0.92,
@@ -304,6 +316,17 @@
         "capital_raise_details",
         "management_discussion",
         "audited_figures"
+      ],
+      "requiresFreshness": true
+    },
+    "issuer_report": {
+      "preferredTier": "primary_filings",
+      "authorityWeight": 0.9,
+      "bestFor": [
+        "issuer_financials",
+        "audited_figures",
+        "management_discussion",
+        "risk_factors"
       ],
       "requiresFreshness": true
     },
@@ -330,6 +353,39 @@
       ],
       "requiresFreshness": false
     },
+    "open_learning": {
+      "preferredTier": "professional_research",
+      "authorityWeight": 0.74,
+      "bestFor": [
+        "finance_concepts",
+        "economic_concepts",
+        "methodology_explanation",
+        "educational_framework"
+      ],
+      "requiresFreshness": false
+    },
+    "exchange_or_market_reference": {
+      "preferredTier": "exchange_or_market_reference",
+      "authorityWeight": 0.78,
+      "bestFor": [
+        "market_structure",
+        "listing_context",
+        "instrument_reference",
+        "exchange_data_context"
+      ],
+      "requiresFreshness": true
+    },
+    "market_data_reference": {
+      "preferredTier": "exchange_or_market_reference",
+      "authorityWeight": 0.78,
+      "bestFor": [
+        "market_snapshot",
+        "instrument_reference",
+        "index_context",
+        "price_context"
+      ],
+      "requiresFreshness": true
+    },
     "major_financial_press": {
       "preferredTier": "major_financial_press",
       "authorityWeight": 0.68,
@@ -352,6 +408,22 @@
         "scenario_inputs"
       ],
       "requiresFreshness": false
+    },
+    "secondary_context": {
+      "preferredTier": "secondary_context",
+      "authorityWeight": 0.52,
+      "bestFor": [
+        "general_context",
+        "early_signal_detection",
+        "hypothesis_generation"
+      ],
+      "requiresFreshness": true
+    },
+    "unknown_source": {
+      "preferredTier": "unsupported_or_unknown",
+      "authorityWeight": 0.2,
+      "bestFor": [],
+      "requiresFreshness": true
     }
   },
   "intentAuthorityRequirements": {
@@ -363,6 +435,7 @@
     ],
     "micro": [
       "professional_research",
+      "open_learning",
       "user_provided_data"
     ],
     "capital_markets": [
@@ -453,7 +526,7 @@
     {
       "condition": "source_is_unknown_or_unsourced",
       "requiredTier": "unsupported_or_unknown",
-      "minimumAuthorityWeight": 0.0
+      "minimumAuthorityWeight": 0
     }
   ],
   "outputEnvelopeSchema": {
