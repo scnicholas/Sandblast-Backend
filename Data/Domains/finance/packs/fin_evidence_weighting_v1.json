@@ -1,0 +1,258 @@
+{
+  "id": "fin_evidence_weighting_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer02_source_authority",
+  "description": "Evidence weighting rules for combining source authority, freshness, relevance, specificity, consistency, and claim sensitivity into a finance evidence score.",
+  "posture": {
+    "type": "evidence_weighting_control",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "traceableEvidenceRequired": true
+  },
+  "corePrinciples": [
+    "Evidence strength is not the same as source popularity.",
+    "Authority, freshness, relevance, specificity, and consistency must be weighted separately.",
+    "Current official sources can outweigh multiple lower-authority commentary sources.",
+    "User-provided data can be strong for business modeling but weak for external factual claims.",
+    "Conflicting evidence should reduce confidence unless the conflict is resolved by higher-authority sources.",
+    "Evidence gaps must be surfaced rather than hidden."
+  ],
+  "scoreComponents": {
+    "authority": {
+      "weight": 0.35,
+      "description": "How authoritative the source type is for the claim.",
+      "source": "fin_source_authority_v1.json"
+    },
+    "freshness": {
+      "weight": 0.25,
+      "description": "Whether the source is current enough for the claim.",
+      "source": "fin_source_freshness_rules_v1.json"
+    },
+    "relevance": {
+      "weight": 0.2,
+      "description": "How directly the source supports the specific claim.",
+      "scale": {
+        "direct": 1,
+        "strong": 0.8,
+        "partial": 0.55,
+        "weak": 0.3,
+        "irrelevant": 0
+      }
+    },
+    "specificity": {
+      "weight": 0.1,
+      "description": "Whether the source is specific to the jurisdiction, entity, program, metric, or time period.",
+      "scale": {
+        "exact": 1,
+        "close": 0.75,
+        "general": 0.5,
+        "broad": 0.25,
+        "not_specific": 0
+      }
+    },
+    "consistency": {
+      "weight": 0.1,
+      "description": "Whether the source agrees with other credible evidence.",
+      "scale": {
+        "corroborated": 1,
+        "single_source_but_authoritative": 0.8,
+        "mixed": 0.45,
+        "conflicting": 0.2,
+        "contradicted_by_authority": 0
+      }
+    }
+  },
+  "evidenceScoreBands": {
+    "strong": {
+      "min": 0.8,
+      "label": "Strong Evidence",
+      "meaning": "Evidence is authoritative, fresh enough, directly relevant, and consistent.",
+      "responseUse": "may_support_final_claim_with_citation"
+    },
+    "moderate": {
+      "min": 0.6,
+      "label": "Moderate Evidence",
+      "meaning": "Evidence is useful but has at least one limitation.",
+      "responseUse": "may_support_cautious_claim_with_assumption_or_limitation"
+    },
+    "weak": {
+      "min": 0.4,
+      "label": "Weak Evidence",
+      "meaning": "Evidence is partial, dated, broad, or lower authority.",
+      "responseUse": "may_support_hypothesis_or_context_only"
+    },
+    "insufficient": {
+      "max": 0.39,
+      "label": "Insufficient Evidence",
+      "meaning": "Evidence should not support final finance claims.",
+      "responseUse": "ask_for_better_source_or_state_insufficient_evidence"
+    }
+  },
+  "claimSensitivityMultipliers": {
+    "low_sensitivity_framework_explanation": {
+      "minimumEvidenceScore": 0.45,
+      "minimumAuthorityWeight": 0.5,
+      "citationRequired": false,
+      "description": "Conceptual or educational explanation with no current claim."
+    },
+    "business_decision_support": {
+      "minimumEvidenceScore": 0.6,
+      "minimumAuthorityWeight": 0.65,
+      "citationRequired": true,
+      "description": "Commercial decision support, business-model diagnosis, or risk analysis."
+    },
+    "current_market_or_macro_claim": {
+      "minimumEvidenceScore": 0.72,
+      "minimumAuthorityWeight": 0.8,
+      "citationRequired": true,
+      "description": "Current market, macroeconomic, interest-rate, inflation, or credit condition claim."
+    },
+    "regulatory_or_compliance_claim": {
+      "minimumEvidenceScore": 0.82,
+      "minimumAuthorityWeight": 0.9,
+      "citationRequired": true,
+      "description": "Regulatory, compliance, securities, tax, program eligibility, or legal-adjacent claim."
+    },
+    "company_specific_financial_claim": {
+      "minimumEvidenceScore": 0.78,
+      "minimumAuthorityWeight": 0.88,
+      "citationRequired": true,
+      "description": "Company-specific financial fact, filing fact, capital raise, or issuer risk factor."
+    },
+    "personalized_investment_action": {
+      "minimumEvidenceScore": null,
+      "minimumAuthorityWeight": null,
+      "citationRequired": true,
+      "description": "Buy, sell, hold, or personal investment action request.",
+      "action": "block_as_regulated_or_disallowed_advice"
+    }
+  },
+  "adjustments": {
+    "positive": [
+      {
+        "id": "official_primary_source",
+        "adjustment": 0.08,
+        "condition": "sourceTier_is_primary_official"
+      },
+      {
+        "id": "direct_jurisdiction_match",
+        "adjustment": 0.06,
+        "condition": "source_jurisdiction_matches_query_jurisdiction"
+      },
+      {
+        "id": "direct_metric_match",
+        "adjustment": 0.05,
+        "condition": "source_metric_matches_claim_metric"
+      },
+      {
+        "id": "corroborated_by_second_authoritative_source",
+        "adjustment": 0.08,
+        "condition": "second_authoritative_source_agrees"
+      }
+    ],
+    "negative": [
+      {
+        "id": "stale_for_current_claim",
+        "adjustment": -0.25,
+        "condition": "freshnessStatus_is_stale_for_current_claim"
+      },
+      {
+        "id": "unknown_source_date",
+        "adjustment": -0.12,
+        "condition": "freshnessStatus_is_unknown_freshness"
+      },
+      {
+        "id": "business_press_only_for_compliance",
+        "adjustment": -0.3,
+        "condition": "major_financial_press_used_as_sole_compliance_source"
+      },
+      {
+        "id": "user_data_unverified_external_claim",
+        "adjustment": -0.2,
+        "condition": "user_provided_data_used_for_external_fact"
+      },
+      {
+        "id": "conflicting_high_authority_source",
+        "adjustment": -0.35,
+        "condition": "conflict_with_higher_authority_source"
+      },
+      {
+        "id": "unsupported_source",
+        "adjustment": -0.5,
+        "condition": "sourceTier_is_unsupported_or_unknown"
+      }
+    ]
+  },
+  "minimumEvidenceRules": [
+    {
+      "condition": "intent_is_compliance",
+      "minimumEvidenceScore": 0.82,
+      "requiredSourceTier": "primary_official",
+      "fallbackAction": "ask_for_current_official_source_or_state_cannot_verify"
+    },
+    {
+      "condition": "intent_is_macro_and_current",
+      "minimumEvidenceScore": 0.72,
+      "requiredSourceTier": "primary_official",
+      "fallbackAction": "state_historical_or_require_current_source"
+    },
+    {
+      "condition": "intent_is_source_lookup",
+      "minimumEvidenceScore": 0.6,
+      "requiredSourceTier": "primary_official_or_primary_filings",
+      "fallbackAction": "provide_source_plan_not_final_claim"
+    },
+    {
+      "condition": "intent_is_cashflow_with_user_numbers",
+      "minimumEvidenceScore": 0.55,
+      "requiredSourceTier": "user_provided_operational_data",
+      "fallbackAction": "ask_for_missing_financial_inputs"
+    },
+    {
+      "condition": "intent_is_pricing_or_unit_economics_framework",
+      "minimumEvidenceScore": 0.45,
+      "requiredSourceTier": "professional_research_or_user_provided_operational_data",
+      "fallbackAction": "provide_framework_only"
+    }
+  ],
+  "evidenceOutputSchema": {
+    "domain": "finance",
+    "layer": "evidence_weighting",
+    "claim": "string",
+    "claimSensitivity": "string",
+    "sources": [
+      {
+        "sourceName": "string",
+        "sourceType": "string",
+        "sourceTier": "string",
+        "authorityWeight": "number_0_to_1",
+        "freshnessStatus": "string",
+        "relevanceScore": "number_0_to_1",
+        "specificityScore": "number_0_to_1",
+        "consistencyScore": "number_0_to_1",
+        "evidenceScore": "number_0_to_1"
+      }
+    ],
+    "aggregateEvidenceScore": "number_0_to_1",
+    "evidenceBand": "strong_moderate_weak_insufficient",
+    "citationRequired": "boolean",
+    "confidenceImpact": "increase_neutral_decrease_block",
+    "missingEvidence": [
+      "string"
+    ],
+    "notes": [
+      "string"
+    ]
+  },
+  "guardrails": [
+    "Do not hide weak evidence behind confident language.",
+    "Do not let multiple low-quality sources outweigh one authoritative source on regulated facts.",
+    "Do not use business press as final evidence for grant eligibility, tax, securities, or compliance claims.",
+    "When evidence is insufficient, say what is missing.",
+    "When evidence is user-provided, label it as user-supplied."
+  ]
+}
