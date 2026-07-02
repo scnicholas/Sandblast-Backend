@@ -1,0 +1,340 @@
+{
+  "id": "fin_ingestion_source_types_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer03_data_ingestion",
+  "description": "Defines provenance labels for finance data ingested from user text, uploaded files, external sources, official sources, market data, filings, assumptions, and inferred context.",
+  "posture": {
+    "type": "ingestion_source_type_registry",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "provenanceRequired": true,
+    "verificationStatusRequired": true
+  },
+  "corePrinciples": [
+    "Every ingested finance input must have a source type.",
+    "User-provided data must be labeled separately from external evidence.",
+    "Official sources and filings should be preserved as source references for Layer 02 and later citation handling.",
+    "Inferred context must be labeled as inferred and should not be treated as fact.",
+    "Unknown provenance reduces confidence and may block sensitive claims.",
+    "Uploaded documents may be user-provided, official, contractual, or unknown depending on content."
+  ],
+  "sourceTypes": {
+    "user_query": {
+      "label": "User Query",
+      "description": "Finance input extracted directly from the user's typed or spoken question.",
+      "authorityClass": "user_provided_operational_data",
+      "verificationStatus": "user_supplied_unverified",
+      "defaultConfidence": 0.75,
+      "allowedUses": [
+        "scenario_inputs",
+        "cashflow_analysis",
+        "pricing_context",
+        "unit_economics_context",
+        "commercial_risk_context"
+      ],
+      "limitations": [
+        "not_independently_verified",
+        "may_be_incomplete",
+        "requires_confirmation_if_material_or_conflicting"
+      ],
+      "citationRequired": false,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "user_declared_assumption": {
+      "label": "User-Declared Assumption",
+      "description": "An assumption explicitly stated by the user, such as expected churn, expected revenue decline, expected costs, or future pricing.",
+      "authorityClass": "user_provided_operational_data",
+      "verificationStatus": "assumption_unverified",
+      "defaultConfidence": 0.65,
+      "allowedUses": [
+        "scenario_modeling",
+        "stress_testing",
+        "pricing_modeling",
+        "cashflow_projection"
+      ],
+      "limitations": [
+        "must_be_labeled_assumption",
+        "not_a_verified_fact",
+        "should_not_support_current_external_claim"
+      ],
+      "citationRequired": false,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "user_uploaded_file": {
+      "label": "User Uploaded File",
+      "description": "Data extracted from a file supplied by the user, including PDFs, spreadsheets, screenshots, contracts, reports, or statements.",
+      "authorityClass": "user_provided_document",
+      "verificationStatus": "document_supplied_unverified",
+      "defaultConfidence": 0.7,
+      "allowedUses": [
+        "document_specific_analysis",
+        "business_context",
+        "financial_statement_review",
+        "contract_or_program_review",
+        "risk_review"
+      ],
+      "limitations": [
+        "document_may_be_outdated",
+        "document_authenticity_not_verified",
+        "may_require_official_source_confirmation"
+      ],
+      "citationRequired": true,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "external_source": {
+      "label": "External Source",
+      "description": "Finance input extracted from a non-official external source such as business press, research, a website, or third-party commentary.",
+      "authorityClass": "external_context",
+      "verificationStatus": "external_unverified_until_authority_scored",
+      "defaultConfidence": 0.6,
+      "allowedUses": [
+        "context",
+        "market_narrative",
+        "reported_developments",
+        "hypothesis_generation"
+      ],
+      "limitations": [
+        "must_be_scored_by_layer02",
+        "not_sufficient_for_compliance_claims_without_official_support",
+        "freshness_may_be_required"
+      ],
+      "citationRequired": true,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "official_source": {
+      "label": "Official Source",
+      "description": "Input extracted from a government, regulator, central bank, official statistics, tax authority, legislation, or official program page.",
+      "authorityClass": "primary_official",
+      "verificationStatus": "official_source_subject_to_freshness",
+      "defaultConfidence": 0.9,
+      "allowedUses": [
+        "current_policy_claims",
+        "regulatory_context",
+        "program_status",
+        "tax_context",
+        "macro_data",
+        "official_statistics"
+      ],
+      "limitations": [
+        "must_check_date_for_current_claims",
+        "jurisdiction_must_match",
+        "does_not_replace_professional_advice"
+      ],
+      "citationRequired": true,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "market_data": {
+      "label": "Market Data",
+      "description": "Input extracted from market data providers, exchange references, index providers, price feeds, or market snapshot sources.",
+      "authorityClass": "exchange_or_market_reference",
+      "verificationStatus": "market_data_subject_to_timestamp",
+      "defaultConfidence": 0.78,
+      "allowedUses": [
+        "market_snapshot",
+        "instrument_reference",
+        "index_context",
+        "exchange_context",
+        "capital_markets_context"
+      ],
+      "limitations": [
+        "timestamp_required",
+        "market_data_decays_quickly",
+        "not_sufficient_for_investment_action_advice"
+      ],
+      "citationRequired": true,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "regulatory_filing": {
+      "label": "Regulatory Filing",
+      "description": "Input extracted from issuer filings, annual reports, MD&A, prospectuses, audited statements, or official disclosure systems.",
+      "authorityClass": "primary_filings",
+      "verificationStatus": "official_filing_subject_to_reporting_period",
+      "defaultConfidence": 0.88,
+      "allowedUses": [
+        "issuer_financial_facts",
+        "risk_factors",
+        "capital_raise_context",
+        "audited_financials",
+        "company_specific_financial_claims"
+      ],
+      "limitations": [
+        "reporting_period_must_be_preserved",
+        "issuer_and_filing_type_must_match",
+        "not_personal_investment_advice"
+      ],
+      "citationRequired": true,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "professional_research": {
+      "label": "Professional Research",
+      "description": "Input extracted from professional bodies, institutional research, accounting firms, financial education institutions, or industry reports.",
+      "authorityClass": "professional_research",
+      "verificationStatus": "research_source_subject_to_scope",
+      "defaultConfidence": 0.78,
+      "allowedUses": [
+        "framework_support",
+        "methodology_context",
+        "industry_context",
+        "finance_education",
+        "risk_management_context"
+      ],
+      "limitations": [
+        "not_final_for_compliance_claims",
+        "may_be_historical_or_general",
+        "scope_must_match_query"
+      ],
+      "citationRequired": true,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "inferred_from_context": {
+      "label": "Inferred from Context",
+      "description": "A value, classification, jurisdiction, metric, or assumption inferred by the runtime from surrounding words or prior context.",
+      "authorityClass": "inference",
+      "verificationStatus": "inferred_unconfirmed",
+      "defaultConfidence": 0.45,
+      "allowedUses": [
+        "candidate_metric_label",
+        "candidate_jurisdiction",
+        "candidate_claim_target",
+        "routing_support"
+      ],
+      "limitations": [
+        "must_not_be_treated_as_fact",
+        "requires_confirmation_if_material",
+        "should_not_support_final_claim"
+      ],
+      "citationRequired": false,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "system_detected": {
+      "label": "System Detected",
+      "description": "A value detected by regex, parser, classifier, or runtime logic from user or source material.",
+      "authorityClass": "runtime_extraction",
+      "verificationStatus": "machine_detected_requires_validation",
+      "defaultConfidence": 0.6,
+      "allowedUses": [
+        "input_extraction",
+        "metric_detection",
+        "normalization_handoff",
+        "missing_input_detection"
+      ],
+      "limitations": [
+        "parser_may_misclassify",
+        "raw_value_must_be_preserved",
+        "requires_confidence_score"
+      ],
+      "citationRequired": false,
+      "verificationRequiredForSensitiveClaims": true
+    },
+    "unknown": {
+      "label": "Unknown Source",
+      "description": "Input with unclear, missing, or unsupported provenance.",
+      "authorityClass": "unsupported_or_unknown",
+      "verificationStatus": "unknown_unverified",
+      "defaultConfidence": 0.2,
+      "allowedUses": [
+        "none_as_primary_evidence",
+        "possible_context_only"
+      ],
+      "limitations": [
+        "cannot_support_final_finance_claim",
+        "cannot_support_compliance_claim",
+        "cannot_support_current_market_claim",
+        "requires_better_source"
+      ],
+      "citationRequired": false,
+      "verificationRequiredForSensitiveClaims": true
+    }
+  },
+  "verificationStatuses": {
+    "user_supplied_unverified": {
+      "meaning": "Provided by the user; usable for scenario modeling but not externally verified.",
+      "confidenceImpact": "neutral_for_user_modeling_decrease_for_external_claims"
+    },
+    "assumption_unverified": {
+      "meaning": "Explicit assumption; must be labeled and should not be presented as fact.",
+      "confidenceImpact": "decrease"
+    },
+    "document_supplied_unverified": {
+      "meaning": "Provided in an uploaded file; may be useful but requires context, date, and authenticity caution.",
+      "confidenceImpact": "neutral_or_decrease"
+    },
+    "official_source_subject_to_freshness": {
+      "meaning": "Official source; strong evidence if jurisdiction and date are appropriate.",
+      "confidenceImpact": "increase"
+    },
+    "market_data_subject_to_timestamp": {
+      "meaning": "Market data may be strong if timestamped and current.",
+      "confidenceImpact": "increase_if_current_decrease_if_stale"
+    },
+    "official_filing_subject_to_reporting_period": {
+      "meaning": "Filing data is authoritative for the reporting period, not necessarily current operating reality.",
+      "confidenceImpact": "increase_if_period_matches"
+    },
+    "research_source_subject_to_scope": {
+      "meaning": "Professional or institutional research is useful if scope and method match the claim.",
+      "confidenceImpact": "neutral_or_increase"
+    },
+    "inferred_unconfirmed": {
+      "meaning": "Runtime inference requiring confirmation before material use.",
+      "confidenceImpact": "decrease"
+    },
+    "machine_detected_requires_validation": {
+      "meaning": "Detected by parser or classifier; should be checked against raw text.",
+      "confidenceImpact": "neutral"
+    },
+    "unknown_unverified": {
+      "meaning": "Unknown provenance; cannot support final claims.",
+      "confidenceImpact": "block_or_decrease"
+    }
+  },
+  "sourceTypeSelectionRules": [
+    {
+      "condition": "value_extracted_from_user_question",
+      "sourceType": "user_query",
+      "defaultConfidence": 0.75
+    },
+    {
+      "condition": "value_extracted_from_uploaded_file",
+      "sourceType": "user_uploaded_file",
+      "defaultConfidence": 0.7
+    },
+    {
+      "condition": "statement_contains_expected_or_assume_language",
+      "sourceType": "user_declared_assumption",
+      "defaultConfidence": 0.65
+    },
+    {
+      "condition": "value_extracted_from_government_or_regulator",
+      "sourceType": "official_source",
+      "defaultConfidence": 0.9
+    },
+    {
+      "condition": "value_extracted_from_sec_sedar_or_issuer_filing",
+      "sourceType": "regulatory_filing",
+      "defaultConfidence": 0.88
+    },
+    {
+      "condition": "value_extracted_from_market_snapshot_or_exchange",
+      "sourceType": "market_data",
+      "defaultConfidence": 0.78
+    },
+    {
+      "condition": "value_detected_without_clear_source",
+      "sourceType": "unknown",
+      "defaultConfidence": 0.2
+    }
+  ],
+  "guardrails": [
+    "Do not allow unknown source inputs to support final finance conclusions.",
+    "Do not treat inferred context as confirmed fact.",
+    "Do not let user assumptions become factual claims without explicit labeling.",
+    "Do not use non-official sources as final evidence for compliance or eligibility.",
+    "Preserve source type and verification status for Layer 02 and Layer 04 handoff.",
+    "If source type is uncertain, assign unknown or inferred_from_context rather than overstating confidence."
+  ]
+}
