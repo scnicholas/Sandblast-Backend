@@ -1,0 +1,350 @@
+{
+  "id": "fin_response_lanes_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer01_intent_classification",
+  "description": "Finance response-lane definitions for Marion/Nyx output shaping after intent classification. Defines response structure, required sections, boundary language, evidence expectations, and depth level by lane.",
+  "posture": {
+    "type": "response_lane_control",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "assumptionDisclosureRequired": true,
+    "sourceAuthorityRequiredWhenCurrentOrRegulatory": true
+  },
+  "globalResponseRules": [
+    "Start with a direct answer before expanding.",
+    "Separate facts, interpretation, risk, and next-step options.",
+    "State assumptions when the query lacks full data.",
+    "Avoid deterministic predictions.",
+    "Do not provide personalized investment, legal, tax, or securities advice.",
+    "Use official or primary sources for current, regulatory, policy, and market-sensitive claims.",
+    "If the query is high-risk or compliance-sensitive, include a boundary note.",
+    "When confidence is limited, say what information is missing."
+  ],
+  "responseLanes": {
+    "macro": {
+      "label": "Macroeconomic Analysis Response",
+      "defaultDepth": "medium_to_deep",
+      "requiredSections": [
+        "direct_answer",
+        "macro_context",
+        "key_variables",
+        "business_implications",
+        "risk_flags",
+        "confidence_and_assumptions"
+      ],
+      "optionalSections": [
+        "scenario_bands",
+        "policy_transmission",
+        "source_notes"
+      ],
+      "evidenceExpectation": "current_official_sources_when_discussing_current_conditions",
+      "boundaryNote": "This is macroeconomic analysis for decision support, not a market prediction.",
+      "tone": "analytical_clear_grounded"
+    },
+    "micro": {
+      "label": "Microeconomic Reasoning Response",
+      "defaultDepth": "medium",
+      "requiredSections": [
+        "direct_answer",
+        "demand_or_incentive_logic",
+        "market_structure_effect",
+        "business_implication",
+        "assumptions"
+      ],
+      "optionalSections": [
+        "substitution_map",
+        "elasticity_note",
+        "pricing_power_note"
+      ],
+      "evidenceExpectation": "conceptual_framework_or_business_data",
+      "boundaryNote": "This is applied economic reasoning, not a guaranteed market outcome.",
+      "tone": "plain_but_precise"
+    },
+    "capital_markets": {
+      "label": "Capital Markets Response",
+      "defaultDepth": "deep",
+      "requiredSections": [
+        "direct_answer",
+        "capital_option_breakdown",
+        "cost_of_capital_logic",
+        "control_or_dilution_implication",
+        "risk_flags",
+        "assumptions"
+      ],
+      "optionalSections": [
+        "debt_vs_equity_table",
+        "runway_context",
+        "capital_stack_note",
+        "professional_review_trigger"
+      ],
+      "evidenceExpectation": "official_or_professional_sources_when_current_terms_are_discussed",
+      "boundaryNote": "This is capital-structure decision support, not securities, legal, tax, or investment advice.",
+      "tone": "executive_decision_support"
+    },
+    "pricing": {
+      "label": "Pricing Model Response",
+      "defaultDepth": "medium_to_deep",
+      "requiredSections": [
+        "direct_answer",
+        "recommended_pricing_logic",
+        "pricing_model_tradeoffs",
+        "unit_economics_risk",
+        "testing_path"
+      ],
+      "optionalSections": [
+        "tier_design",
+        "discounting_risk",
+        "customer_segment_notes",
+        "pricing_experiment"
+      ],
+      "evidenceExpectation": "internal_business_data_preferred",
+      "boundaryNote": "Pricing should be tested against customer behavior and cost structure before scaling.",
+      "tone": "strategic_practical"
+    },
+    "unit_economics": {
+      "label": "Unit Economics Response",
+      "defaultDepth": "deep",
+      "requiredSections": [
+        "direct_answer",
+        "core_metrics",
+        "margin_or_cac_issue",
+        "scaling_risk",
+        "stress_test_suggestion",
+        "missing_data"
+      ],
+      "optionalSections": [
+        "ltv_cac_note",
+        "payback_period_note",
+        "retention_sensitivity",
+        "break_even_context"
+      ],
+      "evidenceExpectation": "user_or_business_specific_numbers_required_for precise calculation",
+      "boundaryNote": "Without actual financial inputs, this remains a framework-level analysis.",
+      "tone": "diagnostic_and_operational"
+    },
+    "commercial_risk": {
+      "label": "Commercial Risk Response",
+      "defaultDepth": "deep",
+      "requiredSections": [
+        "direct_answer",
+        "risk_classification",
+        "primary_risk_drivers",
+        "commercial_implications",
+        "mitigation_path",
+        "confidence_and_assumptions"
+      ],
+      "optionalSections": [
+        "risk_scorecard",
+        "dependency_map",
+        "scenario_breakpoints",
+        "next_data_needed"
+      ],
+      "evidenceExpectation": "source_check_required_for_current_market_or_regulatory_claims",
+      "boundaryNote": "This is commercial-risk decision support, not legal, tax, accounting, or investment advice.",
+      "tone": "critical_autopsy_style"
+    },
+    "cashflow": {
+      "label": "Cash-Flow Resilience Response",
+      "defaultDepth": "deep",
+      "requiredSections": [
+        "direct_answer",
+        "cashflow_pressure_point",
+        "runway_logic",
+        "downside_case",
+        "mitigation_options",
+        "missing_numbers"
+      ],
+      "optionalSections": [
+        "burn_rate_formula",
+        "receivable_delay_risk",
+        "liquidity_buffer_target",
+        "survival_threshold"
+      ],
+      "evidenceExpectation": "user_financial_inputs_required_for calculation",
+      "boundaryNote": "Cash-flow estimates depend on actual cash, burn, revenue timing, and obligations.",
+      "tone": "blunt_practical"
+    },
+    "credit_debt": {
+      "label": "Credit and Debt Risk Response",
+      "defaultDepth": "deep",
+      "requiredSections": [
+        "direct_answer",
+        "debt_service_logic",
+        "credit_risk_drivers",
+        "interest_rate_sensitivity",
+        "cashflow_dependency",
+        "professional_review_trigger"
+      ],
+      "optionalSections": [
+        "fixed_vs_variable_note",
+        "collateral_gap",
+        "refinancing_risk",
+        "loan_readiness_checklist"
+      ],
+      "evidenceExpectation": "current_lender_or_rate_context_requires_current_sources",
+      "boundaryNote": "This is loan and debt-risk analysis, not lending, legal, tax, or financial advice.",
+      "tone": "cautious_executive"
+    },
+    "compliance": {
+      "label": "Finance Compliance Response",
+      "defaultDepth": "deep",
+      "requiredSections": [
+        "direct_answer",
+        "jurisdiction_needed_or_identified",
+        "compliance_issue",
+        "risk_level",
+        "what_to_verify",
+        "professional_review_trigger"
+      ],
+      "optionalSections": [
+        "source_authority_note",
+        "regulatory_body_note",
+        "eligibility_checklist",
+        "boundary_note"
+      ],
+      "evidenceExpectation": "official_current_sources_required",
+      "boundaryNote": "This is compliance-risk flagging, not legal, tax, accounting, securities, or regulatory advice.",
+      "tone": "precise_and_guarded"
+    },
+    "public_policy": {
+      "label": "Public Policy Finance Response",
+      "defaultDepth": "medium_to_deep",
+      "requiredSections": [
+        "direct_answer",
+        "policy_mechanism",
+        "transmission_channel",
+        "business_or_market_effect",
+        "risk_flags",
+        "assumptions"
+      ],
+      "optionalSections": [
+        "scenario_effects",
+        "jurisdiction_note",
+        "source_notes"
+      ],
+      "evidenceExpectation": "official_or_institutional_sources_when discussing current policy",
+      "boundaryNote": "This is policy-impact analysis, not political advocacy or regulatory advice.",
+      "tone": "neutral_analytical"
+    },
+    "case_study": {
+      "label": "Finance Case Study Response",
+      "defaultDepth": "medium_to_deep",
+      "requiredSections": [
+        "direct_answer",
+        "case_pattern",
+        "diagnostic_questions",
+        "likely_drivers",
+        "what_data_would_confirm_or_disprove",
+        "next_step"
+      ],
+      "optionalSections": [
+        "comparison_table",
+        "scenario_tree",
+        "risk_autopsy"
+      ],
+      "evidenceExpectation": "actual_metrics_required_before strong conclusion",
+      "boundaryNote": "Case patterns are templates, not predictions.",
+      "tone": "teaching_diagnostic"
+    },
+    "source_lookup": {
+      "label": "Finance Source Lookup Response",
+      "defaultDepth": "medium",
+      "requiredSections": [
+        "direct_answer",
+        "best_source_types",
+        "source_priority",
+        "what_each_source_is_for",
+        "freshness_requirement"
+      ],
+      "optionalSections": [
+        "official_sources",
+        "secondary_context_sources",
+        "filings_or_market_data_sources",
+        "avoid_or_low_trust_sources"
+      ],
+      "evidenceExpectation": "source_list_should_prioritize official_or_primary_sources",
+      "boundaryNote": "Source selection depends on jurisdiction, topic, and whether the question is current.",
+      "tone": "research_architect"
+    }
+  },
+  "responseFormats": {
+    "executive_brief": [
+      "direct_answer",
+      "risk_level",
+      "key_drivers",
+      "commercial_implication",
+      "recommended_next_checks"
+    ],
+    "critical_autopsy": [
+      "direct_answer",
+      "what_is_working",
+      "what_is_exposed",
+      "failure_points",
+      "surgical_fixes",
+      "next_layer"
+    ],
+    "decision_matrix": [
+      "option",
+      "upside",
+      "downside",
+      "risk_level",
+      "data_needed",
+      "boundary_note"
+    ],
+    "scenario_brief": [
+      "base_case",
+      "downside_case",
+      "severe_case",
+      "breakpoint",
+      "mitigation"
+    ],
+    "source_plan": [
+      "official_sources",
+      "market_or_business_context_sources",
+      "internal_data_needed",
+      "freshness_rules",
+      "citation_requirement"
+    ]
+  },
+  "boundaryLanguage": {
+    "standard": "This is educational decision support and should not be treated as personal financial, investment, legal, tax, accounting, securities, or regulatory advice.",
+    "investmentSensitive": "I can analyze risk, structure, and assumptions, but I cannot tell you to buy, sell, or hold a specific investment.",
+    "complianceSensitive": "For compliance, tax, securities, or legal determinations, this should be verified with the relevant authority or a qualified professional.",
+    "forecastSensitive": "Any forward-looking scenario is assumption-based, not a deterministic prediction."
+  },
+  "confidenceStatements": {
+    "high": "Confidence is high because the lane, assumptions, and source requirements are clear.",
+    "medium": "Confidence is moderate because the direction is clear, but some assumptions or current data are missing.",
+    "low": "Confidence is limited because the query lacks necessary details such as jurisdiction, time horizon, financial inputs, or source data."
+  },
+  "handoffToLayer02": {
+    "whenSourceAuthorityRequired": [
+      "requiresFreshData_is_true",
+      "intent_is_compliance",
+      "intent_is_macro",
+      "intent_is_public_policy",
+      "intent_is_capital_markets_with_current_market_terms",
+      "intent_is_source_lookup",
+      "query_contains_latest_current_today_still_open_updated"
+    ],
+    "sourceEnvelopeRequiredFields": [
+      "sourceTier",
+      "authorityWeight",
+      "freshnessStatus",
+      "sourceType",
+      "citationRequired",
+      "confidenceImpact"
+    ]
+  },
+  "guardrails": [
+    "Do not use a response lane that is narrower than the classified intent.",
+    "When compliance appears anywhere in the query, include boundary language.",
+    "When current facts are requested, require source authority before final answer.",
+    "When actual financial calculations are requested, ask for or identify missing inputs.",
+    "When the user asks for strategy, separate risk analysis from professional advice."
+  ]
+}
