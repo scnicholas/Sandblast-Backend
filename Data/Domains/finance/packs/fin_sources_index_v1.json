@@ -2,380 +2,786 @@
   "id": "fin_sources_index_v1",
   "version": "2.0.0",
   "domain": "finance",
-  "purpose": "Cross-domain finance reference map for textbooks, market data, public policy, business magazines, and filings.",
+  "layer": "finance_source_index",
+  "description": "Cross-domain finance reference map for official sources, textbooks, market data, public policy sources, filings, and finance/business press. This index is used by Layer 2 source authority control as the source directory.",
+  "posture": {
+    "type": "source_directory",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "sourceTraceRequired": true,
+    "authorityLayerRequired": true,
+    "freshnessLayerRequiredForCurrentClaims": true
+  },
+  "corePrinciples": [
+    "Use official sources for current policy, regulatory, tax, grant, and compliance claims.",
+    "Use central banks and official statistical agencies for macroeconomic claims.",
+    "Use regulatory filings for issuer-specific financial facts.",
+    "Use market data and exchanges for market reference claims.",
+    "Use professional and open-learning sources for conceptual finance frameworks.",
+    "Use major financial press for narrative and event context, not as sole authority for compliance claims.",
+    "Use user-provided inputs only as user-supplied business data unless externally verified."
+  ],
   "categories": {
-    "textbooks_and_open_learning": [
-      {
-        "title": "Corporate Finance Institute — Capital Markets Overview",
-        "type": "open_learning",
-        "authority": "professional_education",
-        "use": [
-          "capital_markets",
-          "cost_of_capital",
-          "equity_vs_debt"
-        ],
-        "license_note": "public_web_reference_only"
-      },
-      {
-        "title": "OpenStax Principles of Economics 3e",
-        "type": "open_textbook",
-        "authority": "open_education",
-        "use": [
-          "microeconomics",
-          "macroeconomics",
-          "policy",
-          "market_structure"
-        ],
-        "license_note": "open_textbook_reference"
-      },
-      {
-        "title": "Open Textbook Library finance/economics catalog",
-        "type": "open_textbook_index",
-        "authority": "library_style_open_reference",
-        "use": [
-          "curriculum_design",
-          "supplemental_reading"
-        ],
-        "license_note": "index_reference"
-      },
-      {
-        "title": "CFA Institute Research Foundation publications",
-        "type": "professional_research",
-        "authority": "professional_body",
-        "use": [
-          "asset_management",
-          "portfolio_thinking",
-          "market_structure",
-          "ethics"
-        ],
-        "license_note": "public_research_reference_only"
-      }
-    ],
-    "government_and_public_institutions": [
-      {
-        "title": "Bank of Canada monetary policy and interest rates",
-        "type": "central_bank",
-        "authority": "government",
-        "use": [
-          "rates",
-          "macro",
-          "credit_conditions",
-          "canadian_context"
-        ]
-      },
-      {
-        "title": "Statistics Canada economic indicators",
-        "type": "official_statistics",
-        "authority": "government",
-        "use": [
-          "inflation",
-          "labour",
-          "GDP",
-          "household_finance"
-        ]
-      },
-      {
-        "title": "U.S. Federal Reserve FRED economic data",
-        "type": "official_data_platform",
-        "authority": "central_bank",
-        "use": [
-          "time_series",
-          "macro_history",
-          "stress_testing_inputs"
-        ]
-      },
-      {
-        "title": "IMF Finance & Development",
-        "type": "institutional_magazine",
-        "authority": "multilateral",
-        "use": [
-          "case_context",
-          "global_macro",
-          "development_finance",
-          "explanatory_articles"
-        ]
-      },
-      {
-        "title": "World Bank Data and research explainers",
-        "type": "multilateral_data",
-        "authority": "multilateral",
-        "use": [
-          "global_development",
-          "country_context",
-          "cross-border_economics"
-        ]
-      },
-      {
-        "title": "OECD economic outlook and policy materials",
-        "type": "multilateral_policy_research",
-        "authority": "multilateral",
-        "use": [
-          "policy",
-          "productivity",
-          "labour",
-          "competition"
-        ]
-      }
-    ],
-    "markets_and_business_press": [
-      {
-        "title": "Financial Times markets and markets data",
-        "type": "business_press_plus_market_data",
-        "authority": "major_financial_press",
-        "use": [
-          "market_narrative",
-          "index_data_context",
-          "equities",
-          "bonds",
-          "currencies",
-          "commodities"
-        ]
-      },
-      {
-        "title": "Wall Street Journal Markets",
-        "type": "business_press",
-        "authority": "major_financial_press",
-        "use": [
-          "market_narrative",
-          "corporate_finance",
-          "earnings_context"
-        ]
-      },
-      {
-        "title": "The Economist finance and economics coverage",
-        "type": "business_magazine",
-        "authority": "major_magazine",
-        "use": [
-          "synthesis",
-          "macro",
-          "policy",
-          "industry_case_context"
-        ]
-      },
-      {
-        "title": "Bloomberg Markets concepts and explainers",
-        "type": "financial_media",
-        "authority": "major_financial_media",
-        "use": [
-          "market_mechanics",
-          "bond_math",
-          "risk_events",
-          "earnings_reactions"
-        ]
-      }
-    ],
-    "markets_data_and_filings": [
-      {
-        "title": "SEC EDGAR",
-        "type": "regulatory_filings",
-        "authority": "government",
-        "use": [
-          "10-K",
-          "10-Q",
-          "prospectuses",
-          "risk_factors",
-          "capital_raises"
-        ]
-      },
-      {
-        "title": "SEDAR+",
-        "type": "regulatory_filings",
-        "authority": "government",
-        "use": [
-          "canadian_issuer_filings",
-          "prospectuses",
-          "MD&A"
-        ]
-      },
-      {
-        "title": "TMX and major exchange education/data pages",
-        "type": "exchange_reference",
-        "authority": "exchange",
-        "use": [
-          "market_structure",
-          "listing_context",
-          "sector_data"
-        ]
-      }
-    ]
+    "textbooks_open_learning": {
+      "description": "Educational and conceptual finance sources suitable for frameworks, definitions, and non-current explanatory material.",
+      "defaultSourceType": "open_learning",
+      "defaultTier": "professional_research",
+      "authorityWeight": 0.74,
+      "freshnessRequired": false,
+      "sources": [
+        {
+          "name": "Corporate Finance Institute",
+          "shortName": "CFI",
+          "sourceType": "professional_research",
+          "jurisdiction": "global",
+          "bestFor": [
+            "finance_concepts",
+            "valuation_concepts",
+            "accounting_concepts",
+            "capital_markets_concepts",
+            "risk_management_frameworks"
+          ],
+          "limitations": [
+            "educational_source_not_official_policy",
+            "not_sufficient_for_current_regulatory_claims"
+          ]
+        },
+        {
+          "name": "OpenStax",
+          "sourceType": "open_learning",
+          "jurisdiction": "global",
+          "bestFor": [
+            "economics_foundations",
+            "microeconomics",
+            "macroeconomics",
+            "introductory_finance_context"
+          ],
+          "limitations": [
+            "framework_source_only",
+            "not_current_market_data"
+          ]
+        },
+        {
+          "name": "Open Textbook Library",
+          "sourceType": "open_learning",
+          "jurisdiction": "global",
+          "bestFor": [
+            "academic_finance_frameworks",
+            "economic_concepts",
+            "methodology_context"
+          ],
+          "limitations": [
+            "source_quality_varies_by_textbook",
+            "not_current_policy_source"
+          ]
+        },
+        {
+          "name": "CFA Institute Research Foundation",
+          "sourceType": "professional_research",
+          "jurisdiction": "global",
+          "bestFor": [
+            "investment_concepts",
+            "capital_markets_frameworks",
+            "ethics_context",
+            "portfolio_theory_context"
+          ],
+          "limitations": [
+            "not_personal_investment_advice",
+            "not_regulatory_final_authority"
+          ]
+        }
+      ]
+    },
+    "government_public_institutions": {
+      "description": "Official government, central bank, statistics, and public-institution sources used for policy, macroeconomic, statistical, and program claims.",
+      "defaultSourceType": "primary_official",
+      "defaultTier": "primary_official",
+      "authorityWeight": 0.95,
+      "freshnessRequired": true,
+      "sources": [
+        {
+          "name": "Bank of Canada",
+          "shortName": "BoC",
+          "sourceType": "central_bank",
+          "jurisdiction": "canada",
+          "bestFor": [
+            "policy_interest_rate",
+            "monetary_policy",
+            "inflation_context",
+            "credit_conditions",
+            "financial_stability",
+            "monetary_policy_report"
+          ],
+          "limitations": [
+            "not_company_specific_financial_data",
+            "not_personal_financial_advice"
+          ]
+        },
+        {
+          "name": "Statistics Canada",
+          "shortName": "StatCan",
+          "sourceType": "official_statistics",
+          "jurisdiction": "canada",
+          "bestFor": [
+            "inflation",
+            "labour_market",
+            "GDP",
+            "population",
+            "household_finance",
+            "business_indicators"
+          ],
+          "limitations": [
+            "data_release_lag_possible",
+            "requires_correct_table_or_release_context"
+          ]
+        },
+        {
+          "name": "Federal Reserve Economic Data",
+          "shortName": "FRED",
+          "sourceType": "official_statistics",
+          "jurisdiction": "united_states",
+          "bestFor": [
+            "macro_time_series",
+            "interest_rates",
+            "inflation_data",
+            "labour_data",
+            "credit_conditions",
+            "cross_country_reference"
+          ],
+          "limitations": [
+            "mostly_us_focused",
+            "requires_series_definition_check"
+          ]
+        },
+        {
+          "name": "International Monetary Fund",
+          "shortName": "IMF",
+          "sourceType": "multilateral_data",
+          "jurisdiction": "global",
+          "bestFor": [
+            "global_macro",
+            "country_surveillance",
+            "financial_stability",
+            "development_finance",
+            "policy_context"
+          ],
+          "limitations": [
+            "may_not_reflect_latest_local_program_status",
+            "country_reports_may_be_periodic"
+          ]
+        },
+        {
+          "name": "World Bank",
+          "sourceType": "multilateral_data",
+          "jurisdiction": "global",
+          "bestFor": [
+            "development_indicators",
+            "country_data",
+            "poverty_context",
+            "global_growth_context",
+            "business_environment_context"
+          ],
+          "limitations": [
+            "not_local_regulatory_authority",
+            "dataset_lags_possible"
+          ]
+        },
+        {
+          "name": "Organisation for Economic Co-operation and Development",
+          "shortName": "OECD",
+          "sourceType": "multilateral_data",
+          "jurisdiction": "global",
+          "bestFor": [
+            "comparative_policy",
+            "country_comparison",
+            "tax_policy_context",
+            "productivity",
+            "economic_outlook"
+          ],
+          "limitations": [
+            "not_final_local_legal_authority",
+            "policy_analysis_may_be_periodic"
+          ]
+        },
+        {
+          "name": "Canada Revenue Agency",
+          "shortName": "CRA",
+          "sourceType": "tax_authority",
+          "jurisdiction": "canada",
+          "bestFor": [
+            "tax_rule_context",
+            "filing_obligations",
+            "business_tax_context",
+            "credits_and_deductions",
+            "GST_HST_context"
+          ],
+          "limitations": [
+            "tax_professional_review_required_for_application",
+            "rules_may_change"
+          ]
+        },
+        {
+          "name": "Government of Canada",
+          "sourceType": "government_program",
+          "jurisdiction": "canada",
+          "bestFor": [
+            "federal_programs",
+            "business_support",
+            "grant_program_status",
+            "loan_program_rules",
+            "policy_pages"
+          ],
+          "limitations": [
+            "program_pages_must_be_checked_for_current_deadlines",
+            "eligibility_requires_official_review"
+          ]
+        },
+        {
+          "name": "Government of Ontario",
+          "sourceType": "government_program",
+          "jurisdiction": "ontario",
+          "bestFor": [
+            "provincial_programs",
+            "business_grants",
+            "loan_programs",
+            "regional_development",
+            "eligibility_rules"
+          ],
+          "limitations": [
+            "program_pages_must_be_checked_for_current_deadlines",
+            "eligibility_requires_official_review"
+          ]
+        }
+      ]
+    },
+    "regulators_and_filings": {
+      "description": "Regulators, securities filings, and official disclosure systems for compliance-sensitive and company-specific financial facts.",
+      "defaultSourceType": "regulatory_filings",
+      "defaultTier": "primary_filings",
+      "authorityWeight": 0.92,
+      "freshnessRequired": true,
+      "sources": [
+        {
+          "name": "SEC EDGAR",
+          "sourceType": "regulatory_filings",
+          "jurisdiction": "united_states",
+          "bestFor": [
+            "issuer_filings",
+            "10-K",
+            "10-Q",
+            "8-K",
+            "prospectus",
+            "risk_factors",
+            "audited_financials"
+          ],
+          "limitations": [
+            "us_issuer_focus",
+            "requires_correct_filing_period",
+            "not_interpretation_without_context"
+          ]
+        },
+        {
+          "name": "SEDAR+",
+          "sourceType": "regulatory_filings",
+          "jurisdiction": "canada",
+          "bestFor": [
+            "canadian_issuer_filings",
+            "annual_reports",
+            "MD&A",
+            "prospectus",
+            "risk_factors",
+            "continuous_disclosure"
+          ],
+          "limitations": [
+            "requires_correct_issuer_and_period",
+            "not_legal_advice"
+          ]
+        },
+        {
+          "name": "Ontario Securities Commission",
+          "shortName": "OSC",
+          "sourceType": "securities_regulator",
+          "jurisdiction": "ontario",
+          "bestFor": [
+            "ontario_securities_rules",
+            "investor_protection",
+            "issuer_guidance",
+            "market_regulation",
+            "compliance_context"
+          ],
+          "limitations": [
+            "not_personal_legal_advice",
+            "current_rule_page_required"
+          ]
+        },
+        {
+          "name": "Canadian Securities Administrators",
+          "shortName": "CSA",
+          "sourceType": "securities_regulator",
+          "jurisdiction": "canada",
+          "bestFor": [
+            "canadian_securities_guidance",
+            "national_instruments",
+            "issuer_guidance",
+            "market_regulation"
+          ],
+          "limitations": [
+            "provincial_application_may_vary",
+            "current_rule_page_required"
+          ]
+        },
+        {
+          "name": "Financial Conduct Authority",
+          "shortName": "FCA",
+          "sourceType": "securities_regulator",
+          "jurisdiction": "united_kingdom",
+          "bestFor": [
+            "uk_financial_regulation",
+            "financial_promotions",
+            "regulated_activity_context",
+            "consumer_duty_context"
+          ],
+          "limitations": [
+            "uk_specific",
+            "not_controlling_for_canada_or_us_claims"
+          ]
+        }
+      ]
+    },
+    "markets_data_filings_and_exchanges": {
+      "description": "Exchange and market reference sources for listings, instruments, indices, and market-structure context.",
+      "defaultSourceType": "exchange_or_market_reference",
+      "defaultTier": "exchange_or_market_reference",
+      "authorityWeight": 0.78,
+      "freshnessRequired": true,
+      "sources": [
+        {
+          "name": "TMX",
+          "sourceType": "exchange_or_market_reference",
+          "jurisdiction": "canada",
+          "bestFor": [
+            "canadian_exchange_context",
+            "listing_context",
+            "issuer_reference",
+            "instrument_reference",
+            "market_structure"
+          ],
+          "limitations": [
+            "not_sufficient_for_full_company_fundamentals",
+            "market_data_freshness_required"
+          ]
+        },
+        {
+          "name": "Major exchange reference pages",
+          "sourceType": "exchange_or_market_reference",
+          "jurisdiction": "global",
+          "bestFor": [
+            "listing_rules_context",
+            "instrument_reference",
+            "market_structure",
+            "index_context"
+          ],
+          "limitations": [
+            "jurisdiction_and_exchange_must_match_query",
+            "not_final_for_regulatory_claims"
+          ]
+        },
+        {
+          "name": "Index provider materials",
+          "sourceType": "market_data_reference",
+          "jurisdiction": "global",
+          "bestFor": [
+            "index_construction",
+            "sector_weighting",
+            "benchmark_context",
+            "methodology_context"
+          ],
+          "limitations": [
+            "methodology_must_match_index",
+            "market_snapshot_requires_current_data"
+          ]
+        }
+      ]
+    },
+    "markets_business_press": {
+      "description": "Major financial and business press for event context, reported developments, and market narrative.",
+      "defaultSourceType": "major_financial_press",
+      "defaultTier": "major_financial_press",
+      "authorityWeight": 0.68,
+      "freshnessRequired": true,
+      "sources": [
+        {
+          "name": "Financial Times",
+          "shortName": "FT",
+          "sourceType": "major_financial_press",
+          "jurisdiction": "global",
+          "bestFor": [
+            "market_narrative",
+            "financial_news",
+            "policy_reporting",
+            "sector_context",
+            "capital_markets_context"
+          ],
+          "limitations": [
+            "not_sufficient_alone_for_compliance",
+            "not_sufficient_alone_for_program_eligibility",
+            "paywall_or_excerpt_limits_possible"
+          ]
+        },
+        {
+          "name": "Wall Street Journal",
+          "shortName": "WSJ",
+          "sourceType": "major_financial_press",
+          "jurisdiction": "global",
+          "bestFor": [
+            "market_news",
+            "company_reporting",
+            "macro_reporting",
+            "business_context"
+          ],
+          "limitations": [
+            "not_primary_filing_source",
+            "not_final_regulatory_authority"
+          ]
+        },
+        {
+          "name": "Bloomberg",
+          "sourceType": "major_financial_press",
+          "jurisdiction": "global",
+          "bestFor": [
+            "market_news",
+            "macro_reporting",
+            "company_reporting",
+            "rate_policy_context",
+            "trading_context"
+          ],
+          "limitations": [
+            "not_official_source",
+            "not_sufficient_alone_for_regulatory_claims"
+          ]
+        },
+        {
+          "name": "Reuters",
+          "sourceType": "major_financial_press",
+          "jurisdiction": "global",
+          "bestFor": [
+            "market_news",
+            "event_reporting",
+            "company_news",
+            "policy_reporting"
+          ],
+          "limitations": [
+            "not_primary_filing_source",
+            "not_final_compliance_source"
+          ]
+        },
+        {
+          "name": "The Economist",
+          "sourceType": "major_financial_press",
+          "jurisdiction": "global",
+          "bestFor": [
+            "macro_context",
+            "policy_interpretation",
+            "global_economics",
+            "business_context"
+          ],
+          "limitations": [
+            "analysis_and_commentary_not_primary_data",
+            "not_current_program_status_source"
+          ]
+        }
+      ]
+    },
+    "user_provided_operational_inputs": {
+      "description": "User-supplied business figures, assumptions, files, screenshots, and operating metrics. Useful for modeling but not independently verified.",
+      "defaultSourceType": "user_provided_data",
+      "defaultTier": "user_provided_operational_data",
+      "authorityWeight": 0.72,
+      "freshnessRequired": false,
+      "sources": [
+        {
+          "name": "User cash-on-hand input",
+          "sourceType": "user_provided_data",
+          "jurisdiction": "user_specific",
+          "bestFor": [
+            "cashflow_analysis",
+            "runway",
+            "liquidity_risk",
+            "scenario_modeling"
+          ],
+          "limitations": [
+            "must_be_labeled_user_supplied",
+            "not_independently_verified"
+          ]
+        },
+        {
+          "name": "User revenue and cost assumptions",
+          "sourceType": "user_provided_data",
+          "jurisdiction": "user_specific",
+          "bestFor": [
+            "unit_economics",
+            "pricing_analysis",
+            "commercial_risk",
+            "cashflow_stress_test"
+          ],
+          "limitations": [
+            "must_be_labeled_user_supplied",
+            "requires_confirmation_if_inconsistent"
+          ]
+        },
+        {
+          "name": "User uploaded business document",
+          "sourceType": "user_provided_data",
+          "jurisdiction": "user_specific",
+          "bestFor": [
+            "document_specific_analysis",
+            "contract_or_program_context",
+            "financial_assumptions",
+            "risk_review"
+          ],
+          "limitations": [
+            "document_may_be_outdated",
+            "external_verification_may_be_required"
+          ]
+        }
+      ]
+    }
   },
   "currentOfficialAnchors": [
     {
       "name": "Bank of Canada policy interest rate page",
-      "why": "current Canadian rates and monetary-policy context",
-      "source_type": "official"
+      "sourceType": "central_bank",
+      "jurisdiction": "canada",
+      "bestFor": [
+        "policy_interest_rate",
+        "monetary_policy",
+        "current_rate_context"
+      ],
+      "freshnessRequired": true,
+      "authorityWeight": 0.95
     },
     {
       "name": "Bank of Canada Monetary Policy Report",
-      "why": "base-case and risk framing",
-      "source_type": "official"
+      "sourceType": "central_bank",
+      "jurisdiction": "canada",
+      "bestFor": [
+        "macro_context",
+        "inflation_outlook",
+        "growth_outlook",
+        "monetary_policy_context"
+      ],
+      "freshnessRequired": true,
+      "authorityWeight": 0.95
+    },
+    {
+      "name": "Statistics Canada official releases",
+      "sourceType": "official_statistics",
+      "jurisdiction": "canada",
+      "bestFor": [
+        "inflation",
+        "labour_market",
+        "GDP",
+        "business_statistics"
+      ],
+      "freshnessRequired": true,
+      "authorityWeight": 0.94
     },
     {
       "name": "IMF Finance & Development",
-      "why": "flagship magazine-style analysis for macro/finance context",
-      "source_type": "institutional"
+      "sourceType": "multilateral_data",
+      "jurisdiction": "global",
+      "bestFor": [
+        "finance_policy_context",
+        "global_macro_context",
+        "institutional_explanation"
+      ],
+      "freshnessRequired": false,
+      "authorityWeight": 0.88
     },
     {
-      "name": "Financial Times Markets and Markets Data",
-      "why": "market narrative plus broad data panels",
-      "source_type": "press_plus_data"
+      "name": "Financial Times markets coverage",
+      "sourceType": "major_financial_press",
+      "jurisdiction": "global",
+      "bestFor": [
+        "market_narrative",
+        "reported_developments",
+        "sector_context"
+      ],
+      "freshnessRequired": true,
+      "authorityWeight": 0.68
     },
     {
-      "name": "SEC EDGAR and SEDAR+",
-      "why": "primary documents for issuer risks, offerings, and management discussion",
-      "source_type": "filings"
+      "name": "SEC EDGAR",
+      "sourceType": "regulatory_filings",
+      "jurisdiction": "united_states",
+      "bestFor": [
+        "us_issuer_filings",
+        "company_financial_facts",
+        "risk_factors",
+        "prospectus"
+      ],
+      "freshnessRequired": true,
+      "authorityWeight": 0.92
     },
     {
-      "name": "CFA Institute Research Foundation",
-      "why": "practitioner-oriented finance research and ethics context",
-      "source_type": "professional_research"
+      "name": "SEDAR+",
+      "sourceType": "regulatory_filings",
+      "jurisdiction": "canada",
+      "bestFor": [
+        "canadian_issuer_filings",
+        "company_financial_facts",
+        "risk_factors",
+        "prospectus"
+      ],
+      "freshnessRequired": true,
+      "authorityWeight": 0.92
+    },
+    {
+      "name": "TMX issuer and market reference",
+      "sourceType": "exchange_or_market_reference",
+      "jurisdiction": "canada",
+      "bestFor": [
+        "canadian_exchange_context",
+        "issuer_reference",
+        "instrument_reference"
+      ],
+      "freshnessRequired": true,
+      "authorityWeight": 0.78
     }
   ],
-  "useRules": [
-    "Do not treat a single news article as proof.",
-    "For company-specific claims, verify with filings or official releases.",
-    "For current market levels, use current data pages rather than static articles.",
-    "For teaching, prefer durable textbooks or open educational resources."
+  "sourceSelectionRules": [
+    {
+      "intent": "macro",
+      "preferredSources": [
+        "Bank of Canada",
+        "Statistics Canada",
+        "IMF",
+        "World Bank",
+        "OECD",
+        "FRED"
+      ],
+      "avoidAsSoleAuthority": [
+        "blogs",
+        "social_media",
+        "general_news_without_data"
+      ]
+    },
+    {
+      "intent": "compliance",
+      "preferredSources": [
+        "securities_regulator",
+        "tax_authority",
+        "government_program",
+        "official_legislation_portal"
+      ],
+      "avoidAsSoleAuthority": [
+        "major_financial_press",
+        "secondary_context",
+        "professional_research"
+      ]
+    },
+    {
+      "intent": "capital_markets",
+      "preferredSources": [
+        "SEC EDGAR",
+        "SEDAR+",
+        "TMX",
+        "major_exchange_reference",
+        "CFA Institute"
+      ],
+      "avoidAsSoleAuthority": [
+        "commentary_without_filing",
+        "unknown_market_data"
+      ]
+    },
+    {
+      "intent": "pricing",
+      "preferredSources": [
+        "user_provided_operational_inputs",
+        "professional_research",
+        "open_learning"
+      ],
+      "avoidAsSoleAuthority": [
+        "generic_blog_advice",
+        "competitor_claim_without_verification"
+      ]
+    },
+    {
+      "intent": "unit_economics",
+      "preferredSources": [
+        "user_provided_operational_inputs",
+        "professional_research",
+        "open_learning"
+      ],
+      "avoidAsSoleAuthority": [
+        "generic_benchmarks_without_sector_context"
+      ]
+    },
+    {
+      "intent": "commercial_risk",
+      "preferredSources": [
+        "user_provided_operational_inputs",
+        "official_statistics",
+        "government_program",
+        "major_financial_press",
+        "professional_research"
+      ],
+      "avoidAsSoleAuthority": [
+        "unknown_source",
+        "commentary_only"
+      ]
+    }
   ],
-  "runtimeMetadata": {
-    "domain": "finance",
-    "canonicalPackId": "fin_sources_index_v2",
-    "retrievalAliases": [],
-    "crossPackHints": [],
-    "marionPriority": 999,
-    "safeUse": "educational_decision_support_not_personalized_investment_or_legal_advice",
-    "runtimePackId": "fin_sources_index_v1",
-    "runtimePath": "Data/Domains/finance/packs/fin_sources_index_v1.json",
-    "requiresAssumptionDisclosure": true,
-    "noPersonalizedInvestmentAdvice": true,
-    "noLegalAdvice": true
-  },
-  "assistantApplication": {
-    "forNyx": [
-      "Use this pack to explain finance concepts clearly and with assumptions made explicit."
+  "jurisdictionAnchors": {
+    "canada": [
+      "Bank of Canada",
+      "Statistics Canada",
+      "Government of Canada",
+      "CRA",
+      "SEDAR+",
+      "CSA"
     ],
-    "forMarion": [
-      "Use this pack for scenario-based reasoning, not deterministic prediction."
+    "ontario": [
+      "Government of Ontario",
+      "Ontario Securities Commission",
+      "Statistics Canada",
+      "Bank of Canada",
+      "CRA"
+    ],
+    "united_states": [
+      "Federal Reserve",
+      "FRED",
+      "SEC EDGAR",
+      "IRS",
+      "Bureau of Labor Statistics",
+      "Bureau of Economic Analysis"
+    ],
+    "united_kingdom": [
+      "Bank of England",
+      "Office for National Statistics",
+      "Financial Conduct Authority",
+      "Companies House",
+      "HMRC"
+    ],
+    "global": [
+      "IMF",
+      "World Bank",
+      "OECD",
+      "BIS",
+      "Reuters",
+      "Bloomberg",
+      "Financial Times"
     ]
   },
-  "canonicalId": "fin_sources_index_v2",
-  "runtimeDomainKey": "finance",
-  "runtimePath": "Data/Domains/finance/packs/fin_sources_index_v1.json",
-  "manifestPackKey": "fin_sources_index_v1",
-  "safetyBoundary": "educational_decision_support_not_personalized_investment_or_legal_advice",
-  "retrievalIndex": {
-    "domain": "finance",
-    "packId": "fin_sources_index_v1",
-    "canonicalPackId": "fin_sources_index_v2",
-    "routeAliases": [
-      "sources",
-      "finance sources",
-      "source index",
-      "official sources",
-      "filings",
-      "market data",
-      "reference map"
-    ],
-    "preferredQueryTerms": [
-      "10-K",
-      "10-Q",
-      "Bank of Canada monetary policy and interest rates",
-      "Bloomberg Markets concepts and explainers",
-      "CFA Institute Research Foundation publications",
-      "Corporate Finance Institute — Capital Markets Overview",
-      "Financial Times markets and markets data",
-      "GDP",
-      "IMF Finance & Development",
-      "MD&A",
-      "OECD economic outlook and policy materials",
-      "Open Textbook Library finance/economics catalog",
-      "OpenStax Principles of Economics 3e",
-      "SEC EDGAR",
-      "SEDAR+",
-      "Statistics Canada economic indicators",
-      "TMX and major exchange education/data pages",
-      "The Economist finance and economics coverage",
-      "U.S. Federal Reserve FRED economic data",
-      "Wall Street Journal Markets",
-      "World Bank Data and research explainers",
-      "asset management",
-      "bond math",
-      "bonds",
-      "canadian context",
-      "canadian issuer filings",
-      "capital markets",
-      "capital raises",
-      "case context",
-      "commodities",
-      "competition",
-      "corporate finance",
-      "cost of capital",
-      "country context",
-      "credit conditions",
-      "cross-border economics",
-      "currencies",
-      "curriculum design",
-      "development finance",
-      "earnings context",
-      "earnings reactions",
-      "equities",
-      "equity vs debt",
-      "ethics",
-      "explanatory articles",
-      "filings",
-      "finance",
-      "global development",
-      "global macro",
-      "household finance",
-      "index data context",
-      "industry case context",
-      "inflation",
-      "labour",
-      "listing context",
-      "macro",
-      "macro history",
-      "macroeconomics",
-      "market data",
-      "market mechanics",
-      "market narrative",
-      "market structure",
-      "microeconomics",
-      "official sources",
-      "policy",
-      "portfolio thinking",
-      "productivity",
-      "prospectuses",
-      "rates",
-      "reference",
-      "risk events",
-      "risk factors",
-      "sector data",
-      "sources",
-      "stress testing inputs",
-      "supplemental reading",
-      "synthesis",
-      "time series"
-    ],
-    "crossPackHints": [
-      "fin_micro_foundations_v1",
-      "fin_macro_principles_v1",
-      "fin_unit_economics_v1",
-      "fin_pricing_models_v1",
-      "fin_capital_markets_v1",
-      "fin_risk_management_v1",
-      "fin_public_policy_links_v1",
-      "fin_case_studies_v1"
-    ],
-    "priority": 999
-  },
-  "normalizationStatus": {
-    "jsonValid": true,
-    "conflictMarkersRemoved": 3,
-    "runtimeDomainKeyAdded": true,
-    "runtimePathAdded": true,
-    "retrievalIndexAdded": true,
-    "safetyBoundaryAdded": true,
-    "sourceIndexPreserved": true,
-    "validatedAt": "2026-05-03"
-  }
+  "guardrails": [
+    "This source index does not itself decide authority; Layer 2 authority and freshness rules must still be applied.",
+    "Do not present this index as a live verification result.",
+    "For current claims, verify the current source page or data release.",
+    "For compliance claims, prefer official regulatory or government sources.",
+    "For company-specific facts, prefer filings over business press summaries.",
+    "For user-provided data, label the source as user-supplied and unverified."
+  ]
 }
