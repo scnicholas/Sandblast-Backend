@@ -229,7 +229,15 @@
       "freshnessRequired": true,
       "defaultMaximumAgeDays": 7
     },
+    "official_legislation_portal": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 30
+    },
     "regulatory_filings": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 120
+    },
+    "issuer_report": {
       "freshnessRequired": true,
       "defaultMaximumAgeDays": 120
     },
@@ -245,6 +253,14 @@
       "freshnessRequired": false,
       "defaultMaximumAgeDays": 3650
     },
+    "exchange_or_market_reference": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 7
+    },
+    "market_data_reference": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 1
+    },
     "user_provided_data": {
       "freshnessRequired": false,
       "defaultMaximumAgeDays": null
@@ -252,6 +268,10 @@
     "secondary_context": {
       "freshnessRequired": true,
       "defaultMaximumAgeDays": 30
+    },
+    "unknown_source": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 0
     }
   },
   "freshnessStatusLabels": {
