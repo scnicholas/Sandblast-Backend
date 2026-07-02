@@ -1,0 +1,393 @@
+{
+  "id": "fin_missing_input_rules_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer03_data_ingestion",
+  "description": "Defines missing-input requirements and clarification rules for finance data ingestion before normalization and analysis.",
+  "posture": {
+    "type": "missing_input_control",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "missingInputsMustBeSurfaced": true,
+    "doNotFabricateMissingValues": true
+  },
+  "corePrinciples": [
+    "If an analysis requires specific finance inputs, missing values must be surfaced explicitly.",
+    "Missing inputs can block analysis or merely reduce confidence depending on the claim target.",
+    "When data is incomplete, Marion should provide a limited framework and ask for the minimum missing values.",
+    "Clarifying questions should be narrow, operational, and tied to the requested analysis.",
+    "Assumptions may be used only if clearly labeled and not presented as facts."
+  ],
+  "severityLevels": {
+    "required": {
+      "blocksAnalysis": true,
+      "meaning": "The requested analysis cannot be safely completed without this input."
+    },
+    "recommended": {
+      "blocksAnalysis": false,
+      "meaning": "Analysis can proceed, but confidence is reduced."
+    },
+    "optional": {
+      "blocksAnalysis": false,
+      "meaning": "Input would improve precision but is not necessary for a basic framework."
+    }
+  },
+  "analysisRequirementRules": {
+    "business_survival_under_revenue_shock": {
+      "description": "Cash-flow survival or runway analysis under a revenue decline scenario.",
+      "requiredInputs": [
+        {
+          "metric": "cash_on_hand",
+          "reason": "Needed to determine available liquidity.",
+          "clarifyingQuestion": "How much cash is currently available to the business?"
+        },
+        {
+          "metric": "stress_period",
+          "reason": "Needed to define how long the business must survive the shock.",
+          "clarifyingQuestion": "How long should the stress period be measured: weeks, months, or quarters?"
+        }
+      ],
+      "recommendedInputs": [
+        {
+          "metric": "monthly_revenue",
+          "reason": "Needed to calculate revenue after the shock.",
+          "clarifyingQuestion": "What is the current average monthly revenue before the drop?"
+        },
+        {
+          "metric": "monthly_fixed_costs",
+          "reason": "Needed to estimate unavoidable monthly cash outflow.",
+          "clarifyingQuestion": "What are the monthly fixed costs, including platform costs, rent, payroll, software, and debt obligations?"
+        },
+        {
+          "metric": "monthly_variable_costs",
+          "reason": "Needed to determine how costs move when revenue drops.",
+          "clarifyingQuestion": "What monthly costs vary with usage, customers, or revenue?"
+        },
+        {
+          "metric": "debt_service",
+          "reason": "Debt obligations can accelerate cash stress.",
+          "clarifyingQuestion": "Are there monthly loan, lease, or debt payments?"
+        }
+      ],
+      "optionalInputs": [
+        {
+          "metric": "gross_margin",
+          "reason": "Improves precision for revenue-shock modeling.",
+          "clarifyingQuestion": "What is the approximate gross margin?"
+        },
+        {
+          "metric": "cash_collection_timing",
+          "reason": "Cash collection timing can differ from recognized revenue.",
+          "clarifyingQuestion": "How quickly is revenue collected after it is earned?"
+        }
+      ],
+      "minimumToProceed": [
+        "cash_on_hand",
+        "stress_period"
+      ],
+      "fallbackIfMissing": "Provide a survival-analysis framework and ask for monthly revenue, monthly costs, and debt obligations."
+    },
+    "cashflow_runway": {
+      "description": "Runway calculation based on cash and burn rate.",
+      "requiredInputs": [
+        {
+          "metric": "cash_on_hand",
+          "reason": "Needed as numerator for runway.",
+          "clarifyingQuestion": "What is the current cash on hand?"
+        },
+        {
+          "metric": "monthly_burn",
+          "reason": "Needed as denominator for runway.",
+          "clarifyingQuestion": "What is the current monthly net cash burn?"
+        }
+      ],
+      "recommendedInputs": [
+        {
+          "metric": "monthly_revenue",
+          "reason": "Needed to distinguish gross spend from net burn.",
+          "clarifyingQuestion": "What is the average monthly revenue?"
+        },
+        {
+          "metric": "monthly_fixed_costs",
+          "reason": "Needed to identify controllable versus non-controllable burn.",
+          "clarifyingQuestion": "What are the unavoidable fixed costs per month?"
+        }
+      ],
+      "minimumToProceed": [
+        "cash_on_hand",
+        "monthly_burn"
+      ],
+      "fallbackIfMissing": "Ask for cash on hand and monthly burn before calculating runway."
+    },
+    "pricing_model_assessment": {
+      "description": "Evaluation of one-time, subscription, tiered, usage-based, or hybrid pricing.",
+      "requiredInputs": [
+        {
+          "metric": "price",
+          "reason": "Needed to evaluate price level and structure.",
+          "clarifyingQuestion": "What price or price range are you considering?"
+        },
+        {
+          "metric": "pricing_model",
+          "reason": "Needed to determine the structure being evaluated.",
+          "clarifyingQuestion": "Is this one-time, subscription, tiered, usage-based, seat-based, or a hybrid model?"
+        }
+      ],
+      "recommendedInputs": [
+        {
+          "metric": "target_customer_segment",
+          "reason": "Pricing depends on buyer type and willingness to pay.",
+          "clarifyingQuestion": "Who is the target buyer or customer segment?"
+        },
+        {
+          "metric": "gross_margin",
+          "reason": "Pricing must cover cost to serve.",
+          "clarifyingQuestion": "What is the approximate gross margin or cost to serve?"
+        },
+        {
+          "metric": "CAC",
+          "reason": "Pricing must support acquisition payback.",
+          "clarifyingQuestion": "What is the estimated customer acquisition cost?"
+        },
+        {
+          "metric": "churn_rate",
+          "reason": "Recurring pricing depends on retention.",
+          "clarifyingQuestion": "What monthly or annual churn do you expect?"
+        }
+      ],
+      "minimumToProceed": [
+        "price",
+        "pricing_model"
+      ],
+      "fallbackIfMissing": "Provide a pricing-framework comparison and ask for target buyer, price, cost to serve, and acquisition cost."
+    },
+    "unit_economics_assessment": {
+      "description": "Assessment of LTV, CAC, payback, churn, gross margin, and contribution logic.",
+      "requiredInputs": [
+        {
+          "metric": "price",
+          "reason": "Needed to estimate customer revenue.",
+          "clarifyingQuestion": "What does one customer pay and over what period?"
+        },
+        {
+          "metric": "gross_margin",
+          "reason": "Needed to estimate contribution after direct costs.",
+          "clarifyingQuestion": "What is the gross margin or cost to serve?"
+        }
+      ],
+      "recommendedInputs": [
+        {
+          "metric": "CAC",
+          "reason": "Needed to evaluate acquisition efficiency.",
+          "clarifyingQuestion": "What is the customer acquisition cost?"
+        },
+        {
+          "metric": "LTV",
+          "reason": "Useful if already calculated, but it can also be derived later with enough inputs.",
+          "clarifyingQuestion": "Do you already have a customer lifetime value estimate?"
+        },
+        {
+          "metric": "churn_rate",
+          "reason": "Needed to estimate retention and LTV.",
+          "clarifyingQuestion": "What is the monthly or annual churn rate?"
+        },
+        {
+          "metric": "customer_count",
+          "reason": "Useful for scale and reliability of averages.",
+          "clarifyingQuestion": "How many paying customers or users are included in the numbers?"
+        }
+      ],
+      "minimumToProceed": [
+        "price",
+        "gross_margin"
+      ],
+      "fallbackIfMissing": "Provide a unit-economics framework and ask for price, cost to serve, CAC, churn, and customer count."
+    },
+    "credit_or_debt_capacity": {
+      "description": "Debt-service or credit-capacity analysis.",
+      "requiredInputs": [
+        {
+          "metric": "loan_amount",
+          "reason": "Needed to estimate debt exposure.",
+          "clarifyingQuestion": "What loan amount or credit exposure are we evaluating?"
+        },
+        {
+          "metric": "interest_rate",
+          "reason": "Needed to estimate interest cost.",
+          "clarifyingQuestion": "What interest rate or range is being offered?"
+        }
+      ],
+      "recommendedInputs": [
+        {
+          "metric": "debt_service",
+          "reason": "Needed to determine monthly repayment burden.",
+          "clarifyingQuestion": "What is the expected monthly payment?"
+        },
+        {
+          "metric": "monthly_revenue",
+          "reason": "Needed to compare debt burden to revenue.",
+          "clarifyingQuestion": "What is the average monthly revenue?"
+        },
+        {
+          "metric": "cash_on_hand",
+          "reason": "Needed to assess liquidity buffer.",
+          "clarifyingQuestion": "How much cash is currently available?"
+        },
+        {
+          "metric": "monthly_burn",
+          "reason": "Needed to understand baseline cash pressure.",
+          "clarifyingQuestion": "What is the monthly net burn or surplus?"
+        }
+      ],
+      "minimumToProceed": [
+        "loan_amount",
+        "interest_rate"
+      ],
+      "fallbackIfMissing": "Provide a debt-risk framework and ask for loan amount, interest rate, repayment schedule, revenue, and cash buffer."
+    },
+    "funding_or_program_eligibility": {
+      "description": "Grant, loan, public program, or eligibility analysis.",
+      "requiredInputs": [
+        {
+          "metric": "program_name",
+          "reason": "Needed to identify the program being assessed.",
+          "clarifyingQuestion": "What is the exact program or funding stream name?"
+        },
+        {
+          "metric": "jurisdiction",
+          "reason": "Eligibility rules are jurisdiction-specific.",
+          "clarifyingQuestion": "Which jurisdiction applies: Ontario, Canada, another province, or another country?"
+        }
+      ],
+      "recommendedInputs": [
+        {
+          "metric": "business_location",
+          "reason": "Many programs require physical or operational location.",
+          "clarifyingQuestion": "Where is the business legally and operationally located?"
+        },
+        {
+          "metric": "sector",
+          "reason": "Eligibility can depend on industry.",
+          "clarifyingQuestion": "What sector or industry does the business operate in?"
+        },
+        {
+          "metric": "employee_count",
+          "reason": "Program eligibility often depends on company size.",
+          "clarifyingQuestion": "How many employees does the business have?"
+        },
+        {
+          "metric": "annual_revenue",
+          "reason": "Some programs have revenue thresholds.",
+          "clarifyingQuestion": "What is the approximate annual revenue?"
+        },
+        {
+          "metric": "program_deadline",
+          "reason": "Program status and deadline are time-sensitive.",
+          "clarifyingQuestion": "Do you have the program deadline or should we verify the current official page?"
+        }
+      ],
+      "minimumToProceed": [
+        "program_name",
+        "jurisdiction"
+      ],
+      "fallbackIfMissing": "Ask for the exact program name and jurisdiction before giving eligibility guidance."
+    },
+    "macro_or_market_context": {
+      "description": "Macro, rate, inflation, or market-context analysis.",
+      "requiredInputs": [
+        {
+          "metric": "jurisdiction",
+          "reason": "Macro conditions differ by country or region.",
+          "clarifyingQuestion": "Which country or region should the macro analysis focus on?"
+        },
+        {
+          "metric": "claim_period",
+          "reason": "Macro claims are time-sensitive.",
+          "clarifyingQuestion": "Are we looking at current conditions, this quarter, this year, or a historical period?"
+        }
+      ],
+      "recommendedInputs": [
+        {
+          "metric": "sector",
+          "reason": "Macro effects vary by sector.",
+          "clarifyingQuestion": "Which sector or business model are we applying the macro context to?"
+        },
+        {
+          "metric": "interest_rate",
+          "reason": "Useful if debt or financing cost is part of the question.",
+          "clarifyingQuestion": "Is there a specific interest rate, lending rate, or policy rate involved?"
+        }
+      ],
+      "minimumToProceed": [
+        "jurisdiction",
+        "claim_period"
+      ],
+      "fallbackIfMissing": "Provide a general macro framework and ask for jurisdiction, time period, and sector."
+    }
+  },
+  "generalMissingInputRules": [
+    {
+      "condition": "query_mentions_survive_or_runway_without_costs",
+      "missingInputs": [
+        "monthly_burn",
+        "monthly_fixed_costs",
+        "monthly_revenue"
+      ],
+      "severity": "recommended",
+      "message": "Survival or runway analysis is incomplete without monthly revenue, burn, and fixed costs."
+    },
+    {
+      "condition": "query_mentions_percentage_without_metric",
+      "missingInputs": [
+        "metric_context"
+      ],
+      "severity": "required",
+      "message": "A percentage must be tied to a metric such as revenue decline, margin, churn, or interest rate."
+    },
+    {
+      "condition": "query_mentions_currency_without_metric",
+      "missingInputs": [
+        "currency_metric_context"
+      ],
+      "severity": "recommended",
+      "message": "A currency amount should be labeled as cash, revenue, cost, loan, grant, price, or another metric."
+    },
+    {
+      "condition": "query_mentions_current_or_still_open_without_source",
+      "missingInputs": [
+        "current_official_source"
+      ],
+      "severity": "required",
+      "message": "Current status claims require a current official source."
+    },
+    {
+      "condition": "query_mentions_compliance_without_jurisdiction",
+      "missingInputs": [
+        "jurisdiction"
+      ],
+      "severity": "required",
+      "message": "Compliance analysis requires jurisdiction."
+    }
+  ],
+  "clarificationStyle": {
+    "maxQuestionsDefault": 3,
+    "prioritizeRequiredInputs": true,
+    "avoidLongQuestionLists": true,
+    "preferredFormat": "Ask only for the minimum missing inputs needed to continue.",
+    "examples": [
+      "I can frame the risk now, but to calculate survival more tightly I need monthly revenue, monthly fixed costs, and monthly burn.",
+      "For eligibility, I need the exact program name and jurisdiction before treating anything as current.",
+      "For pricing, I need the pricing model and target buyer before judging the structure."
+    ]
+  },
+  "guardrails": [
+    "Do not block a framework answer when only optional inputs are missing.",
+    "Do not calculate survival or runway without cash and burn or cost assumptions.",
+    "Do not answer current eligibility without a current official source or a clear caveat.",
+    "Do not ask for every possible metric; ask for the smallest set that materially improves the answer.",
+    "Do not fabricate missing numbers."
+  ]
+}
