@@ -23644,3 +23644,305 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
   module.exports.marionR18CFinalMaterializerPrecedenceRepairIsSocialContinuityLeak = isSocialContinuityLeak;
 })();
 /* R18C_FINAL_ANSWER_MATERIALIZER_END */
+
+
+/* R18C_REPLY_QUEUE_PARITY_REPAIR_START */
+(function(){
+  "use strict";
+  const V = "nyx.marion.r18c.replyQueueParityRepair/1.0";
+  if (typeof module === "undefined" || !module.exports) return;
+  if (module.exports.__r18cReplyQueueParityRepairPatched) return;
+  module.exports.__r18cReplyQueueParityRepairPatched = true;
+
+  function T(v, max){
+    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+    if (!max || s.length <= max) return s;
+    return s.slice(0, Math.max(0, max - 1)).trim() + "…";
+  }
+  function L(v){ return T(v).toLowerCase(); }
+  function O(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+  function firstText(){
+    for (let i = 0; i < arguments.length; i += 1) {
+      const v = T(arguments[i]);
+      if (v) return v;
+    }
+    return "";
+  }
+  function read(root, path){
+    let node = root;
+    const parts = String(path || "").split(".");
+    for (let i = 0; i < parts.length; i += 1) {
+      if (!node || typeof node !== "object") return undefined;
+      node = node[parts[i]];
+    }
+    return node;
+  }
+  function collectPromptFields(packet){
+    const p = O(packet);
+    const req = O(p.req);
+    const body = O(req.body || p.body);
+    const result = O(p.result);
+    const payload = O(p.payload);
+    const meta = O(p.meta);
+    const env = O(p.finalEnvelope || result.finalEnvelope || payload.finalEnvelope);
+    return [
+      p.originalPrompt,p.rawUserText,p.userText,p.userMessage,p.message,p.input,p.text,p.prompt,p.query,
+      body.originalPrompt,body.rawUserText,body.userText,body.userMessage,body.message,body.input,body.text,body.prompt,body.query,
+      payload.originalPrompt,payload.rawUserText,payload.userText,payload.userMessage,payload.message,payload.input,payload.text,payload.prompt,payload.query,
+      result.originalPrompt,result.rawUserText,result.userText,result.userMessage,result.message,result.input,result.text,result.prompt,result.query,
+      meta.originalPrompt,meta.rawUserText,meta.userText,meta.userMessage,meta.message,meta.input,meta.text,meta.prompt,meta.query,
+      env.originalPrompt,env.rawUserText,env.userText,env.userMessage,env.message,env.input,env.text,env.prompt,env.query
+    ];
+  }
+  function extractPrompt(packet){
+    return firstText.apply(null, collectPromptFields(packet));
+  }
+  function getReplyFields(packet){
+    const p = O(packet);
+    const result = O(p.result);
+    const payload = O(p.payload);
+    const guardian = O(p.guardianPacket);
+    const env = O(p.finalEnvelope || result.finalEnvelope || payload.finalEnvelope || guardian.finalEnvelope);
+    const meta = O(p.meta);
+    return {
+      reply: firstText(p.reply, result.reply, payload.reply, guardian.reply, env.reply, meta.reply),
+      directReply: firstText(p.directReply, result.directReply, payload.directReply, guardian.directReply, env.directReply, meta.directReply),
+      publicReply: firstText(p.publicReply, result.publicReply, payload.publicReply, guardian.publicReply, env.publicReply, meta.publicReply),
+      visibleReply: firstText(p.visibleReply, result.visibleReply, payload.visibleReply, guardian.visibleReply, env.visibleReply, meta.visibleReply),
+      displayReply: firstText(p.displayReply, result.displayReply, payload.displayReply, guardian.displayReply, env.displayReply, meta.displayReply),
+      finalReply: firstText(env.reply, env.publicReply, env.visibleReply, env.directReply, env.displayReply)
+    };
+  }
+  function allPrimaryReplies(f){
+    return [f.reply, f.directReply, f.publicReply, f.visibleReply, f.finalReply].map(function(x){ return T(x); }).filter(Boolean);
+  }
+  function isSocialContinuityLeak(value){
+    const t = L(value);
+    if (!t) return false;
+    return /\bi['’]?m (here|with you|steady)\b/.test(t) ||
+      /\bstill with you\b/.test(t) ||
+      /\bconversation natural\b/.test(t) ||
+      /\bsystem noise\b/.test(t) ||
+      /\bsocial response pass\b/.test(t) ||
+      /\bgreeting lane\b/.test(t) ||
+      /\bkeep testing the greeting lane\b/.test(t) ||
+      /\bwhat would you like to work on\b/.test(t) ||
+      /\bwhat are we working on\b/.test(t) ||
+      /\bdo you want to continue\b/.test(t) ||
+      /\bdo you want to keep testing\b/.test(t);
+  }
+  function isPrimitive(value){
+    return /^(true|false|null|undefined|\[object object\]|ok|success|ready)$/i.test(T(value));
+  }
+  function hasRuntimeLeak(value){
+    const t = T(value, 6000);
+    return /\b(runtimeTelemetry|finalEnvelopeTrusted|replyAuthority|sessionPatch|routeKind|speechHints|presenceProfile|nyxStateHint|CHATENGINE_COORDINATOR_ONLY_ACTIVE|MARION::FINAL::)\b/i.test(t);
+  }
+  function hasPatchTechnicalSignal(value){
+    const t = L(value);
+    return /\b(surgical autopsy|autopsy|patch|patched|patching|critical update|critical fix|runtime|handler|reply queue|reply[- ]field|parity|bridge|final envelope|composemarionresponse|chatengine|index\.js|guardian\.response\.adapter|marionbridge|marionfinalenvelope|manifest files|payload files|downloadable zip|resend|file work|technical guard|admin runtime|alt runtime|prompt[- ]echo|domain hijack)\b/.test(t);
+  }
+  function hasLegalBusinessQuestionSignal(value){
+    const t = L(value);
+    return /\b(can i use copyrighted|customer data|agreement|contract|liability|lawsuit|sue|license|licensing|rights|vendor has customer data|should i sign|release to sign|false claims|defamation)\b/.test(t);
+  }
+  function isTechnicalFileWork(prompt, packet){
+    const p = L(prompt);
+    const domain = L(firstText(read(packet, "domain"), read(packet, "primaryDomain"), read(packet, "selectedDomain")));
+    if (hasPatchTechnicalSignal(p)) return true;
+    if (domain === "technical") return true;
+    return false;
+  }
+  function isGoodTechnicalReply(value){
+    const t = T(value, 6000);
+    if (!t || isPrimitive(t) || isSocialContinuityLeak(t)) return false;
+    if (hasRuntimeLeak(t) && !hasPatchTechnicalSignal(t)) return false;
+    if (t.length < 50 && !hasPatchTechnicalSignal(t)) return false;
+    return hasPatchTechnicalSignal(t) || /\b(next move|main risk|active lane|surface request|technical|runtime|patch|rerun|enforce|guard)\b/i.test(t);
+  }
+  function needsParityRepair(fields, packet, prompt){
+    const primaries = allPrimaryReplies(fields);
+    if (!isTechnicalFileWork(prompt, packet)) return false;
+    if (!isGoodTechnicalReply(fields.displayReply)) return false;
+    if (!primaries.length) return true;
+    for (let i = 0; i < primaries.length; i += 1) {
+      if (isSocialContinuityLeak(primaries[i]) || isPrimitive(primaries[i])) return true;
+    }
+    const primary = firstText(fields.reply, fields.directReply, fields.publicReply, fields.visibleReply, fields.finalReply);
+    if (primary && fields.displayReply && T(fields.displayReply).length > T(primary).length + 80 && hasPatchTechnicalSignal(fields.displayReply) && !hasPatchTechnicalSignal(primary)) return true;
+    return false;
+  }
+  function setReplyAliases(obj, reply){
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return;
+    obj.reply = reply;
+    obj.directReply = reply;
+    obj.publicReply = reply;
+    obj.visibleReply = reply;
+    obj.displayReply = reply;
+  }
+  function setDomainTechnical(obj){
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return;
+    const oldDomain = L(firstText(obj.domain, obj.primaryDomain, obj.selectedDomain, obj.knowledgeDomain));
+    if (!oldDomain || oldDomain === "general" || oldDomain === "general_reasoning" || oldDomain === "law" || oldDomain === "memory" || oldDomain === "core" || oldDomain === "conversation") {
+      obj.domain = "technical";
+      obj.primaryDomain = "technical";
+      obj.selectedDomain = "technical";
+      obj.knowledgeDomain = "technical";
+    }
+  }
+  function tag(obj, sourceField, prompt){
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return;
+    obj.r18CReplyQueueParityRepair = {
+      version: V,
+      active: true,
+      aligned: true,
+      sourceField: sourceField || "displayReply",
+      stalePrimaryReplyOverridden: true,
+      socialContinuityBlocked: true,
+      technicalGuardPreserved: true,
+      legalModeBypassed: true,
+      promptBound: !!T(prompt)
+    };
+  }
+  function repairObject(packet, reply, prompt){
+    setReplyAliases(packet, reply);
+    setDomainTechnical(packet);
+    tag(packet, "displayReply", prompt);
+
+    const result = O(packet.result);
+    const payload = O(packet.payload);
+    const guardian = O(packet.guardianPacket);
+    const env = O(packet.finalEnvelope || result.finalEnvelope || payload.finalEnvelope || guardian.finalEnvelope);
+
+    [result, payload, guardian].forEach(function(node){
+      if (!node || !Object.keys(node).length) return;
+      setReplyAliases(node, reply);
+      setDomainTechnical(node);
+      tag(node, "displayReply", prompt);
+    });
+
+    if (env && Object.keys(env).length) {
+      setReplyAliases(env, reply);
+      env.contract = env.contract || env.contractVersion || "nyx.marion.final/1.0";
+      env.finalSignature = env.finalSignature || "MARION_FINAL_AUTHORITY";
+      env.source = env.source || "marion";
+      env.replyQueueParityAligned = true;
+      env.r18CReplyQueueParityRepair = true;
+    } else {
+      packet.finalEnvelope = {
+        contract: "nyx.marion.final/1.0",
+        finalSignature: "MARION_FINAL_AUTHORITY",
+        source: "marion",
+        reply: reply,
+        directReply: reply,
+        publicReply: reply,
+        visibleReply: reply,
+        displayReply: reply,
+        replyQueueParityAligned: true,
+        r18CReplyQueueParityRepair: true
+      };
+    }
+
+    if (packet.meta && typeof packet.meta === "object") {
+      packet.meta.r18CReplyQueueParityRepair = {
+        version: V,
+        active: true,
+        aligned: true,
+        sourceField: "displayReply",
+        technicalGuardPreserved: true
+      };
+    }
+  }
+  function apply(packet, opt, seen){
+    const options = O(opt);
+    const prompt = firstText(options.prompt, extractPrompt(packet));
+    if (!packet || typeof packet !== "object" || Array.isArray(packet)) return packet;
+    const stack = seen || [];
+    if (stack.indexOf(packet) >= 0) return packet;
+    stack.push(packet);
+
+    const fields = getReplyFields(packet);
+    const technicalPrompt = isTechnicalFileWork(prompt, packet);
+    const legalQuestion = hasLegalBusinessQuestionSignal(prompt) && !technicalPrompt;
+    if (!legalQuestion && needsParityRepair(fields, packet, prompt)) {
+      repairObject(packet, T(fields.displayReply, 6000), prompt);
+    }
+
+    ["result","payload","guardianPacket","marionFinal","marion","data","output"].forEach(function(k){
+      if (packet[k] && typeof packet[k] === "object") apply(packet[k], { prompt: prompt }, stack);
+    });
+    return packet;
+  }
+  function project(packet, opt){
+    const out = apply(packet, opt);
+    if (!out || typeof out !== "object") return out;
+    const f = getReplyFields(out);
+    const reply = firstText(f.reply, f.directReply, f.publicReply, f.visibleReply, f.displayReply);
+    if (reply) setReplyAliases(out, reply);
+    return out;
+  }
+  function wrap(name){
+    const old = module.exports[name];
+    if (typeof old !== "function" || old.__r18cReplyQueueParityRepairWrapped) return;
+    const wrapped = function(){
+      const args = Array.prototype.slice.call(arguments);
+      const prompt = firstText.apply(null, args.map(extractPrompt).concat(args.map(T)));
+      const out = old.apply(this, args);
+      if (out && typeof out.then === "function") {
+        return out.then(function(value){ return apply(value, { prompt: prompt || extractPrompt(value) }); });
+      }
+      return apply(out, { prompt: prompt || extractPrompt(out) });
+    };
+    wrapped.__r18cReplyQueueParityRepairWrapped = true;
+    try { Object.defineProperty(wrapped, "name", { value: old.name || name }); } catch(_err) {}
+    module.exports[name] = wrapped;
+  }
+  [
+    "composeMarionResponse","run","default","processWithMarion","maybeResolve","ask","handle","route",
+    "createMarionBridge","createMarionFinalEnvelope","attachVisibleReplyAliases","adaptGuardianResponse",
+    "createGuardianPacket","sanitizeRuntimePacket","normalizeCoordinatorOutputForPipeline","shapeEngineReply",
+    "applyPublicReplyHygieneToResponse","normalizeMarionBridgeResult","marionR18CFinalAnswerMaterializerApply",
+    "marionR18CFinalAnswerMaterializerProject"
+  ].forEach(wrap);
+
+  try {
+    if (typeof express !== "undefined" && express && express.response && !express.response.__r18cReplyQueueParityRepairPatched) {
+      const oldJson = express.response.json;
+      const oldSend = express.response.send;
+      if (typeof oldJson === "function") {
+        express.response.json = function(body){
+          try {
+            const req = O(this && this.req);
+            const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
+            body = project(body, { prompt: prompt });
+          } catch(_err) {}
+          return oldJson.call(this, body);
+        };
+      }
+      if (typeof oldSend === "function") {
+        express.response.send = function(body){
+          try {
+            const req = O(this && this.req);
+            const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
+            if (body && typeof body === "object") body = project(body, { prompt: prompt });
+            else if (typeof body === "string") {
+              const s = body.trim();
+              if ((s.charAt(0) === "{" || s.charAt(0) === "[") && s.length < 1000000) {
+                try { body = JSON.stringify(project(JSON.parse(s), { prompt: prompt })); } catch(_parseErr) {}
+              }
+            }
+          } catch(_err) {}
+          return oldSend.call(this, body);
+        };
+      }
+      express.response.__r18cReplyQueueParityRepairPatched = true;
+    }
+  } catch(_err) {}
+
+  module.exports.MARION_R18C_REPLY_QUEUE_PARITY_REPAIR_VERSION = V;
+  module.exports.marionR18CReplyQueueParityRepairApply = apply;
+  module.exports.marionR18CReplyQueueParityRepairProject = project;
+  module.exports.marionR18CReplyQueueParityRepairIsSocialContinuityLeak = isSocialContinuityLeak;
+  module.exports.marionR18CReplyQueueParityRepairIsTechnicalFileWork = isTechnicalFileWork;
+})();
+/* R18C_REPLY_QUEUE_PARITY_REPAIR_END */
