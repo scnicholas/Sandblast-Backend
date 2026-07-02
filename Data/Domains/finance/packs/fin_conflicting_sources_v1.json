@@ -1,0 +1,210 @@
+{
+  "id": "fin_conflicting_sources_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer02_source_authority",
+  "description": "Conflict detection and resolution rules for finance sources when evidence disagrees across source type, date, jurisdiction, metric definition, or claim scope.",
+  "posture": {
+    "type": "conflicting_source_resolution",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "conflictDisclosureRequired": true,
+    "confidenceDowngradeRequiredWhenUnresolved": true
+  },
+  "corePrinciples": [
+    "Conflicts must be surfaced, not buried.",
+    "Higher-authority sources usually resolve conflicts with lower-authority sources.",
+    "Newer sources usually resolve conflicts only when the source authority is comparable.",
+    "Jurisdiction-specific sources outrank general sources for jurisdiction-specific claims.",
+    "Different metric definitions can create apparent conflicts that are not true contradictions.",
+    "When conflict cannot be resolved, Marion should present competing interpretations and reduce confidence."
+  ],
+  "conflictTypes": {
+    "authority_conflict": {
+      "description": "A lower-authority source conflicts with a higher-authority source.",
+      "example": "Business article conflicts with official regulator page.",
+      "resolutionPriority": [
+        "primary_official",
+        "primary_filings",
+        "institutional_multilateral",
+        "professional_research",
+        "major_financial_press",
+        "secondary_context"
+      ],
+      "defaultAction": "prefer_higher_authority_source"
+    },
+    "freshness_conflict": {
+      "description": "Sources differ because one is newer or older.",
+      "example": "Old program page says applications are open; newer official page says closed.",
+      "resolutionPriority": [
+        "newer_primary_official",
+        "newer_primary_filing",
+        "newer_institutional_source",
+        "newer_major_financial_press"
+      ],
+      "defaultAction": "prefer_newer_source_if_authority_is_comparable"
+    },
+    "jurisdiction_conflict": {
+      "description": "Sources refer to different countries, provinces, states, or regulators.",
+      "example": "U.S. SEC source is used for an Ontario securities context.",
+      "resolutionPriority": [
+        "exact_jurisdiction_match",
+        "federal_same_country",
+        "regional_same_country",
+        "comparable_foreign_context",
+        "general_context_only"
+      ],
+      "defaultAction": "prefer_exact_jurisdiction_source"
+    },
+    "metric_definition_conflict": {
+      "description": "Sources use different definitions, time periods, accounting rules, or measurement bases.",
+      "example": "Revenue recognized under different accounting treatment or inflation reported as monthly vs annual.",
+      "resolutionPriority": [
+        "same_metric_definition",
+        "same_reporting_period",
+        "same_accounting_standard",
+        "clearly_labeled_comparison"
+      ],
+      "defaultAction": "clarify_metric_definition_before_concluding"
+    },
+    "scope_conflict": {
+      "description": "Sources appear to conflict because one is broad and one is specific.",
+      "example": "National economic report differs from local industry condition.",
+      "resolutionPriority": [
+        "specific_to_query_scope",
+        "specific_to_sector",
+        "specific_to_jurisdiction",
+        "broad_general_context"
+      ],
+      "defaultAction": "prefer_source_specific_to_query_scope"
+    },
+    "narrative_conflict": {
+      "description": "Sources agree on facts but interpret implications differently.",
+      "example": "Two market articles interpret the same rate decision differently.",
+      "resolutionPriority": [
+        "separate_fact_from_interpretation",
+        "state_competing_interpretations",
+        "avoid_deterministic_conclusion"
+      ],
+      "defaultAction": "present_interpretive_range"
+    },
+    "user_data_conflict": {
+      "description": "User-provided numbers conflict with external benchmarks, documents, or prior inputs.",
+      "example": "User says monthly burn is $5,000 but uploaded statement implies $12,000.",
+      "resolutionPriority": [
+        "ask_user_to_confirm",
+        "label_user_supplied",
+        "do_not_overwrite_without_confirmation"
+      ],
+      "defaultAction": "surface_discrepancy_and_request_confirmation"
+    }
+  },
+  "resolutionRules": [
+    {
+      "condition": "official_source_conflicts_with_business_press",
+      "action": "prefer_official_source",
+      "confidenceImpact": "increase_if_official_current"
+    },
+    {
+      "condition": "current_official_source_conflicts_with_stale_official_source",
+      "action": "prefer_current_official_source",
+      "confidenceImpact": "increase"
+    },
+    {
+      "condition": "filing_conflicts_with_press_summary",
+      "action": "prefer_filing_for_company_fact",
+      "confidenceImpact": "increase"
+    },
+    {
+      "condition": "same_authority_sources_conflict",
+      "action": "present_conflict_and_reduce_confidence",
+      "confidenceImpact": "decrease"
+    },
+    {
+      "condition": "different_jurisdictions_detected",
+      "action": "prefer_exact_jurisdiction_and_label_other_as_context",
+      "confidenceImpact": "neutral_or_decrease"
+    },
+    {
+      "condition": "different_metric_definitions_detected",
+      "action": "define_metric_difference_before_answering",
+      "confidenceImpact": "neutral"
+    },
+    {
+      "condition": "conflict_cannot_be_resolved",
+      "action": "state_uncertainty_and_request_better_source",
+      "confidenceImpact": "decrease"
+    },
+    {
+      "condition": "conflict_affects_compliance_or_eligibility",
+      "action": "do_not_make_final_claim_without_current_official_source",
+      "confidenceImpact": "block"
+    }
+  ],
+  "conflictSeverityBands": {
+    "minor": {
+      "label": "Minor Conflict",
+      "meaning": "Conflict does not materially change the final conclusion.",
+      "responseAction": "mention_if_relevant",
+      "confidenceImpact": "neutral"
+    },
+    "moderate": {
+      "label": "Moderate Conflict",
+      "meaning": "Conflict changes interpretation or risk level but not the core factual basis.",
+      "responseAction": "surface_conflict_and_qualify_answer",
+      "confidenceImpact": "decrease"
+    },
+    "material": {
+      "label": "Material Conflict",
+      "meaning": "Conflict affects the final answer, eligibility, compliance status, risk level, or financial interpretation.",
+      "responseAction": "do_not_overstate_conclusion",
+      "confidenceImpact": "decrease"
+    },
+    "blocking": {
+      "label": "Blocking Conflict",
+      "meaning": "Conflict prevents a safe final answer without current official verification or user confirmation.",
+      "responseAction": "pause_final_claim_and_request_or_perform_verification",
+      "confidenceImpact": "block"
+    }
+  },
+  "responseTemplates": {
+    "authorityConflict": "The stronger source is the official or primary source. I would treat the lower-authority source as context only.",
+    "freshnessConflict": "The sources appear to differ by date. For a current claim, the newer authoritative source should control.",
+    "jurisdictionConflict": "The sources appear to apply to different jurisdictions. The source matching the target jurisdiction should control.",
+    "metricDefinitionConflict": "The sources may be using different definitions or reporting periods. The metric definition needs to be aligned before drawing a conclusion.",
+    "unresolvedConflict": "The evidence is conflicting and cannot be safely resolved from the available sources. Confidence should be reduced until a stronger source is checked.",
+    "complianceBlockingConflict": "Because this affects compliance or eligibility, a current official source is required before making a final claim."
+  },
+  "outputEnvelopeSchema": {
+    "domain": "finance",
+    "layer": "conflicting_sources",
+    "conflictDetected": "boolean",
+    "conflictTypes": [
+      "authority_conflict",
+      "freshness_conflict",
+      "jurisdiction_conflict",
+      "metric_definition_conflict",
+      "scope_conflict",
+      "narrative_conflict",
+      "user_data_conflict"
+    ],
+    "conflictSeverity": "minor_moderate_material_blocking",
+    "preferredSource": "string_or_null",
+    "resolutionAction": "string",
+    "confidenceImpact": "increase_neutral_decrease_block",
+    "mustDiscloseConflict": "boolean",
+    "notes": [
+      "string"
+    ]
+  },
+  "guardrails": [
+    "Do not silently choose a convenient source when material conflict exists.",
+    "Do not resolve compliance conflicts with press or commentary.",
+    "Do not compare metrics until definitions and periods are aligned.",
+    "Do not treat foreign jurisdiction sources as controlling for local regulatory claims.",
+    "When unresolved conflict is material, downgrade confidence or block final certainty."
+  ]
+}
