@@ -1,0 +1,299 @@
+{
+  "id": "fin_source_freshness_rules_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer02_source_authority",
+  "description": "Freshness requirements for finance sources by intent, claim type, source type, and user query language.",
+  "posture": {
+    "type": "source_freshness_control",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "freshnessRequiredForCurrentClaims": true,
+    "currentDataMustBeVerified": true,
+    "notPersonalFinancialAdvice": true
+  },
+  "corePrinciples": [
+    "Current claims require current sources.",
+    "Program status, grant eligibility, interest rates, tax rules, and regulatory claims should be treated as time-sensitive.",
+    "Historical frameworks can use older educational or institutional sources if they are not presented as current conditions.",
+    "Market data and business news decay quickly.",
+    "If freshness cannot be established, Marion must say so and downgrade confidence."
+  ],
+  "freshnessMarkers": [
+    "current",
+    "currently",
+    "latest",
+    "today",
+    "this week",
+    "this month",
+    "this quarter",
+    "this year",
+    "right now",
+    "still open",
+    "updated",
+    "recent",
+    "recently",
+    "new rules",
+    "new policy",
+    "2026",
+    "open now",
+    "available now"
+  ],
+  "claimTypeRules": {
+    "interest_rate_or_monetary_policy": {
+      "freshnessRequired": true,
+      "maximumAgeDays": 14,
+      "preferredSourceTypes": [
+        "central_bank",
+        "major_financial_press"
+      ],
+      "staleAction": "require_current_check"
+    },
+    "inflation_labour_or_gdp_data": {
+      "freshnessRequired": true,
+      "maximumAgeDays": 45,
+      "preferredSourceTypes": [
+        "official_statistics",
+        "central_bank",
+        "institutional_multilateral"
+      ],
+      "staleAction": "label_as_historical_or_require_update"
+    },
+    "grant_or_funding_program_status": {
+      "freshnessRequired": true,
+      "maximumAgeDays": 7,
+      "preferredSourceTypes": [
+        "government_program",
+        "official_program_page"
+      ],
+      "staleAction": "require_current_check"
+    },
+    "regulatory_or_compliance_claim": {
+      "freshnessRequired": true,
+      "maximumAgeDays": 30,
+      "preferredSourceTypes": [
+        "securities_regulator",
+        "tax_authority",
+        "official_legislation_portal",
+        "government_program"
+      ],
+      "staleAction": "require_current_check"
+    },
+    "tax_rule_context": {
+      "freshnessRequired": true,
+      "maximumAgeDays": 60,
+      "preferredSourceTypes": [
+        "tax_authority",
+        "official_legislation_portal"
+      ],
+      "staleAction": "require_current_check"
+    },
+    "market_price_or_market_snapshot": {
+      "freshnessRequired": true,
+      "maximumAgeDays": 1,
+      "preferredSourceTypes": [
+        "market_data_reference",
+        "major_financial_press",
+        "exchange_or_market_reference"
+      ],
+      "staleAction": "require_current_check"
+    },
+    "company_filing_fact": {
+      "freshnessRequired": true,
+      "maximumAgeDays": 120,
+      "preferredSourceTypes": [
+        "regulatory_filings",
+        "issuer_report"
+      ],
+      "staleAction": "state_reporting_period"
+    },
+    "business_model_framework": {
+      "freshnessRequired": false,
+      "maximumAgeDays": 1825,
+      "preferredSourceTypes": [
+        "professional_research",
+        "open_learning",
+        "user_provided_data"
+      ],
+      "staleAction": "allowed_if_framework_not_current_claim"
+    },
+    "unit_economics_framework": {
+      "freshnessRequired": false,
+      "maximumAgeDays": 1825,
+      "preferredSourceTypes": [
+        "professional_research",
+        "open_learning",
+        "user_provided_data"
+      ],
+      "staleAction": "allowed_if_framework_not_current_claim"
+    },
+    "case_pattern_or_educational_example": {
+      "freshnessRequired": false,
+      "maximumAgeDays": 3650,
+      "preferredSourceTypes": [
+        "professional_research",
+        "open_learning",
+        "institutional_multilateral"
+      ],
+      "staleAction": "allowed_if_labeled_as_case_pattern"
+    },
+    "user_supplied_business_inputs": {
+      "freshnessRequired": false,
+      "maximumAgeDays": null,
+      "preferredSourceTypes": [
+        "user_provided_data"
+      ],
+      "staleAction": "label_as_user_supplied"
+    }
+  },
+  "intentFreshnessRules": {
+    "macro": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 45,
+      "reason": "Macro claims often depend on current policy, rates, inflation, and labour conditions."
+    },
+    "micro": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": 1825,
+      "reason": "Microeconomic frameworks are usually conceptual unless current market data is requested."
+    },
+    "capital_markets": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 30,
+      "reason": "Capital-market terms, rates, market conditions, and investor climate are time-sensitive."
+    },
+    "pricing": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": 1825,
+      "reason": "Pricing model logic is conceptual unless specific competitor, market, or current pricing data is requested."
+    },
+    "unit_economics": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": 1825,
+      "reason": "Unit economics depends primarily on user-supplied business metrics unless benchmark claims are current."
+    },
+    "commercial_risk": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 60,
+      "reason": "Commercial risk may depend on current market, platform, funding, vendor, and regulatory conditions."
+    },
+    "cashflow": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": null,
+      "reason": "Cash-flow analysis depends primarily on user-supplied current operating numbers."
+    },
+    "credit_debt": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 30,
+      "reason": "Debt analysis can depend on current rates, lender conditions, and credit availability."
+    },
+    "compliance": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 30,
+      "reason": "Compliance and eligibility claims require current official sources."
+    },
+    "public_policy": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 45,
+      "reason": "Policy impact analysis depends on current or clearly dated policy context."
+    },
+    "case_study": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": 3650,
+      "reason": "Case studies can be historical if clearly labeled and not used as current proof."
+    },
+    "source_lookup": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 30,
+      "reason": "Source recommendations for current finance questions should prefer active official sources."
+    }
+  },
+  "sourceTypeFreshnessRules": {
+    "central_bank": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 14
+    },
+    "official_statistics": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 45
+    },
+    "securities_regulator": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 30
+    },
+    "tax_authority": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 60
+    },
+    "government_program": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 7
+    },
+    "regulatory_filings": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 120
+    },
+    "major_financial_press": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 7
+    },
+    "professional_research": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": 1825
+    },
+    "open_learning": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": 3650
+    },
+    "user_provided_data": {
+      "freshnessRequired": false,
+      "defaultMaximumAgeDays": null
+    },
+    "secondary_context": {
+      "freshnessRequired": true,
+      "defaultMaximumAgeDays": 30
+    }
+  },
+  "freshnessStatusLabels": {
+    "current": {
+      "meaning": "Source is fresh enough for the claim type.",
+      "confidenceImpact": "increase"
+    },
+    "dated_but_usable": {
+      "meaning": "Source is older but acceptable for frameworks, historical context, or clearly dated analysis.",
+      "confidenceImpact": "neutral"
+    },
+    "stale_for_current_claim": {
+      "meaning": "Source may be useful historically but cannot support a current claim.",
+      "confidenceImpact": "decrease"
+    },
+    "unknown_freshness": {
+      "meaning": "Source date is missing or unclear.",
+      "confidenceImpact": "decrease"
+    },
+    "requires_live_check": {
+      "meaning": "The user requested current status or the claim is time-sensitive.",
+      "confidenceImpact": "block_without_current_source"
+    }
+  },
+  "outputEnvelopeSchema": {
+    "domain": "finance",
+    "layer": "source_freshness",
+    "freshnessRequired": "boolean",
+    "freshnessStatus": "current_dated_but_usable_stale_for_current_claim_unknown_freshness_requires_live_check",
+    "maximumAgeDays": "number_or_null",
+    "sourceDate": "string_or_null",
+    "claimType": "string",
+    "confidenceImpact": "increase_neutral_decrease_block_without_current_source",
+    "notes": [
+      "string"
+    ]
+  },
+  "guardrails": [
+    "If the user asks whether something is still open, active, current, or updated, require current official verification.",
+    "If a source is stale for a current claim, do not use it as final evidence.",
+    "If source date is unknown, downgrade confidence.",
+    "Historical sources may be used only if the answer clearly labels the time period.",
+    "Do not present a framework source as proof of a current market condition."
+  ]
+}
