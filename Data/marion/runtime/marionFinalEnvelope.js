@@ -3896,3 +3896,198 @@ try{
   if(typeof module!=="undefined"&&module.exports){if(typeof module.exports==="function")module.exports=wrap(module.exports);if(module.exports&&typeof module.exports==="object"){["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","logGuardianEvent","rememberTurn","getGuardianMemory","getGuardianSnapshot","default"].forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=wrap(module.exports[n])});module.exports.MARION_R18C_FINAL_RESPONSE_ENVELOPE_VERSION=V;module.exports.marionR18CFinalEnvelopeApply=apply;module.exports.marionR18CFinalEnvelopeProfile=profile;module.exports.marionR18CFinalEnvelopeReply=function(p){return lawReply(profile(p,{}))};module.exports.marionR18CTechnicalLawFileWork=isTechnicalLawFileWork;}}
 }catch(_){}})();
 /* R18C_FINAL_RESPONSE_ENVELOPE_INTEGRATION_END */
+
+
+
+/* R18C_FULL_STACK_REGRESSION_HARMONIZER_START */
+(function(){
+  try {
+    const V = "nyx.marion.r18c.fullStackRegression/1.0";
+    function T(v, max){ let s = v == null ? "" : String(v).replace(/\s+/g," ").trim(); if(max && s.length > max) s = s.slice(0, max - 1).trim() + "…"; return s; }
+    function O(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+    function A(v){ return Array.isArray(v) ? v : []; }
+    function lower(v){ return T(v, 4000).toLowerCase(); }
+    function firstText(){
+      for (let i = 0; i < arguments.length; i += 1) {
+        const v = T(arguments[i], 4000);
+        if (v) return v;
+      }
+      return "";
+    }
+    function extractText(packet){
+      const p = O(packet), payload = O(p.payload), meta = O(p.meta), session = O(p.session), body = O(p.body);
+      return firstText(p.text, p.userText, p.rawUserText, p.message, p.prompt, p.normalizedUserIntent,
+        payload.text, payload.userText, payload.rawUserText, payload.message, payload.prompt,
+        meta.text, meta.userText, meta.rawUserText, session.lastUserText, body.text, body.userText);
+    }
+    function r18cTechnicalLawFileWork(text){
+      const t = lower(text);
+      return /\b(surgical\s+autopsy|autopsy|patch|fix|update|harden|audit|line[-\s]?by[-\s]?line|node\s+--check|zip|downloadable|resend|script|file|files|js|json|manifest|payload|pack|runtime|router|routing|registry|domain\s+router|domain\s+registry|domain\s+concierge|composemarionresponse|marionbridge|final\s+envelope|state\s+spine|chatengine|index\.js)\b/.test(t) &&
+        /\b(law|legal|contract|contracts|manifest|payload|domain)\b/.test(t);
+    }
+    function r18cShortLawFollowup(text, ctx){
+      const t = lower(text).replace(/[.!?]+$/g,"").trim();
+      if (!/^(next|next steps|continue|keep going|carry on|what next|what now|then what|passed|pass|locked)$/.test(t)) return false;
+      const c = JSON.stringify(ctx || {}).toLowerCase();
+      return /\b(activefeaturelane|knowledgeDomain|primaryDomain|selectedDomain|domain|route|lastTopic|currentObjective)\b/.test(c) &&
+        /\b(law|legal|contract|copyright|licensing|liability|compliance|jurisdiction)\b/.test(c);
+    }
+    function r18cDetectLawCategories(text){
+      const t = lower(text);
+      const out = [];
+      if (/\b(copyright|license|licence|licensing|distribution rights?|broadcast rights?|streaming rights?|public performance|sync rights?|roku|ott|movie|movies|moneti[sz]e|platform rights?)\b/.test(t)) out.push("copyright_licensing");
+      if (/\b(fired|terminated|termination|severance|release to sign|sign the release|two weeks|employment|employee|employer|contractor|independent contractor|wrongful dismissal|constructive dismissal|without cause)\b/.test(t)) out.push("employment_contractor");
+      if (/\b(defamation|libel|slander|false claims?|false statements?|posted false|business online|reputation|negligence|liable|liability|lawsuit|sue|damages|injury|harm|tort)\b/.test(t)) out.push("liability_dispute");
+      if (/\b(customer data|personal information|personal data|privacy|data processing|vendor data|pipeda|data breach|consent|processor|controller|dpa|confidential information)\b/.test(t)) out.push("privacy_data");
+      if (/\b(trademark|trade mark|patent|intellectual property|\bip\b|brand rights?|logo|mark infringement)\b/.test(t)) out.push("ip_trademark_patent");
+      if (/\b(compliance|regulatory|regulation|policy|terms of service|platform terms|statute|act|legal requirement)\b/.test(t)) out.push("compliance_regulatory");
+      if (/\b(corporation|incorporated|shareholder|director|officer|bylaws|articles|corporate|business structure)\b/.test(t)) out.push("corporate_business");
+      if (/\b(jurisdiction|province|territory|court|tribunal|deadline|limitation|file|filing|procedure|serve|served|hearing)\b/.test(t)) out.push("jurisdiction_procedure");
+      if (/\b(contract|agreement|clause|terms|breach|enforceable|consideration|promise|release|waiver|indemnity|distribution rights?)\b/.test(t)) out.push("contract");
+      if (/\b(source|sources|verify|verification|case law|canlii|statute|regulation|official source|research)\b/.test(t)) out.push("source_verification");
+      if (!out.length && /\b(law|legal|rights?|obligation|permitted|allowed|can i|should i sign|safe to)\b/.test(t)) out.push("general_legal_risk");
+      const priority = ["employment_contractor","copyright_licensing","privacy_data","liability_dispute","ip_trademark_patent","compliance_regulatory","jurisdiction_procedure","corporate_business","contract","source_verification","general_legal_risk"];
+      return Array.from(new Set(out)).sort((a,b)=>priority.indexOf(a)-priority.indexOf(b));
+    }
+    function r18cSecondaryDomains(text, cats){
+      const t = lower(text), out = [];
+      if (/\b(roku|ott|streaming|movie|movies|channel|platform|distribution)\b/.test(t)) out.push("business","roku");
+      if (/\b(moneti[sz]e|revenue|cost|price|pay|severance|settlement|damages|commercial|business|sandblast)\b/.test(t)) out.push("finance","business");
+      if (cats.indexOf("privacy_data") >= 0 || /\b(data|privacy|security|breach|access|vendor)\b/.test(t)) out.push("cyber");
+      if (/\b(ai|model|automation|agent|llm)\b/.test(t)) out.push("ai");
+      return Array.from(new Set(out.filter(x => x && x !== "law"))).slice(0,4);
+    }
+    function r18cIsLaw(text, ctx){
+      if (r18cTechnicalLawFileWork(text)) return false;
+      const cats = r18cDetectLawCategories(text);
+      if (cats.length && !(cats.length === 1 && cats[0] === "general_legal_risk" && !/\b(law|legal|rights|liability|contract|copyright|license|employment|fired|defamation|privacy|compliance|jurisdiction|safe to|permitted|allowed)\b/i.test(T(text)))) return true;
+      return r18cShortLawFollowup(text, ctx);
+    }
+    function r18cProfile(text, ctx){
+      const cats = r18cDetectLawCategories(text);
+      const shortCarry = r18cShortLawFollowup(text, ctx);
+      const category = cats[0] || (shortCarry ? "general_legal_risk" : "");
+      const secondary = r18cSecondaryDomains(text, cats);
+      return {
+        version: V,
+        active: !!(category || shortCarry),
+        domain: "law",
+        primaryDomain: "law",
+        selectedDomain: "law",
+        knowledgeDomain: "law",
+        legalCategory: category || "general_legal_risk",
+        legalCategories: cats.length ? cats : ["general_legal_risk"],
+        secondaryDomains: secondary,
+        confidence: shortCarry ? 0.82 : 0.94,
+        confidenceScore: shortCarry ? 0.82 : 0.94,
+        band: "high",
+        confidenceBand: "high",
+        margin: shortCarry ? 0.18 : 0.32,
+        answerMode: "grounded",
+        highStakes: true,
+        routeLocked: true,
+        failClosed: false,
+        needsClarifier: false,
+        reason: shortCarry ? "r18c_law_short_prompt_lane_inheritance" : "r18c_full_stack_law_precedence",
+        assessmentFrame: ["legal_category","jurisdiction_sensitivity","facts_vs_assumptions","risk_exposure","missing_information","source_document_check","safe_next_move"],
+        legalBoundary: {
+          generalInformationOnly: true,
+          noLegalAdvice: true,
+          noAttorneyClientRelationship: true,
+          noLegalCertaintyClaim: true,
+          jurisdictionRequired: true,
+          sourceDocumentReviewRequired: true,
+          professionalReviewRecommendedForHighRisk: true
+        },
+        noCrossDomainBleed: true,
+        noUserFacingDiagnostics: true,
+        r18cFullStackRegression: true,
+        fullStackAgreementRequired: true
+      };
+    }
+    function r18cMergeLawProfile(target, profile){
+      const out = O(target);
+      if (!profile || !profile.active) return out;
+      out.domain = "law";
+      out.primaryDomain = "law";
+      out.selectedDomain = "law";
+      out.knowledgeDomain = "law";
+      out.legalCategory = profile.legalCategory;
+      out.legalCategories = profile.legalCategories;
+      out.secondaryDomains = profile.secondaryDomains;
+      out.answerMode = "grounded";
+      out.highStakes = true;
+      out.routeLocked = true;
+      out.needsClarifier = false;
+      out.failClosed = false;
+      out.r18cLawAssessment = Object.assign({}, O(out.r18cLawAssessment), profile);
+      out.r18cFullStackRegression = true;
+      out.noCrossDomainBleed = true;
+      out.noUserFacingDiagnostics = true;
+      return out;
+    }
+    const api = { V, T, O, A, extractText, r18cTechnicalLawFileWork, r18cShortLawFollowup, r18cDetectLawCategories, r18cSecondaryDomains, r18cIsLaw, r18cProfile, r18cMergeLawProfile };
+    module.exports.MARION_R18C_FULL_STACK_REGRESSION_VERSION = V;
+    module.exports.marionR18CFullStackHelpers = api;
+    module.exports.marionR18CFullStackProfile = function(packet){
+      const text = extractText(packet);
+      return r18cProfile(text, packet);
+    };
+    module.exports.marionR18CFullStackIsLawTurn = function(packet){
+      const text = extractText(packet);
+      return r18cIsLaw(text, packet);
+    };
+    module.exports.marionR18CFullStackTechnicalLawFileWork = function(packet){
+      return r18cTechnicalLawFileWork(extractText(packet));
+    };
+  } catch(_err) {}
+})();
+/* R18C_FULL_STACK_REGRESSION_HARMONIZER_END */
+
+/* R18C_FULL_STACK_FINAL_METADATA_WRAP_START */
+(function(){
+  try {
+    const H = module.exports.marionR18CFullStackHelpers;
+    if (!H || module.exports.__r18cFullStackFinalMetadataWrapped) return;
+    const oldApply = module.exports.marionR18CFinalEnvelopeApply;
+    const oldProfile = module.exports.marionR18CFinalEnvelopeProfile;
+    module.exports.marionR18CFullStackEnvelopeProfile = function(packet){
+      const text = H.extractText(packet);
+      const p = H.r18cProfile(text, packet);
+      return Object.assign({}, p, {
+        visibleReplyPolicy: "jurisdiction_aware_legal_risk_triage",
+        fullStackAgreementRequired: true,
+        technicalLawFileWorkGuard: H.r18cTechnicalLawFileWork(text)
+      });
+    };
+    if (typeof oldProfile === "function") {
+      module.exports.marionR18CFinalEnvelopeProfile = function(packet){
+        const base = oldProfile.apply(this, arguments);
+        const text = H.extractText(packet);
+        if (!H.r18cIsLaw(text, packet)) return base;
+        return Object.assign({}, H.O(base), module.exports.marionR18CFullStackEnvelopeProfile(packet));
+      };
+    }
+    if (typeof oldApply === "function") {
+      module.exports.marionR18CFinalEnvelopeApply = function(packet){
+        const base = oldApply.apply(this, arguments);
+        const text = H.extractText(packet);
+        if (!H.r18cIsLaw(text, packet)) return base;
+        const p = module.exports.marionR18CFullStackEnvelopeProfile(packet);
+        return H.r18cMergeLawProfile(Object.assign({}, H.O(base), {
+          r18CLawRealWorldAssessment: true,
+          lawAssessmentFrame: p.assessmentFrame.join(" > "),
+          legalAdviceBoundary: "general_information_not_legal_advice",
+          factsAssumptionsSeparated: true,
+          professionalReviewRecommended: true,
+          legalSourceDocumentCheckRequired: true,
+          noLegalCertaintyClaim: true,
+          noAttorneyClientRelationship: true
+        }), p);
+      };
+    }
+    module.exports.__r18cFullStackFinalMetadataWrapped = true;
+  } catch(_err) {}
+})();
+/* R18C_FULL_STACK_FINAL_METADATA_WRAP_END */
+
