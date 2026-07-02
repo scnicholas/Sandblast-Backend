@@ -1,0 +1,708 @@
+{
+  "id": "fin_financial_input_types_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer03_data_ingestion",
+  "description": "Catalog of finance input types that Layer 03 may detect, label, and pass forward for normalization.",
+  "posture": {
+    "type": "financial_input_type_catalog",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "rawValuePreservationRequired": true,
+    "normalizationDeferredToLayer04": true
+  },
+  "corePrinciples": [
+    "Financial inputs must be typed before they are analyzed.",
+    "The same number can mean different things depending on context.",
+    "Metric labels should preserve uncertainty when context is incomplete.",
+    "Layer 03 should detect candidate metrics, not force final interpretation.",
+    "Each input type should define expected units and common aliases."
+  ],
+  "inputTypes": {
+    "cash_on_hand": {
+      "label": "Cash on Hand",
+      "category": "liquidity",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency"
+      ],
+      "aliases": [
+        "cash",
+        "cash on hand",
+        "bank balance",
+        "available cash",
+        "cash reserve",
+        "liquidity",
+        "runway cash"
+      ],
+      "commonPatterns": [
+        "CAD 50000 cash",
+        "$50000 in cash",
+        "cash on hand is 50000",
+        "we have 50000 left"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "commercial_risk",
+        "credit_debt",
+        "unit_economics"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "monthly_revenue": {
+      "label": "Monthly Revenue",
+      "category": "revenue",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency_per_month"
+      ],
+      "aliases": [
+        "monthly revenue",
+        "monthly sales",
+        "MRR",
+        "recurring revenue",
+        "monthly income",
+        "monthly ad revenue"
+      ],
+      "commonPatterns": [
+        "monthly revenue is",
+        "we make per month",
+        "MRR is",
+        "monthly sales are"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "annual_revenue": {
+      "label": "Annual Revenue",
+      "category": "revenue",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency_per_year"
+      ],
+      "aliases": [
+        "annual revenue",
+        "yearly revenue",
+        "ARR",
+        "annual sales",
+        "yearly sales"
+      ],
+      "commonPatterns": [
+        "annual revenue is",
+        "ARR is",
+        "yearly sales are"
+      ],
+      "commonIntents": [
+        "commercial_risk",
+        "capital_markets",
+        "credit_debt",
+        "unit_economics"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "revenue_decline": {
+      "label": "Revenue Decline",
+      "category": "stress_scenario",
+      "valueType": "percentage_or_ratio",
+      "expectedUnits": [
+        "percent",
+        "ratio",
+        "percentage_points"
+      ],
+      "aliases": [
+        "revenue drop",
+        "revenue drops",
+        "sales drop",
+        "ad revenue drops",
+        "income drop",
+        "decline in revenue",
+        "revenue shortfall",
+        "loss of revenue"
+      ],
+      "commonPatterns": [
+        "revenue drops 30%",
+        "ad revenue drops 30%",
+        "sales decline by 20%",
+        "income falls by 15%"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "commercial_risk",
+        "unit_economics"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "stress_period": {
+      "label": "Stress Period",
+      "category": "time_period",
+      "valueType": "duration",
+      "expectedUnits": [
+        "days",
+        "weeks",
+        "months",
+        "quarters",
+        "years"
+      ],
+      "aliases": [
+        "for three months",
+        "for six months",
+        "stress period",
+        "duration",
+        "runway period",
+        "survival period",
+        "over 90 days"
+      ],
+      "commonPatterns": [
+        "for three months",
+        "for 90 days",
+        "for six weeks",
+        "over one quarter"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "commercial_risk",
+        "stress_testing",
+        "scenario_modeling"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "monthly_fixed_costs": {
+      "label": "Monthly Fixed Costs",
+      "category": "cost",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency_per_month"
+      ],
+      "aliases": [
+        "fixed costs",
+        "monthly fixed costs",
+        "rent",
+        "platform costs",
+        "salaries",
+        "base costs",
+        "overhead"
+      ],
+      "commonPatterns": [
+        "fixed costs are",
+        "monthly overhead is",
+        "base costs per month"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "commercial_risk",
+        "unit_economics"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "monthly_variable_costs": {
+      "label": "Monthly Variable Costs",
+      "category": "cost",
+      "valueType": "currency_amount_or_ratio",
+      "expectedUnits": [
+        "currency_per_month",
+        "percentage_of_revenue"
+      ],
+      "aliases": [
+        "variable costs",
+        "cost of sales",
+        "COGS",
+        "usage costs",
+        "processing fees",
+        "bandwidth costs"
+      ],
+      "commonPatterns": [
+        "variable costs are",
+        "COGS is",
+        "cost of sales is",
+        "usage cost per customer"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "monthly_burn": {
+      "label": "Monthly Burn",
+      "category": "liquidity",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency_per_month"
+      ],
+      "aliases": [
+        "burn",
+        "burn rate",
+        "monthly burn",
+        "cash burn",
+        "net burn",
+        "spend per month"
+      ],
+      "commonPatterns": [
+        "monthly burn is",
+        "burn rate is",
+        "we spend per month",
+        "cash burn is"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "commercial_risk",
+        "credit_debt"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "runway": {
+      "label": "Runway",
+      "category": "liquidity",
+      "valueType": "duration",
+      "expectedUnits": [
+        "months",
+        "days"
+      ],
+      "aliases": [
+        "runway",
+        "cash runway",
+        "months left",
+        "survival time",
+        "how long can we last"
+      ],
+      "commonPatterns": [
+        "runway is",
+        "months of runway",
+        "we can last"
+      ],
+      "commonIntents": [
+        "cashflow",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "gross_margin": {
+      "label": "Gross Margin",
+      "category": "margin",
+      "valueType": "percentage_or_ratio",
+      "expectedUnits": [
+        "percent",
+        "ratio"
+      ],
+      "aliases": [
+        "gross margin",
+        "gross margin percentage",
+        "gross profit margin"
+      ],
+      "commonPatterns": [
+        "gross margin is",
+        "gross margin of",
+        "margin is"
+      ],
+      "commonIntents": [
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "net_margin": {
+      "label": "Net Margin",
+      "category": "margin",
+      "valueType": "percentage_or_ratio",
+      "expectedUnits": [
+        "percent",
+        "ratio"
+      ],
+      "aliases": [
+        "net margin",
+        "profit margin",
+        "net profit margin"
+      ],
+      "commonPatterns": [
+        "net margin is",
+        "profit margin is"
+      ],
+      "commonIntents": [
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "CAC": {
+      "label": "Customer Acquisition Cost",
+      "category": "unit_economics",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency_per_customer"
+      ],
+      "aliases": [
+        "CAC",
+        "customer acquisition cost",
+        "cost to acquire customer",
+        "acquisition cost"
+      ],
+      "commonPatterns": [
+        "CAC is",
+        "customer acquisition cost is",
+        "cost to acquire"
+      ],
+      "commonIntents": [
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "LTV": {
+      "label": "Lifetime Value",
+      "category": "unit_economics",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency_per_customer"
+      ],
+      "aliases": [
+        "LTV",
+        "lifetime value",
+        "customer lifetime value",
+        "CLV"
+      ],
+      "commonPatterns": [
+        "LTV is",
+        "lifetime value is",
+        "customer lifetime value is"
+      ],
+      "commonIntents": [
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "churn_rate": {
+      "label": "Churn Rate",
+      "category": "unit_economics",
+      "valueType": "percentage_or_ratio",
+      "expectedUnits": [
+        "percent_per_month",
+        "percent_per_year",
+        "ratio_per_period"
+      ],
+      "aliases": [
+        "churn",
+        "churn rate",
+        "monthly churn",
+        "annual churn",
+        "cancellation rate"
+      ],
+      "commonPatterns": [
+        "churn is",
+        "monthly churn is",
+        "cancellation rate is"
+      ],
+      "commonIntents": [
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "loan_amount": {
+      "label": "Loan Amount",
+      "category": "debt",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency"
+      ],
+      "aliases": [
+        "loan amount",
+        "loan",
+        "debt amount",
+        "principal",
+        "borrow",
+        "financing amount"
+      ],
+      "commonPatterns": [
+        "loan amount is",
+        "borrow",
+        "debt of",
+        "principal is"
+      ],
+      "commonIntents": [
+        "credit_debt",
+        "commercial_risk",
+        "cashflow"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "interest_rate": {
+      "label": "Interest Rate",
+      "category": "debt",
+      "valueType": "percentage_or_ratio",
+      "expectedUnits": [
+        "percent_per_year",
+        "ratio_per_year"
+      ],
+      "aliases": [
+        "interest rate",
+        "rate",
+        "APR",
+        "loan rate",
+        "policy rate"
+      ],
+      "commonPatterns": [
+        "interest rate is",
+        "APR is",
+        "rate of"
+      ],
+      "commonIntents": [
+        "credit_debt",
+        "macro",
+        "capital_markets"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": true
+    },
+    "debt_service": {
+      "label": "Debt Service",
+      "category": "debt",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency_per_month",
+        "currency_per_year"
+      ],
+      "aliases": [
+        "debt service",
+        "loan payment",
+        "monthly payment",
+        "repayment",
+        "principal and interest"
+      ],
+      "commonPatterns": [
+        "monthly payment is",
+        "debt service is",
+        "repayment is"
+      ],
+      "commonIntents": [
+        "credit_debt",
+        "cashflow",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "grant_amount": {
+      "label": "Grant Amount",
+      "category": "funding",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency"
+      ],
+      "aliases": [
+        "grant amount",
+        "funding amount",
+        "maximum funding",
+        "contribution amount",
+        "award amount"
+      ],
+      "commonPatterns": [
+        "grant amount is",
+        "funding up to",
+        "maximum funding"
+      ],
+      "commonIntents": [
+        "compliance",
+        "public_policy",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": true
+    },
+    "program_deadline": {
+      "label": "Program Deadline",
+      "category": "funding",
+      "valueType": "date",
+      "expectedUnits": [
+        "date"
+      ],
+      "aliases": [
+        "deadline",
+        "application deadline",
+        "closing date",
+        "intake deadline",
+        "program closes"
+      ],
+      "commonPatterns": [
+        "deadline is",
+        "applications close",
+        "program closes"
+      ],
+      "commonIntents": [
+        "compliance",
+        "public_policy",
+        "source_lookup"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": true
+    },
+    "customer_count": {
+      "label": "Customer Count",
+      "category": "operational",
+      "valueType": "count",
+      "expectedUnits": [
+        "count"
+      ],
+      "aliases": [
+        "customers",
+        "subscribers",
+        "users",
+        "clients",
+        "active customers",
+        "paying customers"
+      ],
+      "commonPatterns": [
+        "customers",
+        "subscribers",
+        "users",
+        "paying customers"
+      ],
+      "commonIntents": [
+        "unit_economics",
+        "pricing",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "price": {
+      "label": "Price",
+      "category": "pricing",
+      "valueType": "currency_amount",
+      "expectedUnits": [
+        "currency",
+        "currency_per_month",
+        "currency_per_year",
+        "currency_per_seat",
+        "currency_per_use"
+      ],
+      "aliases": [
+        "price",
+        "pricing",
+        "fee",
+        "charge",
+        "subscription price",
+        "monthly fee",
+        "annual fee"
+      ],
+      "commonPatterns": [
+        "price is",
+        "charge",
+        "monthly fee is",
+        "annual price is"
+      ],
+      "commonIntents": [
+        "pricing",
+        "unit_economics",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": false
+    },
+    "inflation_rate": {
+      "label": "Inflation Rate",
+      "category": "macro",
+      "valueType": "percentage_or_ratio",
+      "expectedUnits": [
+        "percent_per_year",
+        "ratio_per_year"
+      ],
+      "aliases": [
+        "inflation",
+        "inflation rate",
+        "CPI",
+        "consumer price index"
+      ],
+      "commonPatterns": [
+        "inflation is",
+        "CPI is",
+        "inflation rate"
+      ],
+      "commonIntents": [
+        "macro",
+        "public_policy",
+        "commercial_risk"
+      ],
+      "requiresNormalization": true,
+      "requiresVerification": true
+    }
+  },
+  "ambiguousInputRules": [
+    {
+      "rawSignal": "margin",
+      "possibleMetrics": [
+        "gross_margin",
+        "net_margin",
+        "contribution_margin"
+      ],
+      "action": "preserve_as_ambiguous_metric_and_request_context_if_material"
+    },
+    {
+      "rawSignal": "rate",
+      "possibleMetrics": [
+        "interest_rate",
+        "churn_rate",
+        "growth_rate",
+        "tax_rate"
+      ],
+      "action": "use surrounding context_to_disambiguate_or_request_confirmation"
+    },
+    {
+      "rawSignal": "revenue",
+      "possibleMetrics": [
+        "monthly_revenue",
+        "annual_revenue",
+        "revenue_decline"
+      ],
+      "action": "detect period_or_mark_period_missing"
+    },
+    {
+      "rawSignal": "cost",
+      "possibleMetrics": [
+        "monthly_fixed_costs",
+        "monthly_variable_costs",
+        "CAC",
+        "COGS"
+      ],
+      "action": "detect cost category_or_mark_ambiguous"
+    }
+  ],
+  "guardrails": [
+    "Do not assume monthly or annual period unless stated or strongly implied.",
+    "Do not convert a percentage into a ratio in Layer 03.",
+    "Do not treat a generic rate as an interest rate without context.",
+    "Do not label revenue as profit.",
+    "Do not label cash on hand as runway without burn-rate data.",
+    "Do not infer CAC, LTV, or churn unless explicitly supplied or calculated later from sufficient inputs."
+  ]
+}
