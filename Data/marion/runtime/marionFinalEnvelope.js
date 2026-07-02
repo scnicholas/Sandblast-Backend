@@ -5167,3 +5167,39 @@ try{
   module.exports.marionR18CReplyQueueParityRepairIsTechnicalFileWork = isTechnicalFileWork;
 })();
 /* R18C_REPLY_QUEUE_PARITY_REPAIR_END */
+
+
+/* R18C_ACTIVE_PATH_COHESION_REPAIR_START */
+(function(){
+  "use strict";
+  const V = "nyx.marion.r18c.activePathCohesionRepair/1.0";
+  const CANONICAL_BRIDGE_PATH = "Data/marion/runtime/marionBridge.js";
+  const REJECTED_DUPLICATE_CLASS = "legacy-utils-marion-bridge-copy";
+
+  function apply(packet){
+    if (!packet || typeof packet !== "object") packet = {};
+    packet.r18CActivePathCohesionRepair = {
+      version: V,
+      active: true,
+      canonicalBridgePath: CANONICAL_BRIDGE_PATH,
+      rejectedDuplicateClass: REJECTED_DUPLICATE_CLASS,
+      utilsBridgeRuntimeAllowed: false,
+      note: "MarionBridge runtime authority is canonicalized to Data/marion/runtime."
+    };
+    packet.marionBridgeCanonicalPath = packet.marionBridgeCanonicalPath || CANONICAL_BRIDGE_PATH;
+    packet.rogueBridgeDuplicateRejected = true;
+    return packet;
+  }
+
+  try {
+    if (typeof module !== "undefined" && module.exports) {
+      module.exports.MARION_R18C_ACTIVE_PATH_COHESION_REPAIR_VERSION = V;
+      module.exports.marionR18CActivePathCohesionApply = apply;
+      module.exports.marionR18CActivePathCohesionProfile = function(){
+        return apply({});
+      };
+    }
+  } catch(_err) {}
+})();
+/* R18C_ACTIVE_PATH_COHESION_REPAIR_END */
+
