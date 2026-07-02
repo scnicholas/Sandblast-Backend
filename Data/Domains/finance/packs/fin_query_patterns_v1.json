@@ -52,7 +52,20 @@
         "credit conditions",
         "liquidity",
         "bond yields",
-        "economic outlook"
+        "economic outlook",
+        "bank of canada",
+        "federal reserve",
+        "central bank rates",
+        "policy rate",
+        "policy rates",
+        "rate hike",
+        "rate hikes",
+        "rate cut",
+        "rate cuts",
+        "rates stay high",
+        "borrowing costs",
+        "credit tightening",
+        "monetary tightening"
       ],
       "phrasePatterns": [
         "what is happening with the economy",
@@ -61,7 +74,14 @@
         "is the economy slowing",
         "how would a recession affect",
         "what does the central bank decision mean",
-        "what are the macro risks"
+        "what are the macro risks",
+        "what happens if bank of canada rates",
+        "what happens if rates stay high",
+        "if bank of canada rates stay high",
+        "if interest rates stay high",
+        "bank of canada rates stay high",
+        "what higher rates do",
+        "what do higher rates mean"
       ],
       "secondaryIntentHints": [
         "public_policy",
@@ -178,7 +198,18 @@
         "customer acquisition",
         "scaling",
         "break even",
-        "variable cost"
+        "variable cost",
+        "revenue model",
+        "ad revenue",
+        "advertising revenue",
+        "revenue drop",
+        "revenue drops",
+        "revenue decline",
+        "revenue shortfall",
+        "margin pressure",
+        "revenue pressure",
+        "customer revenue",
+        "unit revenue"
       ],
       "phrasePatterns": [
         "does the model scale",
@@ -187,7 +218,13 @@
         "what happens if cac increases",
         "how long is payback",
         "is growth sustainable",
-        "where are the hidden variable costs"
+        "where are the hidden variable costs",
+        "what happens if revenue drops",
+        "what happens if ad revenue drops",
+        "if revenue drops",
+        "if ad revenue drops",
+        "how does revenue pressure affect the model",
+        "is the revenue model sustainable"
       ],
       "secondaryIntentHints": [
         "pricing",
@@ -211,7 +248,29 @@
         "relocation",
         "monetization",
         "fragility",
-        "operational risk"
+        "operational risk",
+        "survive",
+        "survival",
+        "business survive",
+        "business survival",
+        "ad revenue",
+        "advertising revenue",
+        "revenue drop",
+        "revenue drops",
+        "revenue decline",
+        "revenue contraction",
+        "revenue shortfall",
+        "sales drop",
+        "sales decline",
+        "income drop",
+        "income decline",
+        "three months",
+        "downside period",
+        "revenue shock",
+        "demand shock",
+        "cost shock",
+        "operating pressure",
+        "commercial viability"
       ],
       "phrasePatterns": [
         "what are the risks",
@@ -222,7 +281,21 @@
         "what are we missing",
         "what would break this",
         "how exposed are we",
-        "is this move risky"
+        "is this move risky",
+        "can this business survive",
+        "can the business survive",
+        "can we survive",
+        "survive if revenue drops",
+        "survive if ad revenue drops",
+        "if revenue drops",
+        "if ad revenue drops",
+        "if sales drop",
+        "if income drops",
+        "what happens if revenue drops",
+        "what happens if ad revenue drops",
+        "what would break this business",
+        "what would put pressure on the business",
+        "how exposed is the revenue model"
       ],
       "secondaryIntentHints": [
         "cashflow",
@@ -244,7 +317,28 @@
         "payment delay",
         "liquidity",
         "survival capital",
-        "short term cash"
+        "short term cash",
+        "survive",
+        "survival",
+        "business survive",
+        "business survival",
+        "ad revenue",
+        "advertising revenue",
+        "revenue drop",
+        "revenue drops",
+        "revenue decline",
+        "revenue shortfall",
+        "sales drop",
+        "sales decline",
+        "income drop",
+        "income decline",
+        "three months",
+        "cash pressure",
+        "cash squeeze",
+        "cash gap",
+        "liquidity pressure",
+        "operating runway",
+        "survival runway"
       ],
       "phrasePatterns": [
         "how much runway",
@@ -253,7 +347,19 @@
         "how long can we operate",
         "what if payments are delayed",
         "do we have enough cash",
-        "what is the liquidity risk"
+        "what is the liquidity risk",
+        "can this business survive",
+        "can the business survive",
+        "how long can the business survive",
+        "survive if revenue drops",
+        "survive if ad revenue drops",
+        "what happens if ad revenue drops",
+        "revenue drops for three months",
+        "ad revenue drops for three months",
+        "if revenue drops for three months",
+        "if ad revenue drops for three months",
+        "what if revenue drops",
+        "what if ad revenue drops"
       ],
       "secondaryIntentHints": [
         "capital_markets",
@@ -276,7 +382,14 @@
         "refinancing",
         "leverage",
         "variable rate",
-        "fixed rate"
+        "fixed rate",
+        "borrowing costs",
+        "loan rates",
+        "bank rates",
+        "rates stay high",
+        "higher rates",
+        "debt costs",
+        "credit conditions"
       ],
       "phrasePatterns": [
         "can we qualify for a loan",
@@ -285,7 +398,11 @@
         "what is the debt pressure",
         "what happens if rates rise",
         "should this be fixed or variable",
-        "what collateral issue"
+        "what collateral issue",
+        "what happens if rates stay high",
+        "if bank of canada rates stay high",
+        "what higher rates do to loans",
+        "what would higher rates do to small business loans"
       ],
       "secondaryIntentHints": [
         "capital_markets",
@@ -340,7 +457,13 @@
         "government spending",
         "infrastructure",
         "regulatory policy",
-        "competition policy"
+        "competition policy",
+        "bank of canada",
+        "central bank decision",
+        "policy rate",
+        "monetary tightening",
+        "monetary easing",
+        "rate policy"
       ],
       "phrasePatterns": [
         "how does policy affect",
@@ -348,7 +471,11 @@
         "how would tax policy affect",
         "what does government spending do",
         "how does regulation change the market",
-        "what is the policy transmission"
+        "what is the policy transmission",
+        "what does the central bank decision mean",
+        "what happens if bank of canada rates",
+        "if bank of canada rates stay high",
+        "how does rate policy affect"
       ],
       "secondaryIntentHints": [
         "macro",
@@ -500,7 +627,22 @@
     "red flag",
     "overextended",
     "default",
-    "liquidity"
+    "liquidity",
+    "survive",
+    "survival",
+    "business survival",
+    "revenue drop",
+    "revenue drops",
+    "revenue decline",
+    "revenue contraction",
+    "revenue shortfall",
+    "ad revenue drops",
+    "sales drop",
+    "income drop",
+    "cash pressure",
+    "liquidity pressure",
+    "operating pressure",
+    "runway pressure"
   ],
   "freshnessRequiredMarkers": [
     "current",
@@ -513,7 +655,14 @@
     "new rules",
     "updated",
     "recent",
-    "2026"
+    "2026",
+    "this quarter",
+    "this year",
+    "current year",
+    "current quarter",
+    "new update",
+    "new policy",
+    "recently updated"
   ],
   "clarificationTriggers": [
     {
@@ -534,6 +683,16 @@
     }
   ],
   "classificationExamples": [
+    {
+      "query": "Can this business survive if ad revenue drops 30% for three months in Ontario?",
+      "primaryIntent": "cashflow",
+      "secondaryIntents": [
+        "commercial_risk",
+        "unit_economics"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true
+    },
     {
       "query": "Can this business survive if ad revenue drops for three months?",
       "primaryIntent": "cashflow",
