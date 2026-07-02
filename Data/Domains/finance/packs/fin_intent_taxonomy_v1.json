@@ -1,0 +1,361 @@
+{
+  "id": "fin_intent_taxonomy_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer01_intent_classification",
+  "description": "Finance intent taxonomy for routing user queries into macro, micro, capital markets, pricing, unit economics, commercial risk, cash-flow, credit/debt, compliance, public policy, case-study, and source-lookup lanes.",
+  "posture": {
+    "type": "finance_intent_routing",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "assumptionDisclosureRequired": true,
+    "jurisdictionAwarenessRequired": true,
+    "sourceAuthorityRequired": true
+  },
+  "intentLanes": [
+    {
+      "id": "macro",
+      "label": "Macroeconomic Analysis",
+      "description": "Routes queries about inflation, interest rates, GDP, unemployment, credit conditions, recession signals, liquidity, monetary policy, and broad economic conditions.",
+      "primaryUse": [
+        "economic_context",
+        "country_or_region_analysis",
+        "rate_policy_implications",
+        "business_cycle_interpretation"
+      ],
+      "sourcePacks": [
+        "fin_macro_principles_v1.json",
+        "fin_public_policy_links_v1.json",
+        "fin_sources_index_v1.json"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true,
+      "requiresSourceCheck": true,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "micro",
+      "label": "Microeconomic Foundations",
+      "description": "Routes queries about demand, pricing power, substitution, incentives, market structure, switching costs, elasticity, and opportunity cost.",
+      "primaryUse": [
+        "demand_behavior",
+        "customer_price_sensitivity",
+        "market_structure_reasoning",
+        "incentive_mapping"
+      ],
+      "sourcePacks": [
+        "fin_micro_foundations_v1.json",
+        "fin_pricing_models_v1.json",
+        "fin_unit_economics_v1.json"
+      ],
+      "requiresJurisdiction": false,
+      "requiresFreshData": false,
+      "requiresSourceCheck": false,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "capital_markets",
+      "label": "Capital Markets",
+      "description": "Routes queries about debt, equity, hybrid instruments, cost of capital, dilution, runway, funding structure, and capital stack decisions.",
+      "primaryUse": [
+        "debt_vs_equity_comparison",
+        "capital_stack_reasoning",
+        "funding_tradeoff_analysis",
+        "runway_and_dilution_context"
+      ],
+      "sourcePacks": [
+        "fin_capital_markets_v1.json",
+        "fin_risk_management_v1.json",
+        "fin_sources_index_v1.json"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true,
+      "requiresSourceCheck": true,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "pricing",
+      "label": "Pricing Models",
+      "description": "Routes queries about pricing architecture, subscription models, usage pricing, value metrics, segmentation, discounting, and price testing.",
+      "primaryUse": [
+        "offer_design",
+        "pricing_model_selection",
+        "pricing_risk_detection",
+        "unit_economics_alignment"
+      ],
+      "sourcePacks": [
+        "fin_pricing_models_v1.json",
+        "fin_micro_foundations_v1.json",
+        "fin_unit_economics_v1.json"
+      ],
+      "requiresJurisdiction": false,
+      "requiresFreshData": false,
+      "requiresSourceCheck": false,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "unit_economics",
+      "label": "Unit Economics",
+      "description": "Routes queries about contribution margin, CAC, LTV, payback period, churn, retention, gross margin, scaling readiness, and capital efficiency.",
+      "primaryUse": [
+        "business_sustainability",
+        "scalability_analysis",
+        "margin_diagnostics",
+        "growth_quality_assessment"
+      ],
+      "sourcePacks": [
+        "fin_unit_economics_v1.json",
+        "fin_pricing_models_v1.json",
+        "fin_risk_management_v1.json"
+      ],
+      "requiresJurisdiction": false,
+      "requiresFreshData": false,
+      "requiresSourceCheck": false,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "commercial_risk",
+      "label": "Commercial Risk",
+      "description": "Routes queries about business exposure, revenue fragility, vendor dependency, platform dependency, market-entry risk, monetization uncertainty, and operating resilience.",
+      "primaryUse": [
+        "business_risk_assessment",
+        "commercial_viability",
+        "revenue_and_cost_exposure",
+        "dependency_risk",
+        "strategic_decision_support"
+      ],
+      "sourcePacks": [
+        "fin_risk_management_v1.json",
+        "fin_unit_economics_v1.json",
+        "fin_case_studies_v1.json",
+        "fin_public_policy_links_v1.json"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true,
+      "requiresSourceCheck": true,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "cashflow",
+      "label": "Cash-Flow Resilience",
+      "description": "Routes queries about runway, burn rate, monthly obligations, operating cushion, receivable delays, liquidity buffers, and survival thresholds.",
+      "primaryUse": [
+        "runway_analysis",
+        "burn_rate_review",
+        "liquidity_pressure_detection",
+        "cashflow_stress_testing"
+      ],
+      "sourcePacks": [
+        "fin_capital_markets_v1.json",
+        "fin_risk_management_v1.json",
+        "fin_unit_economics_v1.json"
+      ],
+      "requiresJurisdiction": false,
+      "requiresFreshData": false,
+      "requiresSourceCheck": false,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "credit_debt",
+      "label": "Credit and Debt Risk",
+      "description": "Routes queries about loans, credit lines, debt-service coverage, leverage, refinancing risk, collateral, covenants, and interest-rate sensitivity.",
+      "primaryUse": [
+        "loan_readiness",
+        "debt_pressure_analysis",
+        "leverage_risk",
+        "credit_exposure"
+      ],
+      "sourcePacks": [
+        "fin_capital_markets_v1.json",
+        "fin_risk_management_v1.json",
+        "fin_macro_principles_v1.json"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true,
+      "requiresSourceCheck": true,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "compliance",
+      "label": "Finance Compliance and Regulatory Boundary",
+      "description": "Routes queries about financial promotion, securities-law boundaries, grant eligibility, tax flags, consumer protection, disclosure obligations, and regulatory exposure.",
+      "primaryUse": [
+        "regulatory_risk_detection",
+        "compliance_boundary_flagging",
+        "grant_or_program_eligibility_context",
+        "financial_promotion_safety"
+      ],
+      "sourcePacks": [
+        "fin_public_policy_links_v1.json",
+        "fin_sources_index_v1.json",
+        "fin_risk_management_v1.json"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true,
+      "requiresSourceCheck": true,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "public_policy",
+      "label": "Public Policy and Finance Linkages",
+      "description": "Routes queries about monetary policy, fiscal policy, regulatory policy, trade policy, tax policy, subsidies, and policy-driven business effects.",
+      "primaryUse": [
+        "policy_transmission_analysis",
+        "public_policy_impact",
+        "business_strategy_alignment",
+        "regulatory_change_context"
+      ],
+      "sourcePacks": [
+        "fin_public_policy_links_v1.json",
+        "fin_macro_principles_v1.json",
+        "fin_sources_index_v1.json"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true,
+      "requiresSourceCheck": true,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "case_study",
+      "label": "Finance Case Study Reasoning",
+      "description": "Routes queries that ask Marion to diagnose a business or finance scenario using reusable case patterns, comparative examples, or structured decision logic.",
+      "primaryUse": [
+        "diagnostic_reasoning",
+        "pattern_matching",
+        "scenario_comparison",
+        "teaching_by_case"
+      ],
+      "sourcePacks": [
+        "fin_case_studies_v1.json",
+        "fin_risk_management_v1.json",
+        "fin_unit_economics_v1.json"
+      ],
+      "requiresJurisdiction": false,
+      "requiresFreshData": false,
+      "requiresSourceCheck": false,
+      "advisoryBoundaryRequired": true
+    },
+    {
+      "id": "source_lookup",
+      "label": "Finance Source Lookup",
+      "description": "Routes queries asking where information should come from, what sources are trusted, or which official references should be used.",
+      "primaryUse": [
+        "source_selection",
+        "authority_checking",
+        "evidence_planning",
+        "research_pathway"
+      ],
+      "sourcePacks": [
+        "fin_sources_index_v1.json"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true,
+      "requiresSourceCheck": true,
+      "advisoryBoundaryRequired": false
+    }
+  ],
+  "defaultIntentPriority": [
+    "compliance",
+    "commercial_risk",
+    "cashflow",
+    "credit_debt",
+    "capital_markets",
+    "unit_economics",
+    "pricing",
+    "macro",
+    "public_policy",
+    "micro",
+    "case_study",
+    "source_lookup"
+  ],
+  "multiIntentRules": [
+    {
+      "condition": "query_mentions_regulation_or_compliance",
+      "action": "include_compliance_as_secondary_or_primary_intent"
+    },
+    {
+      "condition": "query_mentions_business_survival_or_cash_shortage",
+      "action": "include_cashflow_as_primary_or_secondary_intent"
+    },
+    {
+      "condition": "query_mentions_loan_debt_credit_or_interest",
+      "action": "include_credit_debt_and_capital_markets"
+    },
+    {
+      "condition": "query_mentions_revenue_pricing_subscription_or_customer_acquisition",
+      "action": "include_pricing_and_unit_economics"
+    },
+    {
+      "condition": "query_mentions_country_economy_rates_inflation_or_policy",
+      "action": "include_macro_and_public_policy"
+    },
+    {
+      "condition": "query_mentions_sources_data_or_where_to_get_information",
+      "action": "include_source_lookup"
+    }
+  ],
+  "confidenceModel": {
+    "scoreBands": {
+      "high": {
+        "min": 0.8,
+        "meaning": "Intent is clear and can be routed without clarification."
+      },
+      "medium": {
+        "min": 0.55,
+        "meaning": "Intent is likely but should preserve secondary lanes."
+      },
+      "low": {
+        "min": 0.35,
+        "meaning": "Intent is ambiguous; response should ask a clarifying question or use a safe broad framing."
+      },
+      "insufficient": {
+        "max": 0.34,
+        "meaning": "Intent cannot be safely classified."
+      }
+    },
+    "boostSignals": [
+      "specific_finance_terms",
+      "explicit_business_context",
+      "named_metric",
+      "named_jurisdiction",
+      "named_source_type",
+      "risk_or_compliance_language"
+    ],
+    "penaltySignals": [
+      "vague_query",
+      "missing_time_horizon",
+      "missing_jurisdiction_where_required",
+      "asks_for_prediction_without_data",
+      "asks_for_personalized_investment_action"
+    ]
+  },
+  "outputEnvelopeSchema": {
+    "domain": "finance",
+    "layer": "intent_classification",
+    "primaryIntent": "string",
+    "secondaryIntents": [
+      "string"
+    ],
+    "confidence": "number_0_to_1",
+    "requiresJurisdiction": "boolean",
+    "requiresFreshData": "boolean",
+    "requiresSourceCheck": "boolean",
+    "advisoryBoundaryRequired": "boolean",
+    "recommendedSourcePacks": [
+      "string"
+    ],
+    "notes": [
+      "string"
+    ]
+  },
+  "guardrails": [
+    "Do not route investment action requests as actionable investment advice.",
+    "Do not classify regulatory or tax questions without jurisdiction awareness.",
+    "Do not treat market commentary as authoritative evidence.",
+    "Preserve secondary intents when the query contains business, risk, and compliance elements together.",
+    "When confidence is low, use a safe broad classification instead of pretending certainty."
+  ]
+}
