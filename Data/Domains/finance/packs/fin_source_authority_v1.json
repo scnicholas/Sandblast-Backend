@@ -1,0 +1,483 @@
+{
+  "id": "fin_source_authority_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer02_source_authority",
+  "description": "Authority ranking rules for finance sources. Defines which sources Marion may treat as primary evidence, contextual evidence, user-provided operational inputs, or low-authority signals.",
+  "posture": {
+    "type": "source_authority_control",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "sourceTraceRequired": true,
+    "freshnessRequiredForCurrentClaims": true,
+    "officialSourcesPreferred": true
+  },
+  "corePrinciples": [
+    "Official sources outrank commentary.",
+    "Primary regulatory text outranks summaries of regulatory text.",
+    "Central banks and official statistics are preferred for macroeconomic claims.",
+    "Regulatory filings are preferred for company-specific financial facts.",
+    "Business press is useful for narrative context but should not be sole evidence for regulated or current claims.",
+    "User-provided business data can support operational analysis but should be labeled as user-supplied and unverified.",
+    "Low-authority sources may indicate signals but should not establish final conclusions.",
+    "When sources conflict, Marion must downgrade confidence and surface the conflict."
+  ],
+  "authorityTiers": [
+    {
+      "tier": "primary_official",
+      "label": "Primary Official Source",
+      "authorityWeight": 0.95,
+      "description": "Government, central bank, regulator, tax authority, official statistics, official program page, or official legislation/regulation source.",
+      "allowedUses": [
+        "current_policy_claims",
+        "regulatory_claims",
+        "interest_rate_context",
+        "inflation_and_labour_data",
+        "official_program_eligibility",
+        "tax_or_compliance_context"
+      ],
+      "examples": [
+        "central_bank",
+        "official_statistics_agency",
+        "securities_regulator",
+        "tax_authority",
+        "government_program_page",
+        "official_legislation_portal"
+      ],
+      "citationRequired": true
+    },
+    {
+      "tier": "primary_filings",
+      "label": "Primary Filing or Disclosure Source",
+      "authorityWeight": 0.92,
+      "description": "Issuer filings, prospectuses, annual reports, quarterly reports, MD&A, audited financial statements, and official exchange disclosures.",
+      "allowedUses": [
+        "company_financial_facts",
+        "risk_factor_analysis",
+        "capital_raise_context",
+        "issuer_disclosure",
+        "historical_company_metrics"
+      ],
+      "examples": [
+        "SEC EDGAR",
+        "SEDAR+",
+        "issuer_annual_report",
+        "issuer_quarterly_report",
+        "audited_financial_statement",
+        "prospectus"
+      ],
+      "citationRequired": true
+    },
+    {
+      "tier": "institutional_multilateral",
+      "label": "Institutional or Multilateral Source",
+      "authorityWeight": 0.88,
+      "description": "IMF, World Bank, OECD, BIS, and comparable institutional sources used for macro, policy, development, and financial stability context.",
+      "allowedUses": [
+        "global_macro_context",
+        "country_context",
+        "policy_analysis",
+        "financial_stability_context",
+        "cross_border_economic_reasoning"
+      ],
+      "examples": [
+        "IMF",
+        "World Bank",
+        "OECD",
+        "BIS"
+      ],
+      "citationRequired": true
+    },
+    {
+      "tier": "professional_research",
+      "label": "Professional Research Source",
+      "authorityWeight": 0.8,
+      "description": "Professional bodies, accounting firms, financial education institutions, industry research, and specialist publications.",
+      "allowedUses": [
+        "framework_support",
+        "industry_context",
+        "methodology_context",
+        "capital_markets_concepts",
+        "risk_management_concepts"
+      ],
+      "examples": [
+        "CFA Institute",
+        "professional_accounting_firm_research",
+        "Corporate Finance Institute",
+        "industry_association_report"
+      ],
+      "citationRequired": true
+    },
+    {
+      "tier": "exchange_or_market_reference",
+      "label": "Exchange or Market Reference",
+      "authorityWeight": 0.78,
+      "description": "Exchange pages, market-structure references, index providers, and data reference pages.",
+      "allowedUses": [
+        "market_structure",
+        "listing_context",
+        "index_context",
+        "instrument_reference",
+        "sector_data_context"
+      ],
+      "examples": [
+        "TMX",
+        "major_exchange_reference",
+        "index_provider",
+        "market_data_reference"
+      ],
+      "citationRequired": true
+    },
+    {
+      "tier": "major_financial_press",
+      "label": "Major Financial Press",
+      "authorityWeight": 0.68,
+      "description": "Major financial and business press used for market narrative, reported developments, and contextual interpretation.",
+      "allowedUses": [
+        "market_narrative",
+        "reported_developments",
+        "earnings_context",
+        "sector_sentiment",
+        "event_context"
+      ],
+      "examples": [
+        "Financial Times",
+        "Wall Street Journal",
+        "Bloomberg",
+        "The Economist",
+        "Reuters"
+      ],
+      "citationRequired": true,
+      "limitations": [
+        "not_sufficient_alone_for_regulatory_claims",
+        "not_sufficient_alone_for_program_eligibility",
+        "not_sufficient_alone_for_tax_or_legal_claims",
+        "not_sufficient_alone_for_company_filing_facts"
+      ]
+    },
+    {
+      "tier": "user_provided_operational_data",
+      "label": "User-Provided Operational Data",
+      "authorityWeight": 0.72,
+      "description": "Numbers, assumptions, business metrics, documents, screenshots, or operational facts provided by the user.",
+      "allowedUses": [
+        "cashflow_analysis",
+        "unit_economics_analysis",
+        "scenario_modeling",
+        "pricing_modeling",
+        "commercial_risk_assessment"
+      ],
+      "examples": [
+        "monthly_burn",
+        "cash_on_hand",
+        "revenue",
+        "CAC",
+        "LTV",
+        "churn",
+        "platform_cost",
+        "loan_terms"
+      ],
+      "citationRequired": false,
+      "limitations": [
+        "must_be_labeled_user_supplied",
+        "not_independently_verified",
+        "should_not_be_treated_as_external_fact"
+      ]
+    },
+    {
+      "tier": "secondary_context",
+      "label": "Secondary Context Source",
+      "authorityWeight": 0.52,
+      "description": "Blogs, newsletters, explainers, commentary, forums, social posts, and lower-formality sources.",
+      "allowedUses": [
+        "early_signal_detection",
+        "general_context",
+        "non_authoritative_explanation",
+        "hypothesis_generation"
+      ],
+      "examples": [
+        "blog",
+        "newsletter",
+        "forum",
+        "social_media",
+        "commentary_site"
+      ],
+      "citationRequired": true,
+      "limitations": [
+        "not_sufficient_for_final_finance_claim",
+        "not_sufficient_for_current_regulatory_claim",
+        "not_sufficient_for_compliance_answer",
+        "must_be_supported_by_higher_authority_source_if_used"
+      ]
+    },
+    {
+      "tier": "unsupported_or_unknown",
+      "label": "Unsupported or Unknown Source",
+      "authorityWeight": 0.2,
+      "description": "Unidentified, stale, unsourced, anonymous, promotional, or unverifiable material.",
+      "allowedUses": [
+        "none_as_primary_evidence"
+      ],
+      "examples": [
+        "unknown_source",
+        "unsourced_claim",
+        "anonymous_post",
+        "promotional_claim",
+        "uncited_generated_text"
+      ],
+      "citationRequired": false,
+      "limitations": [
+        "cannot_support_final_claim",
+        "cannot_support_regulatory_or_market_claim",
+        "cannot_support_recommendation"
+      ]
+    }
+  ],
+  "sourceTypeRules": {
+    "central_bank": {
+      "preferredTier": "primary_official",
+      "authorityWeight": 0.95,
+      "bestFor": [
+        "interest_rates",
+        "monetary_policy",
+        "inflation_context",
+        "credit_conditions",
+        "financial_stability"
+      ],
+      "requiresFreshness": true
+    },
+    "official_statistics": {
+      "preferredTier": "primary_official",
+      "authorityWeight": 0.94,
+      "bestFor": [
+        "GDP",
+        "inflation",
+        "labour_data",
+        "household_finance",
+        "business_indicators"
+      ],
+      "requiresFreshness": true
+    },
+    "securities_regulator": {
+      "preferredTier": "primary_official",
+      "authorityWeight": 0.96,
+      "bestFor": [
+        "securities_law_context",
+        "issuer_rules",
+        "financial_promotion_boundary",
+        "market_regulation"
+      ],
+      "requiresFreshness": true
+    },
+    "tax_authority": {
+      "preferredTier": "primary_official",
+      "authorityWeight": 0.96,
+      "bestFor": [
+        "tax_rule_context",
+        "deduction_context",
+        "filing_obligation_context",
+        "program_tax_interaction"
+      ],
+      "requiresFreshness": true
+    },
+    "government_program": {
+      "preferredTier": "primary_official",
+      "authorityWeight": 0.94,
+      "bestFor": [
+        "grant_eligibility",
+        "loan_program_rules",
+        "application_deadlines",
+        "program_status",
+        "funding_conditions"
+      ],
+      "requiresFreshness": true
+    },
+    "regulatory_filings": {
+      "preferredTier": "primary_filings",
+      "authorityWeight": 0.92,
+      "bestFor": [
+        "issuer_financials",
+        "risk_factors",
+        "capital_raise_details",
+        "management_discussion",
+        "audited_figures"
+      ],
+      "requiresFreshness": true
+    },
+    "multilateral_data": {
+      "preferredTier": "institutional_multilateral",
+      "authorityWeight": 0.88,
+      "bestFor": [
+        "country_context",
+        "development_finance",
+        "global_macro",
+        "international_comparison"
+      ],
+      "requiresFreshness": false
+    },
+    "professional_research": {
+      "preferredTier": "professional_research",
+      "authorityWeight": 0.8,
+      "bestFor": [
+        "frameworks",
+        "methodology",
+        "industry_analysis",
+        "finance_education",
+        "risk_management_context"
+      ],
+      "requiresFreshness": false
+    },
+    "major_financial_press": {
+      "preferredTier": "major_financial_press",
+      "authorityWeight": 0.68,
+      "bestFor": [
+        "market_narrative",
+        "event_reporting",
+        "earnings_context",
+        "sector_sentiment"
+      ],
+      "requiresFreshness": true
+    },
+    "user_provided_data": {
+      "preferredTier": "user_provided_operational_data",
+      "authorityWeight": 0.72,
+      "bestFor": [
+        "business_specific_modeling",
+        "cashflow",
+        "pricing",
+        "unit_economics",
+        "scenario_inputs"
+      ],
+      "requiresFreshness": false
+    }
+  },
+  "intentAuthorityRequirements": {
+    "macro": [
+      "central_bank",
+      "official_statistics",
+      "institutional_multilateral",
+      "major_financial_press"
+    ],
+    "micro": [
+      "professional_research",
+      "user_provided_data"
+    ],
+    "capital_markets": [
+      "regulatory_filings",
+      "exchange_or_market_reference",
+      "professional_research",
+      "major_financial_press"
+    ],
+    "pricing": [
+      "user_provided_data",
+      "professional_research",
+      "major_financial_press"
+    ],
+    "unit_economics": [
+      "user_provided_data",
+      "professional_research"
+    ],
+    "commercial_risk": [
+      "user_provided_data",
+      "official_statistics",
+      "major_financial_press",
+      "professional_research",
+      "government_program"
+    ],
+    "cashflow": [
+      "user_provided_data",
+      "professional_research"
+    ],
+    "credit_debt": [
+      "central_bank",
+      "user_provided_data",
+      "professional_research",
+      "major_financial_press"
+    ],
+    "compliance": [
+      "securities_regulator",
+      "tax_authority",
+      "government_program",
+      "official_legislation_portal",
+      "regulatory_filings"
+    ],
+    "public_policy": [
+      "central_bank",
+      "government_program",
+      "official_statistics",
+      "institutional_multilateral",
+      "major_financial_press"
+    ],
+    "case_study": [
+      "user_provided_data",
+      "professional_research",
+      "major_financial_press"
+    ],
+    "source_lookup": [
+      "primary_official",
+      "primary_filings",
+      "institutional_multilateral",
+      "professional_research",
+      "major_financial_press"
+    ]
+  },
+  "authorityDecisionRules": [
+    {
+      "condition": "claim_is_current_policy_or_rate",
+      "requiredTier": "primary_official",
+      "minimumAuthorityWeight": 0.9
+    },
+    {
+      "condition": "claim_is_regulatory_or_compliance_sensitive",
+      "requiredTier": "primary_official",
+      "minimumAuthorityWeight": 0.9
+    },
+    {
+      "condition": "claim_is_company_specific_financial_fact",
+      "requiredTier": "primary_filings",
+      "minimumAuthorityWeight": 0.88
+    },
+    {
+      "condition": "claim_is_market_narrative",
+      "requiredTier": "major_financial_press",
+      "minimumAuthorityWeight": 0.65
+    },
+    {
+      "condition": "claim_is_user_business_modeling",
+      "requiredTier": "user_provided_operational_data",
+      "minimumAuthorityWeight": 0.65
+    },
+    {
+      "condition": "source_is_unknown_or_unsourced",
+      "requiredTier": "unsupported_or_unknown",
+      "minimumAuthorityWeight": 0.0
+    }
+  ],
+  "outputEnvelopeSchema": {
+    "domain": "finance",
+    "layer": "source_authority",
+    "sourceName": "string",
+    "sourceType": "string",
+    "sourceTier": "string",
+    "authorityWeight": "number_0_to_1",
+    "citationRequired": "boolean",
+    "freshnessRequired": "boolean",
+    "allowedUses": [
+      "string"
+    ],
+    "limitations": [
+      "string"
+    ],
+    "confidenceImpact": "increase_neutral_decrease_block"
+  },
+  "guardrails": [
+    "Do not allow unknown sources to support final finance conclusions.",
+    "Do not allow business press to be the sole source for compliance or program eligibility.",
+    "Do not allow stale sources to support current finance claims.",
+    "Do not treat user-provided numbers as externally verified facts.",
+    "When a source is lower authority than required, downgrade confidence or ask for better evidence."
+  ]
+}
