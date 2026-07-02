@@ -1,0 +1,585 @@
+{
+  "id": "fin_query_patterns_v1",
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "R18D_layer01_intent_classification",
+  "description": "Query pattern map for detecting finance user intent, risk language, jurisdiction markers, source needs, and advisory-boundary triggers.",
+  "posture": {
+    "type": "query_pattern_detection",
+    "educationalOnly": true,
+    "decisionSupportOnly": true,
+    "notPersonalFinancialAdvice": true,
+    "notInvestmentAdvice": true,
+    "notLegalOrTaxAdvice": true,
+    "assumptionDisclosureRequired": true
+  },
+  "normalizationRules": [
+    {
+      "rule": "lowercase_input",
+      "description": "Convert query to lowercase before matching pattern groups."
+    },
+    {
+      "rule": "strip_punctuation_for_keyword_match",
+      "description": "Remove punctuation for keyword matching while preserving original query for response."
+    },
+    {
+      "rule": "preserve_numbers_currency_percentages",
+      "description": "Do not strip numeric values, currency symbols, percentages, or date references."
+    },
+    {
+      "rule": "detect_multi_intent",
+      "description": "Allow more than one intent when the query includes risk, business model, compliance, and source language together."
+    },
+    {
+      "rule": "flag_jurisdiction_terms",
+      "description": "Detect country, province, state, federal, cross-border, tax, securities, and regulator terms."
+    }
+  ],
+  "intentPatterns": {
+    "macro": {
+      "keywords": [
+        "economy",
+        "inflation",
+        "interest rates",
+        "rates",
+        "gdp",
+        "recession",
+        "unemployment",
+        "labour market",
+        "consumer spending",
+        "monetary policy",
+        "central bank",
+        "credit conditions",
+        "liquidity",
+        "bond yields",
+        "economic outlook"
+      ],
+      "phrasePatterns": [
+        "what is happening with the economy",
+        "how does inflation affect",
+        "what happens if interest rates",
+        "is the economy slowing",
+        "how would a recession affect",
+        "what does the central bank decision mean",
+        "what are the macro risks"
+      ],
+      "secondaryIntentHints": [
+        "public_policy",
+        "commercial_risk",
+        "credit_debt"
+      ]
+    },
+    "micro": {
+      "keywords": [
+        "demand",
+        "supply",
+        "elasticity",
+        "price sensitivity",
+        "substitute",
+        "complement",
+        "incentive",
+        "opportunity cost",
+        "market structure",
+        "switching cost",
+        "customer behavior",
+        "pricing power"
+      ],
+      "phrasePatterns": [
+        "how sensitive are customers",
+        "what is the closest substitute",
+        "what incentives are driving",
+        "do we have pricing power",
+        "what is the opportunity cost",
+        "is this market competitive"
+      ],
+      "secondaryIntentHints": [
+        "pricing",
+        "unit_economics",
+        "commercial_risk"
+      ]
+    },
+    "capital_markets": {
+      "keywords": [
+        "capital",
+        "funding",
+        "debt",
+        "equity",
+        "dilution",
+        "investor",
+        "valuation",
+        "cost of capital",
+        "capital stack",
+        "convertible note",
+        "safe",
+        "preferred shares",
+        "line of credit",
+        "bank loan",
+        "runway"
+      ],
+      "phrasePatterns": [
+        "should we use debt or equity",
+        "what type of capital",
+        "how much dilution",
+        "what is the cost of capital",
+        "how does the capital stack work",
+        "is a loan better than investors",
+        "how much runway"
+      ],
+      "secondaryIntentHints": [
+        "credit_debt",
+        "cashflow",
+        "commercial_risk"
+      ]
+    },
+    "pricing": {
+      "keywords": [
+        "pricing",
+        "price",
+        "subscription",
+        "tier",
+        "freemium",
+        "usage based",
+        "seat based",
+        "bundle",
+        "discount",
+        "value based",
+        "cost plus",
+        "trial",
+        "pilot",
+        "offer"
+      ],
+      "phrasePatterns": [
+        "how should we price",
+        "what pricing model",
+        "should this be subscription",
+        "should this be one time",
+        "how do we structure tiers",
+        "is freemium a bad idea",
+        "what should the offer look like"
+      ],
+      "secondaryIntentHints": [
+        "unit_economics",
+        "micro",
+        "commercial_risk"
+      ]
+    },
+    "unit_economics": {
+      "keywords": [
+        "unit economics",
+        "contribution margin",
+        "gross margin",
+        "ltv",
+        "cac",
+        "payback period",
+        "churn",
+        "retention",
+        "arpu",
+        "net revenue retention",
+        "customer acquisition",
+        "scaling",
+        "break even",
+        "variable cost"
+      ],
+      "phrasePatterns": [
+        "does the model scale",
+        "is this profitable per customer",
+        "what is the contribution margin",
+        "what happens if cac increases",
+        "how long is payback",
+        "is growth sustainable",
+        "where are the hidden variable costs"
+      ],
+      "secondaryIntentHints": [
+        "pricing",
+        "cashflow",
+        "commercial_risk"
+      ]
+    },
+    "commercial_risk": {
+      "keywords": [
+        "commercial risk",
+        "business risk",
+        "exposure",
+        "viability",
+        "dependency",
+        "vendor risk",
+        "platform risk",
+        "revenue risk",
+        "cost risk",
+        "market entry",
+        "expansion",
+        "relocation",
+        "monetization",
+        "fragility",
+        "operational risk"
+      ],
+      "phrasePatterns": [
+        "what are the risks",
+        "can this business handle",
+        "is this commercially viable",
+        "what could go wrong",
+        "what is the downside",
+        "what are we missing",
+        "what would break this",
+        "how exposed are we",
+        "is this move risky"
+      ],
+      "secondaryIntentHints": [
+        "cashflow",
+        "unit_economics",
+        "compliance",
+        "public_policy"
+      ]
+    },
+    "cashflow": {
+      "keywords": [
+        "cash flow",
+        "cashflow",
+        "runway",
+        "burn rate",
+        "cash reserve",
+        "monthly burn",
+        "operating cushion",
+        "receivables",
+        "payment delay",
+        "liquidity",
+        "survival capital",
+        "short term cash"
+      ],
+      "phrasePatterns": [
+        "how much runway",
+        "what happens if revenue drops",
+        "can we survive",
+        "how long can we operate",
+        "what if payments are delayed",
+        "do we have enough cash",
+        "what is the liquidity risk"
+      ],
+      "secondaryIntentHints": [
+        "capital_markets",
+        "credit_debt",
+        "commercial_risk"
+      ]
+    },
+    "credit_debt": {
+      "keywords": [
+        "loan",
+        "credit",
+        "debt",
+        "line of credit",
+        "interest",
+        "interest coverage",
+        "debt service",
+        "dscr",
+        "collateral",
+        "covenant",
+        "refinancing",
+        "leverage",
+        "variable rate",
+        "fixed rate"
+      ],
+      "phrasePatterns": [
+        "can we qualify for a loan",
+        "is this debt risky",
+        "can we service the debt",
+        "what is the debt pressure",
+        "what happens if rates rise",
+        "should this be fixed or variable",
+        "what collateral issue"
+      ],
+      "secondaryIntentHints": [
+        "capital_markets",
+        "cashflow",
+        "macro"
+      ]
+    },
+    "compliance": {
+      "keywords": [
+        "compliance",
+        "regulation",
+        "regulatory",
+        "legal",
+        "tax",
+        "securities",
+        "financial promotion",
+        "consumer protection",
+        "disclosure",
+        "eligibility",
+        "grant rules",
+        "program rules",
+        "licensed",
+        "filing",
+        "audit"
+      ],
+      "phrasePatterns": [
+        "are we allowed to",
+        "is this compliant",
+        "what are the rules",
+        "what regulation applies",
+        "what compliance risk",
+        "does this trigger securities law",
+        "what tax issue",
+        "are we eligible"
+      ],
+      "secondaryIntentHints": [
+        "public_policy",
+        "source_lookup",
+        "commercial_risk"
+      ]
+    },
+    "public_policy": {
+      "keywords": [
+        "policy",
+        "public policy",
+        "fiscal policy",
+        "monetary policy",
+        "tax policy",
+        "trade policy",
+        "subsidy",
+        "tariff",
+        "government spending",
+        "infrastructure",
+        "regulatory policy",
+        "competition policy"
+      ],
+      "phrasePatterns": [
+        "how does policy affect",
+        "what does this policy change mean",
+        "how would tax policy affect",
+        "what does government spending do",
+        "how does regulation change the market",
+        "what is the policy transmission"
+      ],
+      "secondaryIntentHints": [
+        "macro",
+        "compliance",
+        "commercial_risk"
+      ]
+    },
+    "case_study": {
+      "keywords": [
+        "case study",
+        "example",
+        "pattern",
+        "diagnose",
+        "scenario",
+        "compare",
+        "walkthrough",
+        "framework",
+        "decision tree",
+        "autopsy"
+      ],
+      "phrasePatterns": [
+        "walk me through",
+        "give me a case study",
+        "diagnose this",
+        "compare these options",
+        "what pattern is this",
+        "what would this look like",
+        "give me the framework"
+      ],
+      "secondaryIntentHints": [
+        "commercial_risk",
+        "unit_economics",
+        "risk_management"
+      ]
+    },
+    "source_lookup": {
+      "keywords": [
+        "source",
+        "sources",
+        "data",
+        "where get information",
+        "where would we get",
+        "official data",
+        "filings",
+        "central bank",
+        "statistics",
+        "regulator",
+        "dataset",
+        "research"
+      ],
+      "phrasePatterns": [
+        "where would we get this information",
+        "what sources should we use",
+        "what data do we need",
+        "where do we verify",
+        "which source is authoritative",
+        "what official data exists"
+      ],
+      "secondaryIntentHints": [
+        "macro",
+        "compliance",
+        "public_policy"
+      ]
+    }
+  },
+  "jurisdictionMarkers": {
+    "canada": [
+      "canada",
+      "canadian",
+      "federal canada",
+      "bank of canada",
+      "statistics canada",
+      "cra",
+      "sedar",
+      "sedar+"
+    ],
+    "ontario": [
+      "ontario",
+      "toronto",
+      "ontario corporation",
+      "ontario business",
+      "ontario creates",
+      "ipon"
+    ],
+    "united_states": [
+      "united states",
+      "u.s.",
+      "us",
+      "america",
+      "sec",
+      "federal reserve",
+      "irs",
+      "edgar"
+    ],
+    "united_kingdom": [
+      "uk",
+      "u.k.",
+      "britain",
+      "england",
+      "fca",
+      "bank of england",
+      "companies house"
+    ],
+    "european_union": [
+      "europe",
+      "e.u.",
+      "eu",
+      "european union",
+      "ecb",
+      "esma"
+    ],
+    "cross_border": [
+      "cross-border",
+      "international",
+      "foreign",
+      "export",
+      "import",
+      "multi-jurisdiction",
+      "relocate",
+      "relocation"
+    ]
+  },
+  "advisoryBoundaryTriggers": [
+    "should i buy",
+    "should i sell",
+    "guaranteed return",
+    "best stock",
+    "will this stock go up",
+    "is this legal",
+    "is this tax deductible",
+    "guaranteed approval",
+    "definitely compliant",
+    "what investment should i make",
+    "exact prediction",
+    "sure thing"
+  ],
+  "riskLanguageMarkers": [
+    "risk",
+    "exposure",
+    "downside",
+    "fragile",
+    "stress test",
+    "failure",
+    "collapse",
+    "pressure",
+    "uncertainty",
+    "sensitivity",
+    "dependency",
+    "red flag",
+    "overextended",
+    "default",
+    "liquidity"
+  ],
+  "freshnessRequiredMarkers": [
+    "current",
+    "latest",
+    "today",
+    "this week",
+    "this month",
+    "right now",
+    "still open",
+    "new rules",
+    "updated",
+    "recent",
+    "2026"
+  ],
+  "clarificationTriggers": [
+    {
+      "trigger": "missing_jurisdiction_for_compliance",
+      "responseCue": "Which jurisdiction are we analyzing?"
+    },
+    {
+      "trigger": "missing_time_horizon_for_forecast_or_scenario",
+      "responseCue": "What time horizon are we testing?"
+    },
+    {
+      "trigger": "missing_business_model_for_unit_economics",
+      "responseCue": "What is the revenue model and cost structure?"
+    },
+    {
+      "trigger": "missing_cash_numbers_for_runway",
+      "responseCue": "What are cash on hand and monthly burn?"
+    }
+  ],
+  "classificationExamples": [
+    {
+      "query": "Can this business survive if ad revenue drops for three months?",
+      "primaryIntent": "cashflow",
+      "secondaryIntents": [
+        "commercial_risk",
+        "unit_economics"
+      ],
+      "requiresJurisdiction": false,
+      "requiresFreshData": false
+    },
+    {
+      "query": "What would higher Bank of Canada rates do to small business loans?",
+      "primaryIntent": "macro",
+      "secondaryIntents": [
+        "credit_debt",
+        "public_policy"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true
+    },
+    {
+      "query": "Is this funding program still open in Ontario?",
+      "primaryIntent": "compliance",
+      "secondaryIntents": [
+        "source_lookup",
+        "public_policy"
+      ],
+      "requiresJurisdiction": true,
+      "requiresFreshData": true
+    },
+    {
+      "query": "Should this be subscription pricing or a one-time fee?",
+      "primaryIntent": "pricing",
+      "secondaryIntents": [
+        "unit_economics",
+        "micro"
+      ],
+      "requiresJurisdiction": false,
+      "requiresFreshData": false
+    }
+  ],
+  "guardrails": [
+    "Use pattern matching as routing support, not final truth.",
+    "Allow multiple finance intents when query context supports them.",
+    "Treat compliance and investment-action terms as boundary-sensitive.",
+    "Freshness markers require current-source checking before factual claims.",
+    "Risk language should trigger structured downside analysis."
+  ]
+}
