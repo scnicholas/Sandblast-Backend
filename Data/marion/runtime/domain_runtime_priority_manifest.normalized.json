@@ -1,6 +1,6 @@
 {
   "name": "domain_runtime_priority_manifest.normalized",
-  "version": "nyx.marion.domainRuntimePriorityManifest/1.0-r18c-law",
+  "version": "nyx.marion.domainRuntimePriorityManifest/1.1-r18c-full-stack-regression",
   "purpose": "Normalized runtime priority manifest for Marion/Nyx domain routing. It is a machine-readable routing authority table, not a knowledge pack and not a final-answer composer.",
   "canonicalPath": "Data/marion/runtime/domain_runtime_priority_manifest.normalized.json",
   "schema": {
@@ -167,5 +167,64 @@
     "runtimePriorityManifest": "Data/marion/runtime/domain_runtime_priority_manifest.normalized.json",
     "lawManifest": "domains/law/manifest.json",
     "lawDataRoot": "Data/Domains/law/"
+  },
+  "updatedAt": "2026-07-01",
+  "fullStackRegression": {
+    "version": "nyx.marion.r18c.fullStackRegression/1.0",
+    "purpose": "Ensure R18C law routing agreement across intent router, domain confidence, domain router, Domain Concierge, State Spine, composer, final envelope, bridge, adapter, memory, audit, ChatEngine, and index transport.",
+    "technicalLawFileWorkGuard": true,
+    "lawPromptAgreementRequired": true,
+    "visibleReplyBoundaryRequired": true,
+    "noLegalAdvice": true,
+    "noAttorneyClientRelationship": true,
+    "noLegalCertaintyClaim": true
+  },
+  "categoryTieBreakers": {
+    "employment_contractor": [
+      "fired",
+      "terminated",
+      "termination",
+      "severance",
+      "release to sign",
+      "two weeks pay",
+      "without cause",
+      "contractor"
+    ],
+    "copyright_licensing": [
+      "copyright",
+      "licensing",
+      "distribution rights",
+      "broadcast rights",
+      "streaming rights",
+      "Roku",
+      "OTT",
+      "monetize"
+    ],
+    "privacy_data": [
+      "customer data",
+      "personal information",
+      "vendor data",
+      "privacy",
+      "PIPEDA",
+      "data processing"
+    ],
+    "liability_dispute": [
+      "defamation",
+      "libel",
+      "slander",
+      "false claims",
+      "liability",
+      "damages",
+      "negligence",
+      "sue"
+    ],
+    "source_verification": [
+      "source",
+      "verify",
+      "CanLII",
+      "statute",
+      "case law",
+      "official source"
+    ]
   }
 }
