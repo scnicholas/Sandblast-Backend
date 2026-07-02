@@ -6112,16 +6112,12 @@ const marionBridgeMod = tryRequireMany([
   // RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41:
   // Prefer the active Data runtime bridge first so index.js, MarionBridge,
   // ComposeMarionResponse, and ChatEngine share one live authority path.
-  "./Data/marion/runtime/marionBridge",
   "./Data/marion/runtime/marionBridge.js",
-  "./marionBridge",
+  "./Data/marion/runtime/marionBridge",
   "./marionBridge.js",
-  "./runtime/marionBridge",
+  "./marionBridge",
   "./runtime/marionBridge.js",
-  "./utils/marionBridge",
-  "./utils/marionBridge.js",
-  "./Utils/marionBridge",
-  "./Utils/marionBridge.js"
+  "./runtime/marionBridge"
 ]);
 
 const lingoSentinelGatewayMod = tryRequireMany([
@@ -23946,3 +23942,39 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
   module.exports.marionR18CReplyQueueParityRepairIsTechnicalFileWork = isTechnicalFileWork;
 })();
 /* R18C_REPLY_QUEUE_PARITY_REPAIR_END */
+
+
+/* R18C_ACTIVE_PATH_COHESION_REPAIR_START */
+(function(){
+  "use strict";
+  const V = "nyx.marion.r18c.activePathCohesionRepair/1.0";
+  const CANONICAL_BRIDGE_PATH = "Data/marion/runtime/marionBridge.js";
+  const REJECTED_DUPLICATE_CLASS = "legacy-utils-marion-bridge-copy";
+
+  function apply(packet){
+    if (!packet || typeof packet !== "object") packet = {};
+    packet.r18CActivePathCohesionRepair = {
+      version: V,
+      active: true,
+      canonicalBridgePath: CANONICAL_BRIDGE_PATH,
+      rejectedDuplicateClass: REJECTED_DUPLICATE_CLASS,
+      utilsBridgeRuntimeAllowed: false,
+      note: "MarionBridge runtime authority is canonicalized to Data/marion/runtime."
+    };
+    packet.marionBridgeCanonicalPath = packet.marionBridgeCanonicalPath || CANONICAL_BRIDGE_PATH;
+    packet.rogueBridgeDuplicateRejected = true;
+    return packet;
+  }
+
+  try {
+    if (typeof module !== "undefined" && module.exports) {
+      module.exports.MARION_R18C_ACTIVE_PATH_COHESION_REPAIR_VERSION = V;
+      module.exports.marionR18CActivePathCohesionApply = apply;
+      module.exports.marionR18CActivePathCohesionProfile = function(){
+        return apply({});
+      };
+    }
+  } catch(_err) {}
+})();
+/* R18C_ACTIVE_PATH_COHESION_REPAIR_END */
+
