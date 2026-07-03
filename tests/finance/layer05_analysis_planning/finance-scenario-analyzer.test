@@ -1,0 +1,102 @@
+"use strict";
+
+function loadModule(candidates) {
+  const errors = [];
+  for (const candidate of candidates) {
+    try { return require(candidate); } catch (error) { errors.push(`${candidate}: ${error.message}`); }
+  }
+  throw new Error(`Unable to load module from candidates:\n${errors.join("\n")}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === "function") return mod;
+  if (mod && typeof mod.default === "function") return mod.default;
+  for (const name of names) if (mod && typeof mod[name] === "function") return mod[name];
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(", ")}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) if (target && typeof target[methodName] === "function") return target[methodName](...args);
+  throw new Error(`None of the expected methods exist: ${methodNames.join(", ")}`);
+}
+
+function metric(canonicalMetric) {
+  return { normalizedMetricId: `norm_${canonicalMetric}`, canonicalMetric };
+}
+
+describe("FinanceScenarioAnalyzer", () => {
+  const mod = loadModule([
+    "../../../Data/marion/runtime/finance/layer05_analysis_planning/FinanceScenarioAnalyzer.js",
+    "../../../Data/marion/runtime/finance/layer05_analysis/FinanceScenarioAnalyzer.js",
+    "../../../Data/finance/layer05_analysis_planning/FinanceScenarioAnalyzer.js",
+    "../../../Domains/finance/layer05_analysis_planning/FinanceScenarioAnalyzer.js",
+    "../../../FinanceScenarioAnalyzer.js"
+  ]);
+
+  const FinanceScenarioAnalyzer = pickExport(mod, ["FinanceScenarioAnalyzer", "ScenarioAnalyzer"]);
+
+  test("constructs without throwing", () => {
+    expect(() => new FinanceScenarioAnalyzer()).not.toThrow();
+  });
+
+  test("frames cash runway survival from claim target", () => {
+    const analyzer = new FinanceScenarioAnalyzer();
+    const result = callFirst(analyzer, ["frame", "analyze", "process", "execute", "run"], {
+      queryText: "Can the business survive a revenue drop?",
+      claimTargets: [{ targetType: "business_survival_under_revenue_shock" }],
+      analysisPlan: { primaryRoute: "business_survival_scenario" },
+      normalizedMetrics: [metric("cash_and_equivalents"), metric("revenue")],
+      missingInputs: [{ missingInput: "monthly_burn" }]
+    });
+
+    expect(result.scenarioFrame.scenarioRequired).toBe(true);
+    expect(result.scenarioFrame.scenarioTypes).toContain("cash_runway_survival");
+  });
+
+  test("detects revenue shock, cost pressure, and rate sensitivity language", () => {
+    const analyzer = new FinanceScenarioAnalyzer();
+    const result = analyzer.frame({
+      queryText: "Stress test a revenue drop, cost increase, and interest rate increase.",
+      normalizedMetrics: [metric("free_cash_flow")]
+    });
+
+    expect(result.scenarioFrame.scenarioTypes).toEqual(expect.arrayContaining([
+      "revenue_shock",
+      "cost_pressure",
+      "rate_or_debt_service_sensitivity"
+    ]));
+  });
+
+  test("returns scenario_not_required for ordinary finance review", () => {
+    const analyzer = new FinanceScenarioAnalyzer();
+    const result = analyzer.frame({ queryText: "Review revenue for FY2024.", normalizedMetrics: [metric("revenue")] });
+
+    expect(result.scenarioFrame.scenarioRequired).toBe(false);
+    expect(result.scenarioFrame.readinessStatus).toBe("scenario_not_required");
+  });
+
+  test("reports missing required scenario inputs", () => {
+    const analyzer = new FinanceScenarioAnalyzer();
+    const result = analyzer.frame({
+      queryText: "Can we survive with current cash?",
+      analysisPlan: { primaryRoute: "business_survival_scenario" },
+      normalizedMetrics: [metric("cash_and_equivalents")],
+      missingInputs: [{ missingInput: "monthly_burn" }]
+    });
+
+    expect(result.scenarioFrame.readinessStatus).toBe("needs_scenario_inputs");
+    expect(result.diagnostics.warnings).toContain("scenario_inputs_missing");
+  });
+
+  test("maps assumptions into scenario assumptions", () => {
+    const analyzer = new FinanceScenarioAnalyzer();
+    const result = analyzer.frame({
+      queryText: "Assuming revenue drops, can we survive?",
+      analysisPlan: { primaryRoute: "business_survival_scenario" },
+      assumptions: [{ assumptionId: "a1", statement: "Assuming revenue drops 30%", requiresConfirmation: true }]
+    });
+
+    expect(result.scenarioFrame.scenarioAssumptions.length).toBe(1);
+    expect(result.scenarioFrame.scenarioAssumptions[0].scenarioRole).toBe("scenario_driver");
+  });
+});
