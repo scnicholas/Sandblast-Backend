@@ -1,0 +1,136 @@
+"use strict";
+
+function loadModule(candidates) {
+  const errors = [];
+  for (const candidate of candidates) {
+    try { return require(candidate); } catch (error) { errors.push(`${candidate}: ${error.message}`); }
+  }
+  throw new Error(`Unable to load module from candidates:\n${errors.join("\n")}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === "function") return mod;
+  if (mod && typeof mod.default === "function") return mod.default;
+  for (const name of names) if (mod && typeof mod[name] === "function") return mod[name];
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(", ")}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) if (target && typeof target[methodName] === "function") return target[methodName](...args);
+  throw new Error(`None of the expected methods exist: ${methodNames.join(", ")}`);
+}
+
+function metric(canonicalMetric, extra = {}) {
+  return { normalizedMetricId: `norm_${canonicalMetric}`, canonicalMetric, normalizationStatus: "normalized", ...extra };
+}
+
+function riskCodes(result) {
+  return result.riskFlags.map((risk) => risk.riskCode);
+}
+
+describe("FinanceRiskFlagger", () => {
+  const mod = loadModule([
+    "../../../Data/marion/runtime/finance/layer05_analysis_planning/FinanceRiskFlagger.js",
+    "../../../Data/marion/runtime/finance/layer05_analysis/FinanceRiskFlagger.js",
+    "../../../Data/finance/layer05_analysis_planning/FinanceRiskFlagger.js",
+    "../../../Domains/finance/layer05_analysis_planning/FinanceRiskFlagger.js",
+    "../../../FinanceRiskFlagger.js"
+  ]);
+
+  const FinanceRiskFlagger = pickExport(mod, ["FinanceRiskFlagger", "RiskFlagger"]);
+
+  test("constructs without throwing", () => {
+    expect(() => new FinanceRiskFlagger()).not.toThrow();
+  });
+
+  test("flags blocking missing inputs", () => {
+    const flagger = new FinanceRiskFlagger();
+    const result = callFirst(flagger, ["flag", "flagRisks", "process", "execute", "run"], {
+      missingInputs: [{ missingInput: "company", blocksAnalysis: true, reason: "Company required." }],
+      normalizedMetrics: [metric("revenue")],
+      normalizedEntities: { companies: [] },
+      normalizedPeriods: [{ canonicalPeriod: "FY2024" }],
+      normalizedSources: [{ sourceLabel: "user_query", authorityClass: "user_supplied" }]
+    });
+
+    expect(riskCodes(result)).toContain("missing_input:company");
+    expect(result.diagnostics.ok).toBe(false);
+  });
+
+  test("flags no normalized metrics", () => {
+    const flagger = new FinanceRiskFlagger();
+    const result = flagger.flag({
+      normalizedMetrics: [],
+      normalizedEntities: { companies: [{ canonicalName: "Apple Inc.", ticker: "AAPL" }] },
+      normalizedPeriods: [{ canonicalPeriod: "FY2024" }],
+      normalizedSources: [{ sourceLabel: "user_query", authorityClass: "user_supplied" }]
+    });
+
+    expect(riskCodes(result)).toContain("no_normalized_metrics");
+  });
+
+  test("flags unknown metric and verification-required metric", () => {
+    const flagger = new FinanceRiskFlagger();
+    const result = flagger.flag({
+      normalizedMetrics: [
+        metric("custom_metric", { normalizationStatus: "unknown_metric", originalMetric: "custom metric" }),
+        metric("revenue", { verificationRequired: true })
+      ],
+      normalizedEntities: { companies: [{ canonicalName: "Apple Inc.", ticker: "AAPL" }] },
+      normalizedPeriods: [{ canonicalPeriod: "FY2024" }],
+      normalizedSources: [{ sourceLabel: "user_query", authorityClass: "user_supplied" }]
+    });
+
+    expect(riskCodes(result)).toEqual(expect.arrayContaining([
+      "unknown_metric:custom metric",
+      "metric_requires_verification:revenue"
+    ]));
+  });
+
+  test("flags missing period and unknown source authority", () => {
+    const flagger = new FinanceRiskFlagger();
+    const result = flagger.flag({
+      normalizedMetrics: [metric("revenue")],
+      normalizedEntities: { companies: [{ canonicalName: "Apple Inc.", ticker: "AAPL" }] },
+      normalizedPeriods: [],
+      normalizedSources: [{ sourceLabel: "blog", authorityClass: "unknown", requiresVerification: true }]
+    });
+
+    expect(riskCodes(result)).toEqual(expect.arrayContaining([
+      "no_normalized_period",
+      "unknown_source_authority:blog",
+      "source_requires_verification:blog"
+    ]));
+  });
+
+  test("flags assumption-heavy analysis and confirmation requirements", () => {
+    const flagger = new FinanceRiskFlagger();
+    const result = flagger.flag({
+      normalizedMetrics: [metric("revenue")],
+      normalizedEntities: { companies: [{ canonicalName: "Apple Inc.", ticker: "AAPL" }] },
+      normalizedPeriods: [{ canonicalPeriod: "FY2024" }],
+      normalizedSources: [{ sourceLabel: "user_query", authorityClass: "user_supplied" }],
+      assumptions: [
+        { assumptionId: "a1", statement: "Assume A", requiresConfirmation: true },
+        { assumptionId: "a2", statement: "Assume B" },
+        { assumptionId: "a3", statement: "Assume C" }
+      ]
+    });
+
+    expect(riskCodes(result)).toContain("assumption_heavy_analysis");
+    expect(riskCodes(result).some((code) => code.startsWith("assumption_requires_confirmation:"))).toBe(true);
+  });
+
+  test("flags scenario missing inputs", () => {
+    const flagger = new FinanceRiskFlagger();
+    const result = flagger.flag({
+      normalizedMetrics: [metric("cash_and_equivalents")],
+      normalizedEntities: { companies: [{ canonicalName: "Business" }] },
+      normalizedPeriods: [{ canonicalPeriod: "FY2024" }],
+      normalizedSources: [{ sourceLabel: "user_query", authorityClass: "user_supplied" }],
+      scenarioFrame: { scenarioRequired: true, readinessStatus: "needs_scenario_inputs" }
+    });
+
+    expect(riskCodes(result)).toContain("scenario_inputs_missing");
+  });
+});
