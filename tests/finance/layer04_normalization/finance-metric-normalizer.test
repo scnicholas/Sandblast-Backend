@@ -1,0 +1,188 @@
+'use strict';
+
+function loadModule(candidates) {
+  const errors = [];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (err) {
+      errors.push(`${candidate}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to load module from candidates:\n${errors.join('\n')}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === 'function') return mod;
+  if (mod && typeof mod.default === 'function') return mod.default;
+
+  for (const name of names) {
+    if (mod && typeof mod[name] === 'function') return mod[name];
+  }
+
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(', ')}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) {
+    if (target && typeof target[methodName] === 'function') return target[methodName](...args);
+  }
+
+  throw new Error(`None of the expected methods exist: ${methodNames.join(', ')}`);
+}
+
+function flattenStrings(value, output = []) {
+  if (typeof value === 'string') {
+    output.push(value.toLowerCase());
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenStrings(item, output));
+    return output;
+  }
+
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => flattenStrings(item, output));
+  }
+
+  return output;
+}
+
+describe('FinanceMetricNormalizer', () => {
+  const mod = loadModule([
+    '../../../Data/marion/runtime/finance/layer04_normalization/FinanceMetricNormalizer.js',
+    '../../../FinanceMetricNormalizer.js',
+    '../../../finance/FinanceMetricNormalizer.js',
+    '../../../finance/layer04_normalization/FinanceMetricNormalizer.js',
+    '../../../Data/finance/layer04_normalization/FinanceMetricNormalizer.js',
+    '../../../Data/Domains/finance/layer04_normalization/FinanceMetricNormalizer.js',
+    '../../../Domains/finance/layer04_normalization/FinanceMetricNormalizer.js',
+  ]);
+
+  const FinanceMetricNormalizer = pickExport(mod, [
+    'FinanceMetricNormalizer',
+    'MetricNormalizer',
+  ]);
+
+  test('constructs without throwing', () => {
+    expect(() => new FinanceMetricNormalizer()).not.toThrow();
+  });
+
+  test('canonicalizes income statement metrics and aliases', () => {
+    const normalizer = new FinanceMetricNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeMetrics', 'run', 'execute', 'process'],
+      {
+        metricInputs: [
+          { metricId: 'm1', metric: 'sales', rawValue: 'sales', confidence: 0.86 },
+          { metricId: 'm2', metric: 'earnings', rawValue: 'earnings', confidence: 0.86 },
+          { metricId: 'm3', metric: 'EBITDA', rawValue: 'EBITDA', confidence: 0.86 },
+          { metricId: 'm4', metric: 'op margin', rawValue: 'op margin', confidence: 0.86 },
+        ],
+      }
+    );
+
+    expect(result).toBeTruthy();
+    expect(Array.isArray(result.normalizedMetrics)).toBe(true);
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('revenue');
+    expect(strings).toContain('net_income');
+    expect(strings).toContain('ebitda');
+    expect(strings).toContain('operating_margin');
+    expect(strings).toContain('income_statement');
+  });
+
+  test('canonicalizes cash-flow, balance-sheet, and valuation metrics', () => {
+    const normalizer = new FinanceMetricNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeMetrics', 'run', 'execute', 'process'],
+      {
+        metricInputs: ['FCF', 'operating cash flow', 'capex', 'debt', 'cash', 'assets', 'liabilities', 'equity', 'PE ratio'],
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+
+    expect(strings).toContain('free_cash_flow');
+    expect(strings).toContain('operating_cash_flow');
+    expect(strings).toContain('capital_expenditures');
+    expect(strings).toContain('total_debt');
+    expect(strings).toContain('cash_and_equivalents');
+    expect(strings).toContain('total_assets');
+    expect(strings).toContain('total_liabilities');
+    expect(strings).toContain('shareholders_equity');
+    expect(strings).toContain('price_earnings_ratio');
+  });
+
+  test('normalizes units and currency metadata', () => {
+    const normalizer = new FinanceMetricNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeMetrics', 'run', 'execute', 'process'],
+      {
+        metricInputs: [
+          {
+            metricId: 'm1',
+            metric: 'gross_margin',
+            rawValue: '42%',
+            value: 42,
+            unit: '%',
+            currency: null,
+            confidence: 0.91,
+          },
+          {
+            metricId: 'm2',
+            metric: 'revenue',
+            rawValue: '$1000000',
+            value: 1000000,
+            unit: 'currency',
+            currency: 'usd',
+            confidence: 0.88,
+          },
+        ],
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+
+    expect(strings).toContain('percent');
+    expect(strings).toContain('currency');
+    expect(strings).toContain('USD'.toLowerCase());
+  });
+
+  test('retains unknown metrics as slugs with warning diagnostics', () => {
+    const normalizer = new FinanceMetricNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeMetrics', 'run', 'execute', 'process'],
+      {
+        metricInputs: [{ metricId: 'm_unknown', metric: 'magic ratio', rawValue: 'magic ratio' }],
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+
+    expect(strings).toContain('magic_ratio');
+    expect(strings).toContain('unknown_metric');
+    expect(result.diagnostics && Array.isArray(result.diagnostics.warnings)).toBe(true);
+  });
+
+  test('output is JSON-serializable', () => {
+    const normalizer = new FinanceMetricNormalizer();
+    const result = callFirst(normalizer, ['normalize', 'normalizeMetrics', 'run', 'execute', 'process'], {
+      metricInputs: ['revenue', 'net income'],
+    });
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+  });
+});
