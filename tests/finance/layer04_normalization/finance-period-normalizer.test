@@ -1,0 +1,155 @@
+'use strict';
+
+function loadModule(candidates) {
+  const errors = [];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (err) {
+      errors.push(`${candidate}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to load module from candidates:\n${errors.join('\n')}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === 'function') return mod;
+  if (mod && typeof mod.default === 'function') return mod.default;
+
+  for (const name of names) {
+    if (mod && typeof mod[name] === 'function') return mod[name];
+  }
+
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(', ')}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) {
+    if (target && typeof target[methodName] === 'function') return target[methodName](...args);
+  }
+
+  throw new Error(`None of the expected methods exist: ${methodNames.join(', ')}`);
+}
+
+function flattenStrings(value, output = []) {
+  if (typeof value === 'string') {
+    output.push(value.toLowerCase());
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenStrings(item, output));
+    return output;
+  }
+
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => flattenStrings(item, output));
+  }
+
+  return output;
+}
+
+describe('FinancePeriodNormalizer', () => {
+  const mod = loadModule([
+    '../../../Data/marion/runtime/finance/layer04_normalization/FinancePeriodNormalizer.js',
+    '../../../FinancePeriodNormalizer.js',
+    '../../../finance/FinancePeriodNormalizer.js',
+    '../../../finance/layer04_normalization/FinancePeriodNormalizer.js',
+    '../../../Data/finance/layer04_normalization/FinancePeriodNormalizer.js',
+    '../../../Data/Domains/finance/layer04_normalization/FinancePeriodNormalizer.js',
+    '../../../Domains/finance/layer04_normalization/FinancePeriodNormalizer.js',
+  ]);
+
+  const FinancePeriodNormalizer = pickExport(mod, [
+    'FinancePeriodNormalizer',
+    'PeriodNormalizer',
+  ]);
+
+  test('constructs without throwing', () => {
+    expect(() => new FinancePeriodNormalizer()).not.toThrow();
+  });
+
+  test('normalizes fiscal years, quarters, years, TTM, and ISO dates', () => {
+    const normalizer = new FinancePeriodNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizePeriods', 'run', 'execute', 'process'],
+      {
+        periods: ['FY2024', 'Q1 2023', '2022', 'TTM', '2024-03-31'],
+      }
+    );
+
+    expect(result).toBeTruthy();
+    expect(Array.isArray(result.normalizedPeriods)).toBe(true);
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('fy2024');
+    expect(strings).toContain('q1 2023');
+    expect(strings).toContain('2022');
+    expect(strings).toContain('ttm');
+    expect(strings).toContain('2024-03-31');
+    expect(strings).toContain('fiscal_year');
+    expect(strings).toContain('fiscal_quarter');
+    expect(strings).toContain('trailing_twelve_months');
+    expect(strings).toContain('specific_date');
+  });
+
+  test('extracts periods from query text', () => {
+    const normalizer = new FinancePeriodNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizePeriods', 'run', 'execute', 'process'],
+      {
+        queryText: 'Compare revenue for FY2024, Q4 2023, and trailing twelve months.',
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('fy2024');
+    expect(strings).toContain('q4 2023');
+    expect(strings).toContain('ttm');
+  });
+
+  test('uses date rawInputs and metric periods', () => {
+    const normalizer = new FinancePeriodNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizePeriods', 'run', 'execute', 'process'],
+      {
+        rawInputs: [{ inputType: 'date', detectedValue: 'FY2021', rawValue: 'FY2021' }],
+        metricInputs: [{ metric: 'revenue', period: 'Q2 2022' }],
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('fy2021');
+    expect(strings).toContain('q2 2022');
+  });
+
+  test('warns when no period is detected', () => {
+    const normalizer = new FinancePeriodNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizePeriods', 'run', 'execute', 'process'],
+      { queryText: 'Analyze revenue and cash flow.' }
+    );
+
+    expect(result.diagnostics).toBeTruthy();
+    expect(result.diagnostics.warnings.join(' ')).toContain('no_period_detected');
+  });
+
+  test('output is JSON-serializable', () => {
+    const normalizer = new FinancePeriodNormalizer();
+    const result = callFirst(normalizer, ['normalize', 'normalizePeriods', 'run', 'execute', 'process'], {
+      periods: ['FY2024'],
+    });
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+  });
+});
