@@ -4,11 +4,11 @@
  * R18D Layer 06 — Finance Scenario Calculator
  * Executes basic scenario/runway/stress calculations when numeric assumptions exist.
  *
- * R18C lineage patch:
- * - Anchors revenue-shock calculations to the revenue_decline metric's entity + period.
- * - Prefers same entity + same period, then same entity + latest period, then latest numeric fallback.
- * - Adds reusable metric selection helpers for scenario-safe entity/period alignment.
- * - Preserves legacy method aliases and JSON-safe output shape.
+ * R18D lineage + null-safety patch:
+ * - Anchors revenue-shock calculations to revenue_decline entity + period.
+ * - Prefers same entity + same period, then same entity + latest period.
+ * - Prevents FY2023 revenue from being used for a FY2024 decline scenario.
+ * - Hardens helper functions against null metric objects.
  *
  * No external dependencies.
  */
@@ -41,15 +41,18 @@ function round(value, decimals = 4) {
 }
 
 function metricName(metric = {}) {
-  return metric.canonicalMetric || metric.metric || metric.originalMetric || null;
+  const item = metric || {};
+  return item.canonicalMetric || item.metric || item.originalMetric || null;
 }
 
 function metricEntity(metric = {}) {
-  return metric.entityId || metric.companyId || metric.company || metric.entity || metric.entityName || null;
+  const item = metric || {};
+  return item.entityId || item.companyId || item.company || item.entity || item.entityName || null;
 }
 
 function metricPeriod(metric = {}) {
-  return metric.period || metric.canonicalPeriod || metric.periodId || null;
+  const item = metric || {};
+  return item.period || item.canonicalPeriod || item.periodId || null;
 }
 
 function sameNormalized(left, right) {
@@ -122,14 +125,15 @@ class FinanceScenarioCalculator {
   }
 
   calculateCashRunway(metrics = []) {
-    const cashMetric = this.findMetric(metrics, ["cash_and_equivalents", "cash_on_hand", "cash"]);
+    const cashMetric = this.findMetric(metrics, ["cash_and_equivalents", "cash_on_hand", "cash"], { preferLatest: true });
     const burnMetric = this.findMetric(metrics, ["monthly_burn", "monthly_fixed_costs"], {
       preferredEntity: metricEntity(cashMetric),
-      preferredPeriod: metricPeriod(cashMetric)
+      preferredPeriod: metricPeriod(cashMetric),
+      preferLatest: true
     });
 
-    const cash = cashMetric ? toNumber(cashMetric.value) : null;
-    const burn = burnMetric ? toNumber(burnMetric.value) : null;
+    const cash = this.metricNumericValue(cashMetric);
+    const burn = this.metricNumericValue(burnMetric);
 
     if (cash === null && burn === null) {
       return {
@@ -154,6 +158,12 @@ class FinanceScenarioCalculator {
           burn === null || burn <= 0 ? "monthly_burn" : null
         ].filter(Boolean),
         executionStatus: "partial",
+        lineageContext: {
+          cashMetricId: cashMetric && (cashMetric.normalizedMetricId || cashMetric.metricId) || null,
+          burnMetricId: burnMetric && (burnMetric.normalizedMetricId || burnMetric.metricId) || null,
+          entityId: metricEntity(cashMetric) || metricEntity(burnMetric) || null,
+          period: metricPeriod(cashMetric) || metricPeriod(burnMetric) || null
+        },
         confidence: 0.52
       };
     }
@@ -168,10 +178,11 @@ class FinanceScenarioCalculator {
         monthlyBurn: burn
       },
       lineageContext: {
+        cashMetricId: cashMetric && (cashMetric.normalizedMetricId || cashMetric.metricId) || null,
+        burnMetricId: burnMetric && (burnMetric.normalizedMetricId || burnMetric.metricId) || null,
         entityId: metricEntity(cashMetric) || metricEntity(burnMetric) || null,
         period: metricPeriod(cashMetric) || metricPeriod(burnMetric) || null,
-        cashMetricId: cashMetric && (cashMetric.normalizedMetricId || cashMetric.metricId),
-        burnMetricId: burnMetric && (burnMetric.normalizedMetricId || burnMetric.metricId)
+        alignmentStatus: this.describeAlignment(cashMetric, burnMetric)
       },
       missingInputs: [],
       executionStatus: "calculated",
@@ -180,20 +191,32 @@ class FinanceScenarioCalculator {
   }
 
   calculateRevenueShock(metrics = [], scenarioFrame = {}) {
-    const declineMetric = this.findMetric(metrics, ["revenue_decline"]);
-    const anchor = {
-      preferredEntity: metricEntity(declineMetric),
-      preferredPeriod: metricPeriod(declineMetric)
-    };
+    const declineMetric = this.findMetric(metrics, ["revenue_decline"], { preferLatest: true });
+    const anchorEntity = metricEntity(declineMetric);
+    const anchorPeriod = metricPeriod(declineMetric);
 
-    const revenueMetric = this.findMetric(metrics, ["monthly_revenue", "revenue"], anchor);
-    const burnMetric = this.findMetric(metrics, ["monthly_burn", "monthly_fixed_costs"], anchor);
-    const cashMetric = this.findMetric(metrics, ["cash_and_equivalents", "cash_on_hand", "cash"], anchor);
+    const revenueMetric = this.findMetric(metrics, ["monthly_revenue", "revenue"], {
+      preferredEntity: anchorEntity,
+      preferredPeriod: anchorPeriod,
+      preferLatest: true
+    });
 
-    const monthlyRevenue = revenueMetric ? toNumber(revenueMetric.value) : null;
-    const monthlyBurn = burnMetric ? toNumber(burnMetric.value) : null;
-    const cash = cashMetric ? toNumber(cashMetric.value) : null;
-    const decline = declineMetric ? toNumber(declineMetric.value) : null;
+    const burnMetric = this.findMetric(metrics, ["monthly_burn", "monthly_fixed_costs"], {
+      preferredEntity: anchorEntity || metricEntity(revenueMetric),
+      preferredPeriod: anchorPeriod || metricPeriod(revenueMetric),
+      preferLatest: true
+    });
+
+    const cashMetric = this.findMetric(metrics, ["cash_and_equivalents", "cash_on_hand", "cash"], {
+      preferredEntity: anchorEntity || metricEntity(revenueMetric),
+      preferredPeriod: anchorPeriod || metricPeriod(revenueMetric),
+      preferLatest: true
+    });
+
+    const monthlyRevenue = this.metricNumericValue(revenueMetric);
+    const monthlyBurn = this.metricNumericValue(burnMetric);
+    const cash = this.metricNumericValue(cashMetric);
+    const decline = this.metricNumericValue(declineMetric);
 
     if (monthlyRevenue === null && decline === null) {
       return {
@@ -203,6 +226,12 @@ class FinanceScenarioCalculator {
         unit: null,
         missingInputs: ["monthly_revenue", "revenue_decline"],
         executionStatus: "missing_required_inputs",
+        lineageContext: {
+          anchorMetricId: null,
+          entityId: null,
+          period: null,
+          alignmentStatus: "no_revenue_or_decline_anchor"
+        },
         confidence: 0.35
       };
     }
@@ -218,6 +247,13 @@ class FinanceScenarioCalculator {
           decline === null ? "revenue_decline" : null
         ].filter(Boolean),
         executionStatus: "partial",
+        lineageContext: {
+          revenueMetricId: revenueMetric && (revenueMetric.normalizedMetricId || revenueMetric.metricId) || null,
+          declineMetricId: declineMetric && (declineMetric.normalizedMetricId || declineMetric.metricId) || null,
+          entityId: anchorEntity || metricEntity(revenueMetric) || null,
+          period: anchorPeriod || metricPeriod(revenueMetric) || null,
+          alignmentStatus: this.describeAlignment(revenueMetric, declineMetric)
+        },
         confidence: 0.52
       };
     }
@@ -240,20 +276,19 @@ class FinanceScenarioCalculator {
         monthlyBurn,
         cash
       },
-      lineageContext: {
-        anchorMetric: "revenue_decline",
-        entityId: metricEntity(declineMetric) || metricEntity(revenueMetric) || null,
-        period: metricPeriod(declineMetric) || metricPeriod(revenueMetric) || null,
-        revenueMetricId: revenueMetric && (revenueMetric.normalizedMetricId || revenueMetric.metricId),
-        declineMetricId: declineMetric && (declineMetric.normalizedMetricId || declineMetric.metricId),
-        burnMetricId: burnMetric && (burnMetric.normalizedMetricId || burnMetric.metricId),
-        cashMetricId: cashMetric && (cashMetric.normalizedMetricId || cashMetric.metricId),
-        alignmentStatus: this.alignmentStatus(revenueMetric, declineMetric)
-      },
       outputs: {
         estimatedMonthlyRevenueLoss: round(revenueLoss, 2),
         stressedMonthlyBurn: round(stressedMonthlyBurn, 2),
         stressedRunwayMonths: round(stressedRunway, 2)
+      },
+      lineageContext: {
+        revenueMetricId: revenueMetric && (revenueMetric.normalizedMetricId || revenueMetric.metricId) || null,
+        declineMetricId: declineMetric && (declineMetric.normalizedMetricId || declineMetric.metricId) || null,
+        burnMetricId: burnMetric && (burnMetric.normalizedMetricId || burnMetric.metricId) || null,
+        cashMetricId: cashMetric && (cashMetric.normalizedMetricId || cashMetric.metricId) || null,
+        entityId: anchorEntity || metricEntity(revenueMetric) || null,
+        period: anchorPeriod || metricPeriod(revenueMetric) || null,
+        alignmentStatus: this.describeAlignment(revenueMetric, declineMetric)
       },
       missingInputs: [
         monthlyBurn === null ? "monthly_burn" : null,
@@ -265,18 +300,25 @@ class FinanceScenarioCalculator {
   }
 
   calculateDebtServicePressure(metrics = []) {
-    const debtServiceMetric = this.findMetric(metrics, ["debt_service"]);
-    const anchor = {
-      preferredEntity: metricEntity(debtServiceMetric),
-      preferredPeriod: metricPeriod(debtServiceMetric)
-    };
+    const debtServiceMetric = this.findMetric(metrics, ["debt_service"], { preferLatest: true });
+    const debtEntity = metricEntity(debtServiceMetric);
+    const debtPeriod = metricPeriod(debtServiceMetric);
 
-    const revenueMetric = this.findMetric(metrics, ["monthly_revenue", "revenue"], anchor);
-    const cashMetric = this.findMetric(metrics, ["cash_and_equivalents", "cash_on_hand", "cash"], anchor);
+    const revenueMetric = this.findMetric(metrics, ["monthly_revenue", "revenue"], {
+      preferredEntity: debtEntity,
+      preferredPeriod: debtPeriod,
+      preferLatest: true
+    });
 
-    const debtService = debtServiceMetric ? toNumber(debtServiceMetric.value) : null;
-    const revenue = revenueMetric ? toNumber(revenueMetric.value) : null;
-    const cash = cashMetric ? toNumber(cashMetric.value) : null;
+    const cashMetric = this.findMetric(metrics, ["cash_and_equivalents", "cash_on_hand", "cash"], {
+      preferredEntity: debtEntity || metricEntity(revenueMetric),
+      preferredPeriod: debtPeriod || metricPeriod(revenueMetric),
+      preferLatest: true
+    });
+
+    const debtService = this.metricNumericValue(debtServiceMetric);
+    const revenue = this.metricNumericValue(revenueMetric);
+    const cash = this.metricNumericValue(cashMetric);
 
     if (debtService === null) {
       return {
@@ -298,16 +340,16 @@ class FinanceScenarioCalculator {
       scenarioType: "debt_service_pressure",
       value: round(debtServiceRevenueBurden, 2),
       unit: "percent_of_revenue",
-      lineageContext: {
-        entityId: metricEntity(debtServiceMetric) || metricEntity(revenueMetric) || null,
-        period: metricPeriod(debtServiceMetric) || metricPeriod(revenueMetric) || null,
-        debtServiceMetricId: debtServiceMetric && (debtServiceMetric.normalizedMetricId || debtServiceMetric.metricId),
-        revenueMetricId: revenueMetric && (revenueMetric.normalizedMetricId || revenueMetric.metricId),
-        cashMetricId: cashMetric && (cashMetric.normalizedMetricId || cashMetric.metricId)
-      },
       outputs: {
         debtServiceRevenueBurden: round(debtServiceRevenueBurden, 2),
         debtServiceCashCoverageMonths: round(debtServiceCashCoverage, 2)
+      },
+      lineageContext: {
+        debtServiceMetricId: debtServiceMetric && (debtServiceMetric.normalizedMetricId || debtServiceMetric.metricId) || null,
+        revenueMetricId: revenueMetric && (revenueMetric.normalizedMetricId || revenueMetric.metricId) || null,
+        cashMetricId: cashMetric && (cashMetric.normalizedMetricId || cashMetric.metricId) || null,
+        entityId: debtEntity || metricEntity(revenueMetric) || metricEntity(cashMetric) || null,
+        period: debtPeriod || metricPeriod(revenueMetric) || metricPeriod(cashMetric) || null
       },
       missingInputs: [
         revenue === null ? "monthly_revenue" : null,
@@ -318,40 +360,21 @@ class FinanceScenarioCalculator {
     };
   }
 
-  findMetricValue(metrics = [], names = [], preferences = {}) {
-    const metric = this.findMetric(metrics, names, preferences);
-    return metric ? toNumber(metric.value) : null;
-  }
-
-  findMetric(metrics = [], names = [], preferences = {}) {
+  findMetric(metrics = [], names = [], options = {}) {
     const candidates = safeArray(metrics).filter((item) => {
-      return names.includes(metricName(item)) && toNumber(item.value) !== null;
+      return names.includes(metricName(item)) && toNumber(item && item.value) !== null;
     });
 
     if (candidates.length === 0) return null;
 
     const scored = candidates.map((metric, index) => {
       let score = 0;
-      score += 100;
 
-      if (preferences.preferredEntity && sameNormalized(metricEntity(metric), preferences.preferredEntity)) {
-        score += 35;
-      }
-
-      if (preferences.preferredPeriod && sameNormalized(metricPeriod(metric), preferences.preferredPeriod)) {
-        score += 35;
-      }
-
-      if (preferences.preferredEntity && metricEntity(metric) && !sameNormalized(metricEntity(metric), preferences.preferredEntity)) {
-        score -= 18;
-      }
-
-      if (preferences.preferredPeriod && metricPeriod(metric) && !sameNormalized(metricPeriod(metric), preferences.preferredPeriod)) {
-        score -= 8;
-      }
-
-      score += sortPeriodKey(metricPeriod(metric)) * 0.001;
-      score -= index * 0.0001;
+      if (toNumber(metric.value) !== null) score += 100;
+      if (options.preferredEntity && sameNormalized(metricEntity(metric), options.preferredEntity)) score += 35;
+      if (options.preferredPeriod && sameNormalized(metricPeriod(metric), options.preferredPeriod)) score += 35;
+      if (options.preferLatest) score += sortPeriodKey(metricPeriod(metric)) / 100000;
+      score -= index * 0.001;
 
       return { metric, score };
     }).sort((a, b) => b.score - a.score);
@@ -359,21 +382,26 @@ class FinanceScenarioCalculator {
     return scored[0].metric;
   }
 
-  alignmentStatus(leftMetric = null, rightMetric = null) {
-    if (!leftMetric || !rightMetric) return "partial_alignment";
+  findMetricValue(metrics = [], names = [], options = {}) {
+    const metric = this.findMetric(metrics, names, { ...options, preferLatest: options.preferLatest !== false });
+    return this.metricNumericValue(metric);
+  }
 
-    const leftEntity = metricEntity(leftMetric);
-    const rightEntity = metricEntity(rightMetric);
-    const leftPeriod = metricPeriod(leftMetric);
-    const rightPeriod = metricPeriod(rightMetric);
+  metricNumericValue(metric) {
+    if (!metric) return null;
+    return toNumber(metric.value);
+  }
 
-    const entityAligned = leftEntity && rightEntity && sameNormalized(leftEntity, rightEntity);
-    const periodAligned = leftPeriod && rightPeriod && sameNormalized(leftPeriod, rightPeriod);
+  describeAlignment(left, right) {
+    if (!left || !right) return "partial_alignment";
 
-    if (entityAligned && periodAligned) return "entity_period_aligned";
-    if (entityAligned) return "entity_aligned";
-    if (periodAligned) return "period_aligned";
-    return "unscoped_or_fallback_alignment";
+    const sameEntity = metricEntity(left) && metricEntity(right) && sameNormalized(metricEntity(left), metricEntity(right));
+    const samePeriod = metricPeriod(left) && metricPeriod(right) && sameNormalized(metricPeriod(left), metricPeriod(right));
+
+    if (sameEntity && samePeriod) return "entity_period_aligned";
+    if (sameEntity) return "entity_aligned";
+    if (samePeriod) return "period_aligned";
+    return "not_aligned";
   }
 
   calculateScenarios(input = {}) { return this.calculate(input); }
