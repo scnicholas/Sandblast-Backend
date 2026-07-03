@@ -88,11 +88,23 @@ function makeMissing(metric, rule = {}, severity = "recommended", blocksAnalysis
   };
 }
 
+function cloneMissingInput(item = {}) {
+  return {
+    missingInput: item.missingInput,
+    reason: item.reason,
+    severity: item.severity,
+    blocksAnalysis: Boolean(item.blocksAnalysis),
+    clarifyingQuestion: item.clarifyingQuestion
+  };
+}
+
 function decorateResult(missing = []) {
   const output = uniqueArrayObjects(missing, "missingInput");
-  output.missing = output;
-  output.missingInputs = output;
-  output.requiredInputs = output.filter((item) => item.severity === "required");
+  const snapshot = output.map(cloneMissingInput);
+
+  output.missing = snapshot;
+  output.missingInputs = snapshot;
+  output.requiredInputs = snapshot.filter((item) => item.severity === "required");
   output.complete = output.length === 0;
   output.isComplete = output.length === 0;
   output.valid = !output.some((item) => item.blocksAnalysis === true);
@@ -101,8 +113,12 @@ function decorateResult(missing = []) {
     missingCount: output.length,
     blockingCount: output.filter((item) => item.blocksAnalysis === true).length,
     warnings: output.map((item) => `missing:${item.missingInput}`),
-    errors: output.filter((item) => item.blocksAnalysis === true).map((item) => `blocking_missing:${item.missingInput}`)
+    errors: output
+      .filter((item) => item.blocksAnalysis === true)
+      .map((item) => `blocking_missing:${item.missingInput}`),
+    circularReferencesRemoved: true
   };
+
   return output;
 }
 
