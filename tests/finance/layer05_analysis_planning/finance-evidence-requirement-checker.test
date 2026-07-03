@@ -1,0 +1,122 @@
+"use strict";
+
+function loadModule(candidates) {
+  const errors = [];
+  for (const candidate of candidates) {
+    try { return require(candidate); } catch (error) { errors.push(`${candidate}: ${error.message}`); }
+  }
+  throw new Error(`Unable to load module from candidates:\n${errors.join("\n")}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === "function") return mod;
+  if (mod && typeof mod.default === "function") return mod.default;
+  for (const name of names) if (mod && typeof mod[name] === "function") return mod[name];
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(", ")}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) if (target && typeof target[methodName] === "function") return target[methodName](...args);
+  throw new Error(`None of the expected methods exist: ${methodNames.join(", ")}`);
+}
+
+function metric(canonicalMetric, extra = {}) {
+  return { canonicalMetric, verificationRequired: false, ...extra };
+}
+
+function codes(result) {
+  return result.evidenceRequirements.map((item) => item.requirementCode);
+}
+
+describe("FinanceEvidenceRequirementChecker", () => {
+  const mod = loadModule([
+    "../../../Data/marion/runtime/finance/layer05_analysis_planning/FinanceEvidenceRequirementChecker.js",
+    "../../../Data/marion/runtime/finance/layer05_analysis/FinanceEvidenceRequirementChecker.js",
+    "../../../Data/finance/layer05_analysis_planning/FinanceEvidenceRequirementChecker.js",
+    "../../../Domains/finance/layer05_analysis_planning/FinanceEvidenceRequirementChecker.js",
+    "../../../FinanceEvidenceRequirementChecker.js"
+  ]);
+
+  const FinanceEvidenceRequirementChecker = pickExport(mod, [
+    "FinanceEvidenceRequirementChecker",
+    "EvidenceRequirementChecker"
+  ]);
+
+  test("constructs without throwing", () => {
+    expect(() => new FinanceEvidenceRequirementChecker()).not.toThrow();
+  });
+
+  test("requires official financial statement evidence for statement analysis", () => {
+    const checker = new FinanceEvidenceRequirementChecker();
+    const result = callFirst(checker, ["check", "checkEvidence", "process", "execute", "run"], {
+      analysisPlan: { primaryRoute: "profitability_analysis" },
+      normalizedMetrics: [metric("revenue")]
+    });
+
+    expect(codes(result)).toContain("official_financial_statement_source");
+  });
+
+  test("requires current market price for valuation analysis", () => {
+    const checker = new FinanceEvidenceRequirementChecker();
+    const result = checker.check({
+      analysisPlan: { primaryRoute: "valuation_analysis" },
+      normalizedMetrics: [metric("price_earnings_ratio")]
+    });
+
+    const marketRequirement = result.evidenceRequirements.find((item) => item.requirementCode === "current_market_price_source");
+    expect(marketRequirement).toBeTruthy();
+    expect(marketRequirement.blockingWithoutEvidence).toBe(true);
+  });
+
+  test("requires current official source from current-query language", () => {
+    const checker = new FinanceEvidenceRequirementChecker();
+    const result = checker.check({
+      queryText: "Is this funding program still open right now?",
+      analysisPlan: { primaryRoute: "funding_eligibility_analysis" }
+    });
+
+    expect(codes(result)).toEqual(expect.arrayContaining([
+      "current_program_official_source",
+      "current_source_required"
+    ]));
+  });
+
+  test("adds metric and source verification requirements", () => {
+    const checker = new FinanceEvidenceRequirementChecker();
+    const result = checker.check({
+      analysisPlan: { primaryRoute: "cash_flow_analysis" },
+      normalizedMetrics: [metric("free_cash_flow", { verificationRequired: true })],
+      normalizedSources: [{ sourceLabel: "uploaded_pdf", authorityClass: "unknown", requiresVerification: true }]
+    });
+
+    expect(codes(result)).toEqual(expect.arrayContaining([
+      "verify_metric:free_cash_flow",
+      "classify_source:uploaded_pdf",
+      "verify_source:uploaded_pdf"
+    ]));
+  });
+
+  test("adds scenario and assumption disclosure requirements", () => {
+    const checker = new FinanceEvidenceRequirementChecker();
+    const result = checker.check({
+      analysisPlan: { primaryRoute: "business_survival_scenario" },
+      scenarioFrame: { scenarioRequired: true },
+      assumptions: [{ assumptionId: "a1", requiresConfirmation: true }]
+    });
+
+    expect(codes(result)).toEqual(expect.arrayContaining([
+      "user_supplied_operating_assumptions",
+      "scenario_assumption_disclosure",
+      "assumption_confirmation_required"
+    ]));
+  });
+
+  test("requires resolving blocking risks", () => {
+    const checker = new FinanceEvidenceRequirementChecker();
+    const result = checker.check({
+      riskFlags: [{ riskCode: "no_normalized_metrics", severity: "blocking" }]
+    });
+
+    expect(codes(result)).toContain("resolve_blocking_risk:no_normalized_metrics");
+  });
+});
