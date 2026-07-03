@@ -4,6 +4,11 @@
  * R18D Layer 06 — Finance Trend Analyzer
  * Computes period-over-period direction when normalized metrics contain numeric values.
  *
+ * R18C lineage patch:
+ * - Groups trend lines by canonical metric + entity, not metric alone.
+ * - Prevents peer values from contaminating trend deltas.
+ * - Keeps canonicalMetric stable for existing consumers/tests.
+ *
  * No external dependencies.
  */
 
@@ -38,6 +43,10 @@ function metricName(metric = {}) {
   return metric.canonicalMetric || metric.metric || metric.originalMetric || null;
 }
 
+function metricEntity(metric = {}) {
+  return metric.entityId || metric.companyId || metric.company || metric.entity || metric.entityName || null;
+}
+
 function periodValue(metric = {}) {
   return metric.period || metric.canonicalPeriod || metric.periodId || null;
 }
@@ -62,10 +71,11 @@ function sortPeriodKey(value) {
 class FinanceTrendAnalyzer {
   analyze(input = {}) {
     const normalizedMetrics = safeArray(input.normalizedMetrics);
-    const grouped = this.groupByMetric(normalizedMetrics);
+    const grouped = this.groupByMetricAndEntity(normalizedMetrics);
 
-    const trendLines = Object.keys(grouped).map((canonicalMetric) => {
-      return this.analyzeMetricTrend(canonicalMetric, grouped[canonicalMetric]);
+    const trendLines = Object.keys(grouped).map((groupKey) => {
+      const group = grouped[groupKey];
+      return this.analyzeMetricTrend(group.canonicalMetric, group.metrics, group.entityId);
     });
 
     const executableTrends = trendLines.filter((line) => line.executionStatus === "trend_calculated");
@@ -106,24 +116,39 @@ class FinanceTrendAnalyzer {
       /\btrend|over time|year over year|yoy|from|through\b/i.test(String(input.queryText || ""));
   }
 
-  groupByMetric(metrics = []) {
+  groupByMetricAndEntity(metrics = []) {
     const grouped = {};
 
     safeArray(metrics).forEach((metric) => {
       const name = metricName(metric);
       if (!name) return;
 
-      if (!grouped[name]) grouped[name] = [];
-      grouped[name].push(metric);
+      const entityId = metricEntity(metric) || "unscoped_entity";
+      const groupKey = `${name}::${entityId}`;
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          canonicalMetric: name,
+          entityId,
+          metrics: []
+        };
+      }
+
+      grouped[groupKey].metrics.push(metric);
     });
 
     return grouped;
   }
 
-  analyzeMetricTrend(canonicalMetric, metrics = []) {
+  groupByMetric(metrics = []) {
+    return this.groupByMetricAndEntity(metrics);
+  }
+
+  analyzeMetricTrend(canonicalMetric, metrics = [], entityId = null) {
     const rows = safeArray(metrics)
       .map((metric) => ({
         sourceMetricId: metric.normalizedMetricId || metric.metricId || null,
+        entityId: metricEntity(metric) || entityId || null,
         period: periodValue(metric),
         periodSort: sortPeriodKey(periodValue(metric)),
         value: toNumber(metric.value),
@@ -137,8 +162,9 @@ class FinanceTrendAnalyzer {
 
     if (numericRows.length < 2) {
       return {
-        trendId: `fin_trend_${stableSlug(canonicalMetric)}`,
+        trendId: `fin_trend_${stableSlug(canonicalMetric)}_${stableSlug(entityId || "unscoped")}`,
         canonicalMetric,
+        entityId: entityId === "unscoped_entity" ? null : entityId,
         observations: rows,
         startValue: numericRows[0] ? numericRows[0].value : null,
         endValue: null,
@@ -157,8 +183,9 @@ class FinanceTrendAnalyzer {
     const percentageChange = first.value === 0 ? null : absoluteChange / Math.abs(first.value) * 100;
 
     return {
-      trendId: `fin_trend_${stableSlug(canonicalMetric)}`,
+      trendId: `fin_trend_${stableSlug(canonicalMetric)}_${stableSlug(entityId || "unscoped")}`,
       canonicalMetric,
+      entityId: entityId === "unscoped_entity" ? null : entityId,
       observations: rows,
       startPeriod: first.period,
       endPeriod: last.period,
