@@ -4,6 +4,11 @@
  * R18D Layer 06 — Finance Ratio Calculator
  * Executes ratio calculations only when required numeric inputs are available.
  *
+ * R18C lineage patch:
+ * - Aligns ratio numerator/denominator metrics by canonical metric + entity + period.
+ * - Prevents cross-period/cross-entity leakage when multiple companies or fiscal years exist.
+ * - Preserves legacy method aliases and JSON-safe output shape.
+ *
  * No external dependencies.
  */
 
@@ -47,7 +52,12 @@ function metricPeriod(metric = {}) {
 }
 
 function metricEntity(metric = {}) {
-  return metric.entityId || metric.companyId || metric.company || metric.entity || null;
+  return metric.entityId || metric.companyId || metric.company || metric.entity || metric.entityName || null;
+}
+
+function sameNormalized(left, right) {
+  if (!left || !right) return false;
+  return normalizeText(left) === normalizeText(right);
 }
 
 class FinanceRatioCalculator {
@@ -98,10 +108,16 @@ class FinanceRatioCalculator {
 
   calculateCandidate(candidate = {}, normalizedMetrics = []) {
     const requiredMetrics = safeArray(candidate.requiredMetrics);
-    const matched = requiredMetrics.map((name) => {
-      return this.findBestMetric(normalizedMetrics, name);
+    const ratioType = candidate.ratioType || "unknown_ratio";
+    const formulaUsed = candidate.formula || null;
+
+    const alignedSet = this.findAlignedMetricSet({
+      normalizedMetrics,
+      requiredMetrics,
+      ratioType
     });
 
+    const matched = requiredMetrics.map((name) => alignedSet.metricsByName[name] || null);
     const missingMetricValues = [];
     const values = {};
 
@@ -113,10 +129,8 @@ class FinanceRatioCalculator {
       values[name] = value;
     });
 
-    const ratioType = candidate.ratioType || "unknown_ratio";
     let resultValue = null;
     let unit = "ratio";
-    let formulaUsed = candidate.formula || null;
 
     if (missingMetricValues.length === 0) {
       resultValue = this.compute(ratioType, values);
@@ -140,17 +154,167 @@ class FinanceRatioCalculator {
       unit,
       missingMetricValues,
       executionStatus,
+      alignmentContext: {
+        entityId: alignedSet.entityId || null,
+        period: alignedSet.period || null,
+        alignmentStatus: alignedSet.alignmentStatus,
+        anchorMetric: alignedSet.anchorMetric || null
+      },
       confidence:
         executionStatus === "calculated"
-          ? 0.86
+          ? alignedSet.alignmentStatus === "entity_period_aligned" ? 0.9 : 0.82
           : executionStatus === "missing_values"
             ? 0.52
             : 0.35,
       notes: uniqueArray([
         executionStatus === "calculated" ? "ratio_calculated_from_normalized_metrics" : null,
+        alignedSet.alignmentStatus === "entity_period_aligned" ? "ratio_inputs_entity_period_aligned" : null,
+        alignedSet.alignmentStatus === "entity_aligned" ? "ratio_inputs_entity_aligned_period_partial" : null,
+        alignedSet.alignmentStatus === "period_aligned" ? "ratio_inputs_period_aligned_entity_partial" : null,
         missingMetricValues.length > 0 ? "ratio_inputs_missing_values" : null
       ])
     };
+  }
+
+  findAlignedMetricSet(options = {}) {
+    const normalizedMetrics = safeArray(options.normalizedMetrics);
+    const requiredMetrics = safeArray(options.requiredMetrics);
+    const ratioType = options.ratioType || "unknown_ratio";
+
+    const matchesByRequired = {};
+    requiredMetrics.forEach((name) => {
+      matchesByRequired[name] = normalizedMetrics.filter((metric) => {
+        return metricName(metric) === name;
+      });
+    });
+
+    const anchorMetricName = this.anchorMetricForRatio(ratioType, requiredMetrics);
+    const anchorCandidates = safeArray(matchesByRequired[anchorMetricName])
+      .filter((metric) => toNumber(metric.value) !== null);
+
+    const fallbackAnchors = requiredMetrics.flatMap((name) => {
+      return safeArray(matchesByRequired[name]).filter((metric) => toNumber(metric.value) !== null);
+    });
+
+    const anchors = anchorCandidates.length > 0 ? anchorCandidates : fallbackAnchors;
+
+    if (anchors.length === 0) {
+      return {
+        metricsByName: this.bestPartialMetricSet(matchesByRequired, requiredMetrics),
+        entityId: null,
+        period: null,
+        alignmentStatus: "no_numeric_anchor",
+        anchorMetric: null
+      };
+    }
+
+    const scoredSets = anchors.map((anchor) => {
+      const metricsByName = {};
+
+      requiredMetrics.forEach((name) => {
+        metricsByName[name] = this.findBestMetric(matchesByRequired[name], {
+          preferredEntity: metricEntity(anchor),
+          preferredPeriod: metricPeriod(anchor)
+        });
+      });
+
+      const presentCount = requiredMetrics.filter((name) => {
+        const metric = metricsByName[name];
+        return metric && toNumber(metric.value) !== null;
+      }).length;
+
+      const entityAlignedCount = requiredMetrics.filter((name) => {
+        const metric = metricsByName[name];
+        const anchorEntity = metricEntity(anchor);
+        return metric && anchorEntity && sameNormalized(metricEntity(metric), anchorEntity);
+      }).length;
+
+      const periodAlignedCount = requiredMetrics.filter((name) => {
+        const metric = metricsByName[name];
+        const anchorPeriod = metricPeriod(anchor);
+        return metric && anchorPeriod && sameNormalized(metricPeriod(metric), anchorPeriod);
+      }).length;
+
+      const score =
+        presentCount * 100 +
+        entityAlignedCount * 12 +
+        periodAlignedCount * 12 +
+        (metricName(anchor) === anchorMetricName ? 8 : 0);
+
+      return {
+        metricsByName,
+        anchor,
+        score,
+        presentCount,
+        entityAlignedCount,
+        periodAlignedCount
+      };
+    }).sort((a, b) => b.score - a.score);
+
+    const best = scoredSets[0];
+    const entityId = metricEntity(best.anchor) || null;
+    const period = metricPeriod(best.anchor) || null;
+    const fullyPresent = best.presentCount === requiredMetrics.length;
+    const entityAligned = entityId && best.entityAlignedCount === requiredMetrics.length;
+    const periodAligned = period && best.periodAlignedCount === requiredMetrics.length;
+
+    return {
+      metricsByName: best.metricsByName,
+      entityId,
+      period,
+      alignmentStatus:
+        fullyPresent && entityAligned && periodAligned
+          ? "entity_period_aligned"
+          : fullyPresent && entityAligned
+            ? "entity_aligned"
+            : fullyPresent && periodAligned
+              ? "period_aligned"
+              : "partial_alignment",
+      anchorMetric: metricName(best.anchor)
+    };
+  }
+
+  anchorMetricForRatio(ratioType, requiredMetrics = []) {
+    const anchors = {
+      gross_margin: "gross_profit",
+      operating_margin: "operating_income",
+      net_margin: "net_income",
+      fcf_margin: "free_cash_flow",
+      debt_to_equity: "total_debt",
+      debt_to_assets: "total_debt",
+      asset_liability_coverage: "total_assets",
+      cash_to_debt: "cash_and_equivalents",
+      valuation_pe_ratio: "market_price"
+    };
+
+    return anchors[ratioType] || requiredMetrics[0] || null;
+  }
+
+  bestPartialMetricSet(matchesByRequired = {}, requiredMetrics = []) {
+    const output = {};
+
+    requiredMetrics.forEach((name) => {
+      output[name] = this.findBestMetric(matchesByRequired[name], {});
+    });
+
+    return output;
+  }
+
+  findBestMetric(metrics = [], preferences = {}) {
+    const matches = safeArray(metrics);
+    if (matches.length === 0) return null;
+
+    const scored = matches.map((metric, index) => {
+      let score = 0;
+      if (toNumber(metric.value) !== null) score += 100;
+      if (preferences.preferredEntity && sameNormalized(metricEntity(metric), preferences.preferredEntity)) score += 20;
+      if (preferences.preferredPeriod && sameNormalized(metricPeriod(metric), preferences.preferredPeriod)) score += 20;
+      score -= index * 0.001;
+
+      return { metric, score };
+    }).sort((a, b) => b.score - a.score);
+
+    return scored[0].metric;
   }
 
   compute(ratioType, values = {}) {
@@ -184,14 +348,6 @@ class FinanceRatioCalculator {
     }
   }
 
-  findBestMetric(metrics = [], canonicalMetric) {
-    const matches = safeArray(metrics).filter((metric) => metricName(metric) === canonicalMetric);
-    if (matches.length === 0) return null;
-
-    const withValue = matches.find((metric) => toNumber(metric.value) !== null);
-    return withValue || matches[0];
-  }
-
   extractDirectRatios(input = {}) {
     const directRatioTypes = new Set([
       "gross_margin",
@@ -219,6 +375,8 @@ class FinanceRatioCalculator {
         value: toNumber(metric.value),
         unit: metric.unit || null,
         sourceMetricId: metric.normalizedMetricId || metric.metricId || null,
+        entityId: metricEntity(metric),
+        period: metricPeriod(metric),
         executionStatus:
           toNumber(metric.value) !== null ? "direct_ratio_value_available" : "direct_ratio_value_missing",
         confidence: metric.confidence ?? 0.7
