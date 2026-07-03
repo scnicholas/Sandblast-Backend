@@ -1,0 +1,189 @@
+'use strict';
+
+function loadModule(candidates) {
+  const errors = [];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (err) {
+      errors.push(`${candidate}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to load module from candidates:\n${errors.join('\n')}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === 'function') return mod;
+  if (mod && typeof mod.default === 'function') return mod.default;
+
+  for (const name of names) {
+    if (mod && typeof mod[name] === 'function') return mod[name];
+  }
+
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(', ')}`);
+}
+
+function callEnvelopeFactory(EnvelopeClass, payload) {
+  if (EnvelopeClass && typeof EnvelopeClass.create === 'function') return EnvelopeClass.create(payload);
+  if (EnvelopeClass && typeof EnvelopeClass.build === 'function') return EnvelopeClass.build(payload);
+
+  const instance = new EnvelopeClass();
+
+  for (const methodName of ['create', 'build', 'wrap', 'compose', 'toEnvelope']) {
+    if (typeof instance[methodName] === 'function') return instance[methodName](payload);
+  }
+
+  return new EnvelopeClass(payload);
+}
+
+function collectKeysDeep(value, keys = new Set(), seen = new WeakSet()) {
+  if (!value || typeof value !== 'object') return keys;
+  if (seen.has(value)) return keys;
+  seen.add(value);
+
+  Object.keys(value).forEach((key) => {
+    keys.add(key);
+    collectKeysDeep(value[key], keys, seen);
+  });
+
+  return keys;
+}
+
+function flattenStrings(value, output = [], seen = new WeakSet()) {
+  if (typeof value === 'string') {
+    output.push(value.toLowerCase());
+    return output;
+  }
+
+  if (!value || typeof value !== 'object') return output;
+  if (seen.has(value)) return output;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenStrings(item, output, seen));
+    return output;
+  }
+
+  Object.values(value).forEach((item) => flattenStrings(item, output, seen));
+  return output;
+}
+
+describe('FinanceNormalizationEnvelope', () => {
+  const mod = loadModule([
+    '../../../Data/marion/runtime/finance/layer04_normalization/FinanceNormalizationEnvelope.js',
+    '../../../FinanceNormalizationEnvelope.js',
+    '../../../finance/FinanceNormalizationEnvelope.js',
+    '../../../finance/layer04_normalization/FinanceNormalizationEnvelope.js',
+    '../../../Data/finance/layer04_normalization/FinanceNormalizationEnvelope.js',
+    '../../../Data/Domains/finance/layer04_normalization/FinanceNormalizationEnvelope.js',
+    '../../../Domains/finance/layer04_normalization/FinanceNormalizationEnvelope.js',
+  ]);
+
+  const FinanceNormalizationEnvelope = pickExport(mod, [
+    'FinanceNormalizationEnvelope',
+    'NormalizationEnvelope',
+  ]);
+
+  test('constructs or creates an envelope without throwing', () => {
+    expect(() => callEnvelopeFactory(FinanceNormalizationEnvelope, {
+      originalQuery: 'Compare Apple and Microsoft revenue for FY2024.',
+      normalizedMetrics: [{ canonicalMetric: 'revenue', normalizationStatus: 'normalized' }],
+      normalizedEntities: { companies: [{ canonicalName: 'Apple Inc.' }], jurisdictions: [], programs: [], sources: [], businessNames: [] },
+      normalizedPeriods: [{ canonicalPeriod: 'FY2024' }],
+      normalizedSources: [{ sourceLabel: 'user_query', authorityClass: 'user_supplied' }],
+    })).not.toThrow();
+  });
+
+  test('creates a stable Layer 04 finance normalization envelope', () => {
+    const envelope = callEnvelopeFactory(FinanceNormalizationEnvelope, {
+      requestId: 'test-l04-001',
+      traceId: 'trace-l04-001',
+      parentEnvelopeVersion: '1.0.1',
+      sourceLayer: 'R18D_layer03_data_ingestion',
+      originalQuery: 'Compare Apple and Microsoft revenue, net income, and FCF for FY2024.',
+      normalizedMetrics: [
+        { canonicalMetric: 'revenue', normalizationStatus: 'normalized' },
+        { canonicalMetric: 'net_income', normalizationStatus: 'normalized' },
+        { canonicalMetric: 'free_cash_flow', normalizationStatus: 'normalized' },
+      ],
+      normalizedEntities: {
+        companies: [{ canonicalName: 'Apple Inc.' }, { canonicalName: 'Microsoft Corporation' }],
+        businessNames: [],
+        programs: [],
+        jurisdictions: [],
+        sources: [],
+      },
+      normalizedPeriods: [{ canonicalPeriod: 'FY2024' }],
+      normalizedSources: [{ sourceLabel: 'user_query', authorityClass: 'user_supplied', requiresVerification: false }],
+      claimTargets: [{ targetType: 'financial_statement_comparison' }],
+      missingInputs: [],
+    });
+
+    expect(envelope).toBeTruthy();
+    expect(typeof envelope).toBe('object');
+
+    const keys = collectKeysDeep(envelope);
+    expect(keys.has('requestId')).toBe(true);
+    expect(keys.has('traceId')).toBe(true);
+    expect(keys.has('schemaVersion')).toBe(true);
+    expect(keys.has('normalizedMetrics')).toBe(true);
+    expect(keys.has('normalizedEntities')).toBe(true);
+    expect(keys.has('normalizedPeriods')).toBe(true);
+    expect(keys.has('normalizedSources')).toBe(true);
+    expect(keys.has('nextLayerHandoff')).toBe(true);
+  });
+
+  test('preserves missing input state and analysis handoff gates', () => {
+    const envelope = callEnvelopeFactory(FinanceNormalizationEnvelope, {
+      originalQuery: 'Analyze revenue.',
+      normalizedMetrics: [{ canonicalMetric: 'revenue', normalizationStatus: 'normalized' }],
+      normalizedEntities: { companies: [], businessNames: [], programs: [], jurisdictions: [], sources: [] },
+      normalizedPeriods: [],
+      normalizedSources: [{ sourceLabel: 'user_query', authorityClass: 'user_supplied' }],
+      missingInputs: [
+        {
+          missingInput: 'company',
+          severity: 'required',
+          blocksAnalysis: true,
+          reason: 'Company required.',
+        },
+      ],
+    });
+
+    const strings = flattenStrings(envelope).join(' ');
+    expect(strings).toContain('company');
+    expect(strings).toContain('blocking:company');
+    expect(envelope.nextLayerHandoff.canProceedToAnalysis).toBe(false);
+    expect(envelope.nextLayerHandoff.requiresUserClarification).toBe(true);
+  });
+
+  test('validation accepts a well-formed envelope', () => {
+    const envelope = callEnvelopeFactory(FinanceNormalizationEnvelope, {
+      originalQuery: 'Analyze Apple revenue for FY2024.',
+      normalizedMetrics: [{ canonicalMetric: 'revenue', normalizationStatus: 'normalized' }],
+      normalizedEntities: { companies: [{ canonicalName: 'Apple Inc.' }], businessNames: [], programs: [], jurisdictions: [], sources: [] },
+      normalizedPeriods: [{ canonicalPeriod: 'FY2024' }],
+      normalizedSources: [{ sourceLabel: 'user_query', authorityClass: 'user_supplied' }],
+      missingInputs: [],
+    });
+
+    const validation = FinanceNormalizationEnvelope.validate(envelope);
+    expect(validation.valid).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+
+  test('envelope output is JSON-serializable', () => {
+    const envelope = callEnvelopeFactory(FinanceNormalizationEnvelope, {
+      originalQuery: 'Analyze Apple revenue for FY2024.',
+      normalizedMetrics: [{ canonicalMetric: 'revenue', normalizationStatus: 'normalized' }],
+      normalizedEntities: { companies: [{ canonicalName: 'Apple Inc.' }], businessNames: [], programs: [], jurisdictions: [], sources: [] },
+      normalizedPeriods: [{ canonicalPeriod: 'FY2024' }],
+      normalizedSources: [{ sourceLabel: 'user_query', authorityClass: 'user_supplied' }],
+      missingInputs: [],
+    });
+
+    expect(() => JSON.stringify(envelope)).not.toThrow();
+  });
+});
