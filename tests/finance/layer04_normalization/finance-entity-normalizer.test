@@ -1,0 +1,174 @@
+'use strict';
+
+function loadModule(candidates) {
+  const errors = [];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (err) {
+      errors.push(`${candidate}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to load module from candidates:\n${errors.join('\n')}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === 'function') return mod;
+  if (mod && typeof mod.default === 'function') return mod.default;
+
+  for (const name of names) {
+    if (mod && typeof mod[name] === 'function') return mod[name];
+  }
+
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(', ')}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) {
+    if (target && typeof target[methodName] === 'function') return target[methodName](...args);
+  }
+
+  throw new Error(`None of the expected methods exist: ${methodNames.join(', ')}`);
+}
+
+function flattenStrings(value, output = []) {
+  if (typeof value === 'string') {
+    output.push(value.toLowerCase());
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenStrings(item, output));
+    return output;
+  }
+
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => flattenStrings(item, output));
+  }
+
+  return output;
+}
+
+describe('FinanceEntityNormalizer', () => {
+  const mod = loadModule([
+    '../../../Data/marion/runtime/finance/layer04_normalization/FinanceEntityNormalizer.js',
+    '../../../FinanceEntityNormalizer.js',
+    '../../../finance/FinanceEntityNormalizer.js',
+    '../../../finance/layer04_normalization/FinanceEntityNormalizer.js',
+    '../../../Data/finance/layer04_normalization/FinanceEntityNormalizer.js',
+    '../../../Data/Domains/finance/layer04_normalization/FinanceEntityNormalizer.js',
+    '../../../Domains/finance/layer04_normalization/FinanceEntityNormalizer.js',
+  ]);
+
+  const FinanceEntityNormalizer = pickExport(mod, [
+    'FinanceEntityNormalizer',
+    'EntityNormalizer',
+  ]);
+
+  test('constructs without throwing', () => {
+    expect(() => new FinanceEntityNormalizer()).not.toThrow();
+  });
+
+  test('canonicalizes known companies and tickers', () => {
+    const normalizer = new FinanceEntityNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeEntities', 'run', 'execute', 'process'],
+      {
+        entityInputs: {
+          companyNames: ['Apple', 'Microsoft', 'Shopify'],
+          businessNames: [],
+          programNames: [],
+          jurisdictions: [],
+          sourceNames: [],
+        },
+        queryText: 'Compare Apple and Microsoft against Shopify.',
+      }
+    );
+
+    expect(result).toBeTruthy();
+    expect(result.normalizedEntities).toBeTruthy();
+    expect(Array.isArray(result.normalizedEntities.companies)).toBe(true);
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('apple inc');
+    expect(strings).toContain('aapl');
+    expect(strings).toContain('microsoft corporation');
+    expect(strings).toContain('msft');
+    expect(strings).toContain('shopify inc');
+    expect(strings).toContain('shop');
+  });
+
+  test('detects known companies from query text when entityInputs are empty', () => {
+    const normalizer = new FinanceEntityNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeEntities', 'run', 'execute', 'process'],
+      {
+        entityInputs: {},
+        queryText: 'Analyze Tesla revenue and NVIDIA free cash flow for FY2024.',
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('tesla');
+    expect(strings).toContain('tsla');
+    expect(strings).toContain('nvidia');
+    expect(strings).toContain('nvda');
+  });
+
+  test('normalizes jurisdictions and preserves programs/sources', () => {
+    const normalizer = new FinanceEntityNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeEntities', 'run', 'execute', 'process'],
+      {
+        entityInputs: {
+          companyNames: [],
+          businessNames: ['Sandblast Media Inc.'],
+          programNames: ['Northern Ontario Heritage Fund'],
+          jurisdictions: ['ontario', 'canada', 'united_states'],
+          sourceNames: ['Bank of Canada'],
+        },
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('ontario');
+    expect(strings).toContain('canada');
+    expect(strings).toContain('united states');
+    expect(strings).toContain('northern ontario heritage fund');
+    expect(strings).toContain('bank of canada');
+  });
+
+  test('emits diagnostic warning when no company is detected', () => {
+    const normalizer = new FinanceEntityNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeEntities', 'run', 'execute', 'process'],
+      {
+        entityInputs: { jurisdictions: ['canada'] },
+        queryText: 'Analyze financial health.',
+      }
+    );
+
+    expect(result.diagnostics).toBeTruthy();
+    expect(Array.isArray(result.diagnostics.warnings)).toBe(true);
+    expect(result.diagnostics.warnings.join(' ')).toContain('no_company_entity_detected');
+  });
+
+  test('output is JSON-serializable', () => {
+    const normalizer = new FinanceEntityNormalizer();
+    const result = callFirst(normalizer, ['normalize', 'normalizeEntities', 'run', 'execute', 'process'], {
+      entityInputs: { companyNames: ['Apple'] },
+    });
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+  });
+});
