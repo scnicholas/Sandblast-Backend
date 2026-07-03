@@ -1,0 +1,152 @@
+'use strict';
+
+function loadModule(candidates) {
+  const errors = [];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (err) {
+      errors.push(`${candidate}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to load module from candidates:\n${errors.join('\n')}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === 'function') return mod;
+  if (mod && typeof mod.default === 'function') return mod.default;
+
+  for (const name of names) {
+    if (mod && typeof mod[name] === 'function') return mod[name];
+  }
+
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(', ')}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) {
+    if (target && typeof target[methodName] === 'function') return target[methodName](...args);
+  }
+
+  throw new Error(`None of the expected methods exist: ${methodNames.join(', ')}`);
+}
+
+function flattenStrings(value, output = []) {
+  if (typeof value === 'string') {
+    output.push(value.toLowerCase());
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenStrings(item, output));
+    return output;
+  }
+
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => flattenStrings(item, output));
+  }
+
+  return output;
+}
+
+describe('FinanceSourceNormalizer', () => {
+  const mod = loadModule([
+    '../../../Data/marion/runtime/finance/layer04_normalization/FinanceSourceNormalizer.js',
+    '../../../FinanceSourceNormalizer.js',
+    '../../../finance/FinanceSourceNormalizer.js',
+    '../../../finance/layer04_normalization/FinanceSourceNormalizer.js',
+    '../../../Data/finance/layer04_normalization/FinanceSourceNormalizer.js',
+    '../../../Data/Domains/finance/layer04_normalization/FinanceSourceNormalizer.js',
+    '../../../Domains/finance/layer04_normalization/FinanceSourceNormalizer.js',
+  ]);
+
+  const FinanceSourceNormalizer = pickExport(mod, [
+    'FinanceSourceNormalizer',
+    'SourceNormalizer',
+  ]);
+
+  test('constructs without throwing', () => {
+    expect(() => new FinanceSourceNormalizer()).not.toThrow();
+  });
+
+  test('classifies regulatory filings and official government sources as primary', () => {
+    const normalizer = new FinanceSourceNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeSources', 'run', 'execute', 'process'],
+      {
+        rawInputs: [
+          { sourceType: 'external_source', sourceLabel: 'SEC EDGAR 10-K', sourceReference: 'filing', requiresVerification: true },
+          { sourceType: 'external_source', sourceLabel: 'Bank of Canada policy rate', sourceReference: 'official', requiresVerification: true },
+        ],
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('regulatory_filing');
+    expect(strings).toContain('government_official');
+    expect(strings).toContain('primary');
+  });
+
+  test('classifies financial news and institutional research as secondary', () => {
+    const normalizer = new FinanceSourceNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeSources', 'run', 'execute', 'process'],
+      {
+        sourceSnippets: [
+          { sourceType: 'external_source', sourceName: 'Reuters market report', url: 'https://example.invalid/reuters' },
+          { sourceType: 'external_source', sourceName: 'OECD outlook', url: 'https://example.invalid/oecd' },
+        ],
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('financial_news');
+    expect(strings).toContain('institutional_research');
+    expect(strings).toContain('secondary');
+  });
+
+  test('uses user_query fallback when no explicit source exists', () => {
+    const normalizer = new FinanceSourceNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeSources', 'run', 'execute', 'process'],
+      { queryText: 'Analyze Apple revenue for FY2024.' }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('user_query');
+    expect(strings).toContain('user_supplied');
+  });
+
+  test('includes source authority envelope references', () => {
+    const normalizer = new FinanceSourceNormalizer();
+
+    const result = callFirst(
+      normalizer,
+      ['normalize', 'normalizeSources', 'run', 'execute', 'process'],
+      {
+        sourceAuthorityEnvelope: { traceId: 'source-trace-001' },
+      }
+    );
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('source_authority_envelope');
+    expect(strings).toContain('source-trace-001');
+  });
+
+  test('output is JSON-serializable', () => {
+    const normalizer = new FinanceSourceNormalizer();
+    const result = callFirst(normalizer, ['normalize', 'normalizeSources', 'run', 'execute', 'process'], {
+      queryText: 'Analyze revenue.',
+    });
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+  });
+});
