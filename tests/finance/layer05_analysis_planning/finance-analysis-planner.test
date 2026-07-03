@@ -1,0 +1,122 @@
+"use strict";
+
+function loadModule(candidates) {
+  const errors = [];
+  for (const candidate of candidates) {
+    try { return require(candidate); } catch (error) { errors.push(`${candidate}: ${error.message}`); }
+  }
+  throw new Error(`Unable to load module from candidates:\n${errors.join("\n")}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === "function") return mod;
+  if (mod && typeof mod.default === "function") return mod.default;
+  for (const name of names) if (mod && typeof mod[name] === "function") return mod[name];
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(", ")}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) if (target && typeof target[methodName] === "function") return target[methodName](...args);
+  throw new Error(`None of the expected methods exist: ${methodNames.join(", ")}`);
+}
+
+function strings(value, output = [], seen = new Set()) {
+  if (typeof value === "string") { output.push(value.toLowerCase()); return output; }
+  if (!value || typeof value !== "object" || seen.has(value)) return output;
+  seen.add(value);
+  if (Array.isArray(value)) value.forEach((item) => strings(item, output, seen));
+  else Object.values(value).forEach((item) => strings(item, output, seen));
+  return output;
+}
+
+function metric(canonicalMetric) {
+  return {
+    normalizedMetricId: `metric_${canonicalMetric}`,
+    canonicalMetric,
+    confidence: 0.8,
+    normalizationStatus: "normalized"
+  };
+}
+
+describe("FinanceAnalysisPlanner", () => {
+  const mod = loadModule([
+    "../../../Data/marion/runtime/finance/layer05_analysis_planning/FinanceAnalysisPlanner.js",
+    "../../../Data/marion/runtime/finance/layer05_analysis/FinanceAnalysisPlanner.js",
+    "../../../Data/finance/layer05_analysis_planning/FinanceAnalysisPlanner.js",
+    "../../../Domains/finance/layer05_analysis_planning/FinanceAnalysisPlanner.js",
+    "../../../FinanceAnalysisPlanner.js"
+  ]);
+
+  const FinanceAnalysisPlanner = pickExport(mod, ["FinanceAnalysisPlanner", "AnalysisPlanner"]);
+
+  test("constructs without throwing", () => {
+    expect(() => new FinanceAnalysisPlanner()).not.toThrow();
+  });
+
+  test("selects business survival scenario from claim target", () => {
+    const planner = new FinanceAnalysisPlanner();
+    const result = callFirst(planner, ["plan", "process", "execute", "run"], {
+      queryText: "Can the business survive if ad revenue drops for six months?",
+      claimTargets: [{ targetType: "business_survival_under_revenue_shock" }],
+      normalizedMetrics: [metric("cash_and_equivalents"), metric("revenue")]
+    });
+
+    expect(result.analysisPlan.primaryRoute).toBe("business_survival_scenario");
+    expect(result.analysisPlan.analysisSteps).toContain("frame_revenue_shock");
+  });
+
+  test("selects peer comparison and trend routes from query language", () => {
+    const planner = new FinanceAnalysisPlanner();
+    const result = planner.plan({
+      queryText: "Compare Apple versus Microsoft revenue trend from FY2022 through FY2024.",
+      normalizedMetrics: [metric("revenue")]
+    });
+
+    const all = strings(result).join(" ");
+    expect(all).toContain("peer_comparison");
+    expect(all).toContain("trend_comparison");
+  });
+
+  test("selects cash flow analysis from cash flow metrics", () => {
+    const planner = new FinanceAnalysisPlanner();
+    const result = planner.plan({
+      queryText: "Review free cash flow quality.",
+      normalizedMetrics: [metric("free_cash_flow"), metric("operating_cash_flow")]
+    });
+
+    expect(result.analysisPlan.routeCandidates.some((route) => route.routeType === "cash_flow_analysis")).toBe(true);
+  });
+
+  test("selects debt capacity analysis from debt language and metrics", () => {
+    const planner = new FinanceAnalysisPlanner();
+    const result = planner.plan({
+      queryText: "Assess debt repayment capacity and credit pressure.",
+      normalizedMetrics: [metric("total_debt"), metric("cash_and_equivalents")]
+    });
+
+    const all = strings(result).join(" ");
+    expect(all).toContain("debt_capacity_analysis");
+  });
+
+  test("selects insufficient context when no route or metric exists", () => {
+    const planner = new FinanceAnalysisPlanner();
+    const result = planner.plan({ queryText: "Hello there", normalizedMetrics: [] });
+
+    expect(result.analysisPlan.primaryRoute).toBe("insufficient_analysis_context");
+    expect(result.diagnostics.ok).toBe(false);
+  });
+
+  test("reports missing required route inputs", () => {
+    const planner = new FinanceAnalysisPlanner();
+    const result = planner.plan({
+      queryText: "Compare Apple against Microsoft revenue.",
+      normalizedMetrics: [metric("revenue")],
+      missingInputs: [
+        { missingInput: "period", severity: "recommended" },
+        { missingInput: "comparison_entity", severity: "recommended" }
+      ]
+    });
+
+    expect(result.analysisPlan.missingRequiredInputs).toEqual(expect.arrayContaining(["period"]));
+  });
+});
