@@ -1,0 +1,97 @@
+"use strict";
+
+function loadModule(candidates) {
+  const errors = [];
+  for (const candidate of candidates) {
+    try { return require(candidate); } catch (error) { errors.push(`${candidate}: ${error.message}`); }
+  }
+  throw new Error(`Unable to load module from candidates:\n${errors.join("\n")}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === "function") return mod;
+  if (mod && typeof mod.default === "function") return mod.default;
+  for (const name of names) if (mod && typeof mod[name] === "function") return mod[name];
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(", ")}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) if (target && typeof target[methodName] === "function") return target[methodName](...args);
+  throw new Error(`None of the expected methods exist: ${methodNames.join(", ")}`);
+}
+
+function metric(canonicalMetric, value = null) {
+  return {
+    normalizedMetricId: `norm_${canonicalMetric}`,
+    canonicalMetric,
+    value,
+    confidence: 0.85,
+    normalizationStatus: "normalized"
+  };
+}
+
+describe("FinanceRatioMapper", () => {
+  const mod = loadModule([
+    "../../../Data/marion/runtime/finance/layer05_analysis_planning/FinanceRatioMapper.js",
+    "../../../Data/marion/runtime/finance/layer05_analysis/FinanceRatioMapper.js",
+    "../../../Data/finance/layer05_analysis_planning/FinanceRatioMapper.js",
+    "../../../Domains/finance/layer05_analysis_planning/FinanceRatioMapper.js",
+    "../../../FinanceRatioMapper.js"
+  ]);
+
+  const FinanceRatioMapper = pickExport(mod, ["FinanceRatioMapper", "RatioMapper"]);
+
+  test("constructs without throwing", () => {
+    expect(() => new FinanceRatioMapper()).not.toThrow();
+  });
+
+  test("marks gross margin calculable when gross profit and revenue are available", () => {
+    const mapper = new FinanceRatioMapper();
+    const result = callFirst(mapper, ["map", "mapRatios", "process", "execute", "run"], {
+      normalizedMetrics: [metric("gross_profit", 100), metric("revenue", 250)]
+    });
+
+    const grossMargin = result.ratioMap.ratioCandidates.find((ratio) => ratio.ratioType === "gross_margin");
+    expect(grossMargin).toBeTruthy();
+    expect(grossMargin.calculationStatus).toBe("calculable");
+  });
+
+  test("marks net margin partial when only net income is available", () => {
+    const mapper = new FinanceRatioMapper();
+    const result = mapper.map({ normalizedMetrics: [metric("net_income", 50)] });
+
+    const netMargin = result.ratioMap.ratioCandidates.find((ratio) => ratio.ratioType === "net_margin");
+    expect(netMargin.calculationStatus).toBe("partial");
+    expect(netMargin.missingMetrics).toContain("revenue");
+  });
+
+  test("detects directly provided ratio metrics", () => {
+    const mapper = new FinanceRatioMapper();
+    const result = mapper.map({ normalizedMetrics: [metric("gross_margin", 42)] });
+
+    expect(result.ratioMap.directlyProvidedRatios.length).toBeGreaterThan(0);
+    expect(result.ratioMap.directlyProvidedRatios[0].ratioType).toBe("gross_margin");
+  });
+
+  test("maps debt-to-equity as calculable when debt and equity exist", () => {
+    const mapper = new FinanceRatioMapper();
+    const result = mapper.map({ normalizedMetrics: [metric("total_debt", 100), metric("shareholders_equity", 200)] });
+
+    const debtToEquity = result.ratioMap.ratioCandidates.find((ratio) => ratio.ratioType === "debt_to_equity");
+    expect(debtToEquity.calculationStatus).toBe("calculable");
+  });
+
+  test("warns when no calculable or directly provided ratio exists", () => {
+    const mapper = new FinanceRatioMapper();
+    const result = mapper.map({ normalizedMetrics: [metric("total_assets", 500)] });
+
+    expect(result.diagnostics.warnings).toContain("no_calculable_ratios_detected");
+  });
+
+  test("output is JSON serializable", () => {
+    const mapper = new FinanceRatioMapper();
+    const result = mapper.map({ normalizedMetrics: [metric("revenue", 100), metric("free_cash_flow", 25)] });
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+  });
+});
