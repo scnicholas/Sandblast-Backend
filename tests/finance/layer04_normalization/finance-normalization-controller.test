@@ -1,0 +1,197 @@
+'use strict';
+
+function loadModule(candidates) {
+  const errors = [];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (err) {
+      errors.push(`${candidate}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Unable to load module from candidates:\n${errors.join('\n')}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === 'function') return mod;
+  if (mod && typeof mod.default === 'function') return mod.default;
+
+  for (const name of names) {
+    if (mod && typeof mod[name] === 'function') return mod[name];
+  }
+
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(', ')}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) {
+    if (target && typeof target[methodName] === 'function') return target[methodName](...args);
+  }
+
+  throw new Error(`None of the expected methods exist: ${methodNames.join(', ')}`);
+}
+
+function collectKeysDeep(value, keys = new Set(), seen = new WeakSet()) {
+  if (!value || typeof value !== 'object') return keys;
+  if (seen.has(value)) return keys;
+  seen.add(value);
+
+  Object.keys(value).forEach((key) => {
+    keys.add(key);
+    collectKeysDeep(value[key], keys, seen);
+  });
+
+  return keys;
+}
+
+function flattenStrings(value, output = [], seen = new WeakSet()) {
+  if (typeof value === 'string') {
+    output.push(value.toLowerCase());
+    return output;
+  }
+
+  if (!value || typeof value !== 'object') return output;
+  if (seen.has(value)) return output;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenStrings(item, output, seen));
+    return output;
+  }
+
+  Object.values(value).forEach((item) => flattenStrings(item, output, seen));
+  return output;
+}
+
+function makeLayer03Envelope() {
+  return {
+    requestId: 'l03-test-request-001',
+    traceId: 'l03-test-trace-001',
+    envelopeVersion: '1.0.1',
+    layer: 'R18D_layer03_data_ingestion',
+    runtimeLayer: 'layer03_data_ingestion',
+    queryContext: {
+      originalQuery: 'Compare Apple and Microsoft revenue, net income, and free cash flow for FY2024 using annual filings.',
+      normalizedQuery: 'compare apple and microsoft revenue net income and free cash flow for fy2024 using annual filings',
+      jurisdictions: [],
+      sourceAuthorityEnvelope: null,
+    },
+    rawInputs: [
+      {
+        inputId: 'raw_period_1',
+        inputType: 'date',
+        rawValue: 'FY2024',
+        detectedValue: 'FY2024',
+        detectedUnit: 'fiscal_year',
+        sourceType: 'user_query',
+        sourceLabel: 'user_query',
+      },
+    ],
+    metricInputs: [
+      { metricId: 'm1', metric: 'revenue', rawValue: 'revenue', confidence: 0.86, sourceType: 'user_query', sourceLabel: 'user_query' },
+      { metricId: 'm2', metric: 'net_income', rawValue: 'net income', confidence: 0.86, sourceType: 'user_query', sourceLabel: 'user_query' },
+      { metricId: 'm3', metric: 'free_cash_flow', rawValue: 'free cash flow', confidence: 0.86, sourceType: 'user_query', sourceLabel: 'user_query' },
+    ],
+    entityInputs: {
+      companyNames: ['Apple', 'Microsoft'],
+      businessNames: [],
+      programNames: [],
+      sourceNames: ['SEC EDGAR'],
+      jurisdictions: [],
+      dates: ['FY2024'],
+    },
+    claimTargets: [{ targetType: 'financial_statement_comparison' }],
+    assumptions: [],
+    missingInputs: [],
+    ingestionQuality: { status: 'complete', score: 0.91 },
+  };
+}
+
+describe('FinanceNormalizationController', () => {
+  const mod = loadModule([
+    '../../../Data/marion/runtime/finance/layer04_normalization/FinanceNormalizationController.js',
+    '../../../FinanceNormalizationController.js',
+    '../../../finance/FinanceNormalizationController.js',
+    '../../../finance/layer04_normalization/FinanceNormalizationController.js',
+    '../../../Data/finance/layer04_normalization/FinanceNormalizationController.js',
+    '../../../Data/Domains/finance/layer04_normalization/FinanceNormalizationController.js',
+    '../../../Domains/finance/layer04_normalization/FinanceNormalizationController.js',
+  ]);
+
+  const FinanceNormalizationController = pickExport(mod, [
+    'FinanceNormalizationController',
+    'NormalizationController',
+  ]);
+
+  test('constructs without throwing', () => {
+    expect(() => new FinanceNormalizationController()).not.toThrow();
+  });
+
+  test('normalizes a Layer 03 ingestion envelope into a Layer 04 envelope', () => {
+    const controller = new FinanceNormalizationController();
+    const result = callFirst(controller, ['normalize', 'run', 'execute', 'process'], makeLayer03Envelope());
+
+    expect(result).toBeTruthy();
+    expect(result.domain).toBe('finance');
+    expect(result.runtimeLayer).toBe('layer04_normalization');
+
+    const keys = collectKeysDeep(result);
+    expect(keys.has('normalizedMetrics')).toBe(true);
+    expect(keys.has('normalizedEntities')).toBe(true);
+    expect(keys.has('normalizedPeriods')).toBe(true);
+    expect(keys.has('normalizedSources')).toBe(true);
+    expect(keys.has('nextLayerHandoff')).toBe(true);
+  });
+
+  test('preserves request trace, assumptions, missing inputs, and claim targets', () => {
+    const controller = new FinanceNormalizationController();
+    const envelope = makeLayer03Envelope();
+    envelope.assumptions = [{ assumptionId: 'a1', statement: 'Assume annual filings are the source.' }];
+    envelope.missingInputs = [{ missingInput: 'current_official_source', severity: 'recommended', blocksAnalysis: false }];
+
+    const result = callFirst(controller, ['normalize', 'run', 'execute', 'process'], envelope);
+    const strings = flattenStrings(result).join(' ');
+
+    expect(result.requestId).toBe('l03-test-request-001');
+    expect(result.traceId).toBe('l03-test-trace-001');
+    expect(strings).toContain('assume annual filings are the source');
+    expect(strings).toContain('current_official_source');
+    expect(strings).toContain('financial_statement_comparison');
+  });
+
+  test('canonicalizes metrics, entities, periods, and sources through the controller', () => {
+    const controller = new FinanceNormalizationController();
+    const result = callFirst(controller, ['normalize', 'run', 'execute', 'process'], makeLayer03Envelope());
+
+    const strings = flattenStrings(result).join(' ');
+    expect(strings).toContain('revenue');
+    expect(strings).toContain('net_income');
+    expect(strings).toContain('free_cash_flow');
+    expect(strings).toContain('apple inc');
+    expect(strings).toContain('microsoft corporation');
+    expect(strings).toContain('fy2024');
+    expect(strings).toContain('sec edgar');
+  });
+
+  test('does not allow analysis handoff when blocking missing inputs are present', () => {
+    const controller = new FinanceNormalizationController();
+    const envelope = makeLayer03Envelope();
+    envelope.missingInputs = [
+      { missingInput: 'company', severity: 'required', blocksAnalysis: true },
+    ];
+
+    const result = callFirst(controller, ['normalize', 'run', 'execute', 'process'], envelope);
+
+    expect(result.nextLayerHandoff.canProceedToAnalysis).toBe(false);
+    expect(result.nextLayerHandoff.requiresUserClarification).toBe(true);
+  });
+
+  test('output is JSON-serializable', () => {
+    const controller = new FinanceNormalizationController();
+    const result = callFirst(controller, ['normalize', 'run', 'execute', 'process'], makeLayer03Envelope());
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+  });
+});
