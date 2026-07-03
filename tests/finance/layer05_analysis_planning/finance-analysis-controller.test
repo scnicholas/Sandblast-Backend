@@ -1,0 +1,228 @@
+"use strict";
+
+function loadModule(candidates) {
+  const errors = [];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch (error) {
+      errors.push(`${candidate}: ${error.message}`);
+    }
+  }
+
+  throw new Error(`Unable to load module from candidates:\n${errors.join("\n")}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === "function") return mod;
+  if (mod && typeof mod.default === "function") return mod.default;
+
+  for (const name of names) {
+    if (mod && typeof mod[name] === "function") return mod[name];
+  }
+
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(", ")}`);
+}
+
+function callFirst(target, methodNames, ...args) {
+  for (const methodName of methodNames) {
+    if (target && typeof target[methodName] === "function") return target[methodName](...args);
+  }
+
+  throw new Error(`None of the expected methods exist: ${methodNames.join(", ")}`);
+}
+
+function flattenStrings(value, output = [], seen = new Set()) {
+  if (typeof value === "string") {
+    output.push(value.toLowerCase());
+    return output;
+  }
+
+  if (!value || typeof value !== "object") return output;
+  if (seen.has(value)) return output;
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenStrings(item, output, seen));
+    return output;
+  }
+
+  Object.values(value).forEach((item) => flattenStrings(item, output, seen));
+  return output;
+}
+
+function sampleLayer04Envelope(overrides = {}) {
+  return {
+    requestId: "test-l05-controller-001",
+    traceId: "trace-l04-to-l05-001",
+    schemaVersion: "1.0.0",
+    envelopeVersion: "1.0.0",
+    domain: "finance",
+    layer: "R18D_layer04_finance_normalization",
+    runtimeLayer: "layer04_normalization",
+    queryContext: {
+      originalQuery: "Compare Apple and Microsoft revenue, net income, and free cash flow for FY2024.",
+      normalizedQuery: "compare apple and microsoft revenue, net income, and free cash flow for fy2024",
+      claimTargets: [
+        {
+          targetType: "financial_statement_analysis",
+          confidence: 0.84
+        }
+      ]
+    },
+    normalizedMetrics: [
+      {
+        normalizedMetricId: "fin_norm_metric_revenue_1",
+        canonicalMetric: "revenue",
+        originalMetric: "revenue",
+        statementFamily: "income_statement",
+        confidence: 0.86,
+        normalizationStatus: "normalized"
+      },
+      {
+        normalizedMetricId: "fin_norm_metric_net_income_2",
+        canonicalMetric: "net_income",
+        originalMetric: "net income",
+        statementFamily: "income_statement",
+        confidence: 0.86,
+        normalizationStatus: "normalized"
+      },
+      {
+        normalizedMetricId: "fin_norm_metric_free_cash_flow_3",
+        canonicalMetric: "free_cash_flow",
+        originalMetric: "free cash flow",
+        statementFamily: "cash_flow_statement",
+        confidence: 0.88,
+        normalizationStatus: "normalized"
+      }
+    ],
+    normalizedEntities: {
+      companies: [
+        {
+          entityId: "fin_entity_company_apple_1",
+          entityType: "company",
+          originalName: "Apple",
+          canonicalName: "Apple Inc.",
+          ticker: "AAPL",
+          market: "USA"
+        },
+        {
+          entityId: "fin_entity_company_microsoft_2",
+          entityType: "company",
+          originalName: "Microsoft",
+          canonicalName: "Microsoft Corporation",
+          ticker: "MSFT",
+          market: "USA"
+        }
+      ],
+      businessNames: [],
+      programs: [],
+      jurisdictions: [],
+      sources: []
+    },
+    normalizedPeriods: [
+      {
+        periodId: "fin_period_fy2024_1",
+        canonicalPeriod: "FY2024",
+        periodType: "fiscal_year"
+      }
+    ],
+    normalizedSources: [
+      {
+        sourceId: "fin_source_user_query_1",
+        sourceType: "user_supplied",
+        sourceLabel: "user_query",
+        authorityClass: "user_supplied",
+        requiresVerification: false
+      }
+    ],
+    metricMap: {},
+    entityMap: {},
+    periodMap: {},
+    sourceMap: {},
+    assumptions: [],
+    missingInputs: [],
+    ingestionQuality: { status: "partial", score: 0.72 },
+    normalizationQuality: { status: "normalized", score: 0.86, warnings: [], blockingIssues: [] },
+    nextLayerHandoff: {
+      canProceedToAnalysis: true,
+      requiresUserClarification: false,
+      requiresSourceVerification: false
+    },
+    ...overrides
+  };
+}
+
+describe("FinanceAnalysisController", () => {
+  const mod = loadModule([
+    "../../../Data/marion/runtime/finance/layer05_analysis_planning/FinanceAnalysisController.js",
+    "../../../Data/marion/runtime/finance/layer05_analysis/FinanceAnalysisController.js",
+    "../../../Data/finance/layer05_analysis_planning/FinanceAnalysisController.js",
+    "../../../Domains/finance/layer05_analysis_planning/FinanceAnalysisController.js",
+    "../../../FinanceAnalysisController.js"
+  ]);
+
+  const FinanceAnalysisController = pickExport(mod, [
+    "FinanceAnalysisController",
+    "AnalysisController"
+  ]);
+
+  test("constructs without throwing", () => {
+    expect(() => new FinanceAnalysisController()).not.toThrow();
+  });
+
+  test("consumes a Layer 04 envelope and returns a Layer 05 analysis envelope", () => {
+    const controller = new FinanceAnalysisController();
+    const result = callFirst(controller, ["analyze", "normalize", "process", "execute", "run"], sampleLayer04Envelope());
+
+    expect(result).toBeTruthy();
+    expect(result.domain).toBe("finance");
+    expect(result.runtimeLayer).toBe("layer05_analysis_planning");
+    expect(result.analysisPlan).toBeTruthy();
+    expect(result.ratioMap).toBeTruthy();
+    expect(result.scenarioFrame).toBeTruthy();
+    expect(Array.isArray(result.riskFlags)).toBe(true);
+    expect(Array.isArray(result.evidenceRequirements)).toBe(true);
+    expect(result.nextLayerHandoff).toBeTruthy();
+  });
+
+  test("plans peer and trend analysis from comparison language", () => {
+    const controller = new FinanceAnalysisController();
+    const result = controller.analyze(sampleLayer04Envelope());
+    const strings = flattenStrings(result).join(" ");
+
+    expect(strings).toContain("peer_comparison");
+    expect(strings).toContain("trend_comparison");
+  });
+
+  test("preserves normalized metric/entity/period lineage from Layer 04", () => {
+    const controller = new FinanceAnalysisController();
+    const result = controller.analyze(sampleLayer04Envelope());
+
+    expect(result.normalizedMetrics.length).toBeGreaterThanOrEqual(3);
+    expect(result.normalizedEntities.companies.length).toBe(2);
+    expect(result.normalizedPeriods.length).toBe(1);
+  });
+
+  test("blocks or caveats downstream execution when normalized metrics are absent", () => {
+    const controller = new FinanceAnalysisController();
+    const result = controller.analyze(sampleLayer04Envelope({
+      normalizedMetrics: [],
+      normalizationQuality: { status: "insufficient", score: 0.2 }
+    }));
+
+    const strings = flattenStrings(result).join(" ");
+    expect(strings).toContain("no_normalized_metrics");
+    expect(result.nextLayerHandoff.canProceedToExecution).toBe(false);
+  });
+
+  test("output is JSON serializable", () => {
+    const controller = new FinanceAnalysisController();
+    const result = controller.analyze(sampleLayer04Envelope());
+
+    expect(() => JSON.stringify(result)).not.toThrow();
+    const parsed = JSON.parse(JSON.stringify(result));
+    expect(parsed.domain).toBe("finance");
+  });
+});
