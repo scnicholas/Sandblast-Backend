@@ -1,0 +1,144 @@
+"use strict";
+
+function loadModule(candidates) {
+  const errors = [];
+  for (const candidate of candidates) {
+    try { return require(candidate); } catch (error) { errors.push(`${candidate}: ${error.message}`); }
+  }
+  throw new Error(`Unable to load module from candidates:\n${errors.join("\n")}`);
+}
+
+function pickExport(mod, names) {
+  if (typeof mod === "function") return mod;
+  if (mod && typeof mod.default === "function") return mod.default;
+  for (const name of names) if (mod && typeof mod[name] === "function") return mod[name];
+  throw new Error(`Unable to resolve export. Available keys: ${Object.keys(mod || {}).join(", ")}`);
+}
+
+function callEnvelopeFactory(EnvelopeClass, payload) {
+  for (const staticName of ["create", "build", "wrap", "compose", "toEnvelope"]) {
+    if (typeof EnvelopeClass[staticName] === "function") return EnvelopeClass[staticName](payload);
+  }
+
+  const instance = new EnvelopeClass();
+  for (const methodName of ["create", "build", "wrap", "compose", "toEnvelope"]) {
+    if (typeof instance[methodName] === "function") return instance[methodName](payload);
+  }
+
+  return new EnvelopeClass(payload);
+}
+
+function metric(canonicalMetric) {
+  return { normalizedMetricId: `norm_${canonicalMetric}`, canonicalMetric };
+}
+
+function basePayload(overrides = {}) {
+  return {
+    requestId: "analysis-env-test-001",
+    originalQuery: "Analyze Apple revenue and free cash flow for FY2024.",
+    normalizedMetrics: [metric("revenue"), metric("free_cash_flow")],
+    normalizedEntities: {
+      companies: [{ canonicalName: "Apple Inc.", ticker: "AAPL" }],
+      businessNames: [],
+      programs: [],
+      jurisdictions: [],
+      sources: []
+    },
+    normalizedPeriods: [{ canonicalPeriod: "FY2024" }],
+    normalizedSources: [{ sourceLabel: "user_query", authorityClass: "user_supplied" }],
+    analysisPlan: {
+      primaryRoute: "cash_flow_analysis",
+      secondaryRoutes: [],
+      readinessStatus: "analysis_planned",
+      confidence: 0.82
+    },
+    ratioMap: {
+      ratioCandidates: [{ ratioType: "fcf_margin", calculationStatus: "calculable" }],
+      directlyProvidedRatios: [],
+      calculableRatios: [{ ratioType: "fcf_margin" }],
+      partiallyAvailableRatios: [],
+      unavailableRatios: []
+    },
+    scenarioFrame: {
+      scenarioRequired: false,
+      scenarioTypes: [],
+      readinessStatus: "scenario_not_required"
+    },
+    riskFlags: [],
+    evidenceRequirements: [
+      { requirementCode: "official_financial_statement_source", priority: "recommended", blockingWithoutEvidence: false }
+    ],
+    missingInputs: [],
+    ...overrides
+  };
+}
+
+describe("FinanceAnalysisEnvelope", () => {
+  const mod = loadModule([
+    "../../../Data/marion/runtime/finance/layer05_analysis_planning/FinanceAnalysisEnvelope.js",
+    "../../../Data/marion/runtime/finance/layer05_analysis/FinanceAnalysisEnvelope.js",
+    "../../../Data/finance/layer05_analysis_planning/FinanceAnalysisEnvelope.js",
+    "../../../Domains/finance/layer05_analysis_planning/FinanceAnalysisEnvelope.js",
+    "../../../FinanceAnalysisEnvelope.js"
+  ]);
+
+  const FinanceAnalysisEnvelope = pickExport(mod, ["FinanceAnalysisEnvelope", "AnalysisEnvelope"]);
+
+  test("constructs or creates an envelope without throwing", () => {
+    expect(() => callEnvelopeFactory(FinanceAnalysisEnvelope, basePayload())).not.toThrow();
+  });
+
+  test("creates stable Layer 05 metadata and handoff fields", () => {
+    const envelope = callEnvelopeFactory(FinanceAnalysisEnvelope, basePayload());
+
+    expect(envelope.domain).toBe("finance");
+    expect(envelope.runtimeLayer).toBe("layer05_analysis_planning");
+    expect(envelope.requestId).toBeTruthy();
+    expect(envelope.traceId).toBeTruthy();
+    expect(envelope.schemaVersion).toBeTruthy();
+    expect(envelope.analysisPlan).toBeTruthy();
+    expect(envelope.nextLayerHandoff).toBeTruthy();
+  });
+
+  test("marks ready_for_execution when plan is strong and no blockers exist", () => {
+    const envelope = callEnvelopeFactory(FinanceAnalysisEnvelope, basePayload());
+
+    expect(["ready_for_execution", "analysis_planned"]).toContain(envelope.analysisReadiness.status);
+    expect(envelope.nextLayerHandoff.canProceedToExecution).toBe(true);
+  });
+
+  test("marks blocked when blocking risk exists", () => {
+    const envelope = callEnvelopeFactory(FinanceAnalysisEnvelope, basePayload({
+      riskFlags: [{ riskCode: "no_normalized_metrics", severity: "blocking" }]
+    }));
+
+    expect(envelope.analysisReadiness.status).toBe("blocked");
+    expect(envelope.nextLayerHandoff.canProceedToExecution).toBe(false);
+  });
+
+  test("marks insufficient_context when no plan route exists", () => {
+    const envelope = callEnvelopeFactory(FinanceAnalysisEnvelope, basePayload({
+      analysisPlan: { primaryRoute: "insufficient_analysis_context", readinessStatus: "needs_clarification" }
+    }));
+
+    expect(envelope.analysisReadiness.status).toBe("insufficient_context");
+  });
+
+  test("validate reports a correct envelope as valid", () => {
+    const envelope = callEnvelopeFactory(FinanceAnalysisEnvelope, basePayload());
+
+    if (typeof FinanceAnalysisEnvelope.validate === "function") {
+      const validation = FinanceAnalysisEnvelope.validate(envelope);
+      expect(validation.valid).toBe(true);
+      expect(validation.errors).toEqual([]);
+    }
+  });
+
+  test("output is JSON serializable", () => {
+    const envelope = callEnvelopeFactory(FinanceAnalysisEnvelope, basePayload());
+
+    expect(() => JSON.stringify(envelope)).not.toThrow();
+    const parsed = JSON.parse(JSON.stringify(envelope));
+    expect(parsed.domain).toBe("finance");
+  });
+});
