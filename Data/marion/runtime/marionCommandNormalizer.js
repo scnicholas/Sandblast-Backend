@@ -300,24 +300,25 @@ function inferInputKind(text) {
 function normalizeSession(input = {}) {
   const src = input && typeof input === "object" ? input : {};
 
+  const headers = src.headers || src.body?.headers || {};
+  const body = src.body || {};
+  const payload = src.payload || body.payload || {};
   return {
     sessionId: safeStr(
-      src.sessionId ||
-      src.session_id ||
-      src.sid ||
-      src.body?.sessionId ||
-      src.headers?.["x-session-id"] ||
-      ""
+      src.sessionId || src.session_id || src.sid ||
+      body.sessionId || payload.sessionId ||
+      headers["x-sb-session-id"] || headers["x-session-id"] || ""
     ),
-    userId: safeStr(
-      src.userId ||
-      src.user_id ||
-      src.uid ||
-      src.body?.userId ||
-      ""
+    turnId: safeStr(
+      src.turnId || src.turn_id || body.turnId || payload.turnId || headers["x-sb-turn-id"] || ""
     ),
-    channel: safeStr(src.channel || src.body?.channel || DEFAULT_CHANNEL),
-    source: safeStr(src.source || src.body?.source || DEFAULT_SOURCE)
+    traceId: safeStr(
+      src.traceId || src.requestId || body.traceId || payload.traceId || headers["x-sb-trace-id"] || ""
+    ),
+    userId: safeStr(src.userId || src.user_id || src.uid || body.userId || ""),
+    channel: safeStr(src.channel || body.channel || payload.channel || DEFAULT_CHANNEL),
+    source: safeStr(src.source || body.source || payload.source || body.inputSource || payload.inputSource || DEFAULT_SOURCE),
+    client: src.client && typeof src.client === "object" ? src.client : (body.client && typeof body.client === "object" ? body.client : {})
   };
 }
 
@@ -372,7 +373,10 @@ function normalizeCommand(input = {}) {
     source: session.source,
     channel: session.channel,
     sessionId: session.sessionId,
+    turnId: session.turnId,
+    traceId: session.traceId,
     userId: session.userId,
+    client: session.client,
 
     userText,
     normalizedText: userText.replace(/\s+/g, " ").trim(),
@@ -425,6 +429,11 @@ function normalizeCommand(input = {}) {
       priorityTwoTargets,
       protectiveEscalation,
       requiresEthicalGate: protectiveEscalation.requiresEthicalGate,
+      optionC: true,
+      publicInterfaceHandoff: true,
+      client: session.client,
+      turnId: session.turnId,
+      traceId: session.traceId,
       blockScheduleInterception: technicalFollowUpLock || priorityTwoRoutingLock
     }
   };
