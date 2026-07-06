@@ -167,7 +167,7 @@ function jitter(base, pct) {
   return rand(base - spread, base + spread);
 }
 
-export class NyxStateController {
+class NyxStateController {
   constructor(options = {}) {
     this.options = {
       ...DEFAULT_OPTIONS,
@@ -534,8 +534,9 @@ export class NyxStateController {
   }
 }
 
-export default NyxStateController;
 
+
+if (typeof window !== "undefined") { window.NyxStateController = NyxStateController; window.NYX_STATES = NYX_STATES; }
 
 const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v1.0.2 FACE-SPEECH-CANCEL-RAF-GUARD";
 
