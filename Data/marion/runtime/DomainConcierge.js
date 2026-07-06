@@ -1975,16 +1975,19 @@ function r18cConTechnicalSuppressed(text=""){
 }
 function buildR18CLawConciergeProtocol(packet={},base={}){
   const text=r18cConExtractText(packet)||r18cConFirst(r18cConObj(base).rawUserText,r18cConObj(base).normalizedUserIntent,r18cConObj(base).text);
-  const src=[text,JSON.stringify(r18cConObj(base)).slice(0,1400)].join(" ");
+  const b=r18cConObj(base);
+  const ctxCarry=[b.knowledgeDomain,b.selectedDomain,b.primaryDomain,b.lastRoute,b.lastTopic,b.currentObjective].map(r18cConStr).join(" ");
+  const allowCarry=/\b(next|continue|keep going|what next|what now|passed|locked)\b/i.test(text)&&/\b(law|legal|contract|copyright|licensing|liability|compliance|jurisdiction)\b/i.test(ctxCarry);
+  const src=[text,allowCarry?ctxCarry:""].join(" ");
   const categories=r18cConCategories(src);
   const explicit=/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(src);
-  const active=(categories.length>0||explicit)&&!r18cConTechnicalSuppressed(text);
+  const active=(categories.length>0||explicit||allowCarry)&&!r18cConTechnicalSuppressed(text);
   const secondary=[];
   if(/\b(ai|artificial intelligence|model|llm|automation|agent)\b/i.test(src))secondary.push("ai");
   if(/\b(cyber|security|privacy|data protection|credential|access|identity)\b/i.test(src))secondary.push("cyber");
   if(/\b(revenue|pricing|cost|grant|funding|tax credit|moneti[sz]e|royalty|fee|damages)\b/i.test(src))secondary.push("finance");
   if(/\b(roku|ott|streaming|channel|distribution|commercial|business)\b/i.test(src))secondary.push("business");
-  return {version:R18C_DOMAIN_CONCIERGE_VERSION,active,route:active?"law":"",intent:active?"domain_question":"",knowledgeDomain:active?"law":"",legalCategory:categories[0]||"general_legal_risk",legalCategories:categories,secondaryDomains:Array.from(new Set(secondary.filter(d=>d!=="law"))).slice(0,4),confidence:active?(explicit?0.97:0.94):0,answerMode:"grounded",assessmentFrame:R18C_LAW_CONCIERGE_FRAME.slice(),legalBoundary:Object.assign({},R18C_LAW_CONCIERGE_BOUNDARY),highStakes:!!active,routeLocked:!!active,noCrossDomainBleed:true,noUserFacingDiagnostics:true};
+  return {version:R18C_DOMAIN_CONCIERGE_VERSION,active,route:active?"law":"",intent:active?"domain_question":"",knowledgeDomain:active?"law":"",legalCategory:categories[0]||"general_legal_risk",legalCategories:categories,secondaryDomains:Array.from(new Set(secondary.filter(d=>d!=="law"))).slice(0,4),confidence:active?(explicit?0.97:allowCarry?0.82:0.94):0,answerMode:"grounded",assessmentFrame:R18C_LAW_CONCIERGE_FRAME.slice(),legalBoundary:Object.assign({},R18C_LAW_CONCIERGE_BOUNDARY),highStakes:!!active,routeLocked:!!active,noCrossDomainBleed:true,noUserFacingDiagnostics:true};
 }
 function r18cLawConciergeDomainConfidence(protocol){return {version:DOMAIN_CONFIDENCE_VERSION,confidence:protocol.confidence,confidenceScore:protocol.confidence,band:"high",confidenceBand:"high",margin:0.16,ambiguous:false,routeLocked:true,needsClarifier:false,failClosed:false,primaryDomain:"law",selectedDomain:"law",secondaryDomains:protocol.secondaryDomains||[],knowledgeDomain:"law",answerMode:"grounded",highStakes:true,reason:"r18c_law_real_world_assessment_precedence",legalCategory:protocol.legalCategory,legalCategories:protocol.legalCategories,assessmentFrame:protocol.assessmentFrame,legalBoundary:protocol.legalBoundary,r18cLawAssessment:protocol,candidates:[{domain:"law",confidence:protocol.confidence,reasons:["r18c_law_real_world_assessment_signal",protocol.legalCategory],knowledgeDomain:"law"}],noCrossDomainBleed:true,noUserFacingDiagnostics:true};}
 function r18cApplyLawConciergeProtocol(result,packet){
