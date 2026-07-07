@@ -1,24 +1,69 @@
 "use strict";
 /**
  * publicSurfaceIdentityLock.js
- * Phase 1+2 Public Surface Identity Lock.
+ * Phase 1+2B Public Surface Identity + Loop/Fallback Surface Purge.
  *
  * Purpose:
  * - Nyx owns every public Sandblast.channel response.
  * - Marion remains hidden on public surfaces.
  * - Private/operator Marion surfaces are left untouched only when Phase 2 verifies
  *   an authenticated operator/admin context. Body claims alone do not bypass this lock.
+ * - Public presence/check-in prompts are answered from a clean Nyx template.
+ * - Runtime/testing/loop/fallback language is never allowed to render publicly.
  */
-const VERSION = "nyx.publicSurfaceIdentityLock/1.1-phase2-strict-private-gate";
+const VERSION = "nyx.publicSurfaceIdentityLock/1.2-phase2b-public-loop-fallback-purge";
 let privateLock = null;
 try { privateLock = require("./privateOperatorBoundaryLock.js"); } catch (_) { privateLock = null; }
-const REPLY_KEYS = new Set(["reply","text","answer","response","message","output","spokenText","speechText","displayReply","publicReply","visibleReply","finalReply","authoritativeReply","adminReply","marionReply","privateReply"]);
+
+const REPLY_KEYS = new Set([
+  "reply", "text", "answer", "response", "message", "output", "spokenText", "speechText",
+  "displayReply", "publicReply", "visibleReply", "finalReply", "authoritativeReply",
+  "adminReply", "marionReply", "privateReply"
+]);
 const BLOCKED_IDENTITY_KEYS = /marionAdmin|directMarion|authenticatedOperator|operatorName|operatorPersonalization|allowPersonalName|privateAdmin|adminConversationAllowed|marionAdminConversationAllowed|publicUsersCanAddressMarion|publicUsersMayAddressMarion/i;
-function isObj(v){return !!v && typeof v === "object" && !Array.isArray(v);}
-function safeObj(v){return isObj(v)?v:{};}
-function safeStr(v){return v==null?"":String(v).replace(/\s+/g," ").trim();}
-function lower(v){return safeStr(v).toLowerCase();}
-function headerValue(headers,name){const h=safeObj(headers);return safeStr(h[name]||h[name.toLowerCase()]||h[name.toUpperCase()]||"");}
+const PUBLIC_PRESENCE_PROMPT_RE = /^(?:hi\s+nyx\s*)?(?:are\s+you\s+(?:with\s+me|there|here|online|working|ready)|can\s+you\s+(?:hear\s+me|see\s+this|respond)|do\s+you\s+hear\s+me|you\s+there|still\s+there|hello\??|hi\??|hey\??)\??$/i;
+const PUBLIC_WHO_PROMPT_RE = /\b(?:who\s+am\s+i\s+talking\s+to|who\s+are\s+you|is\s+marion\s+connected|am\s+i\s+talking\s+to\s+marion)\b/i;
+const INTERNAL_PUBLIC_LEAK_RE = new RegExp([
+  "\\bwith\\s+the\\s+thread\\b",
+  "\\bkeep\\s+the\\s+(?:answer|reply)\\s+(?:human,?\\s*)?protective\\b",
+  "\\bhuman,?\\s*protective,?\\s*and\\s*clean\\b",
+  "\\bgreeting\\s+lane\\b",
+  "\\btesting\\s+the\\s+greeting\\s+lane\\b",
+  "\\bkeep\\s+testing\\b",
+  "\\bresponse\\s+pass\\b",
+  "\\blane\\s+test\\b",
+  "\\bpublic\\s+test\\b",
+  "\\boperator\\s+test\\b",
+  "\\bruntime\\b",
+  "\\bfallback\\b",
+  "\\bloop(?:ing|ed)?\\b",
+  "\\bstate\\s+spine\\b",
+  "\\bsession\\s+patch\\b",
+  "\\breply\\s+authority\\b",
+  "\\bdiagnostic(?:s| packet)?\\b",
+  "\\bfinal\\s+envelope\\b",
+  "\\brouteKind\\s*[:=]",
+  "\\bspeechHints\\s*[:=]",
+  "\\bpresenceProfile\\s*[:=]",
+  "\\bmarionFinal\\b",
+  "\\btransportSafe\\b",
+  "\\bnyxStateHint\\b",
+  "\\bcurrent\\s+(?:turn|request|prompt)\\b",
+  "\\brecovery\\s+path\\b",
+  "\\bmeta[-\\s]?recovery\\b",
+  "\\bvalidation\\s+harness\\b",
+  "\\bregression\\s+harness\\b",
+  "\\bsmoke\\s+test\\b",
+  "\\bnode\\s+--check\\b",
+  "\\bpassed\\s+or\\s+failed\\b",
+  "\\bmark\\s+(?:as\\s+)?(?:passed|failed)\\b"
+].join("|"), "i");
+
+function isObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
+function safeObj(v){ return isObj(v) ? v : {}; }
+function safeStr(v){ return v == null ? "" : String(v).replace(/\s+/g," ").trim(); }
+function lower(v){ return safeStr(v).toLowerCase(); }
+function headerValue(headers,name){ const h=safeObj(headers); return safeStr(h[name] || h[name.toLowerCase()] || h[name.toUpperCase()] || ""); }
 function isPrivateOperatorContext(input={}){
   try { return !!(privateLock && privateLock.isVerifiedOperatorContext && privateLock.isVerifiedOperatorContext(input)); } catch (_) { return false; }
 }
@@ -31,9 +76,19 @@ function isPublicSurfaceContext(input={}){
   const site=lower(client.site||safeObj(payload.client).site||"");
   return src.publicSurfaceOnly===true||body.publicSurfaceOnly===true||payload.publicSurfaceOnly===true||ui.publicSurfaceOnly===true||src.publicIdentityLock===true||body.publicIdentityLock===true||payload.publicIdentityLock===true||audience==="public"||surface==="nyx"||source.indexOf("sandblast_channel_widget")!==-1||source.indexOf("nyx-widget")!==-1||site.indexOf("sandblast.channel")!==-1||!!headerValue(headers,"x-nyx-client-version");
 }
+function cleanPublicPresenceReply(){ return "I’m here. You can ask about Sandblast, radio, TV, media, AI, or business tools."; }
+function cleanPublicWhoReply(){ return "You’re speaking with Nyx, the Sandblast guide for media, radio, TV, discovery, and business tools."; }
+function isInternalPublicLeak(value=""){ return INTERNAL_PUBLIC_LEAK_RE.test(safeStr(value)); }
+function extractPrompt(context={}){
+  const src=safeObj(context), body=safeObj(src.body), payload=safeObj(src.payload), turn=safeObj(src.turn||body.turn||payload.turn);
+  return safeStr(src.prompt||src.message||src.text||src.query||body.prompt||body.message||body.text||body.query||payload.prompt||payload.message||payload.text||payload.query||turn.prompt||turn.message||turn.text||"");
+}
+function isPublicPresencePrompt(value=""){ return PUBLIC_PRESENCE_PROMPT_RE.test(safeStr(value)); }
+function isPublicWhoPrompt(value=""){ return PUBLIC_WHO_PROMPT_RE.test(safeStr(value)); }
 function sanitizePublicReply(value=""){
   let t=safeStr(value);
   if(!t) return "";
+  if(isInternalPublicLeak(t)) return cleanPublicPresenceReply();
   t=t.replace(/\b(I[’']?m with you|I am with you),?\s*Mac\b/gi,"$1");
   t=t.replace(/^(Hi|Hello|Hey|Good morning|Good afternoon|Good evening),?\s+Mac[.!]?\s*/i,"$1. ");
   t=t.replace(/^Mac[,—-]\s*/i,"");
@@ -47,14 +102,17 @@ function sanitizePublicReply(value=""){
   t=t.replace(/\bMarion\b/g,"Nyx");
   t=t.replace(/\boperator\s+personalization\b/gi,"personalization");
   t=t.replace(/\bprivate\s+admin\s+conversation\b/gi,"private support route");
-  return t.replace(/\s+/g," ").replace(/\s+([.!?,])/g,"$1").trim();
+  t=t.replace(/\btesting\s+(?:lane|pass|route)\b/gi,"checking the connection");
+  t=t.replace(/\s+/g," ").replace(/\s+([.!?,])/g,"$1").trim();
+  if(!t || isInternalPublicLeak(t)) return cleanPublicPresenceReply();
+  return t;
 }
 function extractReply(value,depth=0){
-  if(depth>5) return "";
+  if(depth>6) return "";
   if(typeof value==="string") return value;
   if(!isObj(value)) return "";
-  for(const k of ["publicReply","visibleReply","displayReply","finalReply","reply","answer","text","response","message","output","spokenText","speechText","authoritativeReply"]){const v=value[k]; if(safeStr(v)) return safeStr(v);}
-  for(const k of ["payload","data","result","finalEnvelope","packet","synthesis","marionFinal"]){const r=extractReply(value[k],depth+1); if(r) return r;}
+  for(const k of ["publicReply","visibleReply","displayReply","finalReply","reply","answer","text","response","message","output","spokenText","speechText","authoritativeReply"]){ const v=value[k]; if(safeStr(v)) return safeStr(v); }
+  for(const k of ["payload","data","result","finalEnvelope","packet","synthesis","marionFinal","final"]){ const r=extractReply(value[k],depth+1); if(r) return r; }
   return "";
 }
 function projectPublicReplyFields(value,context={},depth=0){
@@ -66,14 +124,15 @@ function projectPublicReplyFields(value,context={},depth=0){
   const out={};
   for(const [key,child] of Object.entries(value)){
     if(/^operatorName$/i.test(key)) continue;
-    if(/^audience$/i.test(key)){out[key]="public";continue;}
-    if(/^surfaceAgent$/i.test(key)||/^publicAgent$/i.test(key)||/^userFacingAgent$/i.test(key)){out[key]="Nyx";continue;}
-    if(/^authority$/i.test(key)&&safeStr(child)==="Marion"){out[key]="Nyx";continue;}
-    if(BLOCKED_IDENTITY_KEYS.test(key)){out[key]=false;continue;}
-    if(REPLY_KEYS.has(key)){out[key]=sanitizePublicReply(child);continue;}
+    if(/^audience$/i.test(key)){ out[key]="public"; continue; }
+    if(/^surfaceAgent$/i.test(key)||/^publicAgent$/i.test(key)||/^userFacingAgent$/i.test(key)){ out[key]="Nyx"; continue; }
+    if(/^authority$/i.test(key)&&safeStr(child)==="Marion"){ out[key]="Nyx"; continue; }
+    if(BLOCKED_IDENTITY_KEYS.test(key)){ out[key]=false; continue; }
+    if(REPLY_KEYS.has(key)){ out[key]=sanitizePublicReply(child); continue; }
     out[key]=projectPublicReplyFields(child,context,depth+1);
   }
   out.publicSurfaceIdentityLock=true;
+  out.publicLoopFallbackSurfacePurge=true;
   out.publicSurfaceOnly=true;
   out.surfaceAgent="nyx";
   out.publicAgent="Nyx";
@@ -87,8 +146,12 @@ function projectPublicReplyFields(value,context={},depth=0){
 }
 function projectPublicPayload(payload={},context={}){
   if(isPrivateOperatorContext(context)||isPrivateOperatorContext(payload)) return payload;
+  const prompt=extractPrompt(context)||extractPrompt(payload);
   const base=projectPublicReplyFields(payload,context);
-  const reply=sanitizePublicReply(extractReply(base)||"I’m here. You can ask about Sandblast, radio, TV, media, AI, or business tools.");
+  let reply=sanitizePublicReply(extractReply(base));
+  if(isPublicWhoPrompt(prompt)) reply=cleanPublicWhoReply();
+  else if(isPublicPresencePrompt(prompt)) reply=cleanPublicPresenceReply();
+  else if(!reply || isInternalPublicLeak(reply)) reply=cleanPublicPresenceReply();
   return {
     ok:safeObj(payload).ok!==false,
     handled:true,
@@ -110,13 +173,14 @@ function projectPublicPayload(payload={},context={}){
     audience:"public",
     publicSurfaceOnly:true,
     publicSurfaceIdentityLock:true,
+    publicLoopFallbackSurfacePurge:true,
     operatorPersonalization:false,
     allowPersonalName:false,
     authenticatedOperator:false,
     revealBackendAgent:false,
-    payload:{reply,text:reply,message:reply,spokenText:reply,publicAgent:"Nyx",surfaceAgent:"nyx",audience:"public",publicSurfaceOnly:true,publicSurfaceIdentityLock:true},
+    payload:{reply,text:reply,message:reply,spokenText:reply,publicAgent:"Nyx",surfaceAgent:"nyx",audience:"public",publicSurfaceOnly:true,publicSurfaceIdentityLock:true,publicLoopFallbackSurfacePurge:true},
     ui:{renderReady:true,connectionState:"ready",publicSurfaceOnly:true,surfaceAgent:"nyx"},
-    meta:{publicSurfaceIdentityLock:true,publicProjection:"Nyx",privateOperatorContext:false,version:VERSION}
+    meta:{publicSurfaceIdentityLock:true,publicLoopFallbackSurfacePurge:true,publicProjection:"Nyx",privateOperatorContext:false,version:VERSION}
   };
 }
-module.exports={VERSION,isPublicSurfaceContext,isPrivateOperatorContext,sanitizePublicReply,extractReply,projectPublicReplyFields,projectPublicPayload};
+module.exports={VERSION,isPublicSurfaceContext,isPrivateOperatorContext,isInternalPublicLeak,isPublicPresencePrompt,isPublicWhoPrompt,cleanPublicPresenceReply,cleanPublicWhoReply,sanitizePublicReply,extractPrompt,extractReply,projectPublicReplyFields,projectPublicPayload};
