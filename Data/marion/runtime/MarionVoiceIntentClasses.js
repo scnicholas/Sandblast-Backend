@@ -390,3 +390,18 @@ module.exports = {
   buildVoiceIntentEnvelope,
   buildPartitionKey
 };
+
+
+/* PHASE3D_VOICE_INTENT_PARITY_HARDLOCK_START */
+(function(){try{
+  const V="nyx.marion.phase3d.voiceIntentParityWrapper/1.0";let lock=null;try{lock=require("./voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
+  if(!lock||typeof module==="undefined"||!module.exports)return;
+  const origClassify=module.exports.classifyVoiceIntent;
+  if(typeof origClassify==="function"&&!origClassify.__phase3dVoiceIntentParity){
+    module.exports.classifyVoiceIntent=function(input,options){const out=origClassify.call(this,input,options);const cls=lock.classifyTurn(Object.assign({},input||{},options||{},{inputChannel:"voice",voice:true}));return Object.assign({},out,{phase3dVoiceTextParityHardlock:true,answerClass:cls.answerClass,scope:cls.scope,surfaceAgent:cls.surfaceAgent,audience:cls.audience,partitionKey:cls.partitionKey,memoryPartition:cls.partitionKey,publicIdentityQuestion:cls.publicIdentityQuestion,blockedOperatorClaim:cls.privateSpoof,allowOperatorMemory:cls.allowOperatorMemory,allowPersonalName:cls.allowPersonalName,operatorPersonalization:cls.operatorPersonalization});};
+    module.exports.classifyVoiceIntent.__phase3dVoiceIntentParity=true;
+  }
+  module.exports.compareVoiceTextParity=lock.compareVoiceTextParity;
+  module.exports.PHASE3D_VOICE_INTENT_PARITY_HARDLOCK_VERSION=V;
+}catch(_){}})();
+/* PHASE3D_VOICE_INTENT_PARITY_HARDLOCK_END */
