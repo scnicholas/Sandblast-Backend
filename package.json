@@ -44,8 +44,10 @@
     "lint:phase2b": "node --check index.js && node --check Utils/chatEngine.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionCommandNormalizer.js && node --check Data/marion/runtime/marionIntentRouter.js && node --check Data/marion/runtime/publicSurfaceIdentityLock.js && node --check Data/marion/runtime/publicLoopFallbackSurfacePurge.js && node tests/public_loop_fallback/public_loop_fallback_surface_purge.test.js",
     "test:public-loop-fallback": "node tests/public_loop_fallback/public_loop_fallback_surface_purge.test.js",
     "lint:phase3-live-stability": "node --check index.js && node --check Utils/chatEngine.js && node --check Utils/stateSpine.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/marionFinalEnvelope.js && node --check Data/marion/runtime/marionCommandNormalizer.js && node --check Data/marion/runtime/marionIntentRouter.js && node --check Data/marion/runtime/marionLoopGuard.js && node --check Data/marion/runtime/publicSurfaceIdentityLock.js && node --check Data/marion/runtime/privateOperatorBoundaryLock.js && node --check Data/marion/runtime/liveConversationPartitionValidator.js && node --check Data/marion/runtime/publicLoopFallbackSurfacePurge.js && node --check Data/marion/runtime/nyx_pack_runtime_adapter.js && node --check Data/marion/runtime/MarionAdminConsoleGateway.js && node --check Data/marion/runtime/MarionAdminVoiceIdentityGate.js && node tests/phase3_live_stability/live_conversation_partition_validation.test.js",
-    "lint:phase3": "npm run lint:phase3-live-stability",
-    "test:phase3-live-stability": "node tests/phase3_live_stability/live_conversation_partition_validation.test.js"
+    "lint:phase3": "npm run lint:phase3-live-stability && npm run lint:phase3-voice-intent",
+    "test:phase3-live-stability": "node tests/phase3_live_stability/live_conversation_partition_validation.test.js",
+    "lint:phase3-voice-intent": "node --check Data/marion/runtime/MarionVoiceIntentClasses.js && node --check Data/marion/runtime/MarionAdminVoiceIdentityGate.js && node tests/phase3_voice_intent_classes/voice_intent_classes_phase3.test.js",
+    "test:phase3-voice-intent": "node tests/phase3_voice_intent_classes/voice_intent_classes_phase3.test.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
