@@ -7763,3 +7763,27 @@ try{
   try{const obj=module.exports&&typeof module.exports==="object"?module.exports:null;if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","normalizeCommand","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","process","safeResponse","buildResponse","createResponse","finalizeTurn","updateState","advanceState","mergeState","inspectLoop","checkLoop","evaluateLoop","guardReply","matchPacket","selectPacket","resolvePacket","applyPacket"].forEach(function(n){if(typeof obj[n]==="function")obj[n]=wrapFn(obj[n],n);});obj.LIVE_CONVERSATION_PARTITION_VALIDATION_PHASE3_VERSION=V;obj.liveConversationPartitionProject=part.projectResult;obj.liveConversationPartitionPatch=part.buildPartitionPatch;obj.liveConversationPartitionValidate=part.validateNoCrossPartitionLeak;}}catch(_err){}
 })();
 /* LIVE_CONVERSATION_PARTITION_VALIDATION_PHASE3_END */
+
+
+// PHASE3C_PUBLIC_IDENTITY_QUESTION_ANSWERING_REFINEMENT_START
+(function(){
+  const V="nyx.phase3c.publicIdentityQuestionAnsweringRefinement/1.0";
+  let ref=null; try{ref=require("./publicIdentityQuestionRefinement.js");}catch(_err){ref=null;}
+  let pub=null; try{pub=require("./publicSurfaceIdentityLock.js");}catch(_err){pub=null;}
+  if(!ref||!ref.isPublicIdentityQuestionPrompt||typeof module==="undefined"||!module.exports)return;
+  function isObj(v){return !!v&&typeof v==="object"&&!Array.isArray(v);}
+  function firstArg(args){return args&&args.length?args[0]:{};}
+  function isPublicContext(v){try{return pub&&pub.isPublicSurfaceContext&&pub.isPublicSurfaceContext(v);}catch(_){return false;}}
+  function project(v,args){
+    const ctx=firstArg(args);
+    const prompt=ref.extractPrompt(ctx)||ref.extractPrompt(v);
+    if(!prompt||!ref.isPublicIdentityQuestionPrompt(prompt)||!isPublicContext(ctx))return v;
+    if(typeof v==="string")return ref.cleanPublicIdentityReply(prompt);
+    if(isObj(v))return ref.withPublicIdentityReplyFields(v,ctx);
+    return v;
+  }
+  function wrapFn(fn){return function(){const args=arguments;const res=fn.apply(this,args);if(res&&typeof res.then==="function")return res.then(function(v){return project(v,args);});return project(res,args);};}
+  try{if(typeof module.exports==="function"&&!module.exports.__phase3cPublicIdentityRefinement){const old=module.exports;const wrapped=wrapFn(old);Object.keys(old).forEach(function(k){try{wrapped[k]=old[k];}catch(_e){}});wrapped.__phase3cPublicIdentityRefinement=true;module.exports=wrapped;}}catch(_err){}
+  try{const obj=module.exports&&typeof module.exports==="object"?module.exports:null;if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","routeMarionIntent","route","detectKnowledgeDomain","classifyIntent"].forEach(function(n){if(typeof obj[n]==="function"&&!obj[n].__phase3cPublicIdentityRefinement){obj[n]=wrapFn(obj[n]);obj[n].__phase3cPublicIdentityRefinement=true;}});obj.PHASE3C_PUBLIC_IDENTITY_QUESTION_ANSWERING_REFINEMENT_VERSION=V;obj.publicIdentityQuestionRefinement=ref;}}catch(_err){}
+})();
+// PHASE3C_PUBLIC_IDENTITY_QUESTION_ANSWERING_REFINEMENT_END
