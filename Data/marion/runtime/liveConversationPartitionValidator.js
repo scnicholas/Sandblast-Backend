@@ -15,8 +15,10 @@
 const VERSION = "nyx.marion.phase3.liveConversationPartition/1.0";
 let publicLock = null;
 let privateLock = null;
+let identityRefinement = null;
 try { publicLock = require("./publicSurfaceIdentityLock.js"); } catch (_err) { publicLock = null; }
 try { privateLock = require("./privateOperatorBoundaryLock.js"); } catch (_err) { privateLock = null; }
+try { identityRefinement = require("./publicIdentityQuestionRefinement.js"); } catch (_err) { identityRefinement = null; }
 
 const REPLY_KEYS = new Set([
   "reply", "text", "answer", "response", "message", "output", "spokenText", "speechText",
@@ -89,19 +91,33 @@ function hasReplyKey(value) {
   if (!isObj(value)) return false;
   return Object.keys(value).some((k) => REPLY_KEYS.has(k));
 }
-function sanitizePublicText(text) {
+function identityPromptFromContext(context) {
+  if (identityRefinement && identityRefinement.extractPrompt) {
+    try { return identityRefinement.extractPrompt(context); } catch (_err) {}
+  }
+  const c = collectContext(context || {});
+  return firstText(c.src.prompt, c.src.message, c.src.text, c.src.query, c.body.prompt, c.body.message, c.body.text, c.body.query, c.payload.prompt, c.payload.message, c.payload.text, c.payload.query);
+}
+function sanitizePublicText(text, context) {
+  const prompt = identityPromptFromContext(context || {});
+  if (identityRefinement && identityRefinement.isPublicIdentityQuestionPrompt && identityRefinement.isPublicIdentityQuestionPrompt(prompt)) {
+    return identityRefinement.cleanPublicIdentityReply(prompt);
+  }
   let out = safeStr(text);
   if (!out) return out;
   if (publicLock && publicLock.sanitizePublicReply) {
-    try { out = publicLock.sanitizePublicReply(out); } catch (_err) {}
+    try { out = publicLock.sanitizePublicReply(out, prompt); } catch (_err) {}
+  }
+  if (identityRefinement && identityRefinement.resolvePublicReply) {
+    try { out = identityRefinement.resolvePublicReply(prompt, out); } catch (_err) {}
   }
   out = out
-    .replace(/\bMac\b/g, "")
-    .replace(/\bMarion\b/g, "Nyx")
-    .replace(/\boperator\s+session\b/gi, "session")
-    .replace(/\bprivate\s+(?:admin|operator)\b/gi, "private")
-    .replace(/\bserverSideAdminAuth\b/g, "")
-    .replace(/\btrustedServerAuth\b/g, "")
+    .replace(/Mac/g, "")
+    .replace(/Marion/g, "Nyx")
+    .replace(/operator\s+session/gi, "session")
+    .replace(/private\s+(?:admin|operator)/gi, "private")
+    .replace(/serverSideAdminAuth/g, "")
+    .replace(/trustedServerAuth/g, "")
     .replace(/\s+/g, " ").trim();
   if (!out || INTERNAL_LEAK_RE.test(out)) {
     return publicLock && publicLock.cleanPublicPresenceReply ? publicLock.cleanPublicPresenceReply() : "I’m here. You can ask about Sandblast, radio, TV, media, AI, or business tools.";
@@ -118,7 +134,7 @@ function stripPublicPrivateLeaks(value, context, depth) {
   const d = Number(depth || 0);
   if (d > 8) return value;
   const kind = partitionKind(context || value);
-  if (typeof value === "string") return kind === "operator" ? sanitizeOperatorText(value, context) : sanitizePublicText(value);
+  if (typeof value === "string") return kind === "operator" ? sanitizeOperatorText(value, context) : sanitizePublicText(value, context);
   if (Array.isArray(value)) return value.map((item) => stripPublicPrivateLeaks(item, context, d + 1));
   if (!isObj(value)) return value;
   const out = {};
@@ -136,7 +152,7 @@ function stripPublicPrivateLeaks(value, context, depth) {
       continue;
     }
     if (REPLY_KEYS.has(key)) {
-      out[key] = kind === "operator" ? sanitizeOperatorText(child, context) : sanitizePublicText(child);
+      out[key] = kind === "operator" ? sanitizeOperatorText(child, context) : sanitizePublicText(child, context || value);
       continue;
     }
     out[key] = stripPublicPrivateLeaks(child, context, d + 1);
@@ -183,7 +199,7 @@ function stripPublicPrivateLeaks(value, context, depth) {
 function projectPacket(value, context) {
   const kind = partitionKind(context || value);
   if (kind === "public") {
-    if (typeof value === "string") return sanitizePublicText(value);
+    if (typeof value === "string") return sanitizePublicText(value, context || value);
     if (isObj(value) && hasReplyKey(value) && publicLock && publicLock.projectPublicPayload) {
       try { return stripPublicPrivateLeaks(publicLock.projectPublicPayload(value, context || value), context || value); } catch (_err) {}
     }
