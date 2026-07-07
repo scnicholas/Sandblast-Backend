@@ -1,10 +1,4 @@
 "use strict";
-/** Compatibility alias for Phase 2B public loop/fallback purge. */
-const publicLock = require("./publicSurfaceIdentityLock.js");
-const VERSION = "nyx.publicLoopFallbackSurfacePurge/phase2b-alias";
-function purge(value, context) {
-  if (publicLock && publicLock.projectPublicPayload && value && typeof value === "object") return publicLock.projectPublicPayload(value, context || value);
-  if (publicLock && publicLock.sanitizePublicReply) return publicLock.sanitizePublicReply(value);
-  return value;
-}
-module.exports = Object.assign({ VERSION, purge, project: purge }, publicLock || {});
+/** Phase 2B compatibility alias. */
+let lock=null;try{lock=require("./publicSurfaceIdentityLock.js");}catch(_){lock={};}
+module.exports=Object.assign({VERSION:"nyx.publicLoopFallbackSurfacePurge/phase3d-alias"},lock);
