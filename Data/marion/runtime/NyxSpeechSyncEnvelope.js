@@ -302,3 +302,17 @@ module.exports = {
   disabledSpeechSync,
   normalizeVoiceMode
 };
+
+
+/* PHASE3D_SPOKENTEXT_PARITY_HARDLOCK_START */
+(function(){try{
+  const V="nyx.marion.phase3d.spokenTextParityWrapper/1.0";let lock=null;try{lock=require("./voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
+  if(!lock||!lock.projectSpeechSyncEnvelope||typeof module==="undefined"||!module.exports)return;
+  const orig=module.exports.buildSpeechSyncEnvelope;
+  if(typeof orig==="function"&&!orig.__phase3dSpokenTextParity){
+    module.exports.buildSpeechSyncEnvelope=function(){const args=arguments;const r=orig.apply(this,args);const project=v=>lock.projectSpeechSyncEnvelope(v,{body:args[0],options:args[1],inputChannel:"voice",voice:true});return r&&typeof r.then==="function"?r.then(project):project(r);};
+    module.exports.buildSpeechSyncEnvelope.__phase3dSpokenTextParity=true;
+  }
+  module.exports.PHASE3D_SPOKENTEXT_PARITY_HARDLOCK_VERSION=V;
+}catch(_){}})();
+/* PHASE3D_SPOKENTEXT_PARITY_HARDLOCK_END */
