@@ -517,23 +517,3 @@ module.exports = {
   applyPacketPatchToSession,
   resolveNyxPacket
 };
-
-
-/* PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_START */
-(function(){
-  "use strict";
-  const V="nyx.publicSurfaceIdentityLock.runtime/nyxPackRuntimeAdapter/1.0";
-  let lock=null;try{lock=require("./publicSurfaceIdentityLock.js");}catch(_err){try{lock=require("../Data/marion/runtime/publicSurfaceIdentityLock.js");}catch(_err2){lock=null;}}
-  if(!lock||!lock.projectPublicReplyFields||typeof module==="undefined"||!module.exports)return;
-  function isPublic(args){try{for(let i=0;i<args.length;i+=1){if(lock.isPublicSurfaceContext(args[i]))return true;}return false;}catch(_err){return false;}}
-  function project(value,args){return isPublic(args)?lock.projectPublicReplyFields(value,args&&args[0]):value;}
-  function wrapObj(obj,names){(Array.isArray(names)?names:[]).forEach(function(name){if(!obj||typeof obj[name]!=="function"||obj[name].__nyxPublicSurfaceIdentityLock)return;const old=obj[name];obj[name]=function(){const args=arguments;const res=old.apply(this,args);if(res&&typeof res.then==="function")return res.then(function(v){return project(v,args);});return project(res,args);};obj[name].__nyxPublicSurfaceIdentityLock=true;});}
-  try{
-    if(typeof module.exports==="function"&&!module.exports.__nyxPublicSurfaceIdentityLock){const old=module.exports;const wrapped=function(){const args=arguments;const res=old.apply(this,args);if(res&&typeof res.then==="function")return res.then(function(v){return project(v,args);});return project(res,args);};Object.keys(old).forEach(function(k){try{wrapped[k]=old[k];}catch(_err){}});wrapped.__nyxPublicSurfaceIdentityLock=true;module.exports=wrapped;}
-    wrapObj(module.exports,["resolveNyxPacket","buildGreetingBridge"]);
-    module.exports.PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_VERSION=V;
-    module.exports.publicSurfaceIdentityLockProject=lock.projectPublicReplyFields;
-    module.exports.publicSurfaceIdentityLockSanitize=lock.sanitizePublicReply;
-  }catch(_err){}
-})();
-/* PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_END */
