@@ -5223,3 +5223,18 @@ try{
   }catch(_err){}
 })();
 /* PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_END */
+
+
+/* PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_START */
+(function(){
+  "use strict";
+  const V="nyx.privateOperatorBoundaryLock.phase2/runtimeWrapper/2.0";
+  let lock=null;try{lock=require("./privateOperatorBoundaryLock.js");}catch(_err){try{lock=require("../Data/marion/runtime/privateOperatorBoundaryLock.js");}catch(_err2){lock=null;}}
+  if(!lock||!lock.isVerifiedOperatorContext||typeof module==="undefined"||!module.exports)return;
+  function ctx(value,args){args=Array.prototype.slice.call(args||[]);return{payload:value,body:args[0],auth:args[1],meta:args[2],headers:(args[0]&&args[0].headers)||(args[1]&&args[1].headers)||{},route:(value&&value.route)||(args[0]&&args[0].route)||(args[0]&&args[0].path)||""};}
+  function project(value,args){try{const c=ctx(value,args);return lock.isVerifiedOperatorContext(c)?lock.projectPrivateOperatorFields(value,c):value;}catch(_err){return value;}}
+  function wrapFn(fn,name){if(typeof fn!=="function"||fn.__nyxPrivateOperatorBoundaryLock)return fn;const wrapped=function(){const args=arguments;const res=fn.apply(this,args);if(res&&typeof res.then==="function")return res.then(function(v){return project(v,args);});return project(res,args);};try{Object.keys(fn).forEach(function(k){wrapped[k]=fn[k];});}catch(_err){}try{Object.defineProperty(wrapped,"name",{value:fn.name||name||"privateOperatorBoundaryWrapped"});}catch(_err){}wrapped.__nyxPrivateOperatorBoundaryLock=true;return wrapped;}
+  try{if(typeof module.exports==="function")module.exports=wrapFn(module.exports,"default");}catch(_err){}
+  try{const obj=module.exports&&typeof module.exports==="object"?module.exports:null;if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","normalizeCommand","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","process","safeResponse","buildResponse","createResponse"].forEach(function(n){if(typeof obj[n]==="function")obj[n]=wrapFn(obj[n],n);});obj.PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_VERSION=V;obj.privateOperatorBoundaryLockProject=lock.projectPrivateOperatorFields;obj.privateOperatorBoundaryLockIsVerified=lock.isVerifiedOperatorContext;}}catch(_err){}
+})();
+/* PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_END */
