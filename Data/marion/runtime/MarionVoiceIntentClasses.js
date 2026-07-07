@@ -15,8 +15,10 @@
  */
 
 const crypto = require("crypto");
+let identityRefinement = null;
+try { identityRefinement = require("./publicIdentityQuestionRefinement.js"); } catch (_err) { identityRefinement = null; }
 
-const VERSION = "nyx.marion.voiceIntentClasses/3.0-phase3-memory-partition";
+const VERSION = "nyx.marion.voiceIntentClasses/3.1-phase3c-public-identity-question-refinement";
 const PUBLIC_AGENT = "Nyx";
 const PRIVATE_AGENT = "Marion";
 const OPERATOR_NAME = "Mac";
@@ -44,7 +46,7 @@ const ADMIN_SOURCE_RE = /(?:marion_admin_conversation|admin_text|admin_voice|adm
 const ADMIN_ROUTE_RE = /(?:\/api\/marion\/admin\/conversation|\/api\/marion\/admin\/voice|\/marion\/admin\/conversation|\/marion\/admin\/voice)/i;
 
 const PUBLIC_PRESENCE_PROMPT_RE = /^(?:hi\s+nyx\s*)?(?:are\s+you\s+(?:with\s+me|there|here|online|working|ready)|can\s+you\s+(?:hear\s+me|see\s+this|respond)|do\s+you\s+hear\s+me|you\s+there|still\s+there|hello\??|hi\??|hey\??)\??$/i;
-const PUBLIC_IDENTITY_PROMPT_RE = /\b(?:who\s+am\s+i\s+talking\s+to|who\s+are\s+you|is\s+marion\s+connected|am\s+i\s+talking\s+to\s+marion|are\s+you\s+marion|are\s+you\s+mac)\b/i;
+const PUBLIC_IDENTITY_PROMPT_RE = /\b(?:who\s+am\s+i\s+talking\s+to|who\s+are\s+you|what\s+are\s+you|is\s+marion\s+connected|am\s+i\s+talking\s+to\s+marion|are\s+you\s+marion|are\s+you\s+mac|do\s+you\s+know\s+(?:mac|sean|the\s+operator)|are\s+you\s+talking\s+to\s+(?:mac|sean|the\s+operator)|who\s+is\s+(?:mac|sean|the\s+operator)|i\s+am\s+(?:mac|sean|the\s+operator)|this\s+is\s+(?:mac|sean|the\s+operator))\b/i;
 const MEDIA_RE = /\b(?:radio|sandblast\s+radio|tv|sandblast\s+tv|watch|roku|movie|music|playlist|live|listen|stream|news|synapse)\b/i;
 const BUSINESS_RE = /\b(?:business|retail|buyer|persona|sales|customer|marketing|advertising|conversion|revenue|brand|licensing|commercial|strategy)\b/i;
 const SUPPORT_RE = /\b(?:help|support|guide|show\s+me|explain|how\s+do\s+i|what\s+is\s+this|what\s+can\s+you\s+do)\b/i;
@@ -307,7 +309,9 @@ function classifyVoiceIntent(input = {}, options = {}) {
     voiceInput: true,
     source: f.source || (scope === "operator" ? "marion_admin_voice" : "nyx_public_voice"),
     route: f.route,
-    reason: clipText(reason, MAX_REASON)
+    reason: clipText(reason, MAX_REASON),
+    publicIdentityQuestionRefinement: scope === "public" && intentClass === VOICE_INTENT_CLASS.PUBLIC_IDENTITY_QUERY,
+    suggestedPublicReply: scope === "public" && intentClass === VOICE_INTENT_CLASS.PUBLIC_IDENTITY_QUERY && identityRefinement && identityRefinement.cleanPublicIdentityReply ? identityRefinement.cleanPublicIdentityReply(cleanTranscript) : ""
   };
 }
 
