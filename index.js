@@ -24062,3 +24062,17 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
   try{module.exports.PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_VERSION=V;}catch(_err){}
 })();
 /* PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_INDEX_END */
+
+
+/* PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_START */
+(function(){try{
+  const V="nyx.marion.phase3d.indexResponseParityHardlock/1.0";
+  let lock=null;try{lock=require("./Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
+  if(!lock||!lock.projectResult||typeof express==="undefined"||!express.response||express.response.__phase3dVoiceTextParityHardlock)return;
+  const oldJson=express.response.json; const oldSend=express.response.send;
+  express.response.json=function(body){try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
+  express.response.send=function(body){try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
+  express.response.__phase3dVoiceTextParityHardlock=true;
+  try{module.exports=Object.assign(module.exports||{},{PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_VERSION:V});}catch(_){}
+}catch(_){}})();
+/* PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_END */
