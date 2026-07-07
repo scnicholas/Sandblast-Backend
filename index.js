@@ -1882,6 +1882,21 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         message: prompt,
         text: prompt,
         userText: prompt,
+        audience: "operator",
+        surfaceAgent: "marion",
+        publicSurfaceOnly: false,
+        privateAdminConversation: true,
+        marionAdminConversation: true,
+        authenticatedOperator: true,
+        operatorPersonalization: true,
+        allowPersonalName: true,
+        operatorName: cleanText(body.operatorName || body.speakerHint || "Mac"),
+        trustedServerAuth: true,
+        serverSideAdminAuth: true,
+        adminVerified: true,
+        sessionVerified: auth.sessionVerified === true,
+        publicUsersMayAddressMarion: false,
+        publicUsersSpeakThrough: "Nyx",
         adminVoiceRuntimeApproval: adminVoiceRuntimeAuth.verified === true && adminVoiceRuntimeAuth.adminVoiceRuntimeApproval === true,
         adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
@@ -1978,6 +1993,21 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       locale: cleanText(body.locale || body.language || "en-CA"),
       provider: cleanText(body.provider || "marion-admin-interface"),
       speakerHint: cleanText(body.speakerHint || body.speaker || "Mac"),
+      audience: "operator",
+      surfaceAgent: "marion",
+      publicSurfaceOnly: false,
+      privateAdminConversation: true,
+      marionAdminConversation: true,
+      authenticatedOperator: true,
+      operatorPersonalization: true,
+      allowPersonalName: true,
+      operatorName: cleanText(body.operatorName || body.speakerHint || "Mac"),
+      trustedServerAuth: true,
+      serverSideAdminAuth: true,
+      adminVerified: true,
+      sessionVerified: auth.sessionVerified === true,
+      publicUsersMayAddressMarion: false,
+      publicUsersSpeakThrough: "Nyx",
       sessionId: cleanText(body.sessionId || "marion-admin"),
       requestId: traceId,
       userAgent: cleanText(req.headers["user-agent"] || ""),
@@ -2029,6 +2059,17 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         publicAgent: "Marion",
         authority: "Marion",
         userFacingAgent: "Marion",
+        audience: "operator",
+        surfaceAgent: "marion",
+        publicSurfaceOnly: false,
+        authenticatedOperator: true,
+        operatorPersonalization: true,
+        allowPersonalName: true,
+        operatorName: cleanText(body.operatorName || body.speakerHint || "Mac"),
+        trustedServerAuth: true,
+        serverSideAdminAuth: true,
+        adminVerified: true,
+        sessionVerified: auth.sessionVerified === true,
         privateAdminConversation: true,
         marionAdminConversation: true,
         adminConversationAllowed: true,
@@ -23999,3 +24040,25 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
   try{module.exports.PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_VERSION=V;}catch(_err){}
 })();
 /* PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_END */
+
+
+/* PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_INDEX_START */
+(function(){
+  "use strict";
+  const V="nyx.privateOperatorBoundaryLock.phase2/indexTransport/2.0";
+  let lock=null;try{lock=require("./Data/marion/runtime/privateOperatorBoundaryLock.js");}catch(_err){lock=null;}
+  if(!lock||!lock.isVerifiedOperatorContext)return;
+  try{
+    if(typeof express!=="undefined"&&express&&express.response&&!express.response.__nyxPrivateOperatorBoundaryLockPatched){
+      const oldJson=express.response.json;
+      const oldSend=express.response.send;
+      function reqCtx(req,body){return{req:req,body:req&&req.body,headers:req&&req.headers,payload:body,route:(req&&(req.path||req.originalUrl||req.url))||""};}
+      function project(req,body){try{const c=reqCtx(req,body);return lock.isVerifiedOperatorContext(c)?lock.projectPrivateOperatorFields(body,c):body;}catch(_err){return body;}}
+      express.response.json=function(body){try{body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
+      express.response.send=function(body){try{const req=this&&this.req;if(body&&typeof body==="object")body=project(req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(req,JSON.parse(s)));}catch(_parseErr){}}}}catch(_err){}return oldSend.call(this,body);};
+      express.response.__nyxPrivateOperatorBoundaryLockPatched=true;
+    }
+  }catch(_err){}
+  try{module.exports.PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_VERSION=V;}catch(_err){}
+})();
+/* PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_INDEX_END */
