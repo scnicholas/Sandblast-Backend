@@ -237,3 +237,17 @@ module.exports = {
   }
 }catch(_){}})();
 /* R18B_SECURITY_PROTECTIVE_LAYER_HARDENING_END */
+
+
+/* PHASE3D_VOICE_INPUT_PARITY_HARDLOCK_START */
+(function(){try{
+  const V="nyx.marion.phase3d.voiceInputParityWrapper/1.0";let lock=null;try{lock=require("./voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
+  if(!lock||!lock.projectVoiceInputEnvelope||typeof module==="undefined"||!module.exports)return;
+  const orig=module.exports.createVoiceInputEnvelope;
+  if(typeof orig==="function"&&!orig.__phase3dVoiceInputParity){
+    module.exports.createVoiceInputEnvelope=function(){const args=arguments;const r=orig.apply(this,args);const project=v=>lock.projectVoiceInputEnvelope(v,{body:args[0],options:args[1],inputChannel:"voice",voice:true});return r&&typeof r.then==="function"?r.then(project):project(r);};
+    module.exports.createVoiceInputEnvelope.__phase3dVoiceInputParity=true;
+  }
+  module.exports.PHASE3D_VOICE_INPUT_PARITY_HARDLOCK_VERSION=V;
+}catch(_){}})();
+/* PHASE3D_VOICE_INPUT_PARITY_HARDLOCK_END */
