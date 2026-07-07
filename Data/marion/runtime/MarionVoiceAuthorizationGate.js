@@ -565,3 +565,15 @@ module.exports = {
   resolveRemoteTrustedUserScope,
   resolveSpeakerIdentity
 };
+
+
+/* PHASE3D_VOICE_AUTHORIZATION_PARITY_HARDLOCK_START */
+(function(){try{
+  const V="nyx.marion.phase3d.voiceAuthorizationParityWrapper/1.0";let lock=null;try{lock=require("./voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
+  if(!lock||!lock.projectAuthorizationResult||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__phase3dVoiceAuthParity)return fn;const w=function(){const args=arguments;const r=fn.apply(this,args);const project=v=>lock.projectAuthorizationResult(v,{body:args[0],options:args[1],inputChannel:"voice",voice:true});return r&&typeof r.then==="function"?r.then(project):project(r);};w.__phase3dVoiceAuthParity=true;return w;}
+  module.exports.evaluateVoiceAuthorization=wrap(module.exports.evaluateVoiceAuthorization,"evaluateVoiceAuthorization");
+  module.exports.applyVoiceAuthorization=wrap(module.exports.applyVoiceAuthorization,"applyVoiceAuthorization");
+  module.exports.PHASE3D_VOICE_AUTHORIZATION_PARITY_HARDLOCK_VERSION=V;
+}catch(_){}})();
+/* PHASE3D_VOICE_AUTHORIZATION_PARITY_HARDLOCK_END */
