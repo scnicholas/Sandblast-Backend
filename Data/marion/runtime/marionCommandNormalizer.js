@@ -318,7 +318,13 @@ function normalizeSession(input = {}) {
     userId: safeStr(src.userId || src.user_id || src.uid || body.userId || ""),
     channel: safeStr(src.channel || body.channel || payload.channel || DEFAULT_CHANNEL),
     source: safeStr(src.source || body.source || payload.source || body.inputSource || payload.inputSource || DEFAULT_SOURCE),
-    client: src.client && typeof src.client === "object" ? src.client : (body.client && typeof body.client === "object" ? body.client : {})
+    client: src.client && typeof src.client === "object" ? src.client : (body.client && typeof body.client === "object" ? body.client : {}),
+    audience: safeStr(src.audience || body.audience || payload.audience || src.ui?.audience || body.ui?.audience || headers["x-sb-audience"] || "public"),
+    surfaceAgent: safeStr(src.surfaceAgent || body.surfaceAgent || payload.surfaceAgent || src.ui?.surfaceAgent || body.ui?.surfaceAgent || headers["x-sb-public-surface"] || "nyx"),
+    publicSurfaceOnly: src.publicSurfaceOnly === true || body.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || src.ui?.publicSurfaceOnly === true || body.ui?.publicSurfaceOnly === true,
+    operatorPersonalization: src.operatorPersonalization === true || body.operatorPersonalization === true,
+    allowPersonalName: src.allowPersonalName === true || body.allowPersonalName === true,
+    publicIdentityLock: src.publicIdentityLock === true || body.publicIdentityLock === true || payload.publicIdentityLock === true
   };
 }
 
@@ -431,6 +437,12 @@ function normalizeCommand(input = {}) {
       requiresEthicalGate: protectiveEscalation.requiresEthicalGate,
       optionC: true,
       publicInterfaceHandoff: true,
+      publicSurfaceIdentityLock: session.publicIdentityLock !== false,
+      audience: session.audience || "public",
+      surfaceAgent: session.surfaceAgent || "nyx",
+      publicSurfaceOnly: session.publicSurfaceOnly !== false,
+      operatorPersonalization: false,
+      allowPersonalName: false,
       client: session.client,
       turnId: session.turnId,
       traceId: session.traceId,
@@ -462,3 +474,23 @@ module.exports = {
   detectProtectiveEscalationSignal,
   priorityTwoTargetSignals
 };
+
+
+/* PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_START */
+(function(){
+  "use strict";
+  const V="nyx.publicSurfaceIdentityLock.runtime/marionCommandNormalizer/1.0";
+  let lock=null;try{lock=require("./publicSurfaceIdentityLock.js");}catch(_err){try{lock=require("../Data/marion/runtime/publicSurfaceIdentityLock.js");}catch(_err2){lock=null;}}
+  if(!lock||!lock.projectPublicReplyFields||typeof module==="undefined"||!module.exports)return;
+  function isPublic(args){try{for(let i=0;i<args.length;i+=1){if(lock.isPublicSurfaceContext(args[i]))return true;}return false;}catch(_err){return false;}}
+  function project(value,args){return isPublic(args)?lock.projectPublicReplyFields(value,args&&args[0]):value;}
+  function wrapObj(obj,names){(Array.isArray(names)?names:[]).forEach(function(name){if(!obj||typeof obj[name]!=="function"||obj[name].__nyxPublicSurfaceIdentityLock)return;const old=obj[name];obj[name]=function(){const args=arguments;const res=old.apply(this,args);if(res&&typeof res.then==="function")return res.then(function(v){return project(v,args);});return project(res,args);};obj[name].__nyxPublicSurfaceIdentityLock=true;});}
+  try{
+    if(typeof module.exports==="function"&&!module.exports.__nyxPublicSurfaceIdentityLock){const old=module.exports;const wrapped=function(){const args=arguments;const res=old.apply(this,args);if(res&&typeof res.then==="function")return res.then(function(v){return project(v,args);});return project(res,args);};Object.keys(old).forEach(function(k){try{wrapped[k]=old[k];}catch(_err){}});wrapped.__nyxPublicSurfaceIdentityLock=true;module.exports=wrapped;}
+    wrapObj(module.exports,["normalizeCommand"]);
+    module.exports.PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_VERSION=V;
+    module.exports.publicSurfaceIdentityLockProject=lock.projectPublicReplyFields;
+    module.exports.publicSurfaceIdentityLockSanitize=lock.sanitizePublicReply;
+  }catch(_err){}
+})();
+/* PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_END */
