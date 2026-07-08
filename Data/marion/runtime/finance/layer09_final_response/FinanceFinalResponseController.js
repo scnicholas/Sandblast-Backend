@@ -5,6 +5,11 @@
  * Consumes Layer 08 synthesis envelopes and renders the final user-facing
  * finance response without recalculating, fetching, or modifying evidence.
  *
+ * R18C controller/tone-guard bridge patch:
+ * - Passes raw Layer 08 answer material into the tone guard as scan-only context.
+ * - This allows the controller path to report unsafe finance wording even when
+ *   the unsafe wording is excluded or softened before final delivery.
+ *
  * Boundary:
  * - Does not ingest.
  * - Does not normalize.
@@ -36,6 +41,14 @@ function normalizeText(value) {
 
 function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function safeJson(value) {
+  try {
+    return JSON.stringify(value || null);
+  } catch (err) {
+    return "";
+  }
 }
 
 class FinanceFinalResponseController {
@@ -98,7 +111,8 @@ class FinanceFinalResponseController {
       finalResponseBlocks: caveatInjection.finalResponseBlocks,
       caveatsApplied: caveatInjection.caveatsApplied,
       blockedClaims: caveatInjection.blockedClaims,
-      queryText: normalizedInput.queryText
+      queryText: normalizedInput.queryText,
+      rawTextSources: this.toneGuardScanSources(normalizedInput, sectionRender, narrative, caveatInjection)
     });
 
     return FinanceFinalResponseEnvelope.create({
@@ -170,6 +184,19 @@ class FinanceFinalResponseController {
         toneGuard: toneGuard.diagnostics
       }
     });
+  }
+
+  toneGuardScanSources(normalizedInput = {}, sectionRender = {}, narrative = {}, caveatInjection = {}) {
+    return [
+      safeJson(normalizedInput.answerSections),
+      safeJson(normalizedInput.finalAnswerPackage),
+      safeJson(normalizedInput.prioritizedResults),
+      safeJson(normalizedInput.resultGroups),
+      safeJson(sectionRender.renderedSections),
+      safeJson(sectionRender.finalResponseBlocks),
+      safeJson(narrative.finalResponseBlocks),
+      safeJson(caveatInjection.finalResponseBlocks)
+    ].filter(Boolean);
   }
 
   normalizeInput(input = {}) {
