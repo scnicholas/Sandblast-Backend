@@ -5,6 +5,11 @@
  * Detects and softens overconfident, advisory, or guarantee-like finance
  * language in the final response text.
  *
+ * R18C scan-context patch:
+ * - Scans final response text for language requiring replacement.
+ * - Also scans controller-provided raw answer material as non-rendered context.
+ * - Reports unsafe phrasing found in raw context even if it was not emitted.
+ *
  * No external dependencies.
  */
 
@@ -19,38 +24,68 @@ function stableSlug(value) {
     .replace(/^_+|_+$/g, "") || "unknown";
 }
 
+function cloneRegex(pattern) {
+  return new RegExp(pattern.source, pattern.flags);
+}
+
 class FinanceResponseToneGuard {
   guard(input = {}) {
     const findings = [];
     let text = String(input.finalResponseText || "");
+    const rawTextSources = safeArray(input.rawTextSources).map((item) => String(item || ""));
+    const scanOnlyText = rawTextSources.join("\n");
 
     const replacements = this.replacementRules();
 
     replacements.forEach((rule) => {
-      if (rule.pattern.test(text)) {
+      const finalPattern = cloneRegex(rule.pattern);
+      const contextPattern = cloneRegex(rule.pattern);
+      const replacePattern = cloneRegex(rule.pattern);
+
+      const appearsInFinal = finalPattern.test(text);
+      const appearsInRawContext = scanOnlyText ? contextPattern.test(scanOnlyText) : false;
+
+      if (appearsInFinal) {
         findings.push({
           findingId: `fin_tone_guard_${stableSlug(rule.code)}`,
           findingCode: rule.code,
           severity: rule.severity,
           originalPattern: String(rule.pattern),
           action: "softened_or_replaced",
-          replacement: rule.replacement
+          replacement: rule.replacement,
+          appearsInFinalResponse: true
         });
 
-        text = text.replace(rule.pattern, rule.replacement);
+        text = text.replace(replacePattern, rule.replacement);
+        return;
+      }
+
+      if (appearsInRawContext) {
+        findings.push({
+          findingId: `fin_tone_guard_${stableSlug(rule.code)}`,
+          findingCode: rule.code,
+          severity: rule.severity,
+          originalPattern: String(rule.pattern),
+          action: "detected_in_nonrendered_context",
+          replacement: rule.replacement,
+          appearsInFinalResponse: false
+        });
       }
     });
 
-    const blockedLanguagePresent = findings.some((finding) => finding.severity === "blocking");
+    const unresolvedBlockingLanguagePresent = findings.some((finding) => {
+      return finding.severity === "blocking" && finding.appearsInFinalResponse === true;
+    });
     const advisoryLanguagePresent = findings.length > 0;
 
-    if (!this.hasFinancePosture(text)) {
+    if (text && !this.hasFinancePosture(text)) {
       findings.push({
         findingId: "fin_tone_guard_missing_finance_posture",
         findingCode: "missing_finance_posture",
         severity: "low",
         action: "posture_note_added",
-        replacement: "Based on the provided figures"
+        replacement: "Based on the provided figures",
+        appearsInFinalResponse: true
       });
 
       text = `Based on the provided figures, ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
@@ -62,9 +97,11 @@ class FinanceResponseToneGuard {
       finalResponseBlocks: safeArray(input.finalResponseBlocks),
       toneGuardFindings: findings,
       diagnostics: {
-        ok: !blockedLanguagePresent,
+        ok: !unresolvedBlockingLanguagePresent,
         warnings: advisoryLanguagePresent ? findings.map((item) => item.findingCode) : [],
-        errors: blockedLanguagePresent ? findings.filter((item) => item.severity === "blocking").map((item) => item.findingCode) : [],
+        errors: unresolvedBlockingLanguagePresent
+          ? findings.filter((item) => item.severity === "blocking" && item.appearsInFinalResponse === true).map((item) => item.findingCode)
+          : [],
         findingCount: findings.length
       }
     };
