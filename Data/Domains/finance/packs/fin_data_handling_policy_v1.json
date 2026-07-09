@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "dataHandling": {
+    "sensitiveFinancialData": [
+      "bank account number",
+      "credit card number",
+      "SIN",
+      "SSN",
+      "tax return",
+      "payroll file",
+      "loan application",
+      "personal net worth",
+      "private investor documents"
+    ],
+    "publicResponseRestrictions": {
+      "mustNotExposePrivateFinancialData": true,
+      "mustRedactAccountNumbers": true,
+      "mustAvoidUnnecessaryPersonalDataEcho": true,
+      "mustSeparatePublicNyxFromPrivateMarion": true
+    },
+    "redactionPolicy": {
+      "accountNumberVisibleDigits": 4,
+      "maskCharacter": "*",
+      "defaultRedactionToken": "[REDACTED_FINANCIAL_DATA]"
+    }
+  }
+}
