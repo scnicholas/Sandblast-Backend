@@ -8,7 +8,7 @@ class FinanceAdviceCaveatEnforcer {
   }
 
   enforce(payload = {}) {
-    const original = payload.answer || payload.response || payload.sanitizedResponse || "";
+    const original = payload.sanitizedResponse || payload.response || payload.answer || "";
     const text = [payload.query, original].filter(Boolean).join(" ").toLowerCase();
 
     const missing = [];
@@ -103,7 +103,8 @@ class FinanceAdviceCaveatEnforcer {
         "assumptions",
         "depends on",
         "depends upon",
-        "depends on the assumptions used"
+        "depends on the assumptions used",
+        "assumptions used"
       ]
     };
 
