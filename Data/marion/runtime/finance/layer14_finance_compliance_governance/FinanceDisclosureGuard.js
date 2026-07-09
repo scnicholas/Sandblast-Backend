@@ -33,7 +33,7 @@ class FinanceDisclosureGuard {
     };
   }
 
-  _collectApplicabilityText(payload = {}) {
+  _collectApplicabilityText(payload) {
     return [
       payload.query,
       payload.answer,
@@ -45,11 +45,11 @@ class FinanceDisclosureGuard {
       .toLowerCase();
   }
 
-  _collectResponseText(payload = {}) {
+  _collectResponseText(payload) {
     return [
-      payload.answer,
+      payload.sanitizedResponse,
       payload.response,
-      payload.sanitizedResponse
+      payload.answer
     ]
       .filter(Boolean)
       .join(" ")
@@ -69,10 +69,14 @@ class FinanceDisclosureGuard {
         "stock",
         "portfolio",
         "invest",
+        "investment",
         "security",
+        "securities",
         "etf",
         "bond",
-        "crypto"
+        "crypto",
+        "return",
+        "yield"
       ],
       tax_discussion: [
         "tax",
@@ -80,6 +84,7 @@ class FinanceDisclosureGuard {
         "irs",
         "deduction",
         "write off",
+        "write-off",
         "capital gains"
       ],
       legal_or_regulatory_discussion: [
@@ -129,7 +134,8 @@ class FinanceDisclosureGuard {
         "tax professional",
         "legal professional",
         "advisor specific to your situation",
-        "professional for advice specific to your situation"
+        "professional for advice specific to your situation",
+        "for advice specific to your situation"
       ],
 
       riskMayVary: [
