@@ -33,10 +33,14 @@ class FinanceComplianceController {
     const disclosure = this.disclosureGuard.evaluate(payload);
     const caveat = this.caveatEnforcer.enforce(payload);
 
-    const dataPolicy = this.dataPolicyChecker.check({
+    const caveatedPayload = {
       ...payload,
-      response: caveat.sanitizedResponse
-    });
+      answer: undefined,
+      response: caveat.sanitizedResponse,
+      sanitizedResponse: caveat.sanitizedResponse
+    };
+
+    const dataPolicy = this.dataPolicyChecker.check(caveatedPayload);
 
     const warnings = [
       ...boundary.boundaryFlags.map(flag => `Boundary flag: ${flag.category}`),
