@@ -4,6 +4,12 @@
  * R18D Layer 12 — Finance Domain Intent Mapper
  * Determines whether a Marion/Nyx request should route into the finance domain.
  *
+ * Boundary:
+ * - Does not execute finance analysis.
+ * - Does not calculate metrics.
+ * - Does not fetch data.
+ * - Does not produce final finance responses.
+ *
  * No external dependencies.
  */
 
@@ -51,10 +57,22 @@ class FinanceDomainIntentMapper {
     const rejectedSignals = this.detectRejectedSignals(normalizedQuery, input);
     const intent = this.resolveIntent(signals, normalizedQuery);
     const confidence = this.calculateConfidence(signals, rejectedSignals, input);
+
+    const explicitFinance =
+      signals.includes("explicit_finance_domain") ||
+      signals.includes("explicit_finance_flag");
+
+    const explicitNonFinance =
+      rejectedSignals.some((signal) => signal.startsWith("explicit_non_finance_domain"));
+
     const shouldRouteToFinance =
-      confidence >= this.minRouteConfidence &&
+      !explicitNonFinance &&
+      rejectedSignals.length === 0 &&
       signals.length > 0 &&
-      rejectedSignals.length === 0;
+      (
+        confidence >= this.minRouteConfidence ||
+        explicitFinance
+      );
 
     const routeReason = shouldRouteToFinance
       ? `finance_route:${intent}`
@@ -80,7 +98,9 @@ class FinanceDomainIntentMapper {
         errors: [],
         signalCount: signals.length,
         rejectedSignalCount: rejectedSignals.length,
-        threshold: this.minRouteConfidence
+        threshold: this.minRouteConfidence,
+        explicitFinance,
+        explicitNonFinance
       }
     };
   }
@@ -89,13 +109,34 @@ class FinanceDomainIntentMapper {
     const signals = [];
 
     const patterns = [
-      ["finance_keyword", /\b(finance|financial|financials|valuation|cash flow|cashflow|balance sheet|income statement|profit|loss|margin|revenue|expenses?|costs?|burn rate|runway)\b/],
-      ["ratio_metric", /\b(gross margin|net margin|operating margin|ebitda|roi|roe|roa|current ratio|quick ratio|debt to equity|p\/e|price to earnings)\b/],
-      ["market_metric", /\b(stock|share price|market cap|ticker|earnings|dividend|eps|enterprise value|ev\/ebitda)\b/],
-      ["business_funding", /\b(grant|loan|funding|budget|capitalization|investment|investor|raise|runway|cash burn)\b/],
-      ["calculation_request", /\b(calculate|compute|analyze|summarize|compare|forecast|scenario|model)\b/],
-      ["money_value", /[$€£]\s?\d+|\b\d+(\.\d+)?\s?(cad|usd|dollars?|million|billion|k|m)\b/],
-      ["period_signal", /\b(fy\d{4}|q[1-4]|quarter|year over year|yoy|monthly|annual|ttm)\b/]
+      [
+        "finance_keyword",
+        /\b(finance|financial|financials|valuation|cash flow|cashflow|balance sheet|income statement|profit|loss|margin|revenue|expenses?|costs?|burn rate|runway)\b/
+      ],
+      [
+        "ratio_metric",
+        /\b(gross margin|net margin|operating margin|ebitda|roi|roe|roa|current ratio|quick ratio|debt to equity|p\/e|price to earnings)\b/
+      ],
+      [
+        "market_metric",
+        /\b(stock|share price|market cap|ticker|earnings|dividend|eps|enterprise value|ev\/ebitda)\b/
+      ],
+      [
+        "business_funding",
+        /\b(grant|loan|funding|budget|capitalization|investment|investor|raise|runway|cash burn)\b/
+      ],
+      [
+        "calculation_request",
+        /\b(calculate|compute|analyze|summarize|compare|forecast|scenario|model|review)\b/
+      ],
+      [
+        "money_value",
+        /[$€£]\s?\d+|\b\d+(\.\d+)?\s?(cad|usd|dollars?|million|billion|k|m)\b/
+      ],
+      [
+        "period_signal",
+        /\b(fy\d{4}|q[1-4]|quarter|year over year|yoy|monthly|annual|ttm)\b/
+      ]
     ];
 
     patterns.forEach(([code, pattern]) => {
@@ -117,10 +158,22 @@ class FinanceDomainIntentMapper {
     const rejected = [];
 
     const nonFinancePatterns = [
-      ["medical_health_query", /\b(symptom|diagnosis|medicine|doctor|hospital|treatment|prescription)\b/],
-      ["legal_primary_query", /\b(lawsuit|contract clause|court|statute|legal advice|lawyer)\b/],
-      ["cyber_primary_query", /\b(malware|phishing|firewall|exploit|vulnerability|ransomware)\b/],
-      ["creative_primary_query", /\b(write a poem|song lyrics|story|screenplay|character)\b/]
+      [
+        "medical_health_query",
+        /\b(symptom|diagnosis|medicine|doctor|hospital|treatment|prescription)\b/
+      ],
+      [
+        "legal_primary_query",
+        /\b(lawsuit|contract clause|court|statute|legal advice|lawyer)\b/
+      ],
+      [
+        "cyber_primary_query",
+        /\b(malware|phishing|firewall|exploit|vulnerability|ransomware)\b/
+      ],
+      [
+        "creative_primary_query",
+        /\b(write|draft|compose|create)\s+(a\s+|an\s+|the\s+)?(\w+\s+){0,4}(poem|song|story|screenplay|character|lyrics)\b|\b(song lyrics|short story|creative writing)\b/
+      ]
     ];
 
     nonFinancePatterns.forEach(([code, pattern]) => {
@@ -139,6 +192,7 @@ class FinanceDomainIntentMapper {
     if (signals.includes("ratio_metric")) return "finance_ratio_analysis";
     if (signals.includes("business_funding")) return "finance_business_funding_analysis";
     if (signals.includes("money_value") && signals.includes("calculation_request")) return "finance_calculation";
+    if (signals.includes("explicit_finance_domain") || signals.includes("explicit_finance_flag")) return "finance_general_analysis";
     if (signals.includes("finance_keyword")) return "finance_general_analysis";
 
     return "unknown_or_non_finance";
@@ -148,8 +202,8 @@ class FinanceDomainIntentMapper {
     let score = 0;
 
     const weights = {
-      explicit_finance_domain: 0.38,
-      explicit_finance_flag: 0.32,
+      explicit_finance_domain: 0.5,
+      explicit_finance_flag: 0.5,
       finance_keyword: 0.2,
       ratio_metric: 0.24,
       market_metric: 0.22,
