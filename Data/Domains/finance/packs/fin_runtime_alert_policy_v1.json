@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "layer16_runtime_monitoring",
+  "purpose": "Defines runtime alert levels, routing decisions, and operator-review requirements for finance drift monitoring.",
+  "alertLevels": {
+    "none": {
+      "description": "No actionable runtime issue detected.",
+      "requiresOperatorReview": false,
+      "defaultRoute": "monitor_only"
+    },
+    "info": {
+      "description": "Low-risk runtime event captured for observation.",
+      "requiresOperatorReview": false,
+      "defaultRoute": "monitor_only"
+    },
+    "watch": {
+      "description": "Early warning trend detected; continue monitoring.",
+      "requiresOperatorReview": false,
+      "defaultRoute": "monitor_only"
+    },
+    "warning": {
+      "description": "Material degradation or recurrence detected; route to relevant layer.",
+      "requiresOperatorReview": false,
+      "defaultRoute": "route_for_regression_review"
+    },
+    "critical": {
+      "description": "High-risk compliance, source, calculation, evidence, or safety issue detected.",
+      "requiresOperatorReview": true,
+      "defaultRoute": "route_to_operator_review"
+    },
+    "operator_review": {
+      "description": "Operator intervention required before the system should treat the issue as resolved.",
+      "requiresOperatorReview": true,
+      "defaultRoute": "route_to_operator_review"
+    }
+  },
+  "routePriority": [
+    "route_to_operator_review",
+    "route_to_layer14_compliance_review",
+    "route_to_layer02_source_freshness_review",
+    "route_to_layer06_execution_recalculation",
+    "route_to_layer07_evidence_binding_review",
+    "route_to_layer03_ingestion_gap_review",
+    "route_for_regression_review",
+    "monitor_only"
+  ],
+  "routeDescriptions": {
+    "route_to_operator_review": "Escalate to the operator for manual review.",
+    "route_to_layer14_compliance_review": "Send issue back to compliance and disclosure governance.",
+    "route_to_layer02_source_freshness_review": "Send issue back to source authority and freshness validation.",
+    "route_to_layer06_execution_recalculation": "Send issue back to calculation, ratio, scenario, or valuation execution.",
+    "route_to_layer07_evidence_binding_review": "Send issue back to evidence binding and claim support validation.",
+    "route_to_layer03_ingestion_gap_review": "Send issue back to input extraction and missing-context resolution.",
+    "route_for_regression_review": "Queue issue for regression review.",
+    "monitor_only": "No immediate route required; continue monitoring."
+  },
+  "statusPolicy": {
+    "stable": {
+      "alertLevel": "none",
+      "requiresOperatorReview": false
+    },
+    "watch": {
+      "alertLevel": "watch",
+      "requiresOperatorReview": false
+    },
+    "degraded": {
+      "alertLevel": "warning",
+      "requiresOperatorReview": false
+    },
+    "drift_detected": {
+      "alertLevel": "critical",
+      "requiresOperatorReview": true
+    },
+    "escalation_required": {
+      "alertLevel": "operator_review",
+      "requiresOperatorReview": true
+    }
+  }
+}
