@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "layer15_feedback_loops",
+  "purpose": "Classifies finance-domain feedback signals from users, tests, regression failures, stale-source complaints, and answer-quality issues.",
+  "signalTypes": {
+    "user_correction": {
+      "description": "User corrects a factual, numeric, source, assumption, or interpretation error.",
+      "severityDefault": "medium"
+    },
+    "stale_source_complaint": {
+      "description": "User indicates finance data, program status, rates, filings, prices, or deadlines may be outdated.",
+      "severityDefault": "high"
+    },
+    "missing_context": {
+      "description": "User indicates the answer missed required context, documents, constraints, jurisdiction, period, or scenario details.",
+      "severityDefault": "medium"
+    },
+    "unsafe_advice": {
+      "description": "User or regression test identifies unqualified personalized financial advice, guaranteed return language, or missing caveats.",
+      "severityDefault": "critical"
+    },
+    "calculation_error": {
+      "description": "User or test identifies incorrect math, ratio, valuation, projection, percentage, or formula output.",
+      "severityDefault": "high"
+    },
+    "unsupported_claim": {
+      "description": "Answer made a claim without adequate evidence, source support, or confidence qualification.",
+      "severityDefault": "high"
+    },
+    "tone_or_format_issue": {
+      "description": "User indicates the answer was too vague, too technical, too verbose, too brief, poorly structured, or off-tone.",
+      "severityDefault": "low"
+    },
+    "regression_failure": {
+      "description": "Automated test or validation harness identifies behavior drift or broken layer contract.",
+      "severityDefault": "high"
+    }
+  },
+  "requiredOutput": {
+    "feedbackSignals": true,
+    "correctionType": true,
+    "qualityScore": true,
+    "regressionRisk": true,
+    "memoryWriteCandidate": true,
+    "nextAction": true
+  }
+}
