@@ -1,0 +1,71 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "correctionPatterns": {
+    "explicitCorrection": [
+      "that's wrong",
+      "that is wrong",
+      "incorrect",
+      "not correct",
+      "you missed",
+      "you forgot",
+      "actually",
+      "the correct",
+      "fix this",
+      "patch this"
+    ],
+    "staleData": [
+      "outdated",
+      "stale",
+      "not current",
+      "check latest",
+      "program changed",
+      "deadline changed",
+      "rate changed",
+      "price changed",
+      "filing changed"
+    ],
+    "mathError": [
+      "math is wrong",
+      "calculation is wrong",
+      "ratio is wrong",
+      "percentage is wrong",
+      "valuation is wrong",
+      "doesn't add up",
+      "numbers don't match"
+    ],
+    "missingContext": [
+      "you didn't account for",
+      "you missed context",
+      "you left out",
+      "based on my file",
+      "based on the uploaded",
+      "jurisdiction matters",
+      "wrong period",
+      "wrong year"
+    ],
+    "unsafeAdvice": [
+      "sounds like financial advice",
+      "too much like advice",
+      "you guaranteed",
+      "you said guaranteed",
+      "missing caveat",
+      "no disclaimer",
+      "compliance issue"
+    ]
+  },
+  "classificationPriority": [
+    "unsafeAdvice",
+    "mathError",
+    "staleData",
+    "missingContext",
+    "explicitCorrection"
+  ],
+  "actions": {
+    "unsafeAdvice": "route_to_layer14_compliance_review",
+    "mathError": "route_to_layer06_execution_recalculation",
+    "staleData": "route_to_layer02_source_freshness_review",
+    "missingContext": "route_to_layer03_ingestion_gap_review",
+    "explicitCorrection": "route_to_feedback_memory_review"
+  }
+}
