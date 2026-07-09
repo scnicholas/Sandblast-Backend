@@ -1,0 +1,95 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "layer16_runtime_monitoring",
+  "purpose": "Defines recurrence rules for finance compliance issues carried forward from Layer 14 and Layer 15.",
+  "complianceSignals": {
+    "unsafeAdvice": {
+      "aliases": [
+        "unsafeAdvice",
+        "unsafe advice",
+        "financial advice",
+        "personalized investment advice"
+      ],
+      "singleOccurrenceSeverity": "critical",
+      "recurrenceSeverity": "critical",
+      "immediateEscalation": true,
+      "recommendedRoute": "route_to_layer14_compliance_review"
+    },
+    "missingDisclosure": {
+      "aliases": [
+        "missing disclosure",
+        "missing caveat",
+        "no disclaimer",
+        "disclosure gap"
+      ],
+      "singleOccurrenceSeverity": "high",
+      "recurrenceSeverity": "critical",
+      "immediateEscalation": false,
+      "recommendedRoute": "route_to_layer14_compliance_review"
+    },
+    "guaranteeLanguage": {
+      "aliases": [
+        "guaranteed return",
+        "guaranteed profit",
+        "approval guaranteed",
+        "funding guaranteed",
+        "guaranteed outcome"
+      ],
+      "singleOccurrenceSeverity": "critical",
+      "recurrenceSeverity": "critical",
+      "immediateEscalation": true,
+      "recommendedRoute": "route_to_layer14_compliance_review"
+    },
+    "taxLegalBoundaryMiss": {
+      "aliases": [
+        "not tax advice missing",
+        "not legal advice missing",
+        "jurisdiction missing",
+        "tax caveat missing",
+        "legal caveat missing"
+      ],
+      "singleOccurrenceSeverity": "high",
+      "recurrenceSeverity": "critical",
+      "immediateEscalation": false,
+      "recommendedRoute": "route_to_layer14_compliance_review"
+    },
+    "sensitiveDataHandling": {
+      "aliases": [
+        "data leak",
+        "sensitive financial data",
+        "account number exposed",
+        "sin exposed",
+        "ssn exposed",
+        "private financial data"
+      ],
+      "singleOccurrenceSeverity": "critical",
+      "recurrenceSeverity": "critical",
+      "immediateEscalation": true,
+      "recommendedRoute": "route_to_operator_review"
+    }
+  },
+  "recurrencePolicy": {
+    "oneOccurrence": {
+      "runtimeStatus": "watch",
+      "alertLevel": "watch"
+    },
+    "twoOccurrences": {
+      "runtimeStatus": "degraded",
+      "alertLevel": "warning"
+    },
+    "threeOrMoreOccurrences": {
+      "runtimeStatus": "escalation_required",
+      "alertLevel": "operator_review"
+    },
+    "criticalImmediate": {
+      "runtimeStatus": "escalation_required",
+      "alertLevel": "critical"
+    }
+  },
+  "reviewRequirements": {
+    "requiresComplianceReview": true,
+    "requiresOperatorReviewWhenCritical": true,
+    "requiresOperatorReviewWhenRecurring": true
+  }
+}
