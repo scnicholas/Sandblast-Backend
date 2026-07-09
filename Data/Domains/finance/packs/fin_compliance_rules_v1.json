@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "layer14_finance_compliance_governance",
+  "purpose": "Defines finance-domain compliance rules for answer safety, disclosure integrity, advice boundaries, and unsupported-claim prevention.",
+  "rules": {
+    "must_preserve_general_information_boundary": true,
+    "must_not_present_as_personal_financial_advisor": true,
+    "must_not_guarantee_returns": true,
+    "must_not_recommend_security_purchase_without_caveat": true,
+    "must_not_ignore_user_risk_profile_when_actionable": true,
+    "must_disclose_uncertainty_when_inputs_are_missing": true,
+    "must_preserve_source_limitations": true,
+    "must_flag_tax_legal_or_accounting_boundaries": true,
+    "must_use_plain_language_for_public_output": true
+  },
+  "severity": {
+    "guaranteed_return_claim": "block",
+    "personalized_investment_instruction": "hold",
+    "missing_material_caveat": "hold",
+    "unsupported_financial_claim": "hold",
+    "minor_disclosure_gap": "warn",
+    "educational_response": "pass"
+  },
+  "requiredOutput": {
+    "complianceStatus": true,
+    "boundaryFlags": true,
+    "disclosureFlags": true,
+    "caveatStatus": true,
+    "requiresHumanReview": true,
+    "safeForPublicResponse": true
+  }
+}
