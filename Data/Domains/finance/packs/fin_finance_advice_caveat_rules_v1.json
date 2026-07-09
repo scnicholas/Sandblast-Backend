@@ -1,0 +1,59 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "caveatRules": {
+    "investment": {
+      "requiredWhen": [
+        "security",
+        "portfolio",
+        "stock",
+        "bond",
+        "ETF",
+        "crypto",
+        "options",
+        "return",
+        "yield"
+      ],
+      "minimumCaveats": [
+        "notFinancialAdvice",
+        "riskMayVary",
+        "noGuaranteedOutcome"
+      ]
+    },
+    "businessFunding": {
+      "requiredWhen": [
+        "grant",
+        "loan",
+        "underwriting",
+        "financing",
+        "capital",
+        "cash flow"
+      ],
+      "minimumCaveats": [
+        "approvalNotGuaranteed",
+        "eligibilityDependsOnCriteria",
+        "verifyProgramStatus"
+      ]
+    },
+    "forecast": {
+      "requiredWhen": [
+        "forecast",
+        "projection",
+        "expected return",
+        "valuation",
+        "growth rate",
+        "scenario"
+      ],
+      "minimumCaveats": [
+        "projectionUncertain",
+        "assumptionsMatter",
+        "noGuaranteedOutcome"
+      ]
+    }
+  },
+  "phrases": {
+    "approvalNotGuaranteed": "Approval is not guaranteed.",
+    "eligibilityDependsOnCriteria": "Eligibility depends on the program, lender, underwriting standard, and submitted documentation.",
+    "verifyProgramStatus": "Program terms, deadlines, and funding availability should be verified before submission."
+  }
+}
