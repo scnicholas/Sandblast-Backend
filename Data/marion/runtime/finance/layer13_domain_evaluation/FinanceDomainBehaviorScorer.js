@@ -4,6 +4,16 @@
  * R18D Layer 13 — Finance Domain Behavior Scorer
  * Scores Layer 12 adapter behavior for one evaluation scenario.
  *
+ * Critical rule:
+ * - A critical scenario with any required expectation failure must fail.
+ * - Aggregate weighted score cannot override critical scenario failure.
+ *
+ * Boundary:
+ * - Does not execute finance analysis.
+ * - Does not change Layer 12 routing behavior.
+ * - Does not rewrite Marion/Nyx responses.
+ * - Does not fetch live finance data.
+ *
  * No external dependencies.
  */
 
@@ -32,18 +42,37 @@ function flattenStrings(value, output = [], seen = new WeakSet()) {
 }
 
 function includesAny(haystack = "", needles = []) {
-  return safeArray(needles).some((needle) => haystack.includes(String(needle).toLowerCase()));
+  return safeArray(needles).some((needle) => {
+    return haystack.includes(String(needle).toLowerCase());
+  });
 }
 
 function includesAll(haystack = "", needles = []) {
-  return safeArray(needles).every((needle) => haystack.includes(String(needle).toLowerCase()));
+  return safeArray(needles).every((needle) => {
+    return haystack.includes(String(needle).toLowerCase());
+  });
+}
+
+function roundScore(value) {
+  return Math.max(0, Math.min(1, Math.round(Number(value || 0) * 1000) / 1000));
 }
 
 class FinanceDomainBehaviorScorer {
   constructor(options = {}) {
-    this.passStrongThreshold = typeof options.passStrongThreshold === "number" ? options.passStrongThreshold : 0.9;
-    this.passWarningThreshold = typeof options.passWarningThreshold === "number" ? options.passWarningThreshold : 0.75;
-    this.partialThreshold = typeof options.partialThreshold === "number" ? options.partialThreshold : 0.5;
+    this.passStrongThreshold =
+      typeof options.passStrongThreshold === "number"
+        ? options.passStrongThreshold
+        : 0.9;
+
+    this.passWarningThreshold =
+      typeof options.passWarningThreshold === "number"
+        ? options.passWarningThreshold
+        : 0.75;
+
+    this.partialThreshold =
+      typeof options.partialThreshold === "number"
+        ? options.partialThreshold
+        : 0.5;
   }
 
   score(input = {}) {
@@ -64,19 +93,24 @@ class FinanceDomainBehaviorScorer {
     };
 
     const weightedScore = this.weightedScore(dimensions);
-    const status = this.statusForScore(weightedScore, dimensions);
     const failures = this.collectFailures(dimensions);
     const warnings = this.collectWarnings(dimensions);
+    const status = this.statusForScore(weightedScore, dimensions, scenario, failures);
 
     return {
       scoreId: `fin_eval_score_${scenario.scenarioId || "unknown"}_${Date.now().toString(36)}`,
       scenarioId: scenario.scenarioId || "unknown_scenario",
       category: scenario.category || "unknown_category",
+      severity: scenario.severity || "standard",
       status,
       score: weightedScore,
       passed:
         status === "pass_strong" ||
         status === "pass_with_warnings",
+      failed: status === "fail",
+      warning:
+        status === "pass_with_warnings" ||
+        status === "partial",
       dimensions,
       failures,
       warnings,
@@ -86,7 +120,9 @@ class FinanceDomainBehaviorScorer {
       diagnostics: {
         ok: status !== "fail",
         warnings,
-        errors: failures
+        errors: failures,
+        expectationFailureCount: failures.length,
+        criticalScenario: scenario.severity === "critical"
       }
     };
   }
@@ -162,7 +198,10 @@ class FinanceDomainBehaviorScorer {
 
     if (expected.mustReturnNyxResponse) {
       checks.push({
-        ok: Boolean(envelope.nyxResponse && (envelope.nyxResponse.displayText || envelope.nyxResponse.replyText)),
+        ok: Boolean(
+          envelope.nyxResponse &&
+          (envelope.nyxResponse.displayText || envelope.nyxResponse.replyText)
+        ),
         code: "nyx_response_present"
       });
     }
@@ -174,7 +213,9 @@ class FinanceDomainBehaviorScorer {
       });
 
       checks.push({
-        ok: envelope.marionResponse.source === "finax" || envelope.marionResponse.adapterLayer === "layer12_marion_nyx_bridge",
+        ok:
+          envelope.marionResponse.source === "finax" ||
+          envelope.marionResponse.adapterLayer === "layer12_marion_nyx_bridge",
         code: "marion_source_or_adapter_present"
       });
     }
@@ -216,10 +257,14 @@ class FinanceDomainBehaviorScorer {
     if (expected.requiresHumanReview) {
       checks.push({
         ok:
-          envelope.nextLayerHandoff &&
-          envelope.nextLayerHandoff.requiresHumanReview === true ||
-          envelope.marionResponse &&
-          envelope.marionResponse.requiresHumanReview === true,
+          (
+            envelope.nextLayerHandoff &&
+            envelope.nextLayerHandoff.requiresHumanReview === true
+          ) ||
+          (
+            envelope.marionResponse &&
+            envelope.marionResponse.requiresHumanReview === true
+          ),
         code: "human_review_required"
       });
     }
@@ -334,11 +379,13 @@ class FinanceDomainBehaviorScorer {
     }
 
     const passed = checks.filter((check) => check.ok);
-    const failures = checks.filter((check) => !check.ok).map((check) => check.code);
+    const failures = checks
+      .filter((check) => !check.ok)
+      .map((check) => check.code);
 
     return {
       name,
-      score: Math.round((passed.length / checks.length) * 1000) / 1000,
+      score: roundScore(passed.length / checks.length),
       passed: failures.length === 0,
       warnings: [],
       failures
@@ -361,16 +408,39 @@ class FinanceDomainBehaviorScorer {
       return sum + ((dimensions[key] && dimensions[key].score || 0) * weight);
     }, 0);
 
-    return Math.max(0, Math.min(1, Math.round(total * 1000) / 1000));
+    return roundScore(total);
   }
 
-  statusForScore(score, dimensions = {}) {
-    const criticalFailure =
-      dimensions.routingCorrectness && dimensions.routingCorrectness.score === 0 ||
-      dimensions.runtimeStability && dimensions.runtimeStability.score === 0 ||
-      dimensions.serializationSafety && dimensions.serializationSafety.score === 0;
+  statusForScore(score, dimensions = {}, scenario = {}, failures = []) {
+    const criticalScenario = scenario.severity === "critical";
 
-    if (criticalFailure && score < this.passWarningThreshold) return "fail";
+    /**
+     * Layer 13 hard rule:
+     * Critical scenarios are binary on required expectations.
+     * If any expected check fails, the scenario fails regardless of aggregate score.
+     */
+    if (criticalScenario && safeArray(failures).length > 0) {
+      return "fail";
+    }
+
+    const criticalDimensionFailure =
+      (
+        dimensions.routingCorrectness &&
+        dimensions.routingCorrectness.score === 0
+      ) ||
+      (
+        dimensions.runtimeStability &&
+        dimensions.runtimeStability.score === 0
+      ) ||
+      (
+        dimensions.serializationSafety &&
+        dimensions.serializationSafety.score === 0
+      );
+
+    if (criticalDimensionFailure && score < this.passWarningThreshold) {
+      return "fail";
+    }
+
     if (score >= this.passStrongThreshold) return "pass_strong";
     if (score >= this.passWarningThreshold) return "pass_with_warnings";
     if (score >= this.partialThreshold) return "partial";
