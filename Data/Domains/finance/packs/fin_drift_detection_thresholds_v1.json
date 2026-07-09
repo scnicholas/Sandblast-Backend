@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "layer16_runtime_monitoring",
+  "purpose": "Defines drift scoring thresholds and escalation cutoffs for runtime finance monitoring.",
+  "windowing": {
+    "defaultRecentWindow": 10,
+    "minimumEventsForTrend": 3,
+    "criticalEventWindow": 5,
+    "maxWindowSize": 50
+  },
+  "qualityThresholds": {
+    "qualityScoreExcellentMin": 0.9,
+    "qualityScoreAcceptableMin": 0.75,
+    "qualityScoreWarningBelow": 0.75,
+    "qualityScoreCriticalBelow": 0.5,
+    "degradedBandCountWarning": 2,
+    "failedBandCountCritical": 1
+  },
+  "feedbackThresholds": {
+    "mediumRiskFeedbackCountWindow": 3,
+    "highRiskFeedbackCountWindow": 2,
+    "criticalFeedbackCountWindow": 1,
+    "repeatedCorrectionTypeCount": 2,
+    "userCorrectionClusterCount": 3
+  },
+  "complianceThresholds": {
+    "complianceReviewWarningCount": 1,
+    "complianceReviewCriticalCount": 2,
+    "unsafeAdviceImmediateEscalation": true,
+    "guaranteeLanguageImmediateEscalation": true,
+    "dataLeakImmediateEscalation": true
+  },
+  "sourceFreshnessThresholds": {
+    "staleDataWarningCount": 2,
+    "staleDataCriticalCount": 3,
+    "sourceAuthorityReviewCount": 2
+  },
+  "driftScoreThresholds": {
+    "stableMax": 0.24,
+    "watchMin": 0.25,
+    "degradedMin": 0.45,
+    "driftDetectedMin": 0.7,
+    "escalationRequiredMin": 0.85
+  },
+  "weights": {
+    "qualityDegradation": 0.25,
+    "feedbackRecurrence": 0.2,
+    "complianceRecurrence": 0.25,
+    "sourceFreshnessPressure": 0.15,
+    "regressionRisk": 0.15
+  }
+}
