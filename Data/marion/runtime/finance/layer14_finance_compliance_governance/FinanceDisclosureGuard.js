@@ -33,19 +33,21 @@ class FinanceDisclosureGuard {
     };
   }
 
-  _collectApplicabilityText(payload) {
+  _collectApplicabilityText(payload = {}) {
     return [
       payload.query,
       payload.answer,
       payload.response,
-      payload.sanitizedResponse
+      payload.sanitizedResponse,
+      payload.intent,
+      payload.analysisType
     ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
   }
 
-  _collectResponseText(payload) {
+  _collectResponseText(payload = {}) {
     return [
       payload.sanitizedResponse,
       payload.response,
@@ -148,10 +150,14 @@ class FinanceDisclosureGuard {
 
       doOwnResearch: [
         "verify",
+        "verify details",
+        "verify details using current",
         "do your own research",
         "authoritative sources",
         "current authoritative sources",
-        "current, authoritative sources"
+        "current, authoritative sources",
+        "before acting",
+        "before making decisions"
       ],
 
       projectionUncertain: [
@@ -171,7 +177,8 @@ class FinanceDisclosureGuard {
         "assumptions",
         "depends on",
         "depends upon",
-        "based on the assumptions"
+        "based on the assumptions",
+        "assumptions used"
       ],
 
       noGuaranteedOutcome: [
