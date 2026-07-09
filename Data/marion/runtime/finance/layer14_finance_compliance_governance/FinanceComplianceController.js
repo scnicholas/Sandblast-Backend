@@ -30,7 +30,6 @@ class FinanceComplianceController {
     }
 
     const boundary = this.boundaryChecker.check(payload);
-    const disclosure = this.disclosureGuard.evaluate(payload);
     const caveat = this.caveatEnforcer.enforce(payload);
 
     const caveatedPayload = {
@@ -41,6 +40,15 @@ class FinanceComplianceController {
     };
 
     const dataPolicy = this.dataPolicyChecker.check(caveatedPayload);
+
+    const finalPayload = {
+      ...payload,
+      answer: undefined,
+      response: dataPolicy.sanitizedResponse,
+      sanitizedResponse: dataPolicy.sanitizedResponse
+    };
+
+    const disclosure = this.disclosureGuard.evaluate(finalPayload);
 
     const warnings = [
       ...boundary.boundaryFlags.map(flag => `Boundary flag: ${flag.category}`),
@@ -76,9 +84,14 @@ class FinanceComplianceController {
       sanitizedResponse: dataPolicy.sanitizedResponse,
       diagnostics: {
         boundary,
-        disclosure,
         caveat,
-        dataPolicy
+        dataPolicy,
+        disclosure,
+        finalPayload: {
+          domain,
+          hasQuery: Boolean(finalPayload.query),
+          responseLength: String(finalPayload.sanitizedResponse || "").length
+        }
       },
       nextLayerReason: requiresHumanReview
         ? "Compliance review required before Layer 15 handoff."
