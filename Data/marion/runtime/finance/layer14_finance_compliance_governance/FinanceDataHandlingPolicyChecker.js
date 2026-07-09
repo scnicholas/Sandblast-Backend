@@ -8,12 +8,11 @@ class FinanceDataHandlingPolicyChecker {
   }
 
   check(payload = {}) {
-    const response = this._selectResponseText(payload);
-    const text = response.toLowerCase();
+    const response = payload.sanitizedResponse || payload.response || payload.answer || "";
     const flags = [];
 
     for (const item of this.sensitiveFinancialData) {
-      if (text.includes(String(item).toLowerCase())) {
+      if (this._containsSensitiveReference(response, item)) {
         flags.push({
           type: "sensitive_financial_data_reference",
           item,
@@ -38,13 +37,30 @@ class FinanceDataHandlingPolicyChecker {
     };
   }
 
-  _selectResponseText(payload = {}) {
-    return String(
-      payload.sanitizedResponse ||
-      payload.response ||
-      payload.answer ||
-      ""
-    );
+  _containsSensitiveReference(response, item) {
+    const rawItem = String(item || "").trim();
+    if (!rawItem) return false;
+
+    const lowerItem = rawItem.toLowerCase();
+    const text = String(response || "");
+    const lowerText = text.toLowerCase();
+
+    if (lowerItem === "sin") {
+      return /\bSIN\b/.test(text) || /\bsocial\s+insurance\s+number\b/i.test(text);
+    }
+
+    if (lowerItem === "ssn") {
+      return /\bSSN\b/.test(text) || /\bsocial\s+security\s+number\b/i.test(text);
+    }
+
+    const escaped = this._escapeRegExp(lowerItem).replace(/\s+/g, "\\s+");
+    const pattern = new RegExp(`\\b${escaped}\\b`, "i");
+
+    return pattern.test(lowerText);
+  }
+
+  _escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   _maskLikelyAccountNumbers(text) {
