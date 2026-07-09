@@ -4,6 +4,20 @@
  * R18D Layer 13 — Finance Evaluation Scenario Runner
  * Executes one evaluation scenario against the Layer 12 finance adapter.
  *
+ * Boundary:
+ * - Does not calculate finance metrics.
+ * - Does not mutate Layer 12 adapter logic.
+ * - Does not rewrite finance answers.
+ * - Does not fetch live finance data.
+ * - Converts scenario execution failures into structured evaluation output.
+ *
+ * V3 surgical patch:
+ * - Simulated runtime-failure envelopes now preserve the Layer 12 Marion/Nyx
+ *   response contract fields: domain, source, adapterLayer, runtimeLayer,
+ *   replyText/displayText, review flags, and handoff fields.
+ * - This prevents false Layer 13 contract failures during the default
+ *   runtime_failure_safe_fallback scenario.
+ *
  * No external dependencies.
  */
 
@@ -13,10 +27,6 @@ try {
   ({ FinanceMarionDomainAdapter } = require("../layer12_marion_nyx_bridge/FinanceMarionDomainAdapter"));
 } catch (err) {
   FinanceMarionDomainAdapter = null;
-}
-
-function safeArray(value) {
-  return Array.isArray(value) ? value : [];
 }
 
 function normalizeText(value) {
@@ -116,45 +126,162 @@ class FinanceEvaluationScenarioRunner {
 
   buildFailureAdapter() {
     return {
-      adapt: () => {
+      adapt: (input = {}) => {
+        const requestId =
+          input.requestId ||
+          "simulated_failure_request";
+
+        const traceId =
+          input.traceId ||
+          "simulated_failure_trace";
+
+        const fallbackText =
+          "The finance runtime could not complete the request safely. The failure has been preserved for review.";
+
         return {
-          requestId: "simulated_failure_request",
-          traceId: "simulated_failure_trace",
+          requestId,
+          traceId,
+          schemaVersion: "1.0.0",
+          envelopeVersion: "1.0.0",
+          envelopeType: "finance_marion_nyx_domain_adapter_envelope",
           domain: "finance",
+          layer: "R18D_layer12_finance_marion_nyx_domain_adapter_runtime_bridge",
           runtimeLayer: "layer12_marion_nyx_bridge",
+          sourceLayer: "layer11_runtime_orchestration",
           routeStatus: "finance_failed",
+
           domainDecision: {
             shouldRouteToFinance: true,
             intent: "finance_general_analysis",
-            confidence: 0.72
+            confidence: 0.72,
+            matchedSignals: ["finance_keyword"],
+            rejectedSignals: [],
+            routeReason: "finance_route:finance_general_analysis"
           },
+
+          runtimeBridge: {
+            bridgeId: "simulated_runtime_failure_bridge",
+            domain: "finance",
+            runtimeLayer: "layer12_marion_nyx_bridge",
+            bridgeStatus: "bridge_failed",
+            orchestratorAvailable: true,
+            orchestrationEnvelope: null,
+            runtimeResponse: null,
+            uiDelivery: null,
+            telemetry: null,
+            diagnostics: {
+              ok: false,
+              warnings: [],
+              errors: ["simulated_runtime_failure"],
+              error: {
+                code: "simulated_runtime_failure",
+                message: "Layer 13 simulated runtime failure."
+              }
+            }
+          },
+
+          orchestrationEnvelope: null,
+
           marionResponse: {
-            replyText: "The finance runtime could not complete the request safely. The failure has been preserved for review.",
-            displayText: "The finance runtime could not complete the request safely. The failure has been preserved for review.",
+            responseId: "fin_marion_simulated_failure",
+            domain: "finance",
+            source: "finax",
+            adapterLayer: "layer12_marion_nyx_bridge",
+            runtimeLayer: "layer12_marion_nyx_bridge",
+            intent: "finance_general_analysis",
+            reply: fallbackText,
+            replyText: fallbackText,
+            text: fallbackText,
+            displayText: fallbackText,
+            voiceText: fallbackText,
+            answer: fallbackText,
+            responseBlocks: [],
+            uiBlocks: [],
+            uiDelivery: {
+              blocks: [],
+              mainAnswer: fallbackText
+            },
+            telemetry: null,
+            deliveryStatus: "finance_failed",
+            caveatState: "failure_review_required",
+            confidence: 0,
             canReturnToUser: false,
             requiresHumanReview: true,
-            requiresMoreEvidence: false
+            requiresMoreEvidence: false,
+            metadata: {
+              requestId,
+              traceId,
+              routeStatus: "finance_failed",
+              simulatedFailure: true
+            }
           },
+
           nyxResponse: {
-            displayText: "The finance runtime could not complete the request safely. The failure has been preserved for review.",
+            responseId: "fin_nyx_simulated_failure",
+            domain: "finance",
+            source: "finax",
+            adapterLayer: "layer12_marion_nyx_bridge",
+            runtimeLayer: "layer12_marion_nyx_bridge",
+            personaSurface: "nyx",
+            reply: fallbackText,
+            replyText: fallbackText,
+            text: fallbackText,
+            displayText: fallbackText,
+            voiceText: fallbackText,
+            answer: fallbackText,
+            responseBlocks: [],
+            uiBlocks: [],
+            uiDelivery: {
+              blocks: [],
+              mainAnswer: fallbackText
+            },
+            telemetry: null,
+            deliveryStatus: "finance_failed",
+            caveatState: "failure_review_required",
+            confidence: 0,
+            canReturnToUser: false,
+            requiresHumanReview: true,
+            requiresMoreEvidence: false,
+            channelReady: true,
+            widgetReady: true,
             apiReady: false
           },
+
           bridgeReadiness: {
             status: "adapter_failed",
-            failed: true,
+            score: 0,
+            routeStatus: "finance_failed",
+            canReturnToMarion: false,
+            canReturnToNyx: false,
+            canReturnWithCaveats: false,
             requiresHumanReview: true,
-            canReturnToMarion: false
-          },
-          nextLayerHandoff: {
+            requiresMoreEvidence: false,
+            blocked: false,
             failed: true,
-            requiresHumanReview: true,
-            canReturnToMarion: false
+            responseLength: fallbackText.length,
+            uiBlockCount: 0
           },
+
           diagnostics: {
             ok: false,
             valid: false,
             warnings: [],
-            errors: ["simulated_runtime_failure"]
+            errors: ["simulated_runtime_failure"],
+            simulatedFailure: true
+          },
+
+          nextLayerHandoff: {
+            canReturnToMarion: false,
+            canReturnToNyx: false,
+            canReturnWithCaveats: false,
+            requiresHumanReview: true,
+            requiresMoreEvidence: false,
+            blocked: false,
+            failed: true,
+            routeStatus: "finance_failed",
+            bridgeReadinessStatus: "adapter_failed",
+            responseLength: fallbackText.length,
+            uiBlockCount: 0
           }
         };
       }
@@ -180,16 +307,20 @@ class FinanceEvaluationScenarioRunner {
       scenarioInput.query ||
       "Finance evaluation scenario.";
 
+    const normalizedQuery =
+      scenarioInput.normalizedQuery ||
+      normalizeText(originalQuery);
+
     return {
       ...scenarioInput,
       requestId,
       traceId,
       originalQuery,
-      normalizedQuery: scenarioInput.normalizedQuery || normalizeText(originalQuery),
+      normalizedQuery,
       queryContext: {
         ...(scenarioInput.queryContext || {}),
         originalQuery,
-        normalizedQuery: scenarioInput.normalizedQuery || normalizeText(originalQuery),
+        normalizedQuery,
         evaluationScenarioId: scenario.scenarioId || null,
         evaluationCategory: scenario.category || null
       }
