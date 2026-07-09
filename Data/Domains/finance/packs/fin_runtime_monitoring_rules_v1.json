@@ -1,0 +1,99 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "layer": "layer16_runtime_monitoring",
+  "purpose": "Defines runtime monitoring classes for finance-domain quality drift, feedback recurrence, compliance recurrence, source freshness pressure, and regression-risk buildup.",
+  "runtimeSignalClasses": {
+    "quality_degradation": {
+      "description": "Repeated or severe decline in answer quality score from Layer 15 feedback envelopes.",
+      "severityDefault": "medium",
+      "watchedFields": [
+        "qualityScore",
+        "qualityBand",
+        "feedbackSignals",
+        "regressionRisk"
+      ]
+    },
+    "compliance_recurrence": {
+      "description": "Repeated unsafe-advice, missing-caveat, disclosure, guarantee, or financial-data handling issues.",
+      "severityDefault": "high",
+      "watchedFields": [
+        "requiresComplianceReview",
+        "correctionType",
+        "feedbackSignals",
+        "regressionTargets"
+      ]
+    },
+    "source_freshness_pressure": {
+      "description": "Repeated user or regression signals indicating finance information may be stale, changed, or source-sensitive.",
+      "severityDefault": "high",
+      "watchedFields": [
+        "correctionType",
+        "feedbackSignals",
+        "regressionTargets",
+        "nextAction"
+      ]
+    },
+    "calculation_recurrence": {
+      "description": "Repeated math, ratio, valuation, projection, or scenario-calculation issues.",
+      "severityDefault": "high",
+      "watchedFields": [
+        "correctionType",
+        "regressionTargets",
+        "feedbackSignals"
+      ]
+    },
+    "evidence_support_decay": {
+      "description": "Repeated unsupported-claim, missing-citation, weak-evidence, or source-conflict feedback.",
+      "severityDefault": "high",
+      "watchedFields": [
+        "regressionTargets",
+        "feedbackSignals",
+        "regressionRisk"
+      ]
+    },
+    "user_correction_cluster": {
+      "description": "Repeated explicit user corrections within a short interaction window.",
+      "severityDefault": "medium",
+      "watchedFields": [
+        "correctionType",
+        "feedbackSignals",
+        "qualityBand"
+      ]
+    }
+  },
+  "runtimeStatuses": {
+    "stable": {
+      "description": "No meaningful runtime drift detected.",
+      "requiresOperatorReview": false
+    },
+    "watch": {
+      "description": "Minor trend detected; continue monitoring.",
+      "requiresOperatorReview": false
+    },
+    "degraded": {
+      "description": "Repeated or material runtime quality degradation detected.",
+      "requiresOperatorReview": false
+    },
+    "drift_detected": {
+      "description": "Behavioral drift has crossed monitoring threshold.",
+      "requiresOperatorReview": true
+    },
+    "escalation_required": {
+      "description": "Critical recurrence or high-risk drift requires operator review.",
+      "requiresOperatorReview": true
+    }
+  },
+  "requiredOutput": {
+    "runtimeStatus": true,
+    "driftDetected": true,
+    "driftScore": true,
+    "trendSignals": true,
+    "recurrenceSignals": true,
+    "sourceFreshnessPressure": true,
+    "alertLevel": true,
+    "recommendedRoute": true,
+    "requiresOperatorReview": true,
+    "nextLayerHandoff": true
+  }
+}
