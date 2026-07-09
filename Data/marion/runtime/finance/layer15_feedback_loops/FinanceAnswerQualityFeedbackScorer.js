@@ -31,7 +31,7 @@ class FinanceAnswerQualityFeedbackScorer {
       });
     }
 
-    const qualityScore = Math.max(0, Math.min(1, 1 - penalty));
+    const qualityScore = Math.max(0, Math.min(1, Number((1 - penalty).toFixed(10))));
     const qualityBand = this._bandFor(qualityScore);
 
     return {
