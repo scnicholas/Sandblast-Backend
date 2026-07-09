@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "disclosureCategories": {
+    "general_financial_information": {
+      "required": [
+        "generalInformationOnly"
+      ],
+      "severityIfMissing": "warn"
+    },
+    "investment_discussion": {
+      "required": [
+        "notFinancialAdvice",
+        "riskMayVary",
+        "doOwnResearch"
+      ],
+      "severityIfMissing": "hold"
+    },
+    "tax_discussion": {
+      "required": [
+        "notTaxAdvice",
+        "consultQualifiedProfessional"
+      ],
+      "severityIfMissing": "hold"
+    },
+    "legal_or_regulatory_discussion": {
+      "required": [
+        "notLegalAdvice",
+        "jurisdictionMayMatter"
+      ],
+      "severityIfMissing": "hold"
+    },
+    "forecast_or_projection": {
+      "required": [
+        "projectionUncertain",
+        "assumptionsMatter",
+        "noGuaranteedOutcome"
+      ],
+      "severityIfMissing": "hold"
+    }
+  },
+  "phrases": {
+    "notFinancialAdvice": "This is general financial information, not personalized financial advice.",
+    "notTaxAdvice": "This is not tax advice.",
+    "notLegalAdvice": "This is not legal advice.",
+    "consultQualifiedProfessional": "Consider speaking with a qualified professional for advice specific to your situation.",
+    "riskMayVary": "Financial outcomes depend on risk tolerance, timing, liquidity needs, and personal circumstances.",
+    "doOwnResearch": "Verify details using current, authoritative sources before acting.",
+    "projectionUncertain": "Forecasts and projections are uncertain.",
+    "assumptionsMatter": "The result depends on the assumptions used.",
+    "noGuaranteedOutcome": "No return, approval, funding, or market outcome is guaranteed.",
+    "jurisdictionMayMatter": "Rules may vary by jurisdiction."
+  }
+}
