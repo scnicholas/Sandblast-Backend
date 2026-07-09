@@ -8,7 +8,7 @@ class FinanceDataHandlingPolicyChecker {
   }
 
   check(payload = {}) {
-    const response = payload.answer || payload.response || "";
+    const response = this._selectResponseText(payload);
     const text = response.toLowerCase();
     const flags = [];
 
@@ -36,6 +36,15 @@ class FinanceDataHandlingPolicyChecker {
       sanitizedResponse: maskedResponse,
       hasDataHandlingHold: flags.some(flag => flag.severity === "hold")
     };
+  }
+
+  _selectResponseText(payload = {}) {
+    return String(
+      payload.sanitizedResponse ||
+      payload.response ||
+      payload.answer ||
+      ""
+    );
   }
 
   _maskLikelyAccountNumbers(text) {
