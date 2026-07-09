@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "boundaryTriggers": {
+    "personalizedAdvice": [
+      "should I buy",
+      "should I sell",
+      "put all my money",
+      "guaranteed profit",
+      "best stock for me",
+      "exactly what should I invest in",
+      "risk-free return"
+    ],
+    "taxBoundary": [
+      "tax deduction",
+      "CRA",
+      "IRS",
+      "capital gains tax",
+      "corporate tax",
+      "write off",
+      "tax shelter"
+    ],
+    "legalBoundary": [
+      "securities law",
+      "compliance violation",
+      "fiduciary",
+      "legal liability",
+      "regulatory filing",
+      "prospectus"
+    ],
+    "fundingBoundary": [
+      "grant approval guaranteed",
+      "loan approval guaranteed",
+      "underwriting guarantee",
+      "funding is certain"
+    ],
+    "highRiskFinancialProduct": [
+      "options",
+      "margin",
+      "crypto leverage",
+      "forex leverage",
+      "short selling",
+      "derivatives"
+    ]
+  },
+  "actions": {
+    "personalizedAdvice": "hold_for_caveat_or_reframe",
+    "taxBoundary": "add_tax_boundary_caveat",
+    "legalBoundary": "add_legal_boundary_caveat",
+    "fundingBoundary": "block_guarantee_language",
+    "highRiskFinancialProduct": "add_risk_disclosure"
+  }
+}
