@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "domain": "finance",
+  "regressionMap": {
+    "layer01_intent": [
+      "wrong intent",
+      "misclassified query",
+      "wrong lane"
+    ],
+    "layer02_source_authority": [
+      "bad source",
+      "outdated source",
+      "source conflict",
+      "authority issue"
+    ],
+    "layer03_data_ingestion": [
+      "missing input",
+      "wrong document",
+      "missing context",
+      "bad extraction"
+    ],
+    "layer04_normalization": [
+      "wrong entity",
+      "wrong period",
+      "wrong currency",
+      "wrong unit"
+    ],
+    "layer05_analysis_planning": [
+      "wrong method",
+      "bad scenario",
+      "missing risk factor"
+    ],
+    "layer06_execution": [
+      "calculation error",
+      "ratio error",
+      "valuation error",
+      "trend error"
+    ],
+    "layer07_evidence_binding": [
+      "unsupported claim",
+      "missing citation",
+      "weak evidence"
+    ],
+    "layer08_synthesis": [
+      "bad answer structure",
+      "unclear answer",
+      "wrong summary"
+    ],
+    "layer14_compliance_governance": [
+      "unsafe advice",
+      "missing disclosure",
+      "guaranteed return",
+      "data leak",
+      "compliance issue"
+    ]
+  },
+  "riskLevels": {
+    "critical": [
+      "unsafe advice",
+      "guaranteed return",
+      "data leak"
+    ],
+    "high": [
+      "calculation error",
+      "outdated source",
+      "unsupported claim",
+      "missing disclosure"
+    ],
+    "medium": [
+      "missing context",
+      "wrong period",
+      "bad answer structure"
+    ],
+    "low": [
+      "tone issue",
+      "format issue",
+      "too verbose"
+    ]
+  }
+}
