@@ -8,13 +8,15 @@ class FinanceAdviceCaveatEnforcer {
   }
 
   enforce(payload = {}) {
-    const original = payload.answer || payload.response || "";
+    const original = payload.answer || payload.response || payload.sanitizedResponse || "";
     const text = [payload.query, original].filter(Boolean).join(" ").toLowerCase();
 
     const missing = [];
 
     for (const [ruleName, rule] of Object.entries(this.caveatRules)) {
-      const applies = (rule.requiredWhen || []).some(term => text.includes(String(term).toLowerCase()));
+      const applies = (rule.requiredWhen || []).some(term =>
+        text.includes(String(term).toLowerCase())
+      );
       if (!applies) continue;
 
       for (const caveatKey of rule.minimumCaveats || []) {
@@ -40,17 +42,74 @@ class FinanceAdviceCaveatEnforcer {
     const text = String(answer || "").toLowerCase();
 
     const signals = {
-      notFinancialAdvice: ["not financial advice", "general financial information"],
-      riskMayVary: ["risk tolerance", "personal circumstances", "risk may vary"],
-      noGuaranteedOutcome: ["not guaranteed", "no guarantee"],
-      approvalNotGuaranteed: ["approval is not guaranteed", "not guaranteed"],
-      eligibilityDependsOnCriteria: ["eligibility depends", "depends on"],
-      verifyProgramStatus: ["verify", "program terms", "deadline"],
-      projectionUncertain: ["projection", "forecast", "uncertain"],
-      assumptionsMatter: ["assumption", "depends on"]
+      notFinancialAdvice: [
+        "not financial advice",
+        "not personalized financial advice",
+        "general financial information, not personalized financial advice"
+      ],
+
+      riskMayVary: [
+        "risk tolerance",
+        "personal circumstances",
+        "risk may vary",
+        "timing",
+        "liquidity needs"
+      ],
+
+      noGuaranteedOutcome: [
+        "not guaranteed",
+        "no guarantee",
+        "no guaranteed",
+        "no return is guaranteed",
+        "no returns are guaranteed",
+        "no market outcome is guaranteed",
+        "no outcome is guaranteed",
+        "no return, approval, funding, or market outcome is guaranteed"
+      ],
+
+      approvalNotGuaranteed: [
+        "approval is not guaranteed",
+        "approval not guaranteed",
+        "not guaranteed"
+      ],
+
+      eligibilityDependsOnCriteria: [
+        "eligibility depends",
+        "depends on the program",
+        "depends on",
+        "underwriting standard"
+      ],
+
+      verifyProgramStatus: [
+        "verify",
+        "program terms",
+        "deadline",
+        "deadlines",
+        "funding availability"
+      ],
+
+      projectionUncertain: [
+        "forecasts and projections are uncertain",
+        "forecast is uncertain",
+        "projection is uncertain",
+        "projections are uncertain",
+        "forecasts are uncertain",
+        "uncertain forecast",
+        "uncertain projection"
+      ],
+
+      assumptionsMatter: [
+        "assumption",
+        "assumptions",
+        "depends on",
+        "depends upon",
+        "depends on the assumptions used"
+      ]
     };
 
-    return (signals[key] || [key.toLowerCase()]).some(signal => text.includes(signal));
+    return (signals[key] || [key.toLowerCase()]).some(signal =>
+      text.includes(signal)
+    );
   }
 
   _appendMissingCaveats(answer, missing) {
@@ -76,7 +135,7 @@ class FinanceAdviceCaveatEnforcer {
 
     if (!caveatText) return answer;
 
-    return `${answer}\n\n${caveatText}`;
+    return answer ? `${answer}\n\n${caveatText}` : caveatText;
   }
 }
 
