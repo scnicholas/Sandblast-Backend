@@ -256,7 +256,13 @@ class FinanceDriftDetector {
     const degradedMin = Number(thresholds.degradedMin || 0.45);
     const watchMin = Number(thresholds.watchMin || 0.25);
 
-    if (parts.compliance.score >= 1 && parts.regression.score >= 0.5) {
+    const qualityScore = Number(parts.quality?.score || 0);
+    const feedbackScore = Number(parts.feedback?.score || 0);
+    const complianceScore = Number(parts.compliance?.score || 0);
+    const freshnessScore = Number(parts.freshness?.score || 0);
+    const regressionScore = Number(parts.regression?.score || 0);
+
+    if (complianceScore >= 1 && regressionScore >= 0.5) {
       return "escalation_required";
     }
 
@@ -264,6 +270,20 @@ class FinanceDriftDetector {
     if (score >= driftMin) return "drift_detected";
     if (score >= degradedMin) return "degraded";
     if (score >= watchMin) return "watch";
+
+    /*
+     * Runtime floor elevations:
+     * The weighted drift score can be lower than the global watch threshold
+     * when a single factor has a low configured weight. A fully active runtime
+     * factor should still elevate the detector out of "stable" because it
+     * represents an actual finance-domain monitoring signal.
+     */
+    if (complianceScore >= 0.5) return "watch";
+    if (freshnessScore >= 1) return "watch";
+    if (feedbackScore >= 1) return "watch";
+    if (qualityScore >= 1) return "watch";
+    if (regressionScore >= 0.5) return "watch";
+
     return "stable";
   }
 
