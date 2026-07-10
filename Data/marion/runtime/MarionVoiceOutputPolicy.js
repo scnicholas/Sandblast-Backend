@@ -2,284 +2,89 @@
 
 /**
  * MarionVoiceOutputPolicy
- * Determines whether Nyx should speak the final answer aloud.
- *
- * Admin-only voice delivery hardlock:
- * - Public transcript routing may still return safe text.
- * - Audible Marion voice delivery requires a trusted admin proof.
- * - Sensitive/code/operational content remains silent even for admin unless
- *   another private layer explicitly overrides it later.
+ * Compatibility layer added during surgical autopsy package v1.
+ * Enforces the Nyx-public / Marion-authority boundary for voice output.
  */
 
-const VERSION = 'marion.voiceOutputPolicy/2.5-phase4-speaker-identity-boundary';
-const DEFAULT_MAX_SPOKEN_CHARS = 700;
+const VERSION = 'marion.voiceOutputPolicy/1.0-package-v1';
 
-const SENSITIVE_PATTERNS = [
-  /\bapi[_-]?key\b/i,
-  /\bsecret\b/i,
-  /\bpassword\b/i,
-  /\btoken\b/i,
-  /\bprivate key\b/i,
-  /\bcredential\b/i,
-  /\bauthorization\b/i,
-  /\bx-sb-[a-z0-9_-]+\b/i,
-  /\bsmtp\b/i,
-  /\b.env\b/i
-];
-
-const CODE_PATTERNS = [
-  /```/,
-  /\bmodule\.exports\b/,
-  /\bfunction\s+\w+\s*\(/,
-  /\bconst\s+\w+\s*=/,
-  /\blet\s+\w+\s*=/,
-  /\bclass\s+\w+/,
-  /<\/?[a-z][\s\S]*>/i
-];
-
-const SAFE_PROTECTED_STATUS_PATTERNS = [
-  /\bnyx\s+is\s+connected\s+through\s+marion\b/i,
-  /\bprotected\s+voice\s+lane\s+status\b/i,
-  /\badmin\s+voice\s+delivery\s+is\s+authorized\b/i,
-  /\braw\s+audio\s+is\s+not\s+being\s+stored\b/i,
-  /\btranscript[-\s]+only\s+processing\s+is\s+live\b/i
-];
-
-const SAFE_ADMIN_CONVERSATION_PATTERNS = [
-  /\bprivate\s+admin\s+conversation\s+route\s+is\s+active\b/i,
-  /\bmarion\s+admin\s+conversation\s+route\s+is\s+active\b/i,
-  /\badmin\s+conversation\s+is\s+authorized\b/i,
-  /\bdirect\s+marion\s+conversation\s+is\s+authorized\b/i,
-  /\bpublic\s+users\s+(?:still\s+)?speak\s+through\s+nyx\b/i,
-  /\blingosentinel\s+silent\s+oversight\b/i
-];
-
-function isSafeProtectedVoiceStatusText(value) {
-  const text = String(value || '').replace(/\s+/g, ' ').trim();
-  if (!text) return false;
-  if (!SAFE_PROTECTED_STATUS_PATTERNS.concat(SAFE_ADMIN_CONVERSATION_PATTERNS).some((pattern) => pattern.test(text))) return false;
-  if (/\b(api[_-]?key|secret|password|private\s+key|credential|x-sb-[a-z0-9_-]+|\.env|bearer\s+[a-z0-9._-]+)\b/i.test(text)) return false;
-  return true;
+function safeText(value, maxLength) {
+  const max = Number.isFinite(Number(maxLength)) ? Math.max(1, Math.min(Number(maxLength), 5000)) : 1000;
+  return String(value == null ? '' : value)
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
 }
 
-function getReplyText(response) {
+function firstReplyText(response) {
   if (!response) return '';
-
-  if (typeof response === 'string') return response;
-
-  return String(
-    response.displayReply ||
-    response.reply ||
-    response.text ||
-    response.message ||
-    response.output ||
-    response.response ||
-    response.finalReply ||
-    response.publicReply ||
-    response.visibleReply ||
-    response.final ||
-    ''
+  if (typeof response === 'string') return safeText(response, 1600);
+  if (typeof response !== 'object') return '';
+  return safeText(
+    response.displayReply || response.publicReply || response.visibleReply || response.reply ||
+    response.text || response.message || response.answer || response.output || response.response ||
+    response.spokenText || response.finalReply || '',
+    1600
   );
 }
 
-function containsPattern(text, patterns) {
-  return patterns.some((pattern) => pattern.test(String(text || '')));
-}
-
-function hasAdminVoiceDeliveryProof(options) {
-  const opts = options && typeof options === 'object' ? options : {};
-  return opts.adminVoiceVerified === true ||
-    opts.adminVoiceTokenVerified === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
-    hasPrivateAdminConversationProof(opts);
-}
-
-function hasRemoteTrustedVoiceDeliveryProof(options) {
-  const opts = options && typeof options === 'object' ? options : {};
-  const identity = opts.speakerIdentity && typeof opts.speakerIdentity === 'object' ? opts.speakerIdentity : {};
-  return opts.remoteTrustedUserVerified === true ||
-    opts.remoteTrustedUserTokenVerified === true ||
-    opts.remoteTrustedVoiceDeliveryAllowed === true ||
-    opts.trustedRemoteUserAuth === true ||
-    opts.role === 'remote_trusted_user' ||
-    identity.remoteTrustedUserVerified === true ||
-    identity.roleBinding === 'remote_trusted_user';
-}
-
-function hasTrustedVoiceDeliveryProof(options) {
-  return hasAdminVoiceDeliveryProof(options) || hasRemoteTrustedVoiceDeliveryProof(options);
-}
-
-function hasPrivateAdminConversationProof(options) {
-  const opts = options && typeof options === 'object' ? options : {};
-  return opts.privateAdminConversation === true ||
-    opts.adminConversation === true ||
-    opts.adminConversationAllowed === true ||
-    opts.marionAdminConversation === true ||
-    opts.directMarionConversation === true;
-}
-
-function silentPolicy(reason, extra) {
-  return Object.assign({
-    speakAllowed: false,
-    voiceMode: 'silent',
-    reason: reason || 'SILENT',
-    spokenText: '',
-    speechSyncAllowed: false,
-    adminOnlyVoiceDelivery: true,
-    adminVoiceDeliveryAllowed: false,
-    remoteTrustedVoiceDeliveryAllowed: false,
-    trustedVoiceDeliveryAllowed: false,
-    voiceIdentityBoundary: true,
-    identityIsAuthority: false,
-    privateAdminConversation: false,
-    adminConversationAllowed: false,
-    publicUsersMayAddressMarion: false,
-    publicUsersSpeakThrough: 'Nyx'
-  }, extra || {});
-}
-
-function evaluateVoiceOutputPolicy(response, options) {
-  const opts = options && typeof options === 'object' ? options : {};
-  const text = getReplyText(response).replace(/\s+/g, ' ').trim();
-  const maxChars = Number.isFinite(Number(opts.maxSpokenChars))
-    ? Number(opts.maxSpokenChars)
-    : DEFAULT_MAX_SPOKEN_CHARS;
-  const adminOnlyVoiceDelivery = opts.adminOnlyVoiceDelivery !== false && opts.adminOnly !== false;
-  const privateAdminConversation = hasPrivateAdminConversationProof(opts);
-  const adminVoiceDeliveryAllowed = hasAdminVoiceDeliveryProof(opts);
-  const remoteTrustedVoiceDeliveryAllowed = hasRemoteTrustedVoiceDeliveryProof(opts);
-  const trustedVoiceDeliveryAllowed = adminVoiceDeliveryAllowed || remoteTrustedVoiceDeliveryAllowed;
-  const adminConversationAllowed = privateAdminConversation;
-
-  if (opts.forceSilent === true) {
-    return silentPolicy('FORCED_SILENT', {
-      adminOnlyVoiceDelivery,
-      adminVoiceDeliveryAllowed,
-      remoteTrustedVoiceDeliveryAllowed,
-      trustedVoiceDeliveryAllowed,
-      privateAdminConversation,
-      adminConversationAllowed
-    });
-  }
-
-  if (adminOnlyVoiceDelivery && !trustedVoiceDeliveryAllowed) {
-    return silentPolicy('ADMIN_ONLY_VOICE_DELIVERY_REQUIRED', {
-      adminOnlyVoiceDelivery,
-      adminVoiceDeliveryAllowed,
-      remoteTrustedVoiceDeliveryAllowed,
-      trustedVoiceDeliveryAllowed,
-      privateAdminConversation,
-      adminConversationAllowed
-    });
-  }
-
-  if (!text) {
-    return silentPolicy('EMPTY_RESPONSE', {
-      adminOnlyVoiceDelivery,
-      adminVoiceDeliveryAllowed,
-      remoteTrustedVoiceDeliveryAllowed,
-      trustedVoiceDeliveryAllowed,
-      privateAdminConversation,
-      adminConversationAllowed
-    });
-  }
-
-  if (containsPattern(text, SENSITIVE_PATTERNS) && !isSafeProtectedVoiceStatusText(text)) {
-    return silentPolicy('SENSITIVE_CONTENT', {
-      adminOnlyVoiceDelivery,
-      adminVoiceDeliveryAllowed,
-      remoteTrustedVoiceDeliveryAllowed,
-      trustedVoiceDeliveryAllowed,
-      privateAdminConversation,
-      adminConversationAllowed
-    });
-  }
-
-  if (containsPattern(text, CODE_PATTERNS)) {
-    return silentPolicy(privateAdminConversation ? 'ADMIN_CONVERSATION_CODE_SCREEN_ONLY' : 'CODE_OR_MARKUP_CONTENT', {
-      adminOnlyVoiceDelivery,
-      adminVoiceDeliveryAllowed,
-      remoteTrustedVoiceDeliveryAllowed,
-      trustedVoiceDeliveryAllowed,
-      privateAdminConversation,
-      adminConversationAllowed,
-      textFallbackAvailable: true
-    });
-  }
-
-  if (text.length > maxChars) {
-    return {
-      speakAllowed: true,
-      voiceMode: 'brief',
-      reason: 'LONG_RESPONSE_BRIEF_MODE',
-      spokenText: createBriefSpokenSummary(text),
-      speechSyncAllowed: true,
-      adminOnlyVoiceDelivery,
-      adminVoiceDeliveryAllowed,
-      remoteTrustedVoiceDeliveryAllowed,
-      trustedVoiceDeliveryAllowed,
-      privateAdminConversation,
-      adminConversationAllowed,
-      publicUsersMayAddressMarion: false,
-      publicUsersSpeakThrough: 'Nyx'
-    };
-  }
-
-  return {
-    speakAllowed: true,
-    voiceMode: 'full',
-    reason: 'SPEAKABLE_RESPONSE',
-    spokenText: text,
-    speechSyncAllowed: true,
-    adminOnlyVoiceDelivery,
-    adminVoiceDeliveryAllowed,
-    remoteTrustedVoiceDeliveryAllowed,
-    trustedVoiceDeliveryAllowed,
-    privateAdminConversation,
-    adminConversationAllowed,
-    publicUsersMayAddressMarion: false,
-    publicUsersSpeakThrough: 'Nyx'
-  };
-}
-
-function createBriefSpokenSummary(text) {
-  const value = String(text || '').replace(/\s+/g, ' ').trim();
-  if (value.length <= DEFAULT_MAX_SPOKEN_CHARS) return value;
-
-  const firstSentence = value.match(/^(.+?[.!?])\s/);
-  if (firstSentence && firstSentence[1]) {
-    return `${firstSentence[1]} I’ve placed the full details on screen.`;
-  }
-
-  return `${value.slice(0, 220).trim()}... I’ve placed the full details on screen.`;
+function stripRuntimeLeakage(text) {
+  return safeText(text, 1600)
+    .replace(/\b(routeKind|speechHints|presenceProfile|nyxStateHint|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority)\s*[=:][^.!?]*(?:[.!?]|$)/ig, '')
+    .replace(/\b(textSpeak|textToSynth|autoPlay|provider|compatibilityRoute|healthEndpoint)\s*[=:][^.!?]*(?:[.!?]|$)/ig, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function applyVoiceOutputPolicy(response, options) {
-  const policy = evaluateVoiceOutputPolicy(response, options);
+  const opts = options && typeof options === 'object' ? options : {};
+  const src = response && typeof response === 'object' ? response : { reply: response };
+  const rawReply = firstReplyText(src);
+  const cleanReply = stripRuntimeLeakage(rawReply) || 'I heard you, but I need a clean Marion final reply before I can speak this turn.';
 
-  if (response && typeof response === 'object') {
-    return Object.assign({}, response, {
-      voice: Object.assign({}, response.voice || {}, policy)
-    });
-  }
+  const adminAllowed = opts.adminVoiceDeliveryAllowed === true || opts.adminVoiceVerified === true;
+  const remoteAllowed = opts.remoteTrustedVoiceDeliveryAllowed === true || opts.remoteTrustedUserVerified === true;
+  const trustedVoiceDeliveryAllowed = opts.trustedVoiceDeliveryAllowed === true || adminAllowed || remoteAllowed;
+  const forceSilent = opts.forceSilent === true || opts.silent === true;
+  const speakAllowed = trustedVoiceDeliveryAllowed && !forceSilent && !!cleanReply;
+  const spokenText = speakAllowed ? safeText(cleanReply, opts.brief ? 420 : 900) : '';
 
-  return {
-    reply: String(response || ''),
-    voice: policy
-  };
+  return Object.assign({}, src, {
+    ok: src.ok !== false,
+    reply: cleanReply,
+    publicReply: cleanReply,
+    visibleReply: cleanReply,
+    displayReply: cleanReply,
+    text: cleanReply,
+    spokenText,
+    publicAgent: adminAllowed && opts.directMarionAdminInterface === true ? 'Marion' : 'Nyx',
+    authority: 'Marion',
+    voice: {
+      version: VERSION,
+      speakAllowed,
+      voiceMode: speakAllowed ? (opts.brief ? 'brief' : 'full') : 'silent',
+      spokenText,
+      textToSynth: spokenText,
+      adminOnlyVoiceDelivery: opts.adminOnlyVoiceDelivery !== false,
+      adminVoiceVerified: opts.adminVoiceVerified === true,
+      adminVoiceDeliveryAllowed: adminAllowed,
+      remoteTrustedUserVerified: opts.remoteTrustedUserVerified === true,
+      remoteTrustedVoiceDeliveryAllowed: remoteAllowed,
+      trustedVoiceDeliveryAllowed,
+      privateVoiceDelivery: src.privateVoiceDelivery === true || opts.privateVoiceDelivery === true || adminAllowed || remoteAllowed,
+      transcriptOnly: true,
+      noRawAudioStored: true,
+      audioStored: false,
+      finalEnvelopeOnly: true,
+      rawPatternExposure: 'blocked'
+    }
+  });
 }
 
 module.exports = {
   VERSION,
-  DEFAULT_MAX_SPOKEN_CHARS,
-  evaluateVoiceOutputPolicy,
   applyVoiceOutputPolicy,
-  createBriefSpokenSummary,
-  getReplyText,
-  isSafeProtectedVoiceStatusText,
-  hasAdminVoiceDeliveryProof,
-  hasPrivateAdminConversationProof,
-  hasRemoteTrustedVoiceDeliveryProof,
-  hasTrustedVoiceDeliveryProof
+  firstReplyText,
+  stripRuntimeLeakage
 };
