@@ -1,12 +1,16 @@
-import { adaptGuardianResponse } from "../adapters/guardian.response.adapter.js";
-import { rememberTurn, getGuardianMemory } from "../memory/guardian.memory.bridge.js";
-import { logGuardianEvent } from "../audit/guardian.audit.logger.js";
+"use strict";
 
-const CONTROLLER_VERSION = "1.5.3-r18c-law-real-world-assessment";
+const { adaptGuardianResponse } = require("../adapters/guardian.response.adapter.js");
+const { rememberTurn, getGuardianMemory } = require("../memory/guardian.memory.bridge.js");
+const { logGuardianEvent } = require("../audit/guardian.audit.logger.js");
+
+const CONTROLLER_VERSION = "1.6.0-r18c-critical-commonjs-hardening";
 const DEFAULT_GUARDIAN = "marion";
 const DEFAULT_MODE = "admin_dialogue";
 const DEFAULT_ROUTE = "marion.admin.runtime";
 const MAX_INPUT_LENGTH = 8000;
+const DEFAULT_RUNTIME_TIMEOUT_MS = 15000;
+const MAX_RUNTIME_TIMEOUT_MS = 60000;
 
 function nowIso() {
   return new Date().toISOString();
@@ -27,11 +31,66 @@ function cleanText(value, max = MAX_INPUT_LENGTH) {
     .slice(0, max);
 }
 
+function clampTimeout(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_RUNTIME_TIMEOUT_MS;
+  return Math.min(Math.max(Math.trunc(n), 1000), MAX_RUNTIME_TIMEOUT_MS);
+}
+
+function withTimeout(promise, timeoutMs, traceId) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`Marion runtime timed out after ${timeoutMs}ms.`);
+      error.name = "MarionRuntimeTimeoutError";
+      error.data = { code: "MARION_RUNTIME_TIMEOUT", traceId, timeoutMs };
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
+function safeGetMemory(guardian) {
+  try {
+    const memory = getGuardianMemory(guardian);
+    return memory && typeof memory === "object" ? memory : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function safeRememberTurn(guardian, turn) {
+  try {
+    return rememberTurn(guardian, turn);
+  } catch (_) {
+    return null;
+  }
+}
+
+function safeLogGuardianEvent(event) {
+  try {
+    return logGuardianEvent(event);
+  } catch (_) {
+    return null;
+  }
+}
+
+function sanitizeSessionForRuntime(session = {}) {
+  if (!session || typeof session !== "object" || Array.isArray(session)) return {};
+  const blocked = /token|secret|password|authorization|cookie|credential|private[_-]?key|api[_-]?key/i;
+  const out = {};
+  for (const [key, value] of Object.entries(session)) {
+    if (blocked.test(key)) continue;
+    if (["string", "number", "boolean"].includes(typeof value) || value == null) out[key] = value;
+  }
+  return out;
+}
+
 function safeGuardian(value) {
   const v = cleanText(value || DEFAULT_GUARDIAN, 64).toLowerCase();
   if (v === "mariam") return "marion";
   if (v === "astro") return "aster";
-  if (v === "fallon") return "thalon";
+  if (v === "fallon" || v === "talon") return "thalon";
   return ["marion", "aster", "thalon"].includes(v) ? v : DEFAULT_GUARDIAN;
 }
 
@@ -335,7 +394,7 @@ function createRuntimeClientMissingPacket({ guardian, traceId, route }) {
   });
 }
 
-export async function handleMarionConversation({
+async function handleMarionConversation({
   input,
   session = {},
   runtimeClient,
@@ -344,26 +403,30 @@ export async function handleMarionConversation({
   route = DEFAULT_ROUTE,
   traceId = makeTraceId("marion"),
   source = "marion.conversation.controller",
+  timeoutMs = DEFAULT_RUNTIME_TIMEOUT_MS,
   throwOnError = false
 } = {}) {
-  const activeGuardian = safeGuardian(guardian);
+  const requestedGuardian = safeGuardian(guardian);
+  const activeGuardian = DEFAULT_GUARDIAN;
+  const guardianOverrideBlocked = requestedGuardian !== DEFAULT_GUARDIAN;
   const cleanInput = cleanText(input);
   const safeRoute = cleanText(route || DEFAULT_ROUTE, 120);
+  const runtimeTimeoutMs = clampTimeout(timeoutMs);
 
   if (!cleanInput) {
     const packet = createEmptyInputPacket({ guardian: activeGuardian, traceId });
-    logGuardianEvent({ guardian: activeGuardian, type: "conversation_rejected", route: safeRoute, decision: packet.nextAction, riskLevel: packet.riskLevel, traceId: packet.traceId });
+    safeLogGuardianEvent({ guardian: activeGuardian, type: "conversation_rejected", route: safeRoute, decision: packet.nextAction, riskLevel: packet.riskLevel, traceId: packet.traceId });
     return packet;
   }
 
   if (typeof runtimeClient !== "function") {
     const packet = createRuntimeClientMissingPacket({ guardian: activeGuardian, traceId, route: safeRoute });
-    rememberTurn(activeGuardian, { input: cleanInput, reply: packet.directReply, nextAction: packet.nextAction, traceId: packet.traceId, riskLevel: packet.riskLevel, systemState: packet.systemState });
-    logGuardianEvent({ guardian: activeGuardian, type: "conversation_blocked", input: cleanInput, reply: packet.directReply, decision: packet.nextAction, route: safeRoute, riskLevel: packet.riskLevel, traceId: packet.traceId });
+    safeRememberTurn(activeGuardian, { input: cleanInput, reply: packet.directReply, nextAction: packet.nextAction, traceId: packet.traceId, riskLevel: packet.riskLevel, systemState: packet.systemState });
+    safeLogGuardianEvent({ guardian: activeGuardian, type: "conversation_blocked", input: cleanInput, reply: packet.directReply, decision: packet.nextAction, route: safeRoute, riskLevel: packet.riskLevel, traceId: packet.traceId });
     return packet;
   }
 
-  const memory = getGuardianMemory(activeGuardian);
+  const memory = safeGetMemory(activeGuardian);
   const fallback = {
     guardian: activeGuardian,
     guardianMode: activeGuardian,
@@ -374,21 +437,26 @@ export async function handleMarionConversation({
   };
 
   try {
-    const raw = await runtimeClient({
+    const raw = await withTimeout(runtimeClient({
       guardian: activeGuardian,
       input: cleanInput,
       text: cleanInput,
       message: cleanInput,
-      session,
+      session: sanitizeSessionForRuntime(session),
       memory,
       mode: cleanText(mode || DEFAULT_MODE, 80),
       traceId,
-      source
-    });
+      source: cleanText(source || "marion.conversation.controller", 120),
+      guardianOverrideBlocked
+    }), runtimeTimeoutMs, traceId);
 
     const packet = applyR17AContinuity(ensurePacketShape(adaptGuardianResponse(raw, fallback), fallback), cleanInput, memory);
+    packet.guardian = DEFAULT_GUARDIAN;
+    packet.guardianMode = DEFAULT_GUARDIAN;
+    packet.guardianOverrideBlocked = guardianOverrideBlocked;
+    packet.runtimeTimeoutMs = runtimeTimeoutMs;
 
-    rememberTurn(activeGuardian, {
+    safeRememberTurn(activeGuardian, {
       input: cleanInput,
       reply: packet.directReply,
       nextAction: packet.nextAction,
@@ -404,7 +472,7 @@ export async function handleMarionConversation({
       lawAssessmentFrame: packet.lawAssessmentFrame
     });
 
-    logGuardianEvent({
+    safeLogGuardianEvent({
       guardian: activeGuardian,
       type: "conversation",
       input: cleanInput,
@@ -433,8 +501,12 @@ export async function handleMarionConversation({
       traceId,
       error: err
     }, fallback), fallback), cleanInput, memory);
+    packet.guardian = DEFAULT_GUARDIAN;
+    packet.guardianMode = DEFAULT_GUARDIAN;
+    packet.guardianOverrideBlocked = guardianOverrideBlocked;
+    packet.runtimeTimeoutMs = runtimeTimeoutMs;
 
-    rememberTurn(activeGuardian, {
+    safeRememberTurn(activeGuardian, {
       input: cleanInput,
       reply: packet.directReply,
       nextAction: packet.nextAction,
@@ -451,7 +523,7 @@ export async function handleMarionConversation({
       lawAssessmentFrame: packet.lawAssessmentFrame
     });
 
-    logGuardianEvent({
+    safeLogGuardianEvent({
       guardian: activeGuardian,
       type: "conversation_error",
       input: cleanInput,
@@ -470,13 +542,19 @@ export async function handleMarionConversation({
   }
 }
 
-export function getMarionConversationControllerInfo() {
+function getMarionConversationControllerInfo() {
   return {
     name: "marion.conversation.controller",
     version: CONTROLLER_VERSION,
     defaultGuardian: DEFAULT_GUARDIAN,
     defaultMode: DEFAULT_MODE,
     maxInputLength: MAX_INPUT_LENGTH,
+    defaultRuntimeTimeoutMs: DEFAULT_RUNTIME_TIMEOUT_MS,
+    maxRuntimeTimeoutMs: MAX_RUNTIME_TIMEOUT_MS,
+    moduleFormat: "commonjs",
+    marionGuardianHardlock: true,
+    sessionSecretStripping: true,
+    safeMemoryAndAuditIsolation: true,
     r18AIDomainAdaptability: true,
     r18CybersecurityProtectiveProtocol: true,
     baselinePreserved: "r16m-r17c",
@@ -491,3 +569,10 @@ export function getMarionConversationControllerInfo() {
     legalAdviceBoundary: "general_information_legal_risk_triage_not_legal_advice"
   };
 }
+
+
+module.exports = {
+  handleMarionConversation,
+  getMarionConversationControllerInfo
+};
+module.exports.default = module.exports;
