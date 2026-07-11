@@ -28,6 +28,27 @@ function headerValue(headers, key) {
   return h[key] || h[key.toLowerCase()] || h[key.toUpperCase()] || "";
 }
 
+function boolish(value) {
+  if (value === true || value === false) return value;
+  return /^(?:1|true|yes|on)$/i.test(cleanText(value || ""));
+}
+
+function hasTrustedServerAdminProof(input = {}, options = {}) {
+  const auth = input && typeof input.authorization === "object" ? input.authorization : {};
+  return boolish(options.serverSideAdminVoiceAuth) ||
+    boolish(options.trustedServerAuth) ||
+    boolish(options.adminVoiceVerified) ||
+    boolish(options.adminVerified) ||
+    boolish(input.serverSideAdminVoiceAuth) ||
+    boolish(input.trustedServerAuth) ||
+    boolish(input.adminVoiceVerified) ||
+    boolish(input.adminVerified) ||
+    boolish(auth.serverSideAdminVoiceAuth) ||
+    boolish(auth.trustedServerAuth) ||
+    boolish(auth.adminVoiceVerified) ||
+    boolish(auth.adminVerified);
+}
+
 function evaluateAdminVoiceIdentity(input = {}, options = {}) {
   const adminSpeakers = Array.isArray(options.adminSpeakers) && options.adminSpeakers.length
     ? options.adminSpeakers.map(normalizeSpeaker).filter(Boolean)
@@ -51,10 +72,16 @@ function evaluateAdminVoiceIdentity(input = {}, options = {}) {
     headerValue(input.headers, "x-sb-admin-voice-token") ||
     ""
   );
-  const requireToken = options.requireAdminToken === true || /^(?:1|true|yes|on)$/i.test(cleanText(process.env.SB_MARION_ADMIN_VOICE_REQUIRE_TOKEN || ""));
+
+  // Critical hardening: a speaker label such as "Mac" or "Sean" is evidence,
+  // not authority. Admin voice requires either trusted server proof or a
+  // configured token match. This prevents browser/body speaker hints from
+  // opening Marion's private voice lane by themselves.
   const tokenConfigured = !!requiredToken;
   const tokenAccepted = tokenConfigured ? safeEqual(providedToken, requiredToken) : false;
-  const authorized = speakerAccepted && (!requireToken || tokenAccepted);
+  const trustedServerProof = hasTrustedServerAdminProof(input, options);
+  const requireToken = options.requireAdminToken === true || /^(?:1|true|yes|on)$/i.test(cleanText(process.env.SB_MARION_ADMIN_VOICE_REQUIRE_TOKEN || ""));
+  const authorized = speakerAccepted && (trustedServerProof || tokenAccepted) && (!requireToken || tokenAccepted || trustedServerProof);
 
   return {
     ok: true,
@@ -63,14 +90,18 @@ function evaluateAdminVoiceIdentity(input = {}, options = {}) {
     adminVoiceAllowed: authorized,
     speakerAccepted,
     tokenConfigured,
-    tokenRequired: requireToken,
+    tokenRequired: requireToken || !trustedServerProof,
     tokenAccepted,
+    trustedServerProof,
+    speakerHintIsAuthority: false,
     reason: authorized
       ? "ADMIN_VOICE_IDENTITY_ACCEPTED"
       : !speakerAccepted
         ? "ADMIN_SPEAKER_NOT_ACCEPTED"
-        : "ADMIN_TOKEN_REQUIRED_OR_INVALID",
-    identityMode: requireToken ? "speaker_plus_token" : "speaker_hint_development_lock",
+        : !trustedServerProof && !tokenAccepted
+          ? "ADMIN_SERVER_PROOF_OR_TOKEN_REQUIRED"
+          : "ADMIN_TOKEN_REQUIRED_OR_INVALID",
+    identityMode: trustedServerProof ? "speaker_plus_trusted_server_proof" : "speaker_plus_token",
     audioStored: false,
     noRawAudioStored: true
   };
@@ -79,7 +110,8 @@ function evaluateAdminVoiceIdentity(input = {}, options = {}) {
 module.exports = {
   VERSION,
   evaluateAdminVoiceIdentity,
-  normalizeSpeaker
+  normalizeSpeaker,
+  hasTrustedServerAdminProof
 };
 
 
