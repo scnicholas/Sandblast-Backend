@@ -5260,3 +5260,195 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
   try{const obj=module.exports&&typeof module.exports==="object"?module.exports:null;if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","normalizeCommand","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","process","safeResponse","buildResponse","createResponse","finalizeTurn","updateState","advanceState","mergeState","inspectLoop","checkLoop","evaluateLoop","guardReply","matchPacket","selectPacket","resolvePacket","applyPacket"].forEach(function(n){if(typeof obj[n]==="function")obj[n]=wrapFn(obj[n],n);});obj.LIVE_CONVERSATION_PARTITION_VALIDATION_PHASE3_VERSION=V;obj.liveConversationPartitionProject=part.projectResult;obj.liveConversationPartitionPatch=part.buildPartitionPatch;obj.liveConversationPartitionValidate=part.validateNoCrossPartitionLeak;}}catch(_err){}
 })();
 /* LIVE_CONVERSATION_PARTITION_VALIDATION_PHASE3_END */
+
+/* MARION_STATE_SPINE_CRITICAL_LAYERING_PATCH_V1_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION = "stateSpine.criticalLayeringPatch/1.0-preserve-originals";
+  if (typeof module === "undefined" || !module.exports) return;
+  if (module.exports.__marionStateSpineCriticalLayeringPatchV1) return;
+
+  const SIX = Object.freeze(["psychology", "english", "ai", "cyber", "law", "finance"]);
+  const HIGH_STAKES = Object.freeze(["law", "finance", "cyber"]);
+  const TELEMETRY_LEAK_RX = /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final|runtimeTelemetry|failureSignature|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_)\b/i;
+  const OPERATOR_NAME_RX = /\bMac\b|\bSean\b|\bSean Nicholas\b/gi;
+
+  function text(value, max){
+    const limit = Number.isFinite(Number(max)) ? Math.max(8, Math.min(Number(max), 20000)) : 1800;
+    return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
+  }
+  function obj(value){ return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+  function arr(value){ return Array.isArray(value) ? value : []; }
+  function key(value){ return text(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
+  function clamp01(value, fallback){
+    const n = Number(value);
+    if (!Number.isFinite(n)) return Number.isFinite(Number(fallback)) ? Math.max(0, Math.min(1, Number(fallback))) : 0;
+    return Math.max(0, Math.min(1, n));
+  }
+  function hash(value){
+    const source = text(value, 1800).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    let h = 2166136261;
+    for (let i = 0; i < source.length; i += 1) { h ^= source.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16);
+  }
+  function isVerifiedOperatorContext(){
+    return Array.prototype.slice.call(arguments).some(function(input){
+      const s = obj(input);
+      const meta = obj(s.meta);
+      const auth = obj(s.auth || s.authorization);
+      const headers = obj(s.headers);
+      const route = text(s.route || s.path || meta.route || "", 300).toLowerCase();
+      return s.privateOperator === true || s.verifiedOperator === true || s.adminVerified === true || s.adminVoiceVerified === true ||
+        auth.verifiedOperator === true || auth.adminVerified === true || meta.privateAdminConversation === true || meta.marionAdminConversation === true ||
+        /marion_admin|admin_voice|private_operator|lingosentinel_private/.test(route) ||
+        text(headers["x-sb-private-operator"] || headers["x-sb-admin-verified"] || "") === "true";
+    });
+  }
+  function stripLeaks(value, allowOperator){
+    let out = text(value, 12000);
+    if (!out) return "";
+    if (TELEMETRY_LEAK_RX.test(out)) {
+      out = out
+        .replace(/\b(routeKind|speechHints|presenceProfile|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority|nyxStateHint|runtimeTelemetry|failureSignature)\s*=\s*[^.;,\n]+[.;,]?\s*/gi, "")
+        .replace(/\b(?:diagnostic packet|final envelope missing|non-final|runtimeTelemetry|failureSignature)\b/gi, "")
+        .replace(/\bMARION::FINAL::[^\s]+/gi, "")
+        .replace(/\bCHATENGINE_COORDINATOR_ONLY_ACTIVE_\d+\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    if (!allowOperator) out = out.replace(OPERATOR_NAME_RX, "the operator").replace(/\s+/g, " ").trim();
+    return out;
+  }
+  function cleanPublicStrings(value, allowOperator, depth){
+    const level = Number(depth || 0);
+    if (level > 7) return value;
+    if (typeof value === "string") return stripLeaks(value, allowOperator);
+    if (!value || typeof value !== "object") return value;
+    if (Array.isArray(value)) return value.slice(0, 80).map(function(item){ return cleanPublicStrings(item, allowOperator, level + 1); });
+    const out = Object.assign({}, value);
+    Object.keys(out).forEach(function(k){
+      if (/(token|secret|password|cookie|authorization|api[_-]?key|credential|private[_-]?key)/i.test(k)) { out[k] = "[redacted]"; return; }
+      out[k] = cleanPublicStrings(out[k], allowOperator, level + 1);
+    });
+    return out;
+  }
+  function normalizeDomain(value){
+    const k = key(value);
+    const aliases = { psych:"psychology", emotional:"psychology", emotion:"psychology", language:"english", writing:"english", grammar:"english", artificial_intelligence:"ai", machine_learning:"ai", cybersecurity:"cyber", security:"cyber", legal:"law", financial:"finance", economics:"finance" };
+    return aliases[k] || k;
+  }
+  function boundedDomains(value, primary){
+    const p = normalizeDomain(primary);
+    const seen = new Set();
+    const out = [];
+    arr(value).forEach(function(item){
+      const d = normalizeDomain(item);
+      if (!d || d === p || seen.has(d)) return;
+      seen.add(d);
+      out.push(d);
+    });
+    return out.slice(0, 4);
+  }
+  function extractDomainConfidence(value){
+    const src = obj(value);
+    const candidates = [src.domainConfidence, obj(src.routing).domainConfidence, obj(src.stateBridge).domainConfidence, obj(src.memoryPatch).domainConfidence, obj(src.runtimeTelemetry).domainConfidence];
+    for (const item of candidates) if (Object.keys(obj(item)).length) return obj(item);
+    return {};
+  }
+  function inferPrimaryDomain(state){
+    const s = obj(state);
+    const dc = extractDomainConfidence(s);
+    return normalizeDomain(s.activeKnowledgeDomain || s.knowledgeDomain || s.lastKnowledgeDomain || s.domain || dc.primaryDomain || dc.selectedDomain || dc.knowledgeDomain || dc.domain || "") || "general";
+  }
+  function buildLayerCarry(state){
+    const s = obj(state);
+    const dc = extractDomainConfidence(s);
+    const primary = inferPrimaryDomain(s);
+    const secondary = boundedDomains(s.secondaryDomains || dc.secondaryDomains || [], primary);
+    const confidence = clamp01(dc.confidence ?? dc.confidenceScore, SIX.includes(primary) ? 0.82 : 0.52);
+    return {
+      version: PATCH_VERSION,
+      active: true,
+      stateLayer: "continuity_state_spine",
+      primaryDomain: primary,
+      knowledgeDomain: SIX.includes(primary) ? primary : text(s.knowledgeDomain || dc.knowledgeDomain || "", 80),
+      secondaryDomains: secondary,
+      confidence,
+      highStakes: HIGH_STAKES.includes(primary),
+      continuityActive: !!(obj(s.continuity).active || s.continuityResolvedText || s.lastTopic),
+      followupAction: text(s.followupAction || s.continuityAction || obj(s.continuity).followupAction || "", 80),
+      lastTopic: text(s.lastTopic || obj(s.continuity).lastTopic || obj(s.continuity).topic || "", 180),
+      publicSurfaceClean: true,
+      noUserFacingDiagnostics: true,
+      noCrossDomainBleed: true,
+      stateHash: hash([s.lastUserText, s.normalizedUserIntent, s.lastAssistantReply, s.lastTopic, primary].join("|"))
+    };
+  }
+  function projectState(base, args){
+    if (!base || typeof base !== "object") return base;
+    const allowOperator = isVerifiedOperatorContext.apply(null, args || []);
+    const out = cleanPublicStrings(base, allowOperator, 0);
+    if (!out || typeof out !== "object") return out;
+    const carry = buildLayerCarry(out);
+    out.marionConversationLayering = Object.assign({}, obj(out.marionConversationLayering), carry);
+    out.conversationLayer = Object.assign({}, obj(out.conversationLayer), {
+      version: PATCH_VERSION,
+      primaryDomain: carry.primaryDomain,
+      knowledgeDomain: carry.knowledgeDomain,
+      secondaryDomains: carry.secondaryDomains,
+      continuityActive: carry.continuityActive,
+      publicSurfaceClean: true,
+      noUserFacingDiagnostics: true
+    });
+    out.publicSurfaceClean = true;
+    out.noUserFacingDiagnostics = true;
+    out.noCrossDomainBleed = true;
+    out.operatorPersonalizationAllowed = allowOperator;
+    if (Object.keys(extractDomainConfidence(out)).length) {
+      const dc = Object.assign({}, extractDomainConfidence(out));
+      dc.primaryDomain = carry.primaryDomain;
+      dc.selectedDomain = carry.primaryDomain;
+      dc.knowledgeDomain = carry.knowledgeDomain || dc.knowledgeDomain || "";
+      dc.secondaryDomains = carry.secondaryDomains;
+      dc.publicSurfaceClean = true;
+      dc.noUserFacingDiagnostics = true;
+      dc.noCrossDomainBleed = true;
+      out.domainConfidence = Object.assign({}, obj(out.domainConfidence), dc);
+    }
+    return out;
+  }
+  function wrapExport(name){
+    const source = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!source || typeof source[name] !== "function" || source[name].__marionStateSpineCriticalLayeringPatchV1) return;
+    const fn = source[name];
+    const wrapped = function(){
+      const args = Array.prototype.slice.call(arguments);
+      const result = fn.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function(value){ return projectState(value, args); });
+      return projectState(result, args);
+    };
+    try { Object.keys(fn).forEach(function(k){ wrapped[k] = fn[k]; }); } catch (_) {}
+    wrapped.__marionStateSpineCriticalLayeringPatchV1 = true;
+    source[name] = wrapped;
+  }
+  if (typeof module.exports === "function" && !module.exports.__marionStateSpineCriticalLayeringPatchV1) {
+    const fn = module.exports;
+    const wrappedDefault = function(){
+      const args = Array.prototype.slice.call(arguments);
+      const result = fn.apply(this, arguments);
+      if (result && typeof result.then === "function") return result.then(function(value){ return projectState(value, args); });
+      return projectState(result, args);
+    };
+    try { Object.keys(fn).forEach(function(k){ wrappedDefault[k] = fn[k]; }); } catch (_) {}
+    wrappedDefault.__marionStateSpineCriticalLayeringPatchV1 = true;
+    module.exports = wrappedDefault;
+  }
+  if (module.exports && typeof module.exports === "object") {
+    ["createState", "coerceState", "finalizeTurn", "applyLoopRecoveryPatch", "assertTurnUpdated", "decideNextMove", "inferConversationPhase", "buildStateRuntimeTelemetry", "normalizeDomainConfidenceCarry", "normalizeDomainConciergeCarry", "normalizeConfidenceAwareResponseShapingCarry"].forEach(wrapExport);
+    module.exports.MARION_STATE_SPINE_CRITICAL_LAYERING_PATCH_VERSION = PATCH_VERSION;
+    module.exports.marionStateSpineCriticalProject = function(value){ return projectState(value, [{}]); };
+    module.exports.marionStateSpineCriticalLayerCarry = buildLayerCarry;
+    module.exports.__marionStateSpineCriticalLayeringPatchV1 = true;
+  }
+})();
+/* MARION_STATE_SPINE_CRITICAL_LAYERING_PATCH_V1_END */
