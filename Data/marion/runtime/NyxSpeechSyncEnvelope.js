@@ -11,9 +11,77 @@
 
 const crypto = require('crypto');
 
-const { mapTextToVisemes } = require('./NyxVisemeMapper');
+const visemeMapperMod = (() => {
+  try {
+    return require('./NyxVisemeMapper');
+  } catch (_) {
+    return null;
+  }
+})();
+
 const { buildSpeechTiming } = require('./NyxSpeechTimingAdapter');
-const { buildAvatarSpeechState } = require('./NyxAvatarSpeechState');
+
+const avatarSpeechStateMod = (() => {
+  try {
+    return require('./NyxAvatarSpeechState');
+  } catch (_) {
+    return null;
+  }
+})();
+
+function fallbackMapTextToVisemes(text, options) {
+  const value = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  const totalDurationMs = Math.max(0, Number(options && options.totalDurationMs) || 0);
+  const words = value ? value.split(/\s+/).slice(0, 120) : [];
+  const frameMs = words.length ? Math.max(80, Math.round(totalDurationMs / Math.max(1, words.length))) : 0;
+  let cursor = 0;
+  const visemes = words.map((word, index) => {
+    const end = index === words.length - 1 ? totalDurationMs : Math.min(totalDurationMs, cursor + frameMs);
+    const item = {
+      index,
+      token: word.slice(0, 48),
+      viseme: /[bmp]/i.test(word) ? 'closed' : /[aeiou]/i.test(word) ? 'open' : 'neutral',
+      startMs: cursor,
+      endMs: end,
+      durationMs: Math.max(0, end - cursor)
+    };
+    cursor = end;
+    return item;
+  });
+  return {
+    source: 'NyxSpeechSyncEnvelope.fallbackVisemeMapper',
+    visemes,
+    count: visemes.length,
+    frameMs,
+    timingAligned: true,
+    noRawAudioStored: true
+  };
+}
+
+function fallbackBuildAvatarSpeechState(input) {
+  const src = input && typeof input === 'object' ? input : {};
+  const speakAllowed = src.speakAllowed === true;
+  const duration = Math.max(0, Number(src.estimatedDurationMs) || 0);
+  return {
+    source: 'NyxSpeechSyncEnvelope.fallbackAvatarSpeechState',
+    speakAllowed,
+    speechState: speakAllowed ? 'speaking' : 'silent',
+    mouthState: speakAllowed ? 'active' : 'closed',
+    avatarState: speakAllowed ? 'speech_ready' : 'speech_disabled',
+    estimatedDurationMs: duration,
+    visemeCount: Math.max(0, Number(src.visemeCount) || 0),
+    reducedMotion: src.reducedMotion === true,
+    noRawAudioStored: true
+  };
+}
+
+const mapTextToVisemes = visemeMapperMod && typeof visemeMapperMod.mapTextToVisemes === 'function'
+  ? visemeMapperMod.mapTextToVisemes
+  : fallbackMapTextToVisemes;
+
+const buildAvatarSpeechState = avatarSpeechStateMod && typeof avatarSpeechStateMod.buildAvatarSpeechState === 'function'
+  ? avatarSpeechStateMod.buildAvatarSpeechState
+  : fallbackBuildAvatarSpeechState;
 
 const expressionController = (() => {
   try {
@@ -98,6 +166,7 @@ function disabledSpeechSync(reason) {
     avatarMotionTelemetry: null,
     avatarAnimationEnabled: false,
     phase3AnimationMetadataBridge: false,
+    dependencyFallback: visemeMapperMod == null || avatarSpeechStateMod == null,
     speakerIdentityBoundary: true,
     voiceIdentityIsAuthority: false,
     speakerRoleBinding: 'blocked',
@@ -242,6 +311,7 @@ function buildSpeechSyncEnvelope(input) {
     enabled: true,
     frontendReady: true,
     source: 'NyxSpeechSyncEnvelope',
+    dependencyFallback: visemeMapperMod == null || avatarSpeechStateMod == null,
     authority: 'Marion',
     publicAgent: adminVoiceDeliveryAllowed ? 'Marion' : 'Nyx',
     finalApproved: true,
