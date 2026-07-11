@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "channel": "classic",
+  "displayName": "Sandblast Classics",
+  "loop": true,
+  "anchorEpochMs": 0,
+  "updatedAt": null,
+  "slots": [
+    {
+      "id": "classic-01",
+      "position": 1,
+      "title": "Sandblast Classics Slot 01",
+      "sourceUrl": "https://dn600300.us.archive.org/0/items/strangers-on-a-train-720p/Strangers%20On%20A%20Train%20720p.mp4",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": "Enter the verified MP4 duration before enabling and publishing."
+    },
+    {
+      "id": "classic-02",
+      "position": 2,
+      "title": "Sandblast Classics Slot 02",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-03",
+      "position": 3,
+      "title": "Sandblast Classics Slot 03",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-04",
+      "position": 4,
+      "title": "Sandblast Classics Slot 04",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-05",
+      "position": 5,
+      "title": "Sandblast Classics Slot 05",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-06",
+      "position": 6,
+      "title": "Sandblast Classics Slot 06",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-07",
+      "position": 7,
+      "title": "Sandblast Classics Slot 07",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-08",
+      "position": 8,
+      "title": "Sandblast Classics Slot 08",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-09",
+      "position": 9,
+      "title": "Sandblast Classics Slot 09",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-10",
+      "position": 10,
+      "title": "Sandblast Classics Slot 10",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-11",
+      "position": 11,
+      "title": "Sandblast Classics Slot 11",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-12",
+      "position": 12,
+      "title": "Sandblast Classics Slot 12",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-13",
+      "position": 13,
+      "title": "Sandblast Classics Slot 13",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-14",
+      "position": 14,
+      "title": "Sandblast Classics Slot 14",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "classic-15",
+      "position": 15,
+      "title": "Sandblast Classics Slot 15",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    }
+  ]
+}
