@@ -4611,6 +4611,31 @@ app.use((req, res, next) => {
   return next();
 });
 
+
+/* SANDBLAST_TV_SCHEDULER_ROUTE_MOUNT_START
+ * Dedicated Sandblast TV scheduling boundary.
+ * Mounted after global body parsing and CORS middleware, and before API
+ * fallback/error routes. Scheduler internals remain isolated in /SandblastTV.
+ */
+const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/1.0";
+try {
+  const { createSandblastTvRouter } = require("./SandblastTV");
+  app.use(
+    "/api/sandblast-tv/v1",
+    createSandblastTvRouter({ rootDir: __dirname })
+  );
+  console.log("[SandblastTV][Scheduler] route mounted", {
+    version: SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
+    route: "/api/sandblast-tv/v1"
+  });
+} catch (err) {
+  console.log("[SandblastTV][Scheduler] route mount degraded", {
+    version: SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
+    error: err && (err.code || err.message || String(err)) || "mount_failed"
+  });
+}
+/* SANDBLAST_TV_SCHEDULER_ROUTE_MOUNT_END */
+
 // LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK:
 // Explicitly support Webflow/Sandblast preflight for realtime token and publish routes.
 app.options([
