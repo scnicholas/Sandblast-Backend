@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "channel": "cartoons",
+  "displayName": "Sandblast Cartoons",
+  "loop": true,
+  "anchorEpochMs": 0,
+  "updatedAt": null,
+  "slots": [
+    {
+      "id": "cartoons-01",
+      "position": 1,
+      "title": "Sandblast Cartoons Slot 01",
+      "sourceUrl": "https://dn600301.us.archive.org/0/items/popeye-1940-1946/Popeye%201940-1946.ia.mp4",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": "Enter the verified MP4 duration before enabling and publishing."
+    },
+    {
+      "id": "cartoons-02",
+      "position": 2,
+      "title": "Sandblast Cartoons Slot 02",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-03",
+      "position": 3,
+      "title": "Sandblast Cartoons Slot 03",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-04",
+      "position": 4,
+      "title": "Sandblast Cartoons Slot 04",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-05",
+      "position": 5,
+      "title": "Sandblast Cartoons Slot 05",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-06",
+      "position": 6,
+      "title": "Sandblast Cartoons Slot 06",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-07",
+      "position": 7,
+      "title": "Sandblast Cartoons Slot 07",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-08",
+      "position": 8,
+      "title": "Sandblast Cartoons Slot 08",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-09",
+      "position": 9,
+      "title": "Sandblast Cartoons Slot 09",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-10",
+      "position": 10,
+      "title": "Sandblast Cartoons Slot 10",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-11",
+      "position": 11,
+      "title": "Sandblast Cartoons Slot 11",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-12",
+      "position": 12,
+      "title": "Sandblast Cartoons Slot 12",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-13",
+      "position": 13,
+      "title": "Sandblast Cartoons Slot 13",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-14",
+      "position": 14,
+      "title": "Sandblast Cartoons Slot 14",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    },
+    {
+      "id": "cartoons-15",
+      "position": 15,
+      "title": "Sandblast Cartoons Slot 15",
+      "sourceUrl": "",
+      "durationSeconds": 0,
+      "enabled": false,
+      "validationStatus": "pending",
+      "notes": ""
+    }
+  ]
+}
