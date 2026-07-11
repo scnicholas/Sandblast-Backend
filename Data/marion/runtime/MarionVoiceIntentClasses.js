@@ -41,6 +41,31 @@ const VOICE_INTENT_CLASS = Object.freeze({
   UNKNOWN: "unknown"
 });
 
+const ACTION_RISK = Object.freeze({
+  NONE: "none",
+  LOW: "low",
+  EXTERNAL: "external_action",
+  DEPLOYMENT: "deployment",
+  DESTRUCTIVE: "destructive"
+});
+
+const INTENT_CLASSES = Object.freeze(Object.assign({}, VOICE_INTENT_CLASS, {
+  ACTION_COMMAND: VOICE_INTENT_CLASS.OPERATOR_BUILD_COMMAND,
+  ADMIN_VOICE_DELIVERY_REQUEST: VOICE_INTENT_CLASS.OPERATOR_PRIVATE_DIALOGUE,
+  FOLLOW_UP_QUERY: "follow_up_query",
+  STATUS_REQUEST: VOICE_INTENT_CLASS.OPERATOR_STATUS_CHECK,
+  UNKNOWN: VOICE_INTENT_CLASS.UNKNOWN
+}));
+
+function classifyActionRiskFromText(value) {
+  const text = cleanText(value).toLowerCase();
+  if (!text) return ACTION_RISK.NONE;
+  if (/\b(delete|remove|erase|wipe|drop|destroy|purge|shutdown)\b/.test(text)) return ACTION_RISK.DESTRUCTIVE;
+  if (/\b(deploy|publish|release|restart|run\s+(?:script|command|deployment|test)|execute)\b/.test(text)) return ACTION_RISK.DEPLOYMENT;
+  if (/\b(send|email|transfer|pay|post|submit)\b/.test(text)) return ACTION_RISK.EXTERNAL;
+  return ACTION_RISK.NONE;
+}
+
 const PUBLIC_SOURCE_RE = /(?:sandblast_channel_widget|cosmos-widget|nyx-widget|public_interface|webflow|sandblast\.channel)/i;
 const ADMIN_SOURCE_RE = /(?:marion_admin_conversation|admin_text|admin_voice|admin|marion-admin-interface|protected admin route)/i;
 const ADMIN_ROUTE_RE = /(?:\/api\/marion\/admin\/conversation|\/api\/marion\/admin\/voice|\/marion\/admin\/conversation|\/marion\/admin\/voice)/i;
@@ -183,7 +208,7 @@ function hasVerifiedOperatorSignal(input = {}, options = {}) {
     boolish(auth.ownerVerified) ||
     boolish(headerValue(headers, "x-sb-marion-admin-verified")) ||
     boolish(headerValue(headers, "x-sb-operator-verified")) ||
-    ADMIN_ROUTE_RE.test(route);
+    (boolish(options.trustAdminRouteForOperatorProof) && ADMIN_ROUTE_RE.test(route));
 }
 
 function isPublicVoiceContext(input = {}, options = {}) {
@@ -375,6 +400,8 @@ module.exports = {
   PRIVATE_AGENT,
   OPERATOR_NAME,
   VOICE_INTENT_CLASS,
+  INTENT_CLASSES,
+  ACTION_RISK,
   cleanText,
   lower,
   clipText,
@@ -388,7 +415,8 @@ module.exports = {
   evaluateVoiceIntentClass,
   sanitizeVoiceIntentForPublic,
   buildVoiceIntentEnvelope,
-  buildPartitionKey
+  buildPartitionKey,
+  classifyActionRiskFromText
 };
 
 
