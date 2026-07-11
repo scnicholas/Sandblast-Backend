@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "channels": [
+    {
+      "slug": "classic",
+      "displayName": "Sandblast Classics",
+      "enabled": true,
+      "fallbackUrl": "https://dn600300.us.archive.org/0/items/strangers-on-a-train-720p/Strangers%20On%20A%20Train%20720p.mp4"
+    },
+    {
+      "slug": "cartoons",
+      "displayName": "Sandblast Cartoons",
+      "enabled": true,
+      "fallbackUrl": "https://dn600301.us.archive.org/0/items/popeye-1940-1946/Popeye%201940-1946.ia.mp4"
+    }
+  ]
+}
