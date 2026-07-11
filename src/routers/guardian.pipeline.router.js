@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "guardian.pipeline.router v1.3.0 MARION-PERSONALITY-PRIORITY-R2 + PRIORITY2-GUARDIAN-BOUNDARY-ROUTING + TALON-ALIAS-COMPAT + DEFENSIVE-INTENT-APPROVAL-GATE";
+const VERSION = "guardian.pipeline.router v1.3.1 CJS-HARDENED + MARION-PERSONALITY-PRIORITY-R2 + PRIORITY2-GUARDIAN-BOUNDARY-ROUTING + TALON-ALIAS-COMPAT + DEFENSIVE-INTENT-APPROVAL-GATE";
 const PROTECTIVE_ESCALATION_ROUTING_VERSION = "nyx.marion.protectiveEscalationRouting/1.0";
 const SECURITY_PROTECTIVE_LAYER_VERSION = "nyx.marion.r18b.securityProtectiveLayer/1.0";
 
@@ -94,7 +94,7 @@ const DEFAULT_GUARDIAN_REGISTRY = Object.freeze({
   }
 });
 
-export class GuardianRoutingError extends Error {
+class GuardianRoutingError extends Error {
   constructor(message, details = {}) {
     super(message);
     this.name = "GuardianRoutingError";
@@ -102,17 +102,17 @@ export class GuardianRoutingError extends Error {
   }
 }
 
-export function getDefaultGuardianRegistry() {
+function getDefaultGuardianRegistry() {
   return clone(DEFAULT_GUARDIAN_REGISTRY);
 }
 
-export function normalizeGuardian(value = "marion", registry = DEFAULT_GUARDIAN_REGISTRY) {
+function normalizeGuardian(value = "marion", registry = DEFAULT_GUARDIAN_REGISTRY) {
   const raw = String(value || registry.defaultGuardian || "marion").trim().toLowerCase();
   const aliases = registry.aliases || {};
   return aliases[raw] || raw || "marion";
 }
 
-export function getGuardianProfile(guardian = "marion", registry = DEFAULT_GUARDIAN_REGISTRY) {
+function getGuardianProfile(guardian = "marion", registry = DEFAULT_GUARDIAN_REGISTRY) {
   const id = normalizeGuardian(guardian, registry);
   return (registry.guardians && registry.guardians[id]) || null;
 }
@@ -122,7 +122,7 @@ function normalizeIntentKey(value = "conversation") {
   return raw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "conversation";
 }
 
-export function deriveIntent(payload = {}) {
+function deriveIntent(payload = {}) {
   const raw = payload.intent || payload.command || payload.action || payload.type || "conversation";
   return normalizeIntentKey(raw);
 }
@@ -136,14 +136,17 @@ function isSensitiveProtectiveAction(payload = {}, intent = "") {
   const text = protectiveText(payload);
   return /\b(approve|deny|emergency|escalat|delete|deploy|publish|send|payment|transfer|registry|role|owner|admin|voice delivery|private voice|runtime|disable|shutdown|kill switch|credential|token|secret)\b/i.test(`${intent} ${text}`);
 }
-function isServerVerifiedAdminContext(payload = {}, dependencies = {}) {
-  const p = payload && typeof payload === "object" ? payload : {};
+function isServerVerifiedAdminContext(dependencies = {}) {
   const d = dependencies && typeof dependencies === "object" ? dependencies : {};
-  return p.adminVerified === true || p.mfaVerified === true || p.ownerVerified === true || p.trustedServerAuth === true || p.serverSideAdminAuth === true || d.adminVerified === true || d.mfaVerified === true || d.ownerVerified === true || d.trustedServerAuth === true || d.serverSideAdminAuth === true;
+  return d.adminVerified === true ||
+    d.mfaVerified === true ||
+    d.ownerVerified === true ||
+    d.trustedServerAuth === true ||
+    d.serverSideAdminAuth === true;
 }
-export function buildSecurityProtectiveBoundary(payload = {}, intent = "conversation", guardian = "marion", profile = {}) {
+function buildSecurityProtectiveBoundary(payload = {}, intent = "conversation", guardian = "marion", profile = {}, dependencies = {}) {
   const sensitive = isSensitiveProtectiveAction(payload, intent);
-  const verified = isServerVerifiedAdminContext(payload, {});
+  const verified = isServerVerifiedAdminContext(dependencies);
   return {
     version: SECURITY_PROTECTIVE_LAYER_VERSION,
     active: sensitive || guardian === "marion",
@@ -188,14 +191,14 @@ function buildMarionPersonaBoundary(context = {}) {
   };
 }
 
-export function isProtectiveEscalationIntent(intent = "", payload = {}) {
+function isProtectiveEscalationIntent(intent = "", payload = {}) {
   const key = normalizeIntentKey(intent);
   const text = String(payload.text || payload.message || payload.input || payload.prompt || payload.directReply || "").toLowerCase();
   return ["defensive_boundary_review", "protective_escalation_review", "protection_signal"].includes(key) ||
     /\b(defen[cs]e|defensive|protect|protection|protective|personal safety|emergency|alarm|alert|escalation|intent justifier|ethical boundary|verified command|code word|codeword)\b/i.test(text);
 }
 
-export function buildGuardianEthicalBoundary(payload = {}, intent = "conversation", guardian = "marion", profile = {}) {
+function buildGuardianEthicalBoundary(payload = {}, intent = "conversation", guardian = "marion", profile = {}) {
   const protective = isProtectiveEscalationIntent(intent, payload);
   return {
     version: PROTECTIVE_ESCALATION_ROUTING_VERSION,
@@ -216,19 +219,19 @@ export function buildGuardianEthicalBoundary(payload = {}, intent = "conversatio
   };
 }
 
-export function isIntentAllowed(profile = {}, intent = "conversation") {
+function isIntentAllowed(profile = {}, intent = "conversation") {
   const allowed = Array.isArray(profile.allowedIntents) ? profile.allowedIntents.map(normalizeIntentKey) : [];
   const key = normalizeIntentKey(intent);
   return allowed.length === 0 || allowed.includes(key) || key === "conversation";
 }
 
-export function createTraceId(prefix = "guardian") {
+function createTraceId(prefix = "guardian") {
   const c = globalThis.crypto;
   if (c && typeof c.randomUUID === "function") return c.randomUUID();
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function buildGuardianPacket(overrides = {}, registry = DEFAULT_GUARDIAN_REGISTRY) {
+function buildGuardianPacket(overrides = {}, registry = DEFAULT_GUARDIAN_REGISTRY) {
   const guardian = normalizeGuardian(overrides.guardian || registry.defaultGuardian || "marion", registry);
   const profile = getGuardianProfile(guardian, registry) || {};
   const defaults = registry.packetDefaults || {};
@@ -257,8 +260,8 @@ export function buildGuardianPacket(overrides = {}, registry = DEFAULT_GUARDIAN_
   };
 }
 
-export async function routeGuardianMessage(payload = {}, dependencies = {}) {
-  const registry = dependencies.registry || payload.registry || DEFAULT_GUARDIAN_REGISTRY;
+async function routeGuardianMessage(payload = {}, dependencies = {}) {
+  const registry = dependencies.registry || DEFAULT_GUARDIAN_REGISTRY;
   const requested = payload.guardian || payload.guardianMode || payload.targetGuardian || registry.defaultGuardian || "marion";
   let guardian = normalizeGuardian(requested, registry);
   let profile = getGuardianProfile(guardian, registry);
@@ -277,7 +280,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
   }
 
   ethicalBoundary = buildGuardianEthicalBoundary(payload, intent, guardian, profile || {});
-  const securityProtectiveLayer = buildSecurityProtectiveBoundary(payload, intent, guardian, profile || {});
+  const securityProtectiveLayer = buildSecurityProtectiveBoundary(payload, intent, guardian, profile || {}, dependencies);
 
   if (!isIntentAllowed(profile, intent)) {
     const packet = buildGuardianPacket({
@@ -299,7 +302,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
   }
 
   if (guardian === "marion") {
-    const marionHandler = dependencies.marionHandler || dependencies.handlers?.marion || payload.marionHandler;
+    const marionHandler = dependencies.marionHandler || dependencies.handlers?.marion;
     if (typeof marionHandler !== "function") {
       const packet = buildGuardianPacket({
         guardian: "marion",
@@ -323,7 +326,7 @@ export async function routeGuardianMessage(payload = {}, dependencies = {}) {
     return packet;
   }
 
-  const handler = dependencies.handlers?.[guardian] || payload.guardianHandler;
+  const handler = dependencies.handlers?.[guardian];
   if (profile.status !== "active" || typeof handler !== "function") {
     const packet = buildGuardianPacket({
       guardian,
@@ -409,4 +412,23 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-export { SECURITY_PROTECTIVE_LAYER_VERSION };
+const exported = {
+  VERSION,
+  PROTECTIVE_ESCALATION_ROUTING_VERSION,
+  SECURITY_PROTECTIVE_LAYER_VERSION,
+  GuardianRoutingError,
+  getDefaultGuardianRegistry,
+  normalizeGuardian,
+  getGuardianProfile,
+  deriveIntent,
+  buildSecurityProtectiveBoundary,
+  isProtectiveEscalationIntent,
+  buildGuardianEthicalBoundary,
+  isIntentAllowed,
+  createTraceId,
+  buildGuardianPacket,
+  routeGuardianMessage
+};
+
+module.exports = exported;
+module.exports.default = exported;
