@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "lint:sandblast-tv": "node --check SandblastTV/index.js && node --check SandblastTV/routes.js && node --check SandblastTV/manifestStore.js && node --check SandblastTV/schedulerService.js && node --check SandblastTV/mediaValidator.js && node --check SandblastTV/widgetBridge.js",
+    "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js"
+  },
+  "dependenciesAdded": []
+}
