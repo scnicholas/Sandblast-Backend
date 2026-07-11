@@ -1355,3 +1355,252 @@ function r18cApplyLawRouterSignals(result,norm,session,cog){
 })();
 /* R18C_FULL_STACK_DOMAIN_ROUTER_WRAP_END */
 
+
+/* MARION_DOMAIN_ROUTER_CRITICAL_LAYERING_PATCH_V1_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION = "domainRouter.criticalLayeringPatch/1.0-preserve-originals";
+  if (typeof module === "undefined" || !module.exports || typeof module.exports !== "object") return;
+  if (module.exports.__marionDomainRouterCriticalLayeringPatchV1) return;
+
+  const SIX = Object.freeze(["psychology", "english", "ai", "cyber", "law", "finance"]);
+  const DOMAIN_ALIASES = Object.freeze({
+    psych: "psychology",
+    emotional: "psychology",
+    emotion: "psychology",
+    language: "english",
+    writing: "english",
+    grammar: "english",
+    artificial_intelligence: "ai",
+    machine_learning: "ai",
+    cybersecurity: "cyber",
+    security: "cyber",
+    legal: "law",
+    financial: "finance",
+    economics: "finance",
+    technical_debug: "technical",
+    tech: "technical"
+  });
+  const HIGH_STAKES = Object.freeze(["law", "finance", "cyber"]);
+  const TELEMETRY_LEAK_RX = /\b(routeKind=|speechHints=|presenceProfile=|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority=|nyxStateHint=|diagnostic packet|final envelope missing|non-final|runtimeTelemetry|failureSignature)\b/i;
+  const PUBLIC_DEBUG_RX = /\b(MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE_|nyx\.marion\.|stateSpine|finalEnvelope|sessionPatch|runtimeTelemetry|replyAuthority|failureSignature)\b/i;
+
+  function text(value, max){
+    const limit = Number.isFinite(Number(max)) ? Math.max(8, Math.min(Number(max), 4000)) : 1200;
+    return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
+  }
+  function obj(value){ return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+  function arr(value){ return Array.isArray(value) ? value : []; }
+  function clamp01(value, fallback){
+    const n = Number(value);
+    if (!Number.isFinite(n)) return Number.isFinite(Number(fallback)) ? Math.max(0, Math.min(1, Number(fallback))) : 0;
+    return Math.max(0, Math.min(1, n));
+  }
+  function key(value){ return text(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
+  function canonicalDomain(value){
+    const k = key(value);
+    if (!k) return "";
+    return DOMAIN_ALIASES[k] || k;
+  }
+  function uniqueDomains(value, primary){
+    const p = canonicalDomain(primary);
+    const out = [];
+    const seen = new Set();
+    arr(value).forEach(function(item){
+      const d = canonicalDomain(item);
+      if (!d || d === p || seen.has(d)) return;
+      seen.add(d);
+      out.push(d);
+    });
+    return out.slice(0, 4);
+  }
+  function readTextFrom(){
+    const parts = [];
+    Array.prototype.slice.call(arguments).forEach(function(input){
+      if (!input) return;
+      if (typeof input === "string") { parts.push(input); return; }
+      const source = obj(input);
+      [source.text, source.message, source.query, source.prompt, source.userText, source.rawUserText, source.normalizedUserIntent].forEach(function(v){ if (text(v, 1600)) parts.push(v); });
+      const nested = [source.payload, source.body, source.turn, source.command, source.meta, source.routing];
+      nested.forEach(function(n){
+        const o = obj(n);
+        [o.text, o.message, o.query, o.prompt, o.userText, o.rawUserText, o.normalizedUserIntent].forEach(function(v){ if (text(v, 1600)) parts.push(v); });
+      });
+    });
+    return text(parts.join(" "), 1800);
+  }
+  function hash(value){
+    const source = text(value, 1800).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    let h = 2166136261;
+    for (let i = 0; i < source.length; i += 1) { h ^= source.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16);
+  }
+  function stripLeakText(value){
+    let out = text(value, 1200);
+    if (!out) return "";
+    if (TELEMETRY_LEAK_RX.test(out) || PUBLIC_DEBUG_RX.test(out)) {
+      out = out
+        .replace(/\b(routeKind|speechHints|presenceProfile|finalEnvelope|sessionPatch|marionFinal|transportSafe|replyAuthority|nyxStateHint|runtimeTelemetry|failureSignature)\s*=\s*[^.;,\n]+[.;,]?\s*/gi, "")
+        .replace(/\b(?:diagnostic packet|final envelope missing|non-final|runtimeTelemetry|failureSignature)\b/gi, "")
+        .replace(/\bMARION::FINAL::[^\s]+/gi, "")
+        .replace(/\bCHATENGINE_COORDINATOR_ONLY_ACTIVE_\d+\b/gi, "")
+        .replace(/\bnyx\.marion\.[a-z0-9./_-]+\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    return out;
+  }
+  function normalizeDomainConfidence(dc, primary, secondary, sourceText){
+    const input = obj(dc);
+    const p = canonicalDomain(primary || input.primaryDomain || input.selectedDomain || input.domain || input.primary || "core") || "core";
+    const s = uniqueDomains(secondary || input.secondaryDomains || [], p);
+    const confidence = clamp01(input.confidence ?? input.confidenceScore, p === "core" ? 0.48 : 0.86);
+    const margin = clamp01(input.margin, confidence >= 0.82 ? 0.2 : 0.04);
+    const ambiguous = !!input.ambiguous || (confidence < 0.62 && !input.routeLocked);
+    return Object.assign({}, input, {
+      version: text(input.version || "nyx.marion.domainConfidence/1.3-critical-layering", 120),
+      primaryDomain: p,
+      selectedDomain: p,
+      domain: p,
+      knowledgeDomain: SIX.includes(p) ? p : text(input.knowledgeDomain || "", 80),
+      secondaryDomains: s,
+      confidence,
+      confidenceScore: confidence,
+      margin,
+      ambiguous,
+      routeLocked: input.routeLocked === true || confidence >= 0.82 || HIGH_STAKES.includes(p),
+      failClosed: input.failClosed === true || (ambiguous && confidence < 0.48),
+      needsClarifier: input.needsClarifier === true || (ambiguous && confidence < 0.62),
+      highStakes: input.highStakes === true || HIGH_STAKES.includes(p),
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true,
+      publicSurfaceClean: true,
+      sourceTextHash: input.sourceTextHash || hash(sourceText || "")
+    });
+  }
+  function buildCoverage(scores, dc, primary, secondary){
+    const scoreObj = obj(scores);
+    const conf = normalizeDomainConfidence(dc, primary, secondary, "");
+    return SIX.map(function(domain){
+      const raw = Number(scoreObj[domain]);
+      const selected = conf.primaryDomain === domain || conf.selectedDomain === domain || conf.knowledgeDomain === domain;
+      const sec = arr(conf.secondaryDomains).includes(domain);
+      const fallback = selected ? conf.confidence : (sec ? Math.max(0.55, conf.confidence * 0.75) : 0);
+      return {
+        domain,
+        score: Number((Number.isFinite(raw) ? raw : fallback).toFixed(4)),
+        confidence: Number(clamp01(Number.isFinite(raw) ? raw : fallback, fallback).toFixed(4)),
+        selected,
+        secondary: sec,
+        accessible: true
+      };
+    });
+  }
+  function projectRoute(base, sourceText){
+    if (!base || typeof base !== "object") return base;
+    const out = Object.assign({}, base);
+    const routing = obj(out.routing);
+    let primary = canonicalDomain(out.primary || out.primaryDomain || out.selectedDomain || out.domain || routing.primaryDomain || routing.selectedDomain || routing.domain || routing.knowledgeDomain || "");
+    if (!primary) primary = "core";
+    const secondary = uniqueDomains(out.secondary || out.secondaryDomains || routing.secondaryDomains || [], primary);
+    const knowledgeDomain = SIX.includes(primary) ? primary : text(out.knowledgeDomain || routing.knowledgeDomain || "", 80);
+    const scores = obj(out.scores || routing.scores);
+    const dc = normalizeDomainConfidence(out.domainConfidence || routing.domainConfidence, primary, secondary, sourceText);
+    const reason = stripLeakText(out.reason || routing.reason || dc.reason || "route_projected");
+    const signals = Object.assign({}, obj(out.signals), obj(routing.signals), {
+      marionCriticalLayeringPatch: true,
+      publicSurfaceClean: true,
+      noUserFacingDiagnostics: true,
+      sourceTextHash: hash(sourceText || ""),
+      inputSource: (typeof module.exports.normalizeInputSource === "function" ? module.exports.normalizeInputSource(readTextFrom({inputSource: out.inputSource || routing.inputSource})) : "") || out.inputSource || routing.inputSource || "text"
+    });
+    out.primary = primary;
+    out.primaryDomain = primary;
+    out.selectedDomain = primary;
+    out.domain = primary;
+    out.knowledgeDomain = knowledgeDomain;
+    out.secondary = secondary;
+    out.secondaryDomains = secondary;
+    out.reason = reason;
+    out.signals = signals;
+    out.domainConfidence = dc;
+    out.sixDomainCoverage = buildCoverage(scores, dc, primary, secondary);
+    out.highStakes = dc.highStakes === true;
+    out.noCrossDomainBleed = true;
+    out.noUserFacingDiagnostics = true;
+    out.publicSurfaceClean = true;
+    out.marionConversationLayer = Object.assign({}, obj(out.marionConversationLayer), {
+      version: PATCH_VERSION,
+      stage: "domain_route_projected",
+      primaryDomain: primary,
+      secondaryDomains: secondary,
+      knowledgeDomain,
+      sourceTextHash: hash(sourceText || ""),
+      voiceTextParitySafe: true,
+      telemetryLeakBlocked: true
+    });
+    out.routing = Object.assign({}, routing, {
+      domain: primary,
+      primaryDomain: primary,
+      selectedDomain: primary,
+      knowledgeDomain,
+      secondaryDomains: secondary,
+      reason,
+      signals,
+      domainConfidence: dc,
+      sixDomainCoverage: out.sixDomainCoverage,
+      highStakes: out.highStakes,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true,
+      publicSurfaceClean: true
+    });
+    return out;
+  }
+  function projectScore(base, sourceText){
+    if (!base || typeof base !== "object") return base;
+    const out = Object.assign({}, base);
+    const scores = Object.assign({}, obj(out.scores));
+    const strongest = Object.keys(scores).reduce(function(best, d){ return Number(scores[d] || 0) > Number(scores[best] || 0) ? d : best; }, Object.keys(scores)[0] || "core");
+    const primary = canonicalDomain(out.primaryDomain || out.primary || out.domain || strongest || "core") || "core";
+    const secondary = uniqueDomains(out.secondaryDomains || out.secondary || [], primary);
+    const dc = normalizeDomainConfidence(out.domainConfidence, primary, secondary, sourceText);
+    out.primaryDomain = primary;
+    out.selectedDomain = primary;
+    out.domain = primary;
+    out.secondaryDomains = secondary;
+    out.domainConfidence = dc;
+    out.sixDomainCoverage = buildCoverage(scores, dc, primary, secondary);
+    out.signals = Object.assign({}, obj(out.signals), { marionCriticalLayeringPatch: true, sourceTextHash: hash(sourceText || ""), noUserFacingDiagnostics: true });
+    return out;
+  }
+
+  const oldRoute = module.exports.routeDomain;
+  const oldScore = module.exports.scoreDomains;
+  if (typeof oldRoute === "function" && !oldRoute.__marionCriticalLayeringPatchV1) {
+    const wrapped = function(){
+      const sourceText = readTextFrom.apply(null, arguments);
+      const base = oldRoute.apply(this, arguments);
+      return projectRoute(base, sourceText);
+    };
+    try { Object.keys(oldRoute).forEach(function(k){ wrapped[k] = oldRoute[k]; }); } catch (_) {}
+    wrapped.__marionCriticalLayeringPatchV1 = true;
+    module.exports.routeDomain = wrapped;
+  }
+  if (typeof oldScore === "function" && !oldScore.__marionCriticalLayeringPatchV1) {
+    const wrapped = function(){
+      const sourceText = readTextFrom.apply(null, arguments);
+      const base = oldScore.apply(this, arguments);
+      return projectScore(base, sourceText);
+    };
+    try { Object.keys(oldScore).forEach(function(k){ wrapped[k] = oldScore[k]; }); } catch (_) {}
+    wrapped.__marionCriticalLayeringPatchV1 = true;
+    module.exports.scoreDomains = wrapped;
+  }
+
+  module.exports.MARION_DOMAIN_ROUTER_CRITICAL_LAYERING_PATCH_VERSION = PATCH_VERSION;
+  module.exports.marionCriticalProjectDomainRoute = projectRoute;
+  module.exports.marionCriticalProjectDomainScore = projectScore;
+  module.exports.marionCriticalCanonicalDomain = canonicalDomain;
+  module.exports.__marionDomainRouterCriticalLayeringPatchV1 = true;
+})();
+/* MARION_DOMAIN_ROUTER_CRITICAL_LAYERING_PATCH_V1_END */
