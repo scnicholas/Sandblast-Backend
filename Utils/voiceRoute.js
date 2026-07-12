@@ -16,7 +16,7 @@ const ttsMod = require("./tts");
 let chatEngine = null;
 try { chatEngine = require("./chatEngine"); } catch (_e) { chatEngine = null; }
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.2.0 PLAYBACK-CONTRACT-HARDEN";
+const VOICE_ROUTE_VERSION = "voiceRoute v1.3.0 NYX-AUDIO-FIRST-REACTIVATION";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 1));
 
 function safeStr(x) {
@@ -55,17 +55,23 @@ function wantsJson(req) {
 }
 
 function clientWantsJson(req) {
+  // Request bodies are commonly JSON even when the caller expects binary audio.
+  // Only an explicit response-mode request may switch this route to JSON/base64.
   if (wantsJson(req)) return true;
   const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
   const accept = safeStr(headers.accept || "").toLowerCase();
-  const requestedWith = safeStr(headers["x-requested-with"] || "").toLowerCase();
-  const secFetchDest = safeStr(headers["sec-fetch-dest"] || "").toLowerCase();
-  const contentType = safeStr(headers["content-type"] || "").toLowerCase();
-  if (accept.includes("application/json") || accept.includes("text/json")) return true;
-  if (requestedWith === "xmlhttprequest") return true;
-  if (secFetchDest === "empty") return true;
-  if (contentType.includes("application/json")) return true;
-  return false;
+  const responseMode = safeStr(
+    headers["x-sb-response-mode"] || headers["x-response-mode"] || headers["x-tts-mode"] || ""
+  ).toLowerCase();
+
+  if (["audio", "binary", "stream", "audio-first"].includes(responseMode)) return false;
+  if (["json", "json-audio", "audio-json", "base64-audio"].includes(responseMode)) return true;
+
+  // */* is the normal fetch() default and must remain audio-first.
+  if (!accept || accept.includes("audio/") || accept.includes("application/octet-stream") || accept.includes("*/*")) {
+    return false;
+  }
+  return accept.includes("application/json") || accept.includes("text/json");
 }
 function hasAnyValue(v) {
   return !(v === undefined || v === null || v === "");
@@ -107,19 +113,41 @@ function extractFormat(result, mime) {
   if (m.includes("webm")) return "webm";
   return "mp3";
 }
+function extractAudioBuffer(result) {
+  const candidates = [
+    result && result.buffer,
+    result && result.audioBuffer,
+    result && result.binary,
+    result && result.audio,
+    result && result.data,
+    result && result.payload && result.payload.buffer,
+    result && result.payload && result.payload.audioBuffer,
+    result && result.payload && result.payload.binary,
+    result && result.payload && result.payload.audio
+  ];
+  for (const candidate of candidates) {
+    if (Buffer.isBuffer(candidate)) return candidate;
+    if (candidate instanceof Uint8Array) return Buffer.from(candidate);
+    if (candidate && candidate.type === "Buffer" && Array.isArray(candidate.data)) {
+      try { return Buffer.from(candidate.data); } catch (_e) {}
+    }
+  }
+  return null;
+}
 function extractAudioBase64(result) {
   const direct = pickFirst(
     result && result.audioBase64,
     result && result.base64,
     result && result.audio && result.audio.base64,
     result && result.audio && result.audio.audioBase64,
-    result && result.payload && result.payload.audioBase64
+    result && result.payload && result.payload.audioBase64,
+    result && result.payload && result.payload.base64
   );
-  if (typeof direct === "string" && direct.trim()) return direct.trim();
-  if (result && Buffer.isBuffer(result.audio)) return result.audio.toString("base64");
-  if (result && Buffer.isBuffer(result.buffer)) return result.buffer.toString("base64");
-  if (result && Buffer.isBuffer(result.data)) return result.data.toString("base64");
-  return "";
+  if (typeof direct === "string" && direct.trim()) {
+    return direct.trim().replace(/^data:audio\/[^;]+;base64,/i, "").replace(/\s+/g, "");
+  }
+  const buffer = extractAudioBuffer(result);
+  return buffer && buffer.length ? buffer.toString("base64") : "";
 }
 function buildPlayableAudioEnvelope(input, result) {
   const mimeType = extractMime(result);
@@ -127,7 +155,8 @@ function buildPlayableAudioEnvelope(input, result) {
   const audioUrl = extractAudioUrl(result);
   const audioBase64 = extractAudioBase64(result);
   const text = safeStr(pickFirst(result && result.text, result && result.textSpeak, input.textDisplay, input.text));
-  const playable = !!(audioUrl || audioBase64 || (result && Buffer.isBuffer(result.audio)));
+  const audioBuffer = extractAudioBuffer(result);
+  const playable = !!(audioUrl || audioBase64 || (audioBuffer && audioBuffer.length));
   return {
     ok: !!(result && result.ok),
     version: VOICE_ROUTE_VERSION,
@@ -146,6 +175,7 @@ function buildPlayableAudioEnvelope(input, result) {
     audioUrl,
     url: audioUrl,
     audioBase64,
+    byteLength: audioBuffer && audioBuffer.length ? audioBuffer.length : 0,
     chars: clampInt(text.length, 0, 0, 999999),
     playable,
     autoPlay: true,
@@ -153,6 +183,7 @@ function buildPlayableAudioEnvelope(input, result) {
       url: audioUrl,
       audioUrl,
       audioBase64,
+      byteLength: audioBuffer && audioBuffer.length ? audioBuffer.length : 0,
       mimeType,
       mime: mimeType,
       format,
@@ -342,6 +373,9 @@ async function health() {
 async function voiceRoute(req, res) {
   const input = normalizeInput(req);
   setHeaderSafe(res, "X-SB-Voice-Route-Version", VOICE_ROUTE_VERSION);
+  setHeaderSafe(res, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  setHeaderSafe(res, "Vary", "Accept");
+  setHeaderSafe(res, "X-SB-Audio-Contract", "audio-first-v2");
 
   let attempt = 0;
   let result = null;
@@ -357,17 +391,38 @@ async function voiceRoute(req, res) {
 
   if (result && result.ok) {
     const playable = buildPlayableAudioEnvelope(input, result);
-    setHeaderSafe(res, "X-SB-TTS-Action", "success");
+    const audioBuffer = extractAudioBuffer(result) || (
+      playable.audioBase64 ? Buffer.from(playable.audioBase64, "base64") : null
+    );
+    setHeaderSafe(res, "X-SB-TTS-Action", playable.playable ? "success" : "empty-audio");
     setHeaderSafe(res, "X-SB-TTS-Provider", safeStr(playable.provider || "resemble"));
     setHeaderSafe(res, "X-SB-TTS-Upstream-Status", String(clampInt(playable.providerStatus || 200, 200, 0, 999999)));
     setHeaderSafe(res, "X-SB-TTS-Playable", playable.playable ? "1" : "0");
 
-    if (input.wantJson || playable.audioUrl || playable.audioBase64 || !Buffer.isBuffer(result.audio)) {
+    if (!playable.playable) {
+      result = {
+        ...result,
+        ok: false,
+        retryable: true,
+        reason: "tts_empty_audio",
+        message: "TTS reported success without a playable audio payload.",
+        providerStatus: 502
+      };
+      decision = classifyFailure(result, attempt);
+    } else if (input.wantJson) {
+      setHeaderSafe(res, "X-SB-Response-Mode", "json-audio");
+      return res.status(200).json(playable);
+    } else if (audioBuffer && audioBuffer.length) {
+      setHeaderSafe(res, "X-SB-Response-Mode", "audio");
+      setHeaderSafe(res, "Content-Type", safeStr(playable.mimeType || "audio/mpeg"));
+      setHeaderSafe(res, "Content-Length", String(audioBuffer.length));
+      setHeaderSafe(res, "Accept-Ranges", "none");
+      return res.status(200).send(audioBuffer);
+    } else {
+      // URL-only provider output cannot be streamed locally; return the URL envelope.
+      setHeaderSafe(res, "X-SB-Response-Mode", "json-url");
       return res.status(200).json(playable);
     }
-
-    setHeaderSafe(res, "Content-Type", safeStr(playable.mimeType || "audio/mpeg"));
-    return res.status(200).send(result.audio);
   }
 
   decision = decision || classifyFailure(result || {}, attempt);
