@@ -8,7 +8,7 @@
 /**
  * Sandblast Backend â€” index.js
  *
- * index.js v2.18.5sb CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION
+ * index.js v2.18.6sb NYX-VOICE-REACTIVATION-AUDIO-FIRST-HARDLOCK
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -3297,6 +3297,10 @@ function buildPublicVoiceSurfaceFromReply(safeReply, voiceRoute) {
       ready: !!route,
       autoPlay: true,
       route: route || undefined,
+      responseMode: "audio",
+      accept: "audio/mpeg, audio/wav;q=0.9, */*;q=0.1",
+      serverLockedVoice: true,
+      clientVoiceOverrideAllowed: false,
       textSpeak: clean
     },
     tts: {
@@ -9995,6 +9999,10 @@ async function buildLanguageSphereDirectTranslationResponse(norm = {}, sessionId
         compatibilityRoute: routeUrl("/tts"),
         health: routeUrl("/api/tts/health"),
         compatibilityHealth: routeUrl("/tts/health"),
+        responseMode: "audio",
+        accept: "audio/mpeg, audio/wav;q=0.9, */*;q=0.1",
+        serverLockedVoice: true,
+        clientVoiceOverrideAllowed: false,
         textSpeak: cleanText(withAudio.audio && withAudio.audio.textToSynth || speech && speech.textSpeak || translatedText || ""),
         provider: cleanText(withAudio.audio && withAudio.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
       };
@@ -12319,7 +12327,8 @@ function normalizeTtsRoutePayload(raw, req) {
     (mimeType === "audio/mpeg" ? "mp3" : mimeType.replace(/^audio\//i, ""))
   ) || "mp3";
 
-  const playable = !!(audioUrl || audioBase64 || src.playable === true || audio.playable === true || payload.playable === true);
+  // Never advertise playable audio without an actual URL or base64 payload.
+  const playable = !!(audioUrl || audioBase64);
   const autoPlay = boolish(
     src.autoPlay !== undefined ? src.autoPlay :
     audio.autoPlay !== undefined ? audio.autoPlay :
@@ -12353,6 +12362,11 @@ function normalizeTtsRoutePayload(raw, req) {
     ok: src.ok !== false && playable,
     playable,
     spokenUnavailable: !playable,
+    error: firstTruthyString(src.error, src.reason, payload.error, payload.reason),
+    reason: firstTruthyString(src.reason, src.error, payload.reason, payload.error),
+    detail: firstTruthyString(src.detail, src.message, payload.detail, payload.message),
+    retryable: boolish(src.retryable !== undefined ? src.retryable : payload.retryable, false),
+    providerStatus: Number(src.providerStatus || src.status || payload.providerStatus || payload.status || 0) || 0,
     traceId,
     audio: normalizedAudio,
     audioUrl: normalizedAudio.audioUrl,
@@ -12398,6 +12412,12 @@ function normalizeTtsRoutePayload(raw, req) {
 }
 
 async function dispatchTts(req, res) {
+  hardenConversationNoStore(res);
+  try {
+    res.setHeader("Vary", "Accept");
+    res.setHeader("X-SB-Audio-Contract", "audio-first-v2");
+    res.setHeader("X-SB-TTS-Response-Mode", "binary-audio-default");
+  } catch (_) {}
   const moduleHandler = ttsHandlerFromModule(ttsMod);
   if (CFG.httpLogEnabled) {
     console.log("[Sandblast][ttsRoute:dispatch]", { path: req.originalUrl || req.path || "/api/tts", hasHandler: !!moduleHandler, host: getBackendPublicBase(), traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || "") });
@@ -12440,7 +12460,12 @@ function attachVoiceRoute(base) {
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     jsonAudioSupported: true,
     streamAudioSupported: true,
-    contractVersion: "audio-first-v1",
+    contractVersion: "audio-first-v2",
+    responseMode: "audio",
+    accept: "audio/mpeg, audio/wav;q=0.9, */*;q=0.1",
+    jsonAudioOptInRequired: true,
+    serverLockedVoice: true,
+    clientVoiceOverrideAllowed: false,
     deterministicAudio: true,
     failOpenChat: true,
     traceHeader: "x-sb-trace-id"
@@ -12470,7 +12495,12 @@ function normalizeVoiceRouteResponse(out) {
     preserveMixerVoice: !!out.preserveMixerVoice,
     jsonAudioSupported: out.jsonAudioSupported !== false,
     streamAudioSupported: out.streamAudioSupported !== false,
-    contractVersion: cleanText(out.contractVersion || "audio-first-v1") || "audio-first-v1",
+    contractVersion: cleanText(out.contractVersion || "audio-first-v2") || "audio-first-v2",
+    responseMode: cleanText(out.responseMode || "audio") || "audio",
+    accept: cleanText(out.accept || "audio/mpeg, audio/wav;q=0.9, */*;q=0.1") || "audio/mpeg, audio/wav;q=0.9, */*;q=0.1",
+    jsonAudioOptInRequired: out.jsonAudioOptInRequired !== false,
+    serverLockedVoice: out.serverLockedVoice !== false,
+    clientVoiceOverrideAllowed: out.clientVoiceOverrideAllowed === true,
     deterministicAudio: out.deterministicAudio !== false,
     failOpenChat: out.failOpenChat !== false,
     traceHeader: cleanText(out.traceHeader || "x-sb-trace-id") || "x-sb-trace-id",
@@ -13754,6 +13784,7 @@ app.get("/api/health", (req, res) => {
 
 app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], enforceVoiceRouteAccess, async (req, res) => {
   hardenCors(req, res);
+  hardenConversationNoStore(res);
   const handler = ttsHealthFromModule(ttsMod);
   if (!handler) {
     return res.status(200).json({
@@ -13790,6 +13821,7 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
 
 app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
   hardenCors(req, res);
+  hardenConversationNoStore(res);
   try {
     return await dispatchTts(req, res);
   } catch (err) {
@@ -15032,10 +15064,14 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         packFile: cleanText(selected.meta && selected.meta.packetBridgePackFile || "")
       },
       audioContract: {
-        version: "audio-first-v1",
+        version: "audio-first-v2",
         endpoint: routeUrl("/api/tts"),
         healthEndpoint: routeUrl("/api/tts/health"),
         compatibilityHealthEndpoint: routeUrl("/tts/health"),
+        responseMode: "audio",
+        accept: "audio/mpeg, audio/wav;q=0.9, */*;q=0.1",
+        serverLockedVoice: true,
+        clientVoiceOverrideAllowed: false,
         deterministicAudio: true,
         failOpenChat: true
       }
@@ -15050,6 +15086,10 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       compatibilityRoute: routeUrl("/tts"),
       health: routeUrl("/api/tts/health"),
       compatibilityHealth: routeUrl("/tts/health"),
+      responseMode: "audio",
+      accept: "audio/mpeg, audio/wav;q=0.9, */*;q=0.1",
+      serverLockedVoice: true,
+      clientVoiceOverrideAllowed: false,
       textSpeak: cleanText(selected.audio && selected.audio.textToSynth || speech && speech.textSpeak || reply || ""),
       provider: cleanText(selected.audio && selected.audio.provider || process.env.TTS_PROVIDER || "resemble") || "resemble"
     },
@@ -22657,7 +22697,72 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
     return out;}
   function promptFromArgs(args,res){for(var i=0;i<args.length;i++){var g=extract(args[i]);if(g)return g;}return extract(res);}
   function wrap(fn,name){if(typeof fn!=="function"||fn.__marionPresenceRouteBoundaryR12)return fn;var wrapped=function(){var self=this,args=Array.prototype.slice.call(arguments),p=promptFromArgs(args),k=node(p),light=k!=="standard"&&k!=="unknown";try{var out=fn.apply(self,args);if(out&&typeof out.then==="function"){if(light){return Promise.race([out.then(function(v){return apply(v,p,"resolved_shape");}).catch(function(){return packet(p,"promise_exception_failopen");}),new Promise(function(resolve){setTimeout(function(){resolve(packet(p,"promise_timeout_failopen"));},1400);})]);}return out.then(function(v){return apply(v,p,"resolved_shape");});}return apply(out,p,"sync_shape");}catch(e){if(light)return packet(p,"throw_failopen");throw e;}};try{Object.keys(fn).forEach(function(k){wrapped[k]=fn[k];});}catch(_){}wrapped.__marionPresenceRouteBoundaryR12=true;return wrapped;}
-  function patchExpress(fn){if(typeof fn!=="function"||fn.__marionPresenceExpressR12)return fn;var w=async function(req,res){var p=extract((req&&req.body)||{})||extract((req&&req.query)||{});var k=node(p);var light=k!=="standard"&&k!=="unknown";var done=false;var origJson=res&&typeof res.json==="function"?res.json.bind(res):null;var origStatus=res&&typeof res.status==="function"?res.status.bind(res):null;var timer=null;function can(){return res&&origJson&&!done&&!res.headersSent&&!res.writableEnded;}if(origJson){res.json=function(payload){if(done)return res;done=true;if(timer)clearTimeout(timer);var shaped=apply(payload,p,"express_json_shape");try{if(light&&origStatus)origStatus(200);}catch(_){}return origJson(shaped);};}if(origStatus){res.status=function(code){if(light&&Number(code)>=400)return origStatus(200);return origStatus(code);};}if(light&&origJson){timer=setTimeout(function(){if(!can())return;done=true;try{if(origStatus)origStatus(200);}catch(_){}try{origJson(packet(p,"express_timeout_boundary"));}catch(_){}},1200);}try{var out=fn.apply(this,arguments);if(out&&typeof out.then==="function")return out.catch(function(e){if(light&&can()){done=true;if(timer)clearTimeout(timer);try{if(origStatus)origStatus(200);}catch(_){}return origJson(packet(p,"express_exception_boundary"));}throw e;});return out;}catch(e){if(light&&can()){done=true;if(timer)clearTimeout(timer);try{if(origStatus)origStatus(200);}catch(_){}return origJson(packet(p,"express_throw_boundary"));}throw e;}};w.__marionPresenceExpressR12=true;return w;}
+  /* SANDBLAST_TV_EXPRESS_ISOLATION_V1: R12 request boundary */
+  function isSandblastTvRequest(req){
+    var requestPath=String((req&&(req.originalUrl||req.url||req.path))||"").split("?")[0].toLowerCase();
+    return requestPath==="/api/sandblast-tv/v1"||requestPath.indexOf("/api/sandblast-tv/v1/")===0;
+  }
+  function patchExpress(fn){
+    if(typeof fn!=="function"||fn.__marionPresenceExpressR12)return fn;
+    var w=async function(req,res){
+      if(isSandblastTvRequest(req))return fn.apply(this,arguments);
+      var p=extract((req&&req.body)||{})||extract((req&&req.query)||{});
+      var k=node(p);
+      var light=k!=="standard"&&k!=="unknown";
+      var done=false;
+      var origJson=res&&typeof res.json==="function"?res.json.bind(res):null;
+      var origStatus=res&&typeof res.status==="function"?res.status.bind(res):null;
+      var timer=null;
+      function can(){return res&&origJson&&!done&&!res.headersSent&&!res.writableEnded;}
+      if(origJson){
+        res.json=function(payload){
+          if(done)return res;
+          done=true;
+          if(timer)clearTimeout(timer);
+          var shaped=apply(payload,p,"express_json_shape");
+          try{if(light&&origStatus)origStatus(200);}catch(_){}
+          return origJson(shaped);
+        };
+      }
+      if(origStatus){
+        res.status=function(code){
+          if(light&&Number(code)>=400)return origStatus(200);
+          return origStatus(code);
+        };
+      }
+      if(light&&origJson){
+        timer=setTimeout(function(){
+          if(!can())return;
+          done=true;
+          try{if(origStatus)origStatus(200);}catch(_){}
+          try{origJson(packet(p,"express_timeout_boundary"));}catch(_){}
+        },1200);
+      }
+      try{
+        var out=fn.apply(this,arguments);
+        if(out&&typeof out.then==="function")return out.catch(function(e){
+          if(light&&can()){
+            done=true;
+            if(timer)clearTimeout(timer);
+            try{if(origStatus)origStatus(200);}catch(_){}
+            return origJson(packet(p,"express_exception_boundary"));
+          }
+          throw e;
+        });
+        return out;
+      }catch(e){
+        if(light&&can()){
+          done=true;
+          if(timer)clearTimeout(timer);
+          try{if(origStatus)origStatus(200);}catch(_){}
+          return origJson(packet(p,"express_throw_boundary"));
+        }
+        throw e;
+      }
+    };
+    w.__marionPresenceExpressR12=true;
+    return w;
+  }
   try{["handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","composeMarionResponse","routeMarion","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope"].forEach(function(n){try{if(typeof eval(n)==="function"){var f=eval(n);eval(n+" = "+(/^handleMarionAdminTextRuntime$/.test(n)?"patchExpress":"wrap")+"("+n+", '"+n+"')");}}catch(_){}});}catch(_){}
   try{if(typeof MarionAdminConsoleGateway!=="undefined"&&MarionAdminConsoleGateway&&MarionAdminConsoleGateway.prototype){["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","executeRuntimeCommand","executeCommand","safeResponse"].forEach(function(n){var f=MarionAdminConsoleGateway.prototype[n];if(typeof f==="function")MarionAdminConsoleGateway.prototype[n]=wrap(f,n);});}}catch(_){}
   try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"){["handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","composeMarionResponse","routeMarion","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","safeResponse","buildResponse","createResponse"].forEach(function(n){if(typeof module.exports[n]==="function")module.exports[n]=wrap(module.exports[n],n);});module.exports.MARION_PRESENCE_ROUTE_BOUNDARY_R12_VERSION=VERSION;module.exports.marionPresenceRouteBoundaryR12Reply=reply;module.exports.marionPresenceRouteBoundaryR12Apply=apply;module.exports.MARION_PRESENCE_ROUTE_BOUNDARY_R12_PATCH=true;}}catch(_){}
@@ -22752,9 +22857,60 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
     return obj;
   }
   function wrap(fn,name){if(typeof fn!=="function"||fn.__marionToneNaturalizationR15)return fn;function W(){var p=promptOf(arguments[0]||{});var out=fn.apply(this,arguments);if(out&&typeof out.then==="function")return out.then(function(v){return apply(v,p);});return apply(out,p);}W.__marionToneNaturalizationR15=true;return W;}
-  function patchRes(res,p){if(!res||res.__marionToneNaturalizationR15)return;res.__marionToneNaturalizationR15=true;["json","send"].forEach(function(n){var old=res[n];if(typeof old!=="function")return;res[n]=function(v){try{if(typeof v==="string"){if(n==="send"&&/^\s*[\{\[]/.test(v)){var o=JSON.parse(v);v=JSON.stringify(apply(o,p));}else v=naturalize(v,p);}else v=apply(v,p);}catch(_){}return old.call(this,v);};});}
-  function patchExpress(fn,name){if(typeof fn!=="function"||fn.__marionToneNaturalizationR15Express)return fn;function H(req,res,next){var p=promptOf(req)||promptOf(req&&req.body)||promptOf(req&&req.query);patchRes(res,p);return fn.apply(this,arguments);}H.__marionToneNaturalizationR15Express=true;return H;}
-  try{if(typeof app!=="undefined"&&app&&app._router&&Array.isArray(app._router.stack)){app._router.stack.forEach(function(layer){try{if(layer&&typeof layer.handle==="function"){var txt=S(layer.route&&layer.route.path||layer.regexp||"");if(/marion|admin|runtime|conversation|command/i.test(txt))layer.handle=patchExpress(layer.handle,txt);}}catch(_){}});}}catch(_){}
+  /* SANDBLAST_TV_EXPRESS_ISOLATION_V1: R15 response boundary */
+  function requestPathOf(req){return S((req&&(req.originalUrl||req.url||req.path))||"").split("?")[0].toLowerCase();}
+  function isSandblastTvRequest(req){var p=requestPathOf(req);return p==="/api/sandblast-tv/v1"||p.indexOf("/api/sandblast-tv/v1/")===0;}
+  function patchRes(req,res,p){
+    if(!res||res.__marionToneNaturalizationR15||isSandblastTvRequest(req))return;
+    res.__marionToneNaturalizationR15=true;
+    var writing=false;
+    ["json","send"].forEach(function(n){
+      var old=res[n];
+      if(typeof old!=="function")return;
+      res[n]=function(v){
+        if(isSandblastTvRequest(req)||writing)return old.call(this,v);
+        var out=v;
+        try{
+          if(typeof out==="string"){
+            if(n==="send"&&/^\s*[\{\[]/.test(out)){
+              var o=JSON.parse(out);
+              out=JSON.stringify(apply(o,p));
+            }else{
+              out=naturalize(out,p);
+            }
+          }else{
+            out=apply(out,p);
+          }
+        }catch(_) { out=v; }
+        writing=true;
+        try{return old.call(this,out);}finally{writing=false;}
+      };
+    });
+  }
+  function patchExpress(fn,name){
+    if(typeof fn!=="function"||fn.__marionToneNaturalizationR15Express)return fn;
+    function H(req,res,next){
+      if(isSandblastTvRequest(req))return fn.apply(this,arguments);
+      var p=promptOf(req)||promptOf(req&&req.body)||promptOf(req&&req.query);
+      patchRes(req,res,p);
+      return fn.apply(this,arguments);
+    }
+    H.__marionToneNaturalizationR15Express=true;
+    return H;
+  }
+  try{
+    if(typeof app!=="undefined"&&app&&app._router&&Array.isArray(app._router.stack)){
+      app._router.stack.forEach(function(layer){
+        try{
+          if(!layer||typeof layer.handle!=="function")return;
+          var txt=S(layer.route&&layer.route.path||layer.regexp||"");
+          var tvLayer=/sandblast(?:[-_]?tv|tv)/i.test(txt);
+          var marionLayer=/marion|runtime|conversation|command/i.test(txt)||(/admin/i.test(txt)&&!tvLayer);
+          if(marionLayer&&!tvLayer)layer.handle=patchExpress(layer.handle,txt);
+        }catch(_){}
+      });
+    }
+  }catch(_){} 
   try{if(typeof MarionAdminConsoleGateway!=="undefined"&&MarionAdminConsoleGateway&&MarionAdminConsoleGateway.prototype){["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","executeRuntimeCommand","executeCommand","safeResponse"].forEach(function(n){var f=MarionAdminConsoleGateway.prototype[n];if(typeof f==="function")MarionAdminConsoleGateway.prototype[n]=wrap(f,n);});}}catch(_){}
   try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"){["handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","composeMarionResponse","routeMarion","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","safeResponse","buildResponse","createResponse"].forEach(function(n){if(typeof module.exports[n]==="function")module.exports[n]=wrap(module.exports[n],n);});module.exports.MARION_TONE_NATURALIZATION_R15_VERSION=VERSION;module.exports.marionToneNaturalizationR15Apply=apply;module.exports.marionToneNaturalizationR15Reply=social;module.exports.MARION_TONE_NATURALIZATION_R15_PATCH=true;}}catch(_){}
 })();
@@ -22931,6 +23087,21 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
   } catch(_err) {}
 })();
 /* R18C_FULL_STACK_INDEX_TRANSPORT_GUARD_END */
+
+/* SANDBLAST_TV_OPERATIONAL_RESPONSE_BOUNDARY_V2_START
+ * Hard namespace isolation for Sandblast TV operational/admin JSON.
+ * Prevents global Marion/Nyx Express response projectors from mutating
+ * /api/sandblast-tv/v1 and all descendants.
+ */
+function isSandblastTvOperationalResponseV2(req) {
+  const requestPath = String(
+    (req && (req.originalUrl || req.url || req.path)) || ""
+  ).split("?")[0].toLowerCase();
+
+  return requestPath === "/api/sandblast-tv/v1" ||
+    requestPath.startsWith("/api/sandblast-tv/v1/");
+}
+/* SANDBLAST_TV_OPERATIONAL_RESPONSE_BOUNDARY_V2_END */
 
 /* R18C_LIVE_HANDLER_REPAIR_START */
 (function(){
@@ -23212,6 +23383,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
+          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractText({ req: req, body: O(req.body), payload: O(req.body) });
@@ -23222,6 +23394,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
+          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractText({ req: req, body: O(req.body), payload: O(req.body) });
@@ -23662,6 +23835,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
+          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -23674,6 +23848,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
+          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -23973,6 +24148,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
+          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -23983,6 +24159,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
+          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -24057,8 +24234,8 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       const oldJson=express.response.json;
       const oldSend=express.response.send;
       function isPublic(req){try{return lock.isPublicSurfaceContext({body:req&&req.body,headers:req&&req.headers,source:req&&req.body&&req.body.source,ui:req&&req.body&&req.body.ui,client:req&&req.body&&req.body.client});}catch(_err){return false;}}
-      express.response.json=function(body){try{if(isPublic(this&&this.req))body=lock.projectPublicPayload(body,{body:this.req.body,headers:this.req.headers});}catch(_err){}return oldJson.call(this,body);};
-      express.response.send=function(body){try{if(isPublic(this&&this.req)){if(body&&typeof body==="object")body=lock.projectPublicPayload(body,{body:this.req.body,headers:this.req.headers});else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(lock.projectPublicPayload(JSON.parse(s),{body:this.req.body,headers:this.req.headers}));}catch(_parseErr){}}}}}catch(_err){}return oldSend.call(this,body);};
+      express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{if(isPublic(this&&this.req))body=lock.projectPublicPayload(body,{body:this.req.body,headers:this.req.headers});}catch(_err){}return oldJson.call(this,body);};
+      express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{if(isPublic(this&&this.req)){if(body&&typeof body==="object")body=lock.projectPublicPayload(body,{body:this.req.body,headers:this.req.headers});else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(lock.projectPublicPayload(JSON.parse(s),{body:this.req.body,headers:this.req.headers}));}catch(_parseErr){}}}}}catch(_err){}return oldSend.call(this,body);};
       express.response.__nyxPublicSurfaceIdentityLockPatched=true;
     }
   }catch(_err){}
@@ -24079,8 +24256,8 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
       const oldSend=express.response.send;
       function reqCtx(req,body){return{req:req,body:req&&req.body,headers:req&&req.headers,payload:body,route:(req&&(req.path||req.originalUrl||req.url))||""};}
       function project(req,body){try{const c=reqCtx(req,body);return lock.isVerifiedOperatorContext(c)?lock.projectPrivateOperatorFields(body,c):body;}catch(_err){return body;}}
-      express.response.json=function(body){try{body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
-      express.response.send=function(body){try{const req=this&&this.req;if(body&&typeof body==="object")body=project(req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(req,JSON.parse(s)));}catch(_parseErr){}}}}catch(_err){}return oldSend.call(this,body);};
+      express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
+      express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{const req=this&&this.req;if(body&&typeof body==="object")body=project(req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(req,JSON.parse(s)));}catch(_parseErr){}}}}catch(_err){}return oldSend.call(this,body);};
       express.response.__nyxPrivateOperatorBoundaryLockPatched=true;
     }
   }catch(_err){}
@@ -24095,8 +24272,8 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
   let lock=null;try{lock=require("./Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
   if(!lock||!lock.projectResult||typeof express==="undefined"||!express.response||express.response.__phase3dVoiceTextParityHardlock)return;
   const oldJson=express.response.json; const oldSend=express.response.send;
-  express.response.json=function(body){try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
-  express.response.send=function(body){try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
+  express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
+  express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
   express.response.__phase3dVoiceTextParityHardlock=true;
   try{module.exports=Object.assign(module.exports||{},{PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_VERSION:V});}catch(_){}
 }catch(_){}})();
