@@ -1642,7 +1642,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.9.1 RESEMBLE-FAILOVER-HARDENED-AUDIO-CONTRACT + YEAR-SPEECH";
+const TTS_VERSION = "tts.js v2.10.0 NYX-VOICE-REACTIVATION-AUDIO-FIRST + YEAR-SPEECH";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -1790,9 +1790,11 @@ function _voiceContract(input) {
   if (requestedVoiceUuid && !_looksLikeVoiceIdentifier(requestedVoiceUuid)) problems.push("invalid_requested_voice_uuid");
   if (resolvedVoiceUuid && !_looksLikeVoiceIdentifier(resolvedVoiceUuid)) problems.push("invalid_resolved_voice_uuid");
   if (STRICT_VOICE_LOCK && integrity.configured && integrity.conflictingKeys.length) problems.push("conflicting_locked_voice_env");
-  if (STRICT_VOICE_LOCK && requestedVoiceUuid && integrity.voiceUuid && requestedVoiceUuid !== integrity.voiceUuid) {
-    problems.push("voice_uuid_override_blocked");
-  }
+  const overrideBlocked = !!(
+    STRICT_VOICE_LOCK && requestedVoiceUuid && integrity.voiceUuid && requestedVoiceUuid !== integrity.voiceUuid
+  );
+  // A stale browser/widget voice UUID must never silence Nyx. The server lock wins
+  // deterministically; the override is recorded for telemetry but is not fatal.
 
   return {
     ok: problems.length === 0,
@@ -1800,6 +1802,7 @@ function _voiceContract(input) {
     source: _voiceSelectionSource(requestedVoiceUuid, resolvedVoiceUuid),
     requestedVoiceUuid,
     resolvedVoiceUuid,
+    overrideBlocked,
     problems,
     integrity
   };
@@ -2846,6 +2849,10 @@ async function generate(text, options) {
       ok: true,
       provider: "resemble",
       buffer: audioVerified.buffer,
+      audioBuffer: audioVerified.buffer,
+      binary: audioVerified.buffer,
+      audio: audioVerified.buffer,
+      playable: true,
       mimeType: audioVerified.mimeType || "audio/mpeg",
       elapsedMs: normalizedOut.elapsedMs || 0,
       bytes: audioVerified.bytes,
@@ -3041,6 +3048,7 @@ function _buildInputSnapshot(input) {
     voiceSource: contract.source,
     voiceStrict: contract.strict,
     voiceProblems: contract.problems,
+    voiceOverrideBlocked: contract.overrideBlocked === true,
     projectUuid: _mask(src.projectUuid || ""),
     outputFormat: src.outputFormat || "",
     wantJson: !!src.wantJson,
@@ -3076,6 +3084,8 @@ async function delegateTts(payload, req) {
       ok: true,
       provider: result.provider || "resemble",
       mimeType: result.mimeType || "audio/mpeg",
+      playable: true,
+      byteLength: result.buffer && result.buffer.length ? result.buffer.length : 0,
       requestId: result.requestId || input.requestId,
       providerStatus: result.providerStatus || 200,
       voiceUuid: result.voiceUuid || input.voiceUuid,
@@ -3106,7 +3116,9 @@ async function handleTts(req, res) {
 
   _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
   _setHeader(res, "X-SB-Trace-ID", _headerSafe(input.traceId, 120));
-  _setHeader(res, "X-SB-Audio-Contract", "audio-first-v1");
+  _setHeader(res, "X-SB-Audio-Contract", "audio-first-v2");
+  _setHeader(res, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  _setHeader(res, "Vary", "Accept");
 
   if (input.healthCheck) {
     const healthState = _healthSnapshot();
