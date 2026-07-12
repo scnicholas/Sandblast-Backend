@@ -23,7 +23,7 @@
  *  P15 operational upgrade envelope
  */
 
-const TTS_ROUTER_VERSION = "ttsrouter v2.1.0-opintel";
+const TTS_ROUTER_VERSION = "ttsrouter v2.2.0-audio-first-voice-lock";
 const PHASE15_PLAN = Object.freeze([
   "P1: provider allow-list lock",
   "P2: fail-open metadata contract",
@@ -64,8 +64,16 @@ function clamp01(n){
   return x;
 }
 function looksLikeVoiceId(v){
-  const s = safeStr(v, 64).trim();
-  return !!s && /^[A-Za-z0-9_-]{6,64}$/.test(s);
+  const s = safeStr(v, 128).trim();
+  return /^[0-9a-f]{8}$/i.test(s) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+function firstConfiguredVoiceId(){
+  const keys = ["RESEMBLE_VOICE_UUID", "SB_RESEMBLE_VOICE_UUID", "SBNYX_RESEMBLE_VOICE_UUID", "MIXER_VOICE_ID", "NYX_VOICE_ID", "TTS_VOICE_ID"];
+  for (const key of keys) {
+    const value = safeStr(process.env[key] || "", 128).trim();
+    if (looksLikeVoiceId(value)) return value;
+  }
+  return "";
 }
 function normalizeProvider(x){
   return safeStr(x || "resemble", 24).trim().toLowerCase() || "resemble";
@@ -83,7 +91,10 @@ function buildRouteMeta(cfg, provider, ok, reason){
   const failCount = clampInt(c.failCount || c.providerFailCount || 0, 0, 99, 0);
   const timeoutMs = clampInt(c.timeoutMs || c.ttsTimeoutMs || 12000, 2000, 45000, 12000);
   const latencyBudgetMs = clampInt(c.latencyBudgetMs || c.latencyBudget || 9000, 1000, 30000, 9000);
-  const voiceId = safeStr(c.voiceId || c.voice_uuid || c.voiceUUID || "", 64).trim();
+  const requestedVoiceId = safeStr(c.voiceId || c.voiceUuid || c.voice_uuid || c.voiceUUID || "", 128).trim();
+  const lockedVoiceId = firstConfiguredVoiceId();
+  const voiceId = lockedVoiceId || requestedVoiceId;
+  const voiceOverrideBlocked = !!(lockedVoiceId && requestedVoiceId && requestedVoiceId !== lockedVoiceId);
   const fallbackProvider = normalizeProvider(c.fallbackProvider || "");
   const silenceGuard = c.silent === true || c.disableSpeak === true;
 
@@ -102,6 +113,11 @@ function buildRouteMeta(cfg, provider, ok, reason){
     retryCap: clampInt(c.retryCap || 1, 0, 3, 1),
     degradeAfterFails: clampInt(c.degradeAfterFails || 3, 1, 10, 3),
     voiceIdValid: looksLikeVoiceId(voiceId),
+    voiceConfigured: !!lockedVoiceId,
+    voiceOverrideBlocked,
+    audioFirst: true,
+    responseMode: "audio",
+    jsonAudioOptInRequired: true,
     fallbackPolicy: fallbackProvider && fallbackProvider !== "resemble" ? "clamped_forbidden" : "single_vendor_lock",
     silenceGuard,
     resilienceTags: [
@@ -132,7 +148,7 @@ function routeProvider(cfg){
   }
 
   const meta = buildRouteMeta(cfg, "resemble", true, "OK");
-  if (!meta.voiceIdValid && (cfg && (cfg.voiceId || cfg.voice_uuid || cfg.voiceUUID))) {
+  if (!meta.voiceIdValid && (cfg && (cfg.voiceId || cfg.voiceUuid || cfg.voice_uuid || cfg.voiceUUID))) {
     meta.reason = "VOICE_ID_SUSPECT";
   }
 
