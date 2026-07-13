@@ -14,7 +14,7 @@
  * - Stay fail-open safe when upstream signals are partial
  */
 
-const SPINE_VERSION = "MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + stateSpine v2.17.1 PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + stateSpine v2.17.0 PRIORITY3-PROTECTIVE-STATE-CARRY + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION";
+const SPINE_VERSION = "MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + stateSpine v2.17.1 PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + stateSpine v2.17.0 PRIORITY3-PROTECTIVE-STATE-CARRY + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + AST-UNDEFINED-CLEAN + FIVE-TURN-FOLLOWUP-DEADEND-SUPPRESSION + FIVE-TURN-FOLLOWUP-CONTINUITY-PERSISTENCE-LOCK + FOLLOWUP-TOPIC-INFERENCE-LOCK + FOLLOWUP-INTENT-EXPANSION-CARRY + RESPONSE-SHAPING-EXPANSION-CARRY + FOUR-PHASE-PROGRESSION-REFINEMENT-CARRY CONFIDENCE-AWARE-SHAPING-CARRY + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + TECHNICAL-FOLLOWUP-INTENT-LOCK + TECHNICAL-TARGET-LOCK + FINAL-ENVELOPE-SOURCE-TOLERANCE + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-CARRY-LOCK + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTRACT-STATE-CARRY + CONVERSATIONAL-PACK-COHESION + FINAL-RENDER-TELEMETRY-HARDLOCK + PARALLEL-LANE-STALE-CARRY-SUPPRESSION + NYX-VOICE-REINTEGRATION-R1 + AUDIO-TEXT-DECOUPLING";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
@@ -1603,7 +1603,17 @@ function createState(seed = {}) {
       lastAudioMimeType: "",
       lastAudioFormat: "",
       lastAudioChars: 0,
-      playbackReady: false
+      playbackReady: false,
+      requested: false,
+      enabled: false,
+      shouldSpeak: false,
+      autoPlay: false,
+      route: "/api/tts",
+      playbackState: "idle",
+      lastRequestAt: 0,
+      lastStartedAt: 0,
+      lastEndedAt: 0,
+      consecutiveFailures: 0
     },
     emotionalEngine: {
       primaryState: "focused",
@@ -1754,7 +1764,17 @@ function coerceState(input) {
       lastAudioMimeType: safeStr(src?.audio?.lastAudioMimeType || ""),
       lastAudioFormat: safeStr(src?.audio?.lastAudioFormat || ""),
       lastAudioChars: clampInt(src?.audio?.lastAudioChars, 0, 0, 999999),
-      playbackReady: !!src?.audio?.playbackReady
+      playbackReady: !!src?.audio?.playbackReady,
+      requested: !!src?.audio?.requested,
+      enabled: !!src?.audio?.enabled,
+      shouldSpeak: !!src?.audio?.shouldSpeak,
+      autoPlay: !!src?.audio?.autoPlay,
+      route: safeStr(src?.audio?.route || "/api/tts") || "/api/tts",
+      playbackState: safeStr(src?.audio?.playbackState || "idle") || "idle",
+      lastRequestAt: Number(src?.audio?.lastRequestAt || 0) || 0,
+      lastStartedAt: Number(src?.audio?.lastStartedAt || 0) || 0,
+      lastEndedAt: Number(src?.audio?.lastEndedAt || 0) || 0,
+      consecutiveFailures: clampInt(src?.audio?.consecutiveFailures, 0, 0, 999999)
     },
     emotionalEngine: {
       primaryState: safeStr(src?.emotionalEngine?.primaryState || "focused") || "focused",
@@ -1910,88 +1930,38 @@ function summarizeResolvedEmotionState(state = {}) {
 }
 
 function normalizeAudioSignal(inbound) {
-  const sig = isPlainObject(inbound?.turnSignals) ? inbound.turnSignals : {};
-  const audioFailure = isPlainObject(inbound?.audioFailure) ? inbound.audioFailure : (isPlainObject(inbound?.ttsFailure) ? inbound.ttsFailure : {});
-  const audio = isPlainObject(inbound?.audio) ? inbound.audio : {};
-  const ttsResult = isPlainObject(inbound?.ttsResult) ? inbound.ttsResult : (isPlainObject(inbound?.tts) ? inbound.tts : {});
-  const transport = isPlainObject(inbound?.transport) ? inbound.transport : {};
-  const bridgeTts = isPlainObject(inbound?.bridge?.tts) ? inbound.bridge.tts : {};
+  const src = isPlainObject(inbound) ? inbound : {};
+  const sig = isPlainObject(src.turnSignals) ? src.turnSignals : {};
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || meta.finalEnvelope);
+  const speech = safeObj(src.speech || payload.speech || finalEnvelope.speech || meta.speech);
+  const playback = safeObj(src.playback || payload.playback || finalEnvelope.playback || speech.playback);
+  const audioFailure = isPlainObject(src.audioFailure) ? src.audioFailure : (isPlainObject(src.ttsFailure) ? src.ttsFailure : safeObj(payload.ttsFailure));
+  const audio = isPlainObject(src.audio) ? src.audio : safeObj(payload.audio || finalEnvelope.audio);
+  const ttsResult = isPlainObject(src.ttsResult) ? src.ttsResult : (isPlainObject(src.tts) ? src.tts : safeObj(payload.ttsResult || payload.tts));
+  const transport = isPlainObject(src.transport) ? src.transport : safeObj(payload.transport);
+  const bridgeTts = isPlainObject(src?.bridge?.tts) ? src.bridge.tts : {};
 
-  const actionRaw = safeStr(
-    sig.ttsAction || sig.audioAction ||
-    audioFailure.action || audio.action || ttsResult.action || transport.action ||
-    bridgeTts.action || ""
-  );
-  const action = /retry/i.test(actionRaw) ? "retry" :
-    /downgrade/i.test(actionRaw) ? "downgrade" :
-    /stop|terminal/i.test(actionRaw) ? "stop" : "";
-
-  const shouldStop = !!(
-    sig.ttsShouldStop || sig.audioShouldStop ||
-    audioFailure.shouldTerminate || audioFailure.shouldStop ||
-    audio.shouldStop || ttsResult.shouldStop || transport.shouldStop || bridgeTts.shouldStop ||
-    action === "stop"
-  );
-  const retryable = !!(
-    sig.ttsRetryable || sig.audioRetryable ||
-    audioFailure.retryable || audio.retryable || ttsResult.retryable || transport.retryable || bridgeTts.retryable ||
-    action === "retry"
-  );
-  const reason = safeStr(
-    sig.ttsReason || sig.audioReason ||
-    audioFailure.reason || audioFailure.message ||
-    audio.reason || ttsResult.reason || transport.reason || bridgeTts.reason || ""
-  );
-  const status = clampInt(
-    sig.ttsProviderStatus || sig.audioProviderStatus ||
-    audioFailure.providerStatus || audioFailure.status ||
-    audio.providerStatus || audio.status ||
-    ttsResult.providerStatus || ttsResult.status ||
-    transport.providerStatus || transport.status ||
-    bridgeTts.providerStatus || bridgeTts.status,
-    0, 0, 999999
-  );
-
-  const audioUrl = safeStr(
-    sig.audioUrl || sig.ttsAudioUrl ||
-    audio.url || audio.audioUrl ||
-    ttsResult.url || ttsResult.audioUrl ||
-    transport.url || transport.audioUrl ||
-    bridgeTts.url || bridgeTts.audioUrl || ""
-  );
-  const audioBase64 = safeStr(
-    sig.audioBase64 || sig.ttsAudioBase64 ||
-    audio.base64 || audio.audioBase64 ||
-    ttsResult.base64 || ttsResult.audioBase64 ||
-    transport.base64 || transport.audioBase64 ||
-    bridgeTts.base64 || bridgeTts.audioBase64 || ""
-  );
-  const mimeType = safeStr(
-    sig.audioMimeType || sig.ttsMimeType ||
-    audio.mimeType || audio.contentType ||
-    ttsResult.mimeType || ttsResult.contentType ||
-    transport.mimeType || transport.contentType ||
-    bridgeTts.mimeType || bridgeTts.contentType || ""
-  ).toLowerCase();
-  const format = safeStr(
-    sig.audioFormat || sig.ttsFormat ||
-    audio.format || ttsResult.format || transport.format || bridgeTts.format || ""
-  ).toLowerCase();
-  const chars = clampInt(
-    sig.audioChars || sig.ttsChars ||
-    audio.chars || audio.textLength ||
-    ttsResult.chars || ttsResult.textLength ||
-    transport.chars || transport.textLength ||
-    bridgeTts.chars || bridgeTts.textLength,
-    0, 0, 999999
-  );
-  const playable = !!(
-    sig.audioPlayable || sig.ttsPlayable ||
-    audio.playable || ttsResult.playable || transport.playable || bridgeTts.playable ||
-    audioUrl || audioBase64
-  );
-
-  return { action, shouldStop, retryable, reason, status, playable, audioUrl, audioBase64, mimeType, format, chars };
+  const actionRaw = safeStr(sig.ttsAction || sig.audioAction || audioFailure.action || audio.action || ttsResult.action || transport.action || bridgeTts.action || "");
+  const action = /retry/i.test(actionRaw) ? "retry" : /downgrade/i.test(actionRaw) ? "downgrade" : /stop|terminal/i.test(actionRaw) ? "stop" : "";
+  const shouldStop = !!(sig.ttsShouldStop || sig.audioShouldStop || audioFailure.shouldTerminate || audioFailure.shouldStop || audio.shouldStop || ttsResult.shouldStop || transport.shouldStop || bridgeTts.shouldStop || action === "stop");
+  const retryable = !!(sig.ttsRetryable || sig.audioRetryable || audioFailure.retryable || audio.retryable || ttsResult.retryable || transport.retryable || bridgeTts.retryable || action === "retry");
+  const reason = safeStr(sig.ttsReason || sig.audioReason || audioFailure.reason || audioFailure.message || audio.reason || ttsResult.reason || transport.reason || bridgeTts.reason || "");
+  const status = clampInt(sig.ttsProviderStatus || sig.audioProviderStatus || audioFailure.providerStatus || audioFailure.status || audio.providerStatus || audio.status || ttsResult.providerStatus || ttsResult.status || transport.providerStatus || transport.status || bridgeTts.providerStatus || bridgeTts.status, 0, 0, 999999);
+  const audioUrl = safeStr(sig.audioUrl || sig.ttsAudioUrl || audio.url || audio.audioUrl || ttsResult.url || ttsResult.audioUrl || transport.url || transport.audioUrl || bridgeTts.url || bridgeTts.audioUrl || "");
+  const audioBase64 = safeStr(sig.audioBase64 || sig.ttsAudioBase64 || audio.base64 || audio.audioBase64 || ttsResult.base64 || ttsResult.audioBase64 || transport.base64 || transport.audioBase64 || bridgeTts.base64 || bridgeTts.audioBase64 || "");
+  const mimeType = safeStr(sig.audioMimeType || sig.ttsMimeType || audio.mimeType || audio.contentType || ttsResult.mimeType || ttsResult.contentType || transport.mimeType || transport.contentType || bridgeTts.mimeType || bridgeTts.contentType || playback.mimeType || "").toLowerCase();
+  const format = safeStr(sig.audioFormat || sig.ttsFormat || audio.format || ttsResult.format || transport.format || bridgeTts.format || playback.format || "").toLowerCase();
+  const chars = clampInt(sig.audioChars || sig.ttsChars || audio.chars || audio.textLength || ttsResult.chars || ttsResult.textLength || transport.chars || transport.textLength || bridgeTts.chars || bridgeTts.textLength || safeStr(speech.text || speech.spokenText).length, 0, 0, 999999);
+  const playable = !!(sig.audioPlayable || sig.ttsPlayable || audio.playable || ttsResult.playable || transport.playable || bridgeTts.playable || playback.ready || audioUrl || audioBase64);
+  const enabled = speech.enabled !== false && speech.shouldSpeak !== false && !!safeStr(speech.text || speech.spokenText || src.spokenText || finalEnvelope.spokenText);
+  const requested = !!(speech.enabled || speech.shouldSpeak || speech.text || speech.spokenText || playback.route || src.voiceRequested || payload.voiceRequested);
+  const shouldSpeak = requested && enabled;
+  const autoPlay = shouldSpeak && (speech.autoPlay !== false && playback.autoPlay !== false);
+  const route = safeStr(speech.route || playback.route || src.ttsRoute || payload.ttsRoute || "/api/tts") || "/api/tts";
+  const playbackState = safeStr(playback.state || audio.playbackState || src.playbackState || (playable ? "ready" : action ? "failed" : requested ? "requested" : "idle")).toLowerCase();
+  return { action, shouldStop, audioOnlyStop: shouldStop, preserveTextReply: audioFailure.preserveTextReply !== false, retryable, reason, status, playable, audioUrl, audioBase64, mimeType, format, chars, requested, enabled, shouldSpeak, autoPlay, route, playbackState };
 }
 
 function normalizeEmotionSignals(inbound, prevState, params = {}) {
@@ -2500,15 +2470,13 @@ function finalizeTurn(params = {}) {
   const creativeCognitive = extractCreativeCognitiveSignals(inbound, params, prev);
   const greetingDistress = !!greeting.isDistress;
   const trustedFinalCompletion = !!(
-    !audio.shouldStop &&
     (marionFinalSignal || trustedFinalShape || trustedFinalEnvelope || composerAdvancedState) &&
     isActionableComposerReply(speak)
   );
   const deepeningTrustedFinalCompletion = !!(
     (deepeningInbound || trustedDeepeningCompletion) &&
     trustedFinalCompletion &&
-    !loopPhraseRejected &&
-    !audio.shouldStop
+    !loopPhraseRejected
   );
   if (trustedFinalCompletion && stage === "recover") stage = "final";
   if (trustedFinalCompletion && stage === "open") stage = "final";
@@ -2516,10 +2484,10 @@ function finalizeTurn(params = {}) {
 
   const existingTerminalStopActive = Number(prev.audio?.terminalStopUntil || 0) > nowMs();
   const terminalStopUntil = audio.shouldStop ? nowMs() + TERMINAL_AUDIO_STOP_MS : (existingTerminalStopActive && !trustedFinalCompletion ? Number(prev.audio.terminalStopUntil || 0) : 0);
+  if (trustedFinalCompletion && (stage === "terminal_stop" || stage === "recovery" || stage === "recover")) stage = "final";
   if (existingTerminalStopActive && !trustedFinalCompletion && !technicalBypassSupportLock && stage !== "terminal_stop") stage = "terminal_stop";
   const releaseSupportLock = !!(
     stage !== "terminal_stop" &&
-    !audio.shouldStop &&
     (
       trustedFinalCompletion ||
       loopBreakTrustedFinal ||
@@ -2540,7 +2508,7 @@ function finalizeTurn(params = {}) {
     (stage === "recovery" && (emo.highDistress || clampInt(prev.support?.holdTurns, 0, 0, 999999) > 0))
   );
   const progressionLock = (trustedFinalBreaksRecovery || deepeningTrustedFinalCompletion || trustedDeepeningCompletion) ? false : !!(
-    audio.shouldStop ||
+    (audio.shouldStop && !trustedFinalCompletion) ||
     (!technicalBypassSupportLock && loopPhraseRejected) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technicalBypassSupportLock && supportLockActive) ||
     (!loopBreakTrustedFinal && !trustedFinalShape && !technical && sameAssistant && sameStage && clampInt(prev.repetition?.sameAssistantHashCount, 0, 0, 999999) >= 1) ||
@@ -2735,7 +2703,17 @@ function finalizeTurn(params = {}) {
       lastAudioMimeType: audio.mimeType || prev.audio.lastAudioMimeType,
       lastAudioFormat: audio.format || prev.audio.lastAudioFormat,
       lastAudioChars: audio.chars || prev.audio.lastAudioChars,
-      playbackReady: !!audio.playable
+      playbackReady: !!audio.playable,
+      requested: !!audio.requested,
+      enabled: !!audio.enabled,
+      shouldSpeak: !!audio.shouldSpeak,
+      autoPlay: !!audio.autoPlay,
+      route: audio.route || prev.audio.route || "/api/tts",
+      playbackState: audio.playbackState || (audio.playable ? "ready" : audio.action ? "failed" : prev.audio.playbackState || "idle"),
+      lastRequestAt: audio.requested ? nowMs() : prev.audio.lastRequestAt,
+      lastStartedAt: /playing|started/.test(audio.playbackState) ? nowMs() : prev.audio.lastStartedAt,
+      lastEndedAt: /ended|complete|stopped/.test(audio.playbackState) ? nowMs() : prev.audio.lastEndedAt,
+      consecutiveFailures: audio.action ? clampInt(prev.audio.consecutiveFailures, 0, 0, 999999) + 1 : (audio.playable ? 0 : clampInt(prev.audio.consecutiveFailures, 0, 0, 999999))
     },
     emotionalEngine,
     continuityThread,
