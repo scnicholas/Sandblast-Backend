@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.1-nyx-voice-live-certification",
-  "description": "Sandblast backend with Marion layering, Sandblast TV scheduling, and Nyx live voice certification hardening",
+  "version": "1.0.2-nyx-voice-live-route-mount",
+  "description": "Sandblast backend with Nyx direct-media voice playback, dual-route mount certification, Marion layering, and TV scheduling",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -14,9 +14,10 @@
     "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js",
     "verify:sandblast-tv": "npm run lint:sandblast-tv && npm run test:sandblast-tv",
     "test:nyx-voice": "node scripts/nyx-voice-certification.js",
-    "verify:nyx-voice": "node --check Routes/tts.js && node --check Routes/ttsProvidersResemble.js && node --check Routes/voiceRoute.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && node --check public/nyx_state_controller.js && npm run test:nyx-voice && npm run test:nyx-widget && npm run test:nyx-widget-playback",
+    "verify:nyx-voice": "node --check Routes/tts.js && node --check Routes/ttsProvidersResemble.js && node --check Routes/voiceRoute.js && node --check Routes/nyxVoiceMount.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && node --check public/nyx_state_controller.js && npm run test:nyx-voice && npm run test:nyx-route-mount && npm run test:nyx-widget && npm run test:nyx-widget-playback",
     "test:nyx-widget": "node scripts/widget-byte-certification.js",
-    "test:nyx-widget-playback": "node scripts/widget-playback-certification.js"
+    "test:nyx-widget-playback": "node scripts/widget-playback-certification.js",
+    "test:nyx-route-mount": "node scripts/route-mount-certification.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
