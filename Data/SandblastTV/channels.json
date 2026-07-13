@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-07-12T23:59:53Z",
+  "updatedAt": "2026-07-13T00:18:26Z",
   "channels": [
     {
       "slug": "classic",
@@ -15,7 +15,7 @@
       "displayName": "Sandblast Cartoons",
       "enabled": true,
       "mode": "manifest",
-      "manifestUrl": "/Data/Sandbox%20TV/cartoons.json",
+      "manifestUrl": "/Data/SandblastTV/blocks/cartoons.json",
       "loop": true,
       "fallbackUrl": "https://dn600209.us.archive.org/0/items/billion_dollar_limited/billion_dollar_limited_512kb.mp4"
     }
