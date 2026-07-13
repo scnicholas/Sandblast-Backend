@@ -8,7 +8,7 @@
 /**
  * Sandblast Backend â€” index.js
  *
- * index.js v2.18.7sb NYX-VOICE-DIRECT-MEDIA-GET-HARDLOCK
+ * index.js v2.18.8sb NYX-RESEMBLE-SYNTH-ENDPOINT-ENV-HARDLOCK
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -12476,6 +12476,9 @@ function attachVoiceRoute(base) {
     healthEndpoint: routeUrl("/api/tts/health"),
     compatibilityHealthEndpoint: routeUrl("/tts/health"),
     method: "POST",
+    synthesisMethod: "POST",
+    playbackMethod: "GET",
+    providerEndpointEnv: "RESEMBLE_SYNTH_URL",
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     jsonAudioSupported: true,
@@ -12511,6 +12514,9 @@ function normalizeVoiceRouteResponse(out) {
     healthEndpoint: cleanText(out.healthEndpoint || "/api/tts/health") || "/api/tts/health",
     compatibilityHealthEndpoint: cleanText(out.compatibilityHealthEndpoint || "/tts/health") || "/tts/health",
     method: cleanText(out.method || "POST") || "POST",
+    synthesisMethod: cleanText(out.synthesisMethod || "POST") || "POST",
+    playbackMethod: cleanText(out.playbackMethod || "GET") || "GET",
+    providerEndpointEnv: cleanText(out.providerEndpointEnv || "RESEMBLE_SYNTH_URL") || "RESEMBLE_SYNTH_URL",
     requiresToken: !!out.requiresToken,
     preserveMixerVoice: !!out.preserveMixerVoice,
     jsonAudioSupported: out.jsonAudioSupported !== false,
@@ -13193,7 +13199,12 @@ function summarizeTtsPublicHealth(health) {
   const h = safeObj(health);
   const env = safeObj(h.env);
   const integrity = safeObj(h.voiceIntegrity);
-  const configured = h.configured === true || env.hasToken === true || integrity.configured === true;
+  const endpointConfigured = env.hasSynthesizeEndpoint === true;
+  const configured = h.configured === true || (
+    env.hasToken === true &&
+    (env.hasVoice === true || integrity.configured === true) &&
+    endpointConfigured
+  );
   const provider = cleanText(h.provider || (configured ? "configured" : ""));
   const circuitOpen = h.circuitOpen === true;
   return {
@@ -13201,7 +13212,10 @@ function summarizeTtsPublicHealth(health) {
     configured: !!configured,
     provider: provider || "unavailable",
     ready: h.ok !== false && configured && !circuitOpen,
-    degraded: circuitOpen || h.degraded === true
+    degraded: circuitOpen || h.degraded === true,
+    endpointConfigured,
+    endpointExplicitlyConfigured: env.synthesizeEndpointExplicitlyConfigured === true,
+    endpointSource: cleanText(env.synthesizeEndpointSource || "unavailable") || "unavailable"
   };
 }
 
@@ -13856,8 +13870,13 @@ async function handlePublicTtsRequest(req, res) {
   }
 }
 
-// POST supports fetch/XHR clients. GET is required for direct browser media
-// playback because assigning an endpoint to Audio.src always performs GET.
+// POST supports fetch/XHR synthesis clients. GET is required for direct
+// browser media playback because assigning an endpoint to Audio.src performs GET.
+app.options(TTS_PLAYBACK_ROUTES, (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
 app.get(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, handlePublicTtsRequest);
 app.post(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, handlePublicTtsRequest);
 
