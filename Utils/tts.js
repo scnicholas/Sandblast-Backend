@@ -304,8 +304,19 @@ function _escapeXml(s){
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&apos;");
 }
+function _repairSpeechMojibake(value){
+  return _str(value)
+    .replace(/\u00e2\u20ac\u2122/g, "\u2019")
+    .replace(/\u00e2\u20ac\u02dc/g, "\u2018")
+    .replace(/\u00e2\u20ac\u0153/g, "\u201c")
+    .replace(/\u00e2\u20ac\u009d/g, "\u201d")
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013")
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014")
+    .replace(/\u00e2\u20ac\u00a6/g, "\u2026")
+    .replace(/\u00c2(?=[\u00a0\s])/g, "");
+}
 function _normalizeText(text){
-  return _str(text)
+  return _repairSpeechMojibake(text)
     .replace(/\b(1|2)\s*,\s*(\d{3})\b/g, "$1$2")
     .replace(/\b((?:19|20)\d{2})(?=in\b)/gi, "$1 ")
     .replace(/\b((?:19|20)\d{2})([A-Za-z])/g, "$1 $2")
@@ -487,12 +498,34 @@ const RESEMBLE_SYNTH_URL_ENV_KEYS = Object.freeze([
 ]);
 const DEFAULT_RESEMBLE_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
 
+function _allowedResembleProviderHosts() {
+  const configured = _str(process.env.SB_RESEMBLE_ALLOWED_PROVIDER_HOSTS || "")
+    .split(",").map((value) => _lower(value)).filter(Boolean);
+  return new Set(["f.cluster.resemble.ai", ...configured]);
+}
+
+function _isAllowedResembleProviderHost(hostname) {
+  const host = _lower(hostname);
+  if (!host) return false;
+  if (_allowedResembleProviderHosts().has(host)) return true;
+  if (host === "resemble.ai" || host.endsWith(".resemble.ai")) return true;
+  return _boolish(process.env.SB_RESEMBLE_ALLOW_CUSTOM_PROVIDER_HOST, false);
+}
+
+function _assertAllowedResembleProviderUrl(raw) {
+  const safe = _assertSafeRemoteUrl(raw, false);
+  const parsed = new URL(safe);
+  if (!_isAllowedResembleProviderHost(parsed.hostname)) throw new Error("unapproved_resemble_provider_host");
+  return safe;
+}
+
 function _normalizeSynthesizeUrlCandidate(url){
   const normalized = _normalizeUrlCandidate(url);
   if (!normalized) return "";
   try{
     const u = new URL(normalized);
     if (u.protocol !== "https:") return "";
+    if (!_isAllowedResembleProviderHost(u.hostname)) return "";
     u.hash = "";
     if (u.hostname.toLowerCase() === "f.cluster.resemble.ai" && /^\/?$/.test(u.pathname || "")) {
       u.pathname = "/synthesize";
@@ -758,6 +791,7 @@ async function _getRequest(url, headers, timeoutMs){
       if (controller) to = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(safeUrl, {
         method: "GET",
+        redirect: "error",
         headers: {
           Accept: "application/json, audio/*;q=0.9, */*;q=0.8",
           "Accept-Encoding": "identity",
@@ -790,13 +824,14 @@ async function _getRequest(url, headers, timeoutMs){
 }
 
 async function _pollRequest(url, token, traceId, timeoutMs, authMode){
+  const safeUrl = _assertAllowedResembleProviderUrl(url);
   const headers = {
     ..._buildAuthHeaders(token, authMode),
     "User-Agent": "sb-nyx-tts/1.4"
   };
   if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
-  const resp = await _getRequest(url, headers, timeoutMs);
-  resp.providerEndpoint = _safeUrlForLogs(url);
+  const resp = await _getRequest(safeUrl, headers, timeoutMs);
+  resp.providerEndpoint = _safeUrlForLogs(safeUrl);
   return resp;
 }
 
@@ -936,13 +971,15 @@ function _postViaHttps(url, headers, bodyObj, timeoutMs){
 }
 
 async function _postRequest(url, headers, bodyObj, timeoutMs){
+  const safeUrl = _assertAllowedResembleProviderUrl(url);
   if (typeof fetch === "function"){
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     let to = null;
     try{
       if (controller) to = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(url, {
+      const res = await fetch(safeUrl, {
         method: "POST",
+        redirect: "error",
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json, audio/*;q=0.9, */*;q=0.8",
@@ -973,7 +1010,7 @@ async function _postRequest(url, headers, bodyObj, timeoutMs){
       if (to) clearTimeout(to);
     }
   }
-  return _postViaHttps(url, headers, bodyObj, timeoutMs);
+  return _postViaHttps(safeUrl, headers, bodyObj, timeoutMs);
 }
 
 function _downloadViaHttps(url, timeoutMs){
@@ -1026,6 +1063,7 @@ async function _downloadBuffer(url, timeoutMs){
       if (controller) to = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(safeUrl, {
         method: "GET",
+        redirect: "error",
         headers: { Accept: "audio/*,*/*;q=0.8" },
         signal: controller ? controller.signal : undefined
       });
@@ -1720,7 +1758,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.12.0 RENDER-SYNTH-ENDPOINT-ENV-HARDLOCK + DIRECT-MEDIA-GET + OPTIONAL-MODEL-SAFE";
+const TTS_VERSION = "tts.js v2.13.0 AUDIO-CONTENT-INTEGRITY + PUBLIC-ERROR-REDACTION";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -1917,9 +1955,13 @@ function _pickFirst() {
 function _safeJson(res, status, body) {
   if (!res || res.headersSent) return;
   try {
+    _setHeader(res, "Content-Type", "application/json; charset=utf-8");
+    _setHeader(res, "X-Content-Type-Options", "nosniff");
+    _setHeader(res, "Cache-Control", "no-store, max-age=0");
     res.status(status).json(body);
   } catch (_) {
     try {
+      _setHeader(res, "Content-Type", "application/json; charset=utf-8");
       res.status(status).send(JSON.stringify(body));
     } catch (__ ) {}
   }
@@ -1935,9 +1977,12 @@ function _applyPublicVoiceCors(req, res) {
   const configured = _str(process.env.SB_TTS_ALLOWED_ORIGINS || "https://sandblast.channel,https://www.sandblast.channel")
     .split(",").map((v) => _trim(v)).filter(Boolean);
   const origin = _trim(req && req.headers && req.headers.origin);
-  if (origin && (configured.includes(origin) || configured.includes("*"))) {
-    _setHeader(res, "Access-Control-Allow-Origin", configured.includes("*") ? "*" : origin);
+  const wildcardEnabled = _bool(process.env.SB_TTS_ALLOW_WILDCARD_ORIGIN, false) && configured.includes("*");
+  if (origin && (configured.includes(origin) || wildcardEnabled)) {
+    _setHeader(res, "Access-Control-Allow-Origin", wildcardEnabled ? "*" : origin);
   }
+  _setHeader(res, "Vary", "Origin, Accept");
+  _setHeader(res, "X-Content-Type-Options", "nosniff");
   _setHeader(res, "Access-Control-Allow-Methods", "POST,GET,OPTIONS");
   _setHeader(res, "Access-Control-Allow-Headers", "Content-Type,Accept,X-SB-Response-Mode,X-SB-State-Contract,X-SB-Surface-Profile,X-SB-Widget-Token,X-SB-Session-ID,X-SB-Turn-ID,X-SB-Trace-ID,X-SB-Request-ID,X-SB-Voice");
   _setHeader(res, "Access-Control-Expose-Headers", "Content-Type,Content-Length,X-SB-TTS-Version,X-SB-Trace-ID,X-SB-Response-Mode,X-SB-Audio-Contract,X-SB-Audio-Playback-Verify");
@@ -2093,7 +2138,7 @@ async function _synthesizeWithRetry(providerInput, snapshot, shapeElapsedMs, seg
       _log("provider_attempt", { ...snapshot, attempt, maxAttempts: plan.maxAttempts, timeoutMs: PROVIDER_TIMEOUT_MS });
       const out = await _withTimeout(synthesize(providerInput), PROVIDER_TIMEOUT_MS, { ...snapshot, attempt });
       const normalizedOut = _normalizeProviderAudio(out);
-      const retryable = normalizedOut.retryable !== false && _isRetryableStatus(normalizedOut.providerStatus);
+      const retryable = normalizedOut.retryable !== false && (_isRetryableStatus(normalizedOut.status || normalizedOut.providerStatus) || normalizedOut.providerStatus === 0 || (normalizedOut.providerStatus >= 200 && normalizedOut.providerStatus < 300));
 
       if (normalizedOut.ok) return { ok: true, out: normalizedOut, attempt };
 
@@ -2102,9 +2147,9 @@ async function _synthesizeWithRetry(providerInput, snapshot, shapeElapsedMs, seg
         attempt,
         reason: normalizedOut.reason || "provider_failed",
         message: normalizedOut.message || "TTS failed",
-        status: normalizedOut.providerStatus || 503,
+        status: normalizedOut.status || (normalizedOut.providerStatus >= 400 ? normalizedOut.providerStatus : 502),
         retryable,
-        providerStatus: normalizedOut.providerStatus || 503,
+        providerStatus: normalizedOut.providerStatus || 0,
         providerEndpoint: normalizedOut.providerEndpoint || "",
         authMode: normalizedOut.authMode || "",
         voiceUuid: normalizedOut.voiceUuid || providerInput.voiceUuid,
@@ -2378,6 +2423,18 @@ function _applyPronunciationMap(text, pronunciationMap) {
   return out;
 }
 
+function _repairOuterSpeechMojibake(value) {
+  return _str(value)
+    .replace(/\u00e2\u20ac\u2122/g, "\u2019")
+    .replace(/\u00e2\u20ac\u02dc/g, "\u2018")
+    .replace(/\u00e2\u20ac\u0153/g, "\u201c")
+    .replace(/\u00e2\u20ac\u009d/g, "\u201d")
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013")
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014")
+    .replace(/\u00e2\u20ac\u00a6/g, "\u2026")
+    .replace(/\u00c2(?=[\u00a0\s])/g, "");
+}
+
 function _applySpeakOptimizations(text) {
   let out = _str(text);
   out = out
@@ -2520,7 +2577,7 @@ function _shapeSpeechText(rawText, options) {
   const speechHints = options && options.speechHints ? options.speechHints : DEFAULT_SPEECH_HINTS;
   const pronunciationMap = _mergePronunciationMap(options && options.pronunciationMap);
 
-  const displayText = _normalizeWhitespace(rawText);
+  const displayText = _normalizeWhitespace(_repairOuterSpeechMojibake(rawText));
   const expandedText = _expandContractions(displayText);
   const speakBase = _applySpeakOptimizations(expandedText);
   const yearNormalizedText = _normalizeYearSpeech(speakBase, options);
@@ -2548,36 +2605,75 @@ function _shapeSpeechText(rawText, options) {
   };
 }
 
-function _coerceBuffer(value) {
-  if (!value) return null;
-  if (Buffer.isBuffer(value)) return value;
-  if (value instanceof Uint8Array) return Buffer.from(value);
+function _bufferAudioSignature(buffer) {
+  if (!Buffer.isBuffer(buffer) || !buffer.length) return "";
+  if (buffer.length >= 12 && buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WAVE") return "audio/wav";
+  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "OggS") return "audio/ogg";
+  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "fLaC") return "audio/flac";
+  if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) return "audio/webm";
+  if (buffer.length >= 12 && buffer.slice(4, 8).toString("ascii") === "ftyp") return "audio/mp4";
+  if (buffer.length >= 3 && buffer.slice(0, 3).toString("ascii") === "ID3") return "audio/mpeg";
+  for (let i = 0; i < Math.min(buffer.length - 1, 64); i += 1) {
+    if (buffer[i] === 0xff && (buffer[i + 1] & 0xe0) === 0xe0) return "audio/mpeg";
+  }
+  return "";
+}
+
+function _bufferLooksTextual(buffer) {
+  if (!Buffer.isBuffer(buffer) || !buffer.length) return false;
+  const preview = buffer.slice(0, Math.min(buffer.length, 256)).toString("utf8").replace(/^\uFEFF/, "").trim().toLowerCase();
+  if (!preview) return false;
+  if (preview.startsWith("{") || preview.startsWith("[") || preview.startsWith("<!doctype") || preview.startsWith("<html") || preview.startsWith("<body")) return true;
+  let printable = 0;
+  const sample = buffer.slice(0, Math.min(buffer.length, 256));
+  for (const b of sample) if (b === 9 || b === 10 || b === 13 || (b >= 32 && b <= 126)) printable += 1;
+  return sample.length > 32 && printable / sample.length > 0.96 && /^(ok|error|message|<!|<|\{|\[)/i.test(preview);
+}
+
+function _maxAcceptedAudioBufferBytes() {
+  return _int(process.env.SB_TTS_MAX_AUDIO_BYTES, 25 * 1024 * 1024, 256 * 1024, 100 * 1024 * 1024);
+}
+
+function _strictBase64Buffer(value) {
+  const raw = _trim(value).replace(/^data:audio\/[^;]+;base64,/i, "").replace(/\s+/g, "");
+  const maxBytes = _maxAcceptedAudioBufferBytes();
+  const maxBase64Chars = Math.ceil(maxBytes * 4 / 3) + 8;
+  if (!raw || raw.length < 16 || raw.length > maxBase64Chars || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) return null;
+  const padded = raw + "=".repeat((4 - (raw.length % 4)) % 4);
+  try {
+    const buffer = Buffer.from(padded, "base64");
+    if (!buffer.length || buffer.length > maxBytes || _bufferLooksTextual(buffer)) return null;
+    return buffer;
+  } catch (_) {
+    return null;
+  }
+}
+
+function _coerceBuffer(value, depth = 0, seen = new Set()) {
+  if (value == null || depth > 5) return null;
+  if (Buffer.isBuffer(value)) return value.length && value.length <= _maxAcceptedAudioBufferBytes() ? value : null;
+  if (value instanceof Uint8Array) return value.byteLength && value.byteLength <= _maxAcceptedAudioBufferBytes() ? Buffer.from(value) : null;
   if (Array.isArray(value)) {
-    try { return Buffer.from(value); } catch (_) { return null; }
+    if (!value.length || !value.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) return null;
+    try { const buffer = Buffer.from(value); return buffer.length <= _maxAcceptedAudioBufferBytes() ? buffer : null; } catch (_) { return null; }
   }
   if (typeof value === "string") {
     const s = value.trim();
     if (!s) return null;
-    if (/^data:audio\//i.test(s)) {
-      const idx = s.indexOf(",");
-      if (idx > -1) {
-        try { return Buffer.from(s.slice(idx + 1), "base64"); } catch (_) { return null; }
-      }
-    }
-    const b64ish = /^[A-Za-z0-9+/=\r\n]+$/.test(s) && (s.length % 4 === 0 || s.includes("="));
-    if (b64ish) {
-      try {
-        const out = Buffer.from(s.replace(/\s+/g, ""), "base64");
-        if (out && out.length) return out;
-      } catch (_) {}
-    }
-    try { return Buffer.from(s, "binary"); } catch (_) { return null; }
+    if (/^data:audio\/[^;]+;base64,/i.test(s)) return _strictBase64Buffer(s);
+    return _strictBase64Buffer(s);
   }
-  if (typeof value === "object") {
-    if (value.type === "Buffer" && Array.isArray(value.data)) {
-      try { return Buffer.from(value.data); } catch (_) { return null; }
-    }
-    return _coerceBuffer(value.buffer || value.audio || value.audioBuffer || value.audioBase64 || value.base64 || value.data);
+  if (typeof value !== "object" || seen.has(value)) return null;
+  seen.add(value);
+  if (value.type === "Buffer" && Array.isArray(value.data)) return _coerceBuffer(value.data, depth + 1, seen);
+  const keys = [
+    "buffer", "binary", "audioBuffer", "audio_content", "audioContent", "audio_base64", "audioBase64",
+    "base64", "audio", "content", "body", "data"
+  ];
+  for (const key of keys) {
+    if (value[key] === undefined || value[key] === value) continue;
+    const out = _coerceBuffer(value[key], depth + 1, seen);
+    if (out && out.length) return out;
   }
   return null;
 }
@@ -2605,55 +2701,72 @@ async function _withTimeout(promise, ms, meta) {
 }
 
 function _normalizeProviderAudio(out) {
-  const payload = out && typeof out === "object"
-    ? (out.payload && typeof out.payload === "object" ? out.payload : {})
-    : {};
-  const nestedAudio = _pickFirst(
-    payload.audioBase64,
-    payload.audio_base64,
-    payload.audio,
-    payload.base64,
-    payload.data,
-    out && out.audioBase64,
-    out && out.audio_base64,
-    out && out.audio,
-    out && out.audioBuffer,
-    out && out.base64,
-    out && out.data
+  const src = out && typeof out === "object" ? out : {};
+  const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
+  const response = src.response && typeof src.response === "object" ? src.response : {};
+  const result = src.result && typeof src.result === "object" ? src.result : {};
+  const data = src.data && typeof src.data === "object" && !Buffer.isBuffer(src.data) ? src.data : {};
+  const audio = src.audio && typeof src.audio === "object" && !Buffer.isBuffer(src.audio) ? src.audio : {};
+  const containers = [src, payload, response, result, data, audio];
+  let buffer = null;
+  for (const container of containers) {
+    if (!container || typeof container !== "object") continue;
+    const candidates = [
+      container.buffer, container.binary, container.audioBuffer, container.audio_content, container.audioContent,
+      container.audio_base64, container.audioBase64, container.base64, container.audio, container.content, container.body, container.data
+    ];
+    for (const candidate of candidates) {
+      buffer = _coerceBuffer(candidate);
+      if (buffer && buffer.length) break;
+    }
+    if (buffer && buffer.length) break;
+  }
+
+  const rawProviderStatus = Number(_pickFirst(
+    src.providerStatus, src.upstreamStatus, src.status,
+    payload.providerStatus, payload.upstreamStatus, payload.status,
+    response.providerStatus, response.status, result.providerStatus, result.status
+  ));
+  const providerStatus = Number.isFinite(rawProviderStatus) && rawProviderStatus > 0 ? rawProviderStatus : 0;
+  const explicitOk = typeof src.ok === "boolean" ? src.ok : (typeof payload.ok === "boolean" ? payload.ok : null);
+  const signatureMime = _bufferAudioSignature(buffer);
+  const declaredMime = _pickFirst(
+    src.mimeType, src.mime, src.contentType, src.content_type,
+    payload.mimeType, payload.mime, payload.contentType, payload.content_type,
+    response.mimeType, response.contentType, result.mimeType, result.contentType,
+    audio.mimeType, audio.contentType
   );
-  const buffer = _coerceBuffer(
-    out && (
-      out.buffer ||
-      out.binary ||
-      out.audioBuffer ||
-      nestedAudio ||
-      (out.response && (out.response.audio || out.response.audioBase64 || out.response.base64 || out.response.data))
-    )
+  const mimeType = signatureMime || (declaredMime && /^audio\//i.test(declaredMime) ? declaredMime : "audio/mpeg");
+  const bufferValid = !!(buffer && buffer.length && !_bufferLooksTextual(buffer));
+  const inferredOk = !!(bufferValid && (signatureMime || /^audio\//i.test(mimeType)) && (!providerStatus || (providerStatus >= 200 && providerStatus < 300)));
+  const ok = explicitOk == null ? inferredOk : !!(explicitOk && inferredOk);
+  const reason = _pickFirst(
+    src.reason, src.error, src.code, payload.reason, payload.error, payload.code,
+    response.reason, response.error, response.code, result.reason, result.error, result.code,
+    ok ? "" : (buffer && _bufferLooksTextual(buffer) ? "provider_returned_text_not_audio" : "provider_audio_unavailable")
   );
-  const providerStatus = Number(out && (out.providerStatus || out.status || payload.status || 200)) || 200;
-  const explicitOk = out && typeof out.ok === "boolean" ? out.ok : (payload && typeof payload.ok === "boolean" ? payload.ok : null);
-  const inferredOk = !!(buffer && buffer.length && providerStatus >= 200 && providerStatus < 300);
+  const message = _pickFirst(
+    src.message, src.detail, payload.message, payload.detail, response.message, response.detail, result.message, result.detail,
+    ok ? "" : "Provider returned no verified playable audio."
+  );
+  const localStatus = ok ? (providerStatus || 200) : (providerStatus >= 400 ? providerStatus : 502);
+  const retryableDefault = !ok && (_isRetryableStatus(localStatus) || providerStatus === 0 || (providerStatus >= 200 && providerStatus < 300));
+
   return {
-    ok: explicitOk == null ? inferredOk : !!(explicitOk && buffer && buffer.length),
-    buffer,
-    mimeType: _pickFirst(
-      out && out.mimeType,
-      out && out.contentType,
-      out && out.content_type,
-      payload.mimeType,
-      payload.contentType,
-      payload.content_type,
-      "audio/mpeg"
-    ),
-    elapsedMs: _int(out && (out.elapsedMs || out.durationMs || payload.elapsedMs || payload.durationMs || 0), 0, 0, 300000),
-    requestId: _pickFirst(out && out.requestId, out && out.id, payload.requestId, payload.id),
-    providerStatus,
-    message: _pickFirst(out && out.message, out && out.reason, out && out.error, payload.message, payload.reason, payload.error),
-    reason: _pickFirst(out && out.reason, out && out.error, out && out.message, payload.reason, payload.error, payload.message),
-    retryable: out && typeof out.retryable === "boolean" ? out.retryable : (payload && typeof payload.retryable === "boolean" ? payload.retryable : true),
-    authMode: _pickFirst(out && out.authMode, payload.authMode),
-    providerEndpoint: _pickFirst(out && out.providerEndpoint, payload.providerEndpoint),
-    voiceUuid: _pickFirst(out && out.voiceUuid, payload.voiceUuid)
+    ok,
+    buffer: ok ? buffer : null,
+    mimeType,
+    elapsedMs: _int(_pickFirst(src.elapsedMs, src.durationMs, payload.elapsedMs, payload.durationMs, 0), 0, 0, 300000),
+    requestId: _pickFirst(src.requestId, src.id, payload.requestId, payload.id, response.requestId, result.requestId),
+    providerStatus: providerStatus || (ok ? 200 : 0),
+    status: localStatus,
+    message,
+    reason,
+    retryable: typeof src.retryable === "boolean" ? src.retryable : (typeof payload.retryable === "boolean" ? payload.retryable : retryableDefault),
+    authMode: _pickFirst(src.authMode, payload.authMode),
+    providerEndpoint: _pickFirst(src.providerEndpoint, payload.providerEndpoint),
+    voiceUuid: _pickFirst(src.voiceUuid, payload.voiceUuid),
+    audioVerification: ok ? (signatureMime ? "signature-verified" : "declared-audio-nontext") : "rejected-non-audio"
   };
 }
 
@@ -2735,21 +2848,26 @@ async function _synthesizeWithFailover(providerInput, snapshot, shapeElapsedMs, 
 
 function _verifyAudioResult(result, input) {
   const buffer = _coerceBuffer(result && result.buffer);
-  const mimeType = _pickFirst(result && result.mimeType, result && result.mime, "audio/mpeg");
+  const declaredMime = _pickFirst(result && result.mimeType, result && result.mime, "audio/mpeg");
+  const signatureMime = _bufferAudioSignature(buffer);
   const bytes = buffer && buffer.length ? buffer.length : 0;
-  const looksAudio = /^audio\//i.test(mimeType);
-  const hasPlayableBuffer = !!(buffer && bytes > 0);
-  const ok = !!(hasPlayableBuffer && looksAudio);
+  const textual = _bufferLooksTextual(buffer);
+  const declaredAudio = /^audio\//i.test(declaredMime);
+  const signatureVerified = !!signatureMime;
+  const acceptableUnsignedAudio = !!(buffer && bytes >= 256 && declaredAudio && !textual);
+  const ok = !!(buffer && !textual && (signatureVerified || acceptableUnsignedAudio));
+  const mimeType = signatureMime || (declaredAudio ? declaredMime : "application/octet-stream");
+  const reason = textual ? "provider_returned_text_not_audio" : (buffer ? "invalid_audio_payload" : "no_audio_buffer");
   return {
     ok,
-    buffer: hasPlayableBuffer ? buffer : null,
+    buffer: ok ? buffer : null,
     mimeType,
     bytes,
-    looksAudio,
-    verification: ok ? "audio-buffer-ready" : (hasPlayableBuffer ? "mime-mismatch" : "empty-audio-buffer"),
+    looksAudio: ok,
+    verification: ok ? (signatureVerified ? "audio-signature-verified" : "audio-declared-nontext") : (textual ? "textual-payload-rejected" : (buffer ? "audio-signature-mismatch" : "empty-audio-buffer")),
     failure: ok ? null : _normalizeFailureContract(
-      hasPlayableBuffer ? "invalid_audio_mime" : "no_audio_buffer",
-      hasPlayableBuffer ? `Provider returned non-audio mime: ${mimeType || "unknown"}` : "Provider returned no playable audio buffer.",
+      reason,
+      textual ? "Provider returned JSON or text instead of audio." : (buffer ? "Provider returned an unverified audio payload." : "Provider returned no playable audio buffer."),
       502,
       true,
       input,
@@ -2762,67 +2880,75 @@ function _verifyAudioResult(result, input) {
 function _normalizeRouteSuccessAudio(result) {
   const src = result && typeof result === "object" ? result : {};
   const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
-  const buffer = _coerceBuffer(
-    src.buffer ||
-    src.audio ||
-    src.binary ||
-    src.audioBuffer ||
-    src.audioBase64 ||
-    src.base64 ||
-    payload.buffer ||
-    payload.audio ||
-    payload.binary ||
-    payload.audioBuffer ||
-    payload.audioBase64 ||
-    payload.base64
-  );
-  const mimeType = _pickFirst(
-    src.mimeType,
-    src.mime,
-    src.contentType,
-    src.content_type,
-    payload.mimeType,
-    payload.mime,
-    payload.contentType,
-    payload.content_type,
-    /^RIFF/.test(buffer ? buffer.slice(0, 4).toString("ascii") : "") ? "audio/wav" : "audio/mpeg"
-  );
+  const candidates = [
+    src.buffer, src.binary, src.audioBuffer, src.audio_content, src.audioContent, src.audio_base64, src.audioBase64, src.base64, src.audio,
+    payload.buffer, payload.binary, payload.audioBuffer, payload.audio_content, payload.audioContent, payload.audio_base64, payload.audioBase64, payload.base64, payload.audio
+  ];
+  let buffer = null;
+  for (const candidate of candidates) {
+    buffer = _coerceBuffer(candidate);
+    if (buffer && buffer.length) break;
+  }
+  const declaredMime = _pickFirst(src.mimeType, src.mime, src.contentType, src.content_type, payload.mimeType, payload.mime, payload.contentType, payload.content_type, "audio/mpeg");
+  const signatureMime = _bufferAudioSignature(buffer);
+  const textual = _bufferLooksTextual(buffer);
   const bytes = buffer && buffer.length ? buffer.length : 0;
+  const ok = !!(buffer && !textual && (signatureMime || (/^audio\//i.test(declaredMime) && bytes >= 256)));
   return {
-    ok: !!(buffer && bytes > 0),
-    buffer: buffer || null,
+    ok,
+    buffer: ok ? buffer : null,
     bytes,
-    mimeType,
-    verification: buffer && bytes > 0 ? "audio-buffer-ready" : "no_audio_buffer"
+    mimeType: signatureMime || (ok ? declaredMime : "application/octet-stream"),
+    verification: ok ? (signatureMime ? "audio-signature-verified" : "audio-declared-nontext") : (textual ? "textual-payload-rejected" : "no_verified_audio")
   };
 }
 
 function _frontendErrorEnvelope(input, result, status, extra) {
   const reason = _pickFirst(extra && extra.error, result && result.reason, result && result.error, "tts_unavailable");
   const detail = _pickFirst(extra && extra.detail, result && result.message, result && result.detail, "TTS unavailable.");
+  const providerStatus = Number((result && (result.providerStatus || result.status)) || status || 503) || 503;
+  const endpoint = _pickFirst(result && result.providerEndpoint);
+  let endpointHost = "";
+  try { endpointHost = endpoint ? new URL(endpoint).host : ""; } catch (_) {}
+  const health = _healthSnapshot();
+  const sanitizeFailure = (value) => {
+    const failure = value && typeof value === "object" ? value : {};
+    return {
+      ok: failure.ok === true,
+      action: _pickFirst(failure.action, "downgrade"),
+      reason: _pickFirst(failure.reason, reason),
+      retryable: !!failure.retryable,
+      shouldStop: !!failure.shouldStop,
+      shouldTerminate: !!failure.shouldTerminate,
+      terminalStopUntil: Number(failure.terminalStopUntil || 0) || 0
+    };
+  };
+  const defaultFailure = _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input);
   return {
     ok: false,
+    playable: false,
+    shouldPlay: false,
+    autoPlay: false,
     spokenUnavailable: true,
     error: reason,
+    reason,
     detail,
     retryable: !!(result && result.retryable),
-    traceId: input.traceId,
+    traceId: _headerSafe(input && input.traceId, 120),
     provider: _pickFirst(result && result.provider, "resemble"),
-    providerStatus: Number((result && (result.providerStatus || result.status)) || status || 503) || 503,
-    providerEndpoint: _pickFirst(result && result.providerEndpoint),
-    authMode: _pickFirst(result && result.authMode),
-    voiceUuid: _pickFirst(result && result.voiceUuid, input.voiceUuid),
-    textDisplay: _pickFirst(result && result.textDisplay, input.textDisplay, input.text),
-    textSpeak: _pickFirst(result && result.textSpeak, input.text),
-    shapeElapsedMs: Number((result && result.shapeElapsedMs) || 0) || 0,
-    segmentCount: Number((result && result.segmentCount) || 0) || 0,
-    requestId: _pickFirst(result && result.requestId, input.requestId),
-    turnId: _pickFirst(result && result.turnId, input.turnId),
-    sessionId: _pickFirst(result && result.sessionId, input.sessionId),
-    health: _healthSnapshot(),
-    ttsFailure: (result && result.ttsFailure) || _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input).ttsFailure,
-    audioFailure: (result && result.audioFailure) || _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input).audioFailure,
-    payload: { spokenUnavailable: true }
+    providerStatus,
+    providerEndpointHost: endpointHost,
+    voiceUuidPreview: _mask(_pickFirst(result && result.voiceUuid, input && input.voiceUuid)),
+    requestId: _headerSafe(_pickFirst(result && result.requestId, input && input.requestId), 80),
+    diagnostics: {
+      configured: !!health.configured,
+      circuitOpen: !!health.circuitOpen,
+      activeRequests: Number(health.activeRequests || 0) || 0,
+      version: TTS_VERSION
+    },
+    ttsFailure: sanitizeFailure((result && result.ttsFailure) || defaultFailure.ttsFailure),
+    audioFailure: sanitizeFailure((result && result.audioFailure) || defaultFailure.audioFailure),
+    payload: { spokenUnavailable: true, playable: false, shouldPlay: false, autoPlay: false }
   };
 }
 
