@@ -19,7 +19,7 @@ try { ttsMod = require("./tts"); } catch (err) { ttsLoadError = safeStr(err && (
 let chatEngine = null;
 try { chatEngine = require("./chatEngine"); } catch (_e) { chatEngine = null; }
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.5.0 LIVE-CERTIFICATION-CORS + AUDIO-CONTENT";
+const VOICE_ROUTE_VERSION = "voiceRoute v1.5.1 LIVE-ROUTE-MOUNT + GET-PLAYBACK";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 1));
 const DEFAULT_PROVIDER = safeStr(process.env.SB_TTS_PROVIDER || "resemble") || "resemble";
 const DEFAULT_VOICE_UUID = safeStr(process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_ID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_ID || process.env.SB_TTS_VOICE_UUID || "");
