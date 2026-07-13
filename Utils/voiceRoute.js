@@ -13,13 +13,34 @@
  * - Expose health/status helpers without leaking credentials or voice identifiers
  */
 
-let ttsMod = null;
-let ttsLoadError = "";
-try { ttsMod = require("./tts"); } catch (err) { ttsLoadError = safeStr(err && (err.message || err)); }
-let chatEngine = null;
-try { chatEngine = require("./chatEngine"); } catch (_e) { chatEngine = null; }
+function tryRequireVoiceDependency(candidates) {
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      const mod = require(candidate);
+      if (mod) return { mod, path: candidate, error: "" };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  return { mod: null, path: "", error: safeStr(lastError && (lastError.message || lastError)) };
+}
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.5.1 LIVE-ROUTE-MOUNT + GET-PLAYBACK";
+const ttsLoad = tryRequireVoiceDependency([
+  "./tts", "../tts", "../tts.js", "../Routes/tts", "../Routes/tts.js",
+  "../routes/tts", "../routes/tts.js", "../utils/tts", "../utils/tts.js",
+  "../Utils/tts", "../Utils/tts.js"
+]);
+const ttsMod = ttsLoad.mod;
+const ttsLoadError = ttsLoad.error;
+
+const chatEngineLoad = tryRequireVoiceDependency([
+  "./chatEngine", "../chatEngine", "../chatEngine.js", "../utils/chatEngine",
+  "../utils/chatEngine.js", "../Utils/chatEngine", "../Utils/chatEngine.js"
+]);
+const chatEngine = chatEngineLoad.mod;
+
+const VOICE_ROUTE_VERSION = "voiceRoute v1.5.2 PATH-RESOLUTION + DIRECT-BUFFER-HARDEN";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 1));
 const DEFAULT_PROVIDER = safeStr(process.env.SB_TTS_PROVIDER || "resemble") || "resemble";
 const DEFAULT_VOICE_UUID = safeStr(process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_ID || process.env.SB_RESEMBLE_VOICE_UUID || process.env.SB_RESEMBLE_VOICE_ID || process.env.SB_TTS_VOICE_UUID || "");
@@ -71,7 +92,7 @@ function buildPlayableAudioEnvelope(input,result){
   return {ok:!!(result&&result.ok),version:VOICE_ROUTE_VERSION,requestId:safeStr(pickFirst(result&&result.requestId,input.requestId)),turnId:safeStr(pickFirst(result&&result.turnId,input.turnId)),sessionId:safeStr(pickFirst(result&&result.sessionId,input.sessionId)),provider:safeStr(pickFirst(result&&result.provider,input.provider,DEFAULT_PROVIDER))||DEFAULT_PROVIDER,providerStatus:clampInt(pickFirst(result&&result.providerStatus,result&&result.status,200),200,0,999999),routeKind:safeStr(pickFirst(result&&result.routeKind,input.routeKind,"main"))||"main",mimeType,mime:mimeType,format,text,textSpeak:text,spokenText:text,audioUrl,url:audioUrl,audioBase64,byteLength:audioBuffer&&audioBuffer.length?audioBuffer.length:0,chars:clampInt(text.length,0,0,999999),playable,autoPlay:true,audio:{url:audioUrl,audioUrl,audioBase64,byteLength:audioBuffer&&audioBuffer.length?audioBuffer.length:0,mimeType,mime:mimeType,format,playable,autoPlay:true,chars:clampInt(text.length,0,0,999999)},playback:{ready:playable,autoPlay:true,route:"/api/tts",compatibilityRoute:"/tts",mimeType,format},speechLifecycle:{prestart:"nyx:voice:prestart",start:"nyx:voice:start",amplitude:"nyx:voice:amplitude",end:"nyx:voice:end",error:"nyx:voice:error"}};
 }
 function normalizeDelegateResult(value,input){
-  if(Buffer.isBuffer(value)||value instanceof Uint8Array)return {ok:true,buffer:Buffer.from(value),provider:input.provider,text:input.text,requestId:input.requestId,turnId:input.turnId,sessionId:input.sessionId};
+  if(Buffer.isBuffer(value)||value instanceof Uint8Array)return {ok:true,playable:true,buffer:Buffer.from(value),provider:input.provider,text:input.text,requestId:input.requestId,turnId:input.turnId,sessionId:input.sessionId};
   if(typeof value==="string"){
     if(/^https?:\/\//i.test(value.trim()))return {ok:true,audioUrl:value.trim(),provider:input.provider,text:input.text};
     const compact=value.trim().replace(/^data:audio\/[^;]+;base64,/i,"").replace(/\s+/g,"");
@@ -131,7 +152,7 @@ async function callDelegate(req,input,attempt){
   if(!delegateTts)return{ok:false,retryable:false,reason:"tts_delegate_unavailable",message:ttsLoadError||"Resolved TTS delegate is unavailable",providerStatus:503,requestId:input.requestId,turnId:input.turnId,sessionId:input.sessionId};
   try{return normalizeDelegateResult(await Promise.resolve(delegateTts(payload,req)),input);}catch(err){const message=safeStr(err&&(err.message||err)||"tts_delegate_failed");return{ok:false,retryable:/timeout|network|fetch|socket|429|503|504/i.test(message),reason:/timeout/i.test(message)?"tts_timeout":"tts_delegate_exception",message,providerStatus:/429/.test(message)?429:/503/.test(message)?503:/504/.test(message)?504:502,requestId:input.requestId,turnId:input.turnId,sessionId:input.sessionId};}
 }
-async function health(){try{const info=ttsHealth?await Promise.resolve(ttsHealth()):null;return{ok:!!delegateTts,enabled:!!delegateTts,version:VOICE_ROUTE_VERSION,ttsModuleLoaded:!!ttsMod,ttsDelegateBound:!!delegateTts,ttsHealthBound:!!ttsHealth,voiceConfigured:!!DEFAULT_VOICE_UUID,provider:DEFAULT_PROVIDER,loadError:ttsLoadError||undefined,tts:info&&typeof info==="object"?info:null};}catch(err){return{ok:false,enabled:!!delegateTts,version:VOICE_ROUTE_VERSION,ttsModuleLoaded:!!ttsMod,ttsDelegateBound:!!delegateTts,ttsHealthBound:!!ttsHealth,voiceConfigured:!!DEFAULT_VOICE_UUID,provider:DEFAULT_PROVIDER,error:safeStr(err&&(err.message||err)||"tts_health_failed")};}}
+async function health(){try{const info=ttsHealth?await Promise.resolve(ttsHealth()):null;const configured=!!(DEFAULT_VOICE_UUID||(info&&typeof info==="object"&&(info.configured||info.voiceConfigured||info.ready)));return{ok:!!delegateTts&&(!info||info.ok!==false),enabled:!!delegateTts,version:VOICE_ROUTE_VERSION,ttsModuleLoaded:!!ttsMod,ttsModulePath:ttsLoad.path||undefined,ttsDelegateBound:!!delegateTts,ttsHealthBound:!!ttsHealth,voiceConfigured:configured,provider:DEFAULT_PROVIDER,loadError:ttsLoadError||undefined,tts:info&&typeof info==="object"?info:null};}catch(err){return{ok:false,enabled:!!delegateTts,version:VOICE_ROUTE_VERSION,ttsModuleLoaded:!!ttsMod,ttsModulePath:ttsLoad.path||undefined,ttsDelegateBound:!!delegateTts,ttsHealthBound:!!ttsHealth,voiceConfigured:!!DEFAULT_VOICE_UUID,provider:DEFAULT_PROVIDER,error:safeStr(err&&(err.message||err)||"tts_health_failed")};}}
 async function voiceRoute(req,res){
   const origin=safeStr(req&&req.headers&&req.headers.origin),allowed=safeStr(process.env.SB_TTS_ALLOWED_ORIGINS||"https://sandblast.channel,https://www.sandblast.channel").split(",").map(x=>x.trim());if(origin&&(allowed.includes(origin)||allowed.includes("*")))setHeaderSafe(res,"Access-Control-Allow-Origin",allowed.includes("*")?"*":origin);setHeaderSafe(res,"Access-Control-Allow-Methods","POST,GET,OPTIONS");setHeaderSafe(res,"Access-Control-Allow-Headers","Content-Type,Accept,X-SB-Response-Mode,X-SB-State-Contract,X-SB-Surface-Profile,X-SB-Widget-Token,X-SB-Session-ID,X-SB-Turn-ID,X-SB-Trace-ID,X-SB-Request-ID,X-SB-Voice");if(req&&safeStr(req.method).toUpperCase()==="OPTIONS")return res.status(204).end();
   const input=normalizeInput(req); setHeaderSafe(res,"X-SB-Voice-Route-Version",VOICE_ROUTE_VERSION); setHeaderSafe(res,"Cache-Control","no-store, no-cache, must-revalidate, max-age=0"); setHeaderSafe(res,"Vary","Origin, Accept"); setHeaderSafe(res,"X-SB-Audio-Contract","audio-first-v3");
