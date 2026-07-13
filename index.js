@@ -8,7 +8,7 @@
 /**
  * Sandblast Backend â€” index.js
  *
- * index.js v2.18.8sb NYX-RESEMBLE-SYNTH-ENDPOINT-ENV-HARDLOCK
+ * index.js v2.18.9sb NYX-TTS-RESPONSE-INTEGRITY-HARDLOCK
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -2659,6 +2659,18 @@ function safeObj(v) {
 
 function cleanText(v) {
   return safeStr(v).replace(/\s+/g, " ").trim();
+}
+
+function repairCommonMojibake(value) {
+  return safeStr(value)
+    .replace(/\u00e2\u20ac\u2122/g, "\u2019")
+    .replace(/\u00e2\u20ac\u02dc/g, "\u2018")
+    .replace(/\u00e2\u20ac\u0153/g, "\u201c")
+    .replace(/\u00e2\u20ac\u009d/g, "\u201d")
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013")
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014")
+    .replace(/\u00e2\u20ac\u00a6/g, "\u2026")
+    .replace(/\u00c2(?=[\u00a0\s])/g, "");
 }
 
 function normalizePublicNyxAddress(value) {
@@ -12223,16 +12235,31 @@ function ttsHealthFromModule(mod) {
 function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
   const code = clamp(Number(statusCode || 503), 400, 599);
   const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("tts"));
+  const safeExtra = isObj(extra) ? extra : {};
+  try {
+    res.setHeader("X-SB-Response-Mode", "error");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+  } catch (_) {}
   const payload = {
     ok: false,
+    playable: false,
+    shouldPlay: false,
+    autoPlay: false,
     spokenUnavailable: true,
     error: cleanText(error || "tts_route_failure") || "tts_route_failure",
+    reason: cleanText(error || "tts_route_failure") || "tts_route_failure",
     detail: cleanText(detail || "TTS route failed") || "TTS route failed",
+    retryable: safeExtra.retryable === true,
+    provider: cleanText(safeExtra.provider || "resemble") || "resemble",
+    providerStatus: Number(safeExtra.providerStatus || code) || code,
     traceId,
-    meta: { v: PUBLIC_INDEX_VERSION, t: now() },
-    payload: { spokenUnavailable: true }
+    diagnosticsRedacted: true,
+    configSource: cleanText(safeExtra.configSource || ""),
+    ttsModuleBound: safeExtra.ttsModuleBound === true,
+    payload: { spokenUnavailable: true, playable: false, shouldPlay: false, autoPlay: false },
+    meta: { v: PUBLIC_INDEX_VERSION, t: now(), audioContract: "audio-first-v2" }
   };
-  if (isObj(extra)) Object.assign(payload, extra);
   return res.status(code).json(payload);
 }
 
@@ -12287,146 +12314,182 @@ function looksLikeBase64Audio(v) {
 }
 
 function normalizeTtsRoutePayload(raw, req) {
-  const src = isObj(raw) ? { ...raw } : {};
-  const payload = isObj(src.payload) ? { ...src.payload } : {};
-  const audio = isObj(src.audio) ? { ...src.audio } : {};
-  const speech = isObj(src.speech) ? { ...src.speech } : {};
+  const src = isObj(raw) ? raw : {};
+  const payload = isObj(src.payload) ? src.payload : {};
+  const audio = isObj(src.audio) && !Buffer.isBuffer(src.audio) ? src.audio : {};
+  const speech = isObj(src.speech) ? src.speech : {};
+  const result = isObj(src.result) ? src.result : {};
+  const response = isObj(src.response) ? src.response : {};
+  const dataObj = isObj(src.data) && !Buffer.isBuffer(src.data) ? src.data : {};
   const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || src.traceId || payload.traceId || makeTraceId("tts"));
+  const containers = [src, payload, audio, result, response, dataObj];
 
-  const audioUrl = firstTruthyString(
-    src.audioUrl,
-    src.url,
-    src.src,
-    src.audioSrc,
-    audio.url,
-    audio.audioUrl,
-    audio.src,
-    payload.audioUrl,
-    payload.url,
-    payload.src
-  );
-  let audioBase64 = firstTruthyString(
-    src.audioBase64,
-    src.base64,
-    src.audioContent,
-    src.audioData,
-    audio.base64,
-    audio.audioBase64,
-    audio.content,
-    audio.data,
-    payload.audioBase64,
-    payload.base64,
-    payload.audioContent,
-    payload.audioData
-  );
-  const dataUri = /^data:(audio\/[^;]+);base64,(.+)$/i.exec(audioBase64 || "");
-  let mimeType = inferAudioMimeType({ ...src, payload, audio });
-  if (dataUri) {
-    mimeType = cleanText(dataUri[1]) || mimeType;
-    audioBase64 = cleanText(dataUri[2]);
+  function safeAudioUrl(value) {
+    const rawUrl = cleanText(value);
+    if (!rawUrl) return "";
+    try {
+      const url = new URL(rawUrl);
+      if (url.protocol === "https:") return url.toString();
+      if (url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname)) return url.toString();
+    } catch (_) {}
+    return "";
   }
 
-  const text = cleanReplyForUser(firstTruthyString(
-    src.text,
-    src.textSpeak,
-    src.textDisplay,
-    src.spokenText,
-    speech.textSpeak,
-    speech.text,
-    payload.textSpeak,
-    payload.textDisplay,
-    payload.spokenText,
-    payload.text
-  ));
+  function detectBufferMime(buffer) {
+    if (!Buffer.isBuffer(buffer) || !buffer.length) return "";
+    if (buffer.length >= 12 && buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WAVE") return "audio/wav";
+    if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "OggS") return "audio/ogg";
+    if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "fLaC") return "audio/flac";
+    if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) return "audio/webm";
+    if (buffer.length >= 12 && buffer.slice(4, 8).toString("ascii") === "ftyp") return "audio/mp4";
+    if (buffer.length >= 3 && buffer.slice(0, 3).toString("ascii") === "ID3") return "audio/mpeg";
+    for (let n = 0; n < Math.min(buffer.length - 1, 64); n += 1) if (buffer[n] === 0xff && (buffer[n + 1] & 0xe0) === 0xe0) return "audio/mpeg";
+    return "";
+  }
 
-  const format = cleanText(
-    src.format ||
-    src.audioFormat ||
-    audio.format ||
-    payload.format ||
-    (mimeType === "audio/mpeg" ? "mp3" : mimeType.replace(/^audio\//i, ""))
-  ) || "mp3";
+  function decodeAudioBase64(value, declaredMime) {
+    let rawValue = cleanText(value);
+    if (!rawValue) return null;
+    let dataMime = "";
+    const dataUri = /^data:(audio\/[^;]+);base64,(.+)$/i.exec(rawValue);
+    if (dataUri) {
+      dataMime = cleanText(dataUri[1]);
+      rawValue = cleanText(dataUri[2]);
+    }
+    rawValue = rawValue.replace(/\s+/g, "");
+    const maxBytes = clamp(Number(process.env.SB_TTS_MAX_AUDIO_BYTES || 25 * 1024 * 1024), 256 * 1024, 100 * 1024 * 1024);
+    const maxBase64Chars = Math.ceil(maxBytes * 4 / 3) + 8;
+    if (rawValue.length < 16 || rawValue.length > maxBase64Chars || !/^[A-Za-z0-9+/]+={0,2}$/.test(rawValue)) return null;
+    try {
+      const padded = rawValue + "=".repeat((4 - (rawValue.length % 4)) % 4);
+      const buffer = Buffer.from(padded, "base64");
+      if (!buffer.length || buffer.length > maxBytes) return null;
+      const preview = buffer.slice(0, Math.min(buffer.length, 128)).toString("utf8").replace(/^\uFEFF/, "").trim().toLowerCase();
+      if (preview.startsWith("{") || preview.startsWith("[") || preview.startsWith("<!doctype") || preview.startsWith("<html") || preview.startsWith("<body")) return null;
+      const signatureMime = detectBufferMime(buffer);
+      const requestedMime = cleanText(dataMime || declaredMime);
+      if (!signatureMime && (!/^audio\//i.test(requestedMime) || buffer.length < 256)) return null;
+      return { base64: buffer.toString("base64"), mimeType: signatureMime || requestedMime || "audio/mpeg", bytes: buffer.length };
+    } catch (_) {
+      return null;
+    }
+  }
 
-  // Never advertise playable audio without an actual URL or base64 payload.
+  let audioUrl = "";
+  for (const container of containers) {
+    audioUrl = safeAudioUrl(firstTruthyString(container.audioUrl, container.audio_url, container.url, container.src, container.audioSrc, container.audio_src));
+    if (audioUrl) break;
+  }
+
+  const declaredMime = inferAudioMimeType({ ...src, payload, audio });
+  let decodedAudio = null;
+  for (const container of containers) {
+    const candidates = [container.audioBase64, container.audio_base64, container.audio_content, container.audioContent, container.base64, container.content, container.audioData];
+    for (const candidate of candidates) {
+      decodedAudio = decodeAudioBase64(candidate, declaredMime);
+      if (decodedAudio) break;
+    }
+    if (decodedAudio) break;
+  }
+
+  const audioBase64 = decodedAudio ? decodedAudio.base64 : "";
   const playable = !!(audioUrl || audioBase64);
-  const autoPlay = boolish(
+  const mimeType = playable ? (decodedAudio && decodedAudio.mimeType || declaredMime || "audio/mpeg") : "application/json";
+  const text = repairCommonMojibake(cleanReplyForUser(firstTruthyString(
+    src.text, src.textSpeak, src.textDisplay, src.spokenText,
+    speech.textSpeak, speech.text, payload.textSpeak, payload.textDisplay, payload.spokenText, payload.text
+  )));
+  const format = playable ? (cleanText(firstTruthyString(src.format, src.audioFormat, audio.format, payload.format)) || (mimeType === "audio/mpeg" ? "mp3" : mimeType.replace(/^audio\//i, ""))) : "";
+  const requestedAutoPlay = boolish(
     src.autoPlay !== undefined ? src.autoPlay :
     audio.autoPlay !== undefined ? audio.autoPlay :
     payload.autoPlay !== undefined ? payload.autoPlay :
     src.shouldPlay !== undefined ? src.shouldPlay :
     audio.shouldPlay !== undefined ? audio.shouldPlay :
     payload.shouldPlay !== undefined ? payload.shouldPlay :
-    true,
-    true
+    false,
+    false
   );
+  const autoPlay = !!(playable && requestedAutoPlay);
+  const responseText = playable ? text : "";
+  const error = firstTruthyString(...containers.map((container) => firstTruthyString(container.error, container.reason, container.code)));
+  const detail = firstTruthyString(...containers.map((container) => firstTruthyString(container.detail, container.message)));
+  const statusCandidate = Number(firstTruthyString(...containers.map((container) => firstTruthyString(container.providerStatus, container.upstreamStatus, container.status))));
+  const providerStatus = Number.isFinite(statusCandidate) && statusCandidate > 0 ? statusCandidate : (playable ? 200 : 503);
+  const retryable = boolish(firstTruthyString(...containers.map((container) => container.retryable)), false);
+  const provider = firstTruthyString(...containers.map((container) => container.provider), process.env.TTS_PROVIDER || "resemble") || "resemble";
 
   const normalizedAudio = {
     ok: playable,
     playable,
-    url: audioUrl || "",
-    src: audioUrl || "",
-    audioUrl: audioUrl || "",
-    audioBase64: audioBase64 || "",
+    url: audioUrl,
+    src: audioUrl,
+    audioUrl,
+    audioBase64,
+    byteLength: decodedAudio ? decodedAudio.bytes : 0,
     mimeType,
     contentType: mimeType,
     format,
     autoPlay,
     shouldPlay: autoPlay,
-    provider: firstTruthyString(src.provider, audio.provider, payload.provider, process.env.TTS_PROVIDER || "resemble") || "resemble",
-    text: text || "",
-    textSpeak: text || "",
-    chars: Number(src.chars || audio.chars || payload.chars || (text ? text.length : 0)) || 0
+    provider,
+    text: responseText,
+    textSpeak: responseText,
+    chars: responseText.length
   };
 
   return {
-    ok: src.ok !== false && playable,
+    ok: playable && src.ok !== false && !error,
     playable,
+    autoPlay,
+    shouldPlay: autoPlay,
     spokenUnavailable: !playable,
-    error: firstTruthyString(src.error, src.reason, payload.error, payload.reason),
-    reason: firstTruthyString(src.reason, src.error, payload.reason, payload.error),
-    detail: firstTruthyString(src.detail, src.message, payload.detail, payload.message),
-    retryable: boolish(src.retryable !== undefined ? src.retryable : payload.retryable, false),
-    providerStatus: Number(src.providerStatus || src.status || payload.providerStatus || payload.status || 0) || 0,
+    error: error || (playable ? "" : "tts_audio_unavailable"),
+    reason: error || (playable ? "" : "tts_audio_unavailable"),
+    detail: detail || (playable ? "" : "No verified playable audio was returned."),
+    retryable,
+    provider,
+    providerStatus,
     traceId,
+    diagnosticsRedacted: true,
     audio: normalizedAudio,
-    audioUrl: normalizedAudio.audioUrl,
-    audioBase64: normalizedAudio.audioBase64,
-    src: normalizedAudio.audioUrl,
-    url: normalizedAudio.audioUrl,
-    mimeType: normalizedAudio.mimeType,
-    contentType: normalizedAudio.mimeType,
-    format: normalizedAudio.format,
-    autoPlay: normalizedAudio.autoPlay,
-    shouldPlay: normalizedAudio.shouldPlay,
-    text: text || "",
-    textSpeak: text || "",
-    spokenText: text || "",
+    audioUrl,
+    audioBase64,
+    src: audioUrl,
+    url: audioUrl,
+    mimeType,
+    contentType: mimeType,
+    format,
+    text: responseText,
+    textSpeak: responseText,
+    spokenText: responseText,
     speech: {
-      enabled: true,
+      enabled: playable,
       speak: playable,
-      text: text || "",
-      textDisplay: text || "",
-      textSpeak: text || "",
+      text: responseText,
+      textDisplay: responseText,
+      textSpeak: responseText,
       alignmentVersion: "speech-contract-v3"
     },
     payload: {
-      ...payload,
       playable,
-      audioUrl: normalizedAudio.audioUrl,
-      audioBase64: normalizedAudio.audioBase64,
-      mimeType: normalizedAudio.mimeType,
-      format: normalizedAudio.format,
-      autoPlay: normalizedAudio.autoPlay,
-      shouldPlay: normalizedAudio.shouldPlay,
-      textSpeak: text || payload.textSpeak || "",
-      spokenText: text || payload.spokenText || ""
+      spokenUnavailable: !playable,
+      audioUrl,
+      audioBase64,
+      byteLength: decodedAudio ? decodedAudio.bytes : 0,
+      mimeType,
+      format,
+      autoPlay,
+      shouldPlay: autoPlay,
+      textSpeak: responseText,
+      spokenText: responseText
     },
     meta: {
-      ...(isObj(src.meta) ? src.meta : {}),
       v: PUBLIC_INDEX_VERSION,
       t: now(),
       route: cleanText(req && (req.originalUrl || req.path) || "/api/tts") || "/api/tts",
-      audioContract: "audio-first-v2"
+      audioContract: "audio-first-v2",
+      diagnosticsRedacted: true
     }
   };
 }
@@ -12434,35 +12497,61 @@ function normalizeTtsRoutePayload(raw, req) {
 async function dispatchTts(req, res) {
   hardenConversationNoStore(res);
   try {
-    res.setHeader("Vary", "Accept");
+    res.setHeader("Vary", "Origin, Accept");
     res.setHeader("X-SB-Audio-Contract", "audio-first-v2");
     res.setHeader("X-SB-TTS-Response-Mode", "binary-audio-default");
+    res.setHeader("X-Content-Type-Options", "nosniff");
   } catch (_) {}
   const moduleHandler = ttsHandlerFromModule(ttsMod);
   if (CFG.httpLogEnabled) {
     console.log("[Sandblast][ttsRoute:dispatch]", { path: req.originalUrl || req.path || "/api/tts", hasHandler: !!moduleHandler, host: getBackendPublicBase(), traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || "") });
   }
-  if (!moduleHandler) {
-    throw new Error("tts_handler_unavailable");
-  }
+  if (!moduleHandler) throw new Error("tts_handler_unavailable");
 
   const originalJson = typeof res.json === "function" ? res.json.bind(res) : null;
   if (originalJson) {
     res.json = function patchedTtsJson(body) {
-      return originalJson(normalizeTtsRoutePayload(body, req));
+      const normalized = normalizeTtsRoutePayload(body, req);
+      if (!normalized.playable) {
+        try {
+          res.setHeader("X-SB-Response-Mode", "error");
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+        } catch (_) {}
+      }
+      return originalJson(normalized);
     };
   }
 
   const result = await moduleHandler(req, res);
   if (res.headersSent || res.writableEnded) return result;
 
+  if (Buffer.isBuffer(result) || result instanceof Uint8Array) {
+    const buffer = Buffer.from(result);
+    if (!buffer.length) return sendTtsJsonError(req, res, 502, "tts_empty_audio", "TTS returned an empty audio buffer.", { providerStatus: 502, retryable: true });
+    try {
+      res.status(200);
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", String(buffer.length));
+      res.setHeader("X-SB-Response-Mode", "audio");
+      return res.end(buffer);
+    } catch (_) {
+      return sendTtsJsonError(req, res, 502, "tts_audio_send_failed", "TTS audio could not be sent.", { providerStatus: 502, retryable: true });
+    }
+  }
+
   if (result !== undefined) {
-    return res.status(200).json(normalizeTtsRoutePayload(result, req));
+    const normalized = normalizeTtsRoutePayload(result, req);
+    if (normalized.playable && normalized.ok) return res.status(200).json(normalized);
+    const rawStatus = Number(isObj(result) && (result.status || result.providerStatus) || normalized.providerStatus || 503);
+    const status = rawStatus >= 400 && rawStatus < 600 ? rawStatus : 502;
+    return res.status(status).json(normalized);
   }
 
   return sendTtsJsonError(req, res, 503, "tts_empty_response", "TTS handler completed without audio payload.", {
     configSource: "tts_module",
-    ttsModuleBound: true
+    ttsModuleBound: true,
+    retryable: true,
+    providerStatus: 503
   });
 }
 
@@ -13854,6 +13943,47 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
 });
 
 const TTS_PLAYBACK_ROUTES = ["/api/tts", "/tts", "/api/tts/", "/tts/"];
+const TTS_RATE_WINDOW_MS = clamp(Number(process.env.SB_TTS_RATE_WINDOW_MS || 60 * 1000), 10 * 1000, 60 * 60 * 1000);
+const TTS_RATE_MAX = clamp(Number(process.env.SB_TTS_RATE_MAX || 45), 1, 1000);
+const TTS_RATE_BUCKET_MAX = clamp(Number(process.env.SB_TTS_RATE_BUCKET_MAX || 5000), 100, 50000);
+const ttsRateBuckets = new Map();
+
+function ttsClientRateKey(req) {
+  const cf = cleanText(req && req.headers && req.headers["cf-connecting-ip"] || "");
+  const forwarded = cleanText(req && req.headers && req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return cleanText(cf || req && req.ip || forwarded || req && req.socket && req.socket.remoteAddress || "unknown") || "unknown";
+}
+
+function enforceTtsRateLimit(req, res, next) {
+  if (cleanText(req && req.method || "GET").toUpperCase() === "OPTIONS") return next();
+  const key = ttsClientRateKey(req);
+  const t = now();
+  const current = ttsRateBuckets.get(key) || { startedAt: t, count: 0 };
+  if (t - current.startedAt >= TTS_RATE_WINDOW_MS) {
+    current.startedAt = t;
+    current.count = 0;
+  }
+  current.count += 1;
+  ttsRateBuckets.set(key, current);
+
+  if (ttsRateBuckets.size > TTS_RATE_BUCKET_MAX) {
+    for (const [bucketKey, bucket] of ttsRateBuckets.entries()) {
+      if (t - Number(bucket && bucket.startedAt || 0) > TTS_RATE_WINDOW_MS * 2) ttsRateBuckets.delete(bucketKey);
+      if (ttsRateBuckets.size <= TTS_RATE_BUCKET_MAX) break;
+    }
+  }
+
+  if (current.count <= TTS_RATE_MAX) return next();
+  const retryAfterSeconds = Math.max(1, Math.ceil((current.startedAt + TTS_RATE_WINDOW_MS - t) / 1000));
+  try { res.setHeader("Retry-After", String(retryAfterSeconds)); } catch (_) {}
+  return sendTtsJsonError(req, res, 429, "tts_rate_limited", "Too many voice synthesis requests. Try again shortly.", {
+    provider: "resemble",
+    providerStatus: 429,
+    retryable: true,
+    configSource: "tts_rate_limit",
+    ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
+  });
+}
 
 async function handlePublicTtsRequest(req, res) {
   hardenCors(req, res);
@@ -13877,8 +14007,8 @@ app.options(TTS_PLAYBACK_ROUTES, (req, res) => {
   hardenConversationNoStore(res);
   return res.status(204).end();
 });
-app.get(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, handlePublicTtsRequest);
-app.post(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, handlePublicTtsRequest);
+app.get(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, enforceTtsRateLimit, handlePublicTtsRequest);
+app.post(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, enforceTtsRateLimit, handlePublicTtsRequest);
 
 const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"];
 
