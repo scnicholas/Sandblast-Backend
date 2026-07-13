@@ -4,7 +4,7 @@
   "displayName": "Sandblast Cartoons",
   "loop": true,
   "anchorEpochMs": 0,
-  "updatedAt": null,
+  "updatedAt": "2026-07-12T23:59:53Z",
   "slots": [
     {
       "id": "cartoons-01",
@@ -12,7 +12,7 @@
       "title": "Superman",
       "sourceUrl": "https://dn600209.us.archive.org/0/items/billion_dollar_limited/billion_dollar_limited_512kb.mp4",
       "durationSeconds": 512,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "Billion Dollar Limited"
     },
@@ -22,7 +22,7 @@
       "title": "Popeye The Sailor Meets Ali Baba's Forty Thieves",
       "sourceUrl": "https://dn801207.us.archive.org/0/items/PopeyeTheSailorMeetsAliBabasFortyThieves/PopeyeAliBabaRestored_512kb.mp4",
       "durationSeconds": 1035,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": ""
     },
@@ -32,7 +32,7 @@
       "title": "Superman",
       "sourceUrl": "https://dn801201.us.archive.org/0/items/superman_the_mechanical_monsters/superman_the_mechanical_monsters_512kb.mp4",
       "durationSeconds": 614,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "The Mechanical Monsters"
     },
@@ -42,7 +42,7 @@
       "title": "The Lone Ranger",
       "sourceUrl": "https://dn710709.ca.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Day%20of%20the%20Dragon%20-%20Great%20TV%20Animated%20Cartoon.mp4",
       "durationSeconds": 0,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "Day of the Dragon"
     },
@@ -52,7 +52,7 @@
       "title": "The Lone Ranger",
       "sourceUrl": "https://dn710709.ca.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Puppet%20Master%20-%20Full%20Cartoon%20Episode.mp4",
       "durationSeconds": 393,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": ""
     },
@@ -62,7 +62,7 @@
       "title": "Popeye The Sailor",
       "sourceUrl": "https://dn711205.ca.archive.org/0/items/popeye-pubdomain/Private_Eye_Popeye.mp4",
       "durationSeconds": 392,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "Private Eye Popeye"
     },
@@ -72,7 +72,7 @@
       "title": "Superman",
       "sourceUrl": "https://dn720401.ca.archive.org/0/items/1942publicdomainanimation/1942.08.30%20-%20Terror%20on%20the%20Midway.ia.mp4",
       "durationSeconds": 492,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "Terror on the Midway"
     },
@@ -82,7 +82,7 @@
       "title": "Popeye The Sailor",
       "sourceUrl": "https://dn720309.ca.archive.org/0/items/1956publicdomainanimation/1956.08.10%20-%20Insect%20to%20Injury.ia.mp4",
       "durationSeconds": 365,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "Insect to Injury"
     },
@@ -92,7 +92,7 @@
       "title": "Clutch Cargo",
       "sourceUrl": "https://dn710908.ca.archive.org/0/items/ToonClassics_93/ClutchcargoThecaseofripcordvanwinkle.mp4",
       "durationSeconds": 1200,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "The Case of Ripcord Van Winkle"
     },
@@ -102,7 +102,7 @@
       "title": "The Lone Ranger",
       "sourceUrl": "https://dn801209.us.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Valley%20of%20the%20Dead%20-%20spectacular%20full%20western%20cartoon.mp4",
       "durationSeconds": 360,
-      "enabled": false,
+      "enabled": true,
       "validationStatus": "pending",
       "notes": "Valley of the Dead"
     },
@@ -113,7 +113,7 @@
       "sourceUrl": "",
       "durationSeconds": 0,
       "enabled": false,
-      "validationStatus": "pending",
+      "validationStatus": "empty",
       "notes": ""
     },
     {
@@ -123,7 +123,7 @@
       "sourceUrl": "",
       "durationSeconds": 0,
       "enabled": false,
-      "validationStatus": "pending",
+      "validationStatus": "empty",
       "notes": ""
     },
     {
@@ -133,7 +133,7 @@
       "sourceUrl": "",
       "durationSeconds": 0,
       "enabled": false,
-      "validationStatus": "pending",
+      "validationStatus": "empty",
       "notes": ""
     },
     {
@@ -143,7 +143,7 @@
       "sourceUrl": "",
       "durationSeconds": 0,
       "enabled": false,
-      "validationStatus": "pending",
+      "validationStatus": "empty",
       "notes": ""
     },
     {
@@ -153,7 +153,7 @@
       "sourceUrl": "",
       "durationSeconds": 0,
       "enabled": false,
-      "validationStatus": "pending",
+      "validationStatus": "empty",
       "notes": ""
     }
   ]
