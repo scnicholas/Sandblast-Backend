@@ -1,16 +1,22 @@
 {
   "schemaVersion": 1,
+  "updatedAt": "2026-07-12T23:59:53Z",
   "channels": [
     {
       "slug": "classic",
       "displayName": "Sandblast Classics",
       "enabled": true,
+      "mode": "scheduler",
+      "schedulerUrl": "/api/sandblast-tv/v1/channels/classic/now",
       "fallbackUrl": "https://dn600300.us.archive.org/0/items/strangers-on-a-train-720p/Strangers%20On%20A%20Train%20720p.mp4"
     },
     {
       "slug": "cartoons",
       "displayName": "Sandblast Cartoons",
       "enabled": true,
+      "mode": "manifest",
+      "manifestUrl": "/Data/Sandbox%20TV/cartoons.json",
+      "loop": true,
       "fallbackUrl": "https://dn600209.us.archive.org/0/items/billion_dollar_limited/billion_dollar_limited_512kb.mp4"
     }
   ]
