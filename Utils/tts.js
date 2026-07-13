@@ -1645,7 +1645,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.11.0 LIVE-CERTIFICATION-RESEMBLE-CONTRACT + AUDIO-FIRST";
+const TTS_VERSION = "tts.js v2.11.1 LIVE-ROUTE-MOUNT + DIRECT-MEDIA-GET";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
