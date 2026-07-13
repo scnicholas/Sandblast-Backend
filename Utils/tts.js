@@ -10,12 +10,12 @@ const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 
 
 const MANUAL_RESEMBLE_CONFIG = Object.freeze({
-  // Manual fallback placeholders: paste real values between the quotes if you want file-level overrides.
-  // Leave blank to use environment variables instead.
+  // Emergency file-level overrides only. Production configuration belongs in
+  // Render environment variables. Leave these blank during normal deployment.
   apiKey: "",
   voiceUuid: "",
   projectUuid: "",
-  synthUrl: "https://f.cluster.resemble.ai/synthesize",
+  synthUrl: "",
   statusUrlTemplate: ""
 });
 
@@ -477,15 +477,87 @@ function _normalizeUrlCandidate(url){
   }
 }
 
+const RESEMBLE_SYNTH_URL_ENV_KEYS = Object.freeze([
+  "RESEMBLE_SYNTH_URL",
+  "SB_RESEMBLE_SYNTH_URL",
+  "SBNYX_RESEMBLE_SYNTH_URL",
+  "RESEMBLE_SYNTH_ENDPOINT",
+  "SB_RESEMBLE_SYNTH_ENDPOINT",
+  "RESEMBLE_TTS_URL"
+]);
+const DEFAULT_RESEMBLE_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
+
+function _normalizeSynthesizeUrlCandidate(url){
+  const normalized = _normalizeUrlCandidate(url);
+  if (!normalized) return "";
+  try{
+    const u = new URL(normalized);
+    if (u.protocol !== "https:") return "";
+    u.hash = "";
+    if (u.hostname.toLowerCase() === "f.cluster.resemble.ai" && /^\/?$/.test(u.pathname || "")) {
+      u.pathname = "/synthesize";
+    }
+    if (!/\/synthesize\/?$/i.test(u.pathname || "")) return "";
+    return u.toString();
+  }catch(_){
+    return "";
+  }
+}
+
+function _synthesizeEndpointState(){
+  const invalidConfiguredKeys = [];
+  for (const key of RESEMBLE_SYNTH_URL_ENV_KEYS){
+    const raw = _trim(process.env[key]);
+    if (!raw) continue;
+    const url = _normalizeSynthesizeUrlCandidate(raw);
+    if (url) {
+      const parsed = new URL(url);
+      return {
+        configured: true,
+        valid: true,
+        source: key,
+        url,
+        host: parsed.host,
+        path: parsed.pathname,
+        invalidConfiguredKeys
+      };
+    }
+    invalidConfiguredKeys.push(key);
+  }
+
+  const manual = _trim(_manualConfig().synthUrl);
+  const manualUrl = _normalizeSynthesizeUrlCandidate(manual);
+  if (manualUrl) {
+    const parsed = new URL(manualUrl);
+    return {
+      configured: true,
+      valid: true,
+      source: "MANUAL_RESEMBLE_CONFIG.synthUrl",
+      url: manualUrl,
+      host: parsed.host,
+      path: parsed.pathname,
+      invalidConfiguredKeys
+    };
+  }
+  if (manual) invalidConfiguredKeys.push("MANUAL_RESEMBLE_CONFIG.synthUrl");
+
+  const fallbackUrl = _normalizeSynthesizeUrlCandidate(DEFAULT_RESEMBLE_SYNTH_URL);
+  const parsed = new URL(fallbackUrl);
+  return {
+    configured: false,
+    valid: !!fallbackUrl,
+    source: "built_in_default",
+    url: fallbackUrl,
+    host: parsed.host,
+    path: parsed.pathname,
+    invalidConfiguredKeys
+  };
+}
+
 function _candidateSynthesizeUrls(){
-  const explicit = [
-    _manualConfig().synthUrl,
-    process.env.RESEMBLE_SYNTH_URL,
-    process.env.RESEMBLE_TTS_URL,
-    process.env.RESEMBLE_API_URL,
-    "https://f.cluster.resemble.ai/synthesize"
-  ]
-    .map(_normalizeUrlCandidate)
+  const state = _synthesizeEndpointState();
+  const explicit = [state.url, DEFAULT_RESEMBLE_SYNTH_URL]
+    .map(_normalizeSynthesizeUrlCandidate)
     .filter(Boolean);
 
   const uniq = [];
@@ -1612,11 +1684,11 @@ async function synthesize(opts){
   };
 }
 
-return { synthesize, MANUAL_RESEMBLE_CONFIG };
+return { synthesize, MANUAL_RESEMBLE_CONFIG, getSynthesizeEndpointState: _synthesizeEndpointState, getProviderAuthModes: _providerAuthModes };
 
 })();
 
-const { synthesize, MANUAL_RESEMBLE_CONFIG } = _providerRuntime;
+const { synthesize, MANUAL_RESEMBLE_CONFIG, getSynthesizeEndpointState, getProviderAuthModes } = _providerRuntime;
 
 const PHASES = Object.freeze({
   p01_contractSafe: true,
@@ -1648,7 +1720,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.11.2 DIRECT-MEDIA-GET + OPTIONAL-MODEL-SAFE";
+const TTS_VERSION = "tts.js v2.12.0 RENDER-SYNTH-ENDPOINT-ENV-HARDLOCK + DIRECT-MEDIA-GET + OPTIONAL-MODEL-SAFE";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -2172,7 +2244,8 @@ function _healthSnapshot() {
   const voiceName = _resolvePreferredVoiceName("");
   const projectUuid = _resolveProjectUuid("");
   const token = _resolveProviderToken();
-  const configured = !!(token && voiceUuid);
+  const endpointState = getSynthesizeEndpointState();
+  const configured = !!(token && voiceUuid && endpointState && endpointState.valid);
   const ready = configured && integrity.valid && !_circuitOpen() && activeRequests < MAX_CONCURRENT;
   return {
     ok: ready,
@@ -2193,6 +2266,12 @@ function _healthSnapshot() {
       hasToken: !!token,
       hasProject: !!projectUuid,
       hasVoice: !!voiceUuid,
+      hasSynthesizeEndpoint: !!(endpointState && endpointState.valid),
+      synthesizeEndpointExplicitlyConfigured: !!(endpointState && endpointState.configured),
+      synthesizeEndpointSource: endpointState && endpointState.source || "unavailable",
+      synthesizeEndpointHost: endpointState && endpointState.host || "",
+      synthesizeEndpointPath: endpointState && endpointState.path || "",
+      invalidSynthesizeEndpointKeys: endpointState && Array.isArray(endpointState.invalidConfiguredKeys) ? endpointState.invalidConfiguredKeys : [],
       useProjectUuidByDefault: _useProjectUuidByDefault(),
       voiceUuidPreview: voiceUuid ? _mask(voiceUuid) : "",
       voiceName: voiceName || "",
@@ -2201,7 +2280,7 @@ function _healthSnapshot() {
       strictVoiceLock: STRICT_VOICE_LOCK,
       tokenEnvKeysDetected: TOKEN_ENV_KEYS.filter((key) => !!_trim(process.env[key])),
       audioContract: "audio-first-v1",
-      authModes: ["bearer", "token", "raw"]
+      authModes: getProviderAuthModes()
     },
     voiceIntegrity: {
       configured: integrity.configured,
@@ -3303,6 +3382,7 @@ module.exports = {
   health,
   PHASES,
   MANUAL_RESEMBLE_CONFIG,
+  getSynthesizeEndpointState,
   TTS_VERSION,
   VERSION: TTS_VERSION,
   version: TTS_VERSION
