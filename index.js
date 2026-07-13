@@ -8,7 +8,7 @@
 /**
  * Sandblast Backend â€” index.js
  *
- * index.js v2.18.6sb NYX-VOICE-REACTIVATION-AUDIO-FIRST-HARDLOCK
+ * index.js v2.18.7sb NYX-VOICE-DIRECT-MEDIA-GET-HARDLOCK
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -5987,6 +5987,12 @@ const supportResponseMod = tryRequireMany([
 ]);
 
 const voiceRouteMod = tryRequireMany([
+  "./voiceRoute",
+  "./voiceRoute.js",
+  "./Routes/voiceRoute",
+  "./Routes/voiceRoute.js",
+  "./routes/voiceRoute",
+  "./routes/voiceRoute.js",
   "./utils/voiceRoute",
   "./utils/voiceRoute.js",
   "./Utils/voiceRoute",
@@ -5996,6 +6002,10 @@ const voiceRouteMod = tryRequireMany([
 const ttsMod = tryRequireMany([
   "./tts",
   "./tts.js",
+  "./Routes/tts",
+  "./Routes/tts.js",
+  "./routes/tts",
+  "./routes/tts.js",
   "./utils/tts",
   "./utils/tts.js",
   "./Utils/tts",
@@ -8919,8 +8929,18 @@ function enforceToken(req, res, next) {
 }
 
 function enforceVoiceRouteAccess(req, res, next) {
-  if (req.method === "OPTIONS") return next();
+  const method = cleanText(req && req.method || "GET").toUpperCase();
+  if (method === "OPTIONS") return next();
   if (!CFG.requireVoiceRouteToken) return next();
+
+  // HTMLAudioElement cannot attach a custom token header. Permit read-only
+  // playback only when the request originates from an approved Sandblast
+  // surface; POST synthesis remains protected by the configured token gate.
+  if (method === "GET" || method === "HEAD") {
+    const origin = cleanText((req && req.headers && req.headers.origin) || "");
+    const referer = cleanText((req && req.headers && req.headers.referer) || "");
+    if (isSandblastOrigin(origin) || isSandblastOrigin(referer)) return next();
+  }
   return enforceToken(req, res, next);
 }
 
@@ -13819,7 +13839,9 @@ app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], 
   }
 });
 
-app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
+const TTS_PLAYBACK_ROUTES = ["/api/tts", "/tts", "/api/tts/", "/tts/"];
+
+async function handlePublicTtsRequest(req, res) {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   try {
@@ -13832,7 +13854,12 @@ app.post(["/api/tts", "/tts"], enforceVoiceRouteAccess, async (req, res) => {
       ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
     });
   }
-});
+}
+
+// POST supports fetch/XHR clients. GET is required for direct browser media
+// playback because assigning an endpoint to Audio.src always performs GET.
+app.get(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, handlePublicTtsRequest);
+app.post(TTS_PLAYBACK_ROUTES, enforceVoiceRouteAccess, handlePublicTtsRequest);
 
 const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/", "/respond", "/respond/"];
 
