@@ -16,7 +16,7 @@ if (!tts) {
   try { tts = require("./tts"); } catch (_e) { tts = null; }
 }
 
-const VERSION = "ttsProvidersResemble v2.2.1 LIVE-ROUTE-MOUNT-COMPAT";
+const VERSION = "ttsProvidersResemble v2.2.2 DIRECT-BUFFER-PRESERVATION";
 
 function safeStr(v) {
   return v === null || v === undefined ? "" : String(v);
@@ -105,7 +105,7 @@ function extractNested(obj, paths) {
 
 function normalizeSynthesisResult(raw, inputOpts) {
   const src = isObj(raw) ? raw : {};
-  const buffer = extractBuffer(src);
+  const buffer = coerceBuffer(raw) || extractBuffer(src);
   let audioBase64 = cleanText(extractNested(src, [
     ["audioBase64"], ["base64"], ["audio_base64"], ["audio_content"], ["audioContent"],
     ["audio", "base64"], ["audio", "audio_content"], ["data", "base64"], ["data", "audio_content"],
