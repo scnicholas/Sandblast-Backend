@@ -1,18 +1,22 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.0-marion-layering-v2-sandblast-tv-scheduler-phase1",
-  "description": "Sandblast backend package with Marion conversational layering refinements and isolated Sandblast TV scheduler integration",
+  "version": "1.0.1-nyx-voice-live-certification",
+  "description": "Sandblast backend with Marion layering, Sandblast TV scheduling, and Nyx live voice certification hardening",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
     "lint:syntax": "node scripts/check-syntax.js",
     "test:marion-layering": "node tests/marion_layering_smoke_test.js",
-    "verify": "npm run lint:syntax && npm run test:marion-layering && npm run verify:sandblast-tv",
+    "verify": "npm run lint:syntax && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv",
     "dev": "node --check index.js && npm run lint:sandblast-tv && node index.js",
     "lint:sandblast-tv": "node --check SandblastTV/index.js && node --check SandblastTV/routes.js && node --check SandblastTV/manifestStore.js && node --check SandblastTV/schedulerService.js && node --check SandblastTV/mediaValidator.js && node --check SandblastTV/widgetBridge.js",
     "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js",
-    "verify:sandblast-tv": "npm run lint:sandblast-tv && npm run test:sandblast-tv"
+    "verify:sandblast-tv": "npm run lint:sandblast-tv && npm run test:sandblast-tv",
+    "test:nyx-voice": "node scripts/nyx-voice-certification.js",
+    "verify:nyx-voice": "node --check Routes/tts.js && node --check Routes/ttsProvidersResemble.js && node --check Routes/voiceRoute.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && node --check public/nyx_state_controller.js && npm run test:nyx-voice && npm run test:nyx-widget && npm run test:nyx-widget-playback",
+    "test:nyx-widget": "node scripts/widget-byte-certification.js",
+    "test:nyx-widget-playback": "node scripts/widget-playback-certification.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
