@@ -209,7 +209,9 @@ function _getVoiceUuid(){
   return _voiceResolutionState("").voiceUuid;
 }
 function _defaultModel(){
-  return _pickFirst(process.env.RESEMBLE_TTS_MODEL, "chatterbox-turbo");
+  // Model is optional in the Resemble synchronous contract. Do not force
+  // chatterbox-turbo onto custom voices that may not support that model.
+  return _pickFirst(process.env.RESEMBLE_TTS_MODEL, process.env.SB_RESEMBLE_TTS_MODEL, "");
 }
 function _requestTimeoutMs(){
   return _clampInt(
@@ -1301,10 +1303,11 @@ async function synthesize(opts){
   const payload = {
     voice_uuid: voiceUuid,
     data: text,
-    output_format: outputFormat,
-    model: _defaultModel()
+    output_format: outputFormat
   };
 
+  const model = _defaultModel();
+  if (model) payload.model = model;
   if (projectUuid) payload.project_uuid = projectUuid;
   if (sampleRate) payload.sample_rate = sampleRate;
   if (precision && ["MULAW", "PCM_16", "PCM_24", "PCM_32"].includes(precision)) payload.precision = precision;
@@ -1645,7 +1648,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.11.1 LIVE-ROUTE-MOUNT + DIRECT-MEDIA-GET";
+const TTS_VERSION = "tts.js v2.11.2 DIRECT-MEDIA-GET + OPTIONAL-MODEL-SAFE";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
