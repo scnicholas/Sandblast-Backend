@@ -16,7 +16,7 @@ if (!tts) {
   try { tts = require("./tts"); } catch (_e) { tts = null; }
 }
 
-const VERSION = "ttsProvidersResemble v2.2.0 RESEMBLE-AUDIO-CONTENT-LIVE-CERTIFICATION";
+const VERSION = "ttsProvidersResemble v2.2.1 LIVE-ROUTE-MOUNT-COMPAT";
 
 function safeStr(v) {
   return v === null || v === undefined ? "" : String(v);
