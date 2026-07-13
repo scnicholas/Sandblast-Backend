@@ -361,16 +361,13 @@ function _splitSpeechChunks(text){
 function _sanitizeSsmlText(text){
   let s = _normalizeText(text);
   if (!s) return "";
-  s = _escapeXml(s);
-  s = s.replace(/\.\.\./g, '<break time="520ms"/>');
-  s = s.replace(/,/g, ',<break time="150ms"/>');
-  s = s.replace(/;/g, ';<break time="260ms"/>');
-  s = s.replace(/:/g, ':<break time="220ms"/>');
-  s = s.replace(/\./g, '.<break time="320ms"/>');
-  s = s.replace(/\?/g, '?<break time="360ms"/>');
-  s = s.replace(/!/g, '!<break time="340ms"/>');
-  s = s.replace(/(<break[^>]+\/>)\s*(<break[^>]+\/>)*/g, "$1");
-  return `<speak><prosody rate="100%" pitch="0%">${s}</prosody></speak>`;
+  s = _escapeXml(s)
+    .replace(/\.\.\./g, " [long-pause] ")
+    .replace(/([;:])\s*/g, "$1 [pause] ")
+    .replace(/([.!?])\s+(?=\S)/g, "$1 [pause] ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `<speak version="1.1">${s}</speak>`;
 }
 function _buildSpeechEnvelope(opts){
   const speechHints = opts && typeof opts.speechHints === "object" ? opts.speechHints : {};
@@ -459,6 +456,11 @@ function _buildAuthHeaders(token, mode){
   if (mode === "raw") return { Authorization: token };
   if (mode === "token") return { Authorization: `Token ${token}` };
   return { Authorization: `Bearer ${token}` };
+}
+function _providerAuthModes(){
+  return _boolish(process.env.SB_TTS_LEGACY_AUTH_FALLBACK, false)
+    ? ["bearer", "token", "raw"]
+    : ["bearer"];
 }
 
 function _normalizeUrlCandidate(url){
@@ -729,7 +731,7 @@ async function _pollForCompletedAudio(initialJson, token, traceId, timeoutMs, pr
   const urls = _candidateStatusUrls(asyncEnv, projectUuid);
   if (!urls.length) return null;
 
-  const authModes = ["bearer", "token", "raw"];
+  const authModes = _providerAuthModes();
   const deadline = Date.now() + _pollMaxMs();
   let pollsUsed = 0;
   let lastResp = null;
@@ -1039,7 +1041,7 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
 }
 
 async function _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech){
-  const authModes = ["bearer", "token", "raw"];
+  const authModes = _providerAuthModes();
   const attempts = _maxSynthAttempts();
   let lastResp = null;
   let lastAuthMode = "bearer";
@@ -1308,8 +1310,9 @@ async function synthesize(opts){
   if (precision && ["MULAW", "PCM_16", "PCM_24", "PCM_32"].includes(precision)) payload.precision = precision;
   if (title) payload.title = title.slice(0, 120);
   if (typeof useHd !== "undefined") payload.use_hd = !!useHd;
-  if (speech.useSsml) payload.data_type = _pickFirst(opts && opts.dataType, "ssml");
-  if (speech.segmentCount) payload.segment_count = speech.segmentCount;
+  if (_boolish(opts && opts.applyCustomPronunciations, _boolish(process.env.RESEMBLE_APPLY_CUSTOM_PRONUNCIATIONS, false))) {
+    payload.apply_custom_pronunciations = true;
+  }
 
   let resp;
   let authMode = "bearer";
@@ -1642,7 +1645,7 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true
 });
 
-const TTS_VERSION = "tts.js v2.10.0 NYX-VOICE-REACTIVATION-AUDIO-FIRST + YEAR-SPEECH";
+const TTS_VERSION = "tts.js v2.11.0 LIVE-CERTIFICATION-RESEMBLE-CONTRACT + AUDIO-FIRST";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -1851,6 +1854,18 @@ function _setHeader(res, k, v) {
   try {
     if (res && !res.headersSent) res.setHeader(k, v);
   } catch (_) {}
+}
+
+function _applyPublicVoiceCors(req, res) {
+  const configured = _str(process.env.SB_TTS_ALLOWED_ORIGINS || "https://sandblast.channel,https://www.sandblast.channel")
+    .split(",").map((v) => _trim(v)).filter(Boolean);
+  const origin = _trim(req && req.headers && req.headers.origin);
+  if (origin && (configured.includes(origin) || configured.includes("*"))) {
+    _setHeader(res, "Access-Control-Allow-Origin", configured.includes("*") ? "*" : origin);
+  }
+  _setHeader(res, "Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+  _setHeader(res, "Access-Control-Allow-Headers", "Content-Type,Accept,X-SB-Response-Mode,X-SB-State-Contract,X-SB-Surface-Profile,X-SB-Widget-Token,X-SB-Session-ID,X-SB-Turn-ID,X-SB-Trace-ID,X-SB-Request-ID,X-SB-Voice");
+  _setHeader(res, "Access-Control-Expose-Headers", "Content-Type,Content-Length,X-SB-TTS-Version,X-SB-Trace-ID,X-SB-Response-Mode,X-SB-Audio-Contract,X-SB-Audio-Playback-Verify");
 }
 
 function _hash(value) {
@@ -2388,7 +2403,7 @@ function _segmentSentences(text, speechHints) {
 
 function _pauseToken(ms) {
   const n = Math.max(0, Math.min(1500, Number(ms || 0) || 0));
-  return n ? `<break time="${n}ms"/>` : "";
+  return n >= 420 ? "[long-pause]" : (n ? "[pause]" : "");
 }
 
 function _decorateSegment(segment, pauses) {
@@ -2413,8 +2428,8 @@ function _decorateSegment(segment, pauses) {
 }
 
 const _stripMarkup = (text) => _str(text)
-  .replace(/<break\s+time="\d+ms"\s*\/>/g, " ")
-  .replace(/<\/?speak>/g, " ")
+  .replace(/\[(?:long-)?pause\]/g, " ")
+  .replace(/<\/?speak(?:\s[^>]*)?>/g, " ")
   .replace(/\s+/g, " ")
   .trim();
 
@@ -2432,8 +2447,8 @@ function _shapeSpeechText(rawText, options) {
   const ssmlSegments = segments.map((segment) => _decorateSegment(segment, speechHints.pauses)).filter(Boolean);
   const joinPause = _pauseToken(Math.max(120, Math.floor((speechHints.pauses.periodMs || 320) * 0.65)));
   const ssmlText = ssmlSegments.length
-    ? `<speak>${ssmlSegments.join(joinPause)}</speak>`
-    : `<speak>${_decorateSegment(pronouncedText, speechHints.pauses)}</speak>`;
+    ? `<speak version="1.1">${ssmlSegments.join(joinPause)}</speak>`
+    : `<speak version="1.1">${_decorateSegment(pronouncedText, speechHints.pauses)}</speak>`;
 
   return {
     rawText: _str(rawText),
@@ -3110,6 +3125,10 @@ async function delegateTts(payload, req) {
 }
 
 async function handleTts(req, res) {
+  _applyPublicVoiceCors(req, res);
+  if (req && String(req.method || "").toUpperCase() === "OPTIONS") {
+    try { return res.status(204).end(); } catch (_) { return; }
+  }
   const input = _resolveInput(req);
   const snapshot = _buildInputSnapshot(input);
   const startedAt = _now();
@@ -3118,7 +3137,7 @@ async function handleTts(req, res) {
   _setHeader(res, "X-SB-Trace-ID", _headerSafe(input.traceId, 120));
   _setHeader(res, "X-SB-Audio-Contract", "audio-first-v2");
   _setHeader(res, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-  _setHeader(res, "Vary", "Accept");
+  _setHeader(res, "Vary", "Origin, Accept");
 
   if (input.healthCheck) {
     const healthState = _healthSnapshot();
