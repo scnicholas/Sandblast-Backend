@@ -16,8 +16,9 @@ assert.ok(html.includes("nyx:voice:"));
 assert.ok(html.includes("ve('prestart')"));
 assert.ok(html.includes("ve('start')"));
 assert.ok(html.includes("ve('end')"));
-assert.ok(html.includes("audioBase64"));
-assert.ok(html.includes("x-sb-response-mode"));
+assert.ok(html.includes("output_format=mp3"));
+assert.ok(html.includes("u.replace('/api/tts','/tts')"));
+assert.ok(html.includes("a.src=x"));
 
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map((match) => match[1]);
 assert.strictEqual(scripts.length, 3);
