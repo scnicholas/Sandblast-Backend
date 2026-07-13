@@ -1,6 +1,6 @@
 // nyx_state_controller.js
 // Pipeline normalized build: adds CommonJS compatibility without changing browser behavior
-// Nyx state controller v1
+// Nyx state controller v1.1 — voice playback bridge reintegration
 // Purpose:
 // - Manage face state transitions: neutral, warm, engaged, curious
 // - Blend motion parameters smoothly rather than snapping
@@ -138,6 +138,9 @@ const DEFAULT_OPTIONS = {
   },
   breathMotionPct: 0.08,
   responseLingerMs: 260,
+  autoBindVoiceEvents: true,
+  voiceEventTarget: null,
+  audioElement: null,
 };
 
 function lerp(a, b, t) {
@@ -206,9 +209,23 @@ class NyxStateController {
 
     this._rafId = null;
     this._boundTick = this.tick.bind(this);
+    this._voiceEventTarget = null;
+    this._voiceEventHandlers = null;
+    this._audioElement = null;
+    this._audioHandlers = null;
+    this._speechTimers = new Set();
+    this._syntheticSpeechPhase = 0;
+
+    if (this.options.audioElement) this.attachAudioElement(this.options.audioElement);
+    if (this.options.autoBindVoiceEvents && typeof window !== 'undefined') {
+      this.bindVoiceEvents(this.options.voiceEventTarget || window);
+    }
   }
 
   start() {
+    if (this.options.autoBindVoiceEvents && !this._voiceEventTarget && typeof window !== 'undefined') {
+      this.bindVoiceEvents(this.options.voiceEventTarget || window);
+    }
     if (this._rafId != null || typeof requestAnimationFrame === 'undefined') return;
     this._rafId = requestAnimationFrame(this._boundTick);
   }
@@ -218,6 +235,93 @@ class NyxStateController {
       cancelAnimationFrame(this._rafId);
     }
     this._rafId = null;
+    this.#clearSpeechTimers();
+  }
+
+  destroy() {
+    this.safeStopSpeech(false);
+    this.#clearSpeechTimers();
+    this.stop();
+    this.detachAudioElement();
+    this.unbindVoiceEvents();
+  }
+
+  bindVoiceEvents(target) {
+    if (!target || typeof target.addEventListener !== 'function') return false;
+    if (this._voiceEventTarget === target && this._voiceEventHandlers) return true;
+    this.unbindVoiceEvents();
+    const detail = (event) => event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+    const handlers = {
+      prestart: () => { this.handleEvent('response_start'); this.safeStartSpeech(); },
+      start: () => { this.handleEvent('deliver_information'); this.safeStartSpeech(); },
+      amplitude: (event) => this.updateSpeechAmplitude(Number(detail(event).rms ?? detail(event).amplitude ?? detail(event).value ?? 0)),
+      end: () => this.safeStopSpeech(true),
+      error: () => { this.safeStopSpeech(true); this.handleEvent('response_end'); },
+      state: (event) => { const state = String(detail(event).state || detail(event).stateHint || '').trim(); if (NYX_STATES[state]) this.safeSetState(state); }
+    };
+    target.addEventListener('nyx:voice:prestart', handlers.prestart);
+    target.addEventListener('nyx:voice:start', handlers.start);
+    target.addEventListener('nyx:voice:amplitude', handlers.amplitude);
+    target.addEventListener('nyx:voice:end', handlers.end);
+    target.addEventListener('nyx:voice:error', handlers.error);
+    target.addEventListener('nyx:state', handlers.state);
+    this._voiceEventTarget = target;
+    this._voiceEventHandlers = handlers;
+    return true;
+  }
+
+  unbindVoiceEvents() {
+    const target = this._voiceEventTarget;
+    const handlers = this._voiceEventHandlers;
+    if (target && handlers && typeof target.removeEventListener === 'function') {
+      target.removeEventListener('nyx:voice:prestart', handlers.prestart);
+      target.removeEventListener('nyx:voice:start', handlers.start);
+      target.removeEventListener('nyx:voice:amplitude', handlers.amplitude);
+      target.removeEventListener('nyx:voice:end', handlers.end);
+      target.removeEventListener('nyx:voice:error', handlers.error);
+      target.removeEventListener('nyx:state', handlers.state);
+    }
+    this._voiceEventTarget = null;
+    this._voiceEventHandlers = null;
+  }
+
+  attachAudioElement(audioElement) {
+    if (!audioElement || typeof audioElement.addEventListener !== 'function') return false;
+    if (this._audioElement === audioElement) return true;
+    this.detachAudioElement();
+    const onStart = () => { this.handleEvent('deliver_information'); this.safeStartSpeech(); };
+    const onEnd = () => this.safeStopSpeech(true);
+    const onError = () => { this.safeStopSpeech(true); this.handleEvent('response_end'); };
+    const onTimeUpdate = () => {
+      if (!this.isSpeechActive || audioElement.paused || audioElement.ended) return;
+      const t = Number(audioElement.currentTime || 0);
+      const phase = (Math.sin(t * 17.3) + Math.sin(t * 8.7 + 0.8) + 2) / 4;
+      this.updateSpeechAmplitude(0.08 + phase * 0.34);
+    };
+    audioElement.addEventListener('play', onStart);
+    audioElement.addEventListener('playing', onStart);
+    audioElement.addEventListener('pause', onEnd);
+    audioElement.addEventListener('ended', onEnd);
+    audioElement.addEventListener('error', onError);
+    audioElement.addEventListener('timeupdate', onTimeUpdate);
+    this._audioElement = audioElement;
+    this._audioHandlers = { onStart, onEnd, onError, onTimeUpdate };
+    return true;
+  }
+
+  detachAudioElement() {
+    const el = this._audioElement;
+    const h = this._audioHandlers;
+    if (el && h && typeof el.removeEventListener === 'function') {
+      el.removeEventListener('play', h.onStart);
+      el.removeEventListener('playing', h.onStart);
+      el.removeEventListener('pause', h.onEnd);
+      el.removeEventListener('ended', h.onEnd);
+      el.removeEventListener('error', h.onError);
+      el.removeEventListener('timeupdate', h.onTimeUpdate);
+    }
+    this._audioElement = null;
+    this._audioHandlers = null;
   }
 
   safeSetState(nextState, transitionMs = this.options.transitionMs) {
@@ -259,10 +363,16 @@ class NyxStateController {
       case 'support':
         return 'supportive';
       case 'response_start':
+      case 'voice_prestart':
+      case 'voice_start':
+      case 'playback_start':
       case 'guide_user':
       case 'deliver_information':
         return 'engaged';
       case 'response_end':
+      case 'voice_end':
+      case 'playback_end':
+      case 'voice_error':
       case 'user_idle':
       default:
         return 'neutral';
@@ -275,7 +385,8 @@ class NyxStateController {
   }
 
   safeStartSpeech() {
-    if (this.isSpeechActive) this.safeStopSpeech(false);
+    if (this.isSpeechActive) return false;
+    this.#clearSpeechTimers();
 
     const stateProfile = NYX_STATES[this.currentState] || NYX_STATES.neutral;
     const delay = stateProfile.preSpeechDelayMs || 0;
@@ -289,43 +400,46 @@ class NyxStateController {
       this.#emitSpeechCue('eyes_lock');
       this.isEyesLocked = true;
 
-      setTimeout(() => this.#emitSpeechCue('head_adjust'), 40);
-      setTimeout(() => this.#emitSpeechCue('brow_lift'), 80);
-      setTimeout(() => this.#emitSpeechCue('speech_begin'), 120);
+      this.#scheduleSpeechCue('head_adjust', 40, speechToken);
+      this.#scheduleSpeechCue('brow_lift', 80, speechToken);
+      this.#scheduleSpeechCue('speech_begin', 120, speechToken);
     };
 
     if (delay > 0) {
-      setTimeout(run, delay);
+      this.#scheduleSpeechCallback(run, delay, speechToken);
     } else {
       run();
     }
+    return true;
   }
 
   safeStopSpeech(returnToNeutral = true) {
     this._speechToken++;
+    this.#clearSpeechTimers();
     this.isSpeechActive = false;
     this.speechOpen = 0;
     this.speechJaw = 0;
     this.isEyesLocked = false;
 
     this.#emitSpeechCue('speech_end');
-    setTimeout(() => this.#emitSpeechCue('post_close'), 80);
-    setTimeout(() => this.#emitSpeechCue('jaw_settle'), 140);
-    setTimeout(() => this.#emitSpeechCue('eyes_soften'), 260);
+    const stopToken = this._speechToken;
+    this.#scheduleSpeechCue('post_close', 80, stopToken, false);
+    this.#scheduleSpeechCue('jaw_settle', 140, stopToken, false);
+    this.#scheduleSpeechCue('eyes_soften', 260, stopToken, false);
 
     if (returnToNeutral) {
-      setTimeout(() => this.safeSetState('neutral'), this.options.responseLingerMs);
+      this.#scheduleSpeechCallback(() => this.safeSetState('neutral'), this.options.responseLingerMs, stopToken, false);
     }
+    return true;
   }
 
   updateSpeechAmplitude(rms) {
-    const normalized = clamp((rms - 0.05) / (0.6 - 0.05), 0, 1);
+    const value = Number.isFinite(Number(rms)) ? Number(rms) : 0;
+    const normalized = clamp((value - 0.05) / (0.6 - 0.05), 0, 1);
     const smoothed = lerp(this.speechOpen, normalized, 0.35);
     this.speechOpen = smoothed;
-
-    setTimeout(() => {
-      this.speechJaw = lerp(this.speechJaw, smoothed, 0.4);
-    }, this.options.speechJawDelayMs);
+    this.speechJaw = lerp(this.speechJaw, smoothed, 0.4);
+    return smoothed;
   }
 
   tick(timestamp = nowMs()) {
@@ -356,7 +470,7 @@ class NyxStateController {
     this.toValues = { ...NYX_STATES[nextState] };
     this.targetState = nextState;
     this.transitionStartMs = nowMs();
-    this.transitionDurationMs = transitionMs;
+    this.transitionDurationMs = Math.max(1, Number(transitionMs) || this.options.transitionMs || 1);
     this.isTransitioning = true;
 
     if (typeof this.options.callbacks.onStateChange === 'function') {
@@ -527,9 +641,32 @@ class NyxStateController {
     return 0;
   }
 
+  #scheduleSpeechCallback(callback, delayMs, token, requireActive = true) {
+    const timer = setTimeout(() => {
+      this._speechTimers.delete(timer);
+      if (token !== this._speechToken) return;
+      if (requireActive && !this.isSpeechActive) return;
+      callback();
+    }, Math.max(0, Number(delayMs) || 0));
+    this._speechTimers.add(timer);
+    return timer;
+  }
+
+  #scheduleSpeechCue(stage, delayMs, token, requireActive = true) {
+    return this.#scheduleSpeechCallback(() => this.#emitSpeechCue(stage), delayMs, token, requireActive);
+  }
+
+  #clearSpeechTimers() {
+    for (const timer of this._speechTimers) clearTimeout(timer);
+    this._speechTimers.clear();
+  }
+
   #emitSpeechCue(stage) {
     if (typeof this.options.callbacks.onSpeechCue === 'function') {
       this.options.callbacks.onSpeechCue(stage);
+    }
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+      try { window.dispatchEvent(new CustomEvent('nyx:speech-cue', { detail: { stage, state: this.currentState } })); } catch (_e) {}
     }
   }
 }
@@ -538,7 +675,7 @@ class NyxStateController {
 
 if (typeof window !== "undefined") { window.NyxStateController = NyxStateController; window.NYX_STATES = NYX_STATES; }
 
-const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v1.0.2 FACE-SPEECH-CANCEL-RAF-GUARD";
+const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v1.1.0 VOICE-PLAYBACK-BRIDGE-REINTEGRATION";
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = NyxStateController;
