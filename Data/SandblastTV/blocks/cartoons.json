@@ -1,10 +1,20 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "guideVersion": 1,
   "channel": "cartoons",
   "displayName": "Sandblast Cartoons",
+  "programmingStatus": "active",
+  "scheduleType": "continuous-loop",
+  "timezone": "America/Toronto",
   "loop": true,
   "anchorEpochMs": 0,
-  "updatedAt": "2026-07-13T00:18:26Z",
+  "updatedAt": "2026-07-13T15:42:10Z",
+  "lastStructuredAt": "2026-07-13T15:42:10Z",
+  "publicGuide": {
+    "showNowNext": true,
+    "refreshSeconds": 60,
+    "unknownDurationPolicy": "exclude-from-clock-retain-in-lineup"
+  },
   "slots": [
     {
       "id": "cartoons-01",
