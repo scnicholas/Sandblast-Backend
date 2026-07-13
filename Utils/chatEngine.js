@@ -19,7 +19,7 @@
  * - No fallbackResponse/replySeed promotion unless it is part of an accepted Marion envelope.
  */
 
-const VERSION = "ChatEngine v3.10.3 PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + EXPORT-DUPLICATE-PURGE + REFERENCEERROR-LAW-DOMAIN-FINAL-RECOVERY + TEXT-CONSOLE-CHANNEL-CARRY + MARION-ADMIN-TEXT-RUNTIME-COMPAT + CONTINUITY-MISSING-FINAL-RECOVERY-GATE + LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "ChatEngine v3.10.3 PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V2 + EXPORT-DUPLICATE-PURGE + REFERENCEERROR-LAW-DOMAIN-FINAL-RECOVERY + TEXT-CONSOLE-CHANNEL-CARRY + MARION-ADMIN-TEXT-RUNTIME-COMPAT + CONTINUITY-MISSING-FINAL-RECOVERY-GATE + LONG-TURN-CONTINUITY-TRANSPORT-HANDOFF + SHORT-FOLLOWUP-CONTINUITY-CARRY + CLARIFIER-LOOP-SUPPRESSION-GUARD + LANGUAGE-SPHERE-BRIDGE-GUARDED + TECHNICAL-TARGET-LOCK-TRANSPORT + FINAL-RUNTIME-TELEMETRY-SCOPING-FIX + FIVE-TURN-CONTRACT-TRANSPORT + COORDINATOR-ONLY-PACK-COHESION-BRIDGE-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + PRIMITIVE-REPLY-SUPPRESSION-GUARD + FINAL-RENDER-TELEMETRY-HARDLOCK + NYX-VOICE-REINTEGRATION-R1 + FINAL-PROMPT-ECHO-GATE-REPAIR";
 const CONVERSATIONAL_PACK_COHESION_VERSION = "nyx.conversationalPackCohesion/1.0";
 const CHAT_ENGINE_SIGNATURE = "CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
 const MARION_FINAL_SIGNATURE_PREFIX = "MARION::FINAL::";
@@ -31,6 +31,7 @@ const FINAL_RUNTIME_TELEMETRY_VERSION = "nyx.marion.finalRuntimeTelemetry/1.0";
 const DOMAIN_CONCIERGE_CORE_VERSION = "nyx.marion.domainConciergeCore/1.0-transport";
 const DOMAIN_CONCIERGE_CONTRACT_VERSION = "nyx.marion.domainConcierge/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
+const NYX_SPEECH_CONTRACT_VERSION = "nyx.voice.playback/1.0";
 const finalRenderTelemetryMod = (() => { try { return require("../Data/marion/runtime/finalRenderTelemetry.js"); } catch (_) { return null; } })();
 
 const LANGUAGE_SPHERE_BRIDGE_VERSION = "nyx.languageSphere.chatEngineBridge/1.0";
@@ -194,6 +195,130 @@ function firstText() {
     if (value) return value;
   }
   return "";
+}
+
+
+function firstDefined() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    if (arguments[i] !== undefined && arguments[i] !== null && arguments[i] !== "") return arguments[i];
+  }
+  return undefined;
+}
+
+function boolValue(value, fallback = false) {
+  if (value === true || value === false) return value;
+  const text = cleanText(value).toLowerCase();
+  if (!text) return fallback;
+  if (["1", "true", "yes", "on", "enabled", "play", "speak"].includes(text)) return true;
+  if (["0", "false", "no", "off", "disabled", "mute", "muted", "silent"].includes(text)) return false;
+  return fallback;
+}
+
+function buildNyxSpeechContract(source = {}, spokenText = "", options = {}) {
+  const src = safeObj(source);
+  const payload = safeObj(src.payload);
+  const meta = safeObj(src.meta);
+  const finalEnvelope = extractFinalEnvelope(src);
+  const existing = [src.speech, payload.speech, finalEnvelope.speech, meta.speech].find(isPlainObject) || {};
+  const voice = [src.voice, payload.voice, finalEnvelope.voice, meta.voice].find(isPlainObject) || {};
+  const playback = safeObj(existing.playback || src.playback || payload.playback || finalEnvelope.playback);
+  const text = firstText(
+    spokenText,
+    existing.spokenText,
+    existing.text,
+    voice.spokenText,
+    voice.text,
+    src.spokenText,
+    finalEnvelope.spokenText,
+    payload.spokenText
+  ).replace(/\n+/g, " ");
+
+  const explicitEnabled = firstDefined(
+    options.enabled,
+    src.voiceEnabled,
+    payload.voiceEnabled,
+    meta.voiceEnabled,
+    voice.enabled,
+    voice.shouldSpeak,
+    existing.enabled,
+    existing.shouldSpeak
+  );
+  const muted = boolValue(firstDefined(
+    options.muted,
+    src.muted,
+    src.voiceMuted,
+    payload.voiceMuted,
+    meta.voiceMuted,
+    voice.muted,
+    existing.muted
+  ), false);
+  const enabled = !!text && !muted && boolValue(explicitEnabled, true);
+  const autoPlay = enabled && boolValue(firstDefined(options.autoPlay, existing.autoPlay, playback.autoPlay, voice.autoPlay), true);
+  const route = firstText(existing.route, playback.route, voice.route, src.ttsRoute, payload.ttsRoute, "/api/tts");
+  const compatibilityRoute = firstText(existing.compatibilityRoute, playback.compatibilityRoute, voice.compatibilityRoute, "/tts");
+  const responseMode = firstText(existing.responseMode, playback.responseMode, voice.responseMode, "audio").toLowerCase();
+  const stateHint = firstText(existing.stateHint, existing.nyxStateHint, voice.stateHint, src.nyxStateHint, safeObj(src.resolvedEmotion).presenceState, "engaged");
+  const voiceUuid = firstText(existing.voiceUuid, existing.voice_uuid, voice.voiceUuid, voice.voice_uuid, src.voiceUuid, src.voice_uuid, payload.voiceUuid, payload.voice_uuid);
+
+  const contract = {
+    version: NYX_SPEECH_CONTRACT_VERSION,
+    enabled,
+    shouldSpeak: enabled,
+    muted,
+    text,
+    spokenText: text,
+    route,
+    compatibilityRoute,
+    method: "POST",
+    responseMode,
+    autoPlay,
+    stateHint,
+    lifecycle: {
+      prestart: "nyx:voice:prestart",
+      start: "nyx:voice:start",
+      amplitude: "nyx:voice:amplitude",
+      end: "nyx:voice:end",
+      error: "nyx:voice:error"
+    },
+    request: {
+      text,
+      textDisplay: text,
+      returnJson: responseMode === "json",
+      routeKind: firstText(existing.routeKind, voice.routeKind, src.routeKind, "main") || "main"
+    }
+  };
+  if (voiceUuid) {
+    contract.voiceUuid = voiceUuid;
+    contract.request.voiceUuid = voiceUuid;
+  }
+  return contract;
+}
+
+function cloneNyxSpeechContract(value = {}) {
+  const speech = safeObj(value);
+  return {
+    ...speech,
+    lifecycle: { ...safeObj(speech.lifecycle) },
+    request: { ...safeObj(speech.request) }
+  };
+}
+
+function attachNyxSpeechContract(packet = {}, source = {}, spokenText = "", options = {}) {
+  if (!isPlainObject(packet)) return packet;
+  const speech = buildNyxSpeechContract(source || packet, spokenText, options);
+  packet.speech = cloneNyxSpeechContract(speech);
+  packet.spokenText = firstText(speech.spokenText, packet.spokenText);
+  packet.payload = { ...safeObj(packet.payload), speech: cloneNyxSpeechContract(speech), spokenText: packet.spokenText };
+  if (isPlainObject(packet.finalEnvelope)) {
+    packet.finalEnvelope = { ...packet.finalEnvelope, speech: cloneNyxSpeechContract(speech), spokenText: packet.spokenText };
+  }
+  packet.meta = {
+    ...safeObj(packet.meta),
+    nyxSpeechContractVersion: NYX_SPEECH_CONTRACT_VERSION,
+    voiceReady: !!speech.enabled,
+    voiceRoute: speech.route
+  };
+  return packet;
 }
 
 
@@ -722,13 +847,15 @@ function finalTransportPacket(packet = {}) {
     out.blocked = !canEmit;
     if (canEmit) {
       const spokenText = firstText(out.spokenText, safeObj(out.finalEnvelope).spokenText, reply);
-      out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply; out.spokenText = spokenText;
+      const speech = buildNyxSpeechContract(out, spokenText);
+      out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply; out.spokenText = spokenText; out.speech = cloneNyxSpeechContract(speech);
       out.finalEnvelope = {
         ...safeObj(out.finalEnvelope),
         reply,
         text: reply,
         displayReply: reply,
         spokenText,
+        speech: cloneNyxSpeechContract(speech),
         final: true,
         marionFinal: true,
         handled: true,
@@ -736,11 +863,11 @@ function finalTransportPacket(packet = {}) {
         authority: firstText(safeObj(out.finalEnvelope).authority, "marionFinalEnvelope"),
         source: firstText(safeObj(out.finalEnvelope).source, continuityMissingFinalRecoveryReply ? "chatEngine.continuityMissingFinalRecoveryGate" : "")
       };
-      out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, finalEnvelope: jsonSafe(out.finalEnvelope), final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
+      out.payload = { ...safeObj(out.payload), reply, text: reply, message: reply, answer: reply, output: reply, response: reply, authoritativeReply: reply, spokenText, speech: cloneNyxSpeechContract(speech), finalEnvelope: jsonSafe(out.finalEnvelope), final: true, marionFinal: true, awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false };
     } else {
       out.ok = false; out.final = false; out.marionFinal = false; out.terminal = false;
-      out.reply = ""; out.text = ""; out.answer = ""; out.output = ""; out.response = ""; out.message = "";
-      out.payload = { ...safeObj(out.payload), reply: "", text: "", message: "", answer: "", output: "", response: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true };
+      out.reply = ""; out.text = ""; out.answer = ""; out.output = ""; out.response = ""; out.message = ""; out.speech = buildNyxSpeechContract({}, "", { enabled: false, autoPlay: false });
+      out.payload = { ...safeObj(out.payload), reply: "", text: "", message: "", answer: "", output: "", response: "", speech: cloneNyxSpeechContract(out.speech), final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true };
     }
     if (out.sessionPatch) out.sessionPatch = compactSessionPatchForTransport(out.sessionPatch);
     if (out.memoryPatch) out.memoryPatch = compactSessionPatchForTransport(out.memoryPatch);
@@ -1186,18 +1313,30 @@ function extractPromptForReplySelection(input={}){
   const routing=safeObj(src.routing||payload.routing||meta.routing||packet.routing);
   const continuity=compactContinuityCarryForTransport(firstText(src.continuityCarry,src.continuity)||src.continuityCarry||src.continuity||payload.continuityCarry||meta.continuityCarry||routing.continuityCarry||{});
   const questionShape=safeObj(src.questionShape||payload.questionShape||meta.questionShape||routing.questionShape);
-  return firstText(
-    src.userText,src.rawUserText,src.originalUserText,src.prompt,src.query,src.inputText,src.text,src.message,src.normalizedUserIntent,
-    payload.userText,payload.rawUserText,payload.originalUserText,payload.prompt,payload.query,payload.inputText,payload.text,payload.message,payload.normalizedUserIntent,
-    meta.userText,meta.rawUserText,meta.originalUserText,meta.prompt,meta.query,meta.text,meta.message,meta.normalizedUserIntent,
-    diagnostics.userText,diagnostics.prompt,diagnostics.query,
-    finalEnvelope.userText,finalEnvelope.rawUserText,finalEnvelope.prompt,finalEnvelope.query,finalEnvelope.text,finalEnvelope.message,
-    contract.userText,contract.rawUserText,contract.prompt,contract.query,contract.text,contract.message,
-    packet.userText,packet.rawUserText,packet.prompt,packet.query,packet.text,packet.message,
-    routing.userText,routing.rawUserText,routing.prompt,routing.query,routing.text,routing.normalizedUserIntent,
+  const outboundFinal = !!(
+    src.final === true || src.marionFinal === true || src.emit === true ||
+    finalEnvelope.final === true || finalEnvelope.marionFinal === true ||
+    cleanText(src.reply) || cleanText(finalEnvelope.reply)
+  );
+  const explicitPrompt = firstText(
+    src.userQuery,src.userText,src.rawUserText,src.originalUserText,src.prompt,src.query,src.inputText,src.normalizedUserIntent,
+    payload.userQuery,payload.userText,payload.rawUserText,payload.originalUserText,payload.prompt,payload.query,payload.inputText,payload.normalizedUserIntent,
+    meta.userQuery,meta.userText,meta.rawUserText,meta.originalUserText,meta.prompt,meta.query,meta.normalizedUserIntent,
+    diagnostics.userQuery,diagnostics.userText,diagnostics.prompt,diagnostics.query,
+    finalEnvelope.userQuery,finalEnvelope.userText,finalEnvelope.rawUserText,finalEnvelope.prompt,finalEnvelope.query,
+    contract.userQuery,contract.userText,contract.rawUserText,contract.prompt,contract.query,
+    packet.userQuery,packet.userText,packet.rawUserText,packet.prompt,packet.query,
+    routing.userQuery,routing.userText,routing.rawUserText,routing.prompt,routing.query,routing.normalizedUserIntent,
     questionShape.normalizedUserIntent,questionShape.normalizedText,questionShape.rawUserText,
     continuity.resolvedText,continuity.originalText,continuity.topic
   );
+  if (explicitPrompt) return explicitPrompt;
+  // Only accept generic text/message fields on an inbound packet. Outbound final packets
+  // mirror the assistant reply into those fields and must never self-trigger the echo guard.
+  if (!outboundFinal) {
+    return firstText(src.text,src.message,payload.text,payload.message,meta.text,meta.message,contract.text,contract.message,packet.text,packet.message,routing.text);
+  }
+  return "";
 }
 function isPromptEchoReply(reply="",prompt=""){const r=normalizeEchoTextForCompare(reply),p=normalizeEchoTextForCompare(prompt);if(!r||!p)return false;return r===p||p.includes(r)&&r.length>12||r.includes(p)&&p.length>12;}
 function isExcessExpressionReply(value=""){return /\b(stop the echo|switching from invitation to execution|recovery line has already served its purpose|next line must carry progress|public knowledge topic|useful answer should|six-domain layer|final envelope|state spine|progression shaping|runtimeTelemetry|replyAuthority|diagnostic packet)\b/i.test(cleanText(value));}
@@ -1574,6 +1713,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
   );
   const sourceEnvelope = extractFinalEnvelope(input);
   const spokenText = firstText(input.spokenText, contract.spokenText, safeObj(packet.synthesis).spokenText, safeObj(sourceEnvelope).spokenText, reply.replace(/\n+/g, " "));
+  const speech = buildNyxSpeechContract(input, spokenText);
   const runtimeTelemetry = buildChatRuntimeTelemetry({
     source: "chatEngine.buildStructuredFinalReply",
     input,
@@ -1589,6 +1729,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     text: reply,
     displayReply: reply,
     spokenText,
+    speech: cloneNyxSpeechContract(speech),
     final: true,
     marionFinal: true,
     handled: true,
@@ -1612,7 +1753,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
     text: reply,
     answer: reply,
     output: reply,
-    spokenText: firstText(input.spokenText, contract.spokenText, safeObj(packet.synthesis).spokenText, reply.replace(/\n+/g, " ")),
+    spokenText,
 
     lane,
     laneId: lane,
@@ -1629,7 +1770,8 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       output: reply,
       response: reply,
       authoritativeReply: reply,
-      spokenText: firstText(input.spokenText, contract.spokenText, safeObj(packet.synthesis).spokenText, reply.replace(/\n+/g, " ")),
+      spokenText,
+      speech: cloneNyxSpeechContract(speech),
       final: true,
       marionFinal: true,
       awaitingMarion: false,
@@ -1707,7 +1849,7 @@ function buildStructuredFinalReply(input = {}, trust = {}) {
       replyPreview: clipText(reply, 160)
     },
 
-    speech: input.speech || null
+    speech: cloneNyxSpeechContract(speech)
   };
 }
 
@@ -1845,12 +1987,14 @@ function normalizeCoordinatorOutputForPipeline(packet = {}) {
   out.diagnostics = { ...safeObj(out.diagnostics), finalPipelineCohesion: profile, packCohesion: profile.packCohesion };
   if (profile.canEmit) {
     const reply = sanitizeFinalUserFacingReplyForCohesion(extractFinalReply(out, { finalEnvelope: true, trustedFinalEnvelope: true }));
-    out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply;
+    const spokenText = firstText(out.spokenText, safeObj(out.finalEnvelope).spokenText, reply);
+    const speech = buildNyxSpeechContract(out, spokenText);
+    out.reply = reply; out.text = reply; out.answer = reply; out.output = reply; out.response = reply; out.message = reply; out.spokenText = spokenText; out.speech = cloneNyxSpeechContract(speech);
     if (isPlainObject(out.payload)) {
-      out.payload.reply = reply; out.payload.text = reply; out.payload.answer = reply; out.payload.output = reply; out.payload.response = reply; out.payload.message = reply;
+      out.payload.reply = reply; out.payload.text = reply; out.payload.answer = reply; out.payload.output = reply; out.payload.response = reply; out.payload.message = reply; out.payload.spokenText = spokenText; out.payload.speech = cloneNyxSpeechContract(speech);
     }
     if (isPlainObject(out.finalEnvelope)) {
-      out.finalEnvelope.reply = reply; out.finalEnvelope.text = reply; out.finalEnvelope.displayReply = reply;
+      out.finalEnvelope.reply = reply; out.finalEnvelope.text = reply; out.finalEnvelope.displayReply = reply; out.finalEnvelope.spokenText = spokenText; out.finalEnvelope.speech = cloneNyxSpeechContract(speech);
     }
   }
   const domainConcierge = extractDomainConcierge(out);
@@ -2067,6 +2211,7 @@ function mirrorTranslatedReplyAcrossTransport(result = {}, translatedReply = "",
   result.response = reply;
   result.message = reply;
   result.spokenText = spokenText;
+  result.speech = cloneNyxSpeechContract(buildNyxSpeechContract(result, spokenText));
 
   if (isPlainObject(result.payload)) {
     result.payload.reply = reply;
@@ -2077,6 +2222,7 @@ function mirrorTranslatedReplyAcrossTransport(result = {}, translatedReply = "",
     result.payload.response = reply;
     result.payload.authoritativeReply = reply;
     result.payload.spokenText = spokenText;
+    result.payload.speech = cloneNyxSpeechContract(result.speech);
     result.payload.languageSphere = cloneLanguageSphere();
   }
 
@@ -2087,6 +2233,7 @@ function mirrorTranslatedReplyAcrossTransport(result = {}, translatedReply = "",
       text: reply,
       displayReply: reply,
       spokenText,
+      speech: cloneNyxSpeechContract(result.speech),
       languageSphere: cloneLanguageSphere(),
       translationMeta: { ...meta }
     };
@@ -2735,6 +2882,7 @@ function normalizeVisibleFinalReplyFields(packet={}){
 module.exports = { normalizeVisibleFinalReplyFields,
     VERSION,
     FINAL_RUNTIME_TELEMETRY_VERSION,
+    NYX_SPEECH_CONTRACT_VERSION,
     DOMAIN_CONCIERGE_CORE_VERSION,
     DOMAIN_CONCIERGE_CONTRACT_VERSION,
     LANGUAGE_SPHERE_BRIDGE_VERSION,
@@ -2759,6 +2907,9 @@ module.exports = { normalizeVisibleFinalReplyFields,
     shouldLockMarionAuthority,
     finalPipelineCohesionProfile,
     normalizeCoordinatorOutputForPipeline,
+    buildNyxSpeechContract,
+    cloneNyxSpeechContract,
+    attachNyxSpeechContract,
     extractRuntimeTelemetry,
     buildChatRuntimeTelemetry,
     classifyFailureSignature,
@@ -2797,6 +2948,10 @@ module.exports = { normalizeVisibleFinalReplyFields,
       hasFinalFailureMarker,
       jsonSafe,
       finalTransportPacket,
+      extractPromptForReplySelection,
+      buildNyxSpeechContract,
+      cloneNyxSpeechContract,
+      attachNyxSpeechContract,
       transportInputSource,
       continuityTransportMarker,
       compactSessionPatchForTransport,
