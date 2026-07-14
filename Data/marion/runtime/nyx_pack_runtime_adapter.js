@@ -1,4 +1,6 @@
 "use strict";
+
+// NYX-GUIDE-STEPS-7-8-9-R1: packet metadata may suggest actions/preferences but never execute or override Marion.
 /**
  * nyx_pack_runtime_adapter.js v1.3.0 AUTHORITY-SAFE-PACKET-BRIDGE
  * Purpose: Allow Nyx language/packet packs to serve as intro/fallback/greeting
@@ -875,3 +877,222 @@ module.exports = {
   }catch(_err){}
 })();
 /* NYX_ECOSYSTEM_CONTINUITY_TV_STEPS_5_6_R1_END */
+
+/* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_START */
+(function nyxGuideSteps789PacketAdapterPatch() {
+  "use strict";
+
+  const PATCH_VERSION = "nyx.packRuntimeAdapter.guideSteps789/1.0-authority-safe";
+  const ACTION_PLAN_CONTRACT = "nyx.guideActionPlan/1.0";
+  const PREFERENCE_INTENT_CONTRACT = "nyx.publicPreferenceIntent/1.0";
+
+  let sitebridge = null;
+  try {
+    const path = require("path");
+    sitebridge = require(path.join(__dirname, "../../../sitebridge.js"));
+  } catch (_) {
+    sitebridge = null;
+  }
+
+  function obj(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  }
+
+  function text(value, max = 240) {
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+
+  function localActionPlan(value, television) {
+    const src = obj(value);
+    const sourcePlan = obj(src.guideActionPlan || src.actionPlan);
+    const list = Array.isArray(sourcePlan.actions)
+      ? sourcePlan.actions
+      : Array.isArray(src.guideActions)
+        ? src.guideActions
+        : Array.isArray(src.actions)
+          ? src.actions
+          : [];
+    const allowedTypes = new Set([
+      "navigate", "play_radio", "stop_radio", "open_media", "open_tv",
+      "open_roku", "open_synapse", "open_guide", "focus_input", "summarize",
+      "tv_focus", "tv_back", "tv_play_pause", "tv_open_details", "dismiss_guide"
+    ]);
+    const allowedTargets = new Set([
+      "sandblast_home", "sandblast_radio", "sandblast_tv", "sandblast_roku",
+      "sandblast_cartoons", "sandblast_classics", "synapse", "lingosentinel",
+      "apps", "about", "nyx_guide", "guide_input", "current_surface"
+    ]);
+    const limit = television ? 4 : 6;
+    const actions = [];
+    for (const raw of list) {
+      const item = obj(raw);
+      const type = text(item.type || item.action, 40).toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+      const target = text(item.target || item.targetKey, 96).toLowerCase().replace(/[^a-z0-9._-]+/g, "_");
+      if (!allowedTypes.has(type) || !allowedTargets.has(target)) continue;
+      if (actions.some((entry) => entry.type === type && entry.target === target)) continue;
+      actions.push({
+        contract: "nyx.guideAction/1.1",
+        id: text(item.id || `packet_${type}_${target}`, 72).replace(/[^a-zA-Z0-9_.:-]+/g, "_"),
+        type,
+        target,
+        targetKey: target,
+        label: text(item.label || type.replace(/_/g, " "), television ? 48 : 80),
+        requiresUserGesture: true,
+        autoExecute: false,
+        advisoryOnly: true,
+        serverExecutionAllowed: false,
+        externalUrlAccepted: false,
+        symbolicTargetOnly: true
+      });
+      if (actions.length >= limit) break;
+    }
+    return {
+      contract: ACTION_PLAN_CONTRACT,
+      version: PATCH_VERSION,
+      authoritative: false,
+      packetAuthority: false,
+      finalReplyAuthority: false,
+      executionAuthority: "client_user_gesture",
+      serverExecutionAllowed: false,
+      autoExecute: false,
+      requiresUserGesture: true,
+      television,
+      maxActions: limit,
+      actionCount: actions.length,
+      actions
+    };
+  }
+
+  function sanitizePreferenceIntent(value) {
+    const src = obj(value);
+    const raw = obj(src.publicPreferenceIntent || src.preferenceIntent);
+    if (!Object.keys(raw).length) return null;
+    const changes = obj(raw.changes);
+    const cleanChanges = {};
+    for (const key of [
+      "voiceEnabled", "textOnly", "reducedMotion", "avatarVisible",
+      "suggestionsEnabled", "captionsEnabled"
+    ]) {
+      if (typeof changes[key] === "boolean") cleanChanges[key] = changes[key];
+    }
+    if (typeof changes.preferredLanguage === "string") {
+      const language = text(changes.preferredLanguage, 24).replace(/_/g, "-");
+      if (/^[a-zA-Z]{2,3}(?:-[a-zA-Z]{2,4})?$/.test(language)) cleanChanges.preferredLanguage = language;
+    }
+    return {
+      contract: PREFERENCE_INTENT_CONTRACT,
+      version: PATCH_VERSION,
+      explicit: raw.explicit === true,
+      authoritative: false,
+      packetAuthority: false,
+      writeAuthority: "client_consent",
+      rememberPreferences: raw.rememberPreferences === true ? true : raw.rememberPreferences === false ? false : null,
+      clearRequested: raw.clearRequested === true,
+      changes: cleanChanges,
+      privateMemoryAccess: false,
+      serverStorageRequested: false
+    };
+  }
+
+  function project(value, args) {
+    if (!value || typeof value !== "object") return value;
+    const out = { ...value };
+    const television = obj(out.televisionGuide).enabled === true ||
+      Array.from(args || []).some((arg) => obj(obj(arg).televisionGuide).enabled === true);
+    const source = {
+      ...out,
+      guideActionPlan: out.guideActionPlan || obj(out.payload).guideActionPlan,
+      guideActions: out.guideActions || obj(out.payload).guideActions
+    };
+
+    const plan = sitebridge && typeof sitebridge.buildGuideActionPlan === "function"
+      ? sitebridge.buildGuideActionPlan(source, { television })
+      : localActionPlan(source, television);
+
+    const preference = sanitizePreferenceIntent({
+      publicPreferenceIntent:
+        out.publicPreferenceIntent ||
+        obj(out.payload).publicPreferenceIntent ||
+        obj(out.meta).publicPreferenceIntent
+    });
+
+    if (plan.actionCount > 0) {
+      out.guideActionPlan = plan;
+      out.guideActions = plan.actions;
+    }
+    if (preference && preference.explicit) out.publicPreferenceIntent = preference;
+
+    out.packetGuideStep789 = {
+      version: PATCH_VERSION,
+      actionPlanContract: ACTION_PLAN_CONTRACT,
+      preferenceIntentContract: PREFERENCE_INTENT_CONTRACT,
+      packetActionAuthority: false,
+      packetPreferenceWriteAuthority: false,
+      packetTelemetryAuthority: false,
+      finalReplyAuthority: false,
+      marionReplyPriorityPreserved: true,
+      publicSessionOnly: true,
+      privateMemoryAccess: false
+    };
+    out.packetGuideMetadataOnly = true;
+    out.packetGuideReplyAuthority = false;
+
+    if (obj(out.payload) && (plan.actionCount > 0 || (preference && preference.explicit))) {
+      out.payload = {
+        ...out.payload,
+        guideActionPlan: plan.actionCount > 0 ? plan : undefined,
+        publicPreferenceIntent: preference && preference.explicit ? preference : undefined
+      };
+    }
+
+    return out;
+  }
+
+  function wrap(fn, name) {
+    if (typeof fn !== "function" || fn.__nyxGuideSteps789PacketWrapped) return fn;
+    const wrapped = function wrappedNyxGuideSteps789Packet() {
+      const args = arguments;
+      const result = fn.apply(this, args);
+      if (result && typeof result.then === "function") {
+        return result.then((value) => project(value, args));
+      }
+      return project(result, args);
+    };
+    try {
+      Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; });
+      Object.defineProperty(wrapped, "name", { value: fn.name || name || "nyxGuideSteps789Packet" });
+    } catch (_) {}
+    wrapped.__nyxGuideSteps789PacketWrapped = true;
+    return wrapped;
+  }
+
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default");
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of [
+      "adapt", "run", "handle", "default", "resolvePacket", "applyPacket",
+      "adaptNyxPacket", "applyNyxPacketRuntime", "routePacket"
+    ]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    api.NYX_GUIDE_STEPS_7_8_9_PACKET_VERSION = PATCH_VERSION;
+    api.NYX_GUIDE_ACTION_PLAN_CONTRACT = ACTION_PLAN_CONTRACT;
+    api.NYX_PUBLIC_PREFERENCE_INTENT_CONTRACT = PREFERENCE_INTENT_CONTRACT;
+    api.sanitizeNyxPacketGuideActionPlan = function sanitizePlan(value, options) {
+      const television = obj(options).television === true;
+      return sitebridge && typeof sitebridge.buildGuideActionPlan === "function"
+        ? sitebridge.buildGuideActionPlan(value, { television })
+        : localActionPlan(value, television);
+    };
+    api.sanitizeNyxPacketPreferenceIntent = sanitizePreferenceIntent;
+    api.attachNyxPacketGuideSteps789 = function attach(value, input) {
+      return project(value, [input || {}]);
+    };
+  } catch (_) {}
+})();
+ /* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_END */
