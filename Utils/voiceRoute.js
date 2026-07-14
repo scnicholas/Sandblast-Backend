@@ -8,7 +8,7 @@
  * and never exposes the configured voice identifier.
  */
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.7.0 GUIDE-SHELL-CONTEXT + BINARY-INTEGRITY";
+const VOICE_ROUTE_VERSION = "voiceRoute v1.8.0 GUIDE-CONTEXT-ACTIONS + BINARY-INTEGRITY";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Math.min(1, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 0)));
 const DEFAULT_PROVIDER = String(process.env.SB_TTS_PROVIDER || "resemble").trim() || "resemble";
 const DEFAULT_VOICE_UUID = String(
@@ -21,7 +21,7 @@ const DEFAULT_VOICE_UUID = String(
 ).trim();
 const ALLOW_CLIENT_VOICE_OVERRIDE = /^(1|true|yes|on)$/i.test(String(process.env.SB_TTS_ALLOW_CLIENT_VOICE_OVERRIDE || ""));
 const GUIDE_STATES = new Set(["available", "listening", "thinking", "speaking", "guiding", "quiet", "recovery", "minimized"]);
-const GUIDE_LANES = new Set(["home", "search", "live", "watch", "roku", "news", "about"]);
+const GUIDE_LANES = new Set(["home", "search", "live", "watch", "roku", "news", "about", "apps"]);
 const MAX_AUDIO_BYTES = Math.max(256 * 1024, Math.min(100 * 1024 * 1024, Number(process.env.SB_TTS_MAX_AUDIO_BYTES || 25 * 1024 * 1024)));
 
 function safeStr(value) {
@@ -96,7 +96,9 @@ function normalizeGuideState(value) {
 }
 
 function normalizeGuideLane(value) {
-  const lane = cleanText(value || "home", 32).toLowerCase().replace(/[^a-z0-9_-]+/g, "");
+  const raw = cleanText(value || "home", 32).toLowerCase().replace(/[^a-z0-9_-]+/g, "");
+  const aliases = { radio: "live", listen: "live", tv: "watch", television: "watch", cartoon: "watch", cartoons: "watch", classic: "watch", classics: "watch", synapse: "news", discover: "news", guide: "search", nyx: "search", app: "apps" };
+  const lane = aliases[raw] || raw;
   return GUIDE_LANES.has(lane) ? lane : "home";
 }
 
@@ -108,13 +110,47 @@ function normalizeGuideContext(value, inputMode) {
     page: cleanText(src.page || src.pathname || "/", 160),
     currentLane: normalizeGuideLane(src.currentLane || src.lane),
     previousLane: normalizeGuideLane(src.previousLane || "home"),
+    goal: cleanText(src.goal || "ask", 32).toLowerCase().replace(/[^a-z0-9_-]+/g, "_") || "ask",
     guideState: normalizeGuideState(src.guideState || src.state),
     panelOpen: boolish(src.panelOpen, false),
     voiceEnabled: boolish(src.voiceEnabled, true),
     reducedMotion: boolish(src.reducedMotion, false),
     suggestionsEnabled: boolish(src.suggestionsEnabled, true),
-    inputMode: inputMode === "voice" ? "voice" : "text"
+    mediaState: {
+      radioPlaying: boolish(safeObj(src.mediaState || src.media).radioPlaying, false),
+      videoPlaying: boolish(safeObj(src.mediaState || src.media).videoPlaying, false)
+    },
+    inputMode: inputMode === "voice" ? "voice" : "text",
+    publicSessionOnly: true,
+    privateMemoryAccess: false
   };
+}
+
+const GUIDE_ACTION_TYPES = new Set(["navigate", "play_radio", "stop_radio", "open_media", "open_tv", "open_roku", "open_synapse", "open_guide", "focus_input", "summarize"]);
+
+function normalizeGuideActions(value) {
+  const list = Array.isArray(value) ? value : [];
+  const out = [];
+  for (const item of list) {
+    const src = safeObj(item);
+    const type = cleanText(src.type || src.action, 32).toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+    if (!GUIDE_ACTION_TYPES.has(type)) continue;
+    const target = normalizeGuideLane(src.target || src.lane || "home");
+    const action = {
+      contract: "nyx.guideAction/1.0",
+      id: cleanText(src.id || `${type}_${target}`, 64),
+      type,
+      target,
+      lane: target,
+      label: cleanText(src.label || type.replace(/_/g, " "), 80),
+      requiresUserGesture: true,
+      autoExecute: false,
+      advisoryOnly: true
+    };
+    if (!out.some((entry) => entry.type === action.type && entry.target === action.target)) out.push(action);
+    if (out.length >= 4) break;
+  }
+  return out;
 }
 
 function wantsJson(req) {
@@ -234,6 +270,22 @@ function normalizeInput(req) {
   const headers = safeObj(req && req.headers);
   const inputSource = cleanText(pickFirst(body.inputSource, query.inputSource, headers["x-sb-input-source"], "text"), 24).toLowerCase();
   const guideSource = safeObj(body.guideContext || query.guideContext);
+  const guideContextSource = Object.keys(guideSource).length ? guideSource : {
+    surface: pickFirst(body.surface, query.surface, headers["x-sb-guide-surface"], "sandblast.channel"),
+    page: pickFirst(body.page, query.page, headers["x-sb-guide-page"], "/"),
+    currentLane: pickFirst(body.currentLane, body.lane, query.currentLane, query.lane, headers["x-sb-guide-lane"], "home"),
+    previousLane: pickFirst(body.previousLane, query.previousLane, headers["x-sb-guide-previous-lane"], "home"),
+    guideState: pickFirst(body.guideState, query.guideState, headers["x-sb-guide-state"], "available"),
+    panelOpen: pickFirst(body.panelOpen, query.panelOpen, headers["x-sb-guide-panel-open"], false),
+    voiceEnabled: pickFirst(body.voiceEnabled, query.voiceEnabled, headers["x-sb-guide-voice-enabled"], true),
+    reducedMotion: pickFirst(body.reducedMotion, query.reducedMotion, headers["x-sb-guide-reduced-motion"], false),
+    suggestionsEnabled: pickFirst(body.suggestionsEnabled, query.suggestionsEnabled, true),
+    goal: pickFirst(body.goal, query.goal, headers["x-sb-guide-goal"], "ask"),
+    mediaState: {
+      radioPlaying: pickFirst(body.radioPlaying, query.radioPlaying, headers["x-sb-radio-playing"], false),
+      videoPlaying: pickFirst(body.videoPlaying, query.videoPlaying, headers["x-sb-video-playing"], false)
+    }
+  };
   const requestedVoice = cleanText(pickFirst(body.voiceUuid, body.voice_uuid, query.voiceUuid, query.voice_uuid, headers["x-sb-voice"]), 128);
   const voiceUuid = ALLOW_CLIENT_VOICE_OVERRIDE && requestedVoice ? requestedVoice : DEFAULT_VOICE_UUID;
 
@@ -249,7 +301,8 @@ function normalizeInput(req) {
     voiceUuid,
     title: cleanText(pickFirst(body.title, query.title, "nyx_guide_voice"), 120),
     inputSource,
-    guideContext: normalizeGuideContext(guideSource, inputSource),
+    guideContext: normalizeGuideContext(guideContextSource, inputSource),
+    guideActions: normalizeGuideActions(body.guideActions || body.actions || []),
     wantJson: wantsJson(req)
   };
 }
@@ -382,6 +435,7 @@ async function callDelegate(req, input, attempt) {
     title: input.title,
     inputSource: input.inputSource,
     guideContext: input.guideContext,
+    guideActions: input.guideActions,
     __voiceRouteAttempt: attempt
   };
   if (input.voiceUuid) {
@@ -436,6 +490,7 @@ function buildPlayableAudioEnvelope(input, result, buffer, audioInfo) {
     providerStatus: clampInt(pickFirst(result && result.providerStatus, result && result.status, 200), 200, 0, 999),
     routeKind: input.routeKind,
     guideContext: input.guideContext,
+    guideActions: input.guideActions,
     mimeType,
     mime: mimeType,
     format,
@@ -502,6 +557,7 @@ function failureEnvelope(input, result, decision) {
     sessionId: input.sessionId,
     text: input.textDisplay || input.text,
     guideContext: { ...input.guideContext, guideState: "recovery" },
+    guideActions: input.guideActions,
     ttsFailure: {
       audioOnly: true,
       preserveTextReply: true,
@@ -571,6 +627,8 @@ async function voiceRoute(req, res) {
   setHeaderSafe(res, "X-SB-Voice-Route-Version", VOICE_ROUTE_VERSION);
   setHeaderSafe(res, "X-SB-Guide-Contract", "nyx.guideShell/1.0");
   setHeaderSafe(res, "X-SB-Guide-State", input.guideContext.guideState);
+  setHeaderSafe(res, "X-SB-Guide-Lane", input.guideContext.currentLane);
+  setHeaderSafe(res, "X-SB-Guide-Actions", String(input.guideActions.length));
   setHeaderSafe(res, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   setHeaderSafe(res, "X-SB-Audio-Contract", "audio-first-v3");
   setHeaderSafe(res, "X-Content-Type-Options", "nosniff");
@@ -642,6 +700,7 @@ async function voiceRoute(req, res) {
     reply: envelope.text || input.text || "Audio is unavailable right now.",
     payload: { reply: envelope.text || input.text || "Audio is unavailable right now." },
     guideContext: envelope.guideContext,
+    guideActions: envelope.guideActions,
     directives: [{ type: "tts_failure", ...envelope.ttsFailure }],
     audio: envelope.audio,
     speechLifecycle: {
@@ -665,5 +724,6 @@ module.exports.resolveTtsDelegate = resolveTtsDelegate;
 module.exports.resolveTtsHealth = resolveTtsHealth;
 module.exports.normalizeDelegateResult = normalizeDelegateResult;
 module.exports.normalizeGuideContext = normalizeGuideContext;
+module.exports.normalizeGuideActions = normalizeGuideActions;
 module.exports.detectAudio = detectAudio;
 module.exports.VOICE_ROUTE_VERSION = VOICE_ROUTE_VERSION;
