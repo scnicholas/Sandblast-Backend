@@ -1,11 +1,11 @@
 // nyx_state_controller.js
 // Pipeline normalized build: adds CommonJS compatibility without changing browser behavior
-// Nyx state controller v1.1 — voice playback bridge reintegration
+// Nyx state controller v2.0 — persistent guide-shell lifecycle
 // Purpose:
 // - Manage face state transitions: neutral, warm, engaged, curious
 // - Blend motion parameters smoothly rather than snapping
 // - Add controlled asymmetry and timing offsets so Nyx feels fluid, not robotic
-// - Coordinate with speech lifecycle hooks without breaking the neutral presence layer
+// - Coordinate guide, panel, microphone and speech lifecycles without controlling audio
 
 const NYX_STATES = {
   neutral: {
@@ -124,6 +124,62 @@ const NYX_STATES = {
   },
 };
 
+
+const NYX_GUIDE_STATES = Object.freeze([
+  'available', 'listening', 'thinking', 'speaking',
+  'guiding', 'quiet', 'recovery', 'minimized'
+]);
+
+const GUIDE_TO_FACE_STATE = Object.freeze({
+  available: 'warm',
+  listening: 'receptive',
+  thinking: 'curious',
+  speaking: 'engaged',
+  guiding: 'engaged',
+  quiet: 'neutral',
+  recovery: 'supportive',
+  minimized: 'neutral',
+});
+
+function normalizeGuideState(value) {
+  const state = String(value == null ? '' : value).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '');
+  return NYX_GUIDE_STATES.includes(state) ? state : 'available';
+}
+
+function boolish(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  const text = String(value == null ? '' : value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on', 'enabled'].includes(text)) return true;
+  if (['0', 'false', 'no', 'off', 'disabled'].includes(text)) return false;
+  return fallback;
+}
+
+function systemReducedMotion() {
+  try {
+    return typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function readStoredGuideState(storage, key) {
+  try {
+    if (!storage || typeof storage.getItem !== 'function') return null;
+    const value = JSON.parse(storage.getItem(key) || 'null');
+    return value && typeof value === 'object' ? value : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+function writeStoredGuideState(storage, key, value) {
+  try {
+    if (storage && typeof storage.setItem === 'function') storage.setItem(key, JSON.stringify(value));
+  } catch (_e) {}
+}
+
 const DEFAULT_OPTIONS = {
   transitionMs: 320,
   frameRate: 60,
@@ -135,12 +191,21 @@ const DEFAULT_OPTIONS = {
     onStateChange: null,   // function({from, to})
     onBlink: null,         // function()
     onSpeechCue: null,     // function(stage)
+    onGuideStateChange: null, // function(snapshot)
   },
   breathMotionPct: 0.08,
   responseLingerMs: 260,
   autoBindVoiceEvents: true,
   voiceEventTarget: null,
   audioElement: null,
+  guideElement: null,
+  guideStatusElement: null,
+  autoBindGuideElement: true,
+  persistGuideUiState: true,
+  guideStorageKey: 'sb_nyx_guide_shell_state',
+  guideStorage: null,
+  reducedMotion: null,
+  voiceEnabled: true,
 };
 
 function lerp(a, b, t) {
@@ -181,6 +246,11 @@ class NyxStateController {
       },
     };
 
+    this.options.reducedMotion = this.options.reducedMotion == null
+      ? systemReducedMotion()
+      : boolish(this.options.reducedMotion, false);
+    this.options.voiceEnabled = boolish(this.options.voiceEnabled, true);
+
     this.currentState = 'neutral';
     this.targetState = 'neutral';
     this.isTransitioning = false;
@@ -215,7 +285,26 @@ class NyxStateController {
     this._audioHandlers = null;
     this._speechTimers = new Set();
     this._syntheticSpeechPhase = 0;
+    this.guideState = 'available';
+    this.panelOpen = false;
+    this.voiceEnabled = this.options.voiceEnabled;
+    this.reducedMotion = !!this.options.reducedMotion;
+    this._guideElement = null;
+    this._guideStatusElement = null;
+    this._guideStorage = this.options.guideStorage || (
+      typeof window !== 'undefined' && this.options.persistGuideUiState ? window.sessionStorage : null
+    );
 
+    const storedGuide = readStoredGuideState(this._guideStorage, this.options.guideStorageKey);
+    if (storedGuide) {
+      this.guideState = normalizeGuideState(storedGuide.guideState);
+      this.panelOpen = storedGuide.panelOpen === true;
+      this.voiceEnabled = storedGuide.voiceEnabled !== false;
+    }
+
+    if (this.options.autoBindGuideElement && this.options.guideElement) {
+      this.bindGuideElement(this.options.guideElement, this.options.guideStatusElement);
+    }
     if (this.options.audioElement) this.attachAudioElement(this.options.audioElement);
     if (this.options.autoBindVoiceEvents && typeof window !== 'undefined') {
       this.bindVoiceEvents(this.options.voiceEventTarget || window);
@@ -244,6 +333,7 @@ class NyxStateController {
     this.stop();
     this.detachAudioElement();
     this.unbindVoiceEvents();
+    this.unbindGuideElement();
   }
 
   bindVoiceEvents(target) {
@@ -252,12 +342,26 @@ class NyxStateController {
     this.unbindVoiceEvents();
     const detail = (event) => event && event.detail && typeof event.detail === 'object' ? event.detail : {};
     const handlers = {
-      prestart: () => { this.handleEvent('response_start'); this.safeStartSpeech(); },
-      start: () => { this.handleEvent('deliver_information'); this.safeStartSpeech(); },
+      prestart: () => { this.setGuideState('thinking'); this.handleEvent('response_start'); this.safeStartSpeech(); },
+      start: () => { this.setGuideState('speaking'); this.handleEvent('deliver_information'); this.safeStartSpeech(); },
       amplitude: (event) => this.updateSpeechAmplitude(Number(detail(event).rms ?? detail(event).amplitude ?? detail(event).value ?? 0)),
-      end: () => this.safeStopSpeech(true),
-      error: () => { this.safeStopSpeech(true); this.handleEvent('response_end'); },
-      state: (event) => { const state = String(detail(event).state || detail(event).stateHint || '').trim(); if (NYX_STATES[state]) this.safeSetState(state); }
+      end: () => { this.safeStopSpeech(true); this.setGuideState(this.panelOpen ? 'available' : 'minimized'); },
+      error: () => { this.safeStopSpeech(true); this.setGuideState('recovery'); this.handleEvent('response_end'); },
+      state: (event) => {
+        const value = detail(event);
+        const rawState = String(value.guideState || value.state || value.stateHint || '').trim();
+        const guideState = rawState.toLowerCase().replace(/[^a-z0-9_-]+/g, '');
+        if (NYX_GUIDE_STATES.includes(guideState)) this.setGuideState(guideState);
+        else if (NYX_STATES[rawState]) this.safeSetState(rawState);
+      },
+      guideOpen: () => this.setPanelOpen(true),
+      guideClose: () => this.setPanelOpen(false),
+      guideListening: () => this.setGuideState('listening'),
+      guideThinking: () => this.setGuideState('thinking'),
+      guideSpeaking: () => this.setGuideState('speaking'),
+      guideGuiding: () => this.setGuideState('guiding'),
+      guideQuiet: () => this.setGuideState('quiet'),
+      guideRecovery: () => this.setGuideState('recovery')
     };
     target.addEventListener('nyx:voice:prestart', handlers.prestart);
     target.addEventListener('nyx:voice:start', handlers.start);
@@ -265,6 +369,15 @@ class NyxStateController {
     target.addEventListener('nyx:voice:end', handlers.end);
     target.addEventListener('nyx:voice:error', handlers.error);
     target.addEventListener('nyx:state', handlers.state);
+    target.addEventListener('nyx:guide:state', handlers.state);
+    target.addEventListener('nyx:guide:open', handlers.guideOpen);
+    target.addEventListener('nyx:guide:close', handlers.guideClose);
+    target.addEventListener('nyx:guide:listening', handlers.guideListening);
+    target.addEventListener('nyx:guide:thinking', handlers.guideThinking);
+    target.addEventListener('nyx:guide:speaking', handlers.guideSpeaking);
+    target.addEventListener('nyx:guide:guiding', handlers.guideGuiding);
+    target.addEventListener('nyx:guide:quiet', handlers.guideQuiet);
+    target.addEventListener('nyx:guide:recovery', handlers.guideRecovery);
     this._voiceEventTarget = target;
     this._voiceEventHandlers = handlers;
     return true;
@@ -280,9 +393,83 @@ class NyxStateController {
       target.removeEventListener('nyx:voice:end', handlers.end);
       target.removeEventListener('nyx:voice:error', handlers.error);
       target.removeEventListener('nyx:state', handlers.state);
+      target.removeEventListener('nyx:guide:state', handlers.state);
+      target.removeEventListener('nyx:guide:open', handlers.guideOpen);
+      target.removeEventListener('nyx:guide:close', handlers.guideClose);
+      target.removeEventListener('nyx:guide:listening', handlers.guideListening);
+      target.removeEventListener('nyx:guide:thinking', handlers.guideThinking);
+      target.removeEventListener('nyx:guide:speaking', handlers.guideSpeaking);
+      target.removeEventListener('nyx:guide:guiding', handlers.guideGuiding);
+      target.removeEventListener('nyx:guide:quiet', handlers.guideQuiet);
+      target.removeEventListener('nyx:guide:recovery', handlers.guideRecovery);
     }
     this._voiceEventTarget = null;
     this._voiceEventHandlers = null;
+  }
+
+  bindGuideElement(guideElement, statusElement) {
+    let element = guideElement;
+    let status = statusElement;
+    if (typeof document !== 'undefined') {
+      if (typeof element === 'string') element = document.querySelector(element);
+      if (typeof status === 'string') status = document.querySelector(status);
+    }
+    if (!element || typeof element.setAttribute !== 'function') return false;
+    this._guideElement = element;
+    this._guideStatusElement = status || null;
+    this.#applyGuideStateToDom();
+    return true;
+  }
+
+  unbindGuideElement() {
+    this._guideElement = null;
+    this._guideStatusElement = null;
+  }
+
+  setPanelOpen(open) {
+    this.panelOpen = open === true;
+    if (!this.isSpeechActive) this.guideState = this.panelOpen ? 'available' : 'minimized';
+    this.#persistGuideUiState();
+    this.#applyGuideStateToDom();
+    this.#dispatchGuideState();
+    return this.panelOpen;
+  }
+
+  setVoiceEnabled(enabled) {
+    this.voiceEnabled = enabled !== false;
+    if (!this.voiceEnabled && this.isSpeechActive) this.safeStopSpeech(true);
+    if (!this.voiceEnabled) this.guideState = 'quiet';
+    else if (this.guideState === 'quiet') this.guideState = this.panelOpen ? 'available' : 'minimized';
+    this.#persistGuideUiState();
+    this.#applyGuideStateToDom();
+    this.#dispatchGuideState();
+    return this.voiceEnabled;
+  }
+
+  setGuideState(nextState, options = {}) {
+    const state = normalizeGuideState(nextState);
+    if (state === 'speaking' && !this.voiceEnabled) return this.setGuideState('quiet', options);
+    const changed = state !== this.guideState;
+    this.guideState = state;
+    const faceState = GUIDE_TO_FACE_STATE[state] || 'neutral';
+    this.safeSetState(faceState, Number(options.transitionMs) || this.options.transitionMs);
+    this.#persistGuideUiState();
+    this.#applyGuideStateToDom();
+    if (changed || options.force === true) this.#dispatchGuideState();
+    return changed;
+  }
+
+  getGuideSnapshot() {
+    return {
+      version: NYX_STATE_CONTROLLER_VERSION,
+      guideState: this.guideState,
+      faceState: this.currentState,
+      targetFaceState: this.targetState,
+      panelOpen: this.panelOpen,
+      voiceEnabled: this.voiceEnabled,
+      reducedMotion: this.reducedMotion,
+      speaking: this.isSpeechActive
+    };
   }
 
   attachAudioElement(audioElement) {
@@ -353,8 +540,10 @@ class NyxStateController {
       case 'user_input':
       case 'clarification_needed':
       case 'thinking':
+      case 'guide_thinking':
         return 'curious';
       case 'listening':
+      case 'guide_listening':
       case 'user_emotion':
       case 'reassure':
         return 'receptive';
@@ -367,6 +556,7 @@ class NyxStateController {
       case 'voice_start':
       case 'playback_start':
       case 'guide_user':
+      case 'guide_open':
       case 'deliver_information':
         return 'engaged';
       case 'response_end':
@@ -385,7 +575,13 @@ class NyxStateController {
   }
 
   safeStartSpeech() {
+    if (!this.voiceEnabled) {
+      this.setGuideState('quiet');
+      return false;
+    }
     if (this.isSpeechActive) return false;
+    this.guideState = 'speaking';
+    this.#applyGuideStateToDom();
     this.#clearSpeechTimers();
 
     const stateProfile = NYX_STATES[this.currentState] || NYX_STATES.neutral;
@@ -420,6 +616,9 @@ class NyxStateController {
     this.speechOpen = 0;
     this.speechJaw = 0;
     this.isEyesLocked = false;
+    this.guideState = this.panelOpen ? 'available' : 'minimized';
+    this.#persistGuideUiState();
+    this.#applyGuideStateToDom();
 
     this.#emitSpeechCue('speech_end');
     const stopToken = this._speechToken;
@@ -509,9 +708,10 @@ class NyxStateController {
   #composeFrameValues(timestamp, dt) {
     const base = { ...this.currentValues };
     const time = timestamp / 1000;
+    const motionScale = this.reducedMotion ? 0 : 1;
 
-    const driftScaleX = this.isEyesLocked || base.eyeLock ? 0.2 : 1;
-    const driftScaleY = this.isEyesLocked || base.eyeLock ? 0.2 : 1;
+    const driftScaleX = (this.isEyesLocked || base.eyeLock ? 0.2 : 1) * motionScale;
+    const driftScaleY = (this.isEyesLocked || base.eyeLock ? 0.2 : 1) * motionScale;
 
     const eyePhaseA = time * 0.6 + this.idleSeed;
     const eyePhaseB = time * 0.57 + this.idleSeed + 0.14; // slight offset: breaks symmetry
@@ -523,13 +723,13 @@ class NyxStateController {
 
     const headPhase = time * 0.28 + this.idleSeed * 0.2;
     const breath = Math.sin(time * 0.18 + this.idleSeed * 0.1) * this.options.breathMotionPct;
-    const headY = Math.sin(headPhase) * base.headDriftPx + breath;
-    const headX = Math.cos(headPhase * 0.9) * Math.min(1, base.headDriftPx);
-    const headTilt = base.headTiltDeg + Math.sin(headPhase * 0.75) * 0.18;
+    const headY = (Math.sin(headPhase) * base.headDriftPx + breath) * motionScale;
+    const headX = Math.cos(headPhase * 0.9) * Math.min(1, base.headDriftPx) * motionScale;
+    const headTilt = base.headTiltDeg + Math.sin(headPhase * 0.75) * 0.18 * motionScale;
 
     const hairPhase = time * 0.22 + this.idleSeed * 0.35;
-    const hairDrift = Math.sin(hairPhase) * 5 * base.hairMotion;
-    const hairTail = Math.cos(hairPhase * 1.2) * 7 * base.hairMotion;
+    const hairDrift = Math.sin(hairPhase) * 5 * base.hairMotion * motionScale;
+    const hairTail = Math.cos(hairPhase * 1.2) * 7 * base.hairMotion * motionScale;
 
     const glowPulse = 1 + (Math.sin(time * 0.95 + this.idleSeed) * 0.02);
     const eyeGlow = base.eyeGlow * glowPulse * (this.isSpeechActive ? 1.08 : 1);
@@ -548,6 +748,10 @@ class NyxStateController {
     return {
       state: this.currentState,
       targetState: this.targetState,
+      guideState: this.guideState,
+      panelOpen: this.panelOpen,
+      voiceEnabled: this.voiceEnabled,
+      reducedMotion: this.reducedMotion,
       isSpeechActive: this.isSpeechActive,
       isEyesLocked: this.isEyesLocked || base.eyeLock,
 
@@ -641,6 +845,39 @@ class NyxStateController {
     return 0;
   }
 
+  #persistGuideUiState() {
+    if (!this.options.persistGuideUiState) return;
+    writeStoredGuideState(this._guideStorage, this.options.guideStorageKey, {
+      guideState: this.guideState,
+      panelOpen: this.panelOpen,
+      voiceEnabled: this.voiceEnabled
+    });
+  }
+
+  #applyGuideStateToDom() {
+    const el = this._guideElement;
+    if (!el || typeof el.setAttribute !== 'function') return;
+    try {
+      el.setAttribute('data-nyx-guide-state', this.guideState);
+      el.setAttribute('data-nyx-face-state', this.currentState);
+      el.setAttribute('aria-expanded', this.panelOpen ? 'true' : 'false');
+      el.setAttribute('aria-busy', ['listening', 'thinking', 'speaking'].includes(this.guideState) ? 'true' : 'false');
+      if (this._guideStatusElement) {
+        this._guideStatusElement.textContent = this.guideState.charAt(0).toUpperCase() + this.guideState.slice(1);
+      }
+    } catch (_e) {}
+  }
+
+  #dispatchGuideState() {
+    const snapshot = this.getGuideSnapshot();
+    if (typeof this.options.callbacks.onGuideStateChange === 'function') {
+      try { this.options.callbacks.onGuideStateChange(snapshot); } catch (_e) {}
+    }
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+      try { window.dispatchEvent(new CustomEvent('nyx:guide:statechange', { detail: snapshot })); } catch (_e) {}
+    }
+  }
+
   #scheduleSpeechCallback(callback, delayMs, token, requireActive = true) {
     const timer = setTimeout(() => {
       this._speechTimers.delete(timer);
@@ -673,13 +910,19 @@ class NyxStateController {
 
 
 
-if (typeof window !== "undefined") { window.NyxStateController = NyxStateController; window.NYX_STATES = NYX_STATES; }
+if (typeof window !== "undefined") {
+  window.NyxStateController = NyxStateController;
+  window.NYX_STATES = NYX_STATES;
+  window.NYX_GUIDE_STATES = NYX_GUIDE_STATES;
+}
 
-const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v1.1.0 VOICE-PLAYBACK-BRIDGE-REINTEGRATION";
+const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v2.0.0 PERSISTENT-GUIDE-SHELL-LIFECYCLE";
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = NyxStateController;
   module.exports.default = NyxStateController;
   module.exports.NYX_STATES = NYX_STATES;
+  module.exports.NYX_GUIDE_STATES = NYX_GUIDE_STATES;
+  module.exports.normalizeGuideState = normalizeGuideState;
   module.exports.NYX_STATE_CONTROLLER_VERSION = NYX_STATE_CONTROLLER_VERSION;
 }
