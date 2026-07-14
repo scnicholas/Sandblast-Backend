@@ -1,6 +1,6 @@
 'use strict';
 
-const TTS_VERSION = 'tts.js v2.17.0 RAW-PROVIDER-BOUNDARY-LOGGING';
+const TTS_VERSION = 'tts.js v2.17.1 PROVIDER-MODULE-PATH-CASE-REPAIR + RAW-PROVIDER-BOUNDARY-LOGGING';
 
 /**
  * Utils/tts.js
@@ -56,28 +56,65 @@ const TTS_VERSION = 'tts.js v2.17.0 RAW-PROVIDER-BOUNDARY-LOGGING';
  *   - SB_TTS_RAW_RESPONSE_LOG_MAX_CHARS (default 6000, max 20000)
  */
 
+const path = require('path');
+
 let _resembleProviderPath = '';
+let _resembleProviderResolvedPath = '';
+let _resembleProviderLoadErrors = [];
+
 const _resembleProvider = (() => {
-  // Canonical lowercase provider is authoritative on Render/Linux. Historical
-  // names remain fallback-only so a stale duplicate cannot shadow diagnostics.
+  // Render/Linux is case-sensitive. The deployed Sandblast provider historically
+  // uses the exact basename `ttsProvidersResemble.js` (capital R). Load that
+  // canonical name first, then accept historical casing aliases for compatibility.
   const candidates = [
-    './ttsProvidersresemble',
-    './ttsProvidersresemble.js',
-    './TTSProvidersResemble',
-    './TTSProvidersResemble.js',
-    './providersResemble',
-    './providersResemble.js',
+    'ttsProvidersResemble.js',
+    'ttsProvidersResemble',
+    'ttsProvidersresemble.js',
+    'ttsProvidersresemble',
+    'TTSProvidersResemble.js',
+    'TTSProvidersResemble',
+    'providersResemble.js',
+    'providersResemble',
   ];
-  for (const providerPath of candidates) {
+
+  for (const basename of candidates) {
+    const absolutePath = path.join(__dirname, basename);
     try {
       // eslint-disable-next-line global-require, import/no-dynamic-require
-      const mod = require(providerPath);
-      if (mod && typeof mod.synthesize === 'function') {
-        _resembleProviderPath = providerPath;
-        return mod;
+      const mod = require(absolutePath);
+      const provider = mod && typeof mod.synthesize === 'function'
+        ? mod
+        : (mod && mod.default && typeof mod.default.synthesize === 'function' ? mod.default : null);
+      if (provider) {
+        _resembleProviderPath = `./${basename}`;
+        try { _resembleProviderResolvedPath = require.resolve(absolutePath); } catch (_) { _resembleProviderResolvedPath = absolutePath; }
+        try {
+          console.log('[TTS_PROVIDER_LOADED]', JSON.stringify({
+            version: TTS_VERSION,
+            providerPath: _resembleProviderPath,
+            resolvedPath: _resembleProviderResolvedPath,
+          }));
+        } catch (_) {}
+        return provider;
       }
-    } catch (_) {}
+      _resembleProviderLoadErrors.push({ path: `./${basename}`, code: 'INVALID_EXPORT' });
+    } catch (err) {
+      _resembleProviderLoadErrors.push({
+        path: `./${basename}`,
+        code: String(err && err.code || 'REQUIRE_FAILED').slice(0, 60),
+        message: String(err && err.message || err || 'require failed').replace(/\s+/g, ' ').slice(0, 240),
+      });
+    }
   }
+
+  try {
+    console.error('[TTS_PROVIDER_LOAD_FAILURE]', JSON.stringify({
+      version: TTS_VERSION,
+      dirname: __dirname,
+      attempted: candidates.map((name) => `./${name}`),
+      errors: _resembleProviderLoadErrors,
+    }));
+  } catch (_) {}
   return null;
 })();
 
@@ -231,6 +268,8 @@ function setDiagnosticHeaders(res) {
     res.set('X-SB-TTS-Version', TTS_VERSION);
     res.set('X-SB-TTS-Provider-Version', String(providerVersion || 'unknown').slice(0, 180));
     res.set('X-SB-TTS-Provider-Path', String(_resembleProviderPath || 'unresolved').slice(0, 120));
+    res.set('X-SB-TTS-Provider-Resolved', _resembleProviderResolvedPath ? 'yes' : 'no');
+    res.set('X-SB-TTS-Provider-Load', resembleSynthesize ? 'loaded' : 'missing');
     res.set('X-SB-TTS-Transport', 'resemble-synthesize');
     res.set('X-SB-TTS-Raw-Response-Log', bool(process.env.SB_TTS_RAW_RESPONSE_LOG, false) ? 'enabled' : 'disabled');
   } catch (_) {}
@@ -450,7 +489,16 @@ async function handleTts(req, res) {
 
     if (!resembleSynthesize) {
       updateHealth(false, { error: 'resemble_provider_missing' });
-      return safeJson(res, 503, { ok: false, traceId, code: 'TTS_PROVIDER_MISSING', message: 'TTS provider module missing.' });
+      return safeJson(res, 503, {
+        ok: false,
+        traceId,
+        code: 'TTS_PROVIDER_MISSING',
+        message: 'TTS provider module missing.',
+        providerPath: _resembleProviderPath || '',
+        providerResolved: !!_resembleProviderResolvedPath,
+        attemptedProviderFiles: _resembleProviderLoadErrors.map((item) => item.path).slice(0, 8),
+        providerLoadCodes: _resembleProviderLoadErrors.map((item) => item.code).slice(0, 8),
+      });
     }
 
     if (!token || !voiceUuid) {
@@ -590,4 +638,14 @@ async function handleTts(req, res) {
   }
 }
 
-module.exports = { TTS_VERSION, handleTts, _health: hb };
+module.exports = {
+  TTS_VERSION,
+  handleTts,
+  _health: hb,
+  _providerDiagnostics: {
+    loaded: !!resembleSynthesize,
+    providerPath: _resembleProviderPath,
+    resolvedPath: _resembleProviderResolvedPath,
+    loadErrors: _resembleProviderLoadErrors.slice(),
+  },
+};
