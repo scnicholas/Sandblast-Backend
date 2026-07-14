@@ -44,7 +44,7 @@
 
 const crypto = require("crypto");
 
-const PROVIDER_VERSION = "ttsProvidersresemble v2.3.0 RAW-PROVIDER-BOUNDARY-LOGGING";
+const PROVIDER_VERSION = "ttsProvidersResemble v2.3.1 CANONICAL-PATH-CASE + RAW-PROVIDER-BOUNDARY-LOGGING";
 const DEFAULT_ENDPOINT = "https://f.cluster.resemble.ai/synthesize";
 
 // --- Fetch polyfill (Phase: Resilience Layer / runtime hardening)
