@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-GUIDE-STEPS-7-8-9-R1: carry validated actions and consent-bound public preferences without changing reply authority.
+
 const VERSION = "MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + composeMarionResponse v3.36.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const fs = require("fs");
 const path = require("path");
@@ -8394,3 +8396,308 @@ try{
   }catch(_err){}
 })();
 /* NYX_ECOSYSTEM_CONTINUITY_TV_STEPS_5_6_R1_END */
+
+/* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_START */
+(function nyxGuideSteps789ComposerPatch() {
+  "use strict";
+
+  const PATCH_VERSION = "nyx.guideOrchestration.composeMarionResponse/1.0-steps7-8-9";
+  const ACTION_PLAN_CONTRACT = "nyx.guideActionPlan/1.0";
+  const PREFERENCES_CONTRACT = "nyx.publicPreferences/1.0";
+  const PRODUCTION_CONTRACT = "nyx.guideProductionPolicy/1.0";
+
+  let sitebridge = null;
+  let domainConcierge = null;
+  try {
+    sitebridge = require(require("path").join(__dirname, "../../../sitebridge.js"));
+  } catch (_) {
+    sitebridge = null;
+  }
+  try {
+    domainConcierge = require(require("path").join(__dirname, "DomainConcierge.js"));
+  } catch (_) {
+    domainConcierge = null;
+  }
+
+  function obj(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  }
+
+  function text(value, max = 240) {
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+
+  function collect(args, result) {
+    const seen = new Set();
+    const prompts = [];
+    let actionPlan = null;
+    let preferenceIntent = null;
+    let previousPreferences = null;
+    let televisionGuide = null;
+    let guideContext = null;
+
+    function walk(value, depth) {
+      if (value == null || depth > 6) return;
+      if (typeof value === "string") {
+        prompts.push(text(value, 1800));
+        return;
+      }
+      if (typeof value !== "object" || seen.has(value)) return;
+      seen.add(value);
+      const src = obj(value);
+      for (const key of [
+        "userText", "rawUserText", "message", "prompt", "input", "query",
+        "effectivePrompt", "normalizedUserIntent"
+      ]) {
+        if (typeof src[key] === "string") prompts.push(text(src[key], 1800));
+      }
+      if (!actionPlan && obj(src.guideActionPlan).contract) actionPlan = obj(src.guideActionPlan);
+      if (!actionPlan && Array.isArray(src.guideActions)) actionPlan = { actions: src.guideActions };
+      if (!preferenceIntent && obj(src.publicPreferenceIntent).explicit === true) {
+        preferenceIntent = obj(src.publicPreferenceIntent);
+      }
+      if (!previousPreferences && obj(src.publicPreferences).contract) {
+        previousPreferences = obj(src.publicPreferences);
+      }
+      if (!televisionGuide && obj(src.televisionGuide).enabled !== undefined) {
+        televisionGuide = obj(src.televisionGuide);
+      }
+      if (!guideContext && Object.keys(obj(src.guideContext || src.publicGuideContinuity)).length) {
+        guideContext = obj(src.guideContext || src.publicGuideContinuity);
+      }
+      for (const key of [
+        "payload", "meta", "result", "finalEnvelope", "body", "context",
+        "composerContext", "routing", "state", "session", "sessionPatch",
+        "memoryPatch", "domainConcierge", "concierge"
+      ]) {
+        walk(src[key], depth + 1);
+      }
+    }
+
+    for (const arg of Array.from(args || [])) walk(arg, 0);
+    walk(result, 0);
+    return {
+      prompt: prompts.filter(Boolean).join(" ").slice(0, 3200),
+      actionPlan,
+      preferenceIntent,
+      previousPreferences,
+      televisionGuide: televisionGuide || {},
+      guideContext: guideContext || {}
+    };
+  }
+
+  function fallbackPlan(value, television) {
+    const src = obj(value);
+    const list = Array.isArray(obj(src.guideActionPlan).actions)
+      ? obj(src.guideActionPlan).actions
+      : Array.isArray(src.guideActions)
+        ? src.guideActions
+        : [];
+    const limit = television ? 4 : 6;
+    const actions = list.slice(0, limit).map((raw) => {
+      const item = obj(raw);
+      return {
+        contract: "nyx.guideAction/1.1",
+        id: text(item.id, 72),
+        type: text(item.type, 40).toLowerCase().replace(/[^a-z0-9_]+/g, "_"),
+        target: text(item.target || item.targetKey, 96).toLowerCase().replace(/[^a-z0-9._-]+/g, "_"),
+        targetKey: text(item.target || item.targetKey, 96).toLowerCase().replace(/[^a-z0-9._-]+/g, "_"),
+        label: text(item.label, television ? 48 : 80),
+        requiresUserGesture: true,
+        autoExecute: false,
+        advisoryOnly: true,
+        serverExecutionAllowed: false,
+        externalUrlAccepted: false,
+        symbolicTargetOnly: true
+      };
+    }).filter((item) => item.type && item.target);
+
+    return {
+      contract: ACTION_PLAN_CONTRACT,
+      version: PATCH_VERSION,
+      authoritative: false,
+      finalReplyAuthority: false,
+      executionAuthority: "client_user_gesture",
+      clientExecutionRequired: true,
+      serverExecutionAllowed: false,
+      symbolicTargetsOnly: true,
+      autoExecute: false,
+      requiresUserGesture: true,
+      television,
+      maxActions: limit,
+      actionCount: actions.length,
+      actions
+    };
+  }
+
+  function buildPlan(collected) {
+    let sourcePlan = collected.actionPlan;
+    if ((!sourcePlan || !Array.isArray(sourcePlan.actions) || !sourcePlan.actions.length) &&
+        domainConcierge &&
+        typeof domainConcierge.buildNyxGuideStep789ActionPlan === "function") {
+      try {
+        sourcePlan = domainConcierge.buildNyxGuideStep789ActionPlan(collected.prompt, {
+          ...collected.guideContext,
+          televisionGuide: collected.televisionGuide
+        });
+      } catch (_) {}
+    }
+
+    const television = collected.televisionGuide.enabled === true;
+    if (sitebridge && typeof sitebridge.buildGuideActionPlan === "function") {
+      try {
+        return sitebridge.buildGuideActionPlan({
+          guideActionPlan: sourcePlan || {},
+          televisionGuide: collected.televisionGuide
+        }, {
+          televisionGuide: collected.televisionGuide,
+          television
+        });
+      } catch (_) {}
+    }
+    return fallbackPlan(sourcePlan || {}, television);
+  }
+
+  function buildPreferences(collected) {
+    const intent = obj(collected.preferenceIntent);
+    if (intent.explicit !== true) return null;
+    if (sitebridge && typeof sitebridge.buildPublicPreferenceEnvelope === "function") {
+      try {
+        return sitebridge.buildPublicPreferenceEnvelope({
+          preferenceIntent: intent,
+          consentGranted: intent.rememberPreferences === true,
+          clearRequested: intent.clearRequested === true,
+          surface: collected.guideContext.surface
+        }, collected.previousPreferences || {});
+      } catch (_) {}
+    }
+    return {
+      contract: PREFERENCES_CONTRACT,
+      version: PATCH_VERSION,
+      publicSessionOnly: true,
+      privateMemoryAccess: false,
+      authoritative: false,
+      consentRequired: true,
+      consentGranted: intent.rememberPreferences === true,
+      rememberPreferences: intent.rememberPreferences === true,
+      clearRequested: intent.clearRequested === true,
+      storage: intent.rememberPreferences === true ? "client_persistent" : "client_session",
+      serverStored: false,
+      rawConversationStored: false,
+      rawAudioStored: false,
+      preferences: obj(intent.changes)
+    };
+  }
+
+  function buildProductionPolicy() {
+    if (sitebridge && typeof sitebridge.buildNyxGuideProductionPolicy === "function") {
+      try {
+        return sitebridge.buildNyxGuideProductionPolicy({ releaseState: "candidate" });
+      } catch (_) {}
+    }
+    return {
+      contract: PRODUCTION_CONTRACT,
+      version: PATCH_VERSION,
+      nonAuthority: true,
+      actionValidationRequired: true,
+      preferenceConsentRequired: true,
+      telemetryRedacted: true,
+      rollbackSafe: true
+    };
+  }
+
+  function project(value, args) {
+    if (!value || typeof value !== "object") return value;
+    const collected = collect(args, value);
+    const actionPlan = buildPlan(collected);
+    const publicPreferences = buildPreferences(collected);
+    const productionPolicy = buildProductionPolicy();
+
+    const hasAction = actionPlan && actionPlan.actionCount > 0;
+    const hasPreferences = publicPreferences && publicPreferences.contract === PREFERENCES_CONTRACT;
+    if (!hasAction && !hasPreferences) return value;
+
+    const out = { ...value };
+    if (hasAction) {
+      out.guideActionPlan = actionPlan;
+      out.guideActions = actionPlan.actions;
+    }
+    if (hasPreferences) out.publicPreferences = publicPreferences;
+    out.guideProductionPolicy = productionPolicy;
+
+    if (obj(out.payload)) {
+      out.payload = {
+        ...out.payload,
+        guideActionPlan: hasAction ? actionPlan : out.payload.guideActionPlan,
+        publicPreferences: hasPreferences ? publicPreferences : out.payload.publicPreferences,
+        guideProductionPolicy: productionPolicy
+      };
+    }
+    if (obj(out.finalEnvelope)) {
+      out.finalEnvelope = {
+        ...out.finalEnvelope,
+        guideActionPlan: hasAction ? actionPlan : out.finalEnvelope.guideActionPlan,
+        publicPreferences: hasPreferences ? publicPreferences : out.finalEnvelope.publicPreferences,
+        guideProductionPolicy: productionPolicy
+      };
+    }
+    out.meta = {
+      ...obj(out.meta),
+      nyxGuideSteps789Version: PATCH_VERSION,
+      guideActionPlanContract: hasAction ? ACTION_PLAN_CONTRACT : "",
+      publicPreferencesContract: hasPreferences ? PREFERENCES_CONTRACT : "",
+      guideProductionContract: PRODUCTION_CONTRACT,
+      actionExecutionAuthority: "client_user_gesture",
+      preferenceStorageAuthority: "client_consent",
+      diagnosticsRedacted: true
+    };
+    return out;
+  }
+
+  function wrap(fn, name) {
+    if (typeof fn !== "function" || fn.__nyxGuideSteps789ComposerWrapped) return fn;
+    const wrapped = function wrappedNyxGuideSteps789Composer() {
+      const args = arguments;
+      const result = fn.apply(this, args);
+      if (result && typeof result.then === "function") {
+        return result.then((value) => project(value, args));
+      }
+      return project(result, args);
+    };
+    try {
+      Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; });
+      Object.defineProperty(wrapped, "name", { value: fn.name || name || "nyxGuideSteps789Composer" });
+    } catch (_) {}
+    wrapped.__nyxGuideSteps789ComposerWrapped = true;
+    return wrapped;
+  }
+
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default");
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of [
+      "composeMarionResponse", "compose", "buildReply", "run", "default",
+      "handle", "handleChat", "reply", "processWithMarion", "finalize",
+      "safeResponse", "buildResponse", "createResponse"
+    ]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    api.NYX_GUIDE_STEPS_7_8_9_COMPOSER_VERSION = PATCH_VERSION;
+    api.NYX_GUIDE_ACTION_PLAN_CONTRACT = ACTION_PLAN_CONTRACT;
+    api.NYX_PUBLIC_PREFERENCES_CONTRACT = PREFERENCES_CONTRACT;
+    api.NYX_GUIDE_PRODUCTION_CONTRACT = PRODUCTION_CONTRACT;
+    api.attachNyxGuideSteps789ToResponse = function attach(value, input) {
+      return project(value, [input || {}]);
+    };
+    api.buildNyxGuideStep789ComposerProjection = function projection(input) {
+      const base = { ok: true, reply: text(obj(input).reply, 6000) };
+      return project(base, [input || {}]);
+    };
+  } catch (_) {}
+})();
+ /* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_END */
