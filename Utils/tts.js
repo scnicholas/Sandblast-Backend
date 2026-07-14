@@ -1,3920 +1,593 @@
-"use strict";
-
-// NYX-TTS-R7: synchronous compatibility recovery first; stream fallback; 2xx/no-audio retry.
-
-const crypto = require("crypto");
-
-const _providerRuntime = (() => {
-const https = require("https");
-
-const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
-
-
-const MANUAL_RESEMBLE_CONFIG = Object.freeze({
-  // Emergency file-level overrides only. Production configuration belongs in
-  // Render environment variables. Leave these blank during normal deployment.
-  apiKey: "",
-  voiceUuid: "",
-  projectUuid: "",
-  synthUrl: "",
-  streamUrl: "",
-  statusUrlTemplate: ""
-});
-
-const PHASES = Object.freeze({
-  p01_contractSafe: true,
-  p02_envResolution: true,
-  p03_voiceResolution: true,
-  p04_authFallback: true,
-  p05_timeoutGuard: true,
-  p06_ssmlFailOpen: true,
-  p07_speechEnvelope: true,
-  p08_payloadNormalization: true,
-  p09_audioSrcDownload: true,
-  p10_base64Coercion: true,
-  p11_mimeDetection: true,
-  p12_retrySignal: true,
-  p13_traceDiagnostics: true,
-  p14_providerTolerance: true,
-  p15_operationalIntegrity: true,
-  p16_binaryDirectResponse: true,
-  p17_endpointValidation: true,
-  p18_nestedAudioEnvelope: true,
-  p19_downloadGuards: true,
-  p20_nonJsonTolerance: true,
-  p21_privateNetworkGuard: true,
-  p22_sizeGuard: true,
-  p23_errorNormalization: true,
-  p24_headerSanitization: true,
-  p25_transientRetryBackoff: true,
-  p26_audioRecoverySignalReady: true,
-  p27_asyncPolling: true,
-  p28_asyncResultRetrieval: true,
-  p29_streamFirstTransport: true,
-  p30_streamWavIntegrity: true,
-  p31_synchronousFallback: true
-});
-
-const LOCKED_VOICE_ENV_KEYS = Object.freeze([
-  "RESEMBLE_VOICE_UUID",
-  "SB_RESEMBLE_VOICE_UUID",
-  "SBNYX_RESEMBLE_VOICE_UUID"
-]);
-
-const REQUEST_VOICE_ENV_KEYS = Object.freeze([
-  "MIXER_VOICE_ID",
-  "RESEMBLE_VOICE_ID",
-  "NYX_VOICE_ID",
-  "TTS_VOICE_ID"
-]);
-
-const TOKEN_ENV_KEYS = Object.freeze([
-  "RESEMBLE_API_TOKEN",
-  "SB_RESEMBLE_API_TOKEN",
-  "RESEMBLE_API_KEY",
-  "SB_RESEMBLE_API_KEY",
-  "SB_TTS_TOKEN",
-  "TTS_TOKEN",
-  "SANDBLAST_TTS_TOKEN",
-  "RESEMBLE_TOKEN"
-]);
-
-function _str(v){ return v == null ? "" : String(v); }
-function _trim(v){ return _str(v).trim(); }
-function _pickFirst(){
-  for (let i = 0; i < arguments.length; i++){
-    const t = _trim(arguments[i]);
-    if (t) return t;
-  }
-  return "";
-}
-function _lower(s){ return _trim(s).toLowerCase(); }
-
-function _manualConfig(){
-  return MANUAL_RESEMBLE_CONFIG || {};
-}
-function _manualOrEnv(){
-  const args = Array.from(arguments);
-  const manualValue = _pickFirst.apply(null, args);
-  return manualValue || _pickFirst.apply(null, args.slice(1));
-}
-function _clampInt(v, dflt, min, max){
-  const n = Number(v);
-  if (!Number.isFinite(n)) return dflt;
-  return Math.max(min, Math.min(max, Math.round(n)));
-}
-function _boolish(v, dflt){
-  if (v == null || v === "") return dflt;
-  if (typeof v === "boolean") return v;
-  const s = _trim(v).toLowerCase();
-  if (s === "1" || s === "true" || s === "yes" || s === "on") return true;
-  if (s === "0" || s === "false" || s === "no" || s === "off") return false;
-  return dflt;
-}
-function _sleep(ms){
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
-}
-function _mask(v){
-  const s = _trim(v);
-  if (!s) return "";
-  if (s.length <= 8) return `${s.slice(0, 2)}***${s.slice(-2)}`;
-  return `${s.slice(0, 6)}***${s.slice(-4)}`;
-}
-function _headerSafe(v, max){
-  return _str(v).replace(/[\r\n]+/g, " ").trim().slice(0, max || 120);
-}
-function _safeUrlForLogs(v){
-  const s = _normalizeUrlCandidate(v);
-  if (!s) return "";
-  try{
-    const u = new URL(s);
-    return `${u.protocol}//${u.host}${u.pathname}`;
-  }catch(_){
-    return "";
-  }
-}
-function _isPrivateHostname(hostname){
-  const h = _lower(hostname);
-  if (!h) return true;
-  if (h === "localhost" || h === "127.0.0.1" || h === "::1") return true;
-  if (/^10\./.test(h)) return true;
-  if (/^192\.168\./.test(h)) return true;
-  if (/^169\.254\./.test(h)) return true;
-  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
-  if (/^fc00:/i.test(h) || /^fd/i.test(h)) return true;
-  if (/^fe80:/i.test(h)) return true;
-  return false;
-}
-function _assertSafeRemoteUrl(raw, allowPrivate){
-  const safe = _normalizeUrlCandidate(raw);
-  if (!safe) throw new Error("invalid_remote_url");
-  const u = new URL(safe);
-  if (!/^https?:$/i.test(u.protocol)) throw new Error("unsupported_remote_protocol");
-  if (!allowPrivate && _isPrivateHostname(u.hostname)) throw new Error("private_network_url_blocked");
-  return safe;
-}
-function _normalizedProviderError(reason, message, status, retryable, extra){
-  return {
-    ok: false,
-    retryable: !!retryable,
-    reason: _trim(reason) || "provider_error",
-    message: _trim(message) || "Resemble synthesis failed.",
-    status: Number.isFinite(Number(status)) ? Number(status) : 0,
-    ...(extra || {})
-  };
-}
-function _mimeFor(fmt){
-  const f = _lower(fmt);
-  if (f === "wav") return "audio/wav";
-  if (f === "ogg") return "audio/ogg";
-  if (f === "flac") return "audio/flac";
-  return "audio/mpeg";
-}
-function _getToken(){
-  const manual = _trim(_manualConfig().apiKey);
-  if (manual) return manual;
-  for (const key of TOKEN_ENV_KEYS){
-    const value = _trim(process.env[key]);
-    if (value) return value;
-  }
-  return "";
-}
-function _getProjectUuid(){
-  return _manualOrEnv(_manualConfig().projectUuid, process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID, "");
-}
-function _voiceResolutionState(requestedValue){
-  const requested = _trim(requestedValue);
-  const manualVoice = _trim(_manualConfig().voiceUuid);
-  const lockedCandidates = [manualVoice, ...LOCKED_VOICE_ENV_KEYS.map((key) => process.env[key])]
-    .map(_trim)
-    .filter(Boolean);
-  const validLocked = lockedCandidates.filter(_looksLikeVoiceIdentifier);
-  const uniqueLocked = [...new Set(validLocked)];
-  const lockedVoiceUuid = uniqueLocked[0] || "";
-  const requestCandidates = [requested, ...REQUEST_VOICE_ENV_KEYS.map((key) => process.env[key])]
-    .map(_trim)
-    .filter(Boolean);
-  const requestedLooksValid = _looksLikeVoiceIdentifier(requested);
-  const conflict = uniqueLocked.length > 1;
-  const overrideBlocked = !!(lockedVoiceUuid && requestedLooksValid && requested !== lockedVoiceUuid);
-
-  return {
-    requestedVoiceUuid: requested,
-    lockedVoiceUuid,
-    voiceUuid: lockedVoiceUuid || (requestedLooksValid ? requested : ""),
-    configured: !!lockedVoiceUuid,
-    valid: !!lockedVoiceUuid && !conflict,
-    conflict,
-    configuredKeys: [manualVoice ? "MANUAL_RESEMBLE_CONFIG.voiceUuid" : "", ...LOCKED_VOICE_ENV_KEYS].filter(Boolean),
-    requestCandidates
-  };
-}
-
-function _getVoiceUuid(){
-  return _voiceResolutionState("").voiceUuid;
-}
-function _defaultModel(){
-  // Model is optional in the Resemble synchronous contract. Do not force
-  // chatterbox-turbo onto custom voices that may not support that model.
-  return _pickFirst(process.env.RESEMBLE_TTS_MODEL, process.env.SB_RESEMBLE_TTS_MODEL, "");
-}
-function _requestTimeoutMs(){
-  return _clampInt(
-    process.env.SB_TTS_PROVIDER_TIMEOUT_MS || process.env.SB_TTS_TIMEOUT_MS,
-    12000,
-    3000,
-    60000
-  );
-}
-function _allowPrivateAudioSrc(){
-  return _boolish(process.env.SB_TTS_ALLOW_PRIVATE_AUDIO_SRC, false);
-}
-function _maxAudioBytes(){
-  return _clampInt(process.env.SB_TTS_MAX_AUDIO_BYTES, MAX_AUDIO_BYTES, 1024 * 256, 100 * 1024 * 1024);
-}
-function _maxResponseBytes(){
-  return _clampInt(process.env.SB_TTS_MAX_RESPONSE_BYTES, MAX_RESPONSE_BYTES, 1024 * 256, 25 * 1024 * 1024);
-}
-function _enableSsml(){
-  return _boolish(process.env.RESEMBLE_USE_SSML, true);
-}
-function _enableProsodyShaping(){
-  return _boolish(process.env.RESEMBLE_ENABLE_PROSODY_SHAPING, true);
-}
-function _maxSynthAttempts(){
-  return _clampInt(process.env.SB_TTS_PROVIDER_MAX_ATTEMPTS, 3, 1, 5);
-}
-function _retryBaseMs(){
-  return _clampInt(process.env.SB_TTS_PROVIDER_RETRY_BASE_MS, 350, 100, 3000);
-}
-function _downloadAttempts(){
-  return _clampInt(process.env.SB_TTS_AUDIO_DOWNLOAD_ATTEMPTS, 2, 1, 4);
-}
-
-function _pollAttempts(){
-  return _clampInt(process.env.SB_TTS_PROVIDER_POLL_ATTEMPTS, 10, 1, 40);
-}
-function _pollIntervalMs(){
-  return _clampInt(process.env.SB_TTS_PROVIDER_POLL_INTERVAL_MS, 900, 200, 5000);
-}
-function _pollMaxMs(){
-  return _clampInt(process.env.SB_TTS_PROVIDER_POLL_MAX_MS, 15000, 1000, 120000);
-}
-
-function _transportMode(){
-  const raw = _lower(process.env.SB_TTS_TRANSPORT || "compat-first");
-  if (["stream-only", "stream"].includes(raw)) return "stream-only";
-  if (["stream-first"].includes(raw)) return "stream-first";
-  if (["synthesize-only", "sync-only", "synchronous-only"].includes(raw)) return "synthesize-only";
-  return "compat-first";
-}
-function _streamPrecision(){
-  const raw = _trim(process.env.RESEMBLE_STREAM_PRECISION || process.env.SB_RESEMBLE_STREAM_PRECISION || "PCM_16").toUpperCase();
-  return ["PCM_32", "PCM_24", "PCM_16", "MULAW"].includes(raw) ? raw : "PCM_16";
-}
-function _streamSampleRate(){
-  const allowed = new Set([8000, 16000, 22050, 32000, 44100, 48000]);
-  const raw = Number(process.env.RESEMBLE_STREAM_SAMPLE_RATE || process.env.SB_RESEMBLE_STREAM_SAMPLE_RATE || 48000);
-  return allowed.has(raw) ? raw : 48000;
-}
-function _streamUseHd(){
-  return _boolish(process.env.RESEMBLE_STREAM_USE_HD || process.env.SB_RESEMBLE_STREAM_USE_HD, false);
-}
-function _looksLikeMp3(buf){
-  return Buffer.isBuffer(buf) && buf.length >= 3 && (
-    (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) ||
-    (buf[0] === 0xFF && (buf[1] & 0xE0) === 0xE0)
-  );
-}
-function _looksLikeWav(buf){
-  return Buffer.isBuffer(buf) && buf.length >= 12 &&
-    buf.slice(0, 4).toString("ascii") === "RIFF" &&
-    buf.slice(8, 12).toString("ascii") === "WAVE";
-}
-function _looksLikeOgg(buf){
-  return Buffer.isBuffer(buf) && buf.length >= 4 &&
-    buf.slice(0, 4).toString("ascii") === "OggS";
-}
-function _looksLikeFlac(buf){
-  return Buffer.isBuffer(buf) && buf.length >= 4 &&
-    buf.slice(0, 4).toString("ascii") === "fLaC";
-}
-function _looksLikeShortVoiceId(v){
-  return /^[0-9a-f]{8}$/i.test(_trim(v));
-}
-function _looksLikeVoiceIdentifier(v){
-  return _looksLikeUuid(v) || _looksLikeShortVoiceId(v);
-}
-function _resolveMime(buffer, fallbackFmt, contentType){
-  const ct = _lower(contentType);
-  if (ct.startsWith("audio/")) return ct.split(";")[0].trim();
-  if (_looksLikeWav(buffer)) return "audio/wav";
-  if (_looksLikeMp3(buffer)) return "audio/mpeg";
-  if (_looksLikeOgg(buffer)) return "audio/ogg";
-  if (_looksLikeFlac(buffer)) return "audio/flac";
-  return _mimeFor(fallbackFmt);
-}
-function _looksLikeUuid(v){
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(_trim(v));
-}
-function _resolveVoiceUuid(v){
-  const state = _voiceResolutionState(v);
-  return state.voiceUuid;
-}
-function _escapeXml(s){
-  return _str(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-function _repairSpeechMojibake(value){
-  return _str(value)
-    .replace(/\u00e2\u20ac\u2122/g, "\u2019")
-    .replace(/\u00e2\u20ac\u02dc/g, "\u2018")
-    .replace(/\u00e2\u20ac\u0153/g, "\u201c")
-    .replace(/\u00e2\u20ac\u009d/g, "\u201d")
-    .replace(/\u00e2\u20ac\u201c/g, "\u2013")
-    .replace(/\u00e2\u20ac\u201d/g, "\u2014")
-    .replace(/\u00e2\u20ac\u00a6/g, "\u2026")
-    .replace(/\u00c2(?=[\u00a0\s])/g, "");
-}
-function _normalizeText(text){
-  return _repairSpeechMojibake(text)
-    .replace(/\b(1|2)\s*,\s*(\d{3})\b/g, "$1$2")
-    .replace(/\b((?:19|20)\d{2})(?=in\b)/gi, "$1 ")
-    .replace(/\b((?:19|20)\d{2})([A-Za-z])/g, "$1 $2")
-    .replace(/([A-Za-z])((?:19|20)\d{2})\b/g, "$1 $2")
-    .replace(/\s+/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/([,.;:!?])([A-Za-z])/g, "$1 $2")
-    .replace(/\.{4,}/g, "...")
-    .trim();
-}
-function _yearToSpeech(y){
-  const year = Number(y);
-  if (!Number.isFinite(year)) return _str(y);
-
-  const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
-  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
-
-  function words(n){
-    if (n < 20) return ones[Math.max(0, n)] || String(n);
-    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
-    return String(n);
-  }
-
-  if (year < 1000 || year > 2099) return String(year);
-
-  if (year >= 1900 && year <= 1999){
-    const last = year % 100;
-    if (last === 0) return "nineteen hundred";
-    if (last < 10) return "nineteen oh " + words(last);
-    return "nineteen " + words(last);
-  }
-
-  if (year >= 2000 && year <= 2009){
-    return "two thousand" + (year % 2000 ? " " + words(year % 2000) : "");
-  }
-
-  if (year >= 2010 && year <= 2099){
-    return "twenty" + (year % 100 ? " " + words(year % 100) : "");
-  }
-
-  return String(year);
-}
-function _convertYearTokens(text){
-  return _str(text)
-    .replace(/\b(1|2)\s*,\s*(\d{3})\b/g, "$1$2")
-    .replace(/\b((?:19|20)\d{2})(?=in\b)/gi, "$1 ")
-    .replace(/\b(19\d{2}|20\d{2})\b/g, (match) => _yearToSpeech(Number(match)));
-}
-function _splitSpeechChunks(text){
-  return _normalizeText(text)
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => _trim(s))
-    .filter(Boolean);
-}
-function _sanitizeSsmlText(text){
-  let s = _normalizeText(text);
-  if (!s) return "";
-  s = _escapeXml(s)
-    .replace(/\.\.\./g, " [long-pause] ")
-    .replace(/([;:])\s*/g, "$1 [pause] ")
-    .replace(/([.!?])\s+(?=\S)/g, "$1 [pause] ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return `<speak version="1.1">${s}</speak>`;
-}
-function _buildSpeechEnvelope(opts){
-  const speechHints = opts && typeof opts.speechHints === "object" ? opts.speechHints : {};
-  const chunks = Array.isArray(opts && opts.speechChunks) && opts.speechChunks.length
-    ? opts.speechChunks.map((s) => _trim(s)).filter(Boolean)
-    : (Array.isArray(speechHints.chunks) && speechHints.chunks.length
-      ? speechHints.chunks.map((s) => _trim(s)).filter(Boolean)
-      : _splitSpeechChunks(_pickFirst(
-          opts && opts.textSpeak,
-          opts && opts.plainText,
-          opts && opts.textDisplay,
-          opts && opts.text
-        )));
-
-  const textDisplay = _normalizeText(_pickFirst(opts && opts.textDisplay, opts && opts.plainText, opts && opts.text));
-  let textSpeak = _normalizeText(_pickFirst(
-    opts && opts.textSpeak,
-    opts && opts.ssmlSourceText,
-    opts && opts.plainText,
-    opts && opts.textDisplay,
-    opts && opts.text
-  ));
-  textSpeak = _convertYearTokens(textSpeak);
-  const plainText = _normalizeText(_pickFirst(opts && opts.plainText, textSpeak, textDisplay));
-
-  let ssmlText = _trim(opts && opts.ssmlText);
-  if (!ssmlText && _enableProsodyShaping()) ssmlText = _sanitizeSsmlText(_convertYearTokens(textSpeak || plainText));
-
-  return {
-    textDisplay,
-    textSpeak,
-    plainText,
-    ssmlText,
-    speechChunks: chunks,
-    segmentCount: chunks.length,
-    speechHints,
-    useSsml: _enableSsml() && !!ssmlText
-  };
-}
-
-function _parseJson(text){
-  try { return JSON.parse(text || "{}"); } catch (_) { return null; }
-}
-
-function _isLikelyHtml(text){
-  const s = _trim(text).slice(0, 256).toLowerCase();
-  return s.startsWith("<!doctype html") || s.startsWith("<html") || s.includes("<body") || s.includes("</html>");
-}
-function _safePreview(value, max){
-  return _str(value).replace(/\s+/g, " ").trim().slice(0, max || 240);
-}
-function _firstObject(){
-  for (let i = 0; i < arguments.length; i++){
-    const v = arguments[i];
-    if (v && typeof v === "object" && !Array.isArray(v)) return v;
-  }
-  return null;
-}
-function _firstArrayObject(arr){
-  if (!Array.isArray(arr)) return null;
-  for (const item of arr){
-    if (item && typeof item === "object" && !Array.isArray(item)) return item;
-  }
-  return null;
-}
-function _inferFormatFromUrl(url){
-  const s = _lower(url);
-  if (!s) return "";
-  if (/\.wav(?:\?|$)/.test(s)) return "wav";
-  if (/\.ogg(?:\?|$)/.test(s)) return "ogg";
-  if (/\.flac(?:\?|$)/.test(s)) return "flac";
-  if (/\.mp3(?:\?|$)/.test(s)) return "mp3";
-  return "";
-}
-
-function _safeJsonParseFromBuffer(buf){
-  if (!Buffer.isBuffer(buf) || !buf.length) return null;
-  try{
-    return JSON.parse(buf.toString("utf8"));
-  }catch(_){
-    return null;
-  }
-}
-
-function _buildAuthHeaders(token, mode){
-  if (mode === "raw") return { Authorization: token };
-  if (mode === "token") return { Authorization: `Token ${token}` };
-  return { Authorization: `Bearer ${token}` };
-}
-function _providerAuthModes(context){
-  const configured = _lower(process.env.SB_TTS_AUTH_MODE || process.env.RESEMBLE_AUTH_MODE || "auto");
-  if (configured === "bearer") return ["bearer"];
-  if (configured === "raw" || configured === "key") return ["raw"];
-  if (configured === "token") return ["token"];
-  if (context === "stream") return ["bearer", "raw", "token"];
-  return ["raw", "bearer", "token"];
-}
-
-function _normalizeUrlCandidate(url){
-  const raw = _trim(url);
-  if (!raw) return "";
-  try{
-    const u = new URL(raw);
-    if (!/^https?:$/i.test(u.protocol)) return "";
-    return u.toString();
-  }catch(_){
-    return "";
-  }
-}
-
-const RESEMBLE_SYNTH_URL_ENV_KEYS = Object.freeze([
-  "RESEMBLE_SYNTH_URL",
-  "SB_RESEMBLE_SYNTH_URL",
-  "SBNYX_RESEMBLE_SYNTH_URL",
-  "RESEMBLE_SYNTH_ENDPOINT",
-  "SB_RESEMBLE_SYNTH_ENDPOINT",
-  "RESEMBLE_TTS_URL"
-]);
-const DEFAULT_RESEMBLE_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
-
-function _allowedResembleProviderHosts() {
-  const configured = _str(process.env.SB_RESEMBLE_ALLOWED_PROVIDER_HOSTS || "")
-    .split(",").map((value) => _lower(value)).filter(Boolean);
-  return new Set(["f.cluster.resemble.ai", ...configured]);
-}
-
-function _isAllowedResembleProviderHost(hostname) {
-  const host = _lower(hostname);
-  if (!host) return false;
-  if (_allowedResembleProviderHosts().has(host)) return true;
-  if (host === "resemble.ai" || host.endsWith(".resemble.ai")) return true;
-  return _boolish(process.env.SB_RESEMBLE_ALLOW_CUSTOM_PROVIDER_HOST, false);
-}
-
-function _assertAllowedResembleProviderUrl(raw) {
-  const safe = _assertSafeRemoteUrl(raw, false);
-  const parsed = new URL(safe);
-  if (!_isAllowedResembleProviderHost(parsed.hostname)) throw new Error("unapproved_resemble_provider_host");
-  return safe;
-}
-
-function _normalizeSynthesizeUrlCandidate(url){
-  const normalized = _normalizeUrlCandidate(url);
-  if (!normalized) return "";
-  try{
-    const u = new URL(normalized);
-    if (u.protocol !== "https:") return "";
-    if (!_isAllowedResembleProviderHost(u.hostname)) return "";
-    u.hash = "";
-    if (u.hostname.toLowerCase() === "f.cluster.resemble.ai" && /^\/?$/.test(u.pathname || "")) {
-      u.pathname = "/synthesize";
-    }
-    if (!/\/synthesize\/?$/i.test(u.pathname || "")) return "";
-    return u.toString();
-  }catch(_){
-    return "";
-  }
-}
-
-function _synthesizeEndpointState(){
-  const invalidConfiguredKeys = [];
-  for (const key of RESEMBLE_SYNTH_URL_ENV_KEYS){
-    const raw = _trim(process.env[key]);
-    if (!raw) continue;
-    const url = _normalizeSynthesizeUrlCandidate(raw);
-    if (url) {
-      const parsed = new URL(url);
-      return {
-        configured: true,
-        valid: true,
-        source: key,
-        url,
-        host: parsed.host,
-        path: parsed.pathname,
-        invalidConfiguredKeys
-      };
-    }
-    invalidConfiguredKeys.push(key);
-  }
-
-  const manual = _trim(_manualConfig().synthUrl);
-  const manualUrl = _normalizeSynthesizeUrlCandidate(manual);
-  if (manualUrl) {
-    const parsed = new URL(manualUrl);
-    return {
-      configured: true,
-      valid: true,
-      source: "MANUAL_RESEMBLE_CONFIG.synthUrl",
-      url: manualUrl,
-      host: parsed.host,
-      path: parsed.pathname,
-      invalidConfiguredKeys
-    };
-  }
-  if (manual) invalidConfiguredKeys.push("MANUAL_RESEMBLE_CONFIG.synthUrl");
-
-  const fallbackUrl = _normalizeSynthesizeUrlCandidate(DEFAULT_RESEMBLE_SYNTH_URL);
-  const parsed = new URL(fallbackUrl);
-  return {
-    configured: false,
-    valid: !!fallbackUrl,
-    source: "built_in_default",
-    url: fallbackUrl,
-    host: parsed.host,
-    path: parsed.pathname,
-    invalidConfiguredKeys
-  };
-}
-
-function _candidateSynthesizeUrls(){
-  const state = _synthesizeEndpointState();
-  const explicit = [state.url, DEFAULT_RESEMBLE_SYNTH_URL]
-    .map(_normalizeSynthesizeUrlCandidate)
-    .filter(Boolean);
-
-  const uniq = [];
-  const seen = new Set();
-  for (const u of explicit){
-    if (!seen.has(u)){
-      seen.add(u);
-      uniq.push(u);
-    }
-  }
-  return uniq;
-}
-
-const RESEMBLE_STREAM_URL_ENV_KEYS = Object.freeze([
-  "RESEMBLE_STREAM_URL",
-  "SB_RESEMBLE_STREAM_URL",
-  "SBNYX_RESEMBLE_STREAM_URL",
-  "RESEMBLE_STREAM_ENDPOINT",
-  "SB_RESEMBLE_STREAM_ENDPOINT"
-]);
-const DEFAULT_RESEMBLE_STREAM_URL = "https://f.cluster.resemble.ai/stream";
-
-function _normalizeStreamUrlCandidate(url){
-  const normalized = _normalizeUrlCandidate(url);
-  if (!normalized) return "";
-  try{
-    const u = new URL(normalized);
-    if (u.protocol !== "https:") return "";
-    if (!_isAllowedResembleProviderHost(u.hostname)) return "";
-    u.hash = "";
-    if (u.hostname.toLowerCase() === "f.cluster.resemble.ai" && /^\/?$/.test(u.pathname || "")) {
-      u.pathname = "/stream";
-    }
-    if (!/\/stream\/?$/i.test(u.pathname || "")) return "";
-    return u.toString();
-  }catch(_){
-    return "";
-  }
-}
-
-function _streamEndpointState(){
-  const invalidConfiguredKeys = [];
-  for (const key of RESEMBLE_STREAM_URL_ENV_KEYS){
-    const raw = _trim(process.env[key]);
-    if (!raw) continue;
-    const url = _normalizeStreamUrlCandidate(raw);
-    if (url) {
-      const parsed = new URL(url);
-      return { configured: true, valid: true, source: key, url, host: parsed.host, path: parsed.pathname, invalidConfiguredKeys };
-    }
-    invalidConfiguredKeys.push(key);
-  }
-
-  const manual = _trim(_manualConfig().streamUrl);
-  const manualUrl = _normalizeStreamUrlCandidate(manual);
-  if (manualUrl) {
-    const parsed = new URL(manualUrl);
-    return { configured: true, valid: true, source: "MANUAL_RESEMBLE_CONFIG.streamUrl", url: manualUrl, host: parsed.host, path: parsed.pathname, invalidConfiguredKeys };
-  }
-  if (manual) invalidConfiguredKeys.push("MANUAL_RESEMBLE_CONFIG.streamUrl");
-
-  const fallbackUrl = _normalizeStreamUrlCandidate(DEFAULT_RESEMBLE_STREAM_URL);
-  const parsed = new URL(fallbackUrl);
-  return { configured: false, valid: !!fallbackUrl, source: "built_in_default", url: fallbackUrl, host: parsed.host, path: parsed.pathname, invalidConfiguredKeys };
-}
-
-function _candidateStreamUrls(){
-  const state = _streamEndpointState();
-  const explicit = [state.url, DEFAULT_RESEMBLE_STREAM_URL]
-    .map(_normalizeStreamUrlCandidate)
-    .filter(Boolean);
-  const uniq = [];
-  const seen = new Set();
-  for (const url of explicit){
-    if (!seen.has(url)){
-      seen.add(url);
-      uniq.push(url);
-    }
-  }
-  return uniq;
-}
-
-
-function _statusUrlTemplate(){
-  return _manualOrEnv(
-    _manualConfig().statusUrlTemplate,
-    process.env.RESEMBLE_STATUS_URL_TEMPLATE,
-    process.env.RESEMBLE_POLL_URL_TEMPLATE,
-    process.env.SB_RESEMBLE_STATUS_URL_TEMPLATE,
-    ""
-  );
-}
-
-function _replaceTemplateTokens(template, vars){
-  let out = _trim(template);
-  if (!out) return "";
-  for (const [key, value] of Object.entries(vars || {})){
-    const safe = encodeURIComponent(_trim(value));
-    out = out
-      .replace(new RegExp(`\\{${key}\\}`, "g"), safe)
-      .replace(new RegExp(`:${key}(?=\\b)`, "g"), safe);
-  }
-  return _normalizeUrlCandidate(out);
-}
-
-function _extractAsyncEnvelope(json){
-  if (!json || typeof json !== "object") return {};
-  const data = _firstObject(json.data);
-  const result = _firstObject(json.result);
-  const response = _firstObject(json.response);
-  const output = _firstObject(json.output);
-  const job = _firstObject(json.job) || _firstObject(data && data.job) || _firstObject(result && result.job) || _firstObject(response && response.job);
-  const item0 = _firstArrayObject(json.items) || _firstArrayObject(json.outputs) || _firstArrayObject(json.results);
-  const rawStatus = _pickFirst(
-    json.status,
-    json.state,
-    json.job_status,
-    json.render_status,
-    data && (data.status || data.state || data.job_status || data.render_status),
-    result && (result.status || result.state || result.job_status || result.render_status),
-    response && (response.status || response.state || response.job_status || response.render_status),
-    output && (output.status || output.state || output.job_status || output.render_status),
-    job && (job.status || job.state || job.job_status || job.render_status),
-    item0 && (item0.status || item0.state || item0.job_status || item0.render_status)
-  );
-
-  const id = _pickFirst(
-    json.clip_uuid,
-    json.clip_id,
-    json.generation_id,
-    json.request_id,
-    json.id,
-    data && (data.clip_uuid || data.clip_id || data.generation_id || data.request_id || data.id),
-    result && (result.clip_uuid || result.clip_id || result.generation_id || result.request_id || result.id),
-    response && (response.clip_uuid || response.clip_id || response.generation_id || response.request_id || response.id),
-    output && (output.clip_uuid || output.clip_id || output.generation_id || output.request_id || output.id),
-    job && (job.clip_uuid || job.clip_id || job.generation_id || job.request_id || job.id),
-    item0 && (item0.clip_uuid || item0.clip_id || item0.generation_id || item0.request_id || item0.id)
-  );
-
-  const statusUrl = _pickFirst(
-    json.status_url,
-    json.poll_url,
-    json.result_url,
-    json.job_url,
-    data && (data.status_url || data.poll_url || data.result_url || data.job_url),
-    result && (result.status_url || result.poll_url || result.result_url || result.job_url),
-    response && (response.status_url || response.poll_url || response.result_url || response.job_url),
-    output && (output.status_url || output.poll_url || output.result_url || output.job_url),
-    job && (job.status_url || job.poll_url || job.result_url || job.job_url),
-    item0 && (item0.status_url || item0.poll_url || item0.result_url || item0.job_url)
-  );
-
-  const errorMessage = _pickFirst(
-    json.error,
-    json.message,
-    json.detail,
-    json.reason,
-    data && (data.error || data.message || data.detail || data.reason),
-    result && (result.error || result.message || result.detail || result.reason),
-    response && (response.error || response.message || response.detail || response.reason),
-    output && (output.error || output.message || output.detail || output.reason),
-    job && (job.error || job.message || job.detail || job.reason),
-    item0 && (item0.error || item0.message || item0.detail || item0.reason)
-  );
-
-  const normalizedStatus = _lower(rawStatus);
-
-  return {
-    id: _trim(id),
-    status: normalizedStatus,
-    rawStatus: _trim(rawStatus),
-    statusUrl: _normalizeUrlCandidate(statusUrl),
-    pending: /^(queued|queue|pending|processing|rendering|running|in_progress|in-progress|starting|accepted|submitted)$/.test(normalizedStatus),
-    done: /^(complete|completed|done|ready|finished|success|succeeded)$/.test(normalizedStatus),
-    failed: /^(failed|error|errored|canceled|cancelled|rejected|expired)$/.test(normalizedStatus),
-    message: _trim(errorMessage)
-  };
-}
-
-function _candidateStatusUrls(asyncEnv, projectUuid){
-  const vars = {
-    id: asyncEnv && asyncEnv.id,
-    requestId: asyncEnv && asyncEnv.id,
-    clipId: asyncEnv && asyncEnv.id,
-    generationId: asyncEnv && asyncEnv.id,
-    projectUuid: projectUuid || ""
-  };
-  const urls = [
-    asyncEnv && asyncEnv.statusUrl,
-    _replaceTemplateTokens(_statusUrlTemplate(), vars)
-  ]
-    .map(_normalizeUrlCandidate)
-    .filter(Boolean);
-
-  const uniq = [];
-  const seen = new Set();
-  for (const u of urls){
-    if (!seen.has(u)){
-      seen.add(u);
-      uniq.push(u);
-    }
-  }
-  return uniq;
-}
-
-function _shouldAttemptAsyncPolling(status, json){
-  if (!(status >= 200 && status < 300) || !json || typeof json !== "object") return false;
-  const asyncEnv = _extractAsyncEnvelope(json);
-  if (asyncEnv.pending || asyncEnv.done || asyncEnv.failed) return !!(asyncEnv.id || asyncEnv.statusUrl);
-  if (asyncEnv.id && !(_extractAudioEnvelope(json).audio_content || _extractAudioEnvelope(json).audio_base64 || _extractAudioEnvelope(json).audio_src)) return true;
-  return false;
-}
-
-function _getViaHttps(url, headers, timeoutMs){
-  const maxBytes = _maxResponseBytes();
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = https.request(
-      {
-        method: "GET",
-        hostname: u.hostname,
-        port: u.port || undefined,
-        protocol: u.protocol,
-        path: u.pathname + (u.search || ""),
-        headers: {
-          Accept: "application/json, audio/*;q=0.9, */*;q=0.8",
-          "Accept-Encoding": "identity",
-          ...headers
-        },
-        timeout: timeoutMs
-      },
-      (res) => {
-        const chunks = [];
-        let total = 0;
-        res.on("data", (d) => {
-          total += d.length;
-          if (total > maxBytes){
-            req.destroy(new Error("provider_response_too_large"));
-            return;
-          }
-          chunks.push(d);
-        });
-        res.on("end", () => {
-          const buffer = Buffer.concat(chunks);
-          resolve({
-            status: res.statusCode || 0,
-            headers: res.headers || {},
-            buffer,
-            text: buffer.toString("utf8")
-          });
-        });
-      }
-    );
-    req.on("timeout", () => req.destroy(new Error("provider_request_timeout")));
-    req.on("error", reject);
-    req.end();
-  });
-}
-
-async function _getRequest(url, headers, timeoutMs){
-  const safeUrl = _assertSafeRemoteUrl(url, false);
-  if (typeof fetch === "function"){
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    let to = null;
-    try{
-      if (controller) to = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(safeUrl, {
-        method: "GET",
-        redirect: "error",
-        headers: {
-          Accept: "application/json, audio/*;q=0.9, */*;q=0.8",
-          "Accept-Encoding": "identity",
-          ...headers
-        },
-        signal: controller ? controller.signal : undefined
-      });
-      const ab = await res.arrayBuffer();
-      const buffer = Buffer.from(ab);
-      if (buffer.length > _maxResponseBytes()) throw new Error("provider_response_too_large");
-      return {
-        status: res.status,
-        headers: Object.fromEntries(res.headers.entries()),
-        buffer,
-        text: buffer.toString("utf8")
-      };
-    } catch (e){
-      const msg = _str(e && e.message ? e.message : e);
-      if (e && e.name === "AbortError") {
-        const err = new Error("provider_request_timeout");
-        err.cause = e;
-        throw err;
-      }
-      throw new Error(msg || "provider_request_failed");
-    } finally {
-      if (to) clearTimeout(to);
-    }
-  }
-  return _getViaHttps(safeUrl, headers, timeoutMs);
-}
-
-async function _pollRequest(url, token, traceId, timeoutMs, authMode){
-  const safeUrl = _assertAllowedResembleProviderUrl(url);
-  const headers = {
-    ..._buildAuthHeaders(token, authMode),
-    "User-Agent": "sb-nyx-tts/1.4"
-  };
-  if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
-  const resp = await _getRequest(safeUrl, headers, timeoutMs);
-  resp.providerEndpoint = _safeUrlForLogs(safeUrl);
-  return resp;
-}
-
-async function _pollForCompletedAudio(initialJson, token, traceId, timeoutMs, projectUuid){
-  const asyncEnv = _extractAsyncEnvelope(initialJson);
-  const urls = _candidateStatusUrls(asyncEnv, projectUuid);
-  if (!urls.length) return null;
-
-  const authModes = _providerAuthModes();
-  const deadline = Date.now() + _pollMaxMs();
-  let pollsUsed = 0;
-  let lastResp = null;
-  let lastJson = null;
-  let lastAuthMode = "bearer";
-
-  while (Date.now() <= deadline && pollsUsed < _pollAttempts()){
-    for (const url of urls){
-      for (const authMode of authModes){
-        pollsUsed++;
-        lastAuthMode = authMode;
-        try{
-          const resp = await _pollRequest(url, token, traceId, timeoutMs, authMode);
-          lastResp = resp;
-          const ct = _getHeader(resp && resp.headers, "content-type");
-          const json = _isJsonContentType(ct)
-            ? _parseJson(resp && resp.text ? resp.text : "")
-            : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
-          lastJson = json;
-
-          if (_providerSucceeded(resp && resp.status ? resp.status : 0, json, resp)){
-            return { resp, json, authMode, pollsUsed };
-          }
-
-          const state = _extractAsyncEnvelope(json);
-          if (state.failed){
-            return { resp, json, authMode, pollsUsed, failed: true, failureMessage: state.message || _normalizeProviderMessage(json, resp && resp.text) };
-          }
-          if (state.done){
-            const env = _extractAudioEnvelope(json);
-            if (env.audio_content || env.audio_base64 || env.audio_src){
-              return { resp, json, authMode, pollsUsed };
-            }
-          }
-        }catch(e){
-          lastResp = {
-            status: 0,
-            headers: {},
-            buffer: Buffer.alloc(0),
-            text: _str(e && e.message ? e.message : e),
-            providerEndpoint: _safeUrlForLogs(url),
-            thrown: e
-          };
-        }
-        if (pollsUsed >= _pollAttempts() || Date.now() > deadline) break;
-      }
-      if (pollsUsed >= _pollAttempts() || Date.now() > deadline) break;
-    }
-    if (pollsUsed >= _pollAttempts() || Date.now() > deadline) break;
-    await _sleep(_pollIntervalMs());
-  }
-
-  return { resp: lastResp, json: lastJson, authMode: lastAuthMode, pollsUsed, timeout: true };
-}
-
-function _isAudioContentType(ct){
-  return _lower(ct).startsWith("audio/");
-}
-function _isJsonContentType(ct){
-  return _lower(ct).includes("application/json") || _lower(ct).includes("+json");
-}
-function _getHeader(headers, name){
-  if (!headers || typeof headers !== "object") return "";
-  const wanted = _lower(name);
-  for (const k of Object.keys(headers)){
-    if (_lower(k) === wanted) return _str(headers[k]);
-  }
-  return "";
-}
-function _retryableStatus(status){
-  return status === 0 || status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
-}
-function _computeBackoffMs(attemptIndex){
-  const base = _retryBaseMs();
-  const exp = Math.min(attemptIndex, 6);
-  const jitter = Math.floor(Math.random() * 120);
-  return Math.min(base * Math.pow(2, exp), 4000) + jitter;
-}
-
-function _postViaHttps(url, headers, bodyObj, timeoutMs){
-  const body = JSON.stringify(bodyObj);
-  const maxBytes = _maxResponseBytes();
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = https.request(
-      {
-        method: "POST",
-        hostname: u.hostname,
-        port: u.port || undefined,
-        protocol: u.protocol,
-        path: u.pathname + (u.search || ""),
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json, audio/*;q=0.9, */*;q=0.8",
-          "Accept-Encoding": "identity",
-          "Content-Length": Buffer.byteLength(body),
-          ...headers
-        },
-        timeout: timeoutMs
-      },
-      (res) => {
-        const chunks = [];
-        let total = 0;
-        res.on("data", (d) => {
-          total += d.length;
-          if (total > maxBytes){
-            req.destroy(new Error("provider_response_too_large"));
-            return;
-          }
-          chunks.push(d);
-        });
-        res.on("end", () => {
-          const buffer = Buffer.concat(chunks);
-          resolve({
-            status: res.statusCode || 0,
-            headers: res.headers || {},
-            buffer,
-            text: buffer.toString("utf8")
-          });
-        });
-      }
-    );
-    req.on("timeout", () => req.destroy(new Error("provider_request_timeout")));
-    req.on("error", reject);
-    req.write(body);
-    req.end();
-  });
-}
-
-async function _postRequest(url, headers, bodyObj, timeoutMs){
-  const safeUrl = _assertAllowedResembleProviderUrl(url);
-  if (typeof fetch === "function"){
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    let to = null;
-    try{
-      if (controller) to = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(safeUrl, {
-        method: "POST",
-        redirect: "error",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json, audio/*;q=0.9, */*;q=0.8",
-          "Accept-Encoding": "identity",
-          ...headers
-        },
-        body: JSON.stringify(bodyObj),
-        signal: controller ? controller.signal : undefined
-      });
-      const ab = await res.arrayBuffer();
-      const buffer = Buffer.from(ab);
-      if (buffer.length > _maxResponseBytes()) throw new Error("provider_response_too_large");
-      return {
-        status: res.status,
-        headers: Object.fromEntries(res.headers.entries()),
-        buffer,
-        text: buffer.toString("utf8")
-      };
-    } catch (e){
-      const msg = _str(e && e.message ? e.message : e);
-      if (e && e.name === "AbortError") {
-        const err = new Error("provider_request_timeout");
-        err.cause = e;
-        throw err;
-      }
-      throw new Error(msg || "provider_request_failed");
-    } finally {
-      if (to) clearTimeout(to);
-    }
-  }
-  return _postViaHttps(safeUrl, headers, bodyObj, timeoutMs);
-}
-
-function _postStreamViaHttps(url, headers, bodyObj, timeoutMs){
-  const body = JSON.stringify(bodyObj);
-  const maxBytes = _maxAudioBytes();
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = https.request({
-      method: "POST",
-      hostname: u.hostname,
-      port: u.port || undefined,
-      protocol: u.protocol,
-      path: u.pathname + (u.search || ""),
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "audio/wav, audio/*;q=0.9, application/json;q=0.5",
-        "Accept-Encoding": "identity",
-        "Content-Length": Buffer.byteLength(body),
-        ...headers
-      },
-      timeout: timeoutMs
-    }, (res) => {
-      const chunks = [];
-      let total = 0;
-      res.on("data", (chunk) => {
-        total += chunk.length;
-        if (total > maxBytes){
-          req.destroy(new Error("stream_audio_too_large"));
-          return;
-        }
-        chunks.push(chunk);
-      });
-      res.on("end", () => {
-        const buffer = Buffer.concat(chunks);
-        resolve({
-          status: res.statusCode || 0,
-          headers: res.headers || {},
-          buffer,
-          text: _isAudioContentType(_getHeader(res.headers || {}, "content-type")) || _looksLikeWav(buffer)
-            ? ""
-            : buffer.toString("utf8")
-        });
-      });
-    });
-    req.on("timeout", () => req.destroy(new Error("stream_request_timeout")));
-    req.on("error", reject);
-    req.write(body);
-    req.end();
-  });
-}
-
-async function _postStreamRequest(url, headers, bodyObj, timeoutMs){
-  const safeUrl = _assertAllowedResembleProviderUrl(url);
-  if (typeof fetch === "function"){
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    let timer = null;
-    try{
-      if (controller) timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(safeUrl, {
-        method: "POST",
-        redirect: "error",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "audio/wav, audio/*;q=0.9, application/json;q=0.5",
-          "Accept-Encoding": "identity",
-          ...headers
-        },
-        body: JSON.stringify(bodyObj),
-        signal: controller ? controller.signal : undefined
-      });
-      const buffer = Buffer.from(await res.arrayBuffer());
-      if (buffer.length > _maxAudioBytes()) throw new Error("stream_audio_too_large");
-      const responseHeaders = Object.fromEntries(res.headers.entries());
-      const contentType = _getHeader(responseHeaders, "content-type");
-      return {
-        status: res.status,
-        headers: responseHeaders,
-        buffer,
-        text: _isAudioContentType(contentType) || _looksLikeWav(buffer) ? "" : buffer.toString("utf8")
-      };
-    }catch(e){
-      if (e && e.name === "AbortError") {
-        const err = new Error("stream_request_timeout");
-        err.cause = e;
-        throw err;
-      }
-      throw e;
-    }finally{
-      if (timer) clearTimeout(timer);
-    }
-  }
-  return _postStreamViaHttps(safeUrl, headers, bodyObj, timeoutMs);
-}
-
-function _downloadViaHttps(url, timeoutMs){
-  const maxBytes = _maxAudioBytes();
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = https.request(
-      {
-        method: "GET",
-        hostname: u.hostname,
-        port: u.port || undefined,
-        protocol: u.protocol,
-        path: u.pathname + (u.search || ""),
-        headers: { Accept: "audio/*,*/*;q=0.8" },
-        timeout: timeoutMs
-      },
-      (res) => {
-        const chunks = [];
-        let total = 0;
-        res.on("data", (d) => {
-          total += d.length;
-          if (total > maxBytes){
-            req.destroy(new Error("audio_src_too_large"));
-            return;
-          }
-          chunks.push(d);
-        });
-        res.on("end", () => {
-          resolve({
-            status: res.statusCode || 0,
-            headers: res.headers || {},
-            buffer: Buffer.concat(chunks)
-          });
-        });
-      }
-    );
-    req.on("timeout", () => req.destroy(new Error("audio_src_timeout")));
-    req.on("error", reject);
-    req.end();
-  });
-}
-
-async function _downloadBuffer(url, timeoutMs){
-  const safeUrl = _assertSafeRemoteUrl(url, _allowPrivateAudioSrc());
-
-  if (typeof fetch === "function"){
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    let to = null;
-    try{
-      if (controller) to = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(safeUrl, {
-        method: "GET",
-        redirect: "error",
-        headers: { Accept: "audio/*,*/*;q=0.8" },
-        signal: controller ? controller.signal : undefined
-      });
-      const ab = await res.arrayBuffer();
-      const buffer = Buffer.from(ab);
-      if (buffer.length > _maxAudioBytes()) throw new Error("audio_src_too_large");
-      return {
-        status: res.status,
-        headers: Object.fromEntries(res.headers.entries()),
-        buffer
-      };
-    } catch (e){
-      const msg = _str(e && e.message ? e.message : e);
-      if (e && e.name === "AbortError") {
-        const err = new Error("audio_src_timeout");
-        err.cause = e;
-        throw err;
-      }
-      throw new Error(msg || "audio_src_download_failed");
-    } finally {
-      if (to) clearTimeout(to);
-    }
-  }
-
-  return _downloadViaHttps(safeUrl, timeoutMs);
-}
-
-async function _downloadBufferWithRetry(url, timeoutMs){
-  let lastErr = null;
-  for (let i = 0; i < _downloadAttempts(); i++){
-    try{
-      const dl = await _downloadBuffer(url, timeoutMs);
-      if (dl && dl.status >= 200 && dl.status < 300 && Buffer.isBuffer(dl.buffer) && dl.buffer.length >= 16){
-        return dl;
-      }
-      lastErr = new Error(`audio_src_http_${dl && dl.status ? dl.status : 0}`);
-      if (!_retryableStatus(dl && dl.status ? dl.status : 0)) break;
-    }catch(e){
-      lastErr = e;
-      const msg = _lower(e && e.message);
-      if (!/timeout|429|5\d\d|download_failed|network|too_large/.test(msg)) break;
-    }
-    if (i < _downloadAttempts() - 1) await _sleep(_computeBackoffMs(i));
-  }
-  throw lastErr || new Error("audio_src_download_failed");
-}
-
-async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
-  const headers = {
-    ..._buildAuthHeaders(token, authMode),
-    "User-Agent": "sb-nyx-tts/1.4"
-  };
-  if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
-
-  const urls = _candidateSynthesizeUrls();
-  let lastResp = null;
-
-  for (let i = 0; i < urls.length; i++){
-    const url = urls[i];
-    try{
-      const resp = await _postRequest(url, headers, payload, timeoutMs);
-      resp.providerEndpoint = _safeUrlForLogs(url);
-      lastResp = resp;
-      const status = resp && resp.status ? resp.status : 0;
-      if (status && status !== 404 && status !== 405){
-        return resp;
-      }
-    }catch(e){
-      lastResp = {
-        status: 0,
-        headers: {},
-        buffer: Buffer.alloc(0),
-        text: _str(e && e.message ? e.message : e),
-        providerEndpoint: _safeUrlForLogs(url),
-        thrown: e
-      };
-    }
-  }
-
-  return lastResp || {
-    status: 0,
-    headers: {},
-    buffer: Buffer.alloc(0),
-    text: "No provider endpoint available.",
-    providerEndpoint: _safeUrlForLogs(_pickFirst.apply(null, urls))
-  };
-}
-
-async function _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech){
-  const authModes = _providerAuthModes("sync");
-  const attempts = Math.max(1, Math.min(2, _maxSynthAttempts()));
-  let lastResp = null;
-  let lastAuthMode = authModes[0] || "raw";
-  let lastAttemptCount = 0;
-
-  const plainText = _trim(speech && speech.plainText) || _trim(payload && payload.data);
-  const voiceUuid = _trim(payload && payload.voice_uuid);
-  const payloadVariants = [];
-  const pushPayload = (candidate) => {
-    if (!candidate || !candidate.voice_uuid || !candidate.data) return;
-    const sig = JSON.stringify(candidate);
-    if (!payloadVariants.some((item) => item.sig === sig)) payloadVariants.push({ sig, value: candidate });
-  };
-
-  // Historical minimal contract: this is the least opinionated request and
-  // avoids model/project/SSML incompatibility.
-  pushPayload({ voice_uuid: voiceUuid, data: plainText });
-  // Current explicit WAV contract from Resemble's official guide.
-  pushPayload({ voice_uuid: voiceUuid, data: plainText, output_format: "wav", sample_rate: 48000, precision: "PCM_16" });
-  // Preserve the caller's requested contract after the compatibility probes.
-  pushPayload({ ...(payload || {}), data: plainText || (payload && payload.data) });
-  if (speech && speech.useSsml && _trim(payload && payload.data) !== plainText) pushPayload({ ...(payload || {}) });
-
-  for (const authMode of authModes){
-    for (const variant of payloadVariants){
-      for (let attempt = 0; attempt < attempts; attempt++){
-        lastAttemptCount += 1;
-        lastAuthMode = authMode;
-        const resp = await _callSynthesize(variant.value, token, traceId, timeoutMs, authMode);
-        lastResp = resp;
-        const status = Number(resp && resp.status || 0);
-        const contentType = _getHeader(resp && resp.headers, "content-type");
-        const json = _isJsonContentType(contentType)
-          ? _parseJson(resp && resp.text ? resp.text : "")
-          : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
-
-        if (_providerSucceeded(status, json, resp)) {
-          return { resp, authMode, attemptsUsed: lastAttemptCount, payloadMode: variant.value === payload ? "full" : "compat" };
-        }
-
-        // A valid async envelope should be handled by the polling layer in
-        // _synthesizeSync, so return it instead of exhausting compatibility probes.
-        if (_shouldAttemptAsyncPolling(status, json)) {
-          return { resp, authMode, attemptsUsed: lastAttemptCount, payloadMode: "async" };
-        }
-
-        const successWithoutAudio = status >= 200 && status < 300;
-        if (!successWithoutAudio && !_retryableStatus(status)) break;
-        if (attempt < attempts - 1) await _sleep(_computeBackoffMs(attempt));
-      }
-    }
-  }
-
-  return { resp: lastResp, authMode: lastAuthMode, attemptsUsed: lastAttemptCount, payloadMode: "exhausted" };
-}
-
-function _normalizeProviderMessage(json, fallbackText){
-  const raw = json && (
-    json.message || json.error || json.detail || json.reason ||
-    (json.data && (json.data.message || json.data.error || json.data.detail || json.data.reason)) ||
-    (json.result && (json.result.message || json.result.error || json.result.detail || json.result.reason)) ||
-    (json.response && (json.response.message || json.response.error || json.response.detail || json.response.reason)) ||
-    (Array.isArray(json.errors) ? json.errors.join("; ") : "") ||
-    (Array.isArray(json.issues) ? json.issues.join("; ") : "")
-  );
-  return _trim(raw) || _trim(fallbackText) || "Resemble synthesis failed.";
-}
-
-function _providerSucceeded(status, json, resp){
-  if (!(status >= 200 && status < 300)) return false;
-
-  const ct = _getHeader(resp && resp.headers, "content-type");
-  if (_isAudioContentType(ct) && Buffer.isBuffer(resp && resp.buffer) && resp.buffer.length >= 16){
-    return true;
-  }
-
-  if (_isLikelyHtml(resp && resp.text)) return false;
-  if (!json || typeof json !== "object") return false;
-
-  const env = _extractAudioEnvelope(json);
-  return !!(env.audio_content || env.audio_src || env.audio_base64);
-}
-
-function _pickAudioScalar(){
-  for (let i = 0; i < arguments.length; i += 1){
-    const value = arguments[i];
-    if (typeof value !== "string") continue;
-    const cleaned = _trim(value);
-    if (cleaned) return cleaned;
-  }
-  return "";
-}
-
-function _extractAudioEnvelope(json){
-  if (!json || typeof json !== "object") return {};
-
-  const data = _firstObject(json.data);
-  const result = _firstObject(json.result);
-  const response = _firstObject(json.response);
-  const audio = _firstObject(json.audio);
-  const file = _firstObject(json.file);
-  const payload = _firstObject(json.payload);
-  const output = _firstObject(json.output);
-  const item0 = _firstArrayObject(json.items) || _firstArrayObject(json.outputs) || _firstArrayObject(json.results);
-  const nested = _firstObject(
-    data && data.audio,
-    result && result.audio,
-    response && response.audio,
-    payload && payload.audio,
-    output && output.audio,
-    item0 && item0.audio
-  );
-
-  return {
-    audio_content: _pickAudioScalar(
-      json.audio_content,
-      json.audio,
-      json.content,
-      data && (data.audio_content || data.audio || data.content),
-      result && (result.audio_content || result.audio || result.content),
-      response && (response.audio_content || response.audio || response.content),
-      audio && (audio.content || audio.audio_content),
-      nested && (nested.content || nested.audio_content),
-      output && (output.audio_content || output.content),
-      item0 && (item0.audio_content || item0.content)
-    ),
-    audio_base64: _pickAudioScalar(
-      json.audio_base64,
-      json.base64,
-      json.audioBase64,
-      json.audio_base_64,
-      data && (data.audio_base64 || data.base64 || data.audioBase64 || data.audio_base_64),
-      result && (result.audio_base64 || result.base64 || result.audioBase64 || result.audio_base_64),
-      response && (response.audio_base64 || response.base64 || response.audioBase64 || response.audio_base_64),
-      audio && (audio.base64 || audio.audio_base64 || audio.audioBase64),
-      nested && (nested.base64 || nested.audio_base64 || nested.audioBase64),
-      file && (file.base64 || file.audio_base64 || file.audioBase64),
-      output && (output.audio_base64 || output.base64 || output.audioBase64),
-      item0 && (item0.audio_base64 || item0.base64 || item0.audioBase64)
-    ),
-    audio_src: _pickAudioScalar(
-      json.audio_src,
-      json.url,
-      json.src,
-      json.download_url,
-      data && (data.audio_src || data.url || data.src || data.download_url),
-      result && (result.audio_src || result.url || result.src || result.download_url),
-      response && (response.audio_src || response.url || response.src || response.download_url),
-      audio && (audio.url || audio.src || audio.audio_src || audio.download_url),
-      nested && (nested.url || nested.src || nested.audio_src || nested.download_url),
-      file && (file.url || file.src || file.download_url),
-      output && (output.audio_src || output.url || output.src || output.download_url),
-      item0 && (item0.audio_src || item0.url || item0.src || item0.download_url)
-    ),
-    output_format: _pickFirst(
-      json.output_format,
-      json.format,
-      json.mime_format,
-      data && (data.output_format || data.format || data.mime_format),
-      result && (result.output_format || result.format || result.mime_format),
-      response && (response.output_format || response.format || response.mime_format),
-      audio && (audio.format || audio.output_format),
-      nested && (nested.format || nested.output_format),
-      output && (output.output_format || output.format),
-      item0 && (item0.output_format || item0.format),
-      _inferFormatFromUrl(_pickFirst(
-        json.audio_src,
-        json.url,
-        data && (data.audio_src || data.url),
-        result && (result.audio_src || result.url),
-        response && (response.audio_src || response.url),
-        audio && (audio.url || audio.src),
-        nested && (nested.url || nested.src),
-        file && (file.url || file.src)
-      ))
-    ),
-    duration: json.duration || (data && data.duration) || (result && result.duration) || (response && response.duration),
-    synth_duration: json.synth_duration || (data && data.synth_duration) || (result && result.synth_duration) || (response && response.synth_duration),
-    sample_rate: json.sample_rate || (data && data.sample_rate) || (result && result.sample_rate) || (response && response.sample_rate),
-    request_id: _pickFirst(
-      json.request_id,
-      json.id,
-      data && (data.request_id || data.id),
-      result && (result.request_id || result.id),
-      response && (response.request_id || response.id),
-      item0 && (item0.request_id || item0.id)
-    ),
-    issues: Array.isArray(json.issues)
-      ? json.issues
-      : (data && Array.isArray(data.issues)
-        ? data.issues
-        : (result && Array.isArray(result.issues)
-          ? result.issues
-          : (response && Array.isArray(response.issues)
-            ? response.issues
-            : (item0 && Array.isArray(item0.issues) ? item0.issues : undefined))))
-  };
-}
-
-function _safeBase64ToBuffer(value){
-  const s = _trim(value);
-  if (!s) return null;
-  try{
-    const cleaned = s
-      .replace(/^data:[^;]+;base64,/i, "")
-      .replace(/\s+/g, "");
-    if (cleaned.length < 16 || !/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned)) return null;
-    const padded = cleaned + "=".repeat((4 - (cleaned.length % 4)) % 4);
-    const buf = Buffer.from(padded, "base64");
-    if (!Buffer.isBuffer(buf) || !buf.length || buf.length > _maxAudioBytes()) return null;
-    return buf;
-  }catch(_){
-    return null;
-  }
-}
-
-async function _synthesizeStream(opts){
-  const started = Date.now();
-  const speech = _buildSpeechEnvelope(opts || {});
-  const text = _trim(speech.plainText || speech.textSpeak || speech.textDisplay);
-  const voiceState = _voiceResolutionState(opts && opts.voiceUuid);
-  const voiceUuid = voiceState.voiceUuid;
-  const projectUuid = _pickFirst(opts && opts.projectUuid, _getProjectUuid());
-  const token = _getToken();
-  const traceId = _trim(opts && opts.traceId);
-  const timeoutMs = _requestTimeoutMs();
-
-  if (!token) return _normalizedProviderError("missing_token", "Missing backend TTS token configuration", 0, false, { transport: "stream", elapsedMs: Date.now() - started });
-  if (!text) return _normalizedProviderError("missing_text", "Missing text", 0, false, { transport: "stream", elapsedMs: Date.now() - started });
-  if (!voiceUuid) return _normalizedProviderError("missing_voice", "Missing locked RESEMBLE_VOICE_UUID voice configuration", 0, false, { transport: "stream", elapsedMs: Date.now() - started });
-
-  const payload = {
-    voice_uuid: voiceUuid,
-    data: text,
-    precision: _streamPrecision(),
-    sample_rate: _streamSampleRate()
-  };
-  const model = _defaultModel();
-  if (model) payload.model = model;
-  if (projectUuid) payload.project_uuid = projectUuid;
-  if (_streamUseHd()) payload.use_hd = true;
-  if (_boolish(opts && opts.applyCustomPronunciations, _boolish(process.env.RESEMBLE_APPLY_CUSTOM_PRONUNCIATIONS, false))) {
-    payload.apply_custom_pronunciations = true;
-  }
-
-  const authModes = _providerAuthModes("stream");
-  const attempts = Math.max(1, Math.min(2, _maxSynthAttempts()));
-  const urls = _candidateStreamUrls();
-  let lastFailure = null;
-  let attemptsUsed = 0;
-
-  for (const authMode of authModes){
-    for (let attempt = 0; attempt < attempts; attempt++){
-      attemptsUsed += 1;
-      for (const url of urls){
-        let resp;
-        try{
-          const headers = { ..._buildAuthHeaders(token, authMode), "User-Agent": "sb-nyx-tts/1.5" };
-          if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
-          resp = await _postStreamRequest(url, headers, payload, timeoutMs);
-          resp.providerEndpoint = _safeUrlForLogs(url);
-        }catch(e){
-          lastFailure = _normalizedProviderError(
-            /timeout|abort/i.test(_str(e && e.message)) ? "stream_timeout" : "stream_network_error",
-            _str(e && e.message ? e.message : e),
-            0,
-            true,
-            { transport: "stream", authMode, attemptsUsed, providerEndpoint: _safeUrlForLogs(url), voiceUuid, traceId: _headerSafe(traceId, 120), elapsedMs: Date.now() - started }
-          );
-          continue;
-        }
-
-        const status = Number(resp && resp.status || 0);
-        const contentType = _getHeader(resp && resp.headers, "content-type");
-        const buffer = resp && Buffer.isBuffer(resp.buffer) ? resp.buffer : Buffer.alloc(0);
-        const wavReady = status >= 200 && status < 300 && _looksLikeWav(buffer) && buffer.length >= 44;
-        if (wavReady){
-          return {
-            ok: true,
-            buffer,
-            audioBuffer: buffer,
-            binary: buffer,
-            audio: buffer.toString("base64"),
-            audioBase64: buffer.toString("base64"),
-            byteLength: buffer.length,
-            contentLength: buffer.length,
-            mimeType: "audio/wav",
-            outputFormat: "wav",
-            providerStatus: status,
-            providerEndpoint: resp.providerEndpoint,
-            authMode,
-            attemptsUsed,
-            transport: "stream",
-            voiceUuid,
-            voiceUuidMasked: _mask(voiceUuid),
-            traceId: _headerSafe(traceId, 120),
-            textDisplay: speech.textDisplay,
-            textSpeak: speech.textSpeak,
-            plainText: speech.plainText,
-            speechChunks: speech.speechChunks,
-            segmentCount: speech.segmentCount,
-            speechHints: speech.speechHints,
-            usedSsml: false,
-            elapsedMs: Date.now() - started,
-            phases: PHASES
-          };
-        }
-
-        const json = _parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(buffer);
-        const providerMessage = _normalizeProviderMessage(json, resp && resp.text ? resp.text : "Resemble stream returned no valid WAV audio.");
-        const reason = status === 401 || status === 403
-          ? "auth_error"
-          : (status >= 200 && status < 300 ? "stream_invalid_wav" : "stream_http_error");
-        lastFailure = _normalizedProviderError(reason, providerMessage, status, _retryableStatus(status), {
-          transport: "stream",
-          authMode,
-          attemptsUsed,
-          providerEndpoint: resp.providerEndpoint,
-          voiceUuid,
-          traceId: _headerSafe(traceId, 120),
-          contentType: _headerSafe(contentType, 80),
-          responseBytes: buffer.length,
-          rawPreview: _safePreview(resp && resp.text, 240),
-          elapsedMs: Date.now() - started
-        });
-        if (!(status >= 200 && status < 300) && !_retryableStatus(status)) return lastFailure;
-      }
-      if (attempt < attempts - 1) await _sleep(_computeBackoffMs(attempt));
-    }
-  }
-
-  return lastFailure || _normalizedProviderError("stream_unavailable", "No Resemble streaming endpoint was available.", 0, true, {
-    transport: "stream",
-    attemptsUsed,
-    voiceUuid,
-    traceId: _headerSafe(traceId, 120),
-    elapsedMs: Date.now() - started
-  });
-}
-
-async function _synthesizeSync(opts){
-  const started = Date.now();
-
-  const speech = _buildSpeechEnvelope(opts || {});
-  const text = _trim(speech.useSsml ? speech.ssmlText : speech.plainText);
-  const voiceState = _voiceResolutionState(opts && opts.voiceUuid);
-  const voiceUuid = voiceState.voiceUuid;
-  const projectUuid = _pickFirst(opts && opts.projectUuid, _getProjectUuid());
-  const outputFormat = _lower(_pickFirst(opts && opts.outputFormat, "mp3")) === "wav" ? "wav" : "mp3";
-  const sampleRate = opts && opts.sampleRate ? _clampInt(opts.sampleRate, undefined, 8000, 192000) : undefined;
-  const precision = _pickFirst(opts && opts.precision, "").toUpperCase();
-  const title = _headerSafe(opts && opts.title, 120);
-  const useHd = opts && typeof opts.useHd !== "undefined" ? _boolish(opts.useHd, false) : undefined;
-  const traceId = _trim(opts && opts.traceId);
-  const token = _getToken();
-  const timeoutMs = _requestTimeoutMs();
-
-  if (!token){
-    return {
-      ok: false,
-      retryable: false,
-      reason: "missing_token",
-      message: "Missing backend TTS token configuration",
-      status: 0,
-      elapsedMs: Date.now() - started,
-      phases: PHASES
-    };
-  }
-  if (!text){
-    return {
-      ok: false,
-      retryable: false,
-      reason: "missing_text",
-      message: "Missing text",
-      status: 0,
-      elapsedMs: Date.now() - started,
-      phases: PHASES
-    };
-  }
-  if (!voiceUuid){
-    return {
-      ok: false,
-      retryable: false,
-      reason: "missing_voice",
-      message: "Missing locked RESEMBLE_VOICE_UUID voice configuration",
-      status: 0,
-      elapsedMs: Date.now() - started,
-      requestedVoiceUuid: _mask(voiceState.requestedVoiceUuid),
-      phases: PHASES
-    };
-  }
-
-  const payload = {
-    voice_uuid: voiceUuid,
-    data: text,
-    output_format: outputFormat
-  };
-
-  const model = _defaultModel();
-  if (model) payload.model = model;
-  if (projectUuid) payload.project_uuid = projectUuid;
-  if (sampleRate) payload.sample_rate = sampleRate;
-  if (precision && ["MULAW", "PCM_16", "PCM_24", "PCM_32"].includes(precision)) payload.precision = precision;
-  if (title) payload.title = title.slice(0, 120);
-  if (typeof useHd !== "undefined") payload.use_hd = !!useHd;
-  if (_boolish(opts && opts.applyCustomPronunciations, _boolish(process.env.RESEMBLE_APPLY_CUSTOM_PRONUNCIATIONS, false))) {
-    payload.apply_custom_pronunciations = true;
-  }
-
-  let resp;
-  let authMode = "bearer";
-  let attemptsUsed = 0;
-
-  try{
-    const outcome = await _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech);
-    resp = outcome && outcome.resp;
-    authMode = outcome && outcome.authMode ? outcome.authMode : authMode;
-    attemptsUsed = outcome && outcome.attemptsUsed ? outcome.attemptsUsed : attemptsUsed;
-  }catch(e){
-    const msg = _str(e && e.message ? e.message : e);
-    const timeoutish = /timeout|abort/i.test(msg);
-    const reason =
-      /private_network_url_blocked/i.test(msg) ? "private_network_url_blocked" :
-      /too_large/i.test(msg) ? "provider_payload_too_large" :
-      (timeoutish ? "provider_timeout" : "network_error");
-    return _normalizedProviderError(reason, msg, 0, true, {
-      elapsedMs: Date.now() - started,
-      authMode,
-      attemptsUsed,
-      providerEndpoint: resp && resp.providerEndpoint ? resp.providerEndpoint : _safeUrlForLogs(_pickFirst.apply(null, _candidateSynthesizeUrls())),
-      voiceUuid,
-      voiceUuidMasked: _mask(voiceUuid),
-      requestedVoiceUuid: voiceState.requestedVoiceUuid,
-      requestedVoiceUuidMasked: _mask(voiceState.requestedVoiceUuid),
-      voiceLocked: voiceState.configured,
-      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
-      traceId: _headerSafe(traceId, 120),
-      textDisplay: speech.textDisplay,
-      textSpeak: speech.textSpeak,
-      speechChunks: speech.speechChunks,
-      segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml,
-      phases: PHASES
-    });
-  }
-
-  let status = resp && resp.status ? resp.status : 0;
-  let providerEndpoint = resp && resp.providerEndpoint ? resp.providerEndpoint : _pickFirst.apply(null, _candidateSynthesizeUrls());
-  let contentType = _getHeader(resp && resp.headers, "content-type");
-  let json = _isJsonContentType(contentType)
-    ? _parseJson(resp && resp.text ? resp.text : "")
-    : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
-
-  let pollOutcome = null;
-  if (!_providerSucceeded(status, json, resp) && _shouldAttemptAsyncPolling(status, json)){
-    pollOutcome = await _pollForCompletedAudio(json, token, traceId, timeoutMs, projectUuid);
-    if (pollOutcome && pollOutcome.resp){
-      resp = pollOutcome.resp;
-      authMode = pollOutcome.authMode || authMode;
-      status = resp && resp.status ? resp.status : status;
-      providerEndpoint = resp && resp.providerEndpoint ? resp.providerEndpoint : providerEndpoint;
-      contentType = _getHeader(resp && resp.headers, "content-type");
-      json = pollOutcome.json || (
-        _isJsonContentType(contentType)
-          ? _parseJson(resp && resp.text ? resp.text : "")
-          : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer))
-      );
-    }
-  }
-
-  if (!_providerSucceeded(status, json, resp)){
-    const retryable = _retryableStatus(status) || !!(pollOutcome && pollOutcome.timeout);
-    const pollState = _extractAsyncEnvelope(json);
-    return {
-      ok: false,
-      retryable,
-      reason:
-        (status === 401 || status === 403) ? "auth_error" :
-        (pollOutcome && pollOutcome.timeout) ? "async_poll_timeout" :
-        (pollState && pollState.failed) ? "async_provider_failed" :
-        "http_error",
-      message:
-        (pollOutcome && pollOutcome.failed && pollOutcome.failureMessage) ||
-        _normalizeProviderMessage(json, resp && resp.text ? resp.text : "Resemble synthesis failed."),
-      status,
-      elapsedMs: Date.now() - started,
-      issues: json && Array.isArray(json.issues) ? json.issues : undefined,
-      requestId: json && (json.request_id || json.id) ? (json.request_id || json.id) : undefined,
-      authMode,
-      attemptsUsed,
-      pollsUsed: pollOutcome && pollOutcome.pollsUsed ? pollOutcome.pollsUsed : 0,
-      providerEndpoint,
-      voiceUuid,
-      voiceUuidMasked: _mask(voiceUuid),
-      requestedVoiceUuid: voiceState.requestedVoiceUuid,
-      requestedVoiceUuidMasked: _mask(voiceState.requestedVoiceUuid),
-      voiceLocked: voiceState.configured,
-      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
-      traceId: _headerSafe(traceId, 120),
-      textDisplay: speech.textDisplay,
-      textSpeak: speech.textSpeak,
-      speechChunks: speech.speechChunks,
-      segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml,
-      rawPreview: _safePreview(resp && resp.text, 240),
-      asyncState: pollState && pollState.rawStatus ? pollState.rawStatus : undefined,
-      phases: PHASES
-    };
-  }
-
-  let buf = null;
-  let env = _extractAudioEnvelope(json);
-  if (!env.request_id){
-    env.request_id = _pickFirst(
-      _getHeader(resp && resp.headers, "x-request-id"),
-      _getHeader(resp && resp.headers, "x-amzn-requestid"),
-      _getHeader(resp && resp.headers, "x-correlation-id")
-    );
-  }
-  let detectedOutputFormat = env.output_format || outputFormat;
-  let detectedContentType = contentType;
-
-  if (_isAudioContentType(contentType) && Buffer.isBuffer(resp && resp.buffer) && resp.buffer.length >= 16){
-    buf = resp.buffer;
-  } else if (env.audio_content){
-    buf = _safeBase64ToBuffer(env.audio_content);
-    if (!buf){
-      return {
-        ok: false,
-        retryable: false,
-        reason: "base64_decode_failed",
-        message: "Provider returned audio_content but it could not be decoded.",
-        status,
-        elapsedMs: Date.now() - started,
-        issues: env.issues,
-        requestId: env.request_id,
-        authMode,
-        attemptsUsed,
-        providerEndpoint,
-        voiceUuid,
-        voiceUuidMasked: _mask(voiceUuid),
-        traceId: _headerSafe(traceId, 120),
-        textDisplay: speech.textDisplay,
-        textSpeak: speech.textSpeak,
-        speechChunks: speech.speechChunks,
-        segmentCount: speech.segmentCount,
-        usedSsml: speech.useSsml,
-        phases: PHASES
-      };
-    }
-  } else if (env.audio_base64){
-    buf = _safeBase64ToBuffer(env.audio_base64);
-    if (!buf){
-      return {
-        ok: false,
-        retryable: false,
-        reason: "base64_decode_failed",
-        message: "Provider returned audio_base64 but it could not be decoded.",
-        status,
-        elapsedMs: Date.now() - started,
-        issues: env.issues,
-        requestId: env.request_id,
-        authMode,
-        attemptsUsed,
-        providerEndpoint,
-        voiceUuid,
-        voiceUuidMasked: _mask(voiceUuid),
-        traceId: _headerSafe(traceId, 120),
-        textDisplay: speech.textDisplay,
-        textSpeak: speech.textSpeak,
-        speechChunks: speech.speechChunks,
-        segmentCount: speech.segmentCount,
-        usedSsml: speech.useSsml,
-        phases: PHASES
-      };
-    }
-  } else if (env.audio_src){
-    try{
-      const dl = await _downloadBufferWithRetry(String(env.audio_src), timeoutMs);
-      buf = dl.buffer;
-      detectedContentType = _getHeader(dl.headers, "content-type") || detectedContentType;
-      detectedOutputFormat = _pickFirst(env.output_format, _inferFormatFromUrl(String(env.audio_src)), detectedOutputFormat);
-    }catch(e){
-      return {
-        ok: false,
-        retryable: true,
-        reason: "audio_src_download_failed",
-        message: _str(e && e.message ? e.message : e),
-        status,
-        elapsedMs: Date.now() - started,
-        issues: env.issues,
-        requestId: env.request_id,
-        authMode,
-        attemptsUsed,
-        providerEndpoint,
-        voiceUuid,
-        voiceUuidMasked: _mask(voiceUuid),
-        traceId: _headerSafe(traceId, 120),
-        textDisplay: speech.textDisplay,
-        textSpeak: speech.textSpeak,
-        speechChunks: speech.speechChunks,
-        segmentCount: speech.segmentCount,
-        usedSsml: speech.useSsml,
-        phases: PHASES
-      };
-    }
-  } else {
-    return {
-      ok: false,
-      retryable: true,
-      reason: "missing_audio_payload",
-      message: "Provider returned success but no audio payload was found.",
-      status,
-      elapsedMs: Date.now() - started,
-      issues: env.issues,
-      requestId: env.request_id,
-      authMode,
-      attemptsUsed,
-      providerEndpoint,
-      voiceUuid,
-      voiceUuidMasked: _mask(voiceUuid),
-      requestedVoiceUuid: voiceState.requestedVoiceUuid,
-      requestedVoiceUuidMasked: _mask(voiceState.requestedVoiceUuid),
-      voiceLocked: voiceState.configured,
-      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
-      traceId: _headerSafe(traceId, 120),
-      textDisplay: speech.textDisplay,
-      textSpeak: speech.textSpeak,
-      speechChunks: speech.speechChunks,
-      segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml,
-      phases: PHASES
-    };
-  }
-
-  if (!Buffer.isBuffer(buf) || buf.length < 16){
-    return {
-      ok: false,
-      retryable: true,
-      reason: "empty_audio",
-      message: "Decoded audio buffer is empty.",
-      status,
-      elapsedMs: Date.now() - started,
-      issues: env.issues,
-      requestId: env.request_id,
-      authMode,
-      attemptsUsed,
-      providerEndpoint,
-      voiceUuid,
-      voiceUuidMasked: _mask(voiceUuid),
-      requestedVoiceUuid: voiceState.requestedVoiceUuid,
-      requestedVoiceUuidMasked: _mask(voiceState.requestedVoiceUuid),
-      voiceLocked: voiceState.configured,
-      voiceIntegrity: { conflict: voiceState.conflict, valid: voiceState.valid },
-      traceId: _headerSafe(traceId, 120),
-      textDisplay: speech.textDisplay,
-      textSpeak: speech.textSpeak,
-      speechChunks: speech.speechChunks,
-      segmentCount: speech.segmentCount,
-      usedSsml: speech.useSsml,
-      phases: PHASES
-    };
-  }
-
-  const mimeType = _resolveMime(buf, detectedOutputFormat, detectedContentType);
-  const audioBase64 = buf.toString("base64");
-
-  return {
-    ok: true,
-    buffer: buf,
-    audioBase64,
-    audio: audioBase64,
-    byteLength: buf.length,
-    contentLength: buf.length,
-    mimeType,
-    elapsedMs: Date.now() - started,
-    duration: env.duration,
-    synthDuration: env.synth_duration,
-    sampleRate: env.sample_rate,
-    outputFormat: detectedOutputFormat,
-    issues: env.issues,
-    requestId: env.request_id,
-    providerStatus: status,
-    authMode,
-    attemptsUsed,
-    transport: "synthesize",
-    pollsUsed: pollOutcome && pollOutcome.pollsUsed ? pollOutcome.pollsUsed : 0,
-    providerEndpoint,
-    voiceUuid,
-    voiceUuidMasked: _mask(voiceUuid),
-    traceId: _headerSafe(traceId, 120),
-    textDisplay: speech.textDisplay,
-    textSpeak: speech.textSpeak,
-    plainText: speech.plainText,
-    ssmlText: speech.ssmlText,
-    speechChunks: speech.speechChunks,
-    segmentCount: speech.segmentCount,
-    speechHints: speech.speechHints,
-    usedSsml: speech.useSsml,
-    ttsFailure: { ok: true, action: "clear", retryable: false, shouldStop: false, shouldTerminate: false },
-    audioFailure: { ok: true, action: "clear", retryable: false, shouldStop: false, shouldTerminate: false },
-    phases: PHASES
-  };
-}
-
-async function synthesize(opts){
-  const mode = _transportMode();
-
-  if (mode === "stream-only") {
-    const streamOnly = await _synthesizeStream(opts || {});
-    return streamOnly && typeof streamOnly === "object" ? { ...streamOnly, transport: streamOnly.transport || "stream" } : streamOnly;
-  }
-
-  if (mode === "stream-first") {
-    const streamResult = await _synthesizeStream(opts || {});
-    if (streamResult && streamResult.ok) return streamResult;
-    if (mode === "stream-only") return streamResult;
-    const syncFallback = await _synthesizeSync(opts || {});
-    if (syncFallback && syncFallback.ok) return { ...syncFallback, transport: "synthesize-fallback", streamFallbackReason: streamResult && streamResult.reason || "stream_unavailable" };
-    return { ...(syncFallback || streamResult || {}), transport: "stream-first-failed", streamFailureReason: streamResult && streamResult.reason || "stream_unavailable" };
-  }
-
-  const syncResult = await _synthesizeSync(opts || {});
-  if (syncResult && syncResult.ok) return { ...syncResult, transport: "synthesize-compat" };
-  if (mode === "synthesize-only") return syncResult;
-
-  const streamFallback = await _synthesizeStream(opts || {});
-  if (streamFallback && streamFallback.ok) {
-    return {
-      ...streamFallback,
-      transport: "stream-fallback",
-      synthFallbackReason: syncResult && syncResult.reason || "synthesize_unavailable",
-      synthFallbackStatus: Number(syncResult && syncResult.status || 0) || 0
-    };
-  }
-  return {
-    ...(syncResult || streamFallback || {}),
-    transport: "compat-first-failed",
-    streamFailureReason: streamFallback && streamFallback.reason || "stream_unavailable",
-    streamFailureStatus: Number(streamFallback && streamFallback.status || 0) || 0
-  };
-}
-
-return {
-  synthesize,
-  MANUAL_RESEMBLE_CONFIG,
-  getSynthesizeEndpointState: _synthesizeEndpointState,
-  getStreamEndpointState: _streamEndpointState,
-  getTransportMode: _transportMode,
-  getProviderAuthModes: _providerAuthModes
-};
-
-})();
-
-const { synthesize, MANUAL_RESEMBLE_CONFIG, getSynthesizeEndpointState, getStreamEndpointState, getTransportMode, getProviderAuthModes } = _providerRuntime;
-
-const PHASES = Object.freeze({
-  p01_contractSafe: true,
-  p02_resembleUnified: true,
-  p03_concurrencyGate: true,
-  p04_circuitBreaker: true,
-  p05_failOpenHealth: true,
-  p06_inputNormalization: true,
-  p07_speechShaping: true,
-  p08_pronunciationMap: true,
-  p09_payloadHardening: true,
-  p10_bufferCoercion: true,
-  p11_headerTelemetry: true,
-  p12_jsonAudioMode: false,
-  p13_introParity: true,
-  p14_retrySignal: true,
-  p15_operationalDiagnostics: true,
-  p16_projectUuidGuard: true,
-  p17_providerErrorPassThrough: true,
-  p18_traceCorrelation: true,
-  p19_safeSnapshots: true,
-  p20_structuredFailureSurface: true,
-  p21_tokenPreflight: true,
-  p22_retryBackoff: true,
-  p23_recoveryClearSignal: true,
-  p24_healthReadinessTruth: true,
-  p25_routeLevelFailover: true,
-  p26_exactFrontendContract: true,
-  p27_nestedPayloadNormalization: true,
-  p28_streamFirstWavTransport: true,
-  p29_synchronousFallback: true,
-  p30_transportTelemetry: true,
-  p31_syncCompatibilityRecovery: true,
-  p32_twoHundredNoAudioRetry: true,
-  p33_authContractLadder: true
-});
-
-const TTS_VERSION = "tts.js v2.15.0 SYNTH-COMPAT-FIRST + AUTH-LADDER + STREAM-FALLBACK + AUDIO-INTEGRITY";
-const MAX_TEXT = 1800;
-const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
-const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
-const CIRCUIT_RESET_MS = Number(process.env.SB_TTS_CIRCUIT_RESET_MS || 30000);
-const LOG_PREVIEW_MAX = Number(process.env.SB_TTS_LOG_PREVIEW_MAX || 160);
-const LOG_ENABLED = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_LOG_ENABLED || "true").toLowerCase());
-const PROVIDER_TIMEOUT_MS = Math.max(1000, Number(process.env.SB_TTS_PROVIDER_TIMEOUT_MS || process.env.SB_RESEMBLE_TIMEOUT_MS || process.env.RESEMBLE_TIMEOUT_MS || 20000));
-const FAILOVER_MAX_VARIANTS = Math.max(1, Math.min(4, Number(process.env.SB_TTS_FAILOVER_VARIANTS || 3)));
-const TOKEN_ENV_KEYS = Object.freeze([
-  "RESEMBLE_API_TOKEN",
-  "SB_RESEMBLE_API_TOKEN",
-  "RESEMBLE_API_KEY",
-  "SB_RESEMBLE_API_KEY",
-  "SB_TTS_TOKEN",
-  "TTS_TOKEN",
-  "SANDBLAST_TTS_TOKEN",
-  "RESEMBLE_TOKEN"
-]);
-const VOICE_LOCK_ENV_KEYS = Object.freeze([
-  "RESEMBLE_VOICE_UUID",
-  "SB_RESEMBLE_VOICE_UUID",
-  "SBNYX_RESEMBLE_VOICE_UUID",
-  "MIXER_VOICE_ID",
-  "RESEMBLE_VOICE_ID",
-  "NYX_VOICE_ID",
-  "TTS_VOICE_ID"
-]);
-
-const VOICE_NAME_ENV_KEYS = Object.freeze([
-  "MIXER_VOICE_NAME",
-  "NYX_VOICE_NAME",
-  "TTS_VOICE_NAME"
-]);
-
-
-const DEFAULT_SPEECH_HINTS = Object.freeze({
-  pauses: { commaMs: 110, periodMs: 300, questionMs: 340, exclaimMs: 320, colonMs: 180, semicolonMs: 220, ellipsisMs: 480 },
-  pacing: { mode: "natural", preservePunctuation: true, sentenceBreath: true, noRunOns: true }
-});
-
-const DEFAULT_PRONUNCIATION_MAP = Object.freeze({
-  Nyx: "Nix",
-  Nix: "Nix",
-  Sandblast: "Sand-blast",
-  Roku: "Roh-koo",
-  Marion: "Marry-in",
-  AI: "A I",
-  TTS: "T T S",
-  TV: "T V"
-});
-
-let activeRequests = 0;
-let failCount = 0;
-let circuitOpenUntil = 0;
-let lastError = "";
-let lastOkAt = 0;
-let lastFailAt = 0;
-let lastProviderStatus = 0;
-let lastElapsedMs = 0;
-
-const _str = (v) => (v == null ? "" : String(v));
-const _trim = (v) => _str(v).trim();
-const _lower = (v) => _trim(v).toLowerCase();
-const _now = () => Date.now();
-const _makeTrace = () => `tts_${Date.now().toString(16)}_${crypto.randomBytes(4).toString("hex")}`;
-
-const STRICT_VOICE_LOCK = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_STRICT_VOICE_LOCK || "true").toLowerCase());
-
-const AUDIO_FIRST_LOCK = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_AUDIO_FIRST_LOCK || "true").toLowerCase());
-const AUDIO_VERIFY_HEADER = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_AUDIO_VERIFY_HEADER || "true").toLowerCase());
-
-const ALLOW_JSON_AUDIO = !["0", "false", "off", "no"].includes(String(process.env.SB_TTS_ALLOW_JSON_AUDIO || "false").toLowerCase());
-
-function _requestsJsonAudio(req, body, query, headers) {
-  const method = _lower(req && req.method);
-  const headerMode = _lower(_pickFirst(headers["x-sb-response-mode"], headers["x-response-mode"], headers["x-tts-mode"]));
-  const accept = _lower(_pickFirst(headers["accept"]));
-  const queryOptIn = _bool(query && (query.returnJsonAudio != null ? query.returnJsonAudio : query.returnJson), false);
-  const bodyOptIn = _bool(body && (body.returnJsonAudio != null ? body.returnJsonAudio : body.returnJson), false);
-  if (!ALLOW_JSON_AUDIO) return false;
-  const explicitHeader = ["json-audio", "audio-json", "base64-audio", "json"].includes(headerMode);
-  const explicitAccept = accept.includes("application/json") && !accept.includes("audio/");
-  const explicitIntent = !!(explicitHeader || queryOptIn || bodyOptIn || explicitAccept);
-  if (!explicitIntent) return false;
-  if (AUDIO_FIRST_LOCK && method == "post") return false;
-  return true;
-}
-
-function _requestIsHealth(req, body, query, headers) {
-  const path = _lower(_pickFirst(req && req.originalUrl, req && req.url));
-  if (path.includes("/health")) return true;
-  if (req && req.method && String(req.method).toUpperCase() === "GET") {
-    return _bool(query && query.healthCheck, false) || _bool(headers && headers["x-sb-health-check"], false);
-  }
-  return false;
-}
-
-function _looksLikeShortVoiceId(value) {
-  return /^[0-9a-f]{8}$/i.test(_trim(value));
-}
-
-function _looksLikeVoiceIdentifier(value) {
-  return _looksLikeUuid(value) || _looksLikeShortVoiceId(value);
-}
-
-function _extractVoiceUuidCandidate() {
-  for (let i = 0; i < arguments.length; i += 1) {
-    const candidate = arguments[i];
-    if (candidate == null) continue;
-    if (typeof candidate === "string") {
-      const v = _trim(candidate);
-      if (v) return v;
-      continue;
-    }
-    if (typeof candidate === "object") {
-      const nested = _pickFirst(
-        candidate.voice_uuid,
-        candidate.voiceUuid,
-        candidate.voiceId,
-        candidate.voice,
-        candidate.resembleVoiceUuid,
-        candidate.mixerVoiceUuid,
-        candidate.uuid,
-        candidate.id
-      );
-      if (nested) return nested;
-    }
-  }
-  return "";
-}
-
-function _voiceSelectionSource(requestedVoiceUuid, resolvedVoiceUuid) {
-  if (_trim(requestedVoiceUuid) && _trim(resolvedVoiceUuid)) return "request";
-  if (!_trim(requestedVoiceUuid) && _trim(resolvedVoiceUuid)) return "lock";
-  return "missing";
-}
-
-function _voiceContract(input) {
-  const integrity = _voiceIntegrityConfig();
-  const requestedVoiceUuid = _trim(input && input.requestedVoiceUuid);
-  const resolvedVoiceUuid = _trim(input && input.voiceUuid);
-  const problems = [];
-
-  if (!resolvedVoiceUuid) problems.push("missing_voice_uuid");
-  if (requestedVoiceUuid && !_looksLikeVoiceIdentifier(requestedVoiceUuid)) problems.push("invalid_requested_voice_uuid");
-  if (resolvedVoiceUuid && !_looksLikeVoiceIdentifier(resolvedVoiceUuid)) problems.push("invalid_resolved_voice_uuid");
-  if (STRICT_VOICE_LOCK && integrity.configured && integrity.conflictingKeys.length) problems.push("conflicting_locked_voice_env");
-  const overrideBlocked = !!(
-    STRICT_VOICE_LOCK && requestedVoiceUuid && integrity.voiceUuid && requestedVoiceUuid !== integrity.voiceUuid
-  );
-  // A stale browser/widget voice UUID must never silence Nyx. The server lock wins
-  // deterministically; the override is recorded for telemetry but is not fatal.
-
-  return {
-    ok: problems.length === 0,
-    strict: STRICT_VOICE_LOCK,
-    source: _voiceSelectionSource(requestedVoiceUuid, resolvedVoiceUuid),
-    requestedVoiceUuid,
-    resolvedVoiceUuid,
-    overrideBlocked,
-    problems,
-    integrity
-  };
-}
-
-
-function _bool(v, d) {
-  if (v == null || v === "") return d;
-  if (typeof v === "boolean") return v;
-  const s = _lower(v);
-  if (["1", "true", "yes", "on"].includes(s)) return true;
-  if (["0", "false", "no", "off"].includes(s)) return false;
-  return d;
-}
-function _int(value, fallback, min, max) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(n)));
-}
-
-function _headerSafe(value, max = 80) {
-  return _str(value).replace(/[\r\n]+/g, " ").trim().slice(0, max);
-}
-
-
-function _pickFirst() {
-  for (let i = 0; i < arguments.length; i += 1) {
-    const v = _trim(arguments[i]);
-    if (v) return v;
-  }
-  return "";
-}
-
-function _safeJson(res, status, body) {
-  if (!res || res.headersSent) return;
-  try {
-    _setHeader(res, "Content-Type", "application/json; charset=utf-8");
-    _setHeader(res, "X-Content-Type-Options", "nosniff");
-    _setHeader(res, "Cache-Control", "no-store, max-age=0");
-    res.status(status).json(body);
-  } catch (_) {
+'use strict';
+
+const TTS_VERSION = 'tts.js v2.17.0 RAW-PROVIDER-BOUNDARY-LOGGING';
+
+/**
+ * Utils/tts.js
+ *
+ * Hardened TTS handler for Nyx/Nix — Resemble-only.
+ *
+ * ✅ Vendor scrub:
+ *   - No legacy provider references.
+ *
+ * Contract:
+ *   - Exports: handleTts(req, res)
+ *   - Never throws upward
+ *   - Returns audio/mpeg (mp3) by default
+ *
+ * Operational Intelligence alignment (Phase 1–20):
+ *   1)  Social Warmth Hooks            : mood/intent → ttsProfile presets
+ *   2)  State Spine Reinforcement      : stable traceId; X-SB-* headers
+ *   3)  Resilience Layer               : retry cap; timeout guards; circuit cooldown
+ *   4)  Provider Routing               : Resemble-only, explicit config required
+ *   5)  Deterministic Failures         : stable JSON envelope; never accidental 500
+ *   6)  Latency Instrumentation        : upstream ms + bytes + provider headers
+ *   7)  Cache & De-dupe                : bounded in-memory cache
+ *   8)  Heartbeat/Health Probe         : {healthCheck:true} returns health JSON
+ *   9)  Payload Hygiene                : cleanText, maxChars, firstSentenceOnly
+ *   10) Ops Safety                     : no secret logging; safe debug; vendor down cooldown
+ *   11) Concurrency Guard              : inFlight cap; backpressure error code
+ *   12) Request Normalization          : strict body read; allowed fields only
+ *   13) Audio Contract Options         : supports base64 JSON response (return:"base64")
+ *   14) Trace Correlation              : accepts traceId + sessionId hints
+ *   15) Consistent Error Taxonomy      : error codes for UI
+ *   16) Vendor Health Mapping          : exposes vendor health + last error
+ *   17) No-Drift Defaults              : stable default voice/preset mapping
+ *   18) Replay/Dedupe Friendly         : cache key includes voice/settings/text
+ *   19) Security Hygiene               : no token echo; no raw upstream headers leak
+ *   20) Upgrade Hooks                  : structured optional debug log line (opt-in)
+ *
+ * Env (Resemble):
+ *   - RESEMBLE_API_TOKEN (or RESEMBLE_API_KEY)
+ *   - RESEMBLE_VOICE_UUID
+ *   - RESEMBLE_OUTPUT_FORMAT ("mp3"|"wav", default "mp3")
+ *   - RESEMBLE_TIMEOUT_MS (default 15000)
+ *
+ * Optional:
+ *   - SB_TTS_LOG_JSON ("true"/"false", default false)
+ *   - SB_TTS_CACHE ("true"/"false", default true)
+ *   - SB_TTS_CACHE_TTL_MS (default 30000)
+ *   - SB_TTS_CACHE_MAX (default 64)
+ *   - SB_TTS_MAX_CHARS (default 1800)
+ *   - SB_TTS_INFLIGHT_MAX (default 2)
+ *   - SB_TTS_HEARTBEAT_INTERVAL_MS (default 120000)
+ *   - SB_TTS_HEARTBEAT_COOLDOWN_MS (default 30000)
+ *   - SB_TTS_RAW_RESPONSE_LOG (true enables pre-decode provider response logging)
+ *   - SB_TTS_RAW_RESPONSE_LOG_MAX_CHARS (default 6000, max 20000)
+ */
+
+let _resembleProviderPath = '';
+const _resembleProvider = (() => {
+  // Canonical lowercase provider is authoritative on Render/Linux. Historical
+  // names remain fallback-only so a stale duplicate cannot shadow diagnostics.
+  const candidates = [
+    './ttsProvidersresemble',
+    './ttsProvidersresemble.js',
+    './TTSProvidersResemble',
+    './TTSProvidersResemble.js',
+    './providersResemble',
+    './providersResemble.js',
+  ];
+  for (const providerPath of candidates) {
     try {
-      _setHeader(res, "Content-Type", "application/json; charset=utf-8");
-      res.status(status).send(JSON.stringify(body));
-    } catch (__ ) {}
-  }
-}
-
-function _setHeader(res, k, v) {
-  try {
-    if (res && !res.headersSent) res.setHeader(k, v);
-  } catch (_) {}
-}
-
-function _applyPublicVoiceCors(req, res) {
-  const configured = _str(process.env.SB_TTS_ALLOWED_ORIGINS || "https://sandblast.channel,https://www.sandblast.channel")
-    .split(",").map((v) => _trim(v)).filter(Boolean);
-  const origin = _trim(req && req.headers && req.headers.origin);
-  const wildcardEnabled = _bool(process.env.SB_TTS_ALLOW_WILDCARD_ORIGIN, false) && configured.includes("*");
-  if (origin && (configured.includes(origin) || wildcardEnabled)) {
-    _setHeader(res, "Access-Control-Allow-Origin", wildcardEnabled ? "*" : origin);
-  }
-  _setHeader(res, "Vary", "Origin, Accept");
-  _setHeader(res, "X-Content-Type-Options", "nosniff");
-  _setHeader(res, "Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-  _setHeader(res, "Access-Control-Allow-Headers", "Content-Type,Accept,X-SB-Response-Mode,X-SB-State-Contract,X-SB-Surface-Profile,X-SB-Widget-Token,X-SB-Session-ID,X-SB-Turn-ID,X-SB-Trace-ID,X-SB-Request-ID,X-SB-Voice");
-  _setHeader(res, "Access-Control-Expose-Headers", "Content-Type,Content-Length,X-SB-TTS-Version,X-SB-Trace-ID,X-SB-Response-Mode,X-SB-Audio-Contract,X-SB-Audio-Playback-Verify");
-}
-
-function _hash(value) {
-  return crypto.createHash("sha1").update(_str(value)).digest("hex").slice(0, 12);
-}
-
-function _preview(value, max = LOG_PREVIEW_MAX) {
-  const s = _str(value).replace(/\s+/g, " ").trim();
-  return s.length > max ? `${s.slice(0, max)}…` : s;
-}
-
-function _mask(value, left = 4, right = 3) {
-  const s = _trim(value);
-  if (!s) return "";
-  if (s.length <= left + right) return s;
-  return `${s.slice(0, left)}***${s.slice(-right)}`;
-}
-
-function _sanitizeLogData(data) {
-  if (data == null) return data;
-  if (Array.isArray(data)) return data.map(_sanitizeLogData);
-  if (typeof data !== "object") return data;
-
-  const out = {};
-  for (const [k, v] of Object.entries(data)) {
-    const key = _lower(k);
-    if (["token", "authorization", "api_key", "apikey", "resemble_api_token", "audio", "buffer", "audiobase64", "audiobuffer", "data"].includes(key)) {
-      continue;
-    }
-    if (key.includes("voiceuuid") || key.includes("projectuuid")) {
-      out[k] = _mask(v);
-      continue;
-    }
-    out[k] = _sanitizeLogData(v);
-  }
-  return out;
-}
-
-function _log(event, data) {
-  if (!LOG_ENABLED) return;
-  try {
-    console.log(`[TTS] ${event}`, _sanitizeLogData(data));
-  } catch (_) {}
-}
-
-function _setCommonAudioHeaders(res, traceId, meta) {
-  _setHeader(res, "Cache-Control", "no-store, max-age=0");
-  _setHeader(res, "X-SB-Trace-ID", _headerSafe(traceId, 120));
-  _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
-  if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", _headerSafe(meta.provider, 40));
-  if (meta && meta.transport) _setHeader(res, "X-SB-TTS-Transport", _headerSafe(meta.transport, 48));
-  if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", _mask(meta.voiceUuid));
-  if (meta && meta.voiceSource) _setHeader(res, "X-SB-Voice-Source", _headerSafe(meta.voiceSource, 40));
-  if (meta && meta.voiceLock) _setHeader(res, "X-SB-Voice-Lock", _headerSafe(meta.voiceLock, 40));
-  if (meta && Number.isFinite(meta.elapsedMs)) _setHeader(res, "X-SB-TTS-MS", String(_int(meta.elapsedMs, 0, 0, 300000)));
-  if (meta && Number.isFinite(meta.shapeMs)) _setHeader(res, "X-SB-TTS-SHAPE-MS", String(_int(meta.shapeMs, 0, 0, 300000)));
-  if (meta && Number.isFinite(meta.segmentCount)) _setHeader(res, "X-SB-TTS-SEGMENTS", String(_int(meta.segmentCount, 0, 0, 999)));
-  if (meta && Number.isFinite(meta.providerStatus)) _setHeader(res, "X-SB-TTS-UPSTREAM-STATUS", String(_int(meta.providerStatus, 0, 0, 999)));
-  if (meta && meta.failoverKind) _setHeader(res, "X-SB-TTS-FAILOVER", _headerSafe(meta.failoverKind, 48));
-  if (meta && meta.reason) _setHeader(res, "X-SB-TTS-REASON", _headerSafe(meta.reason, 80));
-  if (meta && meta.requestId) _setHeader(res, "X-SB-Request-ID", _headerSafe(meta.requestId, 80));
-  if (meta && meta.turnId) _setHeader(res, "X-SB-Turn-ID", _headerSafe(meta.turnId, 80));
-  if (meta && meta.sessionId) _setHeader(res, "X-SB-Session-ID", _headerSafe(meta.sessionId, 80));
-}
-
-const _circuitOpen = () => _now() < circuitOpenUntil;
-
-function _resolveProviderToken() {
-  return _pickFirst(...TOKEN_ENV_KEYS.map((key) => process.env[key]));
-}
-
-function _hasProviderToken() {
-  return !!_resolveProviderToken();
-}
-
-function _isRetryableStatus(status) {
-  const n = Number(status || 0) || 0;
-  return [408, 409, 425, 429, 500, 502, 503, 504].includes(n);
-}
-
-function _normalizeFailureContract(reason, message, status, retryable, input, extra) {
-  const terminalStopUntil = retryable ? 0 : (_now() + 15000);
-  return {
-    ok: false,
-    reason: reason || "tts_unavailable",
-    message: message || "TTS unavailable.",
-    status: Number(status || 503) || 503,
-    retryable: !!retryable,
-    provider: "resemble",
-    providerStatus: Number(status || 503) || 503,
-    voiceUuid: (extra && extra.voiceUuid) || (input && input.voiceUuid) || "",
-    traceId: input && input.traceId || "",
-    requestId: input && input.requestId || "",
-    turnId: input && input.turnId || "",
-    sessionId: input && input.sessionId || "",
-    ttsFailure: {
-      ok: false,
-      action: retryable ? "retry" : "downgrade",
-      reason: reason || "tts_unavailable",
-      retryable: !!retryable,
-      shouldStop: !retryable,
-      shouldTerminate: !retryable,
-      terminalStopUntil
-    },
-    audioFailure: {
-      ok: false,
-      action: retryable ? "retry" : "downgrade",
-      reason: reason || "tts_unavailable",
-      retryable: !!retryable,
-      shouldStop: !retryable,
-      shouldTerminate: !retryable,
-      terminalStopUntil
-    }
-  };
-}
-
-function _normalizeRecoveryContract(input) {
-  return {
-    ok: true,
-    action: "clear",
-    reason: "tts_recovered",
-    retryable: false,
-    shouldStop: false,
-    shouldTerminate: false,
-    terminalStopUntil: 0,
-    traceId: input && input.traceId || "",
-    requestId: input && input.requestId || "",
-    turnId: input && input.turnId || "",
-    sessionId: input && input.sessionId || ""
-  };
-}
-
-function _retryPlan() {
-  return {
-    maxAttempts: _int(process.env.SB_TTS_MAX_ATTEMPTS || 3, 3, 1, 5),
-    baseDelayMs: _int(process.env.SB_TTS_RETRY_BASE_MS || 350, 350, 50, 5000),
-    maxDelayMs: _int(process.env.SB_TTS_RETRY_MAX_MS || 1500, 1500, 100, 10000)
-  };
-}
-
-function _sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function _synthesizeWithRetry(providerInput, snapshot, shapeElapsedMs, segmentCount) {
-  const plan = _retryPlan();
-  let lastFailure = null;
-
-  for (let attempt = 1; attempt <= plan.maxAttempts; attempt += 1) {
-    try {
-      _log("provider_attempt", { ...snapshot, attempt, maxAttempts: plan.maxAttempts, timeoutMs: PROVIDER_TIMEOUT_MS });
-      const out = await _withTimeout(synthesize(providerInput), PROVIDER_TIMEOUT_MS, { ...snapshot, attempt });
-      const normalizedOut = _normalizeProviderAudio(out);
-      const retryable = normalizedOut.retryable !== false && (_isRetryableStatus(normalizedOut.status || normalizedOut.providerStatus) || normalizedOut.providerStatus === 0 || (normalizedOut.providerStatus >= 200 && normalizedOut.providerStatus < 300));
-
-      if (normalizedOut.ok) return { ok: true, out: normalizedOut, attempt };
-
-      lastFailure = {
-        ok: false,
-        attempt,
-        reason: normalizedOut.reason || "provider_failed",
-        message: normalizedOut.message || "TTS failed",
-        status: normalizedOut.status || (normalizedOut.providerStatus >= 400 ? normalizedOut.providerStatus : 502),
-        retryable,
-        providerStatus: normalizedOut.providerStatus || 0,
-        providerEndpoint: normalizedOut.providerEndpoint || "",
-        authMode: normalizedOut.authMode || "",
-        voiceUuid: normalizedOut.voiceUuid || providerInput.voiceUuid,
-        shapeElapsedMs,
-        segmentCount
-      };
-
-      if (!retryable || attempt >= plan.maxAttempts) return lastFailure;
-      const delayMs = Math.min(plan.maxDelayMs, plan.baseDelayMs * Math.pow(2, attempt - 1));
-      _log("provider_retry_wait", { ...snapshot, attempt, delayMs, reason: lastFailure.reason, providerStatus: lastFailure.providerStatus });
-      await _sleep(delayMs);
-    } catch (err) {
-      const status = _int(err && err.status, 503, 400, 599);
-      const retryable = typeof (err && err.retryable) === "boolean" ? !!err.retryable : _isRetryableStatus(status);
-      const reason = err && err.code === "TTS_PROVIDER_TIMEOUT" ? "provider_timeout" : "exception";
-      lastFailure = {
-        ok: false,
-        attempt,
-        reason,
-        message: _trim(err && (err.message || err)) || "tts_exception",
-        status,
-        retryable,
-        providerStatus: status,
-        providerEndpoint: "",
-        authMode: "",
-        voiceUuid: providerInput.voiceUuid,
-        shapeElapsedMs,
-        segmentCount
-      };
-      if (!retryable || attempt >= plan.maxAttempts) return lastFailure;
-      const delayMs = Math.min(plan.maxDelayMs, plan.baseDelayMs * Math.pow(2, attempt - 1));
-      _log("provider_retry_wait", { ...snapshot, attempt, delayMs, reason, providerStatus: status });
-      await _sleep(delayMs);
-    }
-  }
-
-  return lastFailure || { ok: false, reason: "provider_failed", message: "TTS failed", status: 503, retryable: true, providerStatus: 503, voiceUuid: providerInput.voiceUuid, shapeElapsedMs, segmentCount };
-}
-
-function _recordFailure(message, status, meta) {
-  failCount += 1;
-  lastError = _trim(message) || "tts_failed";
-  lastFailAt = _now();
-  lastProviderStatus = Number(status || 0) || 0;
-  _log("failure_recorded", {
-    failCount, status: lastProviderStatus, message: lastError,
-    traceId: meta && meta.traceId, requestId: meta && meta.requestId, turnId: meta && meta.turnId, sessionId: meta && meta.sessionId
-  });
-  if (failCount >= CIRCUIT_LIMIT) {
-    circuitOpenUntil = _now() + CIRCUIT_RESET_MS;
-    try {
-      console.warn("[TTS] Circuit breaker OPEN", { failCount, resetInMs: CIRCUIT_RESET_MS, traceId: meta && meta.traceId });
+      // eslint-disable-next-line global-require, import/no-dynamic-require
+      const mod = require(providerPath);
+      if (mod && typeof mod.synthesize === 'function') {
+        _resembleProviderPath = providerPath;
+        return mod;
+      }
     } catch (_) {}
   }
+  return null;
+})();
+
+const resembleSynthesize = _resembleProvider && typeof _resembleProvider.synthesize === 'function'
+  ? _resembleProvider.synthesize
+  : null;
+
+const resembleVendorHealth = _resembleProvider && typeof _resembleProvider.getVendorHealth === 'function'
+  ? _resembleProvider.getVendorHealth
+  : null;
+
+// -----------------------------
+// Cache (Phase 7)
+// -----------------------------
+const _cache = { map: new Map() };
+function nowMs() { return Date.now(); }
+
+function bool(x, fallback) {
+  const s = String(x == null ? '' : x).trim().toLowerCase();
+  if (!s) return fallback;
+  if (s === 'true' || s === '1' || s === 'yes' || s === 'y') return true;
+  if (s === 'false' || s === '0' || s === 'no' || s === 'n') return false;
+  return fallback;
 }
 
-function _recordSuccess(status, elapsedMs, meta) {
-  failCount = 0;
-  circuitOpenUntil = 0;
-  lastError = "";
-  lastOkAt = _now();
-  lastProviderStatus = Number(status || 200) || 200;
-  lastElapsedMs = Number(elapsedMs || 0) || 0;
-  _log("success_recorded", {
-    status: lastProviderStatus, elapsedMs: lastElapsedMs,
-    traceId: meta && meta.traceId, requestId: meta && meta.requestId, turnId: meta && meta.turnId, sessionId: meta && meta.sessionId
-  });
+function clampInt(x, fallback, lo, hi) {
+  const n = parseInt(String(x || ''), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(lo, Math.min(hi, n));
 }
 
-function _looksLikeUuid(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(_trim(value));
+function clamp01(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.max(0, Math.min(1, x));
 }
 
-function _voiceIntegrityConfig() {
-  const candidates = VOICE_LOCK_ENV_KEYS
-    .map((key) => ({ key, value: _trim(process.env[key]) }))
-    .filter((item) => item.value);
+function cacheEnabled() { return bool(process.env.SB_TTS_CACHE, true); }
+function cacheTtlMs() { return clampInt(process.env.SB_TTS_CACHE_TTL_MS, 30000, 2000, 300000); }
+function cacheMaxEntries() { return clampInt(process.env.SB_TTS_CACHE_MAX, 64, 8, 512); }
 
-  const validCandidates = candidates.filter((item) => _looksLikeVoiceIdentifier(item.value));
-  const uniqueValues = [...new Set(validCandidates.map((item) => item.value))];
-  const authoritative = uniqueValues[0] || "";
-  const conflictingKeys = uniqueValues.length > 1
-    ? candidates.filter((item) => item.value && item.value !== authoritative).map((item) => item.key)
-    : [];
-
-  return {
-    voiceUuid: authoritative,
-    voiceName: _pickFirst(...VOICE_NAME_ENV_KEYS.map((key) => process.env[key])),
-    configuredKeys: candidates.map((item) => item.key),
-    conflictingKeys,
-    configured: !!authoritative,
-    valid: !!authoritative && conflictingKeys.length === 0 && _looksLikeVoiceIdentifier(authoritative),
-    strict: STRICT_VOICE_LOCK
-  };
-}
-
-function _resolvePreferredVoice(inputVoice) {
-  const requested = _trim(inputVoice);
-  const integrity = _voiceIntegrityConfig();
-  const locked = integrity.voiceUuid;
-
-  if (!locked) return requested;
-
-  if (requested && requested !== locked) {
-    _log("voice_override_blocked", {
-      requestedVoiceUuid: _mask(requested),
-      lockedVoiceUuid: _mask(locked),
-      configuredKeys: integrity.configuredKeys,
-      conflictingKeys: integrity.conflictingKeys
-    });
+function cacheKey({ provider, voiceId, voiceSettings, text, format }) {
+  const vs = voiceSettings ? JSON.stringify(voiceSettings) : '';
+  const raw = `${provider || ''}|${voiceId || ''}|${format || ''}|${vs}|${text || ''}`;
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-
-  return locked;
+  return `k_${(h >>> 0).toString(16)}`;
 }
 
-function _resolvePreferredVoiceName(inputName) {
-  const lockedName = _trim(_voiceIntegrityConfig().voiceName);
-  return lockedName || _trim(inputName);
-}
-
-function _useProjectUuidByDefault() {
-  return _bool(_pickFirst(process.env.RESEMBLE_USE_PROJECT_UUID, process.env.SB_RESEMBLE_USE_PROJECT_UUID), false);
-}
-
-function _resolveProjectUuid(explicitValue) {
-  const explicit = _trim(explicitValue);
-  if (explicit) return explicit;
-  if (_useProjectUuidByDefault()) {
-    return _pickFirst(process.env.RESEMBLE_PROJECT_UUID, process.env.SB_RESEMBLE_PROJECT_UUID);
-  }
-  return "";
-}
-
-function _healthSnapshot() {
-  const integrity = _voiceIntegrityConfig();
-  const voiceUuid = integrity.voiceUuid;
-  const voiceName = _resolvePreferredVoiceName("");
-  const projectUuid = _resolveProjectUuid("");
-  const token = _resolveProviderToken();
-  const endpointState = getSynthesizeEndpointState();
-  const streamEndpointState = getStreamEndpointState();
-  const transportMode = getTransportMode();
-  const endpointReady = transportMode === "stream-only"
-    ? !!(streamEndpointState && streamEndpointState.valid)
-    : transportMode === "synthesize-only"
-      ? !!(endpointState && endpointState.valid)
-      : !!((streamEndpointState && streamEndpointState.valid) || (endpointState && endpointState.valid));
-  const configured = !!(token && voiceUuid && endpointReady);
-  const ready = configured && integrity.valid && !_circuitOpen() && activeRequests < MAX_CONCURRENT;
-  return {
-    ok: ready,
-    configured,
-    provider: "resemble",
-    phases: PHASES,
-    version: TTS_VERSION,
-    activeRequests,
-    failCount,
-    circuitOpen: _circuitOpen(),
-    circuitResetAt: circuitOpenUntil,
-    lastError,
-    lastOkAt,
-    lastFailAt,
-    lastProviderStatus,
-    lastElapsedMs,
-    env: {
-      hasToken: !!token,
-      hasProject: !!projectUuid,
-      hasVoice: !!voiceUuid,
-      transportMode,
-      hasStreamEndpoint: !!(streamEndpointState && streamEndpointState.valid),
-      streamEndpointExplicitlyConfigured: !!(streamEndpointState && streamEndpointState.configured),
-      streamEndpointSource: streamEndpointState && streamEndpointState.source || "unavailable",
-      streamEndpointHost: streamEndpointState && streamEndpointState.host || "",
-      streamEndpointPath: streamEndpointState && streamEndpointState.path || "",
-      invalidStreamEndpointKeys: streamEndpointState && Array.isArray(streamEndpointState.invalidConfiguredKeys) ? streamEndpointState.invalidConfiguredKeys : [],
-      hasSynthesizeEndpoint: !!(endpointState && endpointState.valid),
-      synthesizeEndpointExplicitlyConfigured: !!(endpointState && endpointState.configured),
-      synthesizeEndpointSource: endpointState && endpointState.source || "unavailable",
-      synthesizeEndpointHost: endpointState && endpointState.host || "",
-      synthesizeEndpointPath: endpointState && endpointState.path || "",
-      invalidSynthesizeEndpointKeys: endpointState && Array.isArray(endpointState.invalidConfiguredKeys) ? endpointState.invalidConfiguredKeys : [],
-      useProjectUuidByDefault: _useProjectUuidByDefault(),
-      voiceUuidPreview: voiceUuid ? _mask(voiceUuid) : "",
-      voiceName: voiceName || "",
-      projectUuidPreview: projectUuid ? _mask(projectUuid) : "",
-      providerTimeoutMs: PROVIDER_TIMEOUT_MS,
-      strictVoiceLock: STRICT_VOICE_LOCK,
-      tokenEnvKeysDetected: TOKEN_ENV_KEYS.filter((key) => !!_trim(process.env[key])),
-      audioContract: "audio-first-v1",
-      authModes: getProviderAuthModes()
-    },
-    voiceIntegrity: {
-      configured: integrity.configured,
-      valid: integrity.valid,
-      configuredKeys: integrity.configuredKeys,
-      conflictingKeys: integrity.conflictingKeys,
-      lockedVoiceUuid: voiceUuid ? _mask(voiceUuid) : "",
-      lockedVoiceName: voiceName || ""
+function cacheGet(key) {
+  try {
+    if (!cacheEnabled()) return null;
+    const it = _cache.map.get(key);
+    if (!it) return null;
+    if ((nowMs() - it.at) > cacheTtlMs()) {
+      _cache.map.delete(key);
+      return null;
     }
-  };
+    return it;
+  } catch (_) { return null; }
 }
 
-function _mergePronunciationMap(extra) {
-  const merged = Object.assign({}, DEFAULT_PRONUNCIATION_MAP);
-  if (extra && typeof extra === "object") {
-    Object.keys(extra).forEach((k) => {
-      const key = _trim(k);
-      const val = _trim(extra[k]);
-      if (key && val) merged[key] = val;
-    });
+function cacheSet(key, buf, meta) {
+  try {
+    if (!cacheEnabled()) return;
+    const max = cacheMaxEntries();
+    while (_cache.map.size >= max) {
+      const firstKey = _cache.map.keys().next().value;
+      if (!firstKey) break;
+      _cache.map.delete(firstKey);
+    }
+    _cache.map.set(key, { at: nowMs(), buf, meta: meta || null });
+  } catch (_) {}
+}
+
+// -----------------------------
+// Health (Phase 8)
+// -----------------------------
+const hb = {
+  status: 'unknown', // ok|degraded|down|unknown
+  lastCheckAt: 0,
+  lastOkAt: 0,
+  failStreak: 0,
+  lastError: null,
+  lastUpstreamStatus: null,
+  lastUpstreamMs: null,
+  lastFailAt: 0,
+};
+
+function hbIntervalMs() { return clampInt(process.env.SB_TTS_HEARTBEAT_INTERVAL_MS, 120000, 15000, 3600000); }
+function hbCooldownMs() { return clampInt(process.env.SB_TTS_HEARTBEAT_COOLDOWN_MS, 30000, 5000, 600000); }
+
+function updateHealth(ok, meta) {
+  hb.lastCheckAt = nowMs();
+  if (ok) {
+    hb.status = 'ok';
+    hb.lastOkAt = hb.lastCheckAt;
+    hb.failStreak = 0;
+    hb.lastError = null;
+  } else {
+    hb.failStreak = (hb.failStreak || 0) + 1;
+    hb.status = hb.failStreak >= 2 ? 'down' : 'degraded';
+    hb.lastError = meta && meta.error ? String(meta.error).slice(0, 220) : 'unknown';
+    hb.lastFailAt = hb.lastCheckAt;
   }
+  if (meta && meta.upstreamStatus != null) hb.lastUpstreamStatus = meta.upstreamStatus;
+  if (meta && meta.upstreamMs != null) hb.lastUpstreamMs = meta.upstreamMs;
+}
+
+function shouldAutoProbe() { return (nowMs() - hb.lastCheckAt) >= hbIntervalMs(); }
+
+function shouldBypassPrimaryLiveAttempt() {
+  const t = nowMs();
+  if (hb.status === 'down') {
+    const base = hbCooldownMs();
+    const mult = (hb.failStreak && hb.failStreak >= 3) ? 2 : 1;
+    return (t - hb.lastCheckAt) < (base * mult);
+  }
+  if (hb.status === 'degraded' && hb.failStreak >= 2) {
+    return (t - hb.lastCheckAt) < Math.max(5000, Math.floor(hbCooldownMs() * 0.5));
+  }
+  return false;
+}
+
+// -----------------------------
+// Helpers
+// -----------------------------
+function safeJson(res, status, obj) {
+  try { res.status(status).json(obj); }
+  catch (_) {
+    try { res.status(status).type('text/plain').send(String(obj && obj.message ? obj.message : 'error')); }
+    catch (_) {}
+  }
+}
+
+function readBody(req) {
+  const q = req && req.query && typeof req.query === 'object' ? req.query : {};
+  const b = req && req.body;
+  if (!b) return { ...q };
+  if (typeof b === 'string') return { ...q, text: b.trim() };
+  if (typeof b === 'object' && b) return { ...q, ...b };
+  return { ...q };
+}
+
+function setDiagnosticHeaders(res) {
+  try {
+    const providerVersion = _resembleProvider && (_resembleProvider.PROVIDER_VERSION || (_resembleProvider.default && _resembleProvider.default.PROVIDER_VERSION));
+    res.set('X-SB-TTS-Version', TTS_VERSION);
+    res.set('X-SB-TTS-Provider-Version', String(providerVersion || 'unknown').slice(0, 180));
+    res.set('X-SB-TTS-Provider-Path', String(_resembleProviderPath || 'unresolved').slice(0, 120));
+    res.set('X-SB-TTS-Transport', 'resemble-synthesize');
+    res.set('X-SB-TTS-Raw-Response-Log', bool(process.env.SB_TTS_RAW_RESPONSE_LOG, false) ? 'enabled' : 'disabled');
+  } catch (_) {}
+}
+
+function wantsBase64(body) {
+  const r = String((body && body.return) || (body && body.response) || '').trim().toLowerCase();
+  return r === 'base64' || r === 'json';
+}
+
+function sendAudio(res, req, { body, buf, headers, mimeType }) {
+  if (wantsBase64(body)) {
+    try {
+      const b64 = buf ? buf.toString('base64') : '';
+      const out = { ok: true, audio_b64: b64, bytes: buf ? buf.length : 0 };
+      if (headers && typeof headers === 'object') out.headers = headers;
+      return safeJson(res, 200, out);
+    } catch (_) {}
+  }
+  res.status(200);
+  res.set('Content-Type', mimeType || 'audio/mpeg');
+  res.set('Cache-Control', 'no-store');
+  res.set('Content-Disposition', 'inline; filename="nyx_tts.mp3"');
+  if (req && (req.aborted || res.writableEnded)) return;
+  return res.send(buf);
+}
+
+function cleanText(input) {
+  const s = String(input || '');
+  return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
+}
+
+function firstSentence(text) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  const m = t.match(/^(.+?[.!?])(\s|$)/);
+  if (m && m[1]) return m[1].trim();
+  return t.slice(0, 180).trim();
+}
+
+function makeTraceId(provided) {
+  const rnd = Math.random().toString(16).slice(2);
+  const t = Date.now().toString(16);
+  if (provided) {
+    const p = String(provided).trim();
+    if (p && p.length <= 64) return p.replace(/[^\w\-:.]/g, '_');
+  }
+  return `tts_${t}_${rnd.slice(0, 8)}`;
+}
+
+function logJsonEnabled() { return bool(process.env.SB_TTS_LOG_JSON, false); }
+
+// -----------------------------
+// Voice settings
+// -----------------------------
+function presetVoiceSettings(presetKey, envDefaults) {
+  const base = {
+    stability: envDefaults.stability,
+    similarity_boost: envDefaults.similarity_boost,
+    style: envDefaults.style,
+    use_speaker_boost: envDefaults.use_speaker_boost,
+  };
+
+  switch (String(presetKey || '').toUpperCase()) {
+    case 'NYX_CALM':
+      return { ...base, stability: clamp01(base.stability + 0.18), style: clamp01(base.style - 0.08) };
+    case 'NYX_COACH':
+      return { ...base, stability: clamp01(base.stability + 0.10), style: clamp01(base.style + 0.10) };
+    case 'NYX_WARM':
+      return { ...base, stability: clamp01(base.stability + 0.04), style: clamp01(base.style + 0.22) };
+    default:
+      return base;
+  }
+}
+
+function mergeVoiceSettings({ envDefaults, presetKey, body }) {
+  const fromPreset = presetVoiceSettings(presetKey, envDefaults);
+
+  const tp = (body && typeof body.ttsProfile === 'object' && body.ttsProfile) ? body.ttsProfile : null;
+  const affectOverride = tp ? {
+    stability: tp.stability === undefined ? undefined : clamp01(tp.stability),
+    similarity_boost: tp.similarity === undefined ? undefined : clamp01(tp.similarity),
+    style: tp.style === undefined ? undefined : clamp01(tp.style),
+    use_speaker_boost: tp.speakerBoost === undefined ? undefined : !!tp.speakerBoost,
+  } : null;
+
+  const vs = (body && typeof body.voice_settings === 'object' && body.voice_settings) ? body.voice_settings : null;
+  const nativeOverride = vs ? {
+    stability: vs.stability === undefined ? undefined : clamp01(vs.stability),
+    similarity_boost: vs.similarity_boost === undefined ? undefined : clamp01(vs.similarity_boost),
+    style: vs.style === undefined ? undefined : clamp01(vs.style),
+    use_speaker_boost: vs.use_speaker_boost === undefined ? undefined : !!vs.use_speaker_boost,
+  } : null;
+
+  const merged = { ...fromPreset };
+
+  if (affectOverride) {
+    for (const k of Object.keys(affectOverride)) {
+      if (affectOverride[k] !== undefined && affectOverride[k] !== null) merged[k] = affectOverride[k];
+    }
+  }
+  if (nativeOverride) {
+    for (const k of Object.keys(nativeOverride)) {
+      if (nativeOverride[k] !== undefined && nativeOverride[k] !== null) merged[k] = nativeOverride[k];
+    }
+  }
+
+  merged.stability = clamp01(merged.stability);
+  merged.similarity_boost = clamp01(merged.similarity_boost);
+  merged.style = clamp01(merged.style);
+  merged.use_speaker_boost = !!merged.use_speaker_boost;
+
   return merged;
 }
 
-function _parseSpeechHints(body) {
-  const inputHints = body && typeof body.speechHints === "object" ? body.speechHints : {};
-  const inputPauses = inputHints && typeof inputHints.pauses === "object" ? inputHints.pauses : {};
-  const inputPacing = inputHints && typeof inputHints.pacing === "object" ? inputHints.pacing : {};
-  return {
-    pauses: {
-      commaMs: Number(inputPauses.commaMs || body.commaMs || DEFAULT_SPEECH_HINTS.pauses.commaMs) || DEFAULT_SPEECH_HINTS.pauses.commaMs,
-      periodMs: Number(inputPauses.periodMs || body.periodMs || DEFAULT_SPEECH_HINTS.pauses.periodMs) || DEFAULT_SPEECH_HINTS.pauses.periodMs,
-      questionMs: Number(inputPauses.questionMs || body.questionMs || DEFAULT_SPEECH_HINTS.pauses.questionMs) || DEFAULT_SPEECH_HINTS.pauses.questionMs,
-      exclaimMs: Number(inputPauses.exclaimMs || body.exclaimMs || DEFAULT_SPEECH_HINTS.pauses.exclaimMs) || DEFAULT_SPEECH_HINTS.pauses.exclaimMs,
-      colonMs: Number(inputPauses.colonMs || body.colonMs || DEFAULT_SPEECH_HINTS.pauses.colonMs) || DEFAULT_SPEECH_HINTS.pauses.colonMs,
-      semicolonMs: Number(inputPauses.semicolonMs || body.semicolonMs || DEFAULT_SPEECH_HINTS.pauses.semicolonMs) || DEFAULT_SPEECH_HINTS.pauses.semicolonMs,
-      ellipsisMs: Number(inputPauses.ellipsisMs || body.ellipsisMs || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs) || DEFAULT_SPEECH_HINTS.pauses.ellipsisMs
-    },
-    pacing: {
-      mode: _pickFirst(inputPacing.mode, body.pacingMode, DEFAULT_SPEECH_HINTS.pacing.mode),
-      preservePunctuation: _bool(inputPacing.preservePunctuation, _bool(body.preservePunctuation, DEFAULT_SPEECH_HINTS.pacing.preservePunctuation)),
-      sentenceBreath: _bool(inputPacing.sentenceBreath, _bool(body.sentenceBreath, DEFAULT_SPEECH_HINTS.pacing.sentenceBreath)),
-      noRunOns: _bool(inputPacing.noRunOns, _bool(body.noRunOns, DEFAULT_SPEECH_HINTS.pacing.noRunOns))
-    }
-  };
-}
-
-function _normalizeWhitespace(text) {
-  return _str(text)
-    .replace(/\r\n?/g, "\n")
-    .replace(/\u00A0/g, " ")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/([,.;:!?])(\S)/g, "$1 $2")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/\. {0,}\.{0,}\.{4,}/g, "...")
-    .replace(/\.\.\.+/g, "...")
-    .trim();
-}
-
-function _expandContractions(text) {
-  let out = _str(text);
-  const replacements = [
-    [/\bI'm\b/gi, "I am"], [/\bI've\b/gi, "I have"], [/\bI'll\b/gi, "I will"], [/\bI'd\b/gi, "I would"],
-    [/\bYou're\b/gi, "You are"], [/\bYou've\b/gi, "You have"], [/\bYou'll\b/gi, "You will"], [/\bYou'd\b/gi, "You would"],
-    [/\bWe're\b/gi, "We are"], [/\bWe've\b/gi, "We have"], [/\bWe'll\b/gi, "We will"], [/\bWe'd\b/gi, "We would"],
-    [/\bThey're\b/gi, "They are"], [/\bThey've\b/gi, "They have"], [/\bThey'll\b/gi, "They will"], [/\bThey'd\b/gi, "They would"],
-    [/\bIt's\b/gi, "It is"], [/\bThat’s\b/gi, "That is"], [/\bThat's\b/gi, "That is"], [/\bThere's\b/gi, "There is"],
-    [/\bHere’s\b/gi, "Here is"], [/\bHere's\b/gi, "Here is"], [/\bWhat's\b/gi, "What is"], [/\bWho’s\b/gi, "Who is"],
-    [/\bWho's\b/gi, "Who is"], [/\bWhere’s\b/gi, "Where is"], [/\bWhere's\b/gi, "Where is"], [/\bWhen’s\b/gi, "When is"],
-    [/\bWhen's\b/gi, "When is"], [/\bWhy’s\b/gi, "Why is"], [/\bWhy's\b/gi, "Why is"], [/\bHow’s\b/gi, "How is"],
-    [/\bHow's\b/gi, "How is"], [/\bCannot\b/gi, "Cannot"], [/\bcan't\b/gi, "cannot"], [/\bwon't\b/gi, "will not"],
-    [/\bdon't\b/gi, "do not"], [/\bdoesn't\b/gi, "does not"], [/\bdidn't\b/gi, "did not"], [/\bisn't\b/gi, "is not"],
-    [/\baren't\b/gi, "are not"], [/\bwasn't\b/gi, "was not"], [/\bweren't\b/gi, "were not"], [/\bhaven't\b/gi, "have not"],
-    [/\bhasn't\b/gi, "has not"], [/\bhadn't\b/gi, "had not"], [/\bwouldn't\b/gi, "would not"], [/\bshouldn't\b/gi, "should not"],
-    [/\bcouldn't\b/gi, "could not"], [/\bmustn't\b/gi, "must not"], [/\bneedn't\b/gi, "need not"], [/\blet's\b/gi, "let us"],
-    [/\bit'd\b/gi, "it would"], [/\bit'll\b/gi, "it will"], [/\bthey're\b/gi, "they are"], [/\bwe're\b/gi, "we are"],
-    [/\byou're\b/gi, "you are"]
-  ];
-  replacements.forEach(([pattern, replacement]) => {
-    out = out.replace(pattern, replacement);
-  });
-  return out;
-}
-
-function _applyPronunciationMap(text, pronunciationMap) {
-  let out = _str(text);
-  const keys = Object.keys(pronunciationMap || {}).sort((a, b) => b.length - a.length);
-  for (const key of keys) {
-    const replacement = _trim(pronunciationMap[key]);
-    if (!key || !replacement) continue;
-    const safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    out = out.replace(new RegExp(`\\b${safeKey}\\b`, "g"), replacement);
+function presetFromMood(m) {
+  switch (String(m || '').toLowerCase()) {
+    case 'warm':
+    case 'positive':
+    case 'happy':
+    case 'good':
+    case 'up':
+      return 'NYX_WARM';
+    case 'coach':
+    case 'motivated':
+    case 'energetic':
+      return 'NYX_COACH';
+    case 'calm':
+    case 'neutral':
+    case 'steady':
+    case 'down':
+    case 'low':
+    case 'sad':
+    case 'negative':
+      return 'NYX_CALM';
+    default:
+      return 'NYX_CALM';
   }
-  return out;
 }
 
-function _repairOuterSpeechMojibake(value) {
-  return _str(value)
-    .replace(/\u00e2\u20ac\u2122/g, "\u2019")
-    .replace(/\u00e2\u20ac\u02dc/g, "\u2018")
-    .replace(/\u00e2\u20ac\u0153/g, "\u201c")
-    .replace(/\u00e2\u20ac\u009d/g, "\u201d")
-    .replace(/\u00e2\u20ac\u201c/g, "\u2013")
-    .replace(/\u00e2\u20ac\u201d/g, "\u2014")
-    .replace(/\u00e2\u20ac\u00a6/g, "\u2026")
-    .replace(/\u00c2(?=[\u00a0\s])/g, "");
-}
+// -----------------------------
+// Probe (Phase 8)
+// -----------------------------
+async function runHeartbeatProbe({ traceId }) {
+  const timeoutMs = clampInt(process.env.RESEMBLE_TIMEOUT_MS, 15000, 3000, 45000);
+  const probeTimeout = Math.max(3000, Math.min(8000, Math.floor(timeoutMs * 0.6)));
 
-function _applySpeakOptimizations(text) {
-  let out = _str(text);
-  out = out
-    .replace(/\bI will help\b/gi, "I can help")
-    .replace(/\bI will guide you\b/gi, "I can guide you")
-    .replace(/\bI will walk you through\b/gi, "I can walk you through");
-  return out;
-}
+  const token = String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || '').trim();
+  const voiceUuid = String(process.env.RESEMBLE_VOICE_UUID || '').trim();
 
-function _smallNumberWords(n) {
-  const x = Math.trunc(Number(n) || 0);
-  const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
-  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
-  if (x < 20) return ones[Math.max(0, x)] || String(x);
-  const t = Math.trunc(x / 10);
-  const r = x % 10;
-  return r ? `${tens[t]} ${ones[r]}` : tens[t];
-}
+  const t0 = nowMs();
 
-function _yearTokenToSpeech(value, style) {
-  const year = Number(value);
-  if (!Number.isFinite(year)) return _str(value);
-  const mode = _lower(style || "spoken") || "spoken";
-  if (mode === "digits" || year < 1000 || year > 2099) return String(year);
-
-  if (year === 2000) return "two thousand";
-  if (year > 2000 && year < 2010) return `two thousand ${_smallNumberWords(year % 100)}`.trim();
-  if (year >= 2010 && year <= 2099) return `twenty ${_smallNumberWords(year % 100)}`.trim();
-
-  if (year >= 1900 && year <= 1999) {
-    const last = year % 100;
-    if (last === 0) return "nineteen hundred";
-    if (last < 10) return `nineteen oh ${_smallNumberWords(last)}`;
-    return `nineteen ${_smallNumberWords(last)}`;
-  }
-
-  const first = Math.trunc(year / 100);
-  const last = year % 100;
-  if (last === 0) return `${_smallNumberWords(first)} hundred`;
-  if (last < 10) return `${_smallNumberWords(first)} oh ${_smallNumberWords(last)}`;
-  return `${_smallNumberWords(first)} ${_smallNumberWords(last)}`;
-}
-
-function _normalizeYearSpeech(text, options) {
-  const cfg = options && typeof options === "object" ? options : {};
-  if (cfg.normalizeYears === false) return _str(text);
-  const style = cfg.yearStyle || "spoken";
-  return _str(text)
-    .replace(/\b(1|2)\s*,\s*(\d{3})\b/g, "$1$2")
-    .replace(/(^|[^\d])(19\d{2}|20\d{2})(?!\d)/g, (full, lead, year) => `${lead}${_yearTokenToSpeech(year, style)}`);
-}
-
-const _collapseJoiners = (text) => _str(text)
-  .replace(/\s+,/g, ",")
-  .replace(/\s+;/g, ";")
-  .replace(/\s+:/g, ":")
-  .replace(/\s+\./g, ".")
-  .replace(/\s+\?/g, "?")
-  .replace(/\s+!/g, "!");
-
-function _repairRunOns(text) {
-  let out = _str(text);
-  out = out
-    .replace(/,\s+(however|meanwhile|instead|nevertheless|nonetheless)\b/gi, ". $1")
-    .replace(/\b(also|right|you know)\b\s*,\s*\b(also|right|you know)\b/gi, "$1")
-    .replace(/\s{2,}/g, " ");
-  return out;
-}
-
-function _splitLongSentence(sentence) {
-  const s = _trim(sentence);
-  if (!s) return [];
-  const wordCount = s.split(/\s+/).filter(Boolean).length;
-  if (wordCount <= 22) return [s];
-  const match = /,\s+(because|while|which|that)\s+/i.exec(s);
-  if (!match || typeof match.index !== "number") return [s];
-  const left = _trim(s.slice(0, match.index));
-  const right = _trim(s.slice(match.index + 2));
-  if (!left || !right) return [s];
-  return [left.replace(/[,:;]+$/g, "") + ".", right];
-}
-
-function _segmentSentences(text, speechHints) {
-  const normalized = _collapseJoiners(_repairRunOns(_normalizeWhitespace(text)));
-  const rough = normalized
-    .replace(/([.!?])\s+(?=[A-Z"'])/g, "$1\n")
-    .replace(/([:;])\s+(?=[A-Z"'])/g, "$1\n")
-    .split(/\n+/)
-    .map(_trim)
-    .filter(Boolean);
-
-  const segments = [];
-  for (const item of rough) {
-    if (speechHints && speechHints.pacing && speechHints.pacing.noRunOns) {
-      const split = _splitLongSentence(item);
-      split.forEach((part) => {
-        if (_trim(part)) segments.push(_trim(part));
+  if (token && voiceUuid && resembleSynthesize) {
+    try {
+      const r = await resembleSynthesize({
+        text: 'Quick audio check.',
+        voiceUuid,
+        outputFormat: String(process.env.RESEMBLE_OUTPUT_FORMAT || 'mp3').trim(),
+        timeoutMs: probeTimeout,
+        traceId,
       });
-    } else {
-      segments.push(item);
+      const dt = nowMs() - t0;
+      const ok = r && r.ok && r.buffer && r.buffer.length > 1000;
+      updateHealth(!!ok, { error: ok ? null : (r && (r.error || r.message)) || 'probe_failed', upstreamStatus: r && r.status, upstreamMs: dt });
+      return { ok: !!ok, ms: dt, bytes: ok ? r.buffer.length : 0 };
+    } catch (e) {
+      const dt = nowMs() - t0;
+      updateHealth(false, { error: (e && e.message) ? e.message : 'probe_error', upstreamMs: dt });
+      return { ok: false, ms: dt, bytes: 0 };
     }
   }
-  return segments;
+
+  updateHealth(false, { error: 'resemble_not_configured', upstreamMs: nowMs() - t0 });
+  return { ok: false, ms: nowMs() - t0, bytes: 0 };
 }
 
-function _pauseToken(ms) {
-  const n = Math.max(0, Math.min(1500, Number(ms || 0) || 0));
-  return n >= 420 ? "[long-pause]" : (n ? "[pause]" : "");
-}
+// -----------------------------
+// Concurrency guard (Phase 11)
+// -----------------------------
+const inflight = { n: 0 };
+function inflightMax() { return clampInt(process.env.SB_TTS_INFLIGHT_MAX, 2, 1, 10); }
+function enterInflight() { if (inflight.n >= inflightMax()) return false; inflight.n += 1; return true; }
+function leaveInflight() { inflight.n = Math.max(0, inflight.n - 1); }
 
-function _decorateSegment(segment, pauses) {
-  let s = _trim(segment);
-  if (!s) return "";
-  s = s
-    .replace(/,\s+and\s+I will\b/gi, ", and I will")
-    .replace(/,\s+and\s+I can\b/gi, ", and I can")
-    .replace(/,\s+and\s+we can\b/gi, ", and we can")
-    .replace(/,\s+but\s+I\b/gi, ", but I")
-    .replace(/,\s+or\s+I\b/gi, ", or I");
-
-  s = s
-    .replace(/\.\.\./g, `... ${_pauseToken(pauses.ellipsisMs)}`)
-    .replace(/,\s*/g, `, ${_pauseToken(pauses.commaMs)}`)
-    .replace(/;\s*/g, `; ${_pauseToken(pauses.semicolonMs)}`)
-    .replace(/:\s*/g, `: ${_pauseToken(pauses.colonMs)}`)
-    .replace(/\.\s*$/g, `. ${_pauseToken(pauses.periodMs)}`)
-    .replace(/\?\s*$/g, `? ${_pauseToken(pauses.questionMs)}`)
-    .replace(/!\s*$/g, `! ${_pauseToken(pauses.exclaimMs)}`);
-  return s.trim();
-}
-
-const _stripMarkup = (text) => _str(text)
-  .replace(/\[(?:long-)?pause\]/g, " ")
-  .replace(/<\/?speak(?:\s[^>]*)?>/g, " ")
-  .replace(/\s+/g, " ")
-  .trim();
-
-function _shapeSpeechText(rawText, options) {
-  const startedAt = _now();
-  const speechHints = options && options.speechHints ? options.speechHints : DEFAULT_SPEECH_HINTS;
-  const pronunciationMap = _mergePronunciationMap(options && options.pronunciationMap);
-
-  const displayText = _normalizeWhitespace(_repairOuterSpeechMojibake(rawText));
-  const expandedText = _expandContractions(displayText);
-  const speakBase = _applySpeakOptimizations(expandedText);
-  const yearNormalizedText = _normalizeYearSpeech(speakBase, options);
-  const pronouncedText = _applyPronunciationMap(yearNormalizedText, pronunciationMap);
-  const segments = _segmentSentences(pronouncedText, speechHints);
-  const ssmlSegments = segments.map((segment) => _decorateSegment(segment, speechHints.pauses)).filter(Boolean);
-  const joinPause = _pauseToken(Math.max(120, Math.floor((speechHints.pauses.periodMs || 320) * 0.65)));
-  const ssmlText = ssmlSegments.length
-    ? `<speak version="1.1">${ssmlSegments.join(joinPause)}</speak>`
-    : `<speak version="1.1">${_decorateSegment(pronouncedText, speechHints.pauses)}</speak>`;
-
-  return {
-    rawText: _str(rawText),
-    displayText,
-    textSpeak: pronouncedText,
-    text: pronouncedText,
-    yearNormalizedText,
-    ssmlText,
-    plainText: _stripMarkup(ssmlText),
-    segments,
-    segmentCount: segments.length,
-    shapeElapsedMs: _now() - startedAt,
-    speechHints,
-    pronunciationMap
-  };
-}
-
-function _bufferAudioSignature(buffer) {
-  if (!Buffer.isBuffer(buffer) || !buffer.length) return "";
-  if (buffer.length >= 12 && buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WAVE") return "audio/wav";
-  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "OggS") return "audio/ogg";
-  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "fLaC") return "audio/flac";
-  if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) return "audio/webm";
-  if (buffer.length >= 12 && buffer.slice(4, 8).toString("ascii") === "ftyp") return "audio/mp4";
-  if (buffer.length >= 3 && buffer.slice(0, 3).toString("ascii") === "ID3") return "audio/mpeg";
-  for (let i = 0; i < Math.min(buffer.length - 1, 64); i += 1) {
-    if (buffer[i] === 0xff && (buffer[i + 1] & 0xe0) === 0xe0) return "audio/mpeg";
-  }
-  return "";
-}
-
-function _bufferLooksTextual(buffer) {
-  if (!Buffer.isBuffer(buffer) || !buffer.length) return false;
-  const preview = buffer.slice(0, Math.min(buffer.length, 256)).toString("utf8").replace(/^\uFEFF/, "").trim().toLowerCase();
-  if (!preview) return false;
-  if (preview.startsWith("{") || preview.startsWith("[") || preview.startsWith("<!doctype") || preview.startsWith("<html") || preview.startsWith("<body")) return true;
-  let printable = 0;
-  const sample = buffer.slice(0, Math.min(buffer.length, 256));
-  for (const b of sample) if (b === 9 || b === 10 || b === 13 || (b >= 32 && b <= 126)) printable += 1;
-  return sample.length > 32 && printable / sample.length > 0.96 && /^(ok|error|message|<!|<|\{|\[)/i.test(preview);
-}
-
-function _maxAcceptedAudioBufferBytes() {
-  return _int(process.env.SB_TTS_MAX_AUDIO_BYTES, 25 * 1024 * 1024, 256 * 1024, 100 * 1024 * 1024);
-}
-
-function _strictBase64Buffer(value) {
-  const raw = _trim(value).replace(/^data:audio\/[^;]+;base64,/i, "").replace(/\s+/g, "");
-  const maxBytes = _maxAcceptedAudioBufferBytes();
-  const maxBase64Chars = Math.ceil(maxBytes * 4 / 3) + 8;
-  if (!raw || raw.length < 16 || raw.length > maxBase64Chars || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) return null;
-  const padded = raw + "=".repeat((4 - (raw.length % 4)) % 4);
-  try {
-    const buffer = Buffer.from(padded, "base64");
-    if (!buffer.length || buffer.length > maxBytes || _bufferLooksTextual(buffer)) return null;
-    return buffer;
-  } catch (_) {
-    return null;
-  }
-}
-
-function _coerceBuffer(value, depth = 0, seen = new Set()) {
-  if (value == null || depth > 5) return null;
-  if (Buffer.isBuffer(value)) return value.length && value.length <= _maxAcceptedAudioBufferBytes() ? value : null;
-  if (value instanceof Uint8Array) return value.byteLength && value.byteLength <= _maxAcceptedAudioBufferBytes() ? Buffer.from(value) : null;
-  if (Array.isArray(value)) {
-    if (!value.length || !value.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) return null;
-    try { const buffer = Buffer.from(value); return buffer.length <= _maxAcceptedAudioBufferBytes() ? buffer : null; } catch (_) { return null; }
-  }
-  if (typeof value === "string") {
-    const s = value.trim();
-    if (!s) return null;
-    if (/^data:audio\/[^;]+;base64,/i.test(s)) return _strictBase64Buffer(s);
-    return _strictBase64Buffer(s);
-  }
-  if (typeof value !== "object" || seen.has(value)) return null;
-  seen.add(value);
-  if (value.type === "Buffer" && Array.isArray(value.data)) return _coerceBuffer(value.data, depth + 1, seen);
-  const keys = [
-    "buffer", "binary", "audioBuffer", "audio_content", "audioContent", "audio_base64", "audioBase64",
-    "base64", "audio", "content", "body", "data"
-  ];
-  for (const key of keys) {
-    if (value[key] === undefined || value[key] === value) continue;
-    const out = _coerceBuffer(value[key], depth + 1, seen);
-    if (out && out.length) return out;
-  }
-  return null;
-}
-
-async function _withTimeout(promise, ms, meta) {
-  let timer = null;
-  const timeoutMs = _int(ms, PROVIDER_TIMEOUT_MS, 1000, 120000);
-  try {
-    return await Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          const err = new Error(`provider_timeout_${timeoutMs}ms`);
-          err.code = "TTS_PROVIDER_TIMEOUT";
-          err.status = 504;
-          err.retryable = true;
-          err.meta = meta || {};
-          reject(err);
-        }, timeoutMs);
-      })
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-function _normalizeProviderAudio(out) {
-  const src = out && typeof out === "object" ? out : {};
-  const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
-  const response = src.response && typeof src.response === "object" ? src.response : {};
-  const result = src.result && typeof src.result === "object" ? src.result : {};
-  const data = src.data && typeof src.data === "object" && !Buffer.isBuffer(src.data) ? src.data : {};
-  const audio = src.audio && typeof src.audio === "object" && !Buffer.isBuffer(src.audio) ? src.audio : {};
-  const containers = [src, payload, response, result, data, audio];
-  let buffer = null;
-  for (const container of containers) {
-    if (!container || typeof container !== "object") continue;
-    const candidates = [
-      container.buffer, container.binary, container.audioBuffer, container.audio_content, container.audioContent,
-      container.audio_base64, container.audioBase64, container.base64, container.audio, container.content, container.body, container.data
-    ];
-    for (const candidate of candidates) {
-      buffer = _coerceBuffer(candidate);
-      if (buffer && buffer.length) break;
-    }
-    if (buffer && buffer.length) break;
-  }
-
-  const rawProviderStatus = Number(_pickFirst(
-    src.providerStatus, src.upstreamStatus, src.status,
-    payload.providerStatus, payload.upstreamStatus, payload.status,
-    response.providerStatus, response.status, result.providerStatus, result.status
-  ));
-  const providerStatus = Number.isFinite(rawProviderStatus) && rawProviderStatus > 0 ? rawProviderStatus : 0;
-  const explicitOk = typeof src.ok === "boolean" ? src.ok : (typeof payload.ok === "boolean" ? payload.ok : null);
-  const signatureMime = _bufferAudioSignature(buffer);
-  const declaredMime = _pickFirst(
-    src.mimeType, src.mime, src.contentType, src.content_type,
-    payload.mimeType, payload.mime, payload.contentType, payload.content_type,
-    response.mimeType, response.contentType, result.mimeType, result.contentType,
-    audio.mimeType, audio.contentType
-  );
-  const mimeType = signatureMime || (declaredMime && /^audio\//i.test(declaredMime) ? declaredMime : "audio/mpeg");
-  const bufferValid = !!(buffer && buffer.length && !_bufferLooksTextual(buffer));
-  const inferredOk = !!(bufferValid && (signatureMime || /^audio\//i.test(mimeType)) && (!providerStatus || (providerStatus >= 200 && providerStatus < 300)));
-  const ok = explicitOk == null ? inferredOk : !!(explicitOk && inferredOk);
-  const reason = _pickFirst(
-    src.reason, src.error, src.code, payload.reason, payload.error, payload.code,
-    response.reason, response.error, response.code, result.reason, result.error, result.code,
-    ok ? "" : (buffer && _bufferLooksTextual(buffer) ? "provider_returned_text_not_audio" : "provider_audio_unavailable")
-  );
-  const message = _pickFirst(
-    src.message, src.detail, payload.message, payload.detail, response.message, response.detail, result.message, result.detail,
-    ok ? "" : "Provider returned no verified playable audio."
-  );
-  const localStatus = ok ? (providerStatus || 200) : (providerStatus >= 400 ? providerStatus : 502);
-  const retryableDefault = !ok && (_isRetryableStatus(localStatus) || providerStatus === 0 || (providerStatus >= 200 && providerStatus < 300));
-
-  return {
-    ok,
-    buffer: ok ? buffer : null,
-    mimeType,
-    elapsedMs: _int(_pickFirst(src.elapsedMs, src.durationMs, payload.elapsedMs, payload.durationMs, 0), 0, 0, 300000),
-    requestId: _pickFirst(src.requestId, src.id, payload.requestId, payload.id, response.requestId, result.requestId),
-    providerStatus: providerStatus || (ok ? 200 : 0),
-    status: localStatus,
-    message,
-    reason,
-    retryable: typeof src.retryable === "boolean" ? src.retryable : (typeof payload.retryable === "boolean" ? payload.retryable : retryableDefault),
-    authMode: _pickFirst(src.authMode, payload.authMode),
-    providerEndpoint: _pickFirst(src.providerEndpoint, payload.providerEndpoint),
-    transport: _pickFirst(src.transport, payload.transport, response.transport, result.transport),
-    voiceUuid: _pickFirst(src.voiceUuid, payload.voiceUuid),
-    audioVerification: ok ? (signatureMime ? "signature-verified" : "declared-audio-nontext") : "rejected-non-audio"
-  };
-}
-
-function _buildProviderVariants(providerInput) {
-  const variants = [];
-  const baseText = _trim(providerInput && providerInput.text);
-  const textSpeak = _trim(providerInput && providerInput.textSpeak);
-  const plainText = _trim(providerInput && providerInput.plainText);
-  const ssmlText = _trim(providerInput && providerInput.ssmlText);
-  const outputFormat = _lower(_pickFirst(providerInput && providerInput.outputFormat, "mp3")) === "wav" ? "wav" : "mp3";
-
-  const pushVariant = (kind, text, format, extra) => {
-    const normalizedText = _trim(text);
-    if (!normalizedText) return;
-    const candidate = {
-      ...providerInput,
-      text: normalizedText,
-      outputFormat: format || outputFormat,
-      failoverKind: kind,
-      useSsml: kind === "ssml",
-      ...(extra || {})
-    };
-    const sig = [candidate.failoverKind, candidate.outputFormat, candidate.text].join("|");
-    if (!variants.some((v) => [v.failoverKind, v.outputFormat, v.text].join("|") === sig)) {
-      variants.push(candidate);
-    }
-  };
-
-  pushVariant("speak_text", textSpeak || baseText, outputFormat);
-  pushVariant("plain_text", plainText || baseText || textSpeak, outputFormat, { useSsml: false });
-  if (ssmlText) pushVariant("ssml", ssmlText, outputFormat, { useSsml: true });
-  if (outputFormat !== "wav") pushVariant("plain_text_wav", plainText || baseText || textSpeak, "wav", { useSsml: false });
-
-  return variants.slice(0, FAILOVER_MAX_VARIANTS);
-}
-
-async function _synthesizeWithFailover(providerInput, snapshot, shapeElapsedMs, segmentCount) {
-  const variants = _buildProviderVariants(providerInput);
-  let lastFailure = null;
-
-  for (let idx = 0; idx < variants.length; idx += 1) {
-    const variant = variants[idx];
-    const attemptSnapshot = {
-      ...snapshot,
-      failoverIndex: idx + 1,
-      failoverTotal: variants.length,
-      failoverKind: variant.failoverKind || "primary",
-      outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3"
-    };
-
-    _log("provider_failover_variant", attemptSnapshot);
-
-    const result = await _synthesizeWithRetry(variant, attemptSnapshot, shapeElapsedMs, segmentCount);
-    if (result && result.ok) {
-      return {
-        ok: true,
-        out: {
-          ...result.out,
-          failoverKind: variant.failoverKind || "primary",
-          outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3",
-          transport: result.out && result.out.transport || "unknown"
-        },
-        attempt: result.attempt,
-        failoverIndex: idx + 1,
-        failoverTotal: variants.length
-      };
-    }
-
-    lastFailure = {
-      ...(result || {}),
-      failoverKind: variant.failoverKind || "primary",
-      outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3"
-    };
-
-    if (lastFailure && lastFailure.retryable === false) break;
-  }
-
-  return lastFailure || { ok: false, reason: "provider_failed", message: "TTS failed", status: 503, retryable: true, providerStatus: 503, voiceUuid: providerInput.voiceUuid, shapeElapsedMs, segmentCount };
-}
-
-function _verifyAudioResult(result, input) {
-  const buffer = _coerceBuffer(result && result.buffer);
-  const declaredMime = _pickFirst(result && result.mimeType, result && result.mime, "audio/mpeg");
-  const signatureMime = _bufferAudioSignature(buffer);
-  const bytes = buffer && buffer.length ? buffer.length : 0;
-  const textual = _bufferLooksTextual(buffer);
-  const declaredAudio = /^audio\//i.test(declaredMime);
-  const signatureVerified = !!signatureMime;
-  const acceptableUnsignedAudio = !!(buffer && bytes >= 256 && declaredAudio && !textual);
-  const ok = !!(buffer && !textual && (signatureVerified || acceptableUnsignedAudio));
-  const mimeType = signatureMime || (declaredAudio ? declaredMime : "application/octet-stream");
-  const reason = textual ? "provider_returned_text_not_audio" : (buffer ? "invalid_audio_payload" : "no_audio_buffer");
-  return {
-    ok,
-    buffer: ok ? buffer : null,
-    mimeType,
-    bytes,
-    looksAudio: ok,
-    verification: ok ? (signatureVerified ? "audio-signature-verified" : "audio-declared-nontext") : (textual ? "textual-payload-rejected" : (buffer ? "audio-signature-mismatch" : "empty-audio-buffer")),
-    failure: ok ? null : _normalizeFailureContract(
-      reason,
-      textual ? "Provider returned JSON or text instead of audio." : (buffer ? "Provider returned an unverified audio payload." : "Provider returned no playable audio buffer."),
-      502,
-      true,
-      input,
-      { voiceUuid: (result && result.voiceUuid) || (input && input.voiceUuid) || "" }
-    )
-  };
-}
-
-
-function _normalizeRouteSuccessAudio(result) {
-  const src = result && typeof result === "object" ? result : {};
-  const payload = src.payload && typeof src.payload === "object" ? src.payload : {};
-  const candidates = [
-    src.buffer, src.binary, src.audioBuffer, src.audio_content, src.audioContent, src.audio_base64, src.audioBase64, src.base64, src.audio,
-    payload.buffer, payload.binary, payload.audioBuffer, payload.audio_content, payload.audioContent, payload.audio_base64, payload.audioBase64, payload.base64, payload.audio
-  ];
-  let buffer = null;
-  for (const candidate of candidates) {
-    buffer = _coerceBuffer(candidate);
-    if (buffer && buffer.length) break;
-  }
-  const declaredMime = _pickFirst(src.mimeType, src.mime, src.contentType, src.content_type, payload.mimeType, payload.mime, payload.contentType, payload.content_type, "audio/mpeg");
-  const signatureMime = _bufferAudioSignature(buffer);
-  const textual = _bufferLooksTextual(buffer);
-  const bytes = buffer && buffer.length ? buffer.length : 0;
-  const ok = !!(buffer && !textual && (signatureMime || (/^audio\//i.test(declaredMime) && bytes >= 256)));
-  return {
-    ok,
-    buffer: ok ? buffer : null,
-    bytes,
-    mimeType: signatureMime || (ok ? declaredMime : "application/octet-stream"),
-    verification: ok ? (signatureMime ? "audio-signature-verified" : "audio-declared-nontext") : (textual ? "textual-payload-rejected" : "no_verified_audio")
-  };
-}
-
-function _frontendErrorEnvelope(input, result, status, extra) {
-  const reason = _pickFirst(extra && extra.error, result && result.reason, result && result.error, "tts_unavailable");
-  const detail = _pickFirst(extra && extra.detail, result && result.message, result && result.detail, "TTS unavailable.");
-  const providerStatus = Number((result && (result.providerStatus || result.status)) || status || 503) || 503;
-  const endpoint = _pickFirst(result && result.providerEndpoint);
-  let endpointHost = "";
-  try { endpointHost = endpoint ? new URL(endpoint).host : ""; } catch (_) {}
-  const health = _healthSnapshot();
-  const sanitizeFailure = (value) => {
-    const failure = value && typeof value === "object" ? value : {};
-    return {
-      ok: failure.ok === true,
-      action: _pickFirst(failure.action, "downgrade"),
-      reason: _pickFirst(failure.reason, reason),
-      retryable: !!failure.retryable,
-      shouldStop: !!failure.shouldStop,
-      shouldTerminate: !!failure.shouldTerminate,
-      terminalStopUntil: Number(failure.terminalStopUntil || 0) || 0
-    };
-  };
-  const defaultFailure = _normalizeFailureContract(reason, detail, status, !!(result && result.retryable), input);
-  return {
-    ok: false,
-    playable: false,
-    shouldPlay: false,
-    autoPlay: false,
-    spokenUnavailable: true,
-    error: reason,
-    reason,
-    detail,
-    retryable: !!(result && result.retryable),
-    traceId: _headerSafe(input && input.traceId, 120),
-    provider: _pickFirst(result && result.provider, "resemble"),
-    providerStatus,
-    transport: _pickFirst(result && result.transport, "unknown"),
-    ttsVersion: TTS_VERSION,
-    providerEndpointHost: endpointHost,
-    voiceUuidPreview: _mask(_pickFirst(result && result.voiceUuid, input && input.voiceUuid)),
-    requestId: _headerSafe(_pickFirst(result && result.requestId, input && input.requestId), 80),
-    diagnostics: {
-      configured: !!health.configured,
-      circuitOpen: !!health.circuitOpen,
-      activeRequests: Number(health.activeRequests || 0) || 0,
-      version: TTS_VERSION
-    },
-    ttsFailure: sanitizeFailure((result && result.ttsFailure) || defaultFailure.ttsFailure),
-    audioFailure: sanitizeFailure((result && result.audioFailure) || defaultFailure.audioFailure),
-    payload: { spokenUnavailable: true, playable: false, shouldPlay: false, autoPlay: false }
-  };
-}
-
-async function generate(text, options) {
-  const opts = options && typeof options === "object" ? options : {};
-  const input = _normalizePayloadLikeInput({ text, ...opts }, { headers: { "x-sb-trace-id": opts.traceId || _makeTrace() } });
-  const snapshot = _buildInputSnapshot(input);
-  const startedAt = _now();
-
-  _log("generate_start", { ...snapshot, activeRequests, circuitOpen: _circuitOpen(), failCount });
-
-  if (!input.text) return _normalizeFailureContract("empty_text", "No TTS text was provided.", 400, false, input);
-  if (!_hasProviderToken()) {
-    _log("generate_reject_missing_token", snapshot);
-    return _normalizeFailureContract("missing_token", "No provider token is configured.", 503, false, input);
-  }
-  const voiceContract = _voiceContract(input);
-  if (!voiceContract.ok) {
-    _log("generate_reject_voice_contract", { ...snapshot, voiceProblems: voiceContract.problems, voiceSource: voiceContract.source });
-    return _normalizeFailureContract("voice_contract_failed", `Voice lock rejected request: ${voiceContract.problems.join(", ") || "unknown_voice_issue"}`, 503, false, input, { voiceUuid: input.voiceUuid });
-  }
-  if (!input.voiceUuid) {
-    _log("generate_reject_missing_voice", snapshot);
-    return _normalizeFailureContract("missing_voice", "No Mixer or provider voice is configured.", 503, false, input);
-  }
-  if (activeRequests >= MAX_CONCURRENT) {
-    _log("generate_reject_concurrency_limit", { ...snapshot, activeRequests, maxConcurrent: MAX_CONCURRENT });
-    return _normalizeFailureContract("concurrency_limit", "TTS is busy right now.", 429, true, input);
-  }
-  if (_circuitOpen()) {
-    _log("generate_reject_circuit_open", { ...snapshot, circuitOpenUntil });
-    return _normalizeFailureContract("circuit_open", "TTS is temporarily cooling down.", 503, true, input);
-  }
-
-  const shaped = _shapeSpeechText(input.text, { speechHints: input.speechHints, pronunciationMap: input.pronunciationMap, normalizeYears: input.normalizeYears !== false, yearStyle: input.yearStyle || "spoken" });
-
-  const providerInput = {
-    ...input,
-    text: shaped.text,
-    textDisplay: input.textDisplay || shaped.displayText,
-    textSpeak: shaped.textSpeak,
-    plainText: shaped.plainText,
-    ssmlText: shaped.ssmlText,
-    speechChunks: input.speechChunks && input.speechChunks.length ? input.speechChunks : shaped.segments,
-    speechHints: shaped.speechHints,
-    pronunciationMap: shaped.pronunciationMap,
-    segmentCount: shaped.segmentCount,
-    shapeElapsedMs: shaped.shapeElapsedMs
-  };
-
-  _log("generate_shaped", {
-    ...snapshot,
-    shapeElapsedMs: shaped.shapeElapsedMs,
-    segmentCount: shaped.segmentCount,
-    speakHash: _hash(providerInput.textSpeak || ""),
-    speakPreview: _preview(providerInput.textSpeak || "")
-  });
-
-  activeRequests += 1;
-  try {
-    _log("provider_request", { ...snapshot, activeRequests, provider: "resemble", shapeElapsedMs: shaped.shapeElapsedMs, segmentCount: shaped.segmentCount, timeoutMs: PROVIDER_TIMEOUT_MS });
-    const providerResult = await _synthesizeWithFailover(providerInput, snapshot, shaped.shapeElapsedMs, shaped.segmentCount);
-
-    if (!providerResult.ok) {
-      _recordFailure(providerResult.message || providerResult.reason || "provider_failed", providerResult.providerStatus || providerResult.status || 503, snapshot);
-      return {
-        ..._normalizeFailureContract(providerResult.reason || "provider_failed", providerResult.message || "TTS failed", providerResult.status || providerResult.providerStatus || 503, !!providerResult.retryable, input, { voiceUuid: providerResult.voiceUuid || input.voiceUuid }),
-        providerEndpoint: providerResult.providerEndpoint || "",
-        authMode: providerResult.authMode || "",
-        failoverKind: providerResult.failoverKind || "primary",
-        shapeElapsedMs: shaped.shapeElapsedMs,
-        segmentCount: shaped.segmentCount,
-        textDisplay: providerInput.textDisplay,
-        textSpeak: providerInput.textSpeak
-      };
-    }
-
-    const normalizedOut = providerResult.out;
-    _log("provider_response", {
-      ...snapshot,
-      ok: !!normalizedOut.ok,
-      providerStatus: normalizedOut.providerStatus || 0,
-      reason: normalizedOut.reason || "",
-      authMode: normalizedOut.authMode || "",
-      providerEndpoint: normalizedOut.providerEndpoint || "",
-      transport: normalizedOut.transport || "unknown",
-      bytes: normalizedOut.buffer ? normalizedOut.buffer.length : 0,
-      elapsedMs: normalizedOut.elapsedMs || 0,
-      attempt: providerResult.attempt || 1,
-      failoverIndex: providerResult.failoverIndex || 1,
-      failoverTotal: providerResult.failoverTotal || 1,
-      failoverKind: normalizedOut.failoverKind || "primary"
-    });
-
-    const audioVerified = _verifyAudioResult({ buffer: normalizedOut.buffer, mimeType: normalizedOut.mimeType, voiceUuid: normalizedOut.voiceUuid || input.voiceUuid }, input);
-    if (!audioVerified.ok) {
-      _log("provider_no_audio_trap", {
-        ...snapshot,
-        verification: audioVerified.verification,
-        mimeType: audioVerified.mimeType,
-        bytes: audioVerified.bytes,
-        providerStatus: normalizedOut.providerStatus || 0
-      });
-      _recordFailure(audioVerified.failure.message || audioVerified.failure.reason || "no_audio_buffer", 502, snapshot);
-      return {
-        ...audioVerified.failure,
-        providerEndpoint: normalizedOut.providerEndpoint || "",
-        authMode: normalizedOut.authMode || "",
-        failoverKind: normalizedOut.failoverKind || "primary",
-        shapeElapsedMs: shaped.shapeElapsedMs,
-        segmentCount: shaped.segmentCount,
-        textDisplay: providerInput.textDisplay,
-        textSpeak: providerInput.textSpeak,
-        mimeType: audioVerified.mimeType,
-        audioVerification: audioVerified.verification,
-        bytes: audioVerified.bytes
-      };
-    }
-
-    _recordSuccess(normalizedOut.providerStatus, normalizedOut.elapsedMs, snapshot);
-    return {
-      ok: true,
-      provider: "resemble",
-      buffer: audioVerified.buffer,
-      audioBuffer: audioVerified.buffer,
-      binary: audioVerified.buffer,
-      audio: audioVerified.buffer,
-      playable: true,
-      mimeType: audioVerified.mimeType || "audio/mpeg",
-      elapsedMs: normalizedOut.elapsedMs || 0,
-      bytes: audioVerified.bytes,
-      audioVerification: audioVerified.verification,
-      requestId: normalizedOut.requestId || input.requestId,
-      providerStatus: normalizedOut.providerStatus || 200,
-      providerEndpoint: normalizedOut.providerEndpoint || "",
-      authMode: normalizedOut.authMode || "",
-      transport: normalizedOut.transport || "unknown",
-      failoverKind: normalizedOut.failoverKind || "primary",
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak,
-      ssmlText: providerInput.ssmlText,
-      speechChunks: providerInput.speechChunks,
-      voiceUuid: normalizedOut.voiceUuid || input.voiceUuid,
-      traceId: input.traceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      ttsFailure: _normalizeRecoveryContract(input),
-      audioFailure: _normalizeRecoveryContract(input)
-    };
-  } catch (err) {
-    const msg = _trim(err && (err.message || err)) || "tts_exception";
-    const status = _int(err && err.status, 503, 400, 599);
-    const retryable = typeof (err && err.retryable) === "boolean" ? !!err.retryable : _isRetryableStatus(status);
-    const reason = err && err.code === "TTS_PROVIDER_TIMEOUT" ? "provider_timeout" : "exception";
-    _log("provider_exception", { ...snapshot, message: msg, status, retryable, elapsedMs: _now() - startedAt });
-    _recordFailure(msg, status, snapshot);
-    return {
-      ..._normalizeFailureContract(reason, msg, status, retryable, input),
-      shapeElapsedMs: shaped.shapeElapsedMs,
-      segmentCount: shaped.segmentCount,
-      textDisplay: providerInput.textDisplay,
-      textSpeak: providerInput.textSpeak
-    };
-  } finally {
-    activeRequests = Math.max(0, activeRequests - 1);
-    _log("generate_complete", { ...snapshot, totalElapsedMs: _now() - startedAt, activeRequests });
-  }
-}
-
-function _normalizePayloadLikeInput(payload, req) {
-  const body = payload && typeof payload === "object" ? payload : {};
-  const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
-  const speech = body && typeof body.speech === "object" ? body.speech : {};
-  const nestedPayload = body && typeof body.payload === "object" ? body.payload : {};
-  const voiceRoute = body && typeof body.voiceRoute === "object" ? body.voiceRoute : {};
-  const merged = { ...voiceRoute, ...nestedPayload, ...speech, ...body };
-
-  const text = _pickFirst(merged.textSpeak, merged.text, merged.data, merged.speak, merged.say, merged.message, merged.prompt, merged.textDisplay);
-
-  const requestedVoiceUuid = _extractVoiceUuidCandidate(
-    merged.voice_uuid, merged.voiceUuid, merged.voiceId, merged.voice,
-    merged.resembleVoiceUuid, merged.mixerVoiceUuid, merged.voiceConfig, merged.voiceConfig && merged.voiceConfig.voice,
-    headers["x-sb-voice"], headers["x-voice-uuid"]
-  );
-  const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
-
-  const explicitProjectUuid = _pickFirst(
-    merged.project_uuid, merged.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
-  );
-  const projectUuid = _resolveProjectUuid(explicitProjectUuid);
-
-  const outputFormat = _lower(_pickFirst(merged.output_format, merged.outputFormat, merged.format, headers["x-audio-format"], "mp3")) === "wav" ? "wav" : "mp3";
-  const traceId = _pickFirst(headers["x-sb-trace-id"], merged.traceId, merged.requestId, _makeTrace());
-  const requestId = _pickFirst(headers["x-sb-request-id"], merged.requestId, merged.sourceId, traceId);
-  const turnId = _pickFirst(headers["x-sb-turn-id"], merged.turnId, "");
-  const sessionId = _pickFirst(headers["x-sb-session-id"], merged.sessionId, merged.sid, "");
-
-  return {
-    text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(merged.textDisplay, merged.text, merged.reply)).slice(0, MAX_TEXT),
-    requestedVoiceUuid: _trim(requestedVoiceUuid),
-    voiceUuid,
-    voiceName: _resolvePreferredVoiceName(_pickFirst(merged.voiceName, merged.mixerVoiceName)),
-    projectUuid,
-    outputFormat,
-    traceId,
-    requestId,
-    turnId,
-    sessionId,
-    title: _pickFirst(merged.title, merged.source, merged.client && merged.client.source, "nyx_tts").slice(0, 120),
-    sampleRate: merged.sampleRate || merged.sample_rate,
-    precision: merged.precision,
-    useHd: merged.useHd,
-    intro: _bool(merged.intro, false) || _lower(merged.routeKind) === "intro" || _lower(merged.mode) === "intro",
-    healthCheck: false,
-    wantJson: false,
-    mode: _pickFirst(merged.mode, "presence"),
-    source: _pickFirst(merged.source, "tts"),
-    sourceId: _pickFirst(merged.sourceId, merged.requestId, ""),
-    speechHints: _parseSpeechHints(merged),
-    pronunciationMap: merged.pronunciationMap && typeof merged.pronunciationMap === "object" ? merged.pronunciationMap : null,
-    speechChunks: Array.isArray(merged.speechChunks) ? merged.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : [],
-    preserveMixerVoice: _bool(merged.preserveMixerVoice, true),
-    provider: _pickFirst(merged.provider, "resemble"),
-    routeKind: _pickFirst(merged.routeKind, merged.mode, merged.intro ? "intro" : "main"),
-    rawBody: body
-  };
-}
-
-function _resolveInput(req) {
-  const body = req && req.body && typeof req.body === "object" ? req.body : {};
-  const query = req && req.query && typeof req.query === "object" ? req.query : {};
-  const params = req && req.params && typeof req.params === "object" ? req.params : {};
-  const headers = req && req.headers && typeof req.headers === "object" ? req.headers : {};
-  const speech = body && typeof body.speech === "object" ? body.speech : {};
-  const nestedPayload = body && typeof body.payload === "object" ? body.payload : {};
-  const voiceRoute = body && typeof body.voiceRoute === "object" ? body.voiceRoute : {};
-  const mergedBody = { ...voiceRoute, ...nestedPayload, ...speech, ...body };
-
-  const text = _pickFirst(
-    mergedBody.textSpeak, mergedBody.text, mergedBody.data, mergedBody.speak, mergedBody.say, mergedBody.message, mergedBody.prompt, mergedBody.textDisplay,
-    query.text, query.speak, query.say, query.prompt, params.text
-  );
-
-  const requestedVoiceUuid = _extractVoiceUuidCandidate(
-    mergedBody.voice_uuid, mergedBody.voiceUuid, mergedBody.voiceId, mergedBody.voice,
-    mergedBody.resembleVoiceUuid, mergedBody.mixerVoiceUuid, mergedBody.voiceConfig, mergedBody.voiceConfig && mergedBody.voiceConfig.voice,
-    query.voice_uuid, query.voiceUuid, query.voiceId, query.voice,
-    query.resembleVoiceUuid, query.mixerVoiceUuid,
-    headers["x-sb-voice"], headers["x-voice-uuid"]
-  );
-  const voiceUuid = _resolvePreferredVoice(requestedVoiceUuid);
-
-  const explicitProjectUuid = _pickFirst(
-    mergedBody.project_uuid, mergedBody.projectUuid, query.project_uuid, query.projectUuid, headers["x-sb-project"], headers["x-project-uuid"]
-  );
-  const projectUuid = _resolveProjectUuid(explicitProjectUuid);
-
-  const outputFormat = _lower(_pickFirst(
-    mergedBody.output_format, mergedBody.outputFormat, mergedBody.format, query.output_format, query.outputFormat, query.format, headers["x-audio-format"], "mp3"
-  )) === "wav" ? "wav" : "mp3";
-
-  const traceId = _pickFirst(headers["x-sb-trace-id"], headers["x-sb-traceid"], query.traceId, mergedBody.traceId, _makeTrace());
-  const requestId = _pickFirst(headers["x-sb-request-id"], query.requestId, mergedBody.requestId, traceId);
-  const turnId = _pickFirst(headers["x-sb-turn-id"], query.turnId, mergedBody.turnId, "");
-  const sessionId = _pickFirst(headers["x-sb-session-id"], query.sessionId, mergedBody.sessionId, mergedBody.sid, query.sid, "");
-
-  return {
-    text: _trim(text).slice(0, MAX_TEXT),
-    textDisplay: _trim(_pickFirst(mergedBody.textDisplay, query.textDisplay, mergedBody.text, mergedBody.reply)).slice(0, MAX_TEXT),
-    requestedVoiceUuid: _trim(requestedVoiceUuid),
-    voiceUuid,
-    voiceName: _resolvePreferredVoiceName(_pickFirst(mergedBody.voiceName, query.voiceName)),
-    projectUuid,
-    outputFormat,
-    traceId,
-    requestId,
-    turnId,
-    sessionId,
-    title: _pickFirst(mergedBody.title, query.title, mergedBody.source, mergedBody.client && mergedBody.client.source, "nyx_tts").slice(0, 120),
-    sampleRate: mergedBody.sampleRate || mergedBody.sample_rate || query.sampleRate || query.sample_rate,
-    precision: mergedBody.precision || query.precision,
-    useHd: mergedBody.useHd != null ? mergedBody.useHd : query.useHd,
-    intro: _bool(mergedBody.intro != null ? mergedBody.intro : query.intro, false) || _lower(mergedBody.routeKind || query.routeKind) === "intro" || _lower(mergedBody.mode || query.mode) === "intro",
-    healthCheck: _requestIsHealth(req, mergedBody, query, headers),
-    wantJson: _requestsJsonAudio(req, mergedBody, query, headers),
-    mode: _pickFirst(mergedBody.mode, query.mode, "presence"),
-    source: _pickFirst(mergedBody.source, query.source, "tts"),
-    sourceId: _pickFirst(mergedBody.sourceId, query.sourceId, mergedBody.requestId, query.requestId, ""),
-    speechHints: _parseSpeechHints({ ...query, ...mergedBody }),
-    pronunciationMap: mergedBody.pronunciationMap && typeof mergedBody.pronunciationMap === "object"
-      ? mergedBody.pronunciationMap
-      : (query.pronunciationMap && typeof query.pronunciationMap === "object" ? query.pronunciationMap : null),
-    speechChunks: Array.isArray(mergedBody.speechChunks)
-      ? mergedBody.speechChunks.map(_trim).filter(Boolean).slice(0, 24)
-      : (Array.isArray(query.speechChunks) ? query.speechChunks.map(_trim).filter(Boolean).slice(0, 24) : []),
-    preserveMixerVoice: _bool(mergedBody.preserveMixerVoice != null ? mergedBody.preserveMixerVoice : query.preserveMixerVoice, true),
-    provider: _pickFirst(mergedBody.provider, query.provider, "resemble"),
-    routeKind: _pickFirst(mergedBody.routeKind, query.routeKind, mergedBody.intro || query.intro ? "intro" : "main")
-  };
-}
-
-function _buildInputSnapshot(input) {
-  const src = input && typeof input === "object" ? input : {};
-  const contract = _voiceContract(src);
-  return {
-    traceId: src.traceId || "",
-    requestId: src.requestId || "",
-    turnId: src.turnId || "",
-    sessionId: src.sessionId || "",
-    routeKind: src.routeKind || "",
-    intro: !!src.intro,
-    mode: src.mode || "",
-    source: src.source || "",
-    textLen: _str(src.text || "").length,
-    textHash: _hash(src.text || ""),
-    textPreview: _preview(src.textDisplay || src.text || ""),
-    requestedVoiceUuid: _mask(src.requestedVoiceUuid || ""),
-    voiceUuid: _mask(src.voiceUuid || ""),
-    voiceSource: contract.source,
-    voiceStrict: contract.strict,
-    voiceProblems: contract.problems,
-    voiceOverrideBlocked: contract.overrideBlocked === true,
-    projectUuid: _mask(src.projectUuid || ""),
-    outputFormat: src.outputFormat || "",
-    wantJson: !!src.wantJson,
-    audioFirst: true
-  };
-}
-
-async function delegateTts(payload, req) {
-  const input = _normalizePayloadLikeInput(payload, req);
-  const snapshot = _buildInputSnapshot(input);
-  _log("delegate_start", snapshot);
-
-  if (!input.text) {
-    return {
-      ..._normalizeFailureContract("missing_text", "No TTS text was provided.", 400, false, input),
-      provider: input.provider || "resemble",
-      mimeType: "audio/mpeg",
-      mime: "audio/mpeg",
-      text: input.textDisplay || input.text || ""
-    };
-  }
-
-  const result = await generate(input.text, input);
-  if (!result.ok) return result;
-
-  return {
-    ...result,
-    mime: result.mimeType || "audio/mpeg",
-    audio: result.buffer,
-    binary: result.buffer,
-    audioBuffer: result.buffer,
-    payload: {
-      ok: true,
-      provider: result.provider || "resemble",
-      mimeType: result.mimeType || "audio/mpeg",
-      playable: true,
-      byteLength: result.buffer && result.buffer.length ? result.buffer.length : 0,
-      requestId: result.requestId || input.requestId,
-      providerStatus: result.providerStatus || 200,
-      voiceUuid: result.voiceUuid || input.voiceUuid,
-      textDisplay: result.textDisplay || input.textDisplay || input.text,
-      textSpeak: result.textSpeak || input.text,
-      elapsedMs: result.elapsedMs || 0,
-      shapeElapsedMs: result.shapeElapsedMs || 0,
-      segmentCount: result.segmentCount || 0,
-      routeKind: result.routeKind || input.routeKind || "main",
-      intro: result.intro != null ? !!result.intro : !!input.intro,
-      source: result.source || input.source || "tts"
-    },
-    speech: {
-      text: result.textDisplay || input.textDisplay || input.text,
-      textDisplay: result.textDisplay || input.textDisplay || input.text,
-      textSpeak: result.textSpeak || input.text,
-      routeKind: result.routeKind || input.routeKind || "main",
-      intro: result.intro != null ? !!result.intro : !!input.intro,
-      source: result.source || input.source || "tts"
-    }
-  };
-}
-
+// -----------------------------
+// Main handler
+// -----------------------------
 async function handleTts(req, res) {
-  _applyPublicVoiceCors(req, res);
-  if (req && String(req.method || "").toUpperCase() === "OPTIONS") {
-    try { return res.status(204).end(); } catch (_) { return; }
-  }
-  const input = _resolveInput(req);
-  const snapshot = _buildInputSnapshot(input);
-  const startedAt = _now();
+  const started = nowMs();
+  const body0 = readBody(req);
+  setDiagnosticHeaders(res);
 
-  _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
-  _setHeader(res, "X-SB-Trace-ID", _headerSafe(input.traceId, 120));
-  _setHeader(res, "X-SB-Audio-Contract", "audio-first-v2");
-  _setHeader(res, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-  _setHeader(res, "Vary", "Origin, Accept");
+  const headerTrace = req && req.headers
+    ? (req.headers['x-sb-trace-id'] || req.headers['x-sb-traceid'] || req.headers['x-request-id'])
+    : '';
+  const traceId = makeTraceId(body0.traceId || body0.requestId || (body0.stateHints && body0.stateHints.traceId) || headerTrace || req && req.sbTraceId);
+  const sessionId = String(body0.sessionId || body0.sid || '').trim().slice(0, 64);
 
-  if (input.healthCheck) {
-    const healthState = _healthSnapshot();
-    _setHeader(res, "Cache-Control", "no-store, max-age=0");
-    return _safeJson(res, healthState.ok ? 200 : 503, healthState);
+  if (body0 && (body0.healthCheck === true || body0.health === true)) {
+    const probe = await runHeartbeatProbe({ traceId });
+    const vendor = resembleVendorHealth ? resembleVendorHealth() : null;
+    return safeJson(res, 200, { ok: true, traceId, sessionId, provider: 'resemble', probe, health: hb, vendor });
   }
 
-  if (!input.text) {
-    _setHeader(res, "X-SB-Response-Mode", "error");
-    return _safeJson(res, 400, _frontendErrorEnvelope(input, {
-      reason: "missing_text",
-      message: "No TTS text was provided.",
-      retryable: false,
-      providerStatus: 400
-    }, 400));
-  }
-
-  const result = await generate(input.text, input);
-
-  if (!result.ok) {
-    const upstreamStatus = Number(result.providerStatus || result.status || 503) || 503;
-    const status = result.status === 429 ? 429 : (result.status >= 400 && result.status < 500 ? result.status : 503);
-
-    _log("http_failure", {
-      ...snapshot,
-      status,
-      upstreamStatus,
-      reason: result.reason || "",
-      providerEndpoint: result.providerEndpoint || "",
-      authMode: result.authMode || "",
-      elapsedMs: _now() - startedAt
-    });
-
-    _setHeader(res, "X-SB-Response-Mode", "error");
-    _setCommonAudioHeaders(res, input.traceId, {
-      provider: result.provider || "resemble",
-      transport: result.transport || "unknown",
-      voiceUuid: result.voiceUuid || input.voiceUuid,
-      voiceSource: snapshot.voiceSource,
-      elapsedMs: result.elapsedMs || 0,
-      shapeMs: result.shapeElapsedMs || 0,
-      segmentCount: result.segmentCount || 0,
-      providerStatus: upstreamStatus,
-      failoverKind: result.failoverKind || "primary",
-      reason: result.reason || "tts_unavailable",
-      requestId: result.requestId || input.requestId,
-      turnId: result.turnId || input.turnId,
-      sessionId: result.sessionId || input.sessionId
-    });
-    return _safeJson(res, status, _frontendErrorEnvelope(input, result, status));
-  }
-
-  const routeAudio = _normalizeRouteSuccessAudio(result);
-  if (!routeAudio.ok) {
-    _log("http_success_without_audio", {
-      ...snapshot,
-      reason: result.reason || "success_without_audio",
-      providerStatus: result.providerStatus || 200,
-      elapsedMs: _now() - startedAt
-    });
-    _setHeader(res, "X-SB-Response-Mode", "error");
-    return _safeJson(res, 502, _frontendErrorEnvelope(input, {
-      ...result,
-      reason: "tts_backend_unrecognized_payload",
-      message: "Provider reported success but no playable audio reached the TTS route.",
-      retryable: true,
-      providerStatus: result.providerStatus || 502
-    }, 502));
-  }
-
-  _setCommonAudioHeaders(res, input.traceId, {
-    provider: result.provider || "resemble",
-    transport: result.transport || "unknown",
-    voiceUuid: result.voiceUuid || input.voiceUuid,
-    voiceSource: snapshot.voiceSource,
-    elapsedMs: result.elapsedMs || 0,
-    shapeMs: result.shapeElapsedMs || 0,
-    segmentCount: result.segmentCount || 0,
-    providerStatus: result.providerStatus || 200,
-    failoverKind: result.failoverKind || "primary",
-    requestId: result.requestId || input.requestId,
-    turnId: result.turnId || input.turnId,
-    sessionId: result.sessionId || input.sessionId
-  });
-
-  const allowJsonSuccess = !!(input.wantJson && !AUDIO_FIRST_LOCK && req && String(req.method || "").toUpperCase() === "GET");
-  if (allowJsonSuccess) {
-    _log("http_success_json", { ...snapshot, bytes: routeAudio.bytes || 0, elapsedMs: _now() - startedAt });
-    _setHeader(res, "X-SB-Response-Mode", "json-audio");
-    return _safeJson(res, 200, {
-      ok: true,
-      provider: result.provider,
-      transport: result.transport || "unknown",
-      mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg",
-      audio: routeAudio.buffer.toString("base64"),
-      audioBase64: routeAudio.buffer.toString("base64"),
-      traceId: input.traceId,
-      elapsedMs: result.elapsedMs || 0,
-      requestId: result.requestId,
-      providerStatus: result.providerStatus || 200,
-      providerEndpoint: result.providerEndpoint || "",
-      authMode: result.authMode || "",
-      textDisplay: result.textDisplay || input.textDisplay || input.text,
-      textSpeak: result.textSpeak || input.text,
-      speechChunks: result.speechChunks || [],
-      shapeElapsedMs: result.shapeElapsedMs || 0,
-      segmentCount: result.segmentCount || 0,
-      voiceUuid: result.voiceUuid || input.voiceUuid || "",
-      turnId: result.turnId || input.turnId || "",
-      sessionId: result.sessionId || input.sessionId || "",
-      ttsFailure: result.ttsFailure || _normalizeRecoveryContract(input),
-      audioFailure: result.audioFailure || _normalizeRecoveryContract(input),
-      speech: {
-        text: result.textDisplay || input.textDisplay || input.text,
-        textDisplay: result.textDisplay || input.textDisplay || input.text,
-        textSpeak: result.textSpeak || input.text,
-        routeKind: result.routeKind || input.routeKind || "main",
-        intro: result.intro != null ? !!result.intro : !!input.intro,
-        source: result.source || input.source || "tts"
-      }
-    });
+  if (!enterInflight()) {
+    return safeJson(res, 429, { ok: false, traceId, code: 'TTS_BACKPRESSURE', message: 'TTS busy — retry shortly.' });
   }
 
   try {
-    _setHeader(res, "X-SB-Response-Mode", "audio");
-    _setHeader(res, "Content-Type", routeAudio.mimeType || result.mimeType || "audio/mpeg");
-    _setHeader(res, "Content-Length", String(routeAudio.bytes));
-    _setHeader(res, "Accept-Ranges", "none");
-    _setHeader(res, "X-SB-Audio-Playback-Verify", _headerSafe(result.requestId || input.requestId || input.traceId, 80));
-    _log("http_success_audio", { ...snapshot, bytes: routeAudio.bytes, mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg", transport: result.transport || "unknown", elapsedMs: _now() - startedAt });
-    return res.status(200).send(routeAudio.buffer);
+    if (shouldAutoProbe()) { try { await runHeartbeatProbe({ traceId }); } catch (_) {} }
+
+    const token = String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || '').trim();
+    const voiceUuid = String(process.env.RESEMBLE_VOICE_UUID || '').trim();
+    const outputFormatRaw = String(body0.output_format || body0.outputFormat || body0.format || process.env.RESEMBLE_OUTPUT_FORMAT || 'mp3').trim().toLowerCase();
+    const outputFormat = outputFormatRaw === 'wav' ? 'wav' : 'mp3';
+    const timeoutMs = clampInt(process.env.RESEMBLE_TIMEOUT_MS, 15000, 3000, 45000);
+
+    if (!resembleSynthesize) {
+      updateHealth(false, { error: 'resemble_provider_missing' });
+      return safeJson(res, 503, { ok: false, traceId, code: 'TTS_PROVIDER_MISSING', message: 'TTS provider module missing.' });
+    }
+
+    if (!token || !voiceUuid) {
+      updateHealth(false, { error: 'resemble_not_configured' });
+      return safeJson(res, 503, { ok: false, traceId, code: 'TTS_NOT_CONFIGURED', message: 'TTS not configured.' });
+    }
+
+    if (shouldBypassPrimaryLiveAttempt()) {
+      return safeJson(res, 503, { ok: false, traceId, code: 'TTS_COOLDOWN', message: 'TTS temporarily unavailable (cooldown).' });
+    }
+
+    const maxChars = clampInt(process.env.SB_TTS_MAX_CHARS, 1800, 120, 5000);
+    let text = cleanText(body0.text || body0.input || '');
+    if (bool(body0.firstSentenceOnly, false)) text = firstSentence(text);
+
+    if (!text) return safeJson(res, 400, { ok: false, traceId, code: 'TTS_EMPTY_TEXT', message: 'No text provided.' });
+    if (text.length > maxChars) text = text.slice(0, maxChars).trim();
+
+    const mood = String(body0.mood || (body0.stateHints && body0.stateHints.mood) || '').trim();
+    const presetKey = String(body0.preset || body0.ttsPreset || presetFromMood(mood)).trim() || 'NYX_CALM';
+
+    const envDefaults = {
+      stability: clamp01(process.env.SB_TTS_STABILITY == null ? 0.55 : process.env.SB_TTS_STABILITY),
+      similarity_boost: clamp01(process.env.SB_TTS_SIMILARITY == null ? 0.75 : process.env.SB_TTS_SIMILARITY),
+      style: clamp01(process.env.SB_TTS_STYLE == null ? 0.25 : process.env.SB_TTS_STYLE),
+      use_speaker_boost: bool(process.env.SB_TTS_SPEAKER_BOOST, true),
+    };
+    const voiceSettings = mergeVoiceSettings({ envDefaults, presetKey, body: body0 });
+
+    const cKey = cacheKey({ provider: 'resemble', voiceId: voiceUuid, voiceSettings, text, format: outputFormat });
+    const cached = cacheGet(cKey);
+    if (cached && cached.buf && cached.buf.length > 0) {
+      res.set('X-SB-TTS-Provider', 'resemble');
+      res.set('X-SB-TTS-TraceId', traceId);
+      res.set('X-SB-TTS-Cache', 'HIT');
+      res.set('X-SB-TTS-Bytes', String(cached.buf.length));
+      res.set('X-SB-TTS-Ms', String(Math.max(0, nowMs() - started)));
+      return sendAudio(res, req, { body: body0, buf: cached.buf, headers: cached.meta && cached.meta.headers, mimeType: outputFormat === 'wav' ? 'audio/wav' : 'audio/mpeg' });
+    }
+
+    const t0 = nowMs();
+    let result = null;
+    let lastErr = null;
+
+    const retryOnce = bool(process.env.SB_TTS_RETRY_ONCE, true);
+    const attempts = retryOnce ? 2 : 1;
+
+    for (let i = 0; i < attempts; i++) {
+      try {
+        result = await resembleSynthesize({
+          text,
+          voiceUuid,
+          outputFormat,
+          timeoutMs,
+          traceId,
+          voiceSettings,
+          stateHints: {
+            sessionId: sessionId || undefined,
+            mood: mood || undefined,
+            preset: presetKey || undefined,
+          }
+        });
+        if (result && result.ok && result.buffer && result.buffer.length > 1000) { lastErr = null; break; }
+        lastErr = (result && (result.error || result.message)) || 'vendor_failed';
+      } catch (e) {
+        lastErr = (e && e.message) ? e.message : 'vendor_error';
+      }
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 180 + Math.floor(Math.random() * 120)));
+    }
+
+    const upstreamMs = Math.max(0, nowMs() - t0);
+
+    if (!result || !result.ok || !result.buffer || result.buffer.length <= 1000) {
+      const providerStatus = result && Number.isFinite(Number(result.status)) ? Number(result.status) : 0;
+      const providerReason = String(result && (result.reason || result.error || result.message) || lastErr || 'vendor_failed').slice(0, 220);
+      updateHealth(false, { error: providerReason, upstreamMs, upstreamStatus: providerStatus });
+      try {
+        res.set('X-SB-TTS-Upstream-Status', String(providerStatus));
+        res.set('X-SB-TTS-Failure-Reason', providerReason.replace(/[^a-zA-Z0-9_.:-]+/g, '_').slice(0, 120));
+      } catch (_) {}
+      return safeJson(res, 503, {
+        ok: false,
+        traceId,
+        code: 'TTS_UPSTREAM_FAIL',
+        reason: providerReason,
+        provider: 'resemble',
+        providerStatus,
+        retryable: !!(result && result.retryable),
+        rawResponse: result && result.rawResponse ? result.rawResponse : undefined,
+        message: 'TTS unavailable.'
+      });
+    }
+
+    updateHealth(true, { upstreamMs, upstreamStatus: result.status });
+
+    const buf = result.buffer;
+    const mimeType = outputFormat === 'wav' ? 'audio/wav' : 'audio/mpeg';
+
+    res.set('X-SB-TTS-Provider', 'resemble');
+    res.set('X-SB-TTS-TraceId', traceId);
+    res.set('X-SB-TTS-Cache', 'MISS');
+    res.set('X-SB-TTS-Bytes', String(buf.length));
+    res.set('X-SB-TTS-UpstreamMs', String(upstreamMs));
+    res.set('X-SB-TTS-Upstream-Status', String(result.status || 200));
+    res.set('X-SB-TTS-Ms', String(Math.max(0, nowMs() - started)));
+
+    cacheSet(cKey, buf, { headers: { provider: 'resemble', traceId, upstreamMs, bytes: buf.length, preset: presetKey } });
+
+    if (logJsonEnabled()) {
+      try {
+        console.log('[TTS]', JSON.stringify({
+          t: new Date().toISOString(),
+          ok: true,
+          provider: 'resemble',
+          traceId,
+          sessionId: sessionId || undefined,
+          bytes: buf.length,
+          upstreamMs,
+          totalMs: Math.max(0, nowMs() - started),
+          preset: presetKey,
+          mood: mood || undefined
+        }));
+      } catch (_) {}
+    }
+
+    // Do NOT return upstream headers wholesale (privacy/noise). Only buffer.
+    return sendAudio(res, req, { body: body0, buf, headers: null, mimeType });
   } catch (e) {
-    const detail = _trim(e && (e.message || e)) || "Failed to send audio buffer.";
-    _log("http_send_failed", { ...snapshot, detail, elapsedMs: _now() - startedAt });
-    _setHeader(res, "X-SB-Response-Mode", "error");
-    return _safeJson(res, 503, {
-      ok: false,
-      spokenUnavailable: true,
-      error: "send_failed",
-      detail,
-      traceId: input.traceId,
-      provider: result.provider || "resemble",
-      requestId: result.requestId || input.requestId || "",
-      turnId: result.turnId || input.turnId || "",
-      sessionId: result.sessionId || input.sessionId || "",
-      payload: { spokenUnavailable: true }
-    });
+    if (logJsonEnabled()) {
+      try {
+        console.log('[TTS]', JSON.stringify({ t: new Date().toISOString(), ok: false, traceId, code: 'TTS_EXCEPTION', error: (e && e.message) ? e.message.slice(0, 220) : 'exception' }));
+      } catch (_) {}
+    }
+    return safeJson(res, 503, { ok: false, traceId, code: 'TTS_EXCEPTION', message: 'TTS failed.' });
+  } finally {
+    leaveInflight();
   }
 }
 
-const health = () => _healthSnapshot();
-
-
-module.exports = {
-  handleTts,
-  delegateTts,
-  ttsHandler: handleTts,
-  handler: handleTts,
-  handle: delegateTts,
-  synthesize: delegateTts,
-  tts: delegateTts,
-  generate,
-  health,
-  PHASES,
-  MANUAL_RESEMBLE_CONFIG,
-  getSynthesizeEndpointState,
-  getStreamEndpointState,
-  getTransportMode,
-  TTS_VERSION,
-  VERSION: TTS_VERSION,
-  version: TTS_VERSION
-};
-module.exports.default = module.exports;
+module.exports = { TTS_VERSION, handleTts, _health: hb };
