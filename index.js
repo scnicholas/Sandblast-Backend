@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-GUIDE-STEPS-7-8-9-R1: action validation, consent-bound preferences, redacted telemetry, and release hardening.
+
 // NYX-GUIDE-SHELL-R1: Public persistent guide configuration and health boundary.
 // NYX-TTS-CONFIG-ALIAS-BRIDGE-R13: Canonicalize Resemble token/voice aliases before Utils/tts loads and expose redacted readiness diagnostics.
 // NYX-TTS-R7: TTS responses bypass conversation reply projection and preserve provider diagnostics.
@@ -720,7 +722,7 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
  * This layer exposes UI capability metadata only. It never composes replies,
  * accesses Marion private memory, selects domains or dispatches TTS.
  */
-const NYX_GUIDE_SHELL_VERSION = "nyx.guideOrchestration.indexBoundary/2.0-steps1-3";
+const NYX_GUIDE_SHELL_VERSION = "nyx.guideOrchestration.indexBoundary/3.0-steps1-9";
 const NYX_GUIDE_SHELL_CONTRACT = "nyx.guideOrchestration/1.0";
 const NYX_GUIDE_PUBLIC_PATHS = Object.freeze([
   "/api/nyx/guide/config",
@@ -806,9 +808,9 @@ function applyNyxGuideCors(req, res) {
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
   res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Accept,X-SB-Session-ID,X-SB-Trace-ID");
-  res.setHeader("Access-Control-Expose-Headers", "X-SB-Nyx-Guide-Version,X-SB-Nyx-Guide-Contract");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Accept,X-SB-Session-ID,X-SB-Trace-ID,X-SB-Event-ID,X-Requested-With");
+  res.setHeader("Access-Control-Expose-Headers", "X-SB-Nyx-Guide-Version,X-SB-Nyx-Guide-Contract,X-SB-Trace-ID,X-SB-Nyx-Guide-Steps-7-9,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset");
   res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-SB-Nyx-Guide-Version", NYX_GUIDE_SHELL_VERSION);
@@ -853,15 +855,26 @@ function buildNyxGuidePublicConfig(req) {
       mediaControl: true,
       contextAwareness: true,
       structuredActions: true,
+      actionValidation: true,
       symbolicTargetsOnly: true,
       crossPageContinuity: "client_session",
+      crossPropertyContinuity: true,
+      publicPreferences: "client_consent",
+      redactedTelemetry: "aggregate_only",
+      releaseReadiness: true,
       reducedMotion: true
     },
     states: ["available", "listening", "thinking", "speaking", "guiding", "quiet", "recovery", "minimized"],
     orchestrationSteps: {
       step1PersistentGuideShell: true,
       step2PageAndEcosystemContext: true,
-      step3NavigationAndMediaActions: true
+      step3NavigationAndMediaActions: true,
+      step4AvatarAnimation: true,
+      step5CrossPropertyContinuity: true,
+      step6TelevisionAdaptation: true,
+      step7ActionOrchestration: true,
+      step8ConsentBoundPublicPreferences: true,
+      step9ProductionResilience: true
     },
     actionPolicy: {
       allowedTypes: ["navigate", "play_radio", "stop_radio", "open_media", "open_tv", "open_roku", "open_synapse", "open_guide", "focus_input", "summarize"],
@@ -874,7 +887,15 @@ function buildNyxGuidePublicConfig(req) {
       chat: "/api/chat",
       tts: "/api/tts",
       voice: "/api/voice",
-      guideHealth: "/api/nyx/guide/health"
+      guideHealth: "/api/nyx/guide/health",
+      actionsSchema: "/api/nyx/guide/actions/schema",
+      actionsValidate: "/api/nyx/guide/actions/validate",
+      preferencesSchema: "/api/nyx/guide/preferences/schema",
+      preferencesNormalize: "/api/nyx/guide/preferences/normalize",
+      preferencesReset: "/api/nyx/guide/preferences/reset",
+      continuityNormalize: "/api/nyx/guide/continuity/normalize",
+      telemetry: "/api/nyx/guide/telemetry",
+      releaseHealth: "/api/nyx/guide/release/health"
     },
     lifecycleEvents: {
       guideState: "nyx:guide:state",
@@ -889,7 +910,11 @@ function buildNyxGuidePublicConfig(req) {
       publicSessionOnly: true,
       privateMemoryAccess: false,
       rawAudioStored: false,
-      serverGuideMemoryRequired: false
+      serverGuideMemoryRequired: false,
+      preferenceConsentRequired: true,
+      preferencesServerStored: false,
+      telemetryAggregateOnly: true,
+      rawConversationTelemetry: false
     },
     bridge: bridge && bridge.nonAuthority === true ? {
       loaded: true,
@@ -934,7 +959,14 @@ app.get(NYX_GUIDE_HEALTH_PATHS, (req, res) => {
     publicSurface: true,
     nonAuthority: true,
     finalReplyAuthority: false,
-    steps: { persistentShell: true, contextAwareness: true, structuredActions: true },
+    steps: {
+      persistentShell: true,
+      contextAwareness: true,
+      structuredActions: true,
+      actionValidation: true,
+      consentBoundPreferences: true,
+      productionResilience: true
+    },
     actionExecutionAuthority: "client_user_gesture",
     t: Date.now()
   });
@@ -948,6 +980,640 @@ app.locals.nyxGuideShell = {
   nonAuthority: true
 };
 /* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_END */
+
+/* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_START
+ * Public action validation, consent-bound preference normalization, redacted
+ * telemetry aggregation, rate limiting and release-readiness reporting.
+ * This boundary never executes model actions, never stores public preferences,
+ * never logs raw conversations and never changes Marion or TTS authority.
+ */
+const NYX_GUIDE_STEPS_7_8_9_VERSION = "nyx.guideOrchestration.indexBoundary/3.0-steps7-8-9";
+const NYX_GUIDE_ACTION_CONTRACT = "nyx.guideAction/1.1";
+const NYX_GUIDE_ACTION_PLAN_CONTRACT = "nyx.guideActionPlan/1.0";
+const NYX_GUIDE_PREFERENCES_CONTRACT = "nyx.publicPreferences/1.0";
+const NYX_GUIDE_TELEMETRY_CONTRACT = "nyx.guideTelemetryEvent/1.0";
+const NYX_GUIDE_PRODUCTION_CONTRACT = "nyx.guideProductionPolicy/1.0";
+
+const NYX_GUIDE_789_TARGETS = Object.freeze([
+  "sandblast_home", "sandblast_radio", "sandblast_tv", "sandblast_roku",
+  "sandblast_cartoons", "sandblast_classics", "synapse", "lingosentinel",
+  "apps", "about", "nyx_guide", "guide_input", "current_surface"
+]);
+const NYX_GUIDE_789_ACTION_TYPES = Object.freeze([
+  "navigate", "play_radio", "stop_radio", "open_media", "open_tv",
+  "open_roku", "open_synapse", "open_guide", "focus_input", "summarize",
+  "tv_focus", "tv_back", "tv_play_pause", "tv_open_details", "dismiss_guide"
+]);
+const NYX_GUIDE_789_TELEMETRY_EVENTS = Object.freeze([
+  "nyx_action_presented", "nyx_action_selected", "nyx_action_completed",
+  "nyx_action_failed", "nyx_preference_consent", "nyx_preference_updated",
+  "nyx_preference_reset", "nyx_surface_handoff", "nyx_voice_playback",
+  "nyx_avatar_state", "nyx_tv_remote_input", "nyx_guide_error"
+]);
+
+const NYX_GUIDE_789_PATHS = Object.freeze({
+  actionsSchema: Object.freeze(["/api/nyx/guide/actions/schema", "/nyx/guide/actions/schema"]),
+  actionsValidate: Object.freeze(["/api/nyx/guide/actions/validate", "/nyx/guide/actions/validate"]),
+  preferencesSchema: Object.freeze(["/api/nyx/guide/preferences/schema", "/nyx/guide/preferences/schema"]),
+  preferencesNormalize: Object.freeze(["/api/nyx/guide/preferences/normalize", "/nyx/guide/preferences/normalize"]),
+  preferencesReset: Object.freeze(["/api/nyx/guide/preferences/reset", "/nyx/guide/preferences/reset"]),
+  continuityNormalize: Object.freeze(["/api/nyx/guide/continuity/normalize", "/nyx/guide/continuity/normalize"]),
+  telemetry: Object.freeze(["/api/nyx/guide/telemetry", "/nyx/guide/telemetry"]),
+  releaseHealth: Object.freeze(["/api/nyx/guide/release/health", "/nyx/guide/release/health"])
+});
+
+function nyxGuide789BoolEnv(name, fallback) {
+  const raw = String(process.env[name] == null ? "" : process.env[name]).trim().toLowerCase();
+  if (!raw) return fallback;
+  if (["1", "true", "yes", "on", "enabled"].includes(raw)) return true;
+  if (["0", "false", "no", "off", "disabled"].includes(raw)) return false;
+  return fallback;
+}
+
+function nyxGuide789NumberEnv(name, fallback, min, max) {
+  const value = Number(process.env[name]);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
+}
+
+const NYX_GUIDE_789_FEATURES = Object.freeze({
+  enabled: nyxGuide789BoolEnv("SB_NYX_GUIDE_STEPS_7_9_ENABLED", true),
+  actions: nyxGuide789BoolEnv("SB_NYX_GUIDE_ACTIONS_ENABLED", true),
+  preferences: nyxGuide789BoolEnv("SB_NYX_GUIDE_PREFERENCES_ENABLED", true),
+  telemetry: nyxGuide789BoolEnv("SB_NYX_GUIDE_TELEMETRY_ENABLED", true),
+  rollbackSafeMode: nyxGuide789BoolEnv("SB_NYX_GUIDE_ROLLBACK_SAFE_MODE", false),
+  releaseState: nyxGuideSafeText(process.env.SB_NYX_GUIDE_RELEASE_STATE || "candidate", 24)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_"),
+  canaryPercent: Math.round(nyxGuide789NumberEnv("SB_NYX_GUIDE_CANARY_PERCENT", 100, 0, 100))
+});
+
+const NYX_GUIDE_789_MAX_BODY_BYTES = Math.round(
+  nyxGuide789NumberEnv("SB_NYX_GUIDE_MAX_BODY_BYTES", 32768, 4096, 131072)
+);
+const NYX_GUIDE_789_RATE_LIMIT = Math.round(
+  nyxGuide789NumberEnv("SB_NYX_GUIDE_RATE_LIMIT_PER_MINUTE", 90, 10, 600)
+);
+const NYX_GUIDE_789_TELEMETRY_RATE_LIMIT = Math.round(
+  nyxGuide789NumberEnv("SB_NYX_GUIDE_TELEMETRY_RATE_LIMIT_PER_MINUTE", 180, 20, 1200)
+);
+
+const nyxGuide789RateStore = new Map();
+const nyxGuide789DedupeStore = new Map();
+const nyxGuide789TelemetryCounts = new Map();
+const nyxGuide789TelemetryState = {
+  accepted: 0,
+  rejected: 0,
+  deduplicated: 0,
+  lastAcceptedAt: 0,
+  lastRejectedAt: 0
+};
+
+function nyxGuide789SafeObj(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function nyxGuide789Hash(value) {
+  return crypto.createHash("sha256").update(String(value == null ? "" : value), "utf8").digest("hex");
+}
+
+function nyxGuide789TraceId(req) {
+  const provided = nyxGuideSafeText(
+    req && req.headers && (req.headers["x-sb-trace-id"] || req.headers["x-request-id"]),
+    96
+  ).replace(/[^a-zA-Z0-9_.:-]+/g, "_");
+  if (provided) return provided;
+  return `guide_${Date.now().toString(16)}_${crypto.randomBytes(5).toString("hex")}`;
+}
+
+function nyxGuide789ClientKey(req) {
+  const forwarded = nyxGuideSafeText(req && req.headers && req.headers["x-forwarded-for"], 200)
+    .split(",")[0]
+    .trim();
+  const remote = nyxGuideSafeText(
+    forwarded ||
+    (req && req.ip) ||
+    (req && req.socket && req.socket.remoteAddress) ||
+    "unknown",
+    120
+  );
+  const session = nyxGuideSafeText(req && req.headers && req.headers["x-sb-session-id"], 96);
+  return nyxGuide789Hash(`${remote}|${session || "anonymous"}`).slice(0, 24);
+}
+
+function nyxGuide789OriginAccepted(req) {
+  const origin = nyxGuideSafeText(req && req.headers && req.headers.origin, 320);
+  return !origin || nyxGuideOriginAllowed(origin);
+}
+
+function nyxGuide789ApplyHeaders(req, res, traceId) {
+  applyNyxGuideCors(req, res);
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type,Accept,X-SB-Session-ID,X-SB-Trace-ID,X-SB-Event-ID,X-Requested-With"
+  );
+  res.setHeader(
+    "Access-Control-Expose-Headers",
+    "X-SB-Nyx-Guide-Version,X-SB-Nyx-Guide-Contract,X-SB-Nyx-Guide-Steps-7-9,X-SB-Trace-ID,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset"
+  );
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("X-SB-Nyx-Guide-Steps-7-9", NYX_GUIDE_STEPS_7_8_9_VERSION);
+  res.setHeader("X-SB-Trace-ID", traceId || nyxGuide789TraceId(req));
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+}
+
+function nyxGuide789RequestBodyWithinLimit(req) {
+  const length = Number(req && req.headers && req.headers["content-length"]);
+  if (Number.isFinite(length) && length > NYX_GUIDE_789_MAX_BODY_BYTES) return false;
+  try {
+    const body = req && req.body;
+    if (body == null) return true;
+    return Buffer.byteLength(JSON.stringify(body), "utf8") <= NYX_GUIDE_789_MAX_BODY_BYTES;
+  } catch (_) {
+    return false;
+  }
+}
+
+function nyxGuide789RateCheck(req, res, limit) {
+  const now = Date.now();
+  const windowMs = 60_000;
+  const route = nyxGuideSafeText(req && (req.path || req.originalUrl), 180);
+  const key = `${nyxGuide789ClientKey(req)}|${route}`;
+  let entry = nyxGuide789RateStore.get(key);
+  if (!entry || now >= entry.resetAt) entry = { count: 0, resetAt: now + windowMs };
+  entry.count += 1;
+  nyxGuide789RateStore.set(key, entry);
+
+  if (nyxGuide789RateStore.size > 5000) {
+    for (const [storedKey, stored] of nyxGuide789RateStore) {
+      if (!stored || now >= stored.resetAt) nyxGuide789RateStore.delete(storedKey);
+      if (nyxGuide789RateStore.size <= 4000) break;
+    }
+  }
+
+  const remaining = Math.max(0, limit - entry.count);
+  res.setHeader("RateLimit-Limit", String(limit));
+  res.setHeader("RateLimit-Remaining", String(remaining));
+  res.setHeader("RateLimit-Reset", String(Math.ceil(entry.resetAt / 1000)));
+  return { allowed: entry.count <= limit, remaining, resetAt: entry.resetAt };
+}
+
+function nyxGuide789Preflight(req, res, options) {
+  const opts = nyxGuide789SafeObj(options);
+  const traceId = nyxGuide789TraceId(req);
+  nyxGuide789ApplyHeaders(req, res, traceId);
+
+  if (!nyxGuide789OriginAccepted(req)) {
+    res.status(403).json({
+      ok: false,
+      error: "origin_not_allowed",
+      traceId,
+      diagnosticsRedacted: true
+    });
+    return null;
+  }
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return null;
+  }
+  if (!NYX_GUIDE_789_FEATURES.enabled || NYX_GUIDE_789_FEATURES.rollbackSafeMode) {
+    res.status(503).json({
+      ok: false,
+      error: "guide_steps_7_9_disabled",
+      rollbackSafeMode: NYX_GUIDE_789_FEATURES.rollbackSafeMode,
+      traceId,
+      diagnosticsRedacted: true
+    });
+    return null;
+  }
+  if (!nyxGuide789RequestBodyWithinLimit(req)) {
+    res.status(413).json({
+      ok: false,
+      error: "guide_payload_too_large",
+      maxBytes: NYX_GUIDE_789_MAX_BODY_BYTES,
+      traceId,
+      diagnosticsRedacted: true
+    });
+    return null;
+  }
+  const rate = nyxGuide789RateCheck(
+    req,
+    res,
+    opts.telemetry ? NYX_GUIDE_789_TELEMETRY_RATE_LIMIT : NYX_GUIDE_789_RATE_LIMIT
+  );
+  if (!rate.allowed) {
+    res.status(429).json({
+      ok: false,
+      error: "guide_rate_limited",
+      retryAfterMs: Math.max(0, rate.resetAt - Date.now()),
+      traceId,
+      diagnosticsRedacted: true
+    });
+    return null;
+  }
+  return { traceId, rate };
+}
+
+function nyxGuide789Bridge() {
+  return nyxGuideSiteBridgeLoad.ok && nyxGuideSiteBridgeLoad.mod
+    ? nyxGuideSiteBridgeLoad.mod
+    : null;
+}
+
+function nyxGuide789ActionPlan(body) {
+  const bridge = nyxGuide789Bridge();
+  if (bridge && typeof bridge.buildGuideActionPlan === "function") {
+    return bridge.buildGuideActionPlan(body, {
+      televisionGuide: nyxGuide789SafeObj(body).televisionGuide
+    });
+  }
+  return {
+    contract: NYX_GUIDE_ACTION_PLAN_CONTRACT,
+    version: NYX_GUIDE_STEPS_7_8_9_VERSION,
+    authoritative: false,
+    finalReplyAuthority: false,
+    executionAuthority: "client_user_gesture",
+    serverExecutionAllowed: false,
+    autoExecute: false,
+    requiresUserGesture: true,
+    actionCount: 0,
+    rejectedCount: Array.isArray(nyxGuide789SafeObj(body).actions)
+      ? nyxGuide789SafeObj(body).actions.length
+      : 0,
+    actions: []
+  };
+}
+
+function nyxGuide789PreferenceEnvelope(body) {
+  const bridge = nyxGuide789Bridge();
+  const src = nyxGuide789SafeObj(body);
+  if (bridge && typeof bridge.buildPublicPreferenceEnvelope === "function") {
+    return bridge.buildPublicPreferenceEnvelope(
+      src,
+      nyxGuide789SafeObj(src.previousPreferences)
+    );
+  }
+  return {
+    contract: NYX_GUIDE_PREFERENCES_CONTRACT,
+    version: NYX_GUIDE_STEPS_7_8_9_VERSION,
+    publicSessionOnly: true,
+    privateMemoryAccess: false,
+    authoritative: false,
+    consentRequired: true,
+    consentGranted: false,
+    rememberPreferences: false,
+    storage: "client_session",
+    serverStored: false,
+    rawConversationStored: false,
+    rawAudioStored: false,
+    preferences: {}
+  };
+}
+
+function nyxGuide789ContinuityEnvelope(body) {
+  const bridge = nyxGuide789Bridge();
+  const src = nyxGuide789SafeObj(body);
+  if (bridge && typeof bridge.buildContinuityEnvelope === "function") {
+    return bridge.buildContinuityEnvelope(
+      src,
+      nyxGuide789SafeObj(src.previousContinuity)
+    );
+  }
+  return {
+    contract: "nyx.guideContinuity/1.0",
+    version: NYX_GUIDE_STEPS_7_8_9_VERSION,
+    publicSessionOnly: true,
+    privateMemoryAccess: false,
+    authoritative: false,
+    handoff: { active: false, userGestureRequired: true, autoNavigate: false }
+  };
+}
+
+function nyxGuide789TelemetryEvent(body) {
+  const bridge = nyxGuide789Bridge();
+  if (bridge && typeof bridge.sanitizeNyxGuideTelemetryEvent === "function") {
+    return bridge.sanitizeNyxGuideTelemetryEvent(body);
+  }
+  return null;
+}
+
+function nyxGuide789Dedupe(eventId) {
+  const now = Date.now();
+  const key = nyxGuideSafeText(eventId, 80);
+  if (!key) return false;
+  const previous = nyxGuide789DedupeStore.get(key);
+  nyxGuide789DedupeStore.set(key, now + 10 * 60 * 1000);
+  if (nyxGuide789DedupeStore.size > 5000) {
+    for (const [storedKey, expiresAt] of nyxGuide789DedupeStore) {
+      if (!expiresAt || now >= expiresAt) nyxGuide789DedupeStore.delete(storedKey);
+      if (nyxGuide789DedupeStore.size <= 4000) break;
+    }
+  }
+  return Number(previous) > now;
+}
+
+function nyxGuide789RecordTelemetry(event) {
+  nyxGuide789TelemetryState.accepted += 1;
+  nyxGuide789TelemetryState.lastAcceptedAt = Date.now();
+  const key = `${event.event}|${event.success === null ? "unknown" : event.success ? "success" : "failure"}`;
+  nyxGuide789TelemetryCounts.set(key, (nyxGuide789TelemetryCounts.get(key) || 0) + 1);
+  if (nyxGuide789BoolEnv("SB_NYX_GUIDE_TELEMETRY_LOG", false)) {
+    console.log("[NYX_GUIDE_TELEMETRY]", JSON.stringify({
+      event: event.event,
+      surface: event.surface,
+      actionType: event.actionType,
+      target: event.target,
+      success: event.success,
+      durationMs: event.durationMs,
+      traceId: event.traceId,
+      reasonCode: event.reasonCode,
+      at: event.at,
+      diagnosticsRedacted: true
+    }));
+  }
+}
+
+const nyxGuide789AllPaths = Object.values(NYX_GUIDE_789_PATHS).flat();
+for (const routePath of nyxGuide789AllPaths) {
+  app.options(routePath, (req, res) => {
+    const traceId = nyxGuide789TraceId(req);
+    nyxGuide789ApplyHeaders(req, res, traceId);
+    if (!nyxGuide789OriginAccepted(req)) {
+      return res.status(403).json({
+        ok: false,
+        error: "origin_not_allowed",
+        traceId,
+        diagnosticsRedacted: true
+      });
+    }
+    return res.status(204).end();
+  });
+}
+
+app.get(NYX_GUIDE_789_PATHS.actionsSchema, (req, res) => {
+  const preflight = nyxGuide789Preflight(req, res);
+  if (!preflight) return;
+  return res.status(200).json({
+    ok: true,
+    version: NYX_GUIDE_STEPS_7_8_9_VERSION,
+    contract: NYX_GUIDE_ACTION_PLAN_CONTRACT,
+    actionContract: NYX_GUIDE_ACTION_CONTRACT,
+    enabled: NYX_GUIDE_789_FEATURES.actions,
+    allowedTypes: NYX_GUIDE_789_ACTION_TYPES,
+    allowedTargets: NYX_GUIDE_789_TARGETS,
+    symbolicTargetsOnly: true,
+    externalUrlsAcceptedFromModel: false,
+    serverExecutionAllowed: false,
+    autoExecute: false,
+    requiresUserGesture: true,
+    desktopMaxActions: 6,
+    televisionMaxActions: 4,
+    traceId: preflight.traceId,
+    diagnosticsRedacted: true
+  });
+});
+
+app.post(NYX_GUIDE_789_PATHS.actionsValidate, (req, res) => {
+  const preflight = nyxGuide789Preflight(req, res);
+  if (!preflight) return;
+  if (!NYX_GUIDE_789_FEATURES.actions) {
+    return res.status(503).json({
+      ok: false,
+      error: "guide_actions_disabled",
+      traceId: preflight.traceId,
+      diagnosticsRedacted: true
+    });
+  }
+  const plan = nyxGuide789ActionPlan(nyxGuide789SafeObj(req.body));
+  return res.status(200).json({
+    ok: true,
+    accepted: true,
+    executed: false,
+    executionAuthority: "client_user_gesture",
+    plan,
+    traceId: preflight.traceId,
+    diagnosticsRedacted: true
+  });
+});
+
+app.get(NYX_GUIDE_789_PATHS.preferencesSchema, (req, res) => {
+  const preflight = nyxGuide789Preflight(req, res);
+  if (!preflight) return;
+  return res.status(200).json({
+    ok: true,
+    version: NYX_GUIDE_STEPS_7_8_9_VERSION,
+    contract: NYX_GUIDE_PREFERENCES_CONTRACT,
+    enabled: NYX_GUIDE_789_FEATURES.preferences,
+    consentRequired: true,
+    defaultStorage: "client_session",
+    persistentStorage: "client_persistent_with_explicit_consent",
+    serverStored: false,
+    allowedPreferenceKeys: [
+      "voiceEnabled", "textOnly", "reducedMotion", "avatarVisible",
+      "suggestionsEnabled", "captionsEnabled", "preferredLanguage",
+      "televisionMode", "lastSurface", "lastDestination"
+    ],
+    clearKeys: ["sb.nyx.publicPreferences.v1", "sb.nyx.publicSession.v1"],
+    prohibitedData: [
+      "credentials", "authorization", "cookies", "api_tokens",
+      "private_marion_memory", "raw_audio", "sensitive_conversation_history"
+    ],
+    traceId: preflight.traceId,
+    diagnosticsRedacted: true
+  });
+});
+
+app.post(NYX_GUIDE_789_PATHS.preferencesNormalize, (req, res) => {
+  const preflight = nyxGuide789Preflight(req, res);
+  if (!preflight) return;
+  if (!NYX_GUIDE_789_FEATURES.preferences) {
+    return res.status(503).json({
+      ok: false,
+      error: "guide_preferences_disabled",
+      traceId: preflight.traceId,
+      diagnosticsRedacted: true
+    });
+  }
+  const preferences = nyxGuide789PreferenceEnvelope(nyxGuide789SafeObj(req.body));
+  return res.status(200).json({
+    ok: true,
+    normalized: true,
+    serverStored: false,
+    storageAuthority: "client_consent",
+    publicPreferences: preferences,
+    traceId: preflight.traceId,
+    diagnosticsRedacted: true
+  });
+});
+
+function nyxGuide789ResetPreferences(req, res) {
+  const preflight = nyxGuide789Preflight(req, res);
+  if (!preflight) return;
+  return res.status(200).json({
+    ok: true,
+    reset: true,
+    serverStored: false,
+    clearKeys: ["sb.nyx.publicPreferences.v1", "sb.nyx.publicSession.v1"],
+    publicPreferences: nyxGuide789PreferenceEnvelope({
+      clearRequested: true,
+      consentGranted: false
+    }),
+    traceId: preflight.traceId,
+    diagnosticsRedacted: true
+  });
+}
+app.delete(NYX_GUIDE_789_PATHS.preferencesReset, nyxGuide789ResetPreferences);
+app.post(NYX_GUIDE_789_PATHS.preferencesReset, nyxGuide789ResetPreferences);
+
+app.post(NYX_GUIDE_789_PATHS.continuityNormalize, (req, res) => {
+  const preflight = nyxGuide789Preflight(req, res);
+  if (!preflight) return;
+  const continuity = nyxGuide789ContinuityEnvelope(nyxGuide789SafeObj(req.body));
+  return res.status(200).json({
+    ok: true,
+    normalized: true,
+    serverStored: false,
+    publicOnly: true,
+    continuity,
+    traceId: preflight.traceId,
+    diagnosticsRedacted: true
+  });
+});
+
+app.post(NYX_GUIDE_789_PATHS.telemetry, (req, res) => {
+  const preflight = nyxGuide789Preflight(req, res, { telemetry: true });
+  if (!preflight) return;
+  if (!NYX_GUIDE_789_FEATURES.telemetry) {
+    return res.status(503).json({
+      ok: false,
+      error: "guide_telemetry_disabled",
+      traceId: preflight.traceId,
+      diagnosticsRedacted: true
+    });
+  }
+
+  const event = nyxGuide789TelemetryEvent({
+    ...nyxGuide789SafeObj(req.body),
+    traceId: preflight.traceId
+  });
+  if (!event) {
+    nyxGuide789TelemetryState.rejected += 1;
+    nyxGuide789TelemetryState.lastRejectedAt = Date.now();
+    return res.status(400).json({
+      ok: false,
+      error: "invalid_guide_telemetry_event",
+      allowedEvents: NYX_GUIDE_789_TELEMETRY_EVENTS,
+      traceId: preflight.traceId,
+      diagnosticsRedacted: true
+    });
+  }
+
+  const deduplicated = nyxGuide789Dedupe(event.eventId);
+  if (deduplicated) {
+    nyxGuide789TelemetryState.deduplicated += 1;
+  } else {
+    nyxGuide789RecordTelemetry(event);
+  }
+
+  return res.status(202).json({
+    ok: true,
+    accepted: true,
+    deduplicated,
+    aggregateOnly: true,
+    rawEventStored: false,
+    rawConversationStored: false,
+    rawAudioStored: false,
+    traceId: preflight.traceId,
+    diagnosticsRedacted: true
+  });
+});
+
+app.get(NYX_GUIDE_789_PATHS.releaseHealth, (req, res) => {
+  const preflight = nyxGuide789Preflight(req, res);
+  if (!preflight) return;
+  const bridge = nyxGuide789Bridge();
+  const bridgeReady = !!(
+    bridge &&
+    typeof bridge.buildGuideActionPlan === "function" &&
+    typeof bridge.buildPublicPreferenceEnvelope === "function" &&
+    typeof bridge.sanitizeNyxGuideTelemetryEvent === "function"
+  );
+  const releaseReady = (
+    NYX_GUIDE_789_FEATURES.enabled &&
+    !NYX_GUIDE_789_FEATURES.rollbackSafeMode &&
+    bridgeReady
+  );
+
+  const counters = {};
+  for (const [key, count] of nyxGuide789TelemetryCounts) counters[key] = count;
+
+  return res.status(releaseReady ? 200 : 503).json({
+    ok: releaseReady,
+    service: "nyx-guide-steps-7-8-9",
+    version: NYX_GUIDE_STEPS_7_8_9_VERSION,
+    productionContract: NYX_GUIDE_PRODUCTION_CONTRACT,
+    releaseReady,
+    releaseState: NYX_GUIDE_789_FEATURES.releaseState,
+    canaryPercent: NYX_GUIDE_789_FEATURES.canaryPercent,
+    rollbackSafeMode: NYX_GUIDE_789_FEATURES.rollbackSafeMode,
+    features: NYX_GUIDE_789_FEATURES,
+    bridgeReady,
+    contracts: {
+      action: NYX_GUIDE_ACTION_CONTRACT,
+      actionPlan: NYX_GUIDE_ACTION_PLAN_CONTRACT,
+      preferences: NYX_GUIDE_PREFERENCES_CONTRACT,
+      telemetry: NYX_GUIDE_TELEMETRY_CONTRACT
+    },
+    security: {
+      originAllowlist: true,
+      payloadLimitBytes: NYX_GUIDE_789_MAX_BODY_BYTES,
+      rateLimitPerMinute: NYX_GUIDE_789_RATE_LIMIT,
+      telemetryRateLimitPerMinute: NYX_GUIDE_789_TELEMETRY_RATE_LIMIT,
+      actionsServerExecuted: false,
+      preferencesServerStored: false,
+      telemetryAggregateOnly: true,
+      rawConversationLogged: false,
+      rawAudioStored: false,
+      tokensExposed: false,
+      publicOnly: true,
+      diagnosticsRedacted: true
+    },
+    telemetry: {
+      ...nyxGuide789TelemetryState,
+      counters
+    },
+    integration: {
+      widgetActionExecutorRequired: true,
+      widgetConsentControlsRequired: true,
+      nativeRokuSceneGraphModified: false,
+      nativeRokuIntegrationRequired: true
+    },
+    uptimeMs: Math.max(0, Date.now() - SERVER_BOOT_AT),
+    traceId: preflight.traceId,
+    t: Date.now()
+  });
+});
+
+app.locals.nyxGuideSteps789 = {
+  version: NYX_GUIDE_STEPS_7_8_9_VERSION,
+  contracts: {
+    action: NYX_GUIDE_ACTION_CONTRACT,
+    actionPlan: NYX_GUIDE_ACTION_PLAN_CONTRACT,
+    preferences: NYX_GUIDE_PREFERENCES_CONTRACT,
+    telemetry: NYX_GUIDE_TELEMETRY_CONTRACT,
+    production: NYX_GUIDE_PRODUCTION_CONTRACT
+  },
+  features: NYX_GUIDE_789_FEATURES,
+  publicOnly: true,
+  nonAuthority: true,
+  actionExecutionAuthority: "client_user_gesture",
+  preferenceStorageAuthority: "client_consent",
+  telemetryMode: "redacted_aggregate"
+};
+/* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_END */
 
 // LINGOSENTINEL_SPONTANEITY_50LANG_MOUNT_START
 // Dynamic spontaneous translation routes for LingoSentinel.
