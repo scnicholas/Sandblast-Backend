@@ -4693,3 +4693,201 @@ module.exports = { normalizeVisibleFinalReplyFields,
   } catch(_err) {}
 })();
 /* MARION_PUBLIC_SAFE_DEEP_PROJECTION_R2_END */
+
+
+/* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_START */
+(function nyxGuideOrchestrationChatEnginePatch(){
+  "use strict";
+  const PATCH_VERSION = "nyx.guideOrchestration.chatEngine/2.0-steps1-3";
+  const CONTRACT = "nyx.guideOrchestration/1.0";
+  const LANES = new Set(["home","search","live","watch","roku","news","about","apps"]);
+  const ACTION_TYPES = new Set(["navigate","play_radio","stop_radio","open_media","open_tv","open_roku","open_synapse","open_guide","focus_input","summarize"]);
+  const crypto = require("crypto");
+
+  function obj(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+  function txt(v,max){ const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim(); return s.slice(0,max||240); }
+  function bool(v,d){ if(typeof v==="boolean")return v; const s=txt(v,16).toLowerCase(); if(["1","true","yes","on","enabled","playing"].includes(s))return true; if(["0","false","no","off","disabled","stopped"].includes(s))return false; return !!d; }
+  function lane(v){
+    const raw=txt(v||"home",40).toLowerCase().replace(/[^a-z0-9_-]+/g,"");
+    const aliases={radio:"live",listen:"live",tv:"watch",television:"watch",cartoons:"watch",classic:"watch",synapse:"news",discover:"news",guide:"search",nyx:"search",app:"apps"};
+    const n=aliases[raw]||raw;
+    return LANES.has(n)?n:"home";
+  }
+  function walk(value,depth,seen,out){
+    if(!value||typeof value!=="object"||depth>4)return;
+    seen=seen||new Set(); if(seen.has(value))return; seen.add(value);
+    const v=obj(value);
+    const direct=[v.guideContext,v.nyxGuideContext,v.ecosystemGuideContext,v.guide,v.nyxGuide];
+    for(const c of direct){ if(c&&typeof c==="object"&&!Array.isArray(c))out.push(c); }
+    const keys=["payload","meta","finalEnvelope","result","response","data","client","ecosystem","runtimeState","state","sessionPatch","memoryPatch","routing","composerContext"];
+    for(const k of keys){ if(v[k]&&typeof v[k]==="object")walk(v[k],depth+1,seen,out); }
+  }
+  function firstContext(args,result){
+    const found=[];
+    for(const a of Array.prototype.slice.call(args||[]))walk(a,0,new Set(),found);
+    walk(result,0,new Set(),found);
+    return found.length?found[0]:null;
+  }
+  function readText(args,result){
+    const values=[];
+    function collect(v,depth,seen){
+      if(v==null||depth>4)return;
+      if(typeof v==="string"){values.push(txt(v,1600));return;}
+      if(typeof v!=="object")return;
+      seen=seen||new Set(); if(seen.has(v))return; seen.add(v);
+      const x=obj(v);
+      for(const k of ["userText","rawUserText","message","text","prompt","input","query","normalizedUserIntent","effectivePrompt","spokenText","speechText","reply","publicReply","visibleReply","finalReply"]) if(typeof x[k]==="string")values.push(txt(x[k],1600));
+      for(const k of ["payload","meta","result","finalEnvelope","body","runtimeState","guideContext"]) if(x[k]&&typeof x[k]==="object")collect(x[k],depth+1,seen);
+    }
+    for(const a of Array.prototype.slice.call(args||[]))collect(a,0,new Set());
+    collect(result,0,new Set());
+    return values.filter(Boolean).join(" ").slice(0,2400);
+  }
+  function goalFromText(text,ctx){
+    const t=txt(text,2400).toLowerCase();
+    const g=txt(ctx&&ctx.goal,32).toLowerCase();
+    if(["listen","watch","discover","navigate","ask","summarize","learn"].includes(g))return g;
+    if(/\b(radio|listen|music|love letters)\b/.test(t))return"listen";
+    if(/\b(tv|television|watch|video|cartoon|classic|roku)\b/.test(t))return"watch";
+    if(/\b(synapse|news|discover|story|stories)\b/.test(t))return"discover";
+    if(/\b(summarize|summary)\b/.test(t))return"summarize";
+    if(/\b(where|navigate|open|go to|take me)\b/.test(t))return"navigate";
+    return"ask";
+  }
+  function normalizeContext(raw,text){
+    const c=obj(raw), media=obj(c.mediaState||c.media), prefs=obj(c.preferences);
+    const current=lane(c.currentLane||c.lane||c.route||"home");
+    const previous=lane(c.previousLane||"home");
+    const available=Array.isArray(c.availableRoutes)?c.availableRoutes.map(lane).filter((v,i,a)=>a.indexOf(v)===i).slice(0,10):Array.from(LANES);
+    const out={
+      contract:"nyx.guideContext/1.0",
+      surface:txt(c.surface||c.site||"sandblast.channel",96)||"sandblast.channel",
+      page:txt(c.page||c.pathname||"/",180)||"/",
+      currentLane:current,
+      previousLane:previous,
+      lastAction:txt(c.lastAction||c.action||"context",48)||"context",
+      goal:goalFromText(text,c),
+      inputMode:/voice|speech|mic/i.test(txt(c.inputMode||c.inputSource,32))?"voice":"text",
+      panelOpen:bool(c.panelOpen||c.open,false),
+      voiceEnabled:bool(c.voiceEnabled===undefined?prefs.voiceEnabled:c.voiceEnabled,true),
+      reducedMotion:bool(c.reducedMotion===undefined?prefs.reducedMotion:c.reducedMotion,false),
+      mediaState:{
+        radioPlaying:bool(media.radioPlaying||media.radio,false),
+        videoPlaying:bool(media.videoPlaying||media.video,false)
+      },
+      availableRoutes:available,
+      publicSessionOnly:true,
+      privateMemoryAccess:false
+    };
+    out.contextHash=crypto.createHash("sha256").update([out.surface,out.page,out.currentLane,out.previousLane,out.goal,out.inputMode,out.mediaState.radioPlaying,out.mediaState.videoPlaying].join("|")).digest("hex").slice(0,20);
+    return out;
+  }
+  function sanitizeAction(a){
+    const x=obj(a), type=txt(x.type||x.action,32).toLowerCase().replace(/[^a-z0-9_]+/g,"_");
+    if(!ACTION_TYPES.has(type))return null;
+    const target=lane(x.target||x.lane||({open_tv:"watch",open_roku:"roku",open_synapse:"news",open_guide:"search",play_radio:"live",stop_radio:"live",open_media:"watch"}[type]||"home"));
+    const labels={navigate:"Open",play_radio:"Play Radio",stop_radio:"Stop Radio",open_media:"Open Media",open_tv:"Open Sandblast TV",open_roku:"Open Sandblast on Roku",open_synapse:"Open Synapse",open_guide:"Ask Nyx",focus_input:"Type a Question",summarize:"Summarize"};
+    return{
+      contract:"nyx.guideAction/1.0",
+      id:txt(x.id||`${type}_${target}`,64),
+      type,
+      target,
+      lane:target,
+      label:txt(x.label||labels[type],80),
+      requiresUserGesture:true,
+      autoExecute:false,
+      advisoryOnly:true
+    };
+  }
+  function collectExistingActions(value,depth,seen,out){
+    if(!value||typeof value!=="object"||depth>4)return;
+    seen=seen||new Set(); if(seen.has(value))return; seen.add(value);
+    const v=obj(value);
+    for(const list of [v.guideActions,v.actions,obj(v.guide).actions]){
+      if(Array.isArray(list))for(const a of list){const n=sanitizeAction(a);if(n)out.push(n);}
+    }
+    for(const k of ["payload","meta","finalEnvelope","result","response","data","guide"]) if(v[k]&&typeof v[k]==="object")collectExistingActions(v[k],depth+1,seen,out);
+  }
+  function inferActions(text,ctx){
+    const t=txt(text,2400).toLowerCase(), out=[];
+    function add(type,target,label){const n=sanitizeAction({type,target,label});if(n)out.push(n);}
+    if(/\b(stop|pause|turn off|mute)\b.{0,28}\b(radio|stream|music)\b|\b(radio|stream|music)\b.{0,28}\b(stop|pause|off)\b/.test(t))add("stop_radio","live");
+    else if(/\b(play|start|turn on|listen to|open)\b.{0,32}\b(radio|live stream|love letters|music)\b|\b(radio|live stream)\b.{0,24}\b(play|start|on)\b/.test(t))add("play_radio","live");
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\b(roku)\b/.test(t))add("open_roku","roku");
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\b(sandblast tv|television|tv|cartoons?|classics?)\b/.test(t))add("open_tv","watch");
+    if(/\b(open|show|go to|take me to|continue to|discover)\b.{0,36}\b(synapse|news)\b/.test(t))add("open_synapse","news");
+    if(/\b(open|show|play|watch)\b.{0,28}\b(media|video|feature|preview)\b/.test(t))add("open_media","watch");
+    if(/\b(go|take me|return|back)\b.{0,20}\b(home|ecosystem)\b/.test(t))add("navigate","home","Open Home");
+    if(/\b(open|show|use|ask)\b.{0,24}\b(nyx|guide|chat)\b/.test(t))add("open_guide","search");
+    if(/\b(summarize|summary|brief me)\b/.test(t))add("summarize",ctx.currentLane,"Summarize This");
+    return out;
+  }
+  function dedupe(actions){
+    const out=[],seen=new Set();
+    for(const a of actions){const n=sanitizeAction(a);if(!n)continue;const k=n.type+"|"+n.target;if(seen.has(k))continue;seen.add(k);out.push(n);if(out.length>=4)break;}
+    return out;
+  }
+  function shouldApply(args,result,raw){
+    if(raw)return true;
+    const t=readText(args,result).toLowerCase();
+    return /\b(nyx|sandblast|radio|roku|synapse|cartoon|classic|television|navigate|guide)\b/.test(t);
+  }
+  function project(result,args){
+    if(!result||typeof result!=="object")return result;
+    const raw=firstContext(args,result);
+    if(!shouldApply(args,result,raw))return result;
+    const text=readText(args,result), context=normalizeContext(raw||{},text);
+    const existing=[];collectExistingActions(result,0,new Set(),existing);for(const a of Array.prototype.slice.call(args||[]))collectExistingActions(a,0,new Set(),existing);
+    const actions=dedupe(existing.concat(inferActions(text,context)));
+    const out=Array.isArray(result)?result.slice():Object.assign({},result);
+    if(Array.isArray(out))return out;
+    out.guideContext=context;
+    out.guideActions=actions;
+    out.guideOrchestration={
+      version:PATCH_VERSION,
+      contract:CONTRACT,
+      step1PersistentShell:true,
+      step2ContextAware:true,
+      step3StructuredActions:true,
+      actionExecutionAuthority:"client_user_gesture",
+      replyAuthority:"marion_final_only",
+      nonAuthority:true
+    };
+    const payload=Object.assign({},obj(out.payload),{guideContext:context,guideActions:actions});
+    out.payload=payload;
+    out.sessionPatch=Object.assign({},obj(out.sessionPatch),{
+      nyxGuideContinuity:{
+        version:PATCH_VERSION,
+        currentLane:context.currentLane,
+        previousLane:context.previousLane,
+        goal:context.goal,
+        lastAction:context.lastAction,
+        contextHash:context.contextHash,
+        pendingActionTypes:actions.map(a=>a.type),
+        publicSessionOnly:true,
+        privateMemoryAccess:false,
+        updatedAt:Date.now()
+      }
+    });
+    return out;
+  }
+  function wrap(fn,name){
+    if(typeof fn!=="function"||fn.__nyxGuideSteps123R2)return fn;
+    const w=function(){const args=arguments,r=fn.apply(this,args);if(r&&typeof r.then==="function")return r.then(v=>project(v,args));return project(r,args);};
+    try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}
+    try{Object.defineProperty(w,"name",{value:fn.name||name||"nyxGuideWrapped"});}catch(_){}
+    w.__nyxGuideSteps123R2=true;return w;
+  }
+  try{
+    if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      ["run","handleChat","chat","handle","reply","processWithMarion","route","maybeResolve","ask","handleMessage","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+      api.NYX_GUIDE_ORCHESTRATION_CHATENGINE_VERSION=PATCH_VERSION;
+      api.normalizeNyxGuideContext=function(v,t){return normalizeContext(v,t||"");};
+      api.buildNyxGuideActions=function(t,c){return dedupe(inferActions(t,normalizeContext(c||{},t||"")));};
+      api.attachNyxGuideOrchestration=function(v,c){return project(v,[{guideContext:c||{}}]);};
+    }
+  }catch(_){}
+})();
+/* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_END */
