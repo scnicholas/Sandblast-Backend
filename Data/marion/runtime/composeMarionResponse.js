@@ -8142,3 +8142,68 @@ try{
   } catch(_err) {}
 })();
 /* MARION_PUBLIC_SAFE_DEEP_PROJECTION_R2_END */
+
+
+/* NYX_GUIDE_COMPOSER_STEPS_2_3_R2_START */
+(function nyxGuideComposerPatch(){
+  "use strict";
+  const PATCH_VERSION="nyx.guideOrchestration.composeMarionResponse/2.0-steps2-3";
+  const LANES=new Set(["home","search","live","watch","roku","news","about","apps"]);
+  const TYPES=new Set(["navigate","play_radio","stop_radio","open_media","open_tv","open_roku","open_synapse","open_guide","focus_input","summarize"]);
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function txt(v,max){const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim();return s.slice(0,max||240);}
+  function lane(v){const raw=txt(v||"home",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");const m={radio:"live",listen:"live",tv:"watch",television:"watch",cartoons:"watch",classic:"watch",synapse:"news",discover:"news",guide:"search",nyx:"search"};const n=m[raw]||raw;return LANES.has(n)?n:"home";}
+  function scan(){
+    const text=[],contexts=[],actions=[],seen=new Set();
+    function walk(v,d){if(v==null||d>5)return;if(typeof v==="string"){text.push(txt(v,1800));return;}if(typeof v!=="object"||seen.has(v))return;seen.add(v);const x=obj(v);for(const k of["userText","rawUserText","message","text","prompt","input","query","normalizedUserIntent","effectivePrompt","reply","publicReply","visibleReply","finalReply","spokenText","speechText"])if(typeof x[k]==="string")text.push(txt(x[k],1800));for(const c of[x.guideContext,x.nyxGuideContext,x.ecosystemGuideContext,x.guide])if(c&&typeof c==="object"&&!Array.isArray(c))contexts.push(c);for(const l of[x.guideActions,x.actions,obj(x.guide).actions])if(Array.isArray(l))actions.push.apply(actions,l);for(const k of["payload","meta","result","finalEnvelope","body","routing","runtimeState","state","session","sessionPatch","memoryPatch","composerContext","domainConcierge"])if(x[k]&&typeof x[k]==="object")walk(x[k],d+1);}
+    for(const a of arguments)walk(a,0);return{text:text.filter(Boolean).join(" ").slice(0,3000),context:contexts[0]||{},actions};
+  }
+  function context(raw){
+    const c=obj(raw),media=obj(c.mediaState||c.media);
+    return{contract:"nyx.guideContext/1.0",surface:txt(c.surface||c.site||"sandblast.channel",96)||"sandblast.channel",page:txt(c.page||c.pathname||"/",180)||"/",currentLane:lane(c.currentLane||c.lane||"home"),previousLane:lane(c.previousLane||"home"),lastAction:txt(c.lastAction||c.action||"context",48)||"context",goal:txt(c.goal||"ask",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"_")||"ask",inputMode:/voice|speech|mic/i.test(txt(c.inputMode||c.inputSource,24))?"voice":"text",mediaState:{radioPlaying:!!media.radioPlaying,videoPlaying:!!media.videoPlaying},publicSessionOnly:true,privateMemoryAccess:false};
+  }
+  function make(type,target,label){if(!TYPES.has(type))return null;const labels={navigate:"Open",play_radio:"Play Radio",stop_radio:"Stop Radio",open_media:"Open Media",open_tv:"Open Sandblast TV",open_roku:"Open Sandblast on Roku",open_synapse:"Open Synapse",open_guide:"Ask Nyx",focus_input:"Type a Question",summarize:"Summarize"};const l=lane(target);return{contract:"nyx.guideAction/1.0",id:type+"_"+l,type,target:l,lane:l,label:txt(label||labels[type],80),requiresUserGesture:true,autoExecute:false,advisoryOnly:true};}
+  function sanitize(a){const x=obj(a),type=txt(x.type||x.action,32).toLowerCase().replace(/[^a-z0-9_]+/g,"_");return TYPES.has(type)?make(type,x.target||x.lane||"home",x.label):null;}
+  function infer(text,ctx){
+    const t=txt(text,3000).toLowerCase(),out=[],add=(type,target,label)=>{const a=make(type,target,label);if(a&&!out.some(x=>x.type===a.type&&x.target===a.target))out.push(a);};
+    if(/\b(stop|pause|turn off|mute)\b.{0,28}\b(radio|stream|music)\b|\b(radio|stream|music)\b.{0,28}\b(stop|pause|off)\b/.test(t))add("stop_radio","live");
+    else if(/\b(play|start|turn on|listen to|open)\b.{0,32}\b(radio|live stream|love letters|music)\b|\b(radio|live stream)\b.{0,24}\b(play|start|on)\b/.test(t))add("play_radio","live");
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\broku\b/.test(t))add("open_roku","roku");
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\b(sandblast tv|television|tv|cartoons?|classics?)\b/.test(t))add("open_tv","watch");
+    if(/\b(open|show|go to|take me to|continue to|discover)\b.{0,36}\b(synapse|news)\b/.test(t))add("open_synapse","news");
+    if(/\b(open|show|play|watch)\b.{0,28}\b(media|video|feature|preview)\b/.test(t))add("open_media","watch");
+    if(/\b(go|take me|return|back)\b.{0,20}\b(home|ecosystem)\b/.test(t))add("navigate","home","Open Home");
+    if(/\b(open|show|use|ask)\b.{0,24}\b(nyx|guide|chat)\b/.test(t))add("open_guide","search");
+    if(/\b(summarize|summary|brief me)\b/.test(t))add("summarize",ctx.currentLane,"Summarize This");
+    return out.slice(0,4);
+  }
+  function project(value,args){
+    if(!value||typeof value!=="object")return value;
+    const found=scan.apply(null,Array.prototype.slice.call(args||[]).concat([value]));
+    if(!Object.keys(found.context).length&&!/\b(nyx|sandblast|radio|roku|synapse|tv|television|cartoon|classic|navigate|guide)\b/i.test(found.text))return value;
+    const ctx=context(found.context),actions=[];
+    for(const a of found.actions.map(sanitize).filter(Boolean).concat(infer(found.text,ctx))){if(!actions.some(x=>x.type===a.type&&x.target===a.target))actions.push(a);if(actions.length>=4)break;}
+    const out=Object.assign({},value);
+    out.guideContext=ctx;
+    out.guideActions=actions;
+    out.guideOrchestration={version:PATCH_VERSION,contract:"nyx.guideOrchestration/1.0",replyAuthority:"marion_final_only",actionExecutionAuthority:"client_user_gesture",nonAuthority:true,noUserFacingDiagnostics:true};
+    out.payload=Object.assign({},obj(out.payload),{guideContext:ctx,guideActions:actions});
+    const fe=obj(out.finalEnvelope);
+    if(Object.keys(fe).length)out.finalEnvelope=Object.assign({},fe,{guideContext:ctx,guideActions:actions,guideMetadataAdvisoryOnly:true});
+    out.sessionPatch=Object.assign({},obj(out.sessionPatch),{nyxGuideContinuity:{version:PATCH_VERSION,currentLane:ctx.currentLane,previousLane:ctx.previousLane,goal:ctx.goal,lastAction:ctx.lastAction,pendingActionTypes:actions.map(a=>a.type),targetLane:actions[0]?actions[0].target:ctx.currentLane,publicSessionOnly:true,privateMemoryAccess:false,updatedAt:Date.now()}});
+    return out;
+  }
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__nyxGuideComposerR2)return fn;const w=function(){const args=arguments,r=fn.apply(this,args);if(r&&typeof r.then==="function")return r.then(v=>project(v,args));return project(r,args);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__nyxGuideComposerR2=true;return w;}
+  try{
+    if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      ["composeMarionResponse","compose","buildReply","buildFinalEnvelope","createMarionFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","finalize","routeMarion","run","handle","handler","default"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+      api.NYX_GUIDE_COMPOSER_VERSION=PATCH_VERSION;
+      api.normalizeNyxGuideComposerContext=context;
+      api.buildNyxGuideComposerActions=function(text,c){return infer(text,context(c||{}));};
+      api.attachNyxGuideComposerMetadata=function(value,input){return project(value,[{guideContext:input||{}}]);};
+    }
+  }catch(_){}
+})();
+/* NYX_GUIDE_COMPOSER_STEPS_2_3_R2_END */
