@@ -1,203 +1,604 @@
 "use strict";
 
 /**
- * ttsProvidersResemble.js
+ * ttsProvidersresemble.js
+ * Resemble AI TTS Provider (sync, hardened)
  *
- * PURPOSE
- * - Provide one stable synthesis contract regardless of the underlying TTS runtime.
- * - Normalize provider-specific payload shapes into a predictable, playback-ready envelope.
- * - Fail loudly when a synth call returns no playable audio instead of silently passing an unusable object downstream.
+ * Primary goal: keep Nyx/Nexus voice online with a stable contract + resilience layer.
+ * - Provider-agnostic contract: { ok, buffer, mimeType, format, elapsedMs, reason?, retryable?, requestId? }
+ * - Retry cap (1) on transient failures
+ * - Cooldown vendor health mapping to prevent hammering when vendor is down/quota/auth fails
+ * - Strict env validation (no placeholders)
+ * - Binary-safe decoding (base64 -> Buffer)
+ *
+ * Endpoint:
+ *   POST https://f.cluster.resemble.ai/synthesize
+ * Response (success):
+ *   { success: true, audio_content: "<base64>", output_format: "mp3"|"wav", sample_rate, duration, ... }
+ * Response (error):
+ *   { detail: { type, code, message, status, request_id } }
+ *
+ * Env vars expected (aliases supported):
+ *   RESEMBLE_API_TOKEN        (required)  // Render: may be RESEMBLE_API_TOKEN or RESEMBLE_API_KEY
+ *   RESEMBLE_API_TOKEN       (alias; supported)
+ *   RESEMBLE_API_KEY          (alias; supported)
+ *
+ *   RESEMBLE_VOICE_UUID       (required)  // Resemble voice UUID/UID from dashboard ("Copy UUID")
+ *   RESEMBLE_VOICE_UUID      (alias; supported)
+ *
+ * Optional:
+ *   RESEMBLE_PROJECT_UUID     (optional)  // ignored if invalid
+ *   RESEMBLE_MODEL            (optional)
+ *   RESEMBLE_OUTPUT_FORMAT    (optional)  // "mp3" or "wav" (default: "mp3")
+ *   RESEMBLE_USE_HD           (optional)  // "true"/"false"
+ *   RESEMBLE_TIMEOUT_MS       (optional)  // default 15000
+ *   RESEMBLE_HEALTH_COOLDOWN_MS (optional) // default 30000
+ *   SB_TTS_RAW_RESPONSE_LOG (optional) // true enables pre-decode provider response logging
+ *   SB_TTS_RAW_RESPONSE_LOG_MAX_CHARS (optional) // default 6000, max 20000
+ *
+ * Exports:
+ *   synthesize({ text, voiceUuid, projectUuid, title, outputFormat, model, useHd, sampleRate, timeoutMs, traceId })
  */
 
-let tts = null;
+'use strict';
 
-try { tts = require("./tts_consolidated"); } catch (_e) { tts = null; }
-if (!tts) {
-  try { tts = require("./tts"); } catch (_e) { tts = null; }
-}
+const crypto = require("crypto");
 
-const VERSION = "ttsProvidersResemble v2.2.2 DIRECT-BUFFER-PRESERVATION";
+const PROVIDER_VERSION = "ttsProvidersresemble v2.3.0 RAW-PROVIDER-BOUNDARY-LOGGING";
+const DEFAULT_ENDPOINT = "https://f.cluster.resemble.ai/synthesize";
 
-function safeStr(v) {
-  return v === null || v === undefined ? "" : String(v);
-}
-
-function isObj(v) {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
-function cleanText(v) {
-  return safeStr(v).replace(/\s+/g, " ").trim();
-}
-
-function coerceBuffer(value) {
-  if (!value) return null;
-  if (Buffer.isBuffer(value)) return value;
-  if (value instanceof Uint8Array) return Buffer.from(value);
-  if (typeof value === "string") {
-    const clean = value.trim().replace(/^data:audio\/[^;]+;base64,/i, "").replace(/\s+/g, "");
-    if (clean.length > 32 && /^[A-Za-z0-9+/=]+$/.test(clean)) {
-      try {
-        const buf = Buffer.from(clean, "base64");
-        return buf.length ? buf : null;
-      } catch (_e) { return null; }
-    }
-    return null;
+// --- Fetch polyfill (Phase: Resilience Layer / runtime hardening)
+let _fetch = globalThis.fetch;
+if (typeof _fetch !== "function") {
+  try {
+    // node-fetch v3 is ESM; some stacks still ship v2 CJS. We'll try both patterns safely.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const nf = require("node-fetch");
+    _fetch = nf.default || nf;
+  } catch (_) {
+    // Leave undefined; we'll return a clean config/runtime error below.
   }
-  if (isObj(value) && value.type === "Buffer" && Array.isArray(value.data)) {
-    try { return Buffer.from(value.data); } catch (_e) { return null; }
-  }
-  return null;
 }
 
-function extractBuffer(src) {
-  const candidates = [
-    src && src.buffer, src && src.audioBuffer, src && src.binary, src && src.audio_content, src && src.audioContent, src && src.audio, src && src.data,
-    src && src.payload && src.payload.buffer,
-    src && src.payload && src.payload.audioBuffer,
-    src && src.payload && src.payload.binary,
-    src && src.payload && src.payload.audio,
-    src && src.payload && src.payload.audio_content,
-    src && src.data && src.data.audio_content,
-    src && src.result && src.result.buffer,
-    src && src.result && src.result.audioBuffer,
-    src && src.result && src.result.audio,
-    src && src.result && src.result.audio_content
-  ];
-  for (const candidate of candidates) {
-    const buffer = coerceBuffer(candidate);
-    if (buffer && buffer.length) return buffer;
-  }
-  return null;
+// --- Vendor health mapping (Phase: Resilience Layer)
+const _vendorHealth = {
+  downUntilMs: 0,
+  reason: null,
+  lastStatus: null,
+};
+
+function _now() { return Date.now(); }
+
+function _boolEnv(v, def = false) {
+  if (v == null) return def;
+  const s = String(v).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
+  if (["0", "false", "no", "n", "off"].includes(s)) return false;
+  return def;
 }
 
-function normalizeMimeType(raw, audioUrl, audioBase64, buffer, declaredFormat) {
-  const m = cleanText(raw).toLowerCase();
-  if (m) return m;
-  const f = cleanText(declaredFormat).toLowerCase();
-  if (f === "wav") return "audio/wav";
+function _intEnv(v, def) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+}
+
+function _mimeForFormat(fmt) {
+  const f = String(fmt || "").toLowerCase();
   if (f === "mp3") return "audio/mpeg";
-  if (f === "ogg") return "audio/ogg";
-  if (f === "webm") return "audio/webm";
-  if (buffer && buffer.length >= 12 && buffer.slice(0, 4).toString("ascii") === "RIFF") return "audio/wav";
-  const u = cleanText(audioUrl).toLowerCase();
-  if (/\.mp3(?:[?#]|$)/.test(u)) return "audio/mpeg";
-  if (/\.wav(?:[?#]|$)/.test(u)) return "audio/wav";
-  if (/\.ogg(?:[?#]|$)/.test(u)) return "audio/ogg";
-  if (/\.webm(?:[?#]|$)/.test(u)) return "audio/webm";
-  if (audioBase64) return "audio/mpeg";
-  return "";
+  if (f === "wav") return "audio/wav";
+  return "application/octet-stream";
 }
 
-function extractNested(obj, paths) {
-  for (const path of paths) {
-    let cur = obj;
-    let ok = true;
-    for (const key of path) {
-      if (!isObj(cur) && !Array.isArray(cur)) { ok = false; break; }
-      cur = cur[key];
-      if (cur === undefined || cur === null) { ok = false; break; }
-    }
-    if (ok && cur !== undefined && cur !== null && cur !== "") return cur;
+function _safeJsonParse(txt) {
+  try { return JSON.parse(txt); } catch { return null; }
+}
+
+function _clampInt(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
+
+function _rawResponseLogEnabled() {
+  return _boolEnv(process.env.SB_TTS_RAW_RESPONSE_LOG, false);
+}
+
+function _rawResponseLogMaxChars() {
+  return _clampInt(process.env.SB_TTS_RAW_RESPONSE_LOG_MAX_CHARS, 6000, 512, 20000);
+}
+
+function _sha256Text(value) {
+  return crypto.createHash("sha256").update(String(value == null ? "" : value), "utf8").digest("hex");
+}
+
+function _safeHeaderValue(headers, name) {
+  try {
+    if (!headers) return "";
+    if (typeof headers.get === "function") return String(headers.get(name) || "");
+    const direct = headers[name] || headers[String(name).toLowerCase()] || headers[String(name).toUpperCase()];
+    return direct == null ? "" : String(direct);
+  } catch (_) {
+    return "";
   }
-  return "";
 }
 
-function normalizeSynthesisResult(raw, inputOpts) {
-  const src = isObj(raw) ? raw : {};
-  const buffer = coerceBuffer(raw) || extractBuffer(src);
-  let audioBase64 = cleanText(extractNested(src, [
-    ["audioBase64"], ["base64"], ["audio_base64"], ["audio_content"], ["audioContent"],
-    ["audio", "base64"], ["audio", "audio_content"], ["data", "base64"], ["data", "audio_content"],
-    ["payload", "audioBase64"], ["payload", "base64"], ["payload", "audio_content"],
-    ["result", "audioBase64"], ["result", "audio_content"]
-  ])).replace(/^data:audio\/[^;]+;base64,/i, "").replace(/\s+/g, "");
-  if (!audioBase64 && buffer && buffer.length) audioBase64 = buffer.toString("base64");
+function _safeResponseHeaderSnapshot(headers) {
+  const allowed = [
+    "content-type", "content-length", "date", "server",
+    "x-request-id", "request-id", "retry-after",
+    "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"
+  ];
+  const out = {};
+  for (const name of allowed) {
+    const value = _safeHeaderValue(headers, name);
+    if (value) out[name] = value.slice(0, 240);
+  }
+  return out;
+}
 
-  const audioUrl = cleanText(extractNested(src, [
-    ["audioUrl"], ["url"], ["audio_url"], ["audio_src"], ["audio", "url"], ["audio", "audio_src"], ["data", "url"], ["data", "audio_src"],
-    ["payload", "audioUrl"], ["payload", "url"], ["payload", "audio_src"], ["result", "audioUrl"], ["result", "audio_src"]
-  ]));
-  const declaredFormat = extractNested(src, [["output_format"], ["format"], ["audioFormat"], ["audio", "format"], ["data", "output_format"], ["data", "format"]]);
-  const mimeType = normalizeMimeType(
-    extractNested(src, [["mimeType"], ["mime_type"], ["contentType"], ["content_type"], ["audio", "mimeType"], ["data", "mimeType"]]),
-    audioUrl,
-    audioBase64,
-    buffer,
-    declaredFormat
-  ) || "audio/mpeg";
-  const format = cleanText(declaredFormat) || (mimeType === "audio/mpeg" ? "mp3" : mimeType.replace(/^audio\//, ""));
-  const durationMs = Number(extractNested(src, [
-    ["durationMs"], ["duration_ms"], ["audio", "durationMs"], ["data", "durationMs"]
-  ]) || 0) || 0;
-  const provider = cleanText(src.provider || src.engine || src.vendor || "resemble") || "resemble";
-  const textSpoken = cleanText(
-    (inputOpts && (inputOpts.textSpeak || inputOpts.text || inputOpts.plainText || inputOpts.textDisplay)) ||
-    src.textSpoken || src.textSpeak || src.text || src.plainText || src.textDisplay || ""
+function _redactAudioPayloadFields(rawText) {
+  const raw = String(rawText == null ? "" : rawText);
+  let audioFieldsRedacted = 0;
+  const text = raw.replace(
+    /("(?:audio_content|audio_base64|audioContent|audioBase64)"\s*:\s*")([^"]*)(")/gi,
+    (_match, prefix, value, suffix) => {
+      audioFieldsRedacted += 1;
+      return `${prefix}[REDACTED_AUDIO_BASE64 chars=${value.length} sha256=${_sha256Text(value)}]${suffix}`;
+    }
   );
-  const playable = !!(audioUrl || audioBase64 || (buffer && buffer.length));
+  return { text, audioFieldsRedacted };
+}
 
+function _safeEndpointLabel(endpoint) {
+  try {
+    const url = new URL(String(endpoint || DEFAULT_ENDPOINT));
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch (_) {
+    return "resemble_synthesize";
+  }
+}
+
+function _logRawProviderResponse({ response, rawText, traceId, endpoint, elapsedMs, error }) {
+  if (!_rawResponseLogEnabled()) return;
+  try {
+    const raw = String(rawText == null ? "" : rawText);
+    const redacted = _redactAudioPayloadFields(raw);
+    const limit = _rawResponseLogMaxChars();
+    const preview = redacted.text.slice(0, limit);
+    const status = response && Number.isFinite(Number(response.status)) ? Number(response.status) : 0;
+    const event = {
+      event: "resemble_raw_response_predecode",
+      providerVersion: PROVIDER_VERSION,
+      traceId: String(traceId || "").slice(0, 96),
+      endpoint: _safeEndpointLabel(endpoint),
+      status,
+      statusText: response && response.statusText ? String(response.statusText).slice(0, 120) : "",
+      elapsedMs: Math.max(0, Number(elapsedMs) || 0),
+      headers: _safeResponseHeaderSnapshot(response && response.headers),
+      rawLength: raw.length,
+      rawSha256: _sha256Text(raw),
+      previewTruncated: redacted.text.length > limit,
+      audioFieldsRedacted: redacted.audioFieldsRedacted,
+      rawPreview: preview,
+      error: error ? String(error).slice(0, 300) : ""
+    };
+    console.log("[TTS_RAW_PROVIDER_RESPONSE]", JSON.stringify(event));
+  } catch (logError) {
+    try {
+      console.log("[TTS_RAW_PROVIDER_RESPONSE]", JSON.stringify({
+        event: "resemble_raw_response_log_failed",
+        traceId: String(traceId || "").slice(0, 96),
+        error: String(logError && (logError.message || logError) || "log_failed").slice(0, 240)
+      }));
+    } catch (_) {}
+  }
+}
+
+function _looksLikeUid(v) {
+  const s = String(v || "").trim();
+  if (!s) return false;
+
+  const low = s.toLowerCase();
+  if (
+    low === "..." ||
+    low.includes("your_voice") ||
+    low.includes("your_project") ||
+    low.includes("replace") ||
+    low.includes("placeholder")
+  ) return false;
+
+  // Resemble UI shows short hex IDs in some places (e.g. 5dc633cb) — accept those too.
+  const isUuidish = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+  const isDigits = /^\d+$/.test(s);
+  const isShortHex = /^[0-9a-f]{8}$/i.test(s);
+
+  return isUuidish || isDigits || isShortHex;
+}
+
+function _extractDetailObj(bodyObjOrText) {
+  if (!bodyObjOrText || typeof bodyObjOrText !== "object") return null;
+  if (bodyObjOrText.detail && typeof bodyObjOrText.detail === "object") return bodyObjOrText.detail;
+  return null;
+}
+
+function _classifyResembleError(status, bodyObjOrText) {
+  const detailObj = _extractDetailObj(bodyObjOrText);
+  const statusStr = detailObj && typeof detailObj.status === "string" ? detailObj.status : null;
+
+  const text = typeof bodyObjOrText === "string" ? bodyObjOrText : JSON.stringify(bodyObjOrText || {});
+  const lower = text.toLowerCase();
+
+  if (status === 400 && (statusStr === "invalid_uid" || lower.includes("invalid_uid") || lower.includes("invalid id"))) {
+    return { reason: "invalid_uid", retryable: false, cooldown: true };
+  }
+
+  if (status === 401 || lower.includes("unauthorized") || lower.includes("invalid token")) {
+    return { reason: "auth_failed", retryable: false, cooldown: true };
+  }
+
+  if (status === 429 || lower.includes("rate limit")) {
+    return { reason: "rate_limited", retryable: false, cooldown: true };
+  }
+
+  if (status >= 500) {
+    return { reason: "vendor_5xx", retryable: true, cooldown: true };
+  }
+
+  if (status === 400) {
+    return { reason: "bad_request", retryable: false, cooldown: false };
+  }
+
+  return { reason: "vendor_error", retryable: status >= 500, cooldown: status >= 500 };
+}
+
+function _getToken() {
+  return (
+    process.env.RESEMBLE_API_TOKEN ||
+    process.env.RESEMBLE_API_TOKEN ||
+    process.env.RESEMBLE_API_KEY ||
+    ""
+  ).toString().trim();
+}
+
+function _getVoiceUuid(opts) {
+  const v = opts.voiceUuid || process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_UUID || "";
+  return String(v).trim();
+}
+
+function _cooldownMs() {
+  return _intEnv(process.env.RESEMBLE_HEALTH_COOLDOWN_MS, 30_000);
+}
+
+function _setVendorDown(reason, status) {
+  _vendorHealth.reason = reason || "vendor_down";
+  _vendorHealth.lastStatus = status || null;
+  _vendorHealth.downUntilMs = _now() + _cooldownMs();
+}
+
+function _clearVendorDown() {
+  _vendorHealth.reason = null;
+  _vendorHealth.lastStatus = null;
+  _vendorHealth.downUntilMs = 0;
+}
+
+function _isVendorDown() {
+  return _vendorHealth.downUntilMs && _vendorHealth.downUntilMs > _now();
+}
+
+// Low-noise logger hook; caller can pass traceId
+function _logDebug(_msg, _obj) {
+  // Keep default silent to avoid leaking tokens; wire to your structured logger if desired.
+  // Example:
+  // if (process.env.DEBUG_TTS === "1") console.log(_msg, _obj);
+}
+
+async function _postSynthesize({ endpoint, token, payload, timeoutMs, traceId }) {
+  if (typeof _fetch !== "function") {
+    return {
+      ok: false,
+      reason: "runtime_missing_fetch",
+      message: "Global fetch is unavailable. Use Node 18+ or install node-fetch.",
+      elapsedMs: 0,
+    };
+  }
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
+
+  const started = _now();
+  let res;
+  let rawText = "";
+  try {
+    res = await _fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...(traceId ? { "X-SB-Trace-Id": String(traceId) } : {}),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    rawText = await res.text();
+    const elapsedMs = _now() - started;
+
+    // Diagnostic boundary: capture the exact provider response before JSON parsing
+    // or audio_content/base64 decoding. Authorization and request headers are never logged.
+    _logRawProviderResponse({ response: res, rawText, traceId, endpoint, elapsedMs });
+
+    return {
+      ok: true,
+      status: res.status,
+      statusText: res.statusText || "",
+      headers: _safeResponseHeaderSnapshot(res.headers),
+      rawText,
+      rawLength: rawText.length,
+      rawSha256: _sha256Text(rawText),
+      elapsedMs,
+    };
+  } catch (err) {
+    const isAbort = err && (err.name === "AbortError" || String(err.message || "").toLowerCase().includes("aborted"));
+    _logRawProviderResponse({
+      response: res,
+      rawText,
+      traceId,
+      endpoint,
+      elapsedMs: _now() - started,
+      error: err && (err.message || err)
+    });
+    return {
+      ok: false,
+      reason: isAbort ? "timeout" : "network_error",
+      message: isAbort ? "Resemble synthesis timed out." : "Resemble network error.",
+      detail: err?.message || String(err),
+      elapsedMs: _now() - started,
+    };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function synthesize(opts = {}) {
+  const started = _now();
+
+  // Phase: Vendor health mapping / cooldown
+  if (_isVendorDown()) {
+    return {
+      ok: false,
+      reason: "vendor_down",
+      retryable: false,
+      message: "Resemble temporarily marked down; skipping call (cooldown active).",
+      vendor: { ..._vendorHealth },
+      elapsedMs: _now() - started,
+    };
+  }
+
+  const token = _getToken();
+  const voiceUuid = _getVoiceUuid(opts);
+
+  if (!token) {
+    return {
+      ok: false,
+      reason: "config_missing",
+      message: "Resemble token missing (set RESEMBLE_API_TOKEN or RESEMBLE_API_KEY).",
+      elapsedMs: _now() - started,
+    };
+  }
+  if (!voiceUuid) {
+    return {
+      ok: false,
+      reason: "config_missing",
+      message: "Resemble voice UUID missing (set RESEMBLE_VOICE_UUID).",
+      elapsedMs: _now() - started,
+    };
+  }
+  if (!_looksLikeUid(voiceUuid)) {
+    _setVendorDown("invalid_uid", 400);
+    return {
+      ok: false,
+      reason: "invalid_uid",
+      retryable: false,
+      message: "Invalid RESEMBLE_VOICE_UUID (placeholder/wrong format). Copy the voice UUID from Resemble (“Copy UUID”).",
+      elapsedMs: _now() - started,
+    };
+  }
+
+  const text = (opts.text ?? "").toString().trim();
+  if (!text) {
+    return {
+      ok: false,
+      reason: "bad_request",
+      message: "No text provided for synthesis.",
+      elapsedMs: _now() - started,
+    };
+  }
+
+  // Guard: Resemble synth endpoint typical limits; keep explicit.
+  if (text.length > 3000) {
+    return {
+      ok: false,
+      reason: "bad_request",
+      message: "Text too long for Resemble sync synthesize (max 3000 chars). Consider chunking on the caller side.",
+      elapsedMs: _now() - started,
+    };
+  }
+
+  const endpoint = opts.endpoint || DEFAULT_ENDPOINT;
+  const outputFormat = (opts.outputFormat || process.env.RESEMBLE_OUTPUT_FORMAT || "mp3").toString().toLowerCase();
+  const model = (opts.model || process.env.RESEMBLE_MODEL || "").toString().trim() || undefined;
+
+  // Optional project UUID (ignored if invalid, to avoid invalid_uid failures)
+  const projectUuidRaw = (opts.projectUuid || process.env.RESEMBLE_PROJECT_UUID || "").toString().trim() || undefined;
+  const projectUuid = projectUuidRaw && _looksLikeUid(projectUuidRaw) ? projectUuidRaw : undefined;
+
+  const title = (opts.title || "").toString().trim() || undefined;
+  const useHd = typeof opts.useHd === "boolean" ? opts.useHd : _boolEnv(process.env.RESEMBLE_USE_HD, false);
+  const sampleRate = (opts.sampleRate != null && opts.sampleRate !== "") ? Number(opts.sampleRate) : undefined;
+  const timeoutMs = (opts.timeoutMs != null) ? Number(opts.timeoutMs) : _intEnv(process.env.RESEMBLE_TIMEOUT_MS, 15000);
+
+  const payload = {
+    voice_uuid: String(voiceUuid),
+    data: text,
+    output_format: outputFormat,
+    ...(projectUuid ? { project_uuid: projectUuid } : {}),
+    ...(title ? { title } : {}),
+    ...(model ? { model } : {}),
+    ...(typeof sampleRate === "number" && Number.isFinite(sampleRate) ? { sample_rate: sampleRate } : {}),
+    ...(typeof useHd === "boolean" ? { use_hd: useHd } : {}),
+  };
+
+  // Phase: Retry with cap (1) for transient issues only
+  const maxAttempts = 2;
+  let lastErr = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const r = await _postSynthesize({
+      endpoint,
+      token,
+      payload,
+      timeoutMs,
+      traceId: opts.traceId,
+    });
+
+    if (!r.ok) {
+      // network/timeout
+      lastErr = r;
+      const retryable = r.reason === "network_error" || r.reason === "timeout";
+      if (!retryable || attempt === maxAttempts) {
+        _setVendorDown(r.reason, null);
+        return {
+          ok: false,
+          reason: r.reason,
+          retryable: false,
+          message: r.message || "Resemble request failed.",
+          detail: r.detail,
+          elapsedMs: _now() - started,
+        };
+      }
+      continue; // retry
+    }
+
+    // HTTP response
+    const body = _safeJsonParse(r.rawText) ?? r.rawText;
+
+    if (r.status < 200 || r.status >= 300) {
+      const cls = _classifyResembleError(r.status, body);
+      const detailObj = typeof body === "object" ? _extractDetailObj(body) : null;
+
+      _logDebug("Resemble TTS error", { attempt, status: r.status, cls, traceId: opts.traceId });
+
+      if (cls.cooldown) _setVendorDown(cls.reason, r.status);
+
+      // Only retry vendor_5xx once
+      if (cls.retryable && attempt < maxAttempts) {
+        lastErr = { status: r.status, body, cls };
+        continue;
+      }
+
+      return {
+        ok: false,
+        status: r.status,
+        reason: cls.reason,
+        retryable: cls.retryable,
+        message: cls.reason === "invalid_uid"
+          ? "Resemble rejected an ID (voice_uuid/project_uuid). Confirm RESEMBLE_VOICE_UUID (and RESEMBLE_PROJECT_UUID if set)."
+          : "Resemble synthesis failed.",
+        detail: body,
+        requestId: detailObj && typeof detailObj.request_id === "string" ? detailObj.request_id : undefined,
+        rawResponse: {
+          status: r.status,
+          contentType: r.headers && r.headers["content-type"] || "",
+          length: r.rawLength || 0,
+          sha256: r.rawSha256 || ""
+        },
+        elapsedMs: _now() - started,
+      };
+    }
+
+    // Success → decode audio
+    const audioContent = body && typeof body === "object" ? body.audio_content : null;
+    const fmt = (body && typeof body === "object" && body.output_format) ? body.output_format : outputFormat;
+
+    if (!audioContent || typeof audioContent !== "string") {
+      // Not a vendor-down case; likely API shape change or misconfig
+      return {
+        ok: false,
+        status: r.status,
+        reason: "bad_response",
+        retryable: false,
+        message: "Resemble returned success but no audio_content.",
+        detail: body,
+        rawResponse: {
+          status: r.status,
+          contentType: r.headers && r.headers["content-type"] || "",
+          length: r.rawLength || 0,
+          sha256: r.rawSha256 || ""
+        },
+        elapsedMs: _now() - started,
+      };
+    }
+
+    let buffer;
+    try {
+      buffer = Buffer.from(audioContent, "base64");
+    } catch (e) {
+      return {
+        ok: false,
+        status: r.status,
+        reason: "bad_response",
+        retryable: false,
+        message: "Failed to decode Resemble audio_content base64.",
+        detail: e?.message || String(e),
+        elapsedMs: _now() - started,
+      };
+    }
+
+    // Success clears cooldown state
+    _clearVendorDown();
+
+    return {
+      ok: true,
+      buffer,
+      mimeType: _mimeForFormat(fmt),
+      format: fmt,
+      duration: (body && typeof body === "object" && typeof body.duration === "number") ? body.duration : undefined,
+      sampleRate: (body && typeof body === "object" && typeof body.sample_rate === "number") ? body.sample_rate : undefined,
+      elapsedMs: _now() - started,
+      providerMeta: {
+        provider: "resemble",
+        providerVersion: PROVIDER_VERSION,
+        endpoint,
+        model: model || null,
+        useHd,
+        projectUuid: projectUuid || null,
+        voiceUuid: String(voiceUuid),
+      },
+    };
+  }
+
+  // Should never reach here
   return {
-    ok: playable,
-    playable,
-    provider,
-    providerStatus: Number(src.providerStatus || src.status || 200) || 200,
-    requestId: cleanText(src.requestId || src.id || ""),
-    textSpoken,
-    textSpeak: textSpoken,
-    audioUrl,
-    audioBase64,
-    buffer: buffer || null,
-    audioBuffer: buffer || null,
-    binary: buffer || null,
-    audio: buffer || audioBase64 || audioUrl || null,
-    byteLength: buffer && buffer.length ? buffer.length : 0,
-    mimeType,
-    mime: mimeType,
-    format,
-    durationMs,
-    chars: textSpoken.length,
-    raw: src
+    ok: false,
+    reason: "unknown_error",
+    message: "Resemble synthesis failed (unknown).",
+    detail: lastErr,
+    elapsedMs: _now() - started,
   };
 }
 
-async function synthesize(opts) {
-  if (!tts) throw new Error("No TTS runtime is available.");
-
-  let raw;
-  if (typeof tts.generate === "function") {
-    raw = await tts.generate((opts && (opts.textSpeak || opts.text || opts.plainText || opts.textDisplay)) || "", opts || {});
-  } else if (typeof tts.synthesize === "function") {
-    raw = await tts.synthesize(opts || {});
-  } else {
-    throw new Error("TTS runtime does not expose generate() or synthesize().");
-  }
-
-  if (isObj(raw) && raw.ok === false) {
-    const message = cleanText(raw.message || raw.detail || raw.reason || raw.error || "TTS synthesis failed.");
-    const err = new Error(message);
-    err.code = cleanText(raw.code || raw.reason || raw.error || "TTS_PROVIDER_FAILURE");
-    err.status = Number(raw.providerStatus || raw.status || 503) || 503;
-    err.retryable = !!raw.retryable;
-    err.result = raw;
-    throw err;
-  }
-
-  const normalized = normalizeSynthesisResult(raw, opts || {});
-  if (!normalized.playable) {
-    const err = new Error("TTS returned no playable audio payload.");
-    err.code = "TTS_EMPTY_AUDIO";
-    err.status = Number(raw && (raw.providerStatus || raw.status) || 502) || 502;
-    err.retryable = true;
-    err.result = normalized.raw;
-    throw err;
-  }
-  return normalized;
-}
-
 module.exports = {
-  VERSION,
+  PROVIDER_VERSION,
   synthesize,
-  normalizeSynthesisResult,
-  MANUAL_RESEMBLE_CONFIG: tts && tts.MANUAL_RESEMBLE_CONFIG ? tts.MANUAL_RESEMBLE_CONFIG : Object.freeze({})
 };
+
+/* =========================================================
+   Compatibility exports
+   - Some callers import { synthesize } = require(...)
+   - Others import provider.default or provider.synthesize
+   ========================================================= */
+module.exports = Object.assign(module.exports || {}, {
+  PROVIDER_VERSION,
+  synthesize,
+  default: { PROVIDER_VERSION, synthesize }
+});
