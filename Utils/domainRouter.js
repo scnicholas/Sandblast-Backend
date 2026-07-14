@@ -1698,3 +1698,15 @@ function r18cApplyLawRouterSignals(result,norm,session,cog){
   }catch(_){}
 })();
 /* NYX_GUIDE_CONTEXT_ROUTING_STEPS_2_3_R2_END */
+
+/* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_START */
+(function(){
+  "use strict";
+  const V="nyx.guideOrchestration.domainRouter/4.0-steps10-11-12";
+  function o(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function x(v,n=120){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n)}
+  function find(v,args){let plan={},ctx={};const seen=new Set();function w(q,d){if(!q||typeof q!=="object"||d>5||seen.has(q))return;seen.add(q);q=o(q);if(!Object.keys(plan).length&&Array.isArray(o(q.guideActionPlan).actions))plan=o(q.guideActionPlan);if(!Object.keys(ctx).length)ctx=o(q.guideContext||q.publicGuideContinuity);for(const k of["payload","body","meta","routing","runtimeState","state","session","composerContext","marionIntent"])w(q[k],d+1)}for(const q of Array.from(args||[]).concat([v]))w(q,0);return{plan,ctx}}
+  function project(v,args){if(!v||typeof v!=="object"||Array.isArray(v))return v;const f=find(v,args),actions=Array.isArray(f.plan.actions)?f.plan.actions:[];if(!actions.length)return v;const first=o(actions[0]),target=x(first.target||first.targetKey,64),lane=x(first.lane||o(f.ctx).currentLane||"home",32),out={...v};out.guideRoutingBoundary={contract:"nyx.guideRoutingBoundary/1.0",version:V,planId:x(f.plan.planId,80),target,targetLane:lane,actionType:x(first.type,32),routeLocked:true,noKnowledgeDomainHijack:true,knowledgeRetrievalRequired:false,executionAuthority:"client_user_gesture",serverExecutionAllowed:false,publicSessionOnly:true};out.routing={...o(out.routing),guideRoutingBoundary:out.guideRoutingBoundary,guideRouteLocked:true,guideTarget:target,guideTargetLane:lane,noKnowledgeDomainHijack:true};return out}
+  function wrap(fn){if(typeof fn!=="function"||fn.__nyx101112DomainRouter)return fn;const w=function(){const a=arguments,r=fn.apply(this,a);return r&&typeof r.then==="function"?r.then(v=>project(v,a)):project(r,a)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_){}w.__nyx101112DomainRouter=true;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports);const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of["routeDomain","scoreDomains","route","run","handle","default"])if(typeof api[n]==="function")api[n]=wrap(api[n]);api.NYX_GUIDE_STEPS_10_11_12_ROUTER_VERSION=V;api.attachNyxGuideRouteBoundary=(v,i)=>project(v,[i||{}])}}catch(_){}
+})();
+/* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_END */
