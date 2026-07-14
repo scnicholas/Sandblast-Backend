@@ -916,7 +916,7 @@ if (typeof window !== "undefined") {
   window.NYX_GUIDE_STATES = NYX_GUIDE_STATES;
 }
 
-const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v2.0.0 PERSISTENT-GUIDE-SHELL-LIFECYCLE";
+const NYX_STATE_CONTROLLER_VERSION = "nyx_state_controller v2.1.0 PERSISTENT-GUIDE-SHELL + CROSS-PROPERTY-CONTINUITY + TELEVISION-REMOTE-SAFE";
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = NyxStateController;
@@ -926,3 +926,425 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports.normalizeGuideState = normalizeGuideState;
   module.exports.NYX_STATE_CONTROLLER_VERSION = NYX_STATE_CONTROLLER_VERSION;
 }
+
+/* NYX_STATE_CONTROLLER_CONTINUITY_TV_STEPS_5_6_R1_START */
+;(function () {
+  "use strict";
+
+  const PATCH_VERSION = "nyx_state_controller v2.1.0 CROSS-PROPERTY-HANDOFF + TELEVISION-REMOTE-SAFE";
+  const CONTINUITY_CONTRACT = "nyx.guideContinuity/1.0";
+  const TELEVISION_CONTRACT = "nyx.televisionGuide/1.0";
+  const MAX_TTL_MS = 30 * 60 * 1000;
+  const TV_DEVICES = new Set(["roku", "smart_tv", "web_tv", "set_top_box", "console"]);
+
+  function safeText(value, max = 240) {
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+
+  function safeObj(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  }
+
+  function boolish(value, fallback = false) {
+    if (typeof value === "boolean") return value;
+    const text = safeText(value, 16).toLowerCase();
+    if (["1", "true", "yes", "on", "enabled"].includes(text)) return true;
+    if (["0", "false", "no", "off", "disabled"].includes(text)) return false;
+    return fallback;
+  }
+
+  function clamp(value, fallback, min, max) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+  }
+
+  function normalizeSurface(value) {
+    return safeText(value || "sandblast.channel", 96)
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "") || "sandblast.channel";
+  }
+
+  function normalizeLane(value) {
+    const raw = safeText(value || "home", 32).toLowerCase().replace(/[^a-z0-9_-]+/g, "");
+    const aliases = {
+      radio: "live", listen: "live", tv: "watch", television: "watch",
+      cartoon: "watch", cartoons: "watch", classic: "watch", classics: "watch",
+      synapse: "news", guide: "search", nyx: "search", app: "apps"
+    };
+    const lane = aliases[raw] || raw;
+    return ["home", "search", "live", "watch", "roku", "news", "about", "apps"].includes(lane)
+      ? lane
+      : "home";
+  }
+
+  function publicId(value, fallback = "") {
+    return safeText(value || fallback, 96).replace(/[^a-zA-Z0-9_.:-]+/g, "_").slice(0, 96);
+  }
+
+  function hashText(value) {
+    const text = String(value == null ? "" : value);
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+
+  function continuityEnvelope(input = {}, previous = {}) {
+    const src = safeObj(input);
+    const prior = safeObj(previous);
+    const carry = safeObj(src.conversationCarry || src.carry);
+    const priorCarry = safeObj(prior.conversationCarry || prior.carry);
+    const media = safeObj(src.mediaState || src.media || prior.mediaState);
+    const now = Date.now();
+    const sessionId = publicId(src.sessionId || prior.sessionId || "public", "public");
+    const surface = normalizeSurface(src.surface || prior.surface);
+    const previousSurface = normalizeSurface(src.previousSurface || prior.surface || surface);
+    const ttlMs = Math.round(clamp(src.ttlMs || prior.ttlMs, MAX_TTL_MS, 60_000, MAX_TTL_MS));
+    const handoff = safeObj(src.handoff);
+    const handoffId = publicId(
+      src.handoffId ||
+      handoff.id ||
+      `handoff_${hashText(`${sessionId}|${previousSurface}|${surface}|${Math.floor(now / 30000)}`)}`,
+      "handoff"
+    );
+
+    return {
+      contract: CONTINUITY_CONTRACT,
+      version: PATCH_VERSION,
+      publicSessionOnly: true,
+      privateMemoryAccess: false,
+      authoritative: false,
+      sessionId,
+      handoffId,
+      surface,
+      previousSurface,
+      page: safeText(src.page || prior.page || "/", 160),
+      previousPage: safeText(src.previousPage || prior.page || "/", 160),
+      lane: normalizeLane(src.lane || src.currentLane || prior.lane),
+      previousLane: normalizeLane(src.previousLane || prior.lane || "home"),
+      guideState: safeText(src.guideState || src.state || prior.guideState || "available", 32)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, ""),
+      panelOpen: boolish(src.panelOpen, prior.panelOpen === true),
+      voiceEnabled: boolish(src.voiceEnabled, prior.voiceEnabled !== false),
+      reducedMotion: boolish(src.reducedMotion, prior.reducedMotion === true),
+      suggestionsEnabled: boolish(src.suggestionsEnabled, prior.suggestionsEnabled !== false),
+      conversationCarry: {
+        goal: safeText(carry.goal || src.goal || priorCarry.goal || "", 80),
+        intent: safeText(carry.intent || src.intent || priorCarry.intent || "", 80),
+        lastDestination: safeText(carry.lastDestination || src.lastDestination || priorCarry.lastDestination || "", 96),
+        lastUserText: safeText(carry.lastUserText || src.lastUserText || priorCarry.lastUserText || "", 180),
+        lastNyxReply: safeText(carry.lastNyxReply || src.lastNyxReply || priorCarry.lastNyxReply || "", 180)
+      },
+      mediaState: {
+        kind: safeText(media.kind || media.type || "", 24).toLowerCase().replace(/[^a-z0-9_-]+/g, ""),
+        playing: boolish(media.playing ?? media.radioPlaying ?? media.videoPlaying, false),
+        paused: boolish(media.paused, false),
+        muted: boolish(media.muted, false),
+        contentId: safeText(media.contentId || media.programId || "", 96),
+        channelId: safeText(media.channelId || media.channel || "", 96),
+        positionSec: clamp(media.positionSec || media.currentTime, 0, 0, 86400),
+        durationSec: clamp(media.durationSec || media.duration, 0, 0, 86400)
+      },
+      handoff: {
+        active: previousSurface !== surface,
+        id: handoffId,
+        issuedAt: clamp(handoff.issuedAt, now, 0, now + MAX_TTL_MS),
+        expiresAt: clamp(handoff.expiresAt, now + ttlMs, now, now + MAX_TTL_MS),
+        ttlMs,
+        userGestureRequired: true,
+        autoNavigate: false
+      }
+    };
+  }
+
+  function televisionProfile(input = {}, continuity = {}) {
+    const root = safeObj(input);
+    const src = safeObj(root.televisionGuide || root.tvGuide || root.tvContext || root);
+    const rawDevice = safeText(src.deviceClass || src.device || "", 32)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_");
+    const surface = normalizeSurface(src.surface || continuity.surface);
+    const enabled = boolish(
+      src.enabled,
+      TV_DEVICES.has(rawDevice) || /(?:^|[._-])(roku|tv|television)(?:$|[._-])/.test(surface)
+    );
+
+    if (!enabled) {
+      return {
+        contract: TELEVISION_CONTRACT,
+        version: PATCH_VERSION,
+        enabled: false,
+        authoritative: false
+      };
+    }
+
+    const inputModeRaw = safeText(src.inputMode || src.navigationMode || "remote", 24)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_");
+    const inputMode = ["remote", "keyboard", "pointer", "touch", "voice_request"].includes(inputModeRaw)
+      ? inputModeRaw
+      : "remote";
+    const reducedMotion = boolish(src.reducedMotion, true);
+
+    return {
+      contract: TELEVISION_CONTRACT,
+      version: PATCH_VERSION,
+      enabled: true,
+      authoritative: false,
+      deviceClass: TV_DEVICES.has(rawDevice)
+        ? rawDevice
+        : (surface.includes("roku") ? "roku" : "web_tv"),
+      surface,
+      inputMode,
+      remotePrimary: inputMode === "remote",
+      captionsRequired: true,
+      captionsEnabled: boolish(src.captionsEnabled, true),
+      continuousListening: false,
+      voiceActivation: "explicit_user_request",
+      autoSpeak: false,
+      interruptPlayback: false,
+      userGestureRequired: true,
+      responseDensity: "compact",
+      maxSpeechChars: Math.round(clamp(src.maxSpeechChars, 260, 120, 420)),
+      maxActions: Math.round(clamp(src.maxActions, 4, 1, 4)),
+      safeAreaPercent: clamp(src.safeAreaPercent, 5, 3, 10),
+      animation: {
+        mode: reducedMotion ? "reduced" : "restrained",
+        reducedMotion,
+        continuousMotion: false
+      },
+      focus: {
+        target: safeText(src.focusTarget || src.focus || "guide_dock", 80),
+        preserveNativeBack: true,
+        preserveNativePlayPause: true,
+        trapFocus: false
+      },
+      playbackPolicy: {
+        autoPauseMedia: false,
+        autoResumeMedia: false,
+        duckAudioOnlyOnExplicitSpeech: true,
+        restoreFocusAfterSpeech: true
+      }
+    };
+  }
+
+  function storageFor(instance) {
+    if (instance && instance._guideStorage) return instance._guideStorage;
+    if (typeof window !== "undefined") {
+      try { return window.sessionStorage; } catch (_) {}
+    }
+    return null;
+  }
+
+  function persist(instance) {
+    const storage = storageFor(instance);
+    if (!storage || !instance) return false;
+    try {
+      storage.setItem("nyx_public_guide_continuity_v1", JSON.stringify(instance._publicGuideContinuity || {}));
+      storage.setItem("nyx_television_guide_v1", JSON.stringify(instance._televisionGuide || {}));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function restore(instance) {
+    const storage = storageFor(instance);
+    if (!storage || !instance) return false;
+    try {
+      const continuity = JSON.parse(storage.getItem("nyx_public_guide_continuity_v1") || "null");
+      const television = JSON.parse(storage.getItem("nyx_television_guide_v1") || "null");
+      if (safeObj(continuity).contract === CONTINUITY_CONTRACT) {
+        instance._publicGuideContinuity = continuityEnvelope(continuity, continuity);
+      }
+      if (safeObj(television).contract === TELEVISION_CONTRACT) {
+        instance._televisionGuide = televisionProfile(television, instance._publicGuideContinuity || {});
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function dispatch(instance, eventName, detail) {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.dispatchEvent === "function" &&
+      typeof CustomEvent === "function"
+    ) {
+      try { window.dispatchEvent(new CustomEvent(eventName, { detail })); } catch (_) {}
+    }
+    if (
+      instance &&
+      instance.options &&
+      instance.options.callbacks &&
+      typeof instance.options.callbacks.onContinuityChange === "function"
+    ) {
+      try { instance.options.callbacks.onContinuityChange(detail); } catch (_) {}
+    }
+  }
+
+  const Controller = typeof module !== "undefined" && module.exports
+    ? (module.exports.default || module.exports)
+    : (typeof window !== "undefined" ? window.NyxStateController : null);
+
+  if (typeof Controller !== "function" || !Controller.prototype) return;
+
+  const proto = Controller.prototype;
+  const originalGetSnapshot = typeof proto.getGuideSnapshot === "function"
+    ? proto.getGuideSnapshot
+    : function () { return {}; };
+  const originalSetGuideState = typeof proto.setGuideState === "function"
+    ? proto.setGuideState
+    : null;
+
+  proto.configurePublicContinuity = function configurePublicContinuity(input = {}) {
+    if (!this._publicGuideContinuity) restore(this);
+    this._publicGuideContinuity = continuityEnvelope(input, this._publicGuideContinuity || {});
+    this._publicGuideContinuity.guideState = this.guideState || this._publicGuideContinuity.guideState;
+    this._publicGuideContinuity.panelOpen = this.panelOpen === true;
+    this._publicGuideContinuity.voiceEnabled = this.voiceEnabled !== false;
+    this._publicGuideContinuity.reducedMotion = this.reducedMotion === true;
+    persist(this);
+    dispatch(this, "nyx:guide:continuitychange", this._publicGuideContinuity);
+    return this._publicGuideContinuity;
+  };
+
+  proto.beginSurfaceHandoff = function beginSurfaceHandoff(destinationSurface, options = {}) {
+    const current = this._publicGuideContinuity || continuityEnvelope(options);
+    const next = continuityEnvelope({
+      ...options,
+      sessionId: options.sessionId || current.sessionId,
+      previousSurface: current.surface,
+      previousPage: current.page,
+      previousLane: current.lane,
+      surface: destinationSurface,
+      guideState: "guiding",
+      panelOpen: this.panelOpen,
+      voiceEnabled: this.voiceEnabled,
+      reducedMotion: this.reducedMotion,
+      conversationCarry: {
+        ...safeObj(current.conversationCarry),
+        ...safeObj(options.conversationCarry)
+      },
+      mediaState: {
+        ...safeObj(current.mediaState),
+        ...safeObj(options.mediaState)
+      }
+    }, current);
+    next.handoff.active = true;
+    this._publicGuideContinuity = next;
+    if (originalSetGuideState) originalSetGuideState.call(this, "guiding", { force: true });
+    persist(this);
+    dispatch(this, "nyx:guide:handoffstart", next);
+    return next;
+  };
+
+  proto.applySurfaceHandoff = function applySurfaceHandoff(envelope = {}) {
+    const incoming = continuityEnvelope(envelope, this._publicGuideContinuity || {});
+    const now = Date.now();
+    if (incoming.handoff.expiresAt < now) return false;
+    this._publicGuideContinuity = incoming;
+    this._publicGuideContinuity.handoff.active = false;
+    this._publicGuideContinuity.guideState = this.panelOpen ? "available" : "minimized";
+    persist(this);
+    dispatch(this, "nyx:guide:handoffcomplete", this._publicGuideContinuity);
+    return true;
+  };
+
+  proto.configureTelevisionGuide = function configureTelevisionGuide(input = {}) {
+    const continuity = this._publicGuideContinuity || continuityEnvelope(input);
+    this._televisionGuide = televisionProfile(input, continuity);
+    if (this._televisionGuide.enabled) {
+      this.reducedMotion = this._televisionGuide.animation.reducedMotion;
+      if (this.isSpeechActive && !this._televisionGuide.explicitVoiceRequest) {
+        try { this.safeStopSpeech(true); } catch (_) {}
+      }
+    }
+    persist(this);
+    dispatch(this, "nyx:guide:televisionchange", this._televisionGuide);
+    return this._televisionGuide;
+  };
+
+  proto.setTelevisionFocus = function setTelevisionFocus(target) {
+    const tv = this._televisionGuide || televisionProfile({ enabled: true }, this._publicGuideContinuity || {});
+    if (!tv.enabled) return false;
+    tv.focus = {
+      ...safeObj(tv.focus),
+      target: safeText(target || "guide_dock", 80),
+      preserveNativeBack: true,
+      preserveNativePlayPause: true,
+      trapFocus: false
+    };
+    this._televisionGuide = tv;
+    persist(this);
+    dispatch(this, "nyx:guide:televisionfocus", tv.focus);
+    return true;
+  };
+
+  proto.getPublicContinuitySnapshot = function getPublicContinuitySnapshot() {
+    if (!this._publicGuideContinuity) restore(this);
+    return this._publicGuideContinuity || continuityEnvelope({
+      guideState: this.guideState,
+      panelOpen: this.panelOpen,
+      voiceEnabled: this.voiceEnabled,
+      reducedMotion: this.reducedMotion
+    });
+  };
+
+  proto.getTelevisionGuideSnapshot = function getTelevisionGuideSnapshot() {
+    if (!this._televisionGuide) restore(this);
+    return this._televisionGuide || {
+      contract: TELEVISION_CONTRACT,
+      version: PATCH_VERSION,
+      enabled: false,
+      authoritative: false
+    };
+  };
+
+  proto.getGuideSnapshot = function getGuideSnapshotSteps56() {
+    const base = safeObj(originalGetSnapshot.call(this));
+    return {
+      ...base,
+      publicGuideContinuity: this.getPublicContinuitySnapshot(),
+      televisionGuide: this.getTelevisionGuideSnapshot(),
+      continuityContract: CONTINUITY_CONTRACT,
+      televisionContract: TELEVISION_CONTRACT
+    };
+  };
+
+  if (originalSetGuideState) {
+    proto.setGuideState = function setGuideStateSteps56(nextState, options = {}) {
+      const result = originalSetGuideState.call(this, nextState, options);
+      if (this._publicGuideContinuity) {
+        this._publicGuideContinuity.guideState = this.guideState;
+        this._publicGuideContinuity.panelOpen = this.panelOpen === true;
+        this._publicGuideContinuity.voiceEnabled = this.voiceEnabled !== false;
+        persist(this);
+      }
+      return result;
+    };
+  }
+
+  Controller.NYX_GUIDE_CONTINUITY_CONTRACT = CONTINUITY_CONTRACT;
+  Controller.NYX_TELEVISION_GUIDE_CONTRACT = TELEVISION_CONTRACT;
+  Controller.NYX_STATE_CONTINUITY_TV_VERSION = PATCH_VERSION;
+  Controller.normalizePublicGuideContinuity = continuityEnvelope;
+  Controller.normalizeTelevisionGuide = televisionProfile;
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports.NYX_GUIDE_CONTINUITY_CONTRACT = CONTINUITY_CONTRACT;
+    module.exports.NYX_TELEVISION_GUIDE_CONTRACT = TELEVISION_CONTRACT;
+    module.exports.NYX_STATE_CONTINUITY_TV_VERSION = PATCH_VERSION;
+    module.exports.normalizePublicGuideContinuity = continuityEnvelope;
+    module.exports.normalizeTelevisionGuide = televisionProfile;
+  }
+})();
+/* NYX_STATE_CONTROLLER_CONTINUITY_TV_STEPS_5_6_R1_END */
