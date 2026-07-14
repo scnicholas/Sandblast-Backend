@@ -5430,3 +5430,94 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
   }
 })();
 /* MARION_STATE_SPINE_CRITICAL_LAYERING_PATCH_V1_END */
+
+
+/* NYX_GUIDE_CONTINUITY_STATE_STEPS_1_2_3_R2_START */
+(function nyxGuideContinuityStatePatch(){
+  "use strict";
+  const PATCH_VERSION="nyx.guideOrchestration.stateSpine/2.0-steps1-3";
+  const LANES=new Set(["home","search","live","watch","roku","news","about","apps"]);
+  const TYPES=new Set(["navigate","play_radio","stop_radio","open_media","open_tv","open_roku","open_synapse","open_guide","focus_input","summarize"]);
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function txt(v,max){const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim();return s.slice(0,max||240);}
+  function bool(v,d){if(typeof v==="boolean")return v;const s=txt(v,16).toLowerCase();if(["1","true","yes","on","enabled","playing"].includes(s))return true;if(["0","false","no","off","disabled","stopped"].includes(s))return false;return!!d;}
+  function lane(v){const raw=txt(v||"home",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");const m={radio:"live",listen:"live",tv:"watch",television:"watch",cartoons:"watch",classic:"watch",synapse:"news",discover:"news",guide:"search",nyx:"search"};const n=m[raw]||raw;return LANES.has(n)?n:"home";}
+  function find(){
+    const contexts=[],actions=[],results=[],seen=new Set();
+    function walk(v,d){if(!v||typeof v!=="object"||d>5||seen.has(v))return;seen.add(v);const x=obj(v);for(const c of[x.guideContext,x.nyxGuideContext,x.ecosystemGuideContext,x.guide])if(c&&typeof c==="object"&&!Array.isArray(c))contexts.push(c);for(const l of[x.guideActions,x.actions,obj(x.guide).actions])if(Array.isArray(l))actions.push.apply(actions,l);if(x.guideActionResult&&typeof x.guideActionResult==="object")results.push(x.guideActionResult);for(const k of["payload","meta","finalEnvelope","result","response","data","runtimeState","state","session","sessionPatch","memoryPatch","routing","composerContext"])if(x[k]&&typeof x[k]==="object")walk(x[k],d+1);}
+    for(const a of arguments)walk(a,0);return{context:contexts[0]||{},actions,results};
+  }
+  function action(a){const x=obj(a),type=txt(x.type||x.action,32).toLowerCase().replace(/[^a-z0-9_]+/g,"_");if(!TYPES.has(type))return null;return{type,targetLane:lane(x.target||x.lane||"home"),status:txt(x.status||"pending",24).toLowerCase()==="completed"?"completed":"pending"};}
+  function normalize(raw,previous,actions,results){
+    const c=obj(raw),p=obj(previous),media=obj(c.mediaState||c.media);
+    const normalizedActions=[];for(const a of actions||[]){const n=action(a);if(n&&!normalizedActions.some(x=>x.type===n.type&&x.targetLane===n.targetLane)){normalizedActions.push(n);if(normalizedActions.length>=4)break;}}
+    let completed=txt(p.lastCompletedAction,40),completedLane=lane(p.lastCompletedLane||p.currentLane);
+    for(const r of results||[]){const x=action(Object.assign({},obj(r),{status:"completed"}));if(x){completed=x.type;completedLane=x.targetLane;break;}}
+    const now=Date.now();
+    return{
+      version:PATCH_VERSION,
+      contract:"nyx.guideContinuity/1.0",
+      currentLane:lane(c.currentLane||c.lane||p.currentLane||"home"),
+      previousLane:lane(c.previousLane||p.previousLane||"home"),
+      goal:txt(c.goal||p.goal||"ask",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"_")||"ask",
+      lastAction:txt(c.lastAction||c.action||p.lastAction||"context",48)||"context",
+      lastCompletedAction:completed,
+      lastCompletedLane:completedLane,
+      inputMode:/voice|speech|mic/i.test(txt(c.inputMode||c.inputSource||p.inputMode,24))?"voice":"text",
+      panelOpen:bool(c.panelOpen===undefined?p.panelOpen:c.panelOpen,false),
+      voiceEnabled:bool(c.voiceEnabled===undefined?p.voiceEnabled:c.voiceEnabled,true),
+      reducedMotion:bool(c.reducedMotion===undefined?p.reducedMotion:c.reducedMotion,false),
+      radioPlaying:bool(media.radioPlaying===undefined?p.radioPlaying:media.radioPlaying,false),
+      videoPlaying:bool(media.videoPlaying===undefined?p.videoPlaying:media.videoPlaying,false),
+      pendingActions:normalizedActions.filter(x=>x.status==="pending").map(x=>({type:x.type,targetLane:x.targetLane})),
+      publicSessionOnly:true,
+      privateMemoryAccess:false,
+      noRawUserTextStored:true,
+      updatedAt:now,
+      expiresAt:now+24*60*60*1000
+    };
+  }
+  function project(value,args){
+    if(!value||typeof value!=="object")return value;
+    const all=Array.prototype.slice.call(args||[]).concat([value]),found=find.apply(null,all);
+    const current=obj(value),nestedState=obj(current.state||current.stateSpine||current.conversationState);
+    const previous=obj(current.nyxGuideContinuity||nestedState.nyxGuideContinuity||obj(current.sessionPatch).nyxGuideContinuity);
+    if(!Object.keys(found.context).length&&!found.actions.length&&!found.results.length&&!Object.keys(previous).length)return value;
+    const continuity=normalize(found.context,previous,found.actions,found.results);
+    const out=Array.isArray(value)?value.slice():Object.assign({},value);
+    if(Array.isArray(out))return out;
+    out.nyxGuideContinuity=continuity;
+    out.guideContext={
+      contract:"nyx.guideContext/1.0",
+      currentLane:continuity.currentLane,
+      previousLane:continuity.previousLane,
+      goal:continuity.goal,
+      lastAction:continuity.lastAction,
+      inputMode:continuity.inputMode,
+      panelOpen:continuity.panelOpen,
+      voiceEnabled:continuity.voiceEnabled,
+      reducedMotion:continuity.reducedMotion,
+      mediaState:{radioPlaying:continuity.radioPlaying,videoPlaying:continuity.videoPlaying},
+      publicSessionOnly:true,
+      privateMemoryAccess:false
+    };
+    if(Object.keys(nestedState).length){
+      const s=Object.assign({},nestedState,{nyxGuideContinuity:continuity});
+      if(current.state)out.state=s;else if(current.stateSpine)out.stateSpine=s;else out.conversationState=s;
+    }
+    out.sessionPatch=Object.assign({},obj(out.sessionPatch),{nyxGuideContinuity:continuity});
+    return out;
+  }
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__nyxGuideContinuityStateR2)return fn;const w=function(){const args=arguments,r=fn.apply(this,args);if(r&&typeof r.then==="function")return r.then(v=>project(v,args));return project(r,args);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__nyxGuideContinuityStateR2=true;return w;}
+  try{
+    if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      ["createState","coerceState","finalizeTurn","normalizeStateForPipelineCohesion","buildStateCarryForwardSummary","applyLoopRecoveryPatch","mergeState","updateState","advanceState","run","handle","default"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+      api.NYX_GUIDE_CONTINUITY_STATE_VERSION=PATCH_VERSION;
+      api.normalizeNyxGuideContinuity=function(context,previous,actions,results){return normalize(context||{},previous||{},actions||[],results||[]);};
+      api.attachNyxGuideContinuity=function(value,input){return project(value,[{guideContext:input||{}}]);};
+    }
+  }catch(_){}
+})();
+/* NYX_GUIDE_CONTINUITY_STATE_STEPS_1_2_3_R2_END */
