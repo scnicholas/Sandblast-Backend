@@ -874,12 +874,17 @@ function buildNyxGuidePublicConfig(req) {
       step6TelevisionAdaptation: true,
       step7ActionOrchestration: true,
       step8ConsentBoundPublicPreferences: true,
-      step9ProductionResilience: true
+      step9ProductionResilience: true,
+      step10RealRouteExecution: true,
+      step11StateContractValidation: true,
+      step12ProductionDeploymentGate: true
     },
     actionPolicy: {
       allowedTypes: ["navigate", "play_radio", "stop_radio", "open_media", "open_tv", "open_roku", "open_synapse", "open_guide", "focus_input", "summarize"],
       autoExecute: false,
       requiresUserGesture: true,
+      idempotencyRequired: true,
+      rollbackOnFailure: true,
       externalModelUrlsAllowed: false,
       executionAuthority: "client_user_gesture"
     },
@@ -895,7 +900,10 @@ function buildNyxGuidePublicConfig(req) {
       preferencesReset: "/api/nyx/guide/preferences/reset",
       continuityNormalize: "/api/nyx/guide/continuity/normalize",
       telemetry: "/api/nyx/guide/telemetry",
-      releaseHealth: "/api/nyx/guide/release/health"
+      releaseHealth: "/api/nyx/guide/release/health",
+      stateValidate: "/api/nyx/guide/state/validate",
+      executionReceipt: "/api/nyx/guide/execution/receipt",
+      releaseGate: "/api/nyx/guide/release/gate"
     },
     lifecycleEvents: {
       guideState: "nyx:guide:state",
@@ -965,7 +973,10 @@ app.get(NYX_GUIDE_HEALTH_PATHS, (req, res) => {
       structuredActions: true,
       actionValidation: true,
       consentBoundPreferences: true,
-      productionResilience: true
+      productionResilience: true,
+      realRouteExecution: true,
+      stateContractValidation: true,
+      productionDeploymentGate: true
     },
     actionExecutionAuthority: "client_user_gesture",
     t: Date.now()
@@ -1614,6 +1625,61 @@ app.locals.nyxGuideSteps789 = {
   telemetryMode: "redacted_aggregate"
 };
 /* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_END */
+
+/* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_START */
+(function nyxGuideSteps101112IndexBoundary(){
+  "use strict";
+  const VERSION="nyx.guideOrchestration.indexBoundary/4.0-steps10-11-12";
+  const EXECUTION_CONTRACT="nyx.guideExecution/1.0";
+  const TRANSITION_CONTRACT="nyx.guideStateTransition/1.0";
+  const RELEASE_CONTRACT="nyx.guideReleaseGate/1.0";
+  const LANES=new Set(["home","search","live","watch","roku","news","about","apps"]);
+  const STATUS=new Set(["selected","completed","failed","cancelled"]);
+  const TARGET_LANE=Object.freeze({sandblast_home:"home",sandblast_radio:"live",sandblast_tv:"watch",sandblast_cartoons:"watch",sandblast_classics:"watch",sandblast_roku:"roku",synapse:"news",lingosentinel:"about",apps:"apps",about:"about",nyx_guide:"search",guide_input:"search",current_surface:""});
+  const PATHS=Object.freeze({
+    stateValidate:["/api/nyx/guide/state/validate","/nyx/guide/state/validate"],
+    executionReceipt:["/api/nyx/guide/execution/receipt","/nyx/guide/execution/receipt"],
+    releaseGate:["/api/nyx/guide/release/gate","/nyx/guide/release/gate"]
+  });
+  const FEATURES=Object.freeze({
+    enabled:nyxGuide789BoolEnv("SB_NYX_GUIDE_STEPS_10_12_ENABLED",true),
+    execution:nyxGuide789BoolEnv("SB_NYX_GUIDE_EXECUTION_ENABLED",true),
+    stateValidation:nyxGuide789BoolEnv("SB_NYX_GUIDE_STATE_VALIDATION_ENABLED",true),
+    releaseGate:nyxGuide789BoolEnv("SB_NYX_GUIDE_RELEASE_GATE_ENABLED",true),
+    rollbackSafeMode:NYX_GUIDE_789_FEATURES.rollbackSafeMode
+  });
+  const receipts=new Map();
+  const counters={validated:0,selected:0,completed:0,failed:0,cancelled:0,duplicates:0,rejected:0};
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v,n=120){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
+  function lane(v,f="home"){const x=text(v,32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");return LANES.has(x)?x:f;}
+  function num(v,f=0,min=0,max=2147483647){const n=Number(v);return Number.isFinite(n)?Math.max(min,Math.min(max,Math.trunc(n))):f;}
+  function hash(v){return crypto.createHash("sha256").update(String(v==null?"":v),"utf8").digest("hex");}
+  function id(v,p="g"){const clean=text(v,96).replace(/[^a-zA-Z0-9_.:-]+/g,"_");return clean||`${p}_${Date.now().toString(36)}_${crypto.randomBytes(5).toString("hex")}`;}
+  function cleanup(){const now=Date.now();if(receipts.size<2500)return;for(const [k,v] of receipts){if(!v||now>=v.expiresAt)receipts.delete(k);if(receipts.size<=1800)break;}}
+  function actionFrom(body){const b=obj(body),source=obj(b.action||b.guideAction||obj(b.transition).action);const rawPlan=nyxGuide789ActionPlan({actions:[source],televisionGuide:b.televisionGuide});const action=obj(rawPlan.actions&&rawPlan.actions[0]);if(!action.type||!action.target)return null;const target=text(action.target,64);const current=lane(obj(b.currentState||b.state||b.guideContext).currentLane||obj(b.guideContext).currentLane,"home");return{...action,id:id(action.id||source.id,`act_${hash(`${action.type}|${target}`).slice(0,12)}`),target,lane:TARGET_LANE[target]||current};}
+  function transition(body){const b=obj(body),state=obj(b.currentState||b.state||b.guideState),action=actionFrom(b);if(!action)return null;const current=lane(state.currentLane||obj(b.guideContext).currentLane,"home");const previous=lane(state.previousLane,current);const proposed=TARGET_LANE[action.target]||current;const revision=num(state.revision,0,0,999999999)+1;const planId=id(b.planId||obj(b.plan).planId,`plan_${hash(`${action.id}|${current}|${revision}`).slice(0,16)}`);const now=Date.now();return{contract:TRANSITION_CONTRACT,version:VERSION,transitionId:id(b.transitionId,`tr_${hash(`${planId}|${action.id}|${revision}`).slice(0,18)}`),planId,actionId:action.id,action,currentLane:current,previousLane:previous,proposedLane:proposed,rollbackLane:current,revision,status:"validated",requiresUserGesture:true,autoExecute:false,idempotencyKey:hash(`${planId}|${action.id}|${revision}`).slice(0,32),publicSessionOnly:true,privateMemoryAccess:false,validatedAt:now,expiresAt:now+5*60*1000};}
+  function headers(req,res,trace){nyxGuide789ApplyHeaders(req,res,trace);res.setHeader("X-SB-Nyx-Guide-Steps-10-12",VERSION);res.setHeader("X-SB-Guide-Execution-Contract",EXECUTION_CONTRACT);res.setHeader("X-SB-Guide-State-Contract",TRANSITION_CONTRACT);res.setHeader("X-SB-Guide-Release-Contract",RELEASE_CONTRACT);}
+  function preflight(req,res){const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req)){res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});return null;}if(!FEATURES.enabled||FEATURES.rollbackSafeMode){res.status(503).json({ok:false,error:"guide_steps_10_12_disabled",rollbackSafeMode:FEATURES.rollbackSafeMode,traceId:trace,diagnosticsRedacted:true});return null;}if(!nyxGuide789RequestBodyWithinLimit(req)){res.status(413).json({ok:false,error:"guide_payload_too_large",traceId:trace,diagnosticsRedacted:true});return null;}const rate=nyxGuide789RateCheck(req,res,NYX_GUIDE_789_RATE_LIMIT);if(!rate.allowed){res.status(429).json({ok:false,error:"guide_rate_limited",retryAfterMs:Math.max(0,rate.resetAt-Date.now()),traceId:trace,diagnosticsRedacted:true});return null;}return{traceId:trace};}
+  function guardedLoad(paths){let error="";for(const p of paths){try{const mod=require(p);if(mod)return{ok:true,path:p,mod};}catch(e){error=text(e&&e.code||e&&e.message,80);}}return{ok:false,path:"",mod:null,error};}
+  const moduleChecks=Object.freeze({
+    stateSpine:guardedLoad(["./Utils/stateSpine.js","./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
+    voiceRoute:guardedLoad(["./Routes/voiceRoute.js","./routes/voiceRoute.js"]),
+    chatEngine:guardedLoad(["./Utils/chatEngine.js","./utils/chatEngine.js"]),
+    domainRouter:guardedLoad(["./Utils/domainRouter.js","./utils/domainRouter.js"]),
+    domainConcierge:guardedLoad(["./DomainConcierge.js","./Data/marion/runtime/DomainConcierge.js"]),
+    intentRouter:guardedLoad(["./marionIntentRouter.js","./Data/marion/runtime/marionIntentRouter.js"]),
+    stateController:guardedLoad(["./nyx_state_controller.js","./Data/marion/runtime/nyx_state_controller.js"])
+  });
+  function moduleReady(name,check){if(!check.ok)return false;const m=check.mod,keys=Object.keys(m||{});if(name==="stateSpine")return keys.includes("normalizeNyxGuideExecutionState")||keys.includes("NYX_GUIDE_STEPS_10_11_12_STATE_VERSION");if(name==="voiceRoute")return !!(m.NYX_GUIDE_STEPS_10_11_12_VOICE_VERSION||m.normalizeGuideExecutionBoundary);if(name==="chatEngine")return !!(m.NYX_GUIDE_STEPS_10_11_12_CHAT_VERSION||m.attachNyxGuideExecutionBoundary);if(name==="domainRouter")return !!(m.NYX_GUIDE_STEPS_10_11_12_ROUTER_VERSION||m.attachNyxGuideRouteBoundary);if(name==="domainConcierge")return !!(m.NYX_GUIDE_STEPS_10_11_12_CONCIERGE_VERSION||m.buildNyxGuideExecutionBoundary);if(name==="intentRouter")return !!(m.NYX_GUIDE_STEPS_10_11_12_INTENT_VERSION||m.attachNyxGuideIntentExecution);if(name==="stateController")return !!(m.NYX_GUIDE_STEPS_10_11_12_CONTROLLER_VERSION||m.prototype&&m.prototype.beginGuideAction);return false;}
+  function readiness(){const bridge=nyxGuide789Bridge();const bridgeReady=!!(bridge&&typeof bridge.buildGuideActionPlan==="function"&&typeof bridge.buildContinuityEnvelope==="function"&&typeof bridge.sanitizeNyxGuideTelemetryEvent==="function");const modules={};let moduleCount=0;for(const [name,check] of Object.entries(moduleChecks)){const ready=moduleReady(name,check);modules[name]={loaded:check.ok,ready,path:check.path||"",errorCode:check.ok?"":check.error||"unavailable"};if(ready)moduleCount+=1;}const featuresReady=FEATURES.enabled&&FEATURES.execution&&FEATURES.stateValidation&&FEATURES.releaseGate&&!FEATURES.rollbackSafeMode;const releaseReady=featuresReady&&bridgeReady&&moduleCount===Object.keys(moduleChecks).length;return{releaseReady,featuresReady,bridgeReady,moduleCount,moduleTotal:Object.keys(moduleChecks).length,modules};}
+  for(const path of Object.values(PATHS).flat())app.options(path,(req,res)=>{const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req))return res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});return res.status(204).end();});
+  app.post(PATHS.stateValidate,(req,res)=>{const pf=preflight(req,res);if(!pf)return;if(!FEATURES.stateValidation)return res.status(503).json({ok:false,error:"guide_state_validation_disabled",traceId:pf.traceId,diagnosticsRedacted:true});const tr=transition(obj(req.body));if(!tr){counters.rejected+=1;return res.status(400).json({ok:false,error:"invalid_guide_state_transition",traceId:pf.traceId,diagnosticsRedacted:true});}counters.validated+=1;return res.status(200).json({ok:true,validated:true,executed:false,executionAuthority:"client_user_gesture",transition:tr,traceId:pf.traceId,diagnosticsRedacted:true});});
+  app.post(PATHS.executionReceipt,(req,res)=>{const pf=preflight(req,res);if(!pf)return;if(!FEATURES.execution)return res.status(503).json({ok:false,error:"guide_execution_receipts_disabled",traceId:pf.traceId,diagnosticsRedacted:true});const b=obj(req.body),tr=obj(b.transition),action=actionFrom({...b,action:b.action||tr.action,currentState:b.currentState||tr});if(!action){counters.rejected+=1;return res.status(400).json({ok:false,error:"invalid_guide_execution_receipt",traceId:pf.traceId,diagnosticsRedacted:true});}const status=text(b.status||b.result||"completed",20).toLowerCase();if(!STATUS.has(status)){counters.rejected+=1;return res.status(400).json({ok:false,error:"invalid_guide_execution_status",traceId:pf.traceId,diagnosticsRedacted:true});}const session=nyxGuideSafeText(req.headers["x-sb-session-id"],96)||"anonymous",planId=id(b.planId||tr.planId,"plan"),key=hash(`${session}|${planId}|${action.id}`).slice(0,40),now=Date.now(),prior=receipts.get(key);if(prior&&["completed","failed","cancelled"].includes(prior.status)){counters.duplicates+=1;return res.status(409).json({ok:false,error:"duplicate_guide_action_receipt",duplicate:true,priorStatus:prior.status,traceId:pf.traceId,diagnosticsRedacted:true});}const current=lane(obj(b.currentState||tr).currentLane||tr.currentLane,"home"),target=TARGET_LANE[action.target]||current,rollback=lane(tr.rollbackLane,current),revision=num(obj(b.currentState||tr).revision||tr.revision,0,0,999999999)+1;const nextLane=status==="completed"?target:(status==="failed"||status==="cancelled")?rollback:current;const receipt={contract:EXECUTION_CONTRACT,version:VERSION,receiptId:`rcpt_${hash(`${key}|${status}|${now}`).slice(0,20)}`,planId,actionId:action.id,status,duplicate:false,previousLane:current,currentLane:nextLane,rollbackLane:rollback,revision,requiresUserGesture:true,autoExecute:false,publicSessionOnly:true,privateMemoryAccess:false,at:now,expiresAt:now+10*60*1000};receipts.set(key,receipt);cleanup();counters[status]=(counters[status]||0)+1;return res.status(202).json({ok:true,accepted:true,receipt,serverExecuted:false,rawConversationStored:false,traceId:pf.traceId,diagnosticsRedacted:true});});
+  app.get(PATHS.releaseGate,(req,res)=>{const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req))return res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});const gate=readiness();return res.status(gate.releaseReady?200:503).json({ok:gate.releaseReady,service:"nyx-guide-steps-10-11-12",version:VERSION,contract:RELEASE_CONTRACT,releaseReady:gate.releaseReady,rollbackSafeMode:FEATURES.rollbackSafeMode,features:FEATURES,dependencies:{bridgeReady:gate.bridgeReady,moduleCount:gate.moduleCount,moduleTotal:gate.moduleTotal,modules:gate.modules},contracts:{execution:EXECUTION_CONTRACT,stateTransition:TRANSITION_CONTRACT,releaseGate:RELEASE_CONTRACT,actionPlan:NYX_GUIDE_ACTION_PLAN_CONTRACT,continuity:"nyx.guideContinuity/1.0"},policy:{clientUserGestureRequired:true,serverActionExecution:false,symbolicTargetsOnly:true,idempotencyRequired:true,rollbackRequired:true,publicSessionOnly:true,privateMemoryAccess:false,rawConversationStored:false,diagnosticsRedacted:true},counters:{...counters},uptimeMs:Math.max(0,Date.now()-SERVER_BOOT_AT),traceId:trace,t:Date.now()});});
+  app.locals.nyxGuideSteps101112={version:VERSION,contracts:{execution:EXECUTION_CONTRACT,stateTransition:TRANSITION_CONTRACT,releaseGate:RELEASE_CONTRACT},features:FEATURES,readiness,publicOnly:true,nonAuthority:true,actionExecutionAuthority:"client_user_gesture",serverActionExecution:false};
+})();
+/* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_END */
 
 // LINGOSENTINEL_SPONTANEITY_50LANG_MOUNT_START
 // Dynamic spontaneous translation routes for LingoSentinel.
