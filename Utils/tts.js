@@ -1,6 +1,6 @@
 'use strict';
 
-const TTS_VERSION = 'tts.js v2.17.1 PROVIDER-MODULE-PATH-CASE-REPAIR + RAW-PROVIDER-BOUNDARY-LOGGING';
+const TTS_VERSION = 'tts.js v2.18.0 VERIFIED-BINARY-HANDOFF + ACTUAL-FORMAT-AUTHORITY + LIVE-PROBE-ISOLATION';
 
 /**
  * Utils/tts.js
@@ -227,20 +227,8 @@ function updateHealth(ok, meta) {
   if (meta && meta.upstreamMs != null) hb.lastUpstreamMs = meta.upstreamMs;
 }
 
-function shouldAutoProbe() { return (nowMs() - hb.lastCheckAt) >= hbIntervalMs(); }
-
-function shouldBypassPrimaryLiveAttempt() {
-  const t = nowMs();
-  if (hb.status === 'down') {
-    const base = hbCooldownMs();
-    const mult = (hb.failStreak && hb.failStreak >= 3) ? 2 : 1;
-    return (t - hb.lastCheckAt) < (base * mult);
-  }
-  if (hb.status === 'degraded' && hb.failStreak >= 2) {
-    return (t - hb.lastCheckAt) < Math.max(5000, Math.floor(hbCooldownMs() * 0.5));
-  }
-  return false;
-}
+// Live synthesis never auto-probes or self-blocks from wrapper health state.
+// Explicit health requests remain available through runHeartbeatProbe().
 
 // -----------------------------
 // Helpers
@@ -270,7 +258,7 @@ function setDiagnosticHeaders(res) {
     res.set('X-SB-TTS-Provider-Path', String(_resembleProviderPath || 'unresolved').slice(0, 120));
     res.set('X-SB-TTS-Provider-Resolved', _resembleProviderResolvedPath ? 'yes' : 'no');
     res.set('X-SB-TTS-Provider-Load', resembleSynthesize ? 'loaded' : 'missing');
-    res.set('X-SB-TTS-Transport', 'resemble-synthesize');
+    res.set('X-SB-TTS-Transport', 'resemble-synthesize-verified-binary');
     res.set('X-SB-TTS-Raw-Response-Log', bool(process.env.SB_TTS_RAW_RESPONSE_LOG, false) ? 'enabled' : 'disabled');
   } catch (_) {}
 }
@@ -280,21 +268,95 @@ function wantsBase64(body) {
   return r === 'base64' || r === 'json';
 }
 
-function sendAudio(res, req, { body, buf, headers, mimeType }) {
+function detectAudioBuffer(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 4) return null;
+  if (buf.length >= 12 && buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WAVE') {
+    return { mimeType: 'audio/wav', format: 'wav', signature: 'RIFF/WAVE' };
+  }
+  if (buf.length >= 4 && buf.slice(0, 4).toString('ascii') === 'OggS') {
+    return { mimeType: 'audio/ogg', format: 'ogg', signature: 'OggS' };
+  }
+  if (buf.length >= 4 && buf.slice(0, 4).toString('ascii') === 'fLaC') {
+    return { mimeType: 'audio/flac', format: 'flac', signature: 'fLaC' };
+  }
+  if (buf.length >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
+    return { mimeType: 'audio/webm', format: 'webm', signature: 'EBML' };
+  }
+  if (buf.length >= 12 && buf.slice(4, 8).toString('ascii') === 'ftyp') {
+    return { mimeType: 'audio/mp4', format: 'mp4', signature: 'ISO-BMFF' };
+  }
+  if (buf.length >= 3 && buf.slice(0, 3).toString('ascii') === 'ID3') {
+    return { mimeType: 'audio/mpeg', format: 'mp3', signature: 'ID3' };
+  }
+  for (let i = 0; i < Math.min(buf.length - 1, 128); i += 1) {
+    if (buf[i] === 0xff && (buf[i + 1] & 0xe0) === 0xe0) {
+      return { mimeType: 'audio/mpeg', format: 'mp3', signature: 'MPEG-FRAME' };
+    }
+  }
+  return null;
+}
+
+function extensionForMime(mimeType) {
+  switch (String(mimeType || '').toLowerCase()) {
+    case 'audio/wav': return 'wav';
+    case 'audio/ogg': return 'ogg';
+    case 'audio/flac': return 'flac';
+    case 'audio/webm': return 'webm';
+    case 'audio/mp4': return 'm4a';
+    default: return 'mp3';
+  }
+}
+
+function sendAudio(res, req, { body, buf, headers, mimeType, format, signature, requestedFormat, declaredFormat }) {
+  const verified = detectAudioBuffer(buf);
+  if (!verified) {
+    return safeJson(res, 502, {
+      ok: false,
+      code: 'TTS_AUDIO_SIGNATURE_INVALID',
+      reason: 'audio_signature_invalid',
+      message: 'TTS returned bytes without a recognized audio signature.',
+      bytes: Buffer.isBuffer(buf) ? buf.length : 0
+    });
+  }
+
+  const actualMime = verified.mimeType;
+  const actualFormat = verified.format;
   if (wantsBase64(body)) {
     try {
-      const b64 = buf ? buf.toString('base64') : '';
-      const out = { ok: true, audio_b64: b64, bytes: buf ? buf.length : 0 };
+      const b64 = buf.toString('base64');
+      const out = {
+        ok: true,
+        playable: true,
+        audio_b64: b64,
+        audioBase64: b64,
+        bytes: buf.length,
+        mimeType: actualMime,
+        format: actualFormat,
+        signature: verified.signature
+      };
       if (headers && typeof headers === 'object') out.headers = headers;
       return safeJson(res, 200, out);
     } catch (_) {}
   }
+
+  if (req && req.aborted) return;
   res.status(200);
-  res.set('Content-Type', mimeType || 'audio/mpeg');
-  res.set('Cache-Control', 'no-store');
-  res.set('Content-Disposition', 'inline; filename="nyx_tts.mp3"');
-  if (req && (req.aborted || res.writableEnded)) return;
-  return res.send(buf);
+  res.set('Content-Type', actualMime);
+  res.set('Content-Length', String(buf.length));
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Content-Disposition', `inline; filename="nyx_tts.${extensionForMime(actualMime)}"`);
+  const requested = String(requestedFormat || '').toLowerCase();
+  const declared = String(declaredFormat || format || '').toLowerCase();
+  const mismatch = (requested && requested !== actualFormat) ||
+    (declared && declared !== actualFormat) ||
+    (mimeType && mimeType !== actualMime);
+  res.set('X-SB-TTS-Audio-Signature', verified.signature);
+  res.set('X-SB-TTS-Requested-Format', requested);
+  res.set('X-SB-TTS-Provider-Format', declared || actualFormat);
+  res.set('X-SB-TTS-Actual-Format', actualFormat);
+  res.set('X-SB-TTS-Format-Mismatch', mismatch ? 'yes' : 'no');
+  if (res.writableEnded) return;
+  return res.end(buf);
 }
 
 function cleanText(input) {
@@ -318,6 +380,11 @@ function makeTraceId(provided) {
     if (p && p.length <= 64) return p.replace(/[^\w\-:.]/g, '_');
   }
   return `tts_${t}_${rnd.slice(0, 8)}`;
+}
+
+function makeProbeTraceId(parentTraceId) {
+  const parent = String(parentTraceId || 'health').replace(/[^\w\-:.]/g, '_').slice(0, 40);
+  return makeTraceId(`${parent}:probe:${Date.now().toString(16)}`);
 }
 
 function logJsonEnabled() { return bool(process.env.SB_TTS_LOG_JSON, false); }
@@ -416,10 +483,9 @@ function presetFromMood(m) {
 async function runHeartbeatProbe({ traceId }) {
   const timeoutMs = clampInt(process.env.RESEMBLE_TIMEOUT_MS, 15000, 3000, 45000);
   const probeTimeout = Math.max(3000, Math.min(8000, Math.floor(timeoutMs * 0.6)));
-
   const token = String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || '').trim();
   const voiceUuid = String(process.env.RESEMBLE_VOICE_UUID || '').trim();
-
+  const probeTraceId = makeProbeTraceId(traceId);
   const t0 = nowMs();
 
   if (token && voiceUuid && resembleSynthesize) {
@@ -429,21 +495,30 @@ async function runHeartbeatProbe({ traceId }) {
         voiceUuid,
         outputFormat: String(process.env.RESEMBLE_OUTPUT_FORMAT || 'mp3').trim(),
         timeoutMs: probeTimeout,
-        traceId,
+        traceId: probeTraceId,
       });
       const dt = nowMs() - t0;
-      const ok = r && r.ok && r.buffer && r.buffer.length > 1000;
-      updateHealth(!!ok, { error: ok ? null : (r && (r.error || r.message)) || 'probe_failed', upstreamStatus: r && r.status, upstreamMs: dt });
-      return { ok: !!ok, ms: dt, bytes: ok ? r.buffer.length : 0 };
+      const verified = r && r.buffer ? detectAudioBuffer(r.buffer) : null;
+      const ok = !!(r && r.ok && verified && r.buffer.length > 256);
+      updateHealth(ok, { error: ok ? null : (r && (r.reason || r.error || r.message)) || 'probe_failed', upstreamStatus: r && r.status, upstreamMs: dt });
+      return {
+        ok,
+        traceId: probeTraceId,
+        ms: dt,
+        bytes: ok ? r.buffer.length : 0,
+        mimeType: ok ? verified.mimeType : '',
+        format: ok ? verified.format : '',
+        reason: ok ? '' : String(r && (r.reason || r.error || r.message) || 'probe_failed').slice(0, 180)
+      };
     } catch (e) {
       const dt = nowMs() - t0;
       updateHealth(false, { error: (e && e.message) ? e.message : 'probe_error', upstreamMs: dt });
-      return { ok: false, ms: dt, bytes: 0 };
+      return { ok: false, traceId: probeTraceId, ms: dt, bytes: 0, reason: (e && e.message) ? e.message.slice(0, 180) : 'probe_error' };
     }
   }
 
   updateHealth(false, { error: 'resemble_not_configured', upstreamMs: nowMs() - t0 });
-  return { ok: false, ms: nowMs() - t0, bytes: 0 };
+  return { ok: false, traceId: probeTraceId, ms: nowMs() - t0, bytes: 0, reason: 'resemble_not_configured' };
 }
 
 // -----------------------------
@@ -479,8 +554,6 @@ async function handleTts(req, res) {
   }
 
   try {
-    if (shouldAutoProbe()) { try { await runHeartbeatProbe({ traceId }); } catch (_) {} }
-
     const token = String(process.env.RESEMBLE_API_TOKEN || process.env.RESEMBLE_API_KEY || '').trim();
     const voiceUuid = String(process.env.RESEMBLE_VOICE_UUID || '').trim();
     const outputFormatRaw = String(body0.output_format || body0.outputFormat || body0.format || process.env.RESEMBLE_OUTPUT_FORMAT || 'mp3').trim().toLowerCase();
@@ -506,10 +579,6 @@ async function handleTts(req, res) {
       return safeJson(res, 503, { ok: false, traceId, code: 'TTS_NOT_CONFIGURED', message: 'TTS not configured.' });
     }
 
-    if (shouldBypassPrimaryLiveAttempt()) {
-      return safeJson(res, 503, { ok: false, traceId, code: 'TTS_COOLDOWN', message: 'TTS temporarily unavailable (cooldown).' });
-    }
-
     const maxChars = clampInt(process.env.SB_TTS_MAX_CHARS, 1800, 120, 5000);
     let text = cleanText(body0.text || body0.input || '');
     if (bool(body0.firstSentenceOnly, false)) text = firstSentence(text);
@@ -531,71 +600,121 @@ async function handleTts(req, res) {
     const cKey = cacheKey({ provider: 'resemble', voiceId: voiceUuid, voiceSettings, text, format: outputFormat });
     const cached = cacheGet(cKey);
     if (cached && cached.buf && cached.buf.length > 0) {
-      res.set('X-SB-TTS-Provider', 'resemble');
-      res.set('X-SB-TTS-TraceId', traceId);
-      res.set('X-SB-TTS-Cache', 'HIT');
-      res.set('X-SB-TTS-Bytes', String(cached.buf.length));
-      res.set('X-SB-TTS-Ms', String(Math.max(0, nowMs() - started)));
-      return sendAudio(res, req, { body: body0, buf: cached.buf, headers: cached.meta && cached.meta.headers, mimeType: outputFormat === 'wav' ? 'audio/wav' : 'audio/mpeg' });
+      const cachedVerified = detectAudioBuffer(cached.buf);
+      if (!cachedVerified) {
+        _cache.map.delete(cKey);
+      } else {
+        res.set('X-SB-TTS-Provider', 'resemble');
+        res.set('X-SB-TTS-TraceId', traceId);
+        res.set('X-SB-TTS-Cache', 'HIT');
+        res.set('X-SB-TTS-Bytes', String(cached.buf.length));
+        res.set('X-SB-TTS-Ms', String(Math.max(0, nowMs() - started)));
+        return sendAudio(res, req, {
+          body: body0,
+          buf: cached.buf,
+          headers: cached.meta && cached.meta.headers,
+          mimeType: cached.meta && cached.meta.mimeType || cachedVerified.mimeType,
+          format: cached.meta && cached.meta.format || cachedVerified.format,
+          signature: cachedVerified.signature,
+          requestedFormat: outputFormat,
+          declaredFormat: cached.meta && cached.meta.declaredFormat || cachedVerified.format
+        });
+      }
     }
 
     const t0 = nowMs();
     let result = null;
-    let lastErr = null;
+    let callError = '';
 
-    const retryOnce = bool(process.env.SB_TTS_RETRY_ONCE, true);
-    const attempts = retryOnce ? 2 : 1;
-
-    for (let i = 0; i < attempts; i++) {
-      try {
-        result = await resembleSynthesize({
-          text,
-          voiceUuid,
-          outputFormat,
-          timeoutMs,
-          traceId,
-          voiceSettings,
-          stateHints: {
-            sessionId: sessionId || undefined,
-            mood: mood || undefined,
-            preset: presetKey || undefined,
-          }
-        });
-        if (result && result.ok && result.buffer && result.buffer.length > 1000) { lastErr = null; break; }
-        lastErr = (result && (result.error || result.message)) || 'vendor_failed';
-      } catch (e) {
-        lastErr = (e && e.message) ? e.message : 'vendor_error';
-      }
-      if (i < attempts - 1) await new Promise(r => setTimeout(r, 180 + Math.floor(Math.random() * 120)));
+    // The provider owns transient retry policy. Calling it once here prevents
+    // duplicate syntheses, duplicate wallet charges, and trace ambiguity.
+    try {
+      result = await resembleSynthesize({
+        text,
+        voiceUuid,
+        outputFormat,
+        timeoutMs,
+        traceId,
+        voiceSettings,
+        stateHints: {
+          sessionId: sessionId || undefined,
+          mood: mood || undefined,
+          preset: presetKey || undefined,
+        }
+      });
+    } catch (e) {
+      callError = (e && e.message) ? e.message : 'vendor_error';
     }
 
     const upstreamMs = Math.max(0, nowMs() - t0);
 
-    if (!result || !result.ok || !result.buffer || result.buffer.length <= 1000) {
+    if (!result || !result.ok || !Buffer.isBuffer(result.buffer) || result.buffer.length <= 256) {
       const providerStatus = result && Number.isFinite(Number(result.status)) ? Number(result.status) : 0;
-      const providerReason = String(result && (result.reason || result.error || result.message) || lastErr || 'vendor_failed').slice(0, 220);
+      const providerReason = String(result && (result.reason || result.error || result.message) || callError || 'vendor_failed').slice(0, 220);
       updateHealth(false, { error: providerReason, upstreamMs, upstreamStatus: providerStatus });
       try {
         res.set('X-SB-TTS-Upstream-Status', String(providerStatus));
         res.set('X-SB-TTS-Failure-Reason', providerReason.replace(/[^a-zA-Z0-9_.:-]+/g, '_').slice(0, 120));
       } catch (_) {}
-      return safeJson(res, 503, {
+      const decodeBoundaryFailure = /^(?:audio_|base64_|decoded_)/i.test(providerReason);
+      const failureCode = providerReason === 'audio_signature_invalid'
+        ? 'TTS_AUDIO_SIGNATURE_INVALID'
+        : providerReason === 'audio_content_missing'
+          ? 'TTS_AUDIO_CONTENT_MISSING'
+          : decodeBoundaryFailure
+            ? 'TTS_AUDIO_DECODE_FAILED'
+            : 'TTS_UPSTREAM_FAIL';
+      return safeJson(res, decodeBoundaryFailure ? 502 : 503, {
         ok: false,
         traceId,
-        code: 'TTS_UPSTREAM_FAIL',
+        code: failureCode,
         reason: providerReason,
         provider: 'resemble',
         providerStatus,
         retryable: !!(result && result.retryable),
+        bytes: result && result.bytes || 0,
+        base64Length: result && result.base64Length || 0,
+        requestedFormat: result && result.requestedFormat || outputFormat,
+        declaredFormat: result && result.declaredFormat || '',
         rawResponse: result && result.rawResponse ? result.rawResponse : undefined,
-        message: 'TTS unavailable.'
+        message: result && result.message ? String(result.message).slice(0, 260) : 'TTS unavailable.'
       });
     }
 
-    updateHealth(true, { upstreamMs, upstreamStatus: result.status });
-
     const buf = result.buffer;
-    const mimeType = outputFormat === 'wav' ? 'audio/wav' : 'audio/mpeg';
+    const verified = detectAudioBuffer(buf);
+    if (!verified) {
+      updateHealth(false, { error: 'audio_signature_invalid', upstreamMs, upstreamStatus: result.status });
+      try {
+        res.set('X-SB-TTS-Upstream-Status', String(result.status || 200));
+        res.set('X-SB-TTS-Failure-Reason', 'audio_signature_invalid');
+        res.set('X-SB-TTS-Bytes', String(buf.length));
+      } catch (_) {}
+      return safeJson(res, 502, {
+        ok: false,
+        traceId,
+        code: 'TTS_AUDIO_SIGNATURE_INVALID',
+        reason: 'audio_signature_invalid',
+        provider: 'resemble',
+        providerStatus: result.status || 200,
+        bytes: buf.length,
+        declaredMimeType: String(result.mimeType || ''),
+        declaredFormat: String(result.format || ''),
+        rawResponse: result.rawResponse || undefined,
+        message: 'Resemble returned audio_content, but the decoded bytes did not contain a recognized audio signature.'
+      });
+    }
+
+    updateHealth(true, { upstreamMs, upstreamStatus: result.status || 200 });
+
+    const mimeType = verified.mimeType;
+    const actualFormat = verified.format;
+    const declaredMimeType = String(result.mimeType || '');
+    const declaredFormat = String(result.format || result.declaredFormat || '');
+    const formatMismatch = outputFormat !== actualFormat ||
+      !!result.formatMismatch ||
+      (declaredMimeType && declaredMimeType !== mimeType) ||
+      (declaredFormat && declaredFormat.toLowerCase() !== actualFormat);
 
     res.set('X-SB-TTS-Provider', 'resemble');
     res.set('X-SB-TTS-TraceId', traceId);
@@ -604,18 +723,35 @@ async function handleTts(req, res) {
     res.set('X-SB-TTS-UpstreamMs', String(upstreamMs));
     res.set('X-SB-TTS-Upstream-Status', String(result.status || 200));
     res.set('X-SB-TTS-Ms', String(Math.max(0, nowMs() - started)));
+    res.set('X-SB-TTS-Audio-Signature', verified.signature);
+    res.set('X-SB-TTS-Requested-Format', outputFormat);
+    res.set('X-SB-TTS-Provider-Format', declaredFormat || actualFormat);
+    res.set('X-SB-TTS-Actual-Format', actualFormat);
+    res.set('X-SB-TTS-Format-Mismatch', formatMismatch ? 'yes' : 'no');
 
-    cacheSet(cKey, buf, { headers: { provider: 'resemble', traceId, upstreamMs, bytes: buf.length, preset: presetKey } });
+    cacheSet(cKey, buf, {
+      headers: { provider: 'resemble', traceId, upstreamMs, bytes: buf.length, preset: presetKey },
+      mimeType,
+      format: actualFormat,
+      declaredFormat: declaredFormat || actualFormat,
+      signature: verified.signature
+    });
 
     if (logJsonEnabled()) {
       try {
-        console.log('[TTS]', JSON.stringify({
+        console.log('[TTS_AUDIO_DELIVERY]', JSON.stringify({
           t: new Date().toISOString(),
           ok: true,
           provider: 'resemble',
           traceId,
           sessionId: sessionId || undefined,
           bytes: buf.length,
+          signature: verified.signature,
+          requestedFormat: outputFormat,
+          providerFormat: declaredFormat || undefined,
+          actualFormat,
+          mimeType,
+          formatMismatch,
           upstreamMs,
           totalMs: Math.max(0, nowMs() - started),
           preset: presetKey,
@@ -624,8 +760,16 @@ async function handleTts(req, res) {
       } catch (_) {}
     }
 
-    // Do NOT return upstream headers wholesale (privacy/noise). Only buffer.
-    return sendAudio(res, req, { body: body0, buf, headers: null, mimeType });
+    return sendAudio(res, req, {
+      body: body0,
+      buf,
+      headers: null,
+      mimeType,
+      format: actualFormat,
+      signature: verified.signature,
+      requestedFormat: outputFormat,
+      declaredFormat: declaredFormat || actualFormat
+    });
   } catch (e) {
     if (logJsonEnabled()) {
       try {
@@ -648,4 +792,5 @@ module.exports = {
     resolvedPath: _resembleProviderResolvedPath,
     loadErrors: _resembleProviderLoadErrors.slice(),
   },
+  _detectAudioBuffer: detectAudioBuffer,
 };
