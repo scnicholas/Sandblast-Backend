@@ -9,14 +9,15 @@
  * never composes replies, changes Marion authority or dispatches TTS.
  */
 
-const VERSION = "sitebridge.guideShell.v2.0 PERSISTENT-UI-DATA-BRIDGE";
-const GUIDE_CONTRACT = "nyx.guideShell/1.0";
+const VERSION = "sitebridge.guideOrchestration.v3.0 STEPS-1-2-3-DATA-BRIDGE";
+const GUIDE_CONTRACT = "nyx.guideOrchestration/1.0";
 const GUIDE_STATES = Object.freeze([
   "available", "listening", "thinking", "speaking",
   "guiding", "quiet", "recovery", "minimized"
 ]);
 const GUIDE_MODES = Object.freeze(["text", "voice", "avatar"]);
 const DEFAULT_LANES = Object.freeze(["home", "search", "live", "watch", "roku", "news", "about"]);
+const GUIDE_ACTION_TYPES = Object.freeze(["navigate", "play_radio", "stop_radio", "open_media", "open_tv", "open_roku", "open_synapse", "open_guide", "focus_input", "summarize"]);
 const MAX_TEXT = 240;
 const MAX_KEY = 80;
 
@@ -84,11 +85,37 @@ function sanitizeGuideContext(value) {
   };
 }
 
+function sanitizeGuideActions(value) {
+  const list = Array.isArray(value) ? value : [];
+  const out = [];
+  for (const item of list) {
+    const src = safeObj(item);
+    const type = safeText(src.type || src.action, 32).toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+    if (!GUIDE_ACTION_TYPES.includes(type)) continue;
+    const target = normalizeLane(src.target || src.lane || "home");
+    const action = {
+      contract: "nyx.guideAction/1.0",
+      id: safeText(src.id || `${type}_${target}`, 64),
+      type,
+      target,
+      lane: target,
+      label: safeText(src.label || type.replace(/_/g, " "), 80),
+      requiresUserGesture: true,
+      autoExecute: false,
+      advisoryOnly: true
+    };
+    if (!out.some((entry) => entry.type === action.type && entry.target === action.target)) out.push(action);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
 function build(input = {}) {
   const src = safeObj(input);
   const features = safeObj(src.features);
   const context = sanitizeGuideContext(src.guideContext || src.context || src);
   const routes = normalizeRoutes(src.routes);
+  const guideActions = sanitizeGuideActions(src.guideActions || src.actions);
   const queryKey = safeText(src.queryKey, MAX_KEY);
   const sessionKey = safeText(src.sessionKey || src.sessionId, MAX_KEY);
 
@@ -123,9 +150,20 @@ function build(input = {}) {
       reducedMotion: context.reducedMotion,
       publicSessionOnly: true,
       privateMemoryAccess: false,
-      serverMemoryRequired: false
+      serverMemoryRequired: false,
+      contextAware: true,
+      structuredActions: true,
+      actionExecutionAuthority: "client_user_gesture"
     },
     routes,
+    guideActions,
+    actionPolicy: {
+      allowedTypes: GUIDE_ACTION_TYPES.slice(),
+      symbolicTargetsOnly: true,
+      externalUrlsAcceptedFromModel: false,
+      autoExecute: false,
+      requiresUserGesture: true
+    },
     toneCues: [],
     uiCues: [
       { type: "guide_state", state: context.state },
@@ -162,9 +200,11 @@ module.exports = {
   GUIDE_STATES,
   GUIDE_MODES,
   DEFAULT_LANES,
+  GUIDE_ACTION_TYPES,
   build,
   buildAsync,
   sanitizeGuideContext,
+  sanitizeGuideActions,
   normalizeLane,
   normalizeState,
   DISABLED: false,
