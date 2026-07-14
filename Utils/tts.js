@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-TTS-R7: synchronous compatibility recovery first; stream fallback; 2xx/no-audio retry.
+
 const crypto = require("crypto");
 
 const _providerRuntime = (() => {
@@ -261,10 +263,11 @@ function _pollMaxMs(){
 }
 
 function _transportMode(){
-  const raw = _lower(process.env.SB_TTS_TRANSPORT || "stream-first");
-  if (["synthesize-only", "sync-only", "synchronous-only"].includes(raw)) return "synthesize-only";
+  const raw = _lower(process.env.SB_TTS_TRANSPORT || "compat-first");
   if (["stream-only", "stream"].includes(raw)) return "stream-only";
-  return "stream-first";
+  if (["stream-first"].includes(raw)) return "stream-first";
+  if (["synthesize-only", "sync-only", "synchronous-only"].includes(raw)) return "synthesize-only";
+  return "compat-first";
 }
 function _streamPrecision(){
   const raw = _trim(process.env.RESEMBLE_STREAM_PRECISION || process.env.SB_RESEMBLE_STREAM_PRECISION || "PCM_16").toUpperCase();
@@ -493,10 +496,13 @@ function _buildAuthHeaders(token, mode){
   if (mode === "token") return { Authorization: `Token ${token}` };
   return { Authorization: `Bearer ${token}` };
 }
-function _providerAuthModes(){
-  return _boolish(process.env.SB_TTS_LEGACY_AUTH_FALLBACK, false)
-    ? ["bearer", "token", "raw"]
-    : ["bearer"];
+function _providerAuthModes(context){
+  const configured = _lower(process.env.SB_TTS_AUTH_MODE || process.env.RESEMBLE_AUTH_MODE || "auto");
+  if (configured === "bearer") return ["bearer"];
+  if (configured === "raw" || configured === "key") return ["raw"];
+  if (configured === "token") return ["token"];
+  if (context === "stream") return ["bearer", "raw", "token"];
+  return ["raw", "bearer", "token"];
 }
 
 function _normalizeUrlCandidate(url){
@@ -1337,58 +1343,61 @@ async function _callSynthesize(payload, token, traceId, timeoutMs, authMode){
 }
 
 async function _callSynthesizeWithRecovery(payload, token, traceId, timeoutMs, speech){
-  const authModes = _providerAuthModes();
-  const attempts = _maxSynthAttempts();
+  const authModes = _providerAuthModes("sync");
+  const attempts = Math.max(1, Math.min(2, _maxSynthAttempts()));
   let lastResp = null;
-  let lastAuthMode = "bearer";
+  let lastAuthMode = authModes[0] || "raw";
   let lastAttemptCount = 0;
 
-  for (let modeIndex = 0; modeIndex < authModes.length; modeIndex++){
-    const authMode = authModes[modeIndex];
-    for (let attempt = 0; attempt < attempts; attempt++){
-      lastAttemptCount++;
-      lastAuthMode = authMode;
-      const resp = await _callSynthesize(payload, token, traceId, timeoutMs, authMode);
-      lastResp = resp;
-      const status = resp && resp.status ? resp.status : 0;
-      const contentType = _getHeader(resp && resp.headers, "content-type");
-      const json = _isJsonContentType(contentType)
-        ? _parseJson(resp && resp.text ? resp.text : "")
-        : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
+  const plainText = _trim(speech && speech.plainText) || _trim(payload && payload.data);
+  const voiceUuid = _trim(payload && payload.voice_uuid);
+  const payloadVariants = [];
+  const pushPayload = (candidate) => {
+    if (!candidate || !candidate.voice_uuid || !candidate.data) return;
+    const sig = JSON.stringify(candidate);
+    if (!payloadVariants.some((item) => item.sig === sig)) payloadVariants.push({ sig, value: candidate });
+  };
 
-      if (_providerSucceeded(status, json, resp)){
-        return { resp, authMode, attemptsUsed: lastAttemptCount };
-      }
+  // Historical minimal contract: this is the least opinionated request and
+  // avoids model/project/SSML incompatibility.
+  pushPayload({ voice_uuid: voiceUuid, data: plainText });
+  // Current explicit WAV contract from Resemble's official guide.
+  pushPayload({ voice_uuid: voiceUuid, data: plainText, output_format: "wav", sample_rate: 48000, precision: "PCM_16" });
+  // Preserve the caller's requested contract after the compatibility probes.
+  pushPayload({ ...(payload || {}), data: plainText || (payload && payload.data) });
+  if (speech && speech.useSsml && _trim(payload && payload.data) !== plainText) pushPayload({ ...(payload || {}) });
 
-      if (speech && speech.useSsml){
-        const looksRejected =
-          (status === 400 || status === 415 || status === 422) ||
-          /ssml|markup|invalid xml|invalid ssml|unsupported/i.test(
-            _normalizeProviderMessage(json, resp && resp.text)
-          );
-        if (looksRejected){
-          const plainPayload = { ...payload, data: speech.plainText };
-          delete plainPayload.data_type;
-          const plainResp = await _callSynthesize(plainPayload, token, traceId, timeoutMs, authMode);
-          lastResp = plainResp;
-          const plainCt = _getHeader(plainResp && plainResp.headers, "content-type");
-          const plainJson = _isJsonContentType(plainCt)
-            ? _parseJson(plainResp && plainResp.text ? plainResp.text : "")
-            : (_parseJson(plainResp && plainResp.text ? plainResp.text : "") || _safeJsonParseFromBuffer(plainResp && plainResp.buffer));
-          if (_providerSucceeded(plainResp && plainResp.status ? plainResp.status : 0, plainJson, plainResp)){
-            return { resp: plainResp, authMode, attemptsUsed: lastAttemptCount };
-          }
-          const plainStatus = plainResp && plainResp.status ? plainResp.status : 0;
-          if (!_retryableStatus(plainStatus)) break;
+  for (const authMode of authModes){
+    for (const variant of payloadVariants){
+      for (let attempt = 0; attempt < attempts; attempt++){
+        lastAttemptCount += 1;
+        lastAuthMode = authMode;
+        const resp = await _callSynthesize(variant.value, token, traceId, timeoutMs, authMode);
+        lastResp = resp;
+        const status = Number(resp && resp.status || 0);
+        const contentType = _getHeader(resp && resp.headers, "content-type");
+        const json = _isJsonContentType(contentType)
+          ? _parseJson(resp && resp.text ? resp.text : "")
+          : (_parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(resp && resp.buffer));
+
+        if (_providerSucceeded(status, json, resp)) {
+          return { resp, authMode, attemptsUsed: lastAttemptCount, payloadMode: variant.value === payload ? "full" : "compat" };
         }
-      }
 
-      if (!_retryableStatus(status)) break;
-      if (attempt < attempts - 1) await _sleep(_computeBackoffMs(attempt));
+        // A valid async envelope should be handled by the polling layer in
+        // _synthesizeSync, so return it instead of exhausting compatibility probes.
+        if (_shouldAttemptAsyncPolling(status, json)) {
+          return { resp, authMode, attemptsUsed: lastAttemptCount, payloadMode: "async" };
+        }
+
+        const successWithoutAudio = status >= 200 && status < 300;
+        if (!successWithoutAudio && !_retryableStatus(status)) break;
+        if (attempt < attempts - 1) await _sleep(_computeBackoffMs(attempt));
+      }
     }
   }
 
-  return { resp: lastResp, authMode: lastAuthMode, attemptsUsed: lastAttemptCount };
+  return { resp: lastResp, authMode: lastAuthMode, attemptsUsed: lastAttemptCount, payloadMode: "exhausted" };
 }
 
 function _normalizeProviderMessage(json, fallbackText){
@@ -1412,14 +1421,20 @@ function _providerSucceeded(status, json, resp){
   }
 
   if (_isLikelyHtml(resp && resp.text)) return false;
-  if (!json) return false;
-  if (json.success === true) return true;
-  if (json.ok === true) return true;
+  if (!json || typeof json !== "object") return false;
 
   const env = _extractAudioEnvelope(json);
-  if (env.audio_content || env.audio_src || env.audio_base64) return true;
+  return !!(env.audio_content || env.audio_src || env.audio_base64);
+}
 
-  return false;
+function _pickAudioScalar(){
+  for (let i = 0; i < arguments.length; i += 1){
+    const value = arguments[i];
+    if (typeof value !== "string") continue;
+    const cleaned = _trim(value);
+    if (cleaned) return cleaned;
+  }
+  return "";
 }
 
 function _extractAudioEnvelope(json){
@@ -1443,7 +1458,7 @@ function _extractAudioEnvelope(json){
   );
 
   return {
-    audio_content: _pickFirst(
+    audio_content: _pickAudioScalar(
       json.audio_content,
       json.audio,
       json.content,
@@ -1455,7 +1470,7 @@ function _extractAudioEnvelope(json){
       output && (output.audio_content || output.content),
       item0 && (item0.audio_content || item0.content)
     ),
-    audio_base64: _pickFirst(
+    audio_base64: _pickAudioScalar(
       json.audio_base64,
       json.base64,
       json.audioBase64,
@@ -1469,7 +1484,7 @@ function _extractAudioEnvelope(json){
       output && (output.audio_base64 || output.base64 || output.audioBase64),
       item0 && (item0.audio_base64 || item0.base64 || item0.audioBase64)
     ),
-    audio_src: _pickFirst(
+    audio_src: _pickAudioScalar(
       json.audio_src,
       json.url,
       json.src,
@@ -1535,8 +1550,11 @@ function _safeBase64ToBuffer(value){
     const cleaned = s
       .replace(/^data:[^;]+;base64,/i, "")
       .replace(/\s+/g, "");
-    const buf = Buffer.from(cleaned, "base64");
-    return Buffer.isBuffer(buf) && buf.length ? buf : null;
+    if (cleaned.length < 16 || !/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned)) return null;
+    const padded = cleaned + "=".repeat((4 - (cleaned.length % 4)) % 4);
+    const buf = Buffer.from(padded, "base64");
+    if (!Buffer.isBuffer(buf) || !buf.length || buf.length > _maxAudioBytes()) return null;
+    return buf;
   }catch(_){
     return null;
   }
@@ -1571,8 +1589,8 @@ async function _synthesizeStream(opts){
     payload.apply_custom_pronunciations = true;
   }
 
-  const authModes = _providerAuthModes();
-  const attempts = _maxSynthAttempts();
+  const authModes = _providerAuthModes("stream");
+  const attempts = Math.max(1, Math.min(2, _maxSynthAttempts()));
   const urls = _candidateStreamUrls();
   let lastFailure = null;
   let attemptsUsed = 0;
@@ -1651,7 +1669,7 @@ async function _synthesizeStream(opts){
           rawPreview: _safePreview(resp && resp.text, 240),
           elapsedMs: Date.now() - started
         });
-        if (!_retryableStatus(status)) return lastFailure;
+        if (!(status >= 200 && status < 300) && !_retryableStatus(status)) return lastFailure;
       }
       if (attempt < attempts - 1) await _sleep(_computeBackoffMs(attempt));
     }
@@ -2033,29 +2051,40 @@ async function _synthesizeSync(opts){
 
 async function synthesize(opts){
   const mode = _transportMode();
-  if (mode !== "synthesize-only") {
+
+  if (mode === "stream-only") {
+    const streamOnly = await _synthesizeStream(opts || {});
+    return streamOnly && typeof streamOnly === "object" ? { ...streamOnly, transport: streamOnly.transport || "stream" } : streamOnly;
+  }
+
+  if (mode === "stream-first") {
     const streamResult = await _synthesizeStream(opts || {});
     if (streamResult && streamResult.ok) return streamResult;
     if (mode === "stream-only") return streamResult;
+    const syncFallback = await _synthesizeSync(opts || {});
+    if (syncFallback && syncFallback.ok) return { ...syncFallback, transport: "synthesize-fallback", streamFallbackReason: streamResult && streamResult.reason || "stream_unavailable" };
+    return { ...(syncFallback || streamResult || {}), transport: "stream-first-failed", streamFailureReason: streamResult && streamResult.reason || "stream_unavailable" };
+  }
 
-    const syncResult = await _synthesizeSync(opts || {});
-    if (syncResult && syncResult.ok) {
-      return {
-        ...syncResult,
-        transport: "synthesize-fallback",
-        streamFallbackReason: streamResult && streamResult.reason || "stream_unavailable",
-        streamFallbackStatus: Number(streamResult && streamResult.status || 0) || 0
-      };
-    }
+  const syncResult = await _synthesizeSync(opts || {});
+  if (syncResult && syncResult.ok) return { ...syncResult, transport: "synthesize-compat" };
+  if (mode === "synthesize-only") return syncResult;
+
+  const streamFallback = await _synthesizeStream(opts || {});
+  if (streamFallback && streamFallback.ok) {
     return {
-      ...(syncResult || streamResult || {}),
-      transport: "stream-first-failed",
-      streamFailureReason: streamResult && streamResult.reason || "stream_unavailable",
-      streamFailureStatus: Number(streamResult && streamResult.status || 0) || 0
+      ...streamFallback,
+      transport: "stream-fallback",
+      synthFallbackReason: syncResult && syncResult.reason || "synthesize_unavailable",
+      synthFallbackStatus: Number(syncResult && syncResult.status || 0) || 0
     };
   }
-  const syncResult = await _synthesizeSync(opts || {});
-  return syncResult && typeof syncResult === "object" ? { ...syncResult, transport: syncResult.transport || "synthesize" } : syncResult;
+  return {
+    ...(syncResult || streamFallback || {}),
+    transport: "compat-first-failed",
+    streamFailureReason: streamFallback && streamFallback.reason || "stream_unavailable",
+    streamFailureStatus: Number(streamFallback && streamFallback.status || 0) || 0
+  };
 }
 
 return {
@@ -2101,10 +2130,13 @@ const PHASES = Object.freeze({
   p27_nestedPayloadNormalization: true,
   p28_streamFirstWavTransport: true,
   p29_synchronousFallback: true,
-  p30_transportTelemetry: true
+  p30_transportTelemetry: true,
+  p31_syncCompatibilityRecovery: true,
+  p32_twoHundredNoAudioRetry: true,
+  p33_authContractLadder: true
 });
 
-const TTS_VERSION = "tts.js v2.14.0 STREAM-FIRST-WAV + SYNTHESIZE-FALLBACK + AUDIO-INTEGRITY";
+const TTS_VERSION = "tts.js v2.15.0 SYNTH-COMPAT-FIRST + AUTH-LADDER + STREAM-FALLBACK + AUDIO-INTEGRITY";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -3300,6 +3332,8 @@ function _frontendErrorEnvelope(input, result, status, extra) {
     traceId: _headerSafe(input && input.traceId, 120),
     provider: _pickFirst(result && result.provider, "resemble"),
     providerStatus,
+    transport: _pickFirst(result && result.transport, "unknown"),
+    ttsVersion: TTS_VERSION,
     providerEndpointHost: endpointHost,
     voiceUuidPreview: _mask(_pickFirst(result && result.voiceUuid, input && input.voiceUuid)),
     requestId: _headerSafe(_pickFirst(result && result.requestId, input && input.requestId), 80),
