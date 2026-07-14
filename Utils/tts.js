@@ -16,6 +16,7 @@ const MANUAL_RESEMBLE_CONFIG = Object.freeze({
   voiceUuid: "",
   projectUuid: "",
   synthUrl: "",
+  streamUrl: "",
   statusUrlTemplate: ""
 });
 
@@ -47,7 +48,10 @@ const PHASES = Object.freeze({
   p25_transientRetryBackoff: true,
   p26_audioRecoverySignalReady: true,
   p27_asyncPolling: true,
-  p28_asyncResultRetrieval: true
+  p28_asyncResultRetrieval: true,
+  p29_streamFirstTransport: true,
+  p30_streamWavIntegrity: true,
+  p31_synchronousFallback: true
 });
 
 const LOCKED_VOICE_ENV_KEYS = Object.freeze([
@@ -254,6 +258,25 @@ function _pollIntervalMs(){
 }
 function _pollMaxMs(){
   return _clampInt(process.env.SB_TTS_PROVIDER_POLL_MAX_MS, 15000, 1000, 120000);
+}
+
+function _transportMode(){
+  const raw = _lower(process.env.SB_TTS_TRANSPORT || "stream-first");
+  if (["synthesize-only", "sync-only", "synchronous-only"].includes(raw)) return "synthesize-only";
+  if (["stream-only", "stream"].includes(raw)) return "stream-only";
+  return "stream-first";
+}
+function _streamPrecision(){
+  const raw = _trim(process.env.RESEMBLE_STREAM_PRECISION || process.env.SB_RESEMBLE_STREAM_PRECISION || "PCM_16").toUpperCase();
+  return ["PCM_32", "PCM_24", "PCM_16", "MULAW"].includes(raw) ? raw : "PCM_16";
+}
+function _streamSampleRate(){
+  const allowed = new Set([8000, 16000, 22050, 32000, 44100, 48000]);
+  const raw = Number(process.env.RESEMBLE_STREAM_SAMPLE_RATE || process.env.SB_RESEMBLE_STREAM_SAMPLE_RATE || 48000);
+  return allowed.has(raw) ? raw : 48000;
+}
+function _streamUseHd(){
+  return _boolish(process.env.RESEMBLE_STREAM_USE_HD || process.env.SB_RESEMBLE_STREAM_USE_HD, false);
 }
 function _looksLikeMp3(buf){
   return Buffer.isBuffer(buf) && buf.length >= 3 && (
@@ -599,6 +622,75 @@ function _candidateSynthesizeUrls(){
     if (!seen.has(u)){
       seen.add(u);
       uniq.push(u);
+    }
+  }
+  return uniq;
+}
+
+const RESEMBLE_STREAM_URL_ENV_KEYS = Object.freeze([
+  "RESEMBLE_STREAM_URL",
+  "SB_RESEMBLE_STREAM_URL",
+  "SBNYX_RESEMBLE_STREAM_URL",
+  "RESEMBLE_STREAM_ENDPOINT",
+  "SB_RESEMBLE_STREAM_ENDPOINT"
+]);
+const DEFAULT_RESEMBLE_STREAM_URL = "https://f.cluster.resemble.ai/stream";
+
+function _normalizeStreamUrlCandidate(url){
+  const normalized = _normalizeUrlCandidate(url);
+  if (!normalized) return "";
+  try{
+    const u = new URL(normalized);
+    if (u.protocol !== "https:") return "";
+    if (!_isAllowedResembleProviderHost(u.hostname)) return "";
+    u.hash = "";
+    if (u.hostname.toLowerCase() === "f.cluster.resemble.ai" && /^\/?$/.test(u.pathname || "")) {
+      u.pathname = "/stream";
+    }
+    if (!/\/stream\/?$/i.test(u.pathname || "")) return "";
+    return u.toString();
+  }catch(_){
+    return "";
+  }
+}
+
+function _streamEndpointState(){
+  const invalidConfiguredKeys = [];
+  for (const key of RESEMBLE_STREAM_URL_ENV_KEYS){
+    const raw = _trim(process.env[key]);
+    if (!raw) continue;
+    const url = _normalizeStreamUrlCandidate(raw);
+    if (url) {
+      const parsed = new URL(url);
+      return { configured: true, valid: true, source: key, url, host: parsed.host, path: parsed.pathname, invalidConfiguredKeys };
+    }
+    invalidConfiguredKeys.push(key);
+  }
+
+  const manual = _trim(_manualConfig().streamUrl);
+  const manualUrl = _normalizeStreamUrlCandidate(manual);
+  if (manualUrl) {
+    const parsed = new URL(manualUrl);
+    return { configured: true, valid: true, source: "MANUAL_RESEMBLE_CONFIG.streamUrl", url: manualUrl, host: parsed.host, path: parsed.pathname, invalidConfiguredKeys };
+  }
+  if (manual) invalidConfiguredKeys.push("MANUAL_RESEMBLE_CONFIG.streamUrl");
+
+  const fallbackUrl = _normalizeStreamUrlCandidate(DEFAULT_RESEMBLE_STREAM_URL);
+  const parsed = new URL(fallbackUrl);
+  return { configured: false, valid: !!fallbackUrl, source: "built_in_default", url: fallbackUrl, host: parsed.host, path: parsed.pathname, invalidConfiguredKeys };
+}
+
+function _candidateStreamUrls(){
+  const state = _streamEndpointState();
+  const explicit = [state.url, DEFAULT_RESEMBLE_STREAM_URL]
+    .map(_normalizeStreamUrlCandidate)
+    .filter(Boolean);
+  const uniq = [];
+  const seen = new Set();
+  for (const url of explicit){
+    if (!seen.has(url)){
+      seen.add(url);
+      uniq.push(url);
     }
   }
   return uniq;
@@ -1013,6 +1105,98 @@ async function _postRequest(url, headers, bodyObj, timeoutMs){
   return _postViaHttps(safeUrl, headers, bodyObj, timeoutMs);
 }
 
+function _postStreamViaHttps(url, headers, bodyObj, timeoutMs){
+  const body = JSON.stringify(bodyObj);
+  const maxBytes = _maxAudioBytes();
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request({
+      method: "POST",
+      hostname: u.hostname,
+      port: u.port || undefined,
+      protocol: u.protocol,
+      path: u.pathname + (u.search || ""),
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "audio/wav, audio/*;q=0.9, application/json;q=0.5",
+        "Accept-Encoding": "identity",
+        "Content-Length": Buffer.byteLength(body),
+        ...headers
+      },
+      timeout: timeoutMs
+    }, (res) => {
+      const chunks = [];
+      let total = 0;
+      res.on("data", (chunk) => {
+        total += chunk.length;
+        if (total > maxBytes){
+          req.destroy(new Error("stream_audio_too_large"));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on("end", () => {
+        const buffer = Buffer.concat(chunks);
+        resolve({
+          status: res.statusCode || 0,
+          headers: res.headers || {},
+          buffer,
+          text: _isAudioContentType(_getHeader(res.headers || {}, "content-type")) || _looksLikeWav(buffer)
+            ? ""
+            : buffer.toString("utf8")
+        });
+      });
+    });
+    req.on("timeout", () => req.destroy(new Error("stream_request_timeout")));
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+async function _postStreamRequest(url, headers, bodyObj, timeoutMs){
+  const safeUrl = _assertAllowedResembleProviderUrl(url);
+  if (typeof fetch === "function"){
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    let timer = null;
+    try{
+      if (controller) timer = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(safeUrl, {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "audio/wav, audio/*;q=0.9, application/json;q=0.5",
+          "Accept-Encoding": "identity",
+          ...headers
+        },
+        body: JSON.stringify(bodyObj),
+        signal: controller ? controller.signal : undefined
+      });
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (buffer.length > _maxAudioBytes()) throw new Error("stream_audio_too_large");
+      const responseHeaders = Object.fromEntries(res.headers.entries());
+      const contentType = _getHeader(responseHeaders, "content-type");
+      return {
+        status: res.status,
+        headers: responseHeaders,
+        buffer,
+        text: _isAudioContentType(contentType) || _looksLikeWav(buffer) ? "" : buffer.toString("utf8")
+      };
+    }catch(e){
+      if (e && e.name === "AbortError") {
+        const err = new Error("stream_request_timeout");
+        err.cause = e;
+        throw err;
+      }
+      throw e;
+    }finally{
+      if (timer) clearTimeout(timer);
+    }
+  }
+  return _postStreamViaHttps(safeUrl, headers, bodyObj, timeoutMs);
+}
+
 function _downloadViaHttps(url, timeoutMs){
   const maxBytes = _maxAudioBytes();
   return new Promise((resolve, reject) => {
@@ -1358,7 +1542,131 @@ function _safeBase64ToBuffer(value){
   }
 }
 
-async function synthesize(opts){
+async function _synthesizeStream(opts){
+  const started = Date.now();
+  const speech = _buildSpeechEnvelope(opts || {});
+  const text = _trim(speech.plainText || speech.textSpeak || speech.textDisplay);
+  const voiceState = _voiceResolutionState(opts && opts.voiceUuid);
+  const voiceUuid = voiceState.voiceUuid;
+  const projectUuid = _pickFirst(opts && opts.projectUuid, _getProjectUuid());
+  const token = _getToken();
+  const traceId = _trim(opts && opts.traceId);
+  const timeoutMs = _requestTimeoutMs();
+
+  if (!token) return _normalizedProviderError("missing_token", "Missing backend TTS token configuration", 0, false, { transport: "stream", elapsedMs: Date.now() - started });
+  if (!text) return _normalizedProviderError("missing_text", "Missing text", 0, false, { transport: "stream", elapsedMs: Date.now() - started });
+  if (!voiceUuid) return _normalizedProviderError("missing_voice", "Missing locked RESEMBLE_VOICE_UUID voice configuration", 0, false, { transport: "stream", elapsedMs: Date.now() - started });
+
+  const payload = {
+    voice_uuid: voiceUuid,
+    data: text,
+    precision: _streamPrecision(),
+    sample_rate: _streamSampleRate()
+  };
+  const model = _defaultModel();
+  if (model) payload.model = model;
+  if (projectUuid) payload.project_uuid = projectUuid;
+  if (_streamUseHd()) payload.use_hd = true;
+  if (_boolish(opts && opts.applyCustomPronunciations, _boolish(process.env.RESEMBLE_APPLY_CUSTOM_PRONUNCIATIONS, false))) {
+    payload.apply_custom_pronunciations = true;
+  }
+
+  const authModes = _providerAuthModes();
+  const attempts = _maxSynthAttempts();
+  const urls = _candidateStreamUrls();
+  let lastFailure = null;
+  let attemptsUsed = 0;
+
+  for (const authMode of authModes){
+    for (let attempt = 0; attempt < attempts; attempt++){
+      attemptsUsed += 1;
+      for (const url of urls){
+        let resp;
+        try{
+          const headers = { ..._buildAuthHeaders(token, authMode), "User-Agent": "sb-nyx-tts/1.5" };
+          if (traceId) headers["X-SB-Trace-ID"] = _headerSafe(traceId, 120);
+          resp = await _postStreamRequest(url, headers, payload, timeoutMs);
+          resp.providerEndpoint = _safeUrlForLogs(url);
+        }catch(e){
+          lastFailure = _normalizedProviderError(
+            /timeout|abort/i.test(_str(e && e.message)) ? "stream_timeout" : "stream_network_error",
+            _str(e && e.message ? e.message : e),
+            0,
+            true,
+            { transport: "stream", authMode, attemptsUsed, providerEndpoint: _safeUrlForLogs(url), voiceUuid, traceId: _headerSafe(traceId, 120), elapsedMs: Date.now() - started }
+          );
+          continue;
+        }
+
+        const status = Number(resp && resp.status || 0);
+        const contentType = _getHeader(resp && resp.headers, "content-type");
+        const buffer = resp && Buffer.isBuffer(resp.buffer) ? resp.buffer : Buffer.alloc(0);
+        const wavReady = status >= 200 && status < 300 && _looksLikeWav(buffer) && buffer.length >= 44;
+        if (wavReady){
+          return {
+            ok: true,
+            buffer,
+            audioBuffer: buffer,
+            binary: buffer,
+            audio: buffer.toString("base64"),
+            audioBase64: buffer.toString("base64"),
+            byteLength: buffer.length,
+            contentLength: buffer.length,
+            mimeType: "audio/wav",
+            outputFormat: "wav",
+            providerStatus: status,
+            providerEndpoint: resp.providerEndpoint,
+            authMode,
+            attemptsUsed,
+            transport: "stream",
+            voiceUuid,
+            voiceUuidMasked: _mask(voiceUuid),
+            traceId: _headerSafe(traceId, 120),
+            textDisplay: speech.textDisplay,
+            textSpeak: speech.textSpeak,
+            plainText: speech.plainText,
+            speechChunks: speech.speechChunks,
+            segmentCount: speech.segmentCount,
+            speechHints: speech.speechHints,
+            usedSsml: false,
+            elapsedMs: Date.now() - started,
+            phases: PHASES
+          };
+        }
+
+        const json = _parseJson(resp && resp.text ? resp.text : "") || _safeJsonParseFromBuffer(buffer);
+        const providerMessage = _normalizeProviderMessage(json, resp && resp.text ? resp.text : "Resemble stream returned no valid WAV audio.");
+        const reason = status === 401 || status === 403
+          ? "auth_error"
+          : (status >= 200 && status < 300 ? "stream_invalid_wav" : "stream_http_error");
+        lastFailure = _normalizedProviderError(reason, providerMessage, status, _retryableStatus(status), {
+          transport: "stream",
+          authMode,
+          attemptsUsed,
+          providerEndpoint: resp.providerEndpoint,
+          voiceUuid,
+          traceId: _headerSafe(traceId, 120),
+          contentType: _headerSafe(contentType, 80),
+          responseBytes: buffer.length,
+          rawPreview: _safePreview(resp && resp.text, 240),
+          elapsedMs: Date.now() - started
+        });
+        if (!_retryableStatus(status)) return lastFailure;
+      }
+      if (attempt < attempts - 1) await _sleep(_computeBackoffMs(attempt));
+    }
+  }
+
+  return lastFailure || _normalizedProviderError("stream_unavailable", "No Resemble streaming endpoint was available.", 0, true, {
+    transport: "stream",
+    attemptsUsed,
+    voiceUuid,
+    traceId: _headerSafe(traceId, 120),
+    elapsedMs: Date.now() - started
+  });
+}
+
+async function _synthesizeSync(opts){
   const started = Date.now();
 
   const speech = _buildSpeechEnvelope(opts || {});
@@ -1703,6 +2011,7 @@ async function synthesize(opts){
     providerStatus: status,
     authMode,
     attemptsUsed,
+    transport: "synthesize",
     pollsUsed: pollOutcome && pollOutcome.pollsUsed ? pollOutcome.pollsUsed : 0,
     providerEndpoint,
     voiceUuid,
@@ -1722,11 +2031,45 @@ async function synthesize(opts){
   };
 }
 
-return { synthesize, MANUAL_RESEMBLE_CONFIG, getSynthesizeEndpointState: _synthesizeEndpointState, getProviderAuthModes: _providerAuthModes };
+async function synthesize(opts){
+  const mode = _transportMode();
+  if (mode !== "synthesize-only") {
+    const streamResult = await _synthesizeStream(opts || {});
+    if (streamResult && streamResult.ok) return streamResult;
+    if (mode === "stream-only") return streamResult;
+
+    const syncResult = await _synthesizeSync(opts || {});
+    if (syncResult && syncResult.ok) {
+      return {
+        ...syncResult,
+        transport: "synthesize-fallback",
+        streamFallbackReason: streamResult && streamResult.reason || "stream_unavailable",
+        streamFallbackStatus: Number(streamResult && streamResult.status || 0) || 0
+      };
+    }
+    return {
+      ...(syncResult || streamResult || {}),
+      transport: "stream-first-failed",
+      streamFailureReason: streamResult && streamResult.reason || "stream_unavailable",
+      streamFailureStatus: Number(streamResult && streamResult.status || 0) || 0
+    };
+  }
+  const syncResult = await _synthesizeSync(opts || {});
+  return syncResult && typeof syncResult === "object" ? { ...syncResult, transport: syncResult.transport || "synthesize" } : syncResult;
+}
+
+return {
+  synthesize,
+  MANUAL_RESEMBLE_CONFIG,
+  getSynthesizeEndpointState: _synthesizeEndpointState,
+  getStreamEndpointState: _streamEndpointState,
+  getTransportMode: _transportMode,
+  getProviderAuthModes: _providerAuthModes
+};
 
 })();
 
-const { synthesize, MANUAL_RESEMBLE_CONFIG, getSynthesizeEndpointState, getProviderAuthModes } = _providerRuntime;
+const { synthesize, MANUAL_RESEMBLE_CONFIG, getSynthesizeEndpointState, getStreamEndpointState, getTransportMode, getProviderAuthModes } = _providerRuntime;
 
 const PHASES = Object.freeze({
   p01_contractSafe: true,
@@ -1755,10 +2098,13 @@ const PHASES = Object.freeze({
   p24_healthReadinessTruth: true,
   p25_routeLevelFailover: true,
   p26_exactFrontendContract: true,
-  p27_nestedPayloadNormalization: true
+  p27_nestedPayloadNormalization: true,
+  p28_streamFirstWavTransport: true,
+  p29_synchronousFallback: true,
+  p30_transportTelemetry: true
 });
 
-const TTS_VERSION = "tts.js v2.13.0 AUDIO-CONTENT-INTEGRITY + PUBLIC-ERROR-REDACTION";
+const TTS_VERSION = "tts.js v2.14.0 STREAM-FIRST-WAV + SYNTHESIZE-FALLBACK + AUDIO-INTEGRITY";
 const MAX_TEXT = 1800;
 const MAX_CONCURRENT = Number(process.env.SB_TTS_MAX_CONCURRENT || 3);
 const CIRCUIT_LIMIT = Number(process.env.SB_TTS_CIRCUIT_LIMIT || 5);
@@ -2036,6 +2382,7 @@ function _setCommonAudioHeaders(res, traceId, meta) {
   _setHeader(res, "X-SB-Trace-ID", _headerSafe(traceId, 120));
   _setHeader(res, "X-SB-TTS-Version", _headerSafe(TTS_VERSION, 120));
   if (meta && meta.provider) _setHeader(res, "X-SB-TTS-Provider", _headerSafe(meta.provider, 40));
+  if (meta && meta.transport) _setHeader(res, "X-SB-TTS-Transport", _headerSafe(meta.transport, 48));
   if (meta && meta.voiceUuid) _setHeader(res, "X-SB-Voice", _mask(meta.voiceUuid));
   if (meta && meta.voiceSource) _setHeader(res, "X-SB-Voice-Source", _headerSafe(meta.voiceSource, 40));
   if (meta && meta.voiceLock) _setHeader(res, "X-SB-Voice-Lock", _headerSafe(meta.voiceLock, 40));
@@ -2290,7 +2637,14 @@ function _healthSnapshot() {
   const projectUuid = _resolveProjectUuid("");
   const token = _resolveProviderToken();
   const endpointState = getSynthesizeEndpointState();
-  const configured = !!(token && voiceUuid && endpointState && endpointState.valid);
+  const streamEndpointState = getStreamEndpointState();
+  const transportMode = getTransportMode();
+  const endpointReady = transportMode === "stream-only"
+    ? !!(streamEndpointState && streamEndpointState.valid)
+    : transportMode === "synthesize-only"
+      ? !!(endpointState && endpointState.valid)
+      : !!((streamEndpointState && streamEndpointState.valid) || (endpointState && endpointState.valid));
+  const configured = !!(token && voiceUuid && endpointReady);
   const ready = configured && integrity.valid && !_circuitOpen() && activeRequests < MAX_CONCURRENT;
   return {
     ok: ready,
@@ -2311,6 +2665,13 @@ function _healthSnapshot() {
       hasToken: !!token,
       hasProject: !!projectUuid,
       hasVoice: !!voiceUuid,
+      transportMode,
+      hasStreamEndpoint: !!(streamEndpointState && streamEndpointState.valid),
+      streamEndpointExplicitlyConfigured: !!(streamEndpointState && streamEndpointState.configured),
+      streamEndpointSource: streamEndpointState && streamEndpointState.source || "unavailable",
+      streamEndpointHost: streamEndpointState && streamEndpointState.host || "",
+      streamEndpointPath: streamEndpointState && streamEndpointState.path || "",
+      invalidStreamEndpointKeys: streamEndpointState && Array.isArray(streamEndpointState.invalidConfiguredKeys) ? streamEndpointState.invalidConfiguredKeys : [],
       hasSynthesizeEndpoint: !!(endpointState && endpointState.valid),
       synthesizeEndpointExplicitlyConfigured: !!(endpointState && endpointState.configured),
       synthesizeEndpointSource: endpointState && endpointState.source || "unavailable",
@@ -2765,6 +3126,7 @@ function _normalizeProviderAudio(out) {
     retryable: typeof src.retryable === "boolean" ? src.retryable : (typeof payload.retryable === "boolean" ? payload.retryable : retryableDefault),
     authMode: _pickFirst(src.authMode, payload.authMode),
     providerEndpoint: _pickFirst(src.providerEndpoint, payload.providerEndpoint),
+    transport: _pickFirst(src.transport, payload.transport, response.transport, result.transport),
     voiceUuid: _pickFirst(src.voiceUuid, payload.voiceUuid),
     audioVerification: ok ? (signatureMime ? "signature-verified" : "declared-audio-nontext") : "rejected-non-audio"
   };
@@ -2826,7 +3188,8 @@ async function _synthesizeWithFailover(providerInput, snapshot, shapeElapsedMs, 
         out: {
           ...result.out,
           failoverKind: variant.failoverKind || "primary",
-          outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3"
+          outputFormat: variant.outputFormat || providerInput.outputFormat || "mp3",
+          transport: result.out && result.out.transport || "unknown"
         },
         attempt: result.attempt,
         failoverIndex: idx + 1,
@@ -3034,6 +3397,7 @@ async function generate(text, options) {
       reason: normalizedOut.reason || "",
       authMode: normalizedOut.authMode || "",
       providerEndpoint: normalizedOut.providerEndpoint || "",
+      transport: normalizedOut.transport || "unknown",
       bytes: normalizedOut.buffer ? normalizedOut.buffer.length : 0,
       elapsedMs: normalizedOut.elapsedMs || 0,
       attempt: providerResult.attempt || 1,
@@ -3084,6 +3448,7 @@ async function generate(text, options) {
       providerStatus: normalizedOut.providerStatus || 200,
       providerEndpoint: normalizedOut.providerEndpoint || "",
       authMode: normalizedOut.authMode || "",
+      transport: normalizedOut.transport || "unknown",
       failoverKind: normalizedOut.failoverKind || "primary",
       shapeElapsedMs: shaped.shapeElapsedMs,
       segmentCount: shaped.segmentCount,
@@ -3382,6 +3747,7 @@ async function handleTts(req, res) {
     _setHeader(res, "X-SB-Response-Mode", "error");
     _setCommonAudioHeaders(res, input.traceId, {
       provider: result.provider || "resemble",
+      transport: result.transport || "unknown",
       voiceUuid: result.voiceUuid || input.voiceUuid,
       voiceSource: snapshot.voiceSource,
       elapsedMs: result.elapsedMs || 0,
@@ -3417,6 +3783,7 @@ async function handleTts(req, res) {
 
   _setCommonAudioHeaders(res, input.traceId, {
     provider: result.provider || "resemble",
+    transport: result.transport || "unknown",
     voiceUuid: result.voiceUuid || input.voiceUuid,
     voiceSource: snapshot.voiceSource,
     elapsedMs: result.elapsedMs || 0,
@@ -3436,6 +3803,7 @@ async function handleTts(req, res) {
     return _safeJson(res, 200, {
       ok: true,
       provider: result.provider,
+      transport: result.transport || "unknown",
       mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg",
       audio: routeAudio.buffer.toString("base64"),
       audioBase64: routeAudio.buffer.toString("base64"),
@@ -3472,7 +3840,7 @@ async function handleTts(req, res) {
     _setHeader(res, "Content-Length", String(routeAudio.bytes));
     _setHeader(res, "Accept-Ranges", "none");
     _setHeader(res, "X-SB-Audio-Playback-Verify", _headerSafe(result.requestId || input.requestId || input.traceId, 80));
-    _log("http_success_audio", { ...snapshot, bytes: routeAudio.bytes, mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg", elapsedMs: _now() - startedAt });
+    _log("http_success_audio", { ...snapshot, bytes: routeAudio.bytes, mimeType: routeAudio.mimeType || result.mimeType || "audio/mpeg", transport: result.transport || "unknown", elapsedMs: _now() - startedAt });
     return res.status(200).send(routeAudio.buffer);
   } catch (e) {
     const detail = _trim(e && (e.message || e)) || "Failed to send audio buffer.";
@@ -3509,6 +3877,8 @@ module.exports = {
   PHASES,
   MANUAL_RESEMBLE_CONFIG,
   getSynthesizeEndpointState,
+  getStreamEndpointState,
+  getTransportMode,
   TTS_VERSION,
   VERSION: TTS_VERSION,
   version: TTS_VERSION
