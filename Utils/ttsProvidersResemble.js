@@ -44,7 +44,7 @@
 
 const crypto = require("crypto");
 
-const PROVIDER_VERSION = "ttsProvidersResemble v2.3.1 CANONICAL-PATH-CASE + RAW-PROVIDER-BOUNDARY-LOGGING";
+const PROVIDER_VERSION = "ttsProvidersResemble v2.4.0 VERIFIED-DECODE + BINARY-SIGNATURE + ACTUAL-FORMAT-AUTHORITY";
 const DEFAULT_ENDPOINT = "https://f.cluster.resemble.ai/synthesize";
 
 // --- Fetch polyfill (Phase: Resilience Layer / runtime hardening)
@@ -84,9 +84,94 @@ function _intEnv(v, def) {
 
 function _mimeForFormat(fmt) {
   const f = String(fmt || "").toLowerCase();
-  if (f === "mp3") return "audio/mpeg";
-  if (f === "wav") return "audio/wav";
+  if (f === "mp3" || f === "mpeg") return "audio/mpeg";
+  if (f === "wav" || f === "wave") return "audio/wav";
+  if (f === "ogg") return "audio/ogg";
+  if (f === "flac") return "audio/flac";
+  if (f === "webm") return "audio/webm";
+  if (f === "mp4" || f === "m4a") return "audio/mp4";
   return "application/octet-stream";
+}
+
+function _detectAudioBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) return null;
+  if (buffer.length >= 12 && buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WAVE") {
+    return { mimeType: "audio/wav", format: "wav", signature: "RIFF/WAVE" };
+  }
+  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "OggS") {
+    return { mimeType: "audio/ogg", format: "ogg", signature: "OggS" };
+  }
+  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "fLaC") {
+    return { mimeType: "audio/flac", format: "flac", signature: "fLaC" };
+  }
+  if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return { mimeType: "audio/webm", format: "webm", signature: "EBML" };
+  }
+  if (buffer.length >= 12 && buffer.slice(4, 8).toString("ascii") === "ftyp") {
+    return { mimeType: "audio/mp4", format: "mp4", signature: "ISO-BMFF" };
+  }
+  if (buffer.length >= 3 && buffer.slice(0, 3).toString("ascii") === "ID3") {
+    return { mimeType: "audio/mpeg", format: "mp3", signature: "ID3" };
+  }
+  for (let i = 0; i < Math.min(buffer.length - 1, 128); i += 1) {
+    if (buffer[i] === 0xff && (buffer[i + 1] & 0xe0) === 0xe0) {
+      return { mimeType: "audio/mpeg", format: "mp3", signature: "MPEG-FRAME" };
+    }
+  }
+  return null;
+}
+
+function _decodeBase64Audio(value) {
+  let raw = String(value == null ? "" : value).trim();
+  const dataUri = /^data:audio\/[^;]+;base64,(.+)$/is.exec(raw);
+  if (dataUri) raw = dataUri[1];
+  raw = raw.replace(/\s+/g, "");
+  const maxBytes = _clampInt(process.env.SB_TTS_MAX_AUDIO_BYTES, 25 * 1024 * 1024, 256 * 1024, 100 * 1024 * 1024);
+  const maxChars = Math.ceil(maxBytes * 4 / 3) + 8;
+  if (raw.length < 16 || raw.length > maxChars) {
+    return { ok: false, reason: "base64_length_invalid", base64Length: raw.length, buffer: null };
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) {
+    return { ok: false, reason: "base64_charset_invalid", base64Length: raw.length, buffer: null };
+  }
+  try {
+    const padded = raw + "=".repeat((4 - (raw.length % 4)) % 4);
+    const buffer = Buffer.from(padded, "base64");
+    if (!buffer.length || buffer.length > maxBytes) {
+      return { ok: false, reason: "decoded_length_invalid", base64Length: raw.length, buffer: null };
+    }
+    return { ok: true, reason: "", base64Length: raw.length, buffer };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "base64_decode_exception",
+      base64Length: raw.length,
+      buffer: null,
+      error: String(err && (err.message || err) || "decode_failed").slice(0, 220)
+    };
+  }
+}
+
+function _logDecodedAudio({ traceId, status, requestedFormat, declaredFormat, decoded, detected }) {
+  if (!_rawResponseLogEnabled() && !_boolEnv(process.env.SB_TTS_LOG_JSON, false)) return;
+  try {
+    console.log("[TTS_AUDIO_DECODE]", JSON.stringify({
+      event: "resemble_audio_content_decoded",
+      providerVersion: PROVIDER_VERSION,
+      traceId: String(traceId || "").slice(0, 96),
+      status: Number(status) || 0,
+      requestedFormat: String(requestedFormat || "").slice(0, 24),
+      declaredFormat: String(declaredFormat || "").slice(0, 24),
+      base64Length: decoded && decoded.base64Length || 0,
+      bytes: decoded && decoded.buffer ? decoded.buffer.length : 0,
+      decodeOk: !!(decoded && decoded.ok),
+      decodeReason: decoded && decoded.reason || "",
+      signature: detected && detected.signature || "",
+      actualFormat: detected && detected.format || "",
+      mimeType: detected && detected.mimeType || "",
+      bufferSha256: decoded && decoded.buffer ? crypto.createHash("sha256").update(decoded.buffer).digest("hex") : ""
+    }));
+  } catch (_) {}
 }
 
 function _safeJsonParse(txt) {
@@ -254,14 +339,22 @@ function _classifyResembleError(status, bodyObjOrText) {
 function _getToken() {
   return (
     process.env.RESEMBLE_API_TOKEN ||
-    process.env.RESEMBLE_API_TOKEN ||
     process.env.RESEMBLE_API_KEY ||
+    process.env.SB_RESEMBLE_API_TOKEN ||
+    process.env.SB_RESEMBLE_API_KEY ||
+    process.env.NYX_RESEMBLE_API_TOKEN ||
     ""
   ).toString().trim();
 }
 
 function _getVoiceUuid(opts) {
-  const v = opts.voiceUuid || process.env.RESEMBLE_VOICE_UUID || process.env.RESEMBLE_VOICE_UUID || "";
+  const v =
+    opts.voiceUuid ||
+    process.env.RESEMBLE_VOICE_UUID ||
+    process.env.RESEMBLE_VOICE_ID ||
+    process.env.SB_RESEMBLE_VOICE_UUID ||
+    process.env.SB_TTS_VOICE_UUID ||
+    "";
   return String(v).trim();
 }
 
@@ -424,7 +517,7 @@ async function synthesize(opts = {}) {
     };
   }
 
-  const endpoint = opts.endpoint || DEFAULT_ENDPOINT;
+  const endpoint = opts.endpoint || process.env.RESEMBLE_SYNTH_URL || DEFAULT_ENDPOINT;
   const outputFormat = (opts.outputFormat || process.env.RESEMBLE_OUTPUT_FORMAT || "mp3").toString().toLowerCase();
   const model = (opts.model || process.env.RESEMBLE_MODEL || "").toString().trim() || undefined;
 
@@ -516,19 +609,23 @@ async function synthesize(opts = {}) {
       };
     }
 
-    // Success → decode audio
-    const audioContent = body && typeof body === "object" ? body.audio_content : null;
-    const fmt = (body && typeof body === "object" && body.output_format) ? body.output_format : outputFormat;
+    // Success → decode and verify audio before returning it to the route layer.
+    const audioContainer = body && typeof body === "object"
+      ? (body.audio_content || body.audioContent || (body.data && (body.data.audio_content || body.data.audioContent)))
+      : null;
+    const declaredFormat = body && typeof body === "object" && body.output_format
+      ? String(body.output_format).toLowerCase()
+      : outputFormat;
 
-    if (!audioContent || typeof audioContent !== "string") {
-      // Not a vendor-down case; likely API shape change or misconfig
+    if (!audioContainer || typeof audioContainer !== "string") {
       return {
         ok: false,
         status: r.status,
-        reason: "bad_response",
+        traceId: opts.traceId,
+        reason: "audio_content_missing",
         retryable: false,
-        message: "Resemble returned success but no audio_content.",
-        detail: body,
+        message: "Resemble returned HTTP success but no audio_content.",
+        issues: body && typeof body === "object" && Array.isArray(body.issues) ? body.issues.slice(0, 8) : undefined,
         rawResponse: {
           status: r.status,
           contentType: r.headers && r.headers["content-type"] || "",
@@ -539,31 +636,85 @@ async function synthesize(opts = {}) {
       };
     }
 
-    let buffer;
-    try {
-      buffer = Buffer.from(audioContent, "base64");
-    } catch (e) {
+    const decoded = _decodeBase64Audio(audioContainer);
+    const detected = decoded.ok ? _detectAudioBuffer(decoded.buffer) : null;
+    _logDecodedAudio({
+      traceId: opts.traceId,
+      status: r.status,
+      requestedFormat: outputFormat,
+      declaredFormat,
+      decoded,
+      detected
+    });
+
+    if (!decoded.ok || !decoded.buffer) {
       return {
         ok: false,
         status: r.status,
-        reason: "bad_response",
+        traceId: opts.traceId,
+        reason: decoded.reason || "audio_base64_decode_failed",
         retryable: false,
-        message: "Failed to decode Resemble audio_content base64.",
-        detail: e?.message || String(e),
+        message: "Resemble audio_content could not be decoded as bounded base64 audio.",
+        base64Length: decoded.base64Length || 0,
+        detail: decoded.error || "",
+        rawResponse: {
+          status: r.status,
+          contentType: r.headers && r.headers["content-type"] || "",
+          length: r.rawLength || 0,
+          sha256: r.rawSha256 || ""
+        },
         elapsedMs: _now() - started,
       };
     }
 
-    // Success clears cooldown state
+    if (!detected) {
+      return {
+        ok: false,
+        status: r.status,
+        traceId: opts.traceId,
+        reason: "audio_signature_invalid",
+        retryable: false,
+        message: "Resemble audio_content decoded, but the bytes did not contain a recognized audio signature.",
+        bytes: decoded.buffer.length,
+        declaredFormat,
+        requestedFormat: outputFormat,
+        rawResponse: {
+          status: r.status,
+          contentType: r.headers && r.headers["content-type"] || "",
+          length: r.rawLength || 0,
+          sha256: r.rawSha256 || ""
+        },
+        elapsedMs: _now() - started,
+      };
+    }
+
+    const declaredMimeType = _mimeForFormat(declaredFormat);
+    const formatMismatch =
+      (declaredMimeType !== "application/octet-stream" && declaredMimeType !== detected.mimeType) ||
+      (declaredFormat && declaredFormat !== detected.format);
+
     _clearVendorDown();
 
     return {
       ok: true,
-      buffer,
-      mimeType: _mimeForFormat(fmt),
-      format: fmt,
+      status: r.status,
+      traceId: opts.traceId,
+      buffer: decoded.buffer,
+      mimeType: detected.mimeType,
+      format: detected.format,
+      signature: detected.signature,
+      declaredFormat,
+      declaredMimeType,
+      requestedFormat: outputFormat,
+      formatMismatch,
       duration: (body && typeof body === "object" && typeof body.duration === "number") ? body.duration : undefined,
       sampleRate: (body && typeof body === "object" && typeof body.sample_rate === "number") ? body.sample_rate : undefined,
+      rawResponse: {
+        status: r.status,
+        contentType: r.headers && r.headers["content-type"] || "",
+        length: r.rawLength || 0,
+        sha256: r.rawSha256 || ""
+      },
       elapsedMs: _now() - started,
       providerMeta: {
         provider: "resemble",
@@ -590,6 +741,8 @@ async function synthesize(opts = {}) {
 module.exports = {
   PROVIDER_VERSION,
   synthesize,
+  _detectAudioBuffer,
+  _decodeBase64Audio,
 };
 
 /* =========================================================
@@ -600,5 +753,7 @@ module.exports = {
 module.exports = Object.assign(module.exports || {}, {
   PROVIDER_VERSION,
   synthesize,
-  default: { PROVIDER_VERSION, synthesize }
+  _detectAudioBuffer,
+  _decodeBase64Audio,
+  default: { PROVIDER_VERSION, synthesize, _detectAudioBuffer, _decodeBase64Audio }
 });
