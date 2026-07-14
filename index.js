@@ -1,5 +1,6 @@
 "use strict";
 
+// NYX-TTS-STREAM-FIRST-WAV-TRANSPORT-R6: Utils/tts is authoritative; /stream is primary and /synthesize is fallback.
 // RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK:
 // LingoSentinel translation route modules are optional at process boot.
 // Keep all route-module imports inside guarded loaders so Render/Linux cannot
@@ -6012,16 +6013,16 @@ const voiceRouteMod = tryRequireMany([
 ]);
 
 const ttsMod = tryRequireMany([
-  "./tts",
-  "./tts.js",
+  "./Utils/tts",
+  "./Utils/tts.js",
+  "./utils/tts",
+  "./utils/tts.js",
   "./Routes/tts",
   "./Routes/tts.js",
   "./routes/tts",
   "./routes/tts.js",
-  "./utils/tts",
-  "./utils/tts.js",
-  "./Utils/tts",
-  "./Utils/tts.js"
+  "./tts",
+  "./tts.js"
 ]);
 
 const newscanadaCacheServiceMod = tryRequireMany([
@@ -12306,6 +12307,18 @@ function inferAudioMimeType(raw) {
   return "audio/mpeg";
 }
 
+function detectTtsBinaryMime(buffer) {
+  if (!Buffer.isBuffer(buffer) || !buffer.length) return "";
+  if (buffer.length >= 12 && buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WAVE") return "audio/wav";
+  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "OggS") return "audio/ogg";
+  if (buffer.length >= 4 && buffer.slice(0, 4).toString("ascii") === "fLaC") return "audio/flac";
+  if (buffer.length >= 3 && buffer.slice(0, 3).toString("ascii") === "ID3") return "audio/mpeg";
+  for (let index = 0; index < Math.min(buffer.length - 1, 64); index += 1) {
+    if (buffer[index] === 0xff && (buffer[index + 1] & 0xe0) === 0xe0) return "audio/mpeg";
+  }
+  return "";
+}
+
 function looksLikeBase64Audio(v) {
   const s = cleanText(v);
   if (!s) return false;
@@ -12529,8 +12542,10 @@ async function dispatchTts(req, res) {
     const buffer = Buffer.from(result);
     if (!buffer.length) return sendTtsJsonError(req, res, 502, "tts_empty_audio", "TTS returned an empty audio buffer.", { providerStatus: 502, retryable: true });
     try {
+      const binaryMime = detectTtsBinaryMime(buffer);
+      if (!binaryMime) return sendTtsJsonError(req, res, 502, "tts_invalid_binary_audio", "TTS returned bytes without a recognized audio signature.", { providerStatus: 502, retryable: true });
       res.status(200);
-      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Type", binaryMime);
       res.setHeader("Content-Length", String(buffer.length));
       res.setHeader("X-SB-Response-Mode", "audio");
       return res.end(buffer);
@@ -12567,7 +12582,10 @@ function attachVoiceRoute(base) {
     method: "POST",
     synthesisMethod: "POST",
     playbackMethod: "GET",
-    providerEndpointEnv: "RESEMBLE_SYNTH_URL",
+    providerEndpointEnv: "RESEMBLE_STREAM_URL",
+    providerFallbackEndpointEnv: "RESEMBLE_SYNTH_URL",
+    transportModeEnv: "SB_TTS_TRANSPORT",
+    transportMode: "stream-first",
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     jsonAudioSupported: true,
@@ -12605,7 +12623,10 @@ function normalizeVoiceRouteResponse(out) {
     method: cleanText(out.method || "POST") || "POST",
     synthesisMethod: cleanText(out.synthesisMethod || "POST") || "POST",
     playbackMethod: cleanText(out.playbackMethod || "GET") || "GET",
-    providerEndpointEnv: cleanText(out.providerEndpointEnv || "RESEMBLE_SYNTH_URL") || "RESEMBLE_SYNTH_URL",
+    providerEndpointEnv: cleanText(out.providerEndpointEnv || "RESEMBLE_STREAM_URL") || "RESEMBLE_STREAM_URL",
+    providerFallbackEndpointEnv: cleanText(out.providerFallbackEndpointEnv || "RESEMBLE_SYNTH_URL") || "RESEMBLE_SYNTH_URL",
+    transportModeEnv: cleanText(out.transportModeEnv || "SB_TTS_TRANSPORT") || "SB_TTS_TRANSPORT",
+    transportMode: cleanText(out.transportMode || "stream-first") || "stream-first",
     requiresToken: !!out.requiresToken,
     preserveMixerVoice: !!out.preserveMixerVoice,
     jsonAudioSupported: out.jsonAudioSupported !== false,
@@ -13288,7 +13309,14 @@ function summarizeTtsPublicHealth(health) {
   const h = safeObj(health);
   const env = safeObj(h.env);
   const integrity = safeObj(h.voiceIntegrity);
-  const endpointConfigured = env.hasSynthesizeEndpoint === true;
+  const transportMode = cleanText(env.transportMode || "stream-first") || "stream-first";
+  const streamConfigured = env.hasStreamEndpoint === true;
+  const synthConfigured = env.hasSynthesizeEndpoint === true;
+  const endpointConfigured = transportMode === "stream-only"
+    ? streamConfigured
+    : transportMode === "synthesize-only"
+      ? synthConfigured
+      : (streamConfigured || synthConfigured);
   const configured = h.configured === true || (
     env.hasToken === true &&
     (env.hasVoice === true || integrity.configured === true) &&
@@ -13303,8 +13331,17 @@ function summarizeTtsPublicHealth(health) {
     ready: h.ok !== false && configured && !circuitOpen,
     degraded: circuitOpen || h.degraded === true,
     endpointConfigured,
-    endpointExplicitlyConfigured: env.synthesizeEndpointExplicitlyConfigured === true,
-    endpointSource: cleanText(env.synthesizeEndpointSource || "unavailable") || "unavailable"
+    transportMode,
+    streamConfigured,
+    synthConfigured,
+    endpointExplicitlyConfigured: transportMode === "stream-only"
+      ? env.streamEndpointExplicitlyConfigured === true
+      : transportMode === "synthesize-only"
+        ? env.synthesizeEndpointExplicitlyConfigured === true
+        : (env.streamEndpointExplicitlyConfigured === true || env.synthesizeEndpointExplicitlyConfigured === true),
+    endpointSource: transportMode === "synthesize-only"
+      ? (cleanText(env.synthesizeEndpointSource || "unavailable") || "unavailable")
+      : (cleanText(env.streamEndpointSource || env.synthesizeEndpointSource || "unavailable") || "unavailable")
   };
 }
 
