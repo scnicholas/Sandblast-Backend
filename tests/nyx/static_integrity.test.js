@@ -1,0 +1,23 @@
+"use strict";
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const root = path.join(__dirname, "..");
+const tts = fs.readFileSync(path.join(root, "Utils", "tts.js"), "utf8");
+const index = fs.readFileSync(path.join(root, "index.js"), "utf8");
+
+assert.ok(tts.includes('DEFAULT_RESEMBLE_STREAM_URL = "https://f.cluster.resemble.ai/stream"'));
+assert.ok(tts.includes('SB_TTS_TRANSPORT || "stream-first"'));
+assert.ok(tts.includes('precision: _streamPrecision()'));
+assert.ok(tts.includes('sample_rate: _streamSampleRate()'));
+assert.ok(tts.includes('transport: "synthesize-fallback"'));
+assert.ok(tts.includes('X-SB-TTS-Transport'));
+assert.ok(tts.includes('tts.js v2.14.0 STREAM-FIRST-WAV'));
+assert.ok(tts.includes('redirect: "error"'));
+assert.ok(tts.includes('_looksLikeWav(buffer)'));
+assert.ok(index.indexOf('"./Utils/tts"') < index.indexOf('"./tts"'));
+assert.ok(index.includes('providerEndpointEnv: "RESEMBLE_STREAM_URL"'));
+assert.ok(index.includes('providerFallbackEndpointEnv: "RESEMBLE_SYNTH_URL"'));
+assert.ok(index.includes('detectTtsBinaryMime'));
+assert.ok(index.includes('tts_invalid_binary_audio'));
+console.log("PASS static integrity: 14 assertions");
