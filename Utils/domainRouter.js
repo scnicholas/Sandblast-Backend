@@ -1604,3 +1604,97 @@ function r18cApplyLawRouterSignals(result,norm,session,cog){
   module.exports.__marionDomainRouterCriticalLayeringPatchV1 = true;
 })();
 /* MARION_DOMAIN_ROUTER_CRITICAL_LAYERING_PATCH_V1_END */
+
+
+/* NYX_GUIDE_CONTEXT_ROUTING_STEPS_2_3_R2_START */
+(function nyxGuideContextRoutingPatch(){
+  "use strict";
+  const PATCH_VERSION="nyx.guideOrchestration.domainRouter/2.0-steps2-3";
+  const LANES=new Set(["home","search","live","watch","roku","news","about","apps"]);
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function txt(v,max){const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim();return s.slice(0,max||240);}
+  function lane(v){const raw=txt(v||"home",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");const m={radio:"live",listen:"live",tv:"watch",television:"watch",cartoon:"watch",cartoons:"watch",classic:"watch",classics:"watch",synapse:"news",discover:"news",guide:"search",nyx:"search"};const n=m[raw]||raw;return LANES.has(n)?n:"home";}
+  function readText(){
+    const out=[],seen=new Set();
+    function walk(v,d){if(v==null||d>4)return;if(typeof v==="string"){out.push(txt(v,1400));return;}if(typeof v!=="object"||seen.has(v))return;seen.add(v);const x=obj(v);for(const k of["text","userText","rawUserText","message","prompt","input","query","normalizedUserIntent","effectivePrompt"])if(typeof x[k]==="string")out.push(txt(x[k],1400));for(const k of["payload","meta","body","routing","guideContext","runtimeState","state","session"])if(x[k]&&typeof x[k]==="object")walk(x[k],d+1);}
+    for(const a of arguments)walk(a,0);return out.filter(Boolean).join(" ").slice(0,2400);
+  }
+  function findContext(){
+    const found=[],seen=new Set();
+    function walk(v,d){if(!v||typeof v!=="object"||d>4||seen.has(v))return;seen.add(v);const x=obj(v);for(const c of[x.guideContext,x.nyxGuideContext,x.ecosystemGuideContext,x.guide])if(c&&typeof c==="object"&&!Array.isArray(c))found.push(c);for(const k of["payload","meta","body","routing","runtimeState","state","session","sessionPatch","memoryPatch","client"])if(x[k]&&typeof x[k]==="object")walk(x[k],d+1);}
+    for(const a of arguments)walk(a,0);return found[0]||{};
+  }
+  function intent(text,ctx){
+    const t=txt(text,2400).toLowerCase();
+    if(/\b(stop|pause|turn off|mute)\b.{0,28}\b(radio|stream|music)\b/.test(t))return{kind:"stop_radio",lane:"live",confidence:.98};
+    if(/\b(play|start|turn on|listen to|open)\b.{0,32}\b(radio|live stream|love letters|music)\b/.test(t))return{kind:"play_radio",lane:"live",confidence:.98};
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\broku\b/.test(t))return{kind:"open_roku",lane:"roku",confidence:.97};
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\b(sandblast tv|television|tv|cartoons?|classics?)\b/.test(t))return{kind:"open_tv",lane:"watch",confidence:.96};
+    if(/\b(open|show|go to|take me to|continue to|discover)\b.{0,36}\b(synapse|news)\b/.test(t))return{kind:"open_synapse",lane:"news",confidence:.96};
+    if(/\b(open|show|play|watch)\b.{0,28}\b(media|video|feature|preview)\b/.test(t))return{kind:"open_media",lane:"watch",confidence:.94};
+    if(/\b(go|take me|return|back)\b.{0,20}\b(home|ecosystem)\b/.test(t))return{kind:"navigate",lane:"home",confidence:.96};
+    if(/\b(open|show|use|ask)\b.{0,24}\b(nyx|guide|chat)\b/.test(t))return{kind:"open_guide",lane:"search",confidence:.93};
+    if(/\b(summarize|summary|brief me)\b/.test(t))return{kind:"summarize",lane:lane(ctx.currentLane||ctx.lane),confidence:.9};
+    return{kind:"conversation",lane:lane(ctx.currentLane||ctx.lane),confidence:.55};
+  }
+  function normalizeContext(raw){
+    const c=obj(raw);return{
+      contract:"nyx.guideContext/1.0",
+      surface:txt(c.surface||c.site||"sandblast.channel",96)||"sandblast.channel",
+      page:txt(c.page||c.pathname||"/",180)||"/",
+      currentLane:lane(c.currentLane||c.lane||"home"),
+      previousLane:lane(c.previousLane||"home"),
+      lastAction:txt(c.lastAction||c.action||"context",48)||"context",
+      inputMode:/voice|speech|mic/i.test(txt(c.inputMode||c.inputSource,24))?"voice":"text",
+      publicSessionOnly:true,
+      privateMemoryAccess:false
+    };
+  }
+  function project(base,args){
+    if(!base||typeof base!=="object")return base;
+    const a=Array.prototype.slice.call(args||[]),text=readText.apply(null,a.concat([base])),raw=findContext.apply(null,a.concat([base]));
+    if(!Object.keys(raw).length&&!/\b(nyx|sandblast|radio|roku|synapse|tv|television|cartoon|classic|navigate|guide)\b/i.test(text))return base;
+    const context=normalizeContext(raw),gi=intent(text,context),out=Object.assign({},base),routing=Object.assign({},obj(out.routing));
+    out.guideContext=context;
+    out.guideRouting={
+      version:PATCH_VERSION,
+      contract:"nyx.guideRouting/1.0",
+      intent:gi.kind,
+      targetLane:gi.lane,
+      confidence:gi.confidence,
+      explicitAction:gi.kind!=="conversation",
+      executionAuthority:"client_user_gesture",
+      nonAuthority:true,
+      noUserFacingDiagnostics:true
+    };
+    routing.guideRouting=out.guideRouting;
+    routing.guideContext=context;
+    out.routing=routing;
+    out.stateSpinePatch=Object.assign({},obj(out.stateSpinePatch),{
+      nyxGuideContinuity:{
+        version:PATCH_VERSION,
+        currentLane:context.currentLane,
+        previousLane:context.previousLane,
+        pendingIntent:gi.kind,
+        targetLane:gi.lane,
+        shouldAdvanceState:gi.kind!=="conversation",
+        publicSessionOnly:true,
+        updatedAt:Date.now()
+      }
+    });
+    return out;
+  }
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__nyxGuideContextRoutingR2)return fn;const w=function(){const args=arguments,r=fn.apply(this,args);if(r&&typeof r.then==="function")return r.then(v=>project(v,args));return project(r,args);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__nyxGuideContextRoutingR2=true;return w;}
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      if(typeof api.routeDomain==="function")api.routeDomain=wrap(api.routeDomain,"routeDomain");
+      if(typeof api.scoreDomains==="function")api.scoreDomains=wrap(api.scoreDomains,"scoreDomains");
+      api.NYX_GUIDE_CONTEXT_ROUTING_VERSION=PATCH_VERSION;
+      api.normalizeNyxGuideRoutingContext=normalizeContext;
+      api.classifyNyxGuideIntent=function(text,context){return intent(text,normalizeContext(context||{}));};
+      api.attachNyxGuideRouting=function(value,input){return project(value,[{guideContext:input||{}}]);};
+    }
+  }catch(_){}
+})();
+/* NYX_GUIDE_CONTEXT_ROUTING_STEPS_2_3_R2_END */
