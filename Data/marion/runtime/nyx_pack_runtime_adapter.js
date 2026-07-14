@@ -1,6 +1,6 @@
 "use strict";
 /**
- * nyx_pack_runtime_adapter.js v1.2.0 COMMERCIAL-HARDENED-PACKET-BRIDGE
+ * nyx_pack_runtime_adapter.js v1.3.0 AUTHORITY-SAFE-PACKET-BRIDGE
  * Purpose: Allow Nyx language/packet packs to serve as intro/fallback/greeting
  * support without overriding Marion. Backend-first remains the authority model.
  *
@@ -14,28 +14,66 @@
  *   failure signal. This prevents stale/default packets from hijacking live turns.
  */
 
-const ADAPTER_VERSION = "nyx_pack_runtime_adapter v1.2.0 COMMERCIAL-HARDENED-PACKET-BRIDGE";
+const ADAPTER_VERSION = "nyx_pack_runtime_adapter v1.3.0 AUTHORITY-SAFE-PACKET-BRIDGE";
 
-const ASSISTANT_ALIAS_RE = /\b(nick|nicks|nix|mix|mike)\b/gi;
-const CONTEXTUAL_NEXT_ALIAS_RE = /(^|\b(?:hi|hey|hello|morning|good morning|good afternoon|good evening)\s+|^\s*)next(?=\s*(?:[,.:;!?]|$|can\b|could\b|please\b|help\b|are\b|do\b|turn\b|play\b|show\b|tell\b|debug\b|run\b|respond\b|speak\b))/gi;
+const DIRECT_ASSISTANT_ALIAS_RE = /(^|\b(?:hi|hey|hello|morning|good morning|good afternoon|good evening)\s+)(nick|nicks|nix|mix|mike)(?=\s*(?:[,.:;!?]|$|can\b|could\b|please\b|help\b|are\b|do\b|turn\b|play\b|show\b|tell\b|debug\b|run\b|respond\b|speak\b))/gi;
+const STANDALONE_ASSISTANT_ALIAS_RE = /^\s*(nick|nicks|nix|mix|mike)\s*[,.:;!?]*\s*$/i;
+const CONTEXTUAL_NEXT_ALIAS_RE = /(^|\b(?:hi|hey|hello|morning|good morning|good afternoon|good evening)\s+)next(?=\s*(?:[,.:;!?]|$|can\b|could\b|please\b|help\b|are\b|do\b|turn\b|play\b|show\b|tell\b|debug\b|run\b|respond\b|speak\b))/gi;
 const SMART_APOSTROPHE_RE = /[’‘`]/g;
+const CONTROL_CHAR_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 const UNSAFE_PATCH_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+const PROTECTED_SESSION_KEYS = new Set([
+  "auth", "authenticated", "authorization", "role", "roles", "permission", "permissions",
+  "scope", "partitionkey", "memorypartition", "sessiontoken", "token", "apitoken", "admin",
+  "operator", "identity", "state", "final", "finalapproved", "freshmarionfinal", "backendfailed",
+  "reply", "text", "message", "answer", "output", "response", "audio", "speech", "voice",
+  "voiceroute", "speakallowed", "shouldplay", "autoplay", "playable"
+]);
 const MAX_PATCH_DEPTH = 4;
 const MAX_PATCH_ARRAY = 24;
+const MAX_PATCH_KEYS = 64;
 const MAX_PATCH_STRING = 500;
 const MAX_BRIDGE_TEXT = 240;
+const MAX_META_TEXT = 120;
+const MAX_PACKET_ID = 128;
+const MAX_REPLY_TEXT = 4000;
+const MAX_MATCH_TEXT = 2400;
+const MAX_PACKETS = 512;
+const MAX_CHIPS = 12;
+const MAX_CHIP_TEXT = 160;
 const MAX_SIG = 180;
 const LOOP_FALLBACK_RE = /^(?:i['’]?m here\.?\s*)?(?:what['’]?s next\??|what do you want to do next\??)$/i;
 const GREETING_DISTRESS_RE = /\b(stress|stressed|overwhelm|overwhelmed|anxious|anxiety|panic|sad|alone|lonely|hurt|angry|mad|frustrated|rough day|hard day|not okay|can['’]?t think|cannot think)\b/i;
 
 function safeStr(value) {
-  return value === null || value === undefined ? "" : String(value);
+  try {
+    return value === null || value === undefined ? "" : String(value);
+  } catch (_) {
+    return "";
+  }
+}
+
+function cleanText(value, max = MAX_REPLY_TEXT) {
+  return safeStr(value).replace(CONTROL_CHAR_RE, "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
 function isPlainObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
+  try {
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+  } catch (_) {
+    return false;
+  }
+}
+
+function firstText() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    if (typeof arguments[i] !== "string") continue;
+    const v = cleanText(arguments[i], MAX_MATCH_TEXT);
+    if (v) return v;
+  }
+  return "";
 }
 
 function firstNonEmpty() {
@@ -58,7 +96,7 @@ function readPath(obj, path) {
 function sanitizePatchValue(value, depth = 0) {
   if (depth > MAX_PATCH_DEPTH) return undefined;
   if (value === null || value === undefined) return value;
-  if (typeof value === "string") return value.slice(0, MAX_PATCH_STRING);
+  if (typeof value === "string") return cleanText(value, MAX_PATCH_STRING);
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (typeof value === "boolean") return value;
   if (Array.isArray(value)) {
@@ -67,11 +105,18 @@ function sanitizePatchValue(value, depth = 0) {
       .filter((item) => item !== undefined);
   }
   if (!isPlainObject(value)) return undefined;
-  const out = {};
+  const out = Object.create(null);
+  let keyCount = 0;
   for (const [key, child] of Object.entries(value)) {
+    if (keyCount >= MAX_PATCH_KEYS) break;
     if (UNSAFE_PATCH_KEYS.has(key)) continue;
+    const cleanKey = cleanText(key, 96);
+    if (!cleanKey || UNSAFE_PATCH_KEYS.has(cleanKey)) continue;
     const clean = sanitizePatchValue(child, depth + 1);
-    if (clean !== undefined) out[key] = clean;
+    if (clean !== undefined) {
+      out[cleanKey] = clean;
+      keyCount += 1;
+    }
   }
   return out;
 }
@@ -80,26 +125,49 @@ function sanitizePatchObject(value) {
   return isPlainObject(value) ? sanitizePatchValue(value, 0) || {} : {};
 }
 
+function isBackendFailureEnvelope(payload) {
+  if (!isPlainObject(payload)) return false;
+  const error = firstNonEmpty(payload.error, payload.reason, payload.code);
+  const providerStatus = Number(payload.providerStatus || payload.status || 0);
+  const audioFailure = payload.playable === false && (payload.spokenUnavailable === true || /tts|audio|voice/i.test(error));
+  const suppressed = payload.suppressUserFacingReply === true || payload.awaitingMarion === true || payload.emit === false;
+  const blocked = payload.blocked === true && payload.final !== true;
+  const explicitFailure = payload.ok === false && !!error && payload.final !== true;
+  return audioFailure || suppressed || blocked || explicitFailure || providerStatus >= 500;
+}
+
 function textOfBackend(payload) {
-  if (!payload || typeof payload !== "object") return "";
+  if (typeof payload === "string") return cleanText(payload, MAX_REPLY_TEXT);
+  if (!isPlainObject(payload) || isBackendFailureEnvelope(payload)) return "";
   const paths = [
-    ["reply"], ["text"], ["answer"], ["output"], ["response"], ["message"], ["displayReply"],
-    ["payload", "reply"], ["payload", "text"], ["payload", "answer"], ["payload", "output"], ["payload", "message"],
-    ["finalEnvelope", "reply"], ["finalEnvelope", "text"], ["finalEnvelope", "answer"], ["finalEnvelope", "output"], ["finalEnvelope", "message"],
-    ["packet", "reply"], ["packet", "answer"], ["packet", "output"], ["packet", "text"],
-    ["packet", "synthesis", "reply"], ["packet", "synthesis", "answer"],
-    ["packet", "synthesis", "text"], ["packet", "synthesis", "output"], ["packet", "synthesis", "message"]
+    ["directReply"], ["publicReply"], ["visibleReply"], ["finalReply"], ["displayReply"],
+    ["reply"], ["answer"], ["output"], ["response"], ["text"], ["speechText"], ["spokenText"],
+    ["payload", "directReply"], ["payload", "publicReply"], ["payload", "visibleReply"],
+    ["payload", "finalReply"], ["payload", "reply"], ["payload", "answer"], ["payload", "output"],
+    ["payload", "text"], ["payload", "speechText"], ["payload", "spokenText"],
+    ["finalEnvelope", "directReply"], ["finalEnvelope", "publicReply"], ["finalEnvelope", "visibleReply"],
+    ["finalEnvelope", "finalReply"], ["finalEnvelope", "reply"], ["finalEnvelope", "answer"],
+    ["finalEnvelope", "output"], ["finalEnvelope", "text"], ["finalEnvelope", "speechText"],
+    ["finalEnvelope", "spokenText"], ["packet", "reply"], ["packet", "answer"],
+    ["packet", "output"], ["packet", "text"], ["packet", "synthesis", "reply"],
+    ["packet", "synthesis", "answer"], ["packet", "synthesis", "text"],
+    ["packet", "synthesis", "output"], ["packet", "synthesis", "message"], ["message"]
   ];
   for (const path of paths) {
     const cur = readPath(payload, path);
-    if (typeof cur === "string" && cur.trim()) return cur.trim();
+    if (typeof cur === "string") {
+      const text = cleanText(cur, MAX_REPLY_TEXT);
+      if (text) return text;
+    }
   }
   return "";
 }
 
 function normalizeAssistantAliases(text) {
-  return safeStr(text)
-    .replace(ASSISTANT_ALIAS_RE, "Nyx")
+  const source = safeStr(text);
+  if (STANDALONE_ASSISTANT_ALIAS_RE.test(source)) return "Nyx";
+  return source
+    .replace(DIRECT_ASSISTANT_ALIAS_RE, (match, prefix) => `${prefix || ""}Nyx`)
     .replace(CONTEXTUAL_NEXT_ALIAS_RE, (match, prefix) => `${prefix || ""}Nyx`);
 }
 
@@ -119,7 +187,8 @@ function normalizeMatchText(text) {
     .replace(/[^a-z0-9#' ]+/g, " ")
     .replace(/\bnyx\b/g, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .slice(0, MAX_MATCH_TEXT);
 }
 
 function isReplay(text, session) {
@@ -149,12 +218,48 @@ function pick(arr, seed) {
   return arr[n];
 }
 
+function safePacketId(packet) {
+  const id = cleanText(packet && packet.id, MAX_PACKET_ID);
+  if (!id || UNSAFE_PATCH_KEYS.has(id.toLowerCase())) return "";
+  return id;
+}
+
+function safeChipUrl(value) {
+  const url = cleanText(value, MAX_CHIP_TEXT);
+  if (!url) return "";
+  if (/^(?:https?:\/\/|\/|#)/i.test(url)) return url;
+  return "";
+}
+
+function sanitizeChips(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, MAX_CHIPS).map((chip) => {
+    if (typeof chip === "string") return cleanText(chip, MAX_CHIP_TEXT);
+    if (!isPlainObject(chip)) return null;
+    const out = Object.create(null);
+    for (const key of ["id", "label", "text", "title", "value", "action", "intent"]) {
+      if (typeof chip[key] === "string") out[key] = cleanText(chip[key], MAX_CHIP_TEXT);
+    }
+    for (const key of ["url", "href"]) {
+      if (typeof chip[key] === "string") {
+        const safeUrl = safeChipUrl(chip[key]);
+        if (safeUrl) out[key] = safeUrl;
+      }
+    }
+    return Object.keys(out).length ? out : null;
+  }).filter(Boolean);
+}
+
+function packetList(pack) {
+  return Array.isArray(pack && pack.packets) ? pack.packets.slice(0, MAX_PACKETS).filter(isPlainObject) : [];
+}
+
 function packetType(packet) {
   return safeStr(packet && packet.type).toLowerCase();
 }
 
 function packetId(packet) {
-  return safeStr(packet && packet.id);
+  return safePacketId(packet);
 }
 
 function isGreetingPacket(packet) {
@@ -168,7 +273,7 @@ function getInputText(ctx = {}) {
   const payload = isPlainObject(inbound.payload) ? inbound.payload : {};
   const body = isPlainObject(inbound.body) ? inbound.body : {};
   const meta = isPlainObject(inbound.meta) ? inbound.meta : {};
-  return firstNonEmpty(
+  return firstText(
     ctx.text, ctx.message, ctx.userText, ctx.userQuery, ctx.query,
     inbound.text, inbound.message, inbound.userText, inbound.userQuery, inbound.query,
     payload.text, payload.message, payload.userText, payload.userQuery, payload.query,
@@ -181,7 +286,7 @@ function getInputSource(ctx = {}) {
   const inbound = isPlainObject(ctx.inbound) ? ctx.inbound : {};
   const payload = isPlainObject(inbound.payload) ? inbound.payload : {};
   const meta = isPlainObject(inbound.meta) ? inbound.meta : {};
-  return firstNonEmpty(ctx.inputSource, ctx.source, inbound.inputSource, inbound.source, payload.inputSource, payload.source, meta.inputSource, meta.source, "text").toLowerCase();
+  return cleanText(firstNonEmpty(ctx.inputSource, ctx.source, inbound.inputSource, inbound.source, payload.inputSource, payload.source, meta.inputSource, meta.source, "text"), 48).toLowerCase();
 }
 
 function escapeRegExp(text) {
@@ -207,8 +312,10 @@ function triggerMatches(packet, ctx) {
   if (!packet || !Array.isArray(packet.trigger)) return false;
   const input = normalizeMatchText(getInputText(ctx));
   if (!input) return false;
-  for (const item of packet.trigger) {
-    const trigger = normalizeMatchText(item);
+  for (const item of packet.trigger.slice(0, 64)) {
+    const rawTrigger = safeStr(item).trim();
+    if (!rawTrigger || rawTrigger.startsWith("__")) continue;
+    const trigger = normalizeMatchText(rawTrigger);
     if (phraseMatches(input, trigger)) return true;
   }
   return false;
@@ -243,7 +350,8 @@ function canUsePacket(packet, ctx = {}) {
   if ((c.requireBackendFailure || a.requireBackendFailure) && !ctx.backendFailed) return false;
   if (c.requireReplayDetected && !ctx.replayDetected) return false;
   if (c.requireNoFreshMarionFinal && ctx.freshMarionFinal) return false;
-  if (c.oncePerSession && ctx.session && ctx.session.__usedPackets && ctx.session.__usedPackets[packet.id]) return false;
+  const id = safePacketId(packet);
+  if (c.oncePerSession && id && ctx.session && isPlainObject(ctx.session.__usedPackets) && Object.prototype.hasOwnProperty.call(ctx.session.__usedPackets, id)) return false;
   return true;
 }
 
@@ -256,7 +364,8 @@ function canMatchPacketSignal(packet, ctx = {}) {
 }
 
 function scorePacket(packet, ctx) {
-  let score = Number(packet.priority || 0) || 0;
+  const rawPriority = Number(packet.priority || 0);
+  let score = Number.isFinite(rawPriority) ? Math.max(-10000, Math.min(10000, rawPriority)) : 0;
   if (isGreetingPacket(packet)) score += 1000;
   if (triggerMatches(packet, ctx)) score += 500;
   if (internalIntentMatches(packet, ctx)) score += 450;
@@ -267,7 +376,7 @@ function scorePacket(packet, ctx) {
 }
 
 function findSignalPacket(pack, ctx) {
-  const packets = Array.isArray(pack && pack.packets) ? pack.packets.slice() : [];
+  const packets = packetList(pack);
   const localCtx = ctx || {};
   return packets
     .filter((p) => canMatchPacketSignal(p, localCtx) && triggerMatches(p, localCtx))
@@ -282,18 +391,21 @@ function canReplyWithoutTextTrigger(packet, ctx = {}) {
 }
 
 function findReplyPacket(pack, ctx, desiredTypes) {
-  const packets = Array.isArray(pack && pack.packets) ? pack.packets.slice() : [];
+  const packets = packetList(pack);
   return packets
     .filter((p) => desiredTypes.includes(packetType(p)) && canUsePacket(p, ctx))
     .filter((p) => triggerMatches(p, ctx) || canReplyWithoutTextTrigger(p, ctx))
     .sort((a, b) => scorePacket(b, ctx) - scorePacket(a, ctx))[0] || null;
 }
 
-function renderTemplate(template, ctx) {
-  return safeStr(template)
-    .replaceAll("{year}", ctx.session?.lastMusicYear || ctx.year || "")
-    .replaceAll("{city}", ctx.session?.city || ctx.city || "")
-    .replaceAll("{mode}", ctx.session?.activeMusicMode || ctx.mode || "");
+function renderTemplate(template, ctx = {}) {
+  const year = cleanText(ctx.session?.lastMusicYear || ctx.year || "", 24);
+  const city = cleanText(ctx.session?.city || ctx.city || "", 80);
+  const mode = cleanText(ctx.session?.activeMusicMode || ctx.mode || "", 80);
+  return cleanText(safeStr(template)
+    .replaceAll("{year}", year)
+    .replaceAll("{city}", city)
+    .replaceAll("{mode}", mode), MAX_REPLY_TEXT);
 }
 
 function presenceFromGreeting(packet, inputText) {
@@ -313,15 +425,15 @@ function buildGreetingBridge(packet, ctx = {}) {
   const inputSource = getInputSource(ctx);
   const text = getInputText(ctx);
   const sessionPatch = sanitizePatchObject(packet.sessionPatch);
-  const intent = firstNonEmpty(packet.intent, sessionPatch.lastGreetingIntent, sessionPatch.greetingIntent, packet.id);
-  const tone = firstNonEmpty(packet.tone, sessionPatch.lastGreetingTone, sessionPatch.greetingTone, packet.presenceProfile, sessionPatch.lastPresenceProfile);
-  const energy = firstNonEmpty(packet.energy, sessionPatch.lastInputEnergy, sessionPatch.greetingEnergy, "medium");
-  const presenceProfile = firstNonEmpty(packet.presenceProfile, sessionPatch.presenceProfile, sessionPatch.lastPresenceProfile, presenceFromGreeting(packet, text));
+  const intent = cleanText(firstNonEmpty(packet.intent, sessionPatch.lastGreetingIntent, sessionPatch.greetingIntent, safePacketId(packet)), MAX_META_TEXT);
+  const tone = cleanText(firstNonEmpty(packet.tone, sessionPatch.lastGreetingTone, sessionPatch.greetingTone, packet.presenceProfile, sessionPatch.lastPresenceProfile), MAX_META_TEXT);
+  const energy = cleanText(firstNonEmpty(packet.energy, sessionPatch.lastInputEnergy, sessionPatch.greetingEnergy, "medium"), 48);
+  const presenceProfile = cleanText(firstNonEmpty(packet.presenceProfile, sessionPatch.presenceProfile, sessionPatch.lastPresenceProfile, presenceFromGreeting(packet, text)), 64);
   return {
     active: true,
-    id: packet.id || "",
-    packetId: packet.id || "",
-    type: packet.type || "greeting",
+    id: safePacketId(packet),
+    packetId: safePacketId(packet),
+    type: cleanText(packet.type || "greeting", 48),
     intent,
     tone,
     energy,
@@ -333,8 +445,8 @@ function buildGreetingBridge(packet, ctx = {}) {
 }
 
 function buildPacketPatches(packet, ctx = {}) {
-  const sessionPatch = sanitizePatchObject(packet && packet.sessionPatch);
-  const memoryPatch = sanitizePatchObject(packet && packet.memoryPatch);
+  const sessionPatch = sanitizeSessionPatch(packet && packet.sessionPatch);
+  const memoryPatch = sanitizeSessionPatch(packet && packet.memoryPatch);
   const greeting = buildGreetingBridge(packet, ctx);
 
   if (greeting) {
@@ -367,19 +479,30 @@ function buildPacketPatches(packet, ctx = {}) {
   return { greeting, sessionPatch, memoryPatch };
 }
 
+function sanitizeSessionPatch(value) {
+  const patch = sanitizePatchObject(value);
+  const out = Object.create(null);
+  for (const [key, child] of Object.entries(patch)) {
+    const normalized = key.toLowerCase();
+    if (key.startsWith("__") || PROTECTED_SESSION_KEYS.has(normalized)) continue;
+    out[key] = child;
+  }
+  return out;
+}
+
 function applyPacketPatchToSession(session, patch = {}) {
   if (!session || typeof session !== "object") return;
-  Object.assign(session, sanitizePatchObject(patch.sessionPatch));
-  if (patch.greeting) {
+  Object.assign(session, sanitizeSessionPatch(patch.sessionPatch));
+  if (isPlainObject(patch.greeting)) {
     session.greeting = {
       ...(isPlainObject(session.greeting) ? session.greeting : {}),
       active: true,
-      lastId: patch.greeting.id,
-      lastIntent: patch.greeting.intent,
-      lastTone: patch.greeting.tone,
-      lastEnergy: patch.greeting.energy,
-      lastSource: patch.greeting.inputSource,
-      lastPresenceProfile: patch.greeting.presenceProfile,
+      lastId: cleanText(patch.greeting.id, MAX_PACKET_ID),
+      lastIntent: cleanText(patch.greeting.intent, MAX_META_TEXT),
+      lastTone: cleanText(patch.greeting.tone, MAX_META_TEXT),
+      lastEnergy: cleanText(patch.greeting.energy, 48),
+      lastSource: cleanText(patch.greeting.inputSource, 48),
+      lastPresenceProfile: cleanText(patch.greeting.presenceProfile, 64),
       updatedAt: Date.now()
     };
   }
@@ -387,8 +510,12 @@ function applyPacketPatchToSession(session, patch = {}) {
 
 function markPacketUsed(session, packet, reply) {
   if (!session || !packet) return;
-  session.__usedPackets = isPlainObject(session.__usedPackets) ? session.__usedPackets : {};
-  session.__usedPackets[packet.id] = true;
+  const id = safePacketId(packet);
+  if (!id) return;
+  const previous = isPlainObject(session.__usedPackets) ? session.__usedPackets : {};
+  const used = Object.assign(Object.create(null), previous);
+  used[id] = true;
+  session.__usedPackets = used;
   if (reply) session.__lastOutSig = normalizeSig(reply);
 }
 
@@ -400,26 +527,28 @@ function desiredTypesFor(ctx = {}) {
   return ["greeting", "prompt", "intro", "fallback", "error", "help", "goodbye", "nav"];
 }
 
-function resolveNyxPacket(pack, ctx = {}) {
-  const backendText = textOfBackend(ctx.backendPayload);
+function resolveNyxPacketCore(pack, ctx = {}) {
+  const backendFailureEnvelope = isBackendFailureEnvelope(ctx.backendPayload);
+  const backendFailed = ctx.backendFailed === true || backendFailureEnvelope;
+  const backendText = backendFailed ? "" : textOfBackend(ctx.backendPayload);
   const backendUnsafeLoop = backendText ? isUnsafeBackendLoop(backendText, ctx) : false;
   const replayDetected = backendText ? (isReplay(backendText, ctx.session) || backendUnsafeLoop) : !!ctx.replayDetected;
-  const localCtx = { ...ctx, replayDetected };
+  const localCtx = { ...ctx, backendFailed, replayDetected };
 
   const signalPacket = findSignalPacket(pack, localCtx);
   const signalPatch = signalPacket ? buildPacketPatches(signalPacket, localCtx) : { greeting: null, sessionPatch: {}, memoryPatch: {} };
   if (signalPacket) applyPacketPatchToSession(localCtx.session, signalPatch);
 
-  if (backendText && !backendUnsafeLoop && !isReplay(backendText, localCtx.session)) {
+  if (backendText && !backendUnsafeLoop && !replayDetected) {
     if (localCtx.session) localCtx.session.__lastOutSig = normalizeSig(backendText);
     return {
       source: "marion",
       reply: backendText,
-      packet: signalPacket ? signalPacket.id : null,
-      packetId: signalPacket ? signalPacket.id : "",
-      matchedPacketId: signalPacket ? signalPacket.id : "",
+      packet: signalPacket ? safePacketId(signalPacket) : null,
+      packetId: signalPacket ? safePacketId(signalPacket) : "",
+      matchedPacketId: signalPacket ? safePacketId(signalPacket) : "",
       matchedPacketType: signalPacket ? packetType(signalPacket) : "",
-      chips: signalPacket?.chips || [],
+      chips: sanitizeChips(signalPacket && signalPacket.chips),
       greeting: signalPatch.greeting,
       sessionPatch: signalPatch.sessionPatch,
       memoryPatch: signalPatch.memoryPatch,
@@ -432,16 +561,17 @@ function resolveNyxPacket(pack, ctx = {}) {
   }
 
   const desired = desiredTypesFor(localCtx);
-  const chosen = signalPacket && canUsePacket(signalPacket, localCtx) ? signalPacket : findReplyPacket(pack, localCtx, desired);
+  const signalCanReply = signalPacket && desired.includes(packetType(signalPacket)) && canUsePacket(signalPacket, localCtx);
+  const chosen = signalCanReply ? signalPacket : findReplyPacket(pack, localCtx, desired);
   if (!chosen) {
     return {
       source: "empty",
       reply: "",
-      packet: signalPacket ? signalPacket.id : null,
-      packetId: signalPacket ? signalPacket.id : "",
-      matchedPacketId: signalPacket ? signalPacket.id : "",
+      packet: signalPacket ? safePacketId(signalPacket) : null,
+      packetId: signalPacket ? safePacketId(signalPacket) : "",
+      matchedPacketId: signalPacket ? safePacketId(signalPacket) : "",
       matchedPacketType: signalPacket ? packetType(signalPacket) : "",
-      chips: signalPacket?.chips || [],
+      chips: sanitizeChips(signalPacket && signalPacket.chips),
       greeting: signalPatch.greeting,
       sessionPatch: signalPatch.sessionPatch,
       memoryPatch: signalPatch.memoryPatch,
@@ -452,8 +582,8 @@ function resolveNyxPacket(pack, ctx = {}) {
   }
 
   const state = localCtx.session?.state || "cold";
-  const stateTemplates = chosen.stateTemplates && chosen.stateTemplates[state];
-  const templates = stateTemplates || chosen.templates || [];
+  const stateTemplates = isPlainObject(chosen.stateTemplates) && Array.isArray(chosen.stateTemplates[state]) ? chosen.stateTemplates[state] : null;
+  const templates = stateTemplates || (Array.isArray(chosen.templates) ? chosen.templates : []);
   const seed = firstNonEmpty(localCtx.seed, `${packetId(chosen)}:${getInputText(localCtx)}:${localCtx.session?.turnId || localCtx.session?.turn || ""}`);
   const reply = renderTemplate(pick(templates, seed), localCtx).trim();
   const replyReplay = reply && isReplay(reply, localCtx.session);
@@ -461,11 +591,11 @@ function resolveNyxPacket(pack, ctx = {}) {
     return {
       source: "empty",
       reply: "",
-      packet: chosen.id,
-      packetId: chosen.id,
-      matchedPacketId: chosen.id,
+      packet: safePacketId(chosen),
+      packetId: safePacketId(chosen),
+      matchedPacketId: safePacketId(chosen),
       matchedPacketType: packetType(chosen),
-      chips: chosen.chips || [],
+      chips: sanitizeChips(chosen.chips),
       greeting: signalPatch.greeting,
       sessionPatch: signalPatch.sessionPatch,
       memoryPatch: signalPatch.memoryPatch,
@@ -482,11 +612,11 @@ function resolveNyxPacket(pack, ctx = {}) {
   return {
     source: "packet",
     reply,
-    packet: chosen.id,
-    packetId: chosen.id,
-    matchedPacketId: chosen.id,
+    packet: safePacketId(chosen),
+    packetId: safePacketId(chosen),
+    matchedPacketId: safePacketId(chosen),
     matchedPacketType: packetType(chosen),
-    chips: chosen.chips || [],
+    chips: sanitizeChips(chosen.chips),
     greeting: chosenPatch.greeting,
     sessionPatch: chosenPatch.sessionPatch,
     memoryPatch: chosenPatch.memoryPatch,
@@ -498,9 +628,50 @@ function resolveNyxPacket(pack, ctx = {}) {
   };
 }
 
+const PARTITION_WRAPPER_VERSION = "nyx.marion.phase3.liveConversationPartition.runtimeWrapper/1.1-adapter-safe-lazy";
+let partitionValidatorCache;
+
+function getPartitionValidator() {
+  if (partitionValidatorCache !== undefined) return partitionValidatorCache;
+  try {
+    partitionValidatorCache = require("./liveConversationPartitionValidator.js");
+  } catch (_) {
+    partitionValidatorCache = null;
+  }
+  return partitionValidatorCache;
+}
+
+function projectPartitionResult(value, pack, ctx) {
+  const part = getPartitionValidator();
+  if (!part || typeof part.projectResult !== "function") return value;
+  const localCtx = isPlainObject(ctx) ? ctx : {};
+  const inbound = isPlainObject(localCtx.inbound) ? localCtx.inbound : {};
+  const projectionContext = {
+    payload: value,
+    pack: isPlainObject(pack) ? { id: cleanText(pack.id || pack.packId || "", 128), version: cleanText(pack.version || "", 64) } : {},
+    body: isPlainObject(inbound.body) ? inbound.body : localCtx,
+    auth: isPlainObject(localCtx.auth) ? localCtx.auth : {},
+    meta: isPlainObject(localCtx.meta) ? localCtx.meta : (isPlainObject(inbound.meta) ? inbound.meta : {}),
+    headers: isPlainObject(localCtx.headers) ? localCtx.headers : (isPlainObject(inbound.headers) ? inbound.headers : {}),
+    route: cleanText(localCtx.route || inbound.route || inbound.path || "", 240)
+  };
+  try {
+    const projected = part.projectResult(value, projectionContext);
+    return projected === undefined ? value : projected;
+  } catch (_) {
+    return value;
+  }
+}
+
+function resolveNyxPacket(pack, ctx = {}) {
+  return projectPartitionResult(resolveNyxPacketCore(pack, ctx), pack, ctx);
+}
+
 module.exports = {
   ADAPTER_VERSION,
+  PARTITION_WRAPPER_VERSION,
   textOfBackend,
+  isBackendFailureEnvelope,
   normalizeSig,
   normalizeMatchText,
   normalizeAssistantAliases,
@@ -517,18 +688,3 @@ module.exports = {
   applyPacketPatchToSession,
   resolveNyxPacket
 };
-
-
-/* LIVE_CONVERSATION_PARTITION_VALIDATION_PHASE3_START */
-(function(){
-  "use strict";
-  const V="nyx.marion.phase3.liveConversationPartition.runtimeWrapper/1.0";
-  let part=null;try{part=require("./liveConversationPartitionValidator.js");}catch(_err){try{part=require("../Data/marion/runtime/liveConversationPartitionValidator.js");}catch(_err2){part=null;}}
-  if(!part||!part.projectResult||typeof module==="undefined"||!module.exports)return;
-  function ctx(value,args){args=Array.prototype.slice.call(args||[]);return{payload:value,body:args[0],auth:args[1],meta:args[2],headers:(args[0]&&args[0].headers)||(args[1]&&args[1].headers)||{},route:(value&&value.route)||(args[0]&&args[0].route)||(args[0]&&args[0].path)||""};}
-  function project(value,args){try{return part.projectResult(value,ctx(value,args));}catch(_err){return value;}}
-  function wrapFn(fn,name){if(typeof fn!=="function"||fn.__nyxPhase3Partition)return fn;const wrapped=function(){const args=arguments;const res=fn.apply(this,args);if(res&&typeof res.then==="function")return res.then(function(v){return project(v,args);});return project(res,args);};try{Object.keys(fn).forEach(function(k){wrapped[k]=fn[k];});}catch(_err){}try{Object.defineProperty(wrapped,"name",{value:fn.name||name||"phase3PartitionWrapped"});}catch(_err){}wrapped.__nyxPhase3Partition=true;return wrapped;}
-  try{if(typeof module.exports==="function")module.exports=wrapFn(module.exports,"default");}catch(_err){}
-  try{const obj=module.exports&&typeof module.exports==="object"?module.exports:null;if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","normalizeCommand","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","process","safeResponse","buildResponse","createResponse","finalizeTurn","updateState","advanceState","mergeState","inspectLoop","checkLoop","evaluateLoop","guardReply","matchPacket","selectPacket","resolvePacket","applyPacket"].forEach(function(n){if(typeof obj[n]==="function")obj[n]=wrapFn(obj[n],n);});obj.LIVE_CONVERSATION_PARTITION_VALIDATION_PHASE3_VERSION=V;obj.liveConversationPartitionProject=part.projectResult;obj.liveConversationPartitionPatch=part.buildPartitionPatch;obj.liveConversationPartitionValidate=part.validateNoCrossPartitionLeak;}}catch(_err){}
-})();
-/* LIVE_CONVERSATION_PARTITION_VALIDATION_PHASE3_END */
