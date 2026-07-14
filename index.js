@@ -715,13 +715,13 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
-/* NYX_PERSISTENT_GUIDE_SHELL_R1_START
+/* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_START
  * Public, non-authoritative guide configuration boundary.
  * This layer exposes UI capability metadata only. It never composes replies,
  * accesses Marion private memory, selects domains or dispatches TTS.
  */
-const NYX_GUIDE_SHELL_VERSION = "nyx.guideShell.indexBoundary/1.0-r1";
-const NYX_GUIDE_SHELL_CONTRACT = "nyx.guideShell/1.0";
+const NYX_GUIDE_SHELL_VERSION = "nyx.guideOrchestration.indexBoundary/2.0-steps1-3";
+const NYX_GUIDE_SHELL_CONTRACT = "nyx.guideOrchestration/1.0";
 const NYX_GUIDE_PUBLIC_PATHS = Object.freeze([
   "/api/nyx/guide/config",
   "/nyx/guide/config"
@@ -732,6 +732,12 @@ const NYX_GUIDE_HEALTH_PATHS = Object.freeze([
 ]);
 const NYX_GUIDE_RUNTIME_FILES = Object.freeze([
   "sitebridge.js",
+  "Utils/chatEngine.js",
+  "Utils/domainRouter.js",
+  "Utils/stateSpine.js",
+  "Routes/voiceRoute.js",
+  "Data/marion/runtime/composeMarionResponse.js",
+  "Data/marion/runtime/DomainConcierge.js",
   "Data/marion/runtime/nyx_state_controller.js",
   "Data/marion/runtime/NyxAnimationEngineAdapter.js",
   "Data/marion/runtime/NyxSpeechTimingAdapter.js",
@@ -844,11 +850,26 @@ function buildNyxGuidePublicConfig(req) {
       voice: true,
       avatar: true,
       navigation: true,
-      mediaControl: false,
+      mediaControl: true,
+      contextAwareness: true,
+      structuredActions: true,
+      symbolicTargetsOnly: true,
       crossPageContinuity: "client_session",
       reducedMotion: true
     },
     states: ["available", "listening", "thinking", "speaking", "guiding", "quiet", "recovery", "minimized"],
+    orchestrationSteps: {
+      step1PersistentGuideShell: true,
+      step2PageAndEcosystemContext: true,
+      step3NavigationAndMediaActions: true
+    },
+    actionPolicy: {
+      allowedTypes: ["navigate", "play_radio", "stop_radio", "open_media", "open_tv", "open_roku", "open_synapse", "open_guide", "focus_input", "summarize"],
+      autoExecute: false,
+      requiresUserGesture: true,
+      externalModelUrlsAllowed: false,
+      executionAuthority: "client_user_gesture"
+    },
     routes: {
       chat: "/api/chat",
       tts: "/api/tts",
@@ -874,7 +895,9 @@ function buildNyxGuidePublicConfig(req) {
       loaded: true,
       version: nyxGuideSafeText(bridge.version, 180),
       nonAuthority: true,
-      finalReplyAuthority: false
+      finalReplyAuthority: false,
+      contextAware: true,
+      structuredActions: true
     } : {
       loaded: false,
       nonAuthority: true,
@@ -911,6 +934,8 @@ app.get(NYX_GUIDE_HEALTH_PATHS, (req, res) => {
     publicSurface: true,
     nonAuthority: true,
     finalReplyAuthority: false,
+    steps: { persistentShell: true, contextAwareness: true, structuredActions: true },
+    actionExecutionAuthority: "client_user_gesture",
     t: Date.now()
   });
 });
@@ -922,7 +947,7 @@ app.locals.nyxGuideShell = {
   publicSurface: true,
   nonAuthority: true
 };
-/* NYX_PERSISTENT_GUIDE_SHELL_R1_END */
+/* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_END */
 
 // LINGOSENTINEL_SPONTANEITY_50LANG_MOUNT_START
 // Dynamic spontaneous translation routes for LingoSentinel.
