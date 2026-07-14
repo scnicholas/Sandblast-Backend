@@ -1,16 +1,14 @@
-
 'use strict';
 
 /**
  * NyxSpeechTimingAdapter
- * Phase 2 speech timing estimator.
+ * Persistent-guide speech clock.
  *
- * Converts approved spoken text into deterministic timing windows. This is not
- * TTS-provider timing; it is a safe fallback clock for avatar preparation.
+ * Uses provider/audio duration when available and a bounded deterministic
+ * estimate otherwise. It never stores raw audio.
  */
 
-const VERSION = 'nyx.speechTimingAdapter/1.1-monotonic-phase2-clock';
-
+const VERSION = 'nyx.speechTimingAdapter/1.2-provider-duration-authority';
 const DEFAULT_WORDS_PER_MINUTE = 155;
 const MIN_WORDS_PER_MINUTE = 90;
 const MAX_WORDS_PER_MINUTE = 240;
@@ -21,6 +19,10 @@ const MAX_WORD_CHARS = 48;
 
 function safeText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+function safeObj(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function clampNumber(value, fallback, min, max) {
@@ -34,17 +36,38 @@ function splitWords(text) {
 }
 
 function punctuationPauseCount(text) {
-  return (safeText(text).match(/[,.!?;:]/g) || []).length;
+  return Math.min(1000, (safeText(text).match(/[,.!?;:]/g) || []).length);
+}
+
+function providerDurationMs(options) {
+  const opts = safeObj(options);
+  const audio = safeObj(opts.audio);
+  const candidates = [
+    opts.actualDurationMs,
+    opts.audioDurationMs,
+    opts.durationMs,
+    audio.durationMs,
+    Number.isFinite(Number(opts.durationSeconds)) ? Number(opts.durationSeconds) * 1000 : NaN,
+    Number.isFinite(Number(audio.duration)) ? Number(audio.duration) * 1000 : NaN
+  ];
+  for (const candidate of candidates) {
+    const n = Number(candidate);
+    if (Number.isFinite(n) && n > 0) return Math.round(clampNumber(n, 0, MIN_DURATION_MS, MAX_DURATION_MS));
+  }
+  return 0;
 }
 
 function estimateSpeechDurationMs(text, options) {
-  const opts = options && typeof options === 'object' ? options : {};
+  const actual = providerDurationMs(options);
+  if (actual) return actual;
+  const opts = safeObj(options);
   const words = splitWords(text);
+  if (!words.length) return 0;
   const wpm = clampNumber(opts.wordsPerMinute, DEFAULT_WORDS_PER_MINUTE, MIN_WORDS_PER_MINUTE, MAX_WORDS_PER_MINUTE);
-  const baseMs = words.length ? (words.length / wpm) * 60000 : 0;
+  const baseMs = (words.length / wpm) * 60000;
   const punctuationPauseMs = punctuationPauseCount(text) * 120;
-  const duration = Math.round(baseMs + punctuationPauseMs + 220);
-  return clampNumber(duration, words.length ? duration : 0, words.length ? MIN_DURATION_MS : 0, MAX_DURATION_MS);
+  const duration = Math.max(words.length * 45, Math.round(baseMs + punctuationPauseMs + 220));
+  return Math.round(clampNumber(duration, duration, MIN_DURATION_MS, MAX_DURATION_MS));
 }
 
 function buildWordTimings(text, options) {
@@ -52,22 +75,21 @@ function buildWordTimings(text, options) {
   const durationMs = estimateSpeechDurationMs(text, options);
   if (!words.length || !durationMs) return [];
 
-  const weights = words.map((word) => Math.max(1, word.replace(/[^a-z0-9]/gi, '').length));
+  const weights = words.map((word) => Math.max(1, word.replace(/[^\p{L}\p{N}]/gu, '').length));
   const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || words.length;
   let cursor = 0;
   return words.map((word, index) => {
-    const remainingWords = words.length - index - 1;
-    const minRemainingMs = remainingWords * 45;
-    const proposed = Math.max(45, Math.round(durationMs * (weights[index] / totalWeight)));
-    const end = index === words.length - 1 ? durationMs : Math.min(durationMs - minRemainingMs, cursor + proposed);
-    const safeEnd = Math.max(cursor, end);
+    const remainingWeight = weights.slice(index).reduce((sum, weight) => sum + weight, 0) || 1;
+    const remainingMs = Math.max(0, durationMs - cursor);
+    const proposed = index === words.length - 1 ? remainingMs : Math.max(1, Math.round(remainingMs * (weights[index] / remainingWeight)));
+    const endMs = index === words.length - 1 ? durationMs : Math.min(durationMs, cursor + proposed);
     const item = {
       word: word.slice(0, MAX_WORD_CHARS),
       startMs: Math.round(cursor),
-      endMs: Math.round(safeEnd),
-      durationMs: Math.max(0, Math.round(safeEnd - cursor))
+      endMs: Math.round(endMs),
+      durationMs: Math.max(0, Math.round(endMs - cursor))
     };
-    cursor = safeEnd;
+    cursor = endMs;
     return item;
   });
 }
@@ -84,17 +106,24 @@ function buildPhaseWindows(estimatedDurationMs, leadInMs, settleMs) {
 }
 
 function buildSpeechTiming(text, options) {
+  const opts = safeObj(options);
   const value = safeText(text);
   const words = splitWords(value);
-  const estimatedDurationMs = estimateSpeechDurationMs(value, options);
-  const wordTimings = buildWordTimings(value, options);
-  const leadInMs = value ? 120 : 0;
-  const settleMs = value ? 180 : 0;
+  const actualDurationMs = providerDurationMs(opts);
+  const estimatedDurationMs = estimateSpeechDurationMs(value, opts);
+  const reducedMotion = opts.reducedMotion === true;
+  const wordTimings = buildWordTimings(value, { ...opts, actualDurationMs: actualDurationMs || undefined });
+  const leadInMs = value ? Math.round(clampNumber(opts.leadInMs, reducedMotion ? 0 : 120, 0, 1000)) : 0;
+  const settleMs = value ? Math.round(clampNumber(opts.settleMs, reducedMotion ? 80 : 180, 0, 2000)) : 0;
   const phaseWindows = buildPhaseWindows(estimatedDurationMs, leadInMs, settleMs);
 
   return {
     version: VERSION,
     source: 'NyxSpeechTimingAdapter',
+    clockSource: actualDurationMs ? 'provider_audio' : 'deterministic_estimate',
+    durationAuthoritative: !!actualDurationMs,
+    actualDurationMs,
+    reducedMotion,
     audioStored: false,
     noRawAudioStored: true,
     transcriptOnly: true,
@@ -118,6 +147,7 @@ module.exports = {
   MAX_WORDS_PER_MINUTE,
   MIN_DURATION_MS,
   MAX_DURATION_MS,
+  providerDurationMs,
   estimateSpeechDurationMs,
   buildWordTimings,
   buildSpeechTiming,
