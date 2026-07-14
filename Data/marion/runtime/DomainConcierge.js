@@ -2552,3 +2552,82 @@ function r18cApplyLawConciergeProtocol(result,packet){
   } catch(_err) {}
 })();
 /* MARION_PUBLIC_SAFE_DEEP_PROJECTION_R2_END */
+
+
+/* NYX_GUIDE_CONCIERGE_STEPS_2_3_R2_START */
+(function nyxGuideConciergePatch(){
+  "use strict";
+  const PATCH_VERSION="nyx.guideOrchestration.domainConcierge/2.0-steps2-3";
+  const LANES=new Set(["home","search","live","watch","roku","news","about","apps"]);
+  const TYPES=new Set(["navigate","play_radio","stop_radio","open_media","open_tv","open_roku","open_synapse","open_guide","focus_input","summarize"]);
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function txt(v,max){const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim();return s.slice(0,max||240);}
+  function lane(v){const raw=txt(v||"home",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");const m={radio:"live",listen:"live",tv:"watch",television:"watch",cartoons:"watch",classic:"watch",synapse:"news",discover:"news",guide:"search",nyx:"search"};const n=m[raw]||raw;return LANES.has(n)?n:"home";}
+  function read(){
+    const values=[],contexts=[],actions=[],seen=new Set();
+    function walk(v,d){if(v==null||d>5)return;if(typeof v==="string"){values.push(txt(v,1600));return;}if(typeof v!=="object"||seen.has(v))return;seen.add(v);const x=obj(v);for(const k of["userText","rawUserText","message","text","prompt","input","query","normalizedUserIntent","effectivePrompt","reply","publicReply","visibleReply"])if(typeof x[k]==="string")values.push(txt(x[k],1600));for(const c of[x.guideContext,x.nyxGuideContext,x.ecosystemGuideContext,x.guide])if(c&&typeof c==="object"&&!Array.isArray(c))contexts.push(c);for(const l of[x.guideActions,x.actions,obj(x.guide).actions])if(Array.isArray(l))actions.push.apply(actions,l);for(const k of["payload","meta","result","finalEnvelope","body","routing","runtimeState","state","session","sessionPatch","memoryPatch","composerContext"])if(x[k]&&typeof x[k]==="object")walk(x[k],d+1);}
+    for(const a of arguments)walk(a,0);return{text:values.filter(Boolean).join(" ").slice(0,2600),context:contexts[0]||{},actions};
+  }
+  function context(raw){
+    const c=obj(raw);return{contract:"nyx.guideContext/1.0",surface:txt(c.surface||c.site||"sandblast.channel",96)||"sandblast.channel",page:txt(c.page||c.pathname||"/",180)||"/",currentLane:lane(c.currentLane||c.lane||"home"),previousLane:lane(c.previousLane||"home"),lastAction:txt(c.lastAction||c.action||"context",48)||"context",goal:txt(c.goal||"ask",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"_")||"ask",inputMode:/voice|speech|mic/i.test(txt(c.inputMode||c.inputSource,24))?"voice":"text",publicSessionOnly:true,privateMemoryAccess:false};}
+  function action(type,target,label){if(!TYPES.has(type))return null;const labels={navigate:"Open",play_radio:"Play Radio",stop_radio:"Stop Radio",open_media:"Open Media",open_tv:"Open Sandblast TV",open_roku:"Open Sandblast on Roku",open_synapse:"Open Synapse",open_guide:"Ask Nyx",focus_input:"Type a Question",summarize:"Summarize"};return{contract:"nyx.guideAction/1.0",id:type+"_"+target,type,target:lane(target),lane:lane(target),label:txt(label||labels[type],80),requiresUserGesture:true,autoExecute:false,advisoryOnly:true};}
+  function infer(text,ctx){
+    const t=txt(text,2600).toLowerCase(),out=[];
+    const add=(type,target,label)=>{const a=action(type,target,label);if(a&&!out.some(x=>x.type===a.type&&x.target===a.target))out.push(a);};
+    if(/\b(stop|pause|turn off|mute)\b.{0,28}\b(radio|stream|music)\b|\b(radio|stream|music)\b.{0,28}\b(stop|pause|off)\b/.test(t))add("stop_radio","live");
+    else if(/\b(play|start|turn on|listen to|open)\b.{0,32}\b(radio|live stream|love letters|music)\b|\b(radio|live stream)\b.{0,24}\b(play|start|on)\b/.test(t))add("play_radio","live");
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\broku\b/.test(t))add("open_roku","roku");
+    if(/\b(open|watch|show|go to|take me to|continue to)\b.{0,36}\b(sandblast tv|television|tv|cartoons?|classics?)\b/.test(t))add("open_tv","watch");
+    if(/\b(open|show|go to|take me to|continue to|discover)\b.{0,36}\b(synapse|news)\b/.test(t))add("open_synapse","news");
+    if(/\b(open|show|play|watch)\b.{0,28}\b(media|video|feature|preview)\b/.test(t))add("open_media","watch");
+    if(/\b(go|take me|return|back)\b.{0,20}\b(home|ecosystem)\b/.test(t))add("navigate","home","Open Home");
+    if(/\b(open|show|use|ask)\b.{0,24}\b(nyx|guide|chat)\b/.test(t))add("open_guide","search");
+    if(/\b(summarize|summary|brief me)\b/.test(t))add("summarize",ctx.currentLane,"Summarize This");
+    return out.slice(0,4);
+  }
+  function sanitize(a){const x=obj(a),type=txt(x.type||x.action,32).toLowerCase().replace(/[^a-z0-9_]+/g,"_");if(!TYPES.has(type))return null;return action(type,x.target||x.lane||"home",x.label);}
+  function routeFor(actions,ctx){const a=actions[0];if(!a)return"";if(a.target==="live")return"radio";if(a.target==="watch")return"media";if(a.target==="roku")return"roku";if(a.target==="news")return"news";return"general";}
+  function project(value,args){
+    if(!value||typeof value!=="object")return value;
+    const found=read.apply(null,Array.prototype.slice.call(args||[]).concat([value])),ctx=context(found.context);
+    if(!Object.keys(found.context).length&&!/\b(nyx|sandblast|radio|roku|synapse|tv|television|cartoon|classic|navigate|guide)\b/i.test(found.text))return value;
+    const existing=found.actions.map(sanitize).filter(Boolean),actions=[];
+    for(const a of existing.concat(infer(found.text,ctx))){if(!actions.some(x=>x.type===a.type&&x.target===a.target))actions.push(a);if(actions.length>=4)break;}
+    const out=Object.assign({},value),explicit=actions.length>0,guideRoute=routeFor(actions,ctx);
+    if(explicit){
+      out.action="route";
+      out.needsClarifier=false;
+      out.clarifier="";
+      if(guideRoute)out.route=guideRoute;
+    }
+    out.guideContext=ctx;
+    out.guideActions=actions;
+    out.guideDecision={
+      version:PATCH_VERSION,
+      contract:"nyx.guideDecision/1.0",
+      explicitAction:explicit,
+      targetLane:actions[0]?actions[0].target:ctx.currentLane,
+      guideRoute:guideRoute||out.route||"",
+      executionAuthority:"client_user_gesture",
+      finalReplyAuthority:false,
+      nonAuthority:true,
+      noUserFacingDiagnostics:true
+    };
+    out.composerContext=Object.assign({},obj(out.composerContext),{guideContext:ctx,guideActions:actions,guideDecision:out.guideDecision});
+    out.stateSpinePatch=Object.assign({},obj(out.stateSpinePatch),{nyxGuideContinuity:{version:PATCH_VERSION,currentLane:ctx.currentLane,previousLane:ctx.previousLane,pendingActionTypes:actions.map(a=>a.type),targetLane:actions[0]?actions[0].target:ctx.currentLane,shouldAdvanceState:explicit,publicSessionOnly:true,updatedAt:Date.now()}});
+    return out;
+  }
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__nyxGuideConciergeR2)return fn;const w=function(){const args=arguments,r=fn.apply(this,args);if(r&&typeof r.then==="function")return r.then(v=>project(v,args));return project(r,args);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__nyxGuideConciergeR2=true;return w;}
+  try{
+    if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      ["runDomainConcierge","routeOrClarify","normalizeConciergeDecision","run","route","handle","default"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+      api.NYX_GUIDE_CONCIERGE_VERSION=PATCH_VERSION;
+      api.normalizeNyxGuideConciergeContext=context;
+      api.buildNyxGuideConciergeActions=function(text,c){return infer(text,context(c||{}));};
+      api.attachNyxGuideConcierge=function(value,input){return project(value,[{guideContext:input||{}}]);};
+    }
+  }catch(_){}
+})();
+/* NYX_GUIDE_CONCIERGE_STEPS_2_3_R2_END */
