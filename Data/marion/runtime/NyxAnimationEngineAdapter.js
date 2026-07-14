@@ -2,15 +2,16 @@
 
 /**
  * NyxAnimationEngineAdapter
- * Frontend animation packet adapter.
+ * Persistent-guide animation packet adapter.
  *
- * Builds engine-neutral avatar animation metadata. This module never controls
- * TTS synthesis or browser audio playback.
+ * Builds engine-neutral avatar metadata. It never controls TTS synthesis or
+ * browser audio playback. Guide presence and speech readiness are separate.
  */
 
-const VERSION = 'nyx.animationEngineAdapter/1.1-readiness-integrity-hardlock';
-const ENGINE_CONTRACT = 'nyx.avatar.animationEnginePacket/1.1';
+const VERSION = 'nyx.animationEngineAdapter/1.2-persistent-guide-state';
+const ENGINE_CONTRACT = 'nyx.avatar.animationEnginePacket/1.2';
 const ENGINES = new Set(['custom_dom', 'css_dom', 'rive', 'lottie', 'three']);
+const GUIDE_STATES = new Set(['available', 'listening', 'thinking', 'speaking', 'guiding', 'quiet', 'recovery', 'minimized', 'idle']);
 const MAX_TIMELINE_CUES = 4096;
 const MAX_DURATION_MS = 30 * 60 * 1000;
 const MAX_VISEME_COUNT = 100000;
@@ -50,6 +51,12 @@ function normalizeEngine(value) {
   return ENGINES.has(engine) ? engine : 'custom_dom';
 }
 
+function normalizeGuideState(value, speechActive) {
+  if (speechActive) return 'speaking';
+  const state = safeText(value || 'available').toLowerCase().replace(/[^a-z0-9_-]+/g, '');
+  return GUIDE_STATES.has(state) ? state : 'available';
+}
+
 function className(value, prefix) {
   const suffix = safeText(value || 'idle').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'idle';
   return `${prefix}-${suffix}`;
@@ -58,7 +65,7 @@ function className(value, prefix) {
 function boundedTimeline(value) {
   if (!Array.isArray(value)) return [];
   return value.slice(0, MAX_TIMELINE_CUES).map((cue) => {
-    if (!cue || typeof cue !== 'object' || Array.isArray(cue)) return cue;
+    if (!cue || typeof cue !== 'object' || Array.isArray(cue)) return null;
     const out = {};
     for (const key of Object.keys(cue).slice(0, 24)) {
       const item = cue[key];
@@ -67,7 +74,7 @@ function boundedTimeline(value) {
       else if (typeof item === 'boolean' || item == null) out[key] = item;
     }
     return out;
-  });
+  }).filter(Boolean);
 }
 
 function buildNyxAnimationEnginePacket(input) {
@@ -79,14 +86,13 @@ function buildNyxAnimationEnginePacket(input) {
   const audio = safeObj(src.audio);
   const payload = safeObj(src.payload);
   const playback = safeObj(src.playback);
+  const guide = safeObj(src.guide || src.guideShell);
   const visemes = Array.isArray(src.visemes) ? src.visemes : [];
-  const timeline = boundedTimeline(motion.timeline);
+  const timeline = boundedTimeline(motion.timeline || src.timeline);
   const engine = normalizeEngine(src.engine || src.animationEngine || 'custom_dom');
 
-  const explicitEnabled = firstBooleanSignal(src.enabled, motion.enabled, avatar.enabled, true);
+  const avatarEnabled = firstBooleanSignal(src.enabled, motion.enabled, avatar.enabled, guide.enabled, true);
   const speechReady = firstBooleanSignal(
-    avatar.frontendReady,
-    avatar.enabled,
     src.speakAllowed,
     src.playable,
     audio.playable,
@@ -96,11 +102,14 @@ function buildNyxAnimationEnginePacket(input) {
     audio.shouldPlay,
     payload.shouldPlay
   );
-  const enabled = explicitEnabled && speechReady;
-
-  const expressionState = safeText(expression.expression || motion.expression || avatar.expression || 'focused_warm');
-  const speechState = safeText(avatar.speechState || avatar.avatarState || (enabled ? 'speaking_ready' : 'idle'));
-  const mouthState = safeText(avatar.mouthState || (enabled ? (visemes.length ? 'viseme_sequence_ready' : 'speech_open_ready') : 'rest'));
+  const guideState = normalizeGuideState(
+    src.guideState || guide.state || avatar.guideState || avatar.lifecycleState || src.state,
+    speechReady
+  );
+  const reducedMotion = firstBooleanSignal(src.reducedMotion, motion.reducedMotion, avatar.reducedMotion, guide.reducedMotion, false);
+  const expressionState = safeText(expression.expression || motion.expression || avatar.expression || (guideState === 'recovery' ? 'steady_recovery' : 'focused_warm'));
+  const speechState = safeText(avatar.speechState || (speechReady ? 'speaking' : guideState));
+  const mouthState = safeText(avatar.mouthState || (speechReady ? (visemes.length ? 'viseme_sequence_ready' : 'speech_open_ready') : 'rest'));
   const estimatedDurationMs = finiteNonNegative(timing.estimatedDurationMs, 0, MAX_DURATION_MS);
   const totalAnimationWindowMs = finiteNonNegative(timing.totalAnimationWindowMs, estimatedDurationMs, MAX_DURATION_MS);
   const visemeCount = finiteNonNegative(visemes.length || avatar.visemeCount, 0, MAX_VISEME_COUNT);
@@ -109,30 +118,36 @@ function buildNyxAnimationEnginePacket(input) {
     version: VERSION,
     contract: ENGINE_CONTRACT,
     source: 'NyxAnimationEngineAdapter',
-    phase: 'phase3b_animation_metadata_bridge',
-    enabled,
-    frontendReady: enabled,
+    phase: 'persistent_guide_animation_metadata',
+    enabled: avatarEnabled,
+    frontendReady: avatarEnabled,
+    guideReady: avatarEnabled,
     speechReady,
+    speechActive: speechReady,
+    guideState,
+    reducedMotion,
     engine,
     driver: 'metadata_only',
     speechState,
     expression: expressionState,
     mouthState,
     cssState: {
-      dataFace: enabled ? 'speak' : 'ready',
+      dataFace: guideState,
       expressionClass: className(expressionState, 'nyx-expression'),
+      guideClass: className(guideState, 'nyx-guide'),
       speechClass: className(speechState, 'nyx-speech'),
       mouthClass: className(mouthState, 'nyx-mouth')
     },
     channels: {
-      mouth: enabled ? (visemeCount ? 'viseme_sequence' : 'speech_open_ready') : 'rest',
+      mouth: speechReady ? (visemeCount ? 'viseme_sequence' : 'speech_open_ready') : 'rest',
       expression: 'expression_state',
-      motion: 'micro_motion_profile',
-      timing: 'speech_clock'
+      guide: 'guide_lifecycle_state',
+      motion: reducedMotion ? 'reduced_motion_profile' : 'micro_motion_profile',
+      timing: speechReady ? 'speech_clock' : 'ambient_clock'
     },
     cues: timeline,
     cueCount: timeline.length,
-    cuesTruncated: Array.isArray(motion.timeline) && motion.timeline.length > timeline.length,
+    cuesTruncated: Array.isArray(motion.timeline || src.timeline) && (motion.timeline || src.timeline).length > timeline.length,
     visemeCount,
     estimatedDurationMs,
     totalAnimationWindowMs,
@@ -149,6 +164,8 @@ function buildNyxAnimationEnginePacket(input) {
 module.exports = {
   VERSION,
   ENGINE_CONTRACT,
+  GUIDE_STATES,
   normalizeEngine,
+  normalizeGuideState,
   buildNyxAnimationEnginePacket
 };
