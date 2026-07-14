@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-TTS-R7: TTS responses bypass conversation reply projection and preserve provider diagnostics.
+
 // NYX-TTS-STREAM-FIRST-WAV-TRANSPORT-R6: Utils/tts is authoritative; /stream is primary and /synthesize is fallback.
 // RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK:
 // LingoSentinel translation route modules are optional at process boot.
@@ -12432,6 +12434,46 @@ function normalizeTtsRoutePayload(raw, req) {
   const retryable = boolish(firstTruthyString(...containers.map((container) => container.retryable)), false);
   const provider = firstTruthyString(...containers.map((container) => container.provider), process.env.TTS_PROVIDER || "resemble") || "resemble";
 
+  if (!playable) {
+    const compactError = error || "tts_audio_unavailable";
+    return {
+      ok: false,
+      playable: false,
+      autoPlay: false,
+      shouldPlay: false,
+      spokenUnavailable: true,
+      error: compactError,
+      reason: compactError,
+      detail: detail || "No verified playable audio was returned.",
+      retryable,
+      provider,
+      providerStatus,
+      traceId,
+      transport: firstTruthyString(...containers.map((container) => container.transport)) || "unknown",
+      ttsVersion: firstTruthyString(...containers.map((container) => container.ttsVersion || container.version)) || "",
+      diagnosticsRedacted: true,
+      audio: {
+        ok: false,
+        playable: false,
+        audioUrl: "",
+        audioBase64: "",
+        byteLength: 0,
+        mimeType: "application/json",
+        contentType: "application/json",
+        format: "",
+        autoPlay: false,
+        shouldPlay: false,
+        provider
+      },
+      meta: {
+        route: cleanText(req && (req.originalUrl || req.path) || "/api/tts") || "/api/tts",
+        audioContract: "audio-first-v2",
+        diagnosticsRedacted: true,
+        t: now()
+      }
+    };
+  }
+
   const normalizedAudio = {
     ok: playable,
     playable,
@@ -12507,7 +12549,23 @@ function normalizeTtsRoutePayload(raw, req) {
   };
 }
 
+function sendRawTtsJson(res, status, body) {
+  if (!res || res.writableEnded) return;
+  const code = Number(status);
+  res.statusCode = Number.isFinite(code) && code >= 100 && code <= 599 ? code : 500;
+  try {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+  } catch (_) {}
+  const json = JSON.stringify(body && typeof body === "object" ? body : { ok: false, error: "tts_invalid_response" });
+  return res.end(json);
+}
+
 async function dispatchTts(req, res) {
+  req.sbTtsRoute = true;
+  res.locals = res.locals || {};
+  res.locals.sbTtsRoute = true;
   hardenConversationNoStore(res);
   try {
     res.setHeader("Vary", "Origin, Accept");
@@ -12521,19 +12579,13 @@ async function dispatchTts(req, res) {
   }
   if (!moduleHandler) throw new Error("tts_handler_unavailable");
 
-  const originalJson = typeof res.json === "function" ? res.json.bind(res) : null;
-  if (originalJson) {
-    res.json = function patchedTtsJson(body) {
-      const normalized = normalizeTtsRoutePayload(body, req);
-      if (!normalized.playable) {
-        try {
-          res.setHeader("X-SB-Response-Mode", "error");
-          res.setHeader("Content-Type", "application/json; charset=utf-8");
-        } catch (_) {}
-      }
-      return originalJson(normalized);
-    };
-  }
+  res.json = function patchedTtsJson(body) {
+    const normalized = normalizeTtsRoutePayload(body, req);
+    if (!normalized.playable) {
+      try { res.setHeader("X-SB-Response-Mode", "error"); } catch (_) {}
+    }
+    return sendRawTtsJson(res, res.statusCode || (normalized.playable ? 200 : normalized.providerStatus || 503), normalized);
+  };
 
   const result = await moduleHandler(req, res);
   if (res.headersSent || res.writableEnded) return result;
@@ -12556,10 +12608,10 @@ async function dispatchTts(req, res) {
 
   if (result !== undefined) {
     const normalized = normalizeTtsRoutePayload(result, req);
-    if (normalized.playable && normalized.ok) return res.status(200).json(normalized);
+    if (normalized.playable && normalized.ok) return sendRawTtsJson(res, 200, normalized);
     const rawStatus = Number(isObj(result) && (result.status || result.providerStatus) || normalized.providerStatus || 503);
     const status = rawStatus >= 400 && rawStatus < 600 ? rawStatus : 502;
-    return res.status(status).json(normalized);
+    return sendRawTtsJson(res, status, normalized);
   }
 
   return sendTtsJsonError(req, res, 503, "tts_empty_response", "TTS handler completed without audio payload.", {
@@ -12582,10 +12634,10 @@ function attachVoiceRoute(base) {
     method: "POST",
     synthesisMethod: "POST",
     playbackMethod: "GET",
-    providerEndpointEnv: "RESEMBLE_STREAM_URL",
+    providerEndpointEnv: "RESEMBLE_SYNTH_URL",
     providerFallbackEndpointEnv: "RESEMBLE_SYNTH_URL",
     transportModeEnv: "SB_TTS_TRANSPORT",
-    transportMode: "stream-first",
+    transportMode: "compat-first",
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     jsonAudioSupported: true,
@@ -12623,10 +12675,10 @@ function normalizeVoiceRouteResponse(out) {
     method: cleanText(out.method || "POST") || "POST",
     synthesisMethod: cleanText(out.synthesisMethod || "POST") || "POST",
     playbackMethod: cleanText(out.playbackMethod || "GET") || "GET",
-    providerEndpointEnv: cleanText(out.providerEndpointEnv || "RESEMBLE_STREAM_URL") || "RESEMBLE_STREAM_URL",
+    providerEndpointEnv: cleanText(out.providerEndpointEnv || "RESEMBLE_SYNTH_URL") || "RESEMBLE_SYNTH_URL",
     providerFallbackEndpointEnv: cleanText(out.providerFallbackEndpointEnv || "RESEMBLE_SYNTH_URL") || "RESEMBLE_SYNTH_URL",
     transportModeEnv: cleanText(out.transportModeEnv || "SB_TTS_TRANSPORT") || "SB_TTS_TRANSPORT",
-    transportMode: cleanText(out.transportMode || "stream-first") || "stream-first",
+    transportMode: cleanText(out.transportMode || "compat-first") || "compat-first",
     requiresToken: !!out.requiresToken,
     preserveMixerVoice: !!out.preserveMixerVoice,
     jsonAudioSupported: out.jsonAudioSupported !== false,
@@ -13309,7 +13361,7 @@ function summarizeTtsPublicHealth(health) {
   const h = safeObj(health);
   const env = safeObj(h.env);
   const integrity = safeObj(h.voiceIntegrity);
-  const transportMode = cleanText(env.transportMode || "stream-first") || "stream-first";
+  const transportMode = cleanText(env.transportMode || "compat-first") || "compat-first";
   const streamConfigured = env.hasStreamEndpoint === true;
   const synthConfigured = env.hasSynthesizeEndpoint === true;
   const endpointConfigured = transportMode === "stream-only"
