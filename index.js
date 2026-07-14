@@ -1,8 +1,9 @@
 "use strict";
 
+// NYX-TTS-CONFIG-ALIAS-BRIDGE-R13: Canonicalize Resemble token/voice aliases before Utils/tts loads and expose redacted readiness diagnostics.
 // NYX-TTS-R7: TTS responses bypass conversation reply projection and preserve provider diagnostics.
 
-// NYX-TTS-STREAM-FIRST-WAV-TRANSPORT-R6: Utils/tts is authoritative; /stream is primary and /synthesize is fallback.
+// NYX-TTS-TRANSPORT-AUTHORITY: Utils/tts remains the synthesis authority; index.js only normalizes configuration, request shape, and delivery.
 // RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK:
 // LingoSentinel translation route modules are optional at process boot.
 // Keep all route-module imports inside guarded loaders so Render/Linux cannot
@@ -11,7 +12,7 @@
 /**
  * Sandblast Backend â€” index.js
  *
- * index.js v2.18.9sb NYX-TTS-RESPONSE-INTEGRITY-HARDLOCK
+ * index.js v2.18.10sb NYX-TTS-CONFIG-ALIAS-BRIDGE-R13 + RESPONSE-INTEGRITY-HARDLOCK
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -425,12 +426,126 @@ if (envLoader && typeof envLoader.config === "function") {
   try { envLoader.config(); } catch (_) {}
 }
 
+const NYX_TTS_CONFIG_BRIDGE_VERSION = "nyx.tts.indexConfigAliasBridge/1.0-r13";
+const NYX_TTS_DEFAULT_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
+const NYX_TTS_DEFAULT_STREAM_URL = "https://f.cluster.resemble.ai/stream";
+const NYX_TTS_ENV_ALIASES = Object.freeze({
+  token: Object.freeze([
+    "RESEMBLE_API_TOKEN", "RESEMBLE_API_KEY", "RESEMBLE_TOKEN",
+    "SB_RESEMBLE_API_TOKEN", "SB_RESEMBLE_API_KEY",
+    "SBNYX_RESEMBLE_API_TOKEN", "SBNYX_RESEMBLE_API_KEY",
+    "NYX_RESEMBLE_API_TOKEN", "NYX_RESEMBLE_API_KEY"
+  ]),
+  voice: Object.freeze([
+    "RESEMBLE_VOICE_UUID", "RESEMBLE_VOICE_ID",
+    "SB_RESEMBLE_VOICE_UUID", "SB_RESEMBLE_VOICE_ID",
+    "SBNYX_RESEMBLE_VOICE_UUID", "SBNYX_RESEMBLE_VOICE_ID",
+    "NYX_RESEMBLE_VOICE_UUID", "NYX_VOICE_UUID", "SB_TTS_VOICE_UUID"
+  ]),
+  synthUrl: Object.freeze([
+    "RESEMBLE_SYNTH_URL", "SB_RESEMBLE_SYNTH_URL",
+    "RESEMBLE_SYNTH_ENDPOINT", "SB_RESEMBLE_SYNTH_ENDPOINT"
+  ]),
+  streamUrl: Object.freeze([
+    "RESEMBLE_STREAM_URL", "SB_RESEMBLE_STREAM_URL",
+    "RESEMBLE_STREAM_ENDPOINT", "SB_RESEMBLE_STREAM_ENDPOINT"
+  ])
+});
+
+function nyxTtsCleanEnvValue(value) {
+  let text = value === null || value === undefined ? "" : String(value).trim();
+  if (text.length >= 2 && ((text[0] === '"' && text[text.length - 1] === '"') || (text[0] === "'" && text[text.length - 1] === "'"))) {
+    text = text.slice(1, -1).trim();
+  }
+  return text;
+}
+
+function nyxTtsLooksLikePlaceholder(value) {
+  const text = nyxTtsCleanEnvValue(value).toLowerCase();
+  if (!text) return true;
+  return text === "." || text === "-" || text === "null" || text === "undefined" ||
+    /(?:your[_\s-]*(?:api[_\s-]*key|token|voice|uuid)|replace[_\s-]*me|placeholder|example[_\s-]*(?:key|token|uuid)|changeme)/i.test(text);
+}
+
+function nyxTtsResolveEnvAlias(keys, options) {
+  const opts = options && typeof options === "object" ? options : {};
+  for (const key of Array.isArray(keys) ? keys : []) {
+    const value = nyxTtsCleanEnvValue(process.env[key]);
+    if (!value) continue;
+    if (opts.rejectPlaceholder !== false && nyxTtsLooksLikePlaceholder(value)) continue;
+    return { configured: true, key, value };
+  }
+  return { configured: false, key: "", value: "" };
+}
+
+function nyxTtsNormalizeEndpoint(value, fallback) {
+  const raw = nyxTtsCleanEnvValue(value || fallback);
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:") return "";
+    if (parsed.hostname.toLowerCase() !== "f.cluster.resemble.ai") return "";
+    return parsed.toString();
+  } catch (_) {
+    return "";
+  }
+}
+
+function applyNyxTtsEnvironmentBridge() {
+  const token = nyxTtsResolveEnvAlias(NYX_TTS_ENV_ALIASES.token);
+  const voice = nyxTtsResolveEnvAlias(NYX_TTS_ENV_ALIASES.voice);
+  const synthCandidate = nyxTtsResolveEnvAlias(NYX_TTS_ENV_ALIASES.synthUrl, { rejectPlaceholder: false });
+  const streamCandidate = nyxTtsResolveEnvAlias(NYX_TTS_ENV_ALIASES.streamUrl, { rejectPlaceholder: false });
+  const synthUrl = nyxTtsNormalizeEndpoint(synthCandidate.value, NYX_TTS_DEFAULT_SYNTH_URL) || NYX_TTS_DEFAULT_SYNTH_URL;
+  const streamUrl = nyxTtsNormalizeEndpoint(streamCandidate.value, NYX_TTS_DEFAULT_STREAM_URL) || NYX_TTS_DEFAULT_STREAM_URL;
+
+  if (token.configured) process.env.RESEMBLE_API_TOKEN = token.value;
+  if (voice.configured) process.env.RESEMBLE_VOICE_UUID = voice.value;
+  process.env.RESEMBLE_SYNTH_URL = synthUrl;
+  process.env.RESEMBLE_STREAM_URL = streamUrl;
+  if (!nyxTtsCleanEnvValue(process.env.SB_TTS_TRANSPORT)) process.env.SB_TTS_TRANSPORT = "compat-first";
+
+  const missing = [];
+  if (!token.configured) missing.push("token");
+  if (!voice.configured) missing.push("voice");
+  return Object.freeze({
+    version: NYX_TTS_CONFIG_BRIDGE_VERSION,
+    ready: missing.length === 0,
+    tokenConfigured: token.configured,
+    voiceConfigured: voice.configured,
+    synthEndpointConfigured: !!synthUrl,
+    streamEndpointConfigured: !!streamUrl,
+    tokenSource: token.key || "unavailable",
+    voiceSource: voice.key || "unavailable",
+    synthEndpointSource: synthCandidate.key || "index_default",
+    streamEndpointSource: streamCandidate.key || "index_default",
+    transportMode: nyxTtsCleanEnvValue(process.env.SB_TTS_TRANSPORT || "compat-first") || "compat-first",
+    missing: Object.freeze(missing)
+  });
+}
+
+const NYX_TTS_ENV_STATUS = applyNyxTtsEnvironmentBridge();
+try {
+  console.log("[Sandblast][nyx-tts-config]", {
+    version: NYX_TTS_ENV_STATUS.version,
+    ready: NYX_TTS_ENV_STATUS.ready,
+    tokenConfigured: NYX_TTS_ENV_STATUS.tokenConfigured,
+    voiceConfigured: NYX_TTS_ENV_STATUS.voiceConfigured,
+    synthEndpointConfigured: NYX_TTS_ENV_STATUS.synthEndpointConfigured,
+    streamEndpointConfigured: NYX_TTS_ENV_STATUS.streamEndpointConfigured,
+    tokenSource: NYX_TTS_ENV_STATUS.tokenSource,
+    voiceSource: NYX_TTS_ENV_STATUS.voiceSource,
+    transportMode: NYX_TTS_ENV_STATUS.transportMode,
+    missing: NYX_TTS_ENV_STATUS.missing
+  });
+} catch (_) {}
+
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", true);
 app.locals.musicTopMoments = [];
 app.locals.musicSources = [];
 app.locals.musicMeta = { ok: false, file: "", count: 0, loadedAt: 0, source: "empty", degraded: false };
+app.locals.nyxTtsEnvironment = NYX_TTS_ENV_STATUS;
 
 /* LINGOSENTINEL_PHASE8_PUBLIC_ASSETS_START */
 // Public browser-safe LingoSentinel asset mount.
@@ -6014,7 +6129,7 @@ const voiceRouteMod = tryRequireMany([
   "./Utils/voiceRoute.js"
 ]);
 
-const ttsMod = tryRequireMany([
+const ttsLoadStatus = tryRequireManyWithStatus([
   "./Utils/tts",
   "./Utils/tts.js",
   "./utils/tts",
@@ -6026,6 +6141,16 @@ const ttsMod = tryRequireMany([
   "./tts",
   "./tts.js"
 ]);
+const ttsMod = ttsLoadStatus.mod;
+try {
+  console.log("[Sandblast][nyx-tts-module]", {
+    loaded: ttsLoadStatus.ok === true,
+    requested: ttsLoadStatus.requested || "",
+    resolvedPath: ttsLoadStatus.resolvedPath ? path.relative(__dirname, ttsLoadStatus.resolvedPath) : "",
+    moduleVersion: ttsLoadStatus.version || "",
+    configReady: NYX_TTS_ENV_STATUS.ready
+  });
+} catch (_) {}
 
 const newscanadaCacheServiceMod = tryRequireMany([
   "./services/newscanadaCacheService",
@@ -12235,10 +12360,65 @@ function ttsHealthFromModule(mod) {
   return null;
 }
 
+function getNyxTtsRuntimeConfigStatus() {
+  const token = nyxTtsResolveEnvAlias(NYX_TTS_ENV_ALIASES.token);
+  const voice = nyxTtsResolveEnvAlias(NYX_TTS_ENV_ALIASES.voice);
+  const synthUrl = nyxTtsNormalizeEndpoint(process.env.RESEMBLE_SYNTH_URL, NYX_TTS_DEFAULT_SYNTH_URL);
+  const streamUrl = nyxTtsNormalizeEndpoint(process.env.RESEMBLE_STREAM_URL, NYX_TTS_DEFAULT_STREAM_URL);
+  const missing = [];
+  if (!token.configured) missing.push("token");
+  if (!voice.configured) missing.push("voice");
+  return {
+    version: NYX_TTS_CONFIG_BRIDGE_VERSION,
+    ready: missing.length === 0,
+    tokenConfigured: token.configured,
+    voiceConfigured: voice.configured,
+    synthEndpointConfigured: !!synthUrl,
+    streamEndpointConfigured: !!streamUrl,
+    transportMode: nyxTtsCleanEnvValue(process.env.SB_TTS_TRANSPORT || "compat-first") || "compat-first",
+    moduleLoaded: !!ttsHandlerFromModule(ttsMod),
+    modulePath: ttsLoadStatus && ttsLoadStatus.requested || "",
+    missing
+  };
+}
+
+function applyNyxTtsDiagnosticHeaders(res, status) {
+  const cfg = status && typeof status === "object" ? status : getNyxTtsRuntimeConfigStatus();
+  try {
+    res.setHeader("X-SB-TTS-Index-Bridge", NYX_TTS_CONFIG_BRIDGE_VERSION);
+    res.setHeader("X-SB-TTS-Config-Ready", cfg.ready ? "1" : "0");
+    res.setHeader("X-SB-TTS-Token-Configured", cfg.tokenConfigured ? "1" : "0");
+    res.setHeader("X-SB-TTS-Voice-Configured", cfg.voiceConfigured ? "1" : "0");
+    res.setHeader("X-SB-TTS-Module-Loaded", cfg.moduleLoaded ? "1" : "0");
+    res.setHeader("X-SB-TTS-Transport", cfg.transportMode || "compat-first");
+  } catch (_) {}
+  return cfg;
+}
+
+function normalizePublicTtsRequest(req) {
+  if (!req || typeof req !== "object") return req;
+  const query = req.query && typeof req.query === "object" ? req.query : {};
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+  const method = String(req.method || "GET").toUpperCase();
+  if (method === "GET") {
+    const text = nyxTtsCleanEnvValue(query.text || query.data || query.message || query.speak || "");
+    const outputFormat = nyxTtsCleanEnvValue(query.output_format || query.outputFormat || query.format || "").toLowerCase();
+    req.body = {
+      ...body,
+      ...(text ? { text, data: text } : {}),
+      ...(outputFormat === "wav" || outputFormat === "mp3" ? { output_format: outputFormat, outputFormat } : {}),
+      ...(query.returnJson !== undefined ? { returnJson: query.returnJson } : {}),
+      ...(query.json !== undefined ? { json: query.json } : {})
+    };
+  }
+  return req;
+}
+
 function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
   const code = clamp(Number(statusCode || 503), 400, 599);
   const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("tts"));
   const safeExtra = isObj(extra) ? extra : {};
+  const runtimeConfig = applyNyxTtsDiagnosticHeaders(res);
   try {
     res.setHeader("X-SB-Response-Mode", "error");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -12260,6 +12440,16 @@ function sendTtsJsonError(req, res, statusCode, error, detail, extra) {
     diagnosticsRedacted: true,
     configSource: cleanText(safeExtra.configSource || ""),
     ttsModuleBound: safeExtra.ttsModuleBound === true,
+    ttsIndexBridgeVersion: NYX_TTS_CONFIG_BRIDGE_VERSION,
+    config: {
+      ready: runtimeConfig.ready,
+      tokenConfigured: runtimeConfig.tokenConfigured,
+      voiceConfigured: runtimeConfig.voiceConfigured,
+      synthEndpointConfigured: runtimeConfig.synthEndpointConfigured,
+      streamEndpointConfigured: runtimeConfig.streamEndpointConfigured,
+      moduleLoaded: runtimeConfig.moduleLoaded,
+      missing: runtimeConfig.missing
+    },
     payload: { spokenUnavailable: true, playable: false, shouldPlay: false, autoPlay: false },
     meta: { v: PUBLIC_INDEX_VERSION, t: now(), audioContract: "audio-first-v2" }
   };
@@ -12449,8 +12639,21 @@ function normalizeTtsRoutePayload(raw, req) {
       provider,
       providerStatus,
       traceId,
-      transport: firstTruthyString(...containers.map((container) => container.transport)) || "unknown",
-      ttsVersion: firstTruthyString(...containers.map((container) => container.ttsVersion || container.version)) || "",
+      transport: firstTruthyString(...containers.map((container) => container.transport)) || getNyxTtsRuntimeConfigStatus().transportMode || "unknown",
+      ttsVersion: firstTruthyString(...containers.map((container) => container.ttsVersion || container.version)) || NYX_TTS_CONFIG_BRIDGE_VERSION,
+      ttsIndexBridgeVersion: NYX_TTS_CONFIG_BRIDGE_VERSION,
+      config: (() => {
+        const cfg = getNyxTtsRuntimeConfigStatus();
+        return {
+          ready: cfg.ready,
+          tokenConfigured: cfg.tokenConfigured,
+          voiceConfigured: cfg.voiceConfigured,
+          synthEndpointConfigured: cfg.synthEndpointConfigured,
+          streamEndpointConfigured: cfg.streamEndpointConfigured,
+          moduleLoaded: cfg.moduleLoaded,
+          missing: cfg.missing
+        };
+      })(),
       diagnosticsRedacted: true,
       audio: {
         ok: false,
@@ -12563,16 +12766,27 @@ function sendRawTtsJson(res, status, body) {
 }
 
 async function dispatchTts(req, res) {
+  normalizePublicTtsRequest(req);
   req.sbTtsRoute = true;
   res.locals = res.locals || {};
   res.locals.sbTtsRoute = true;
   hardenConversationNoStore(res);
+  const runtimeConfig = applyNyxTtsDiagnosticHeaders(res);
   try {
     res.setHeader("Vary", "Origin, Accept");
     res.setHeader("X-SB-Audio-Contract", "audio-first-v2");
     res.setHeader("X-SB-TTS-Response-Mode", "binary-audio-default");
     res.setHeader("X-Content-Type-Options", "nosniff");
   } catch (_) {}
+  if (!runtimeConfig.ready) {
+    return sendTtsJsonError(req, res, 503, "TTS_NOT_CONFIGURED", "TTS not configured in the running process.", {
+      provider: "resemble",
+      providerStatus: 503,
+      retryable: false,
+      configSource: "index_tts_env_bridge",
+      ttsModuleBound: !!ttsHandlerFromModule(ttsMod)
+    });
+  }
   const moduleHandler = ttsHandlerFromModule(ttsMod);
   if (CFG.httpLogEnabled) {
     console.log("[Sandblast][ttsRoute:dispatch]", { path: req.originalUrl || req.path || "/api/tts", hasHandler: !!moduleHandler, host: getBackendPublicBase(), traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || "") });
@@ -12635,9 +12849,9 @@ function attachVoiceRoute(base) {
     synthesisMethod: "POST",
     playbackMethod: "GET",
     providerEndpointEnv: "RESEMBLE_SYNTH_URL",
-    providerFallbackEndpointEnv: "RESEMBLE_SYNTH_URL",
+    providerFallbackEndpointEnv: "RESEMBLE_STREAM_URL",
     transportModeEnv: "SB_TTS_TRANSPORT",
-    transportMode: "compat-first",
+    transportMode: getNyxTtsRuntimeConfigStatus().transportMode,
     requiresToken: !!(CFG.requireVoiceRouteToken && CFG.apiToken),
     preserveMixerVoice: !!CFG.preserveMixerVoice,
     jsonAudioSupported: true,
@@ -12676,9 +12890,9 @@ function normalizeVoiceRouteResponse(out) {
     synthesisMethod: cleanText(out.synthesisMethod || "POST") || "POST",
     playbackMethod: cleanText(out.playbackMethod || "GET") || "GET",
     providerEndpointEnv: cleanText(out.providerEndpointEnv || "RESEMBLE_SYNTH_URL") || "RESEMBLE_SYNTH_URL",
-    providerFallbackEndpointEnv: cleanText(out.providerFallbackEndpointEnv || "RESEMBLE_SYNTH_URL") || "RESEMBLE_SYNTH_URL",
+    providerFallbackEndpointEnv: cleanText(out.providerFallbackEndpointEnv || "RESEMBLE_STREAM_URL") || "RESEMBLE_STREAM_URL",
     transportModeEnv: cleanText(out.transportModeEnv || "SB_TTS_TRANSPORT") || "SB_TTS_TRANSPORT",
-    transportMode: cleanText(out.transportMode || "compat-first") || "compat-first",
+    transportMode: cleanText(out.transportMode || getNyxTtsRuntimeConfigStatus().transportMode || "compat-first") || "compat-first",
     requiresToken: !!out.requiresToken,
     preserveMixerVoice: !!out.preserveMixerVoice,
     jsonAudioSupported: out.jsonAudioSupported !== false,
@@ -13359,11 +13573,12 @@ function publicBoolean(value) {
 
 function summarizeTtsPublicHealth(health) {
   const h = safeObj(health);
+  const indexConfig = getNyxTtsRuntimeConfigStatus();
   const env = safeObj(h.env);
   const integrity = safeObj(h.voiceIntegrity);
-  const transportMode = cleanText(env.transportMode || "compat-first") || "compat-first";
-  const streamConfigured = env.hasStreamEndpoint === true;
-  const synthConfigured = env.hasSynthesizeEndpoint === true;
+  const transportMode = cleanText(env.transportMode || indexConfig.transportMode || "compat-first") || "compat-first";
+  const streamConfigured = env.hasStreamEndpoint === true || indexConfig.streamEndpointConfigured === true;
+  const synthConfigured = env.hasSynthesizeEndpoint === true || indexConfig.synthEndpointConfigured === true;
   const endpointConfigured = transportMode === "stream-only"
     ? streamConfigured
     : transportMode === "synthesize-only"
@@ -13373,7 +13588,7 @@ function summarizeTtsPublicHealth(health) {
     env.hasToken === true &&
     (env.hasVoice === true || integrity.configured === true) &&
     endpointConfigured
-  );
+  ) || indexConfig.ready;
   const provider = cleanText(h.provider || (configured ? "configured" : ""));
   const circuitOpen = h.circuitOpen === true;
   return {
@@ -13393,7 +13608,17 @@ function summarizeTtsPublicHealth(health) {
         : (env.streamEndpointExplicitlyConfigured === true || env.synthesizeEndpointExplicitlyConfigured === true),
     endpointSource: transportMode === "synthesize-only"
       ? (cleanText(env.synthesizeEndpointSource || "unavailable") || "unavailable")
-      : (cleanText(env.streamEndpointSource || env.synthesizeEndpointSource || "unavailable") || "unavailable")
+      : (cleanText(env.streamEndpointSource || env.synthesizeEndpointSource || "unavailable") || "unavailable"),
+    indexBridgeVersion: NYX_TTS_CONFIG_BRIDGE_VERSION,
+    indexConfig: {
+      ready: indexConfig.ready,
+      tokenConfigured: indexConfig.tokenConfigured,
+      voiceConfigured: indexConfig.voiceConfigured,
+      synthEndpointConfigured: indexConfig.synthEndpointConfigured,
+      streamEndpointConfigured: indexConfig.streamEndpointConfigured,
+      moduleLoaded: indexConfig.moduleLoaded,
+      missing: indexConfig.missing
+    }
   };
 }
 
@@ -13997,6 +14222,7 @@ app.get("/api/health", (req, res) => {
 app.get(["/api/tts/health", "/tts/health", "/api/tts/health/", "/tts/health/"], enforceVoiceRouteAccess, async (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
+  applyNyxTtsDiagnosticHeaders(res);
   const handler = ttsHealthFromModule(ttsMod);
   if (!handler) {
     return res.status(200).json({
@@ -20149,6 +20375,13 @@ function startSandblastServer(port = PORT) {
   server = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
     try {
+      console.log("[Sandblast][nyx-tts-readiness]", {
+        ...getNyxTtsRuntimeConfigStatus(),
+        tokenSource: NYX_TTS_ENV_STATUS.tokenSource,
+        voiceSource: NYX_TTS_ENV_STATUS.voiceSource
+      });
+    } catch (_) {}
+    try {
       const emotionHealth = getMarionEmotionRuntimeHealth();
       console.log("[Sandblast][marion-emotion-runtime]", {
         ok: !!emotionHealth.ok,
@@ -20197,6 +20430,12 @@ module.exports = {
   NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES,
   NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
   NYX_VOICE_REQUIRED_RUNTIME_FILES,
+  NYX_TTS_CONFIG_BRIDGE_VERSION,
+  NYX_TTS_ENV_ALIASES,
+  NYX_TTS_ENV_STATUS,
+  applyNyxTtsEnvironmentBridge,
+  getNyxTtsRuntimeConfigStatus,
+  normalizePublicTtsRequest,
   nyxVoiceRequiredRuntimeDiagnostics,
   nyxVoiceRuntimeFilesReady,
   loadNewsCanadaEditorsPicksFromDisk,
