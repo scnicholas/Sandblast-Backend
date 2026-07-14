@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-GUIDE-STEPS-7-8-9-R1: safe action orchestration and public preference intent routing.
+
 /**
  * DomainConcierge.js
  *
@@ -2631,3 +2633,411 @@ function r18cApplyLawConciergeProtocol(result,packet){
   }catch(_){}
 })();
 /* NYX_GUIDE_CONCIERGE_STEPS_2_3_R2_END */
+
+/* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_START */
+(function nyxGuideSteps789DomainConciergePatch() {
+  "use strict";
+
+  const PATCH_VERSION = "nyx.guideOrchestration.domainConcierge/3.0-steps7-8-9";
+  const ACTION_PLAN_CONTRACT = "nyx.guideActionPlan/1.0";
+  const PREFERENCE_INTENT_CONTRACT = "nyx.publicPreferenceIntent/1.0";
+  const TARGETS = new Set([
+    "sandblast_home", "sandblast_radio", "sandblast_tv", "sandblast_roku",
+    "sandblast_cartoons", "sandblast_classics", "synapse", "lingosentinel",
+    "apps", "about", "nyx_guide", "guide_input", "current_surface"
+  ]);
+  const TYPES = new Set([
+    "navigate", "play_radio", "stop_radio", "open_media", "open_tv",
+    "open_roku", "open_synapse", "open_guide", "focus_input", "summarize",
+    "tv_focus", "tv_back", "tv_play_pause", "tv_open_details", "dismiss_guide"
+  ]);
+
+  function obj(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  }
+
+  function txt(value, max = 240) {
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+
+  function hash(value) {
+    const raw = String(value == null ? "" : value);
+    let result = 2166136261;
+    for (let index = 0; index < raw.length; index += 1) {
+      result ^= raw.charCodeAt(index);
+      result = Math.imul(result, 16777619);
+    }
+    return (result >>> 0).toString(16).padStart(8, "0");
+  }
+
+  function targetLane(target) {
+    if (target === "sandblast_radio") return "live";
+    if (["sandblast_tv", "sandblast_cartoons", "sandblast_classics"].includes(target)) return "watch";
+    if (target === "sandblast_roku") return "roku";
+    if (target === "synapse") return "news";
+    if (target === "apps") return "apps";
+    if (target === "about") return "about";
+    if (["nyx_guide", "guide_input"].includes(target)) return "search";
+    return "home";
+  }
+
+  function action(type, target, label) {
+    if (!TYPES.has(type) || !TARGETS.has(target)) return null;
+    const compatible = {
+      play_radio: ["sandblast_radio"],
+      stop_radio: ["sandblast_radio"],
+      open_media: ["sandblast_tv", "sandblast_cartoons", "sandblast_classics"],
+      open_tv: ["sandblast_tv", "sandblast_cartoons", "sandblast_classics"],
+      open_roku: ["sandblast_roku"],
+      open_synapse: ["synapse"],
+      open_guide: ["nyx_guide"],
+      focus_input: ["guide_input"],
+      summarize: ["current_surface", "synapse", "lingosentinel", "sandblast_tv"],
+      tv_focus: ["current_surface", "nyx_guide"],
+      tv_back: ["current_surface"],
+      tv_play_pause: ["current_surface"],
+      tv_open_details: ["current_surface", "sandblast_tv", "sandblast_cartoons", "sandblast_classics"],
+      dismiss_guide: ["nyx_guide"]
+    };
+    if (type !== "navigate" && (!compatible[type] || !compatible[type].includes(target))) return null;
+    return {
+      contract: "nyx.guideAction/1.1",
+      id: `act_${hash(`${type}|${target}|${label || ""}`)}`,
+      type,
+      target,
+      targetKey: target,
+      lane: targetLane(target),
+      label: txt(label || "Open", 80),
+      requiresUserGesture: true,
+      autoExecute: false,
+      advisoryOnly: true,
+      serverExecutionAllowed: false,
+      externalUrlAccepted: false,
+      symbolicTargetOnly: true
+    };
+  }
+
+  function inferActionPlan(prompt, context = {}) {
+    const text = txt(prompt, 3200).toLowerCase();
+    const television = obj(context.televisionGuide || context.tvGuide).enabled === true;
+    const limit = television ? 4 : 6;
+    const actions = [];
+
+    function add(type, target, label) {
+      const item = action(type, target, label);
+      if (!item) return;
+      if (actions.some((existing) => existing.type === item.type && existing.target === item.target)) return;
+      actions.push(item);
+    }
+
+    if (/\b(stop|pause|turn off)\b.{0,28}\b(radio|stream|music)\b|\b(radio|stream|music)\b.{0,28}\b(stop|pause|off)\b/.test(text)) {
+      add("stop_radio", "sandblast_radio", "Stop Radio");
+    } else if (/\b(play|start|turn on|listen to)\b.{0,36}\b(radio|live stream|love letters|music)\b|\b(radio|live stream)\b.{0,24}\b(play|start|on)\b/.test(text)) {
+      add("play_radio", "sandblast_radio", "Play Radio");
+    }
+
+    if (/\b(open|watch|show|go to|take me to|continue to)\b.{0,44}\b(sandblast on roku|roku)\b/.test(text)) {
+      add("open_roku", "sandblast_roku", "Open Sandblast on Roku");
+    }
+    if (/\b(open|watch|show|go to|take me to|continue to)\b.{0,44}\b(classic cartoons?|cartoons?)\b/.test(text)) {
+      add("open_tv", "sandblast_cartoons", "Open Cartoons");
+    }
+    if (/\b(open|watch|show|go to|take me to|continue to)\b.{0,44}\b(classics?|classic movies?)\b/.test(text)) {
+      add("open_tv", "sandblast_classics", "Open Classics");
+    }
+    if (/\b(open|watch|show|go to|take me to|continue to)\b.{0,44}\b(sandblast tv|television|tv)\b/.test(text)) {
+      add("open_tv", "sandblast_tv", "Open Sandblast TV");
+    }
+    if (/\b(open|show|go to|take me to|continue to|discover)\b.{0,40}\b(synapse|news)\b/.test(text)) {
+      add("open_synapse", "synapse", "Open Synapse");
+    }
+    if (/\b(open|show|go to|take me to|translate|translation)\b.{0,40}\b(lingosentinel|lingo sentinel)\b|\btranslate\b.{0,60}\b(language|conversation|message)\b/.test(text)) {
+      add("navigate", "lingosentinel", "Open LingoSentinel");
+    }
+    if (/\b(open|show|go to|take me to)\b.{0,32}\b(apps?|applications?)\b/.test(text)) {
+      add("navigate", "apps", "Open Apps");
+    }
+    if (/\b(open|show|go to|take me to)\b.{0,32}\b(about|company)\b/.test(text)) {
+      add("navigate", "about", "Open About");
+    }
+    if (/\b(go|take me|return|back)\b.{0,24}\b(home|ecosystem|sandblast channel)\b/.test(text)) {
+      add("navigate", "sandblast_home", "Open Home");
+    }
+    if (/\b(open|show|use|ask)\b.{0,28}\b(nyx|nix|nick|guide|chat)\b/.test(text)) {
+      add("open_guide", "nyx_guide", "Ask Nyx");
+    }
+    if (/\b(type|write|enter)\b.{0,24}\b(question|message|prompt)\b/.test(text)) {
+      add("focus_input", "guide_input", "Type a Question");
+    }
+    if (/\b(summarize|summary|brief me)\b/.test(text)) {
+      add("summarize", "current_surface", "Summarize This");
+    }
+
+    if (television) {
+      if (/\b(back|go back|previous screen)\b/.test(text)) add("tv_back", "current_surface", "Back");
+      if (/\b(play|pause)\b.{0,16}\b(video|program|show|movie|episode)\b/.test(text)) add("tv_play_pause", "current_surface", "Play or Pause");
+      if (/\b(details|more information|program info)\b/.test(text)) add("tv_open_details", "current_surface", "Open Details");
+      if (/\b(dismiss|hide|close)\b.{0,16}\b(nyx|guide)\b/.test(text)) add("dismiss_guide", "nyx_guide", "Dismiss Nyx");
+    }
+
+    return {
+      contract: ACTION_PLAN_CONTRACT,
+      version: PATCH_VERSION,
+      authoritative: false,
+      finalReplyAuthority: false,
+      executionAuthority: "client_user_gesture",
+      clientExecutionRequired: true,
+      serverExecutionAllowed: false,
+      symbolicTargetsOnly: true,
+      externalModelUrlsAllowed: false,
+      autoExecute: false,
+      requiresUserGesture: true,
+      television,
+      maxActions: limit,
+      actionCount: Math.min(actions.length, limit),
+      actions: actions.slice(0, limit)
+    };
+  }
+
+  function preferenceIntent(prompt) {
+    const text = txt(prompt, 1800).toLowerCase();
+    const changes = {};
+    let explicit = false;
+    let remember = null;
+    let clearRequested = false;
+
+    function set(key, value) {
+      changes[key] = value;
+      explicit = true;
+    }
+
+    if (/\b(turn|switch|set)\b.{0,16}\bvoice\b.{0,12}\b(off|disable|disabled)\b|\btext[- ]only\b/.test(text)) {
+      set("voiceEnabled", false);
+      set("textOnly", true);
+    }
+    if (/\b(turn|switch|set)\b.{0,16}\bvoice\b.{0,12}\b(on|enable|enabled)\b|\bvoice and text\b/.test(text)) {
+      set("voiceEnabled", true);
+      set("textOnly", false);
+    }
+    if (/\b(reduce|reduced|limit)\b.{0,18}\b(motion|animation)\b/.test(text)) set("reducedMotion", true);
+    if (/\b(full|normal)\b.{0,18}\b(motion|animation)\b/.test(text)) set("reducedMotion", false);
+    if (/\b(hide|disable|turn off)\b.{0,18}\b(avatar|nyx animation)\b/.test(text)) set("avatarVisible", false);
+    if (/\b(show|enable|turn on)\b.{0,18}\b(avatar|nyx animation)\b/.test(text)) set("avatarVisible", true);
+    if (/\b(turn off|disable|stop)\b.{0,18}\b(suggestions?|recommendations?)\b/.test(text)) set("suggestionsEnabled", false);
+    if (/\b(turn on|enable|show)\b.{0,18}\b(suggestions?|recommendations?)\b/.test(text)) set("suggestionsEnabled", true);
+    if (/\b(turn off|disable|hide)\b.{0,18}\b(captions?|subtitles?)\b/.test(text)) set("captionsEnabled", false);
+    if (/\b(turn on|enable|show)\b.{0,18}\b(captions?|subtitles?)\b/.test(text)) set("captionsEnabled", true);
+
+    const languageMatch = text.match(/\b(?:preferred language|language preference|set language to|use)\s+([a-z]{2,3}(?:-[a-z]{2,4})?|english|french|spanish|portuguese|german|italian|japanese|korean|chinese)\b/i);
+    if (languageMatch) {
+      const aliases = {
+        english: "en", french: "fr", spanish: "es", portuguese: "pt",
+        german: "de", italian: "it", japanese: "ja", korean: "ko", chinese: "zh"
+      };
+      set("preferredLanguage", aliases[languageMatch[1].toLowerCase()] || languageMatch[1]);
+    }
+
+    if (/\bremember (?:my )?(?:preferences|settings)\b|\bsave (?:my )?(?:preferences|settings)\b/.test(text)) {
+      remember = true;
+      explicit = true;
+    }
+    if (/\b(do not|don't|dont|never)\s+remember\b|\bdo not save\b|\bdon't save\b/.test(text)) {
+      remember = false;
+      explicit = true;
+    }
+    if (/\b(clear|reset|forget|delete)\b.{0,24}\b(nyx|guide|public)?\s*(preferences|settings|history)\b/.test(text)) {
+      clearRequested = true;
+      explicit = true;
+    }
+
+    return {
+      contract: PREFERENCE_INTENT_CONTRACT,
+      version: PATCH_VERSION,
+      explicit,
+      authoritative: false,
+      writeAuthority: "client_consent",
+      rememberPreferences: remember,
+      clearRequested,
+      changes,
+      privateMemoryAccess: false,
+      serverStorageRequested: false
+    };
+  }
+
+  function collectPrompt(args, result) {
+    const values = [];
+    const seen = new Set();
+
+    function walk(value, depth) {
+      if (value == null || depth > 5) return;
+      if (typeof value === "string") {
+        values.push(txt(value, 1800));
+        return;
+      }
+      if (typeof value !== "object" || seen.has(value)) return;
+      seen.add(value);
+      const source = obj(value);
+      for (const key of [
+        "userText", "rawUserText", "message", "prompt", "input", "query",
+        "effectivePrompt", "normalizedUserIntent"
+      ]) {
+        if (typeof source[key] === "string") values.push(txt(source[key], 1800));
+      }
+      for (const key of [
+        "payload", "body", "context", "guideContext", "publicGuideContinuity",
+        "televisionGuide", "state", "session", "composerContext", "routing"
+      ]) {
+        if (source[key] && typeof source[key] === "object") walk(source[key], depth + 1);
+      }
+    }
+
+    for (const arg of Array.from(args || [])) walk(arg, 0);
+    walk(result, 0);
+    return values.filter(Boolean).join(" ").slice(0, 3200);
+  }
+
+  function collectContext(args, result) {
+    const queue = Array.from(args || []).concat([result]);
+    const seen = new Set();
+    let guideContext = {};
+    let televisionGuide = {};
+    let existingPlan = null;
+
+    function walk(value, depth) {
+      if (!value || typeof value !== "object" || depth > 5 || seen.has(value)) return;
+      seen.add(value);
+      const source = obj(value);
+      if (!Object.keys(guideContext).length) {
+        guideContext = obj(source.guideContext || source.nyxGuideContext || source.publicGuideContinuity);
+      }
+      if (!Object.keys(televisionGuide).length) {
+        televisionGuide = obj(source.televisionGuide || source.tvGuide || source.tvContext);
+      }
+      if (!existingPlan && obj(source.guideActionPlan).contract) existingPlan = obj(source.guideActionPlan);
+      for (const key of ["payload", "meta", "result", "finalEnvelope", "body", "context", "composerContext", "routing"]) {
+        walk(source[key], depth + 1);
+      }
+    }
+
+    for (const item of queue) walk(item, 0);
+    return { guideContext, televisionGuide, existingPlan };
+  }
+
+  function mergePlans(existing, inferred) {
+    const source = obj(existing);
+    const list = [];
+    for (const candidate of []
+      .concat(Array.isArray(source.actions) ? source.actions : [])
+      .concat(Array.isArray(inferred.actions) ? inferred.actions : [])) {
+      const item = obj(candidate);
+      if (!TYPES.has(item.type) || !TARGETS.has(item.target)) continue;
+      if (list.some((entry) => entry.type === item.type && entry.target === item.target)) continue;
+      list.push(action(item.type, item.target, item.label));
+      if (list.length >= (inferred.television ? 4 : 6)) break;
+    }
+    return {
+      ...inferred,
+      actionCount: list.length,
+      actions: list
+    };
+  }
+
+  function project(value, args) {
+    if (!value || typeof value !== "object") return value;
+    const context = collectContext(args, value);
+    const prompt = collectPrompt(args, value);
+    const inferredPlan = inferActionPlan(prompt, {
+      ...context.guideContext,
+      televisionGuide: context.televisionGuide
+    });
+    const plan = mergePlans(context.existingPlan, inferredPlan);
+    const preference = preferenceIntent(prompt);
+    const hasGuideSignal = plan.actions.length > 0 || preference.explicit ||
+      /\b(nyx|nix|nick|sandblast|radio|roku|synapse|lingosentinel|tv|television|cartoon|classic|avatar|caption|preference|setting)\b/i.test(prompt);
+
+    if (!hasGuideSignal) return value;
+
+    const out = { ...value };
+    out.guideActionPlan = plan;
+    out.guideActions = plan.actions;
+    if (preference.explicit) out.publicPreferenceIntent = preference;
+    out.guideDecision = {
+      ...obj(out.guideDecision),
+      version: PATCH_VERSION,
+      actionPlanContract: ACTION_PLAN_CONTRACT,
+      preferenceIntentContract: preference.explicit ? PREFERENCE_INTENT_CONTRACT : "",
+      explicitAction: plan.actions.length > 0,
+      explicitPreferenceChange: preference.explicit,
+      executionAuthority: "client_user_gesture",
+      preferenceWriteAuthority: "client_consent",
+      serverExecutionAllowed: false,
+      finalReplyAuthority: false,
+      nonAuthority: true,
+      noUserFacingDiagnostics: true
+    };
+    out.composerContext = {
+      ...obj(out.composerContext),
+      guideActionPlan: plan,
+      publicPreferenceIntent: preference.explicit ? preference : undefined,
+      guideDecision: out.guideDecision
+    };
+    out.stateSpinePatch = {
+      ...obj(out.stateSpinePatch),
+      nyxGuideStep789: {
+        version: PATCH_VERSION,
+        pendingActionIds: plan.actions.map((item) => item.id),
+        pendingTargets: plan.actions.map((item) => item.target),
+        preferenceChangeRequested: preference.explicit,
+        preferenceConsentRequired: preference.rememberPreferences === true,
+        clearPreferencesRequested: preference.clearRequested,
+        publicSessionOnly: true,
+        privateMemoryAccess: false,
+        updatedAt: Date.now()
+      }
+    };
+    return out;
+  }
+
+  function wrap(fn, name) {
+    if (typeof fn !== "function" || fn.__nyxGuideSteps789DomainWrapped) return fn;
+    const wrapped = function wrappedNyxGuideSteps789Domain() {
+      const args = arguments;
+      const result = fn.apply(this, args);
+      if (result && typeof result.then === "function") {
+        return result.then((value) => project(value, args));
+      }
+      return project(result, args);
+    };
+    try {
+      Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; });
+      Object.defineProperty(wrapped, "name", { value: fn.name || name || "nyxGuideSteps789Domain" });
+    } catch (_) {}
+    wrapped.__nyxGuideSteps789DomainWrapped = true;
+    return wrapped;
+  }
+
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default");
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of [
+      "runDomainConcierge", "routeOrClarify", "normalizeConciergeDecision",
+      "run", "route", "handle", "default"
+    ]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    api.NYX_GUIDE_STEPS_7_8_9_DOMAIN_VERSION = PATCH_VERSION;
+    api.NYX_GUIDE_ACTION_PLAN_CONTRACT = ACTION_PLAN_CONTRACT;
+    api.NYX_PUBLIC_PREFERENCE_INTENT_CONTRACT = PREFERENCE_INTENT_CONTRACT;
+    api.buildNyxGuideStep789ActionPlan = inferActionPlan;
+    api.buildNyxPublicPreferenceIntent = preferenceIntent;
+    api.attachNyxGuideStep789Concierge = function attach(value, input) {
+      return project(value, [input || {}]);
+    };
+  } catch (_) {}
+})();
+ /* NYX_GUIDE_ORCHESTRATION_STEPS_7_8_9_R1_END */
