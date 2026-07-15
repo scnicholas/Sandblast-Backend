@@ -1999,3 +1999,319 @@ function r18cApplyLawRouterSignals(result,norm,session,cog){
   } catch (_) {}
 })();
 /* NYX_PUBLIC_CURRENT_TURN_MEDIA_ROUTE_HARDLOCK_R2_END */
+
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_SPLIT_R3_START */
+(function nyxPublicMediaDiscoveryNavigationSplitR3(){
+  "use strict";
+  const VERSION = "nyx.domainRouter.publicMediaDiscoveryNavigationSplit/3.0";
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 1800){
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){
+    return lower(value)
+      .replace(/[’‘]/g, "'")
+      .replace(/[^a-z0-9']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function currentTurnText(norm){
+    const n = obj(norm);
+    const payload = obj(n.payload);
+    const body = obj(n.body);
+    const meta = obj(n.meta);
+    const turn = obj(n.turn);
+    return clean(
+      n.rawUserText || n.userText || n.text || n.message || n.query || n.userQuery ||
+      n.prompt || n.effectivePrompt || n.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      turn.rawUserText || turn.userText || turn.text || turn.message || turn.query ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+
+  function isPublicSurface(norm){
+    const n = obj(norm);
+    const payload = obj(n.payload);
+    const body = obj(n.body);
+    const meta = obj(n.meta);
+    const guide = obj(n.guideContext || payload.guideContext || body.guideContext || meta.guideContext);
+    const audience = lower(n.audience || payload.audience || body.audience || meta.audience);
+    const lane = lower(n.lane || payload.lane || body.lane || meta.lane);
+    const profile = lower(n.presentationProfile || payload.presentationProfile || body.presentationProfile || meta.presentationProfile);
+    return audience === "public" || profile === "public" || lane === "public_interface" ||
+      n.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+      n.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true ||
+      /sandblast\.channel|nyx|ecosystem/i.test(clean(guide.surface || guide.site || n.surface || payload.surface));
+  }
+
+  function classify(norm){
+    const raw = currentTurnText(norm);
+    const text = normalize(raw);
+    if (!text) return null;
+
+    const mediaNoun = /\b(?:watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|animated|classics?|classic movies?|public domain movies?|public domain films?|sandblast tv|television|video)\b/.test(text);
+    const rokuNoun = /\broku\b/.test(text);
+    const legalExplicit = /\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|legal advice)\b/.test(text);
+
+    if (legalExplicit && !mediaNoun && !rokuNoun) return null;
+
+    const discoveryQuestion =
+      /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what films are available|what shows are available|what programming is available|what do you have to watch|what is available to watch)$/.test(text) ||
+      /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(text) ||
+      /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(text) ||
+      /\bis\b.{0,50}\b(?:available|on roku|on tv)\b/.test(text) ||
+      /\b(?:tell me about|what is on)\b.{0,50}\b(?:sandblast tv|roku|cartoons?|classics?)\b/.test(text);
+
+    const explicitNavigation =
+      /\b(?:open|launch|go to|take me to|continue to|switch to|start watching|play)\b.{0,55}\b(?:sandblast tv|television|tv|roku|cartoons?|classics?|classic movies?|media|video)\b/.test(text) ||
+      /^(?:open|launch|play|start)\s+(?:sandblast\s+)?(?:tv|television|roku|cartoons?|classics?|classic movies?)$/.test(text) ||
+      /^(?:show me|take me to)\s+(?:the\s+)?(?:tv|roku|cartoons?|classics?|classic movies?)$/.test(text);
+
+    if (discoveryQuestion) {
+      const rokuDiscovery = rokuNoun || /\bon (?:my )?tv\b/.test(text);
+      return {
+        kind: rokuDiscovery ? "roku_discovery" : "media_discovery",
+        primary: rokuDiscovery ? "roku" : "media",
+        reason: rokuDiscovery ? "current_turn_roku_discovery_answer_only" : "current_turn_media_discovery_answer_only",
+        confidence: 0.997,
+        targetLane: rokuDiscovery ? "roku" : "watch",
+        actionRequired: false,
+        validateAction: false,
+        answerOnly: true,
+        navigationSuggested: true
+      };
+    }
+
+    if (explicitNavigation) {
+      const rokuNavigation = rokuNoun;
+      return {
+        kind: rokuNavigation ? "roku_navigation" : "media_navigation",
+        primary: rokuNavigation ? "roku" : "media",
+        reason: rokuNavigation ? "current_turn_explicit_roku_navigation" : "current_turn_explicit_media_navigation",
+        confidence: 0.997,
+        targetLane: rokuNavigation ? "roku" : "watch",
+        actionRequired: true,
+        validateAction: true,
+        answerOnly: false,
+        navigationSuggested: false
+      };
+    }
+
+    // Media nouns without an action verb are informational. This prevents a word
+    // such as "watch" from manufacturing an executable route.
+    if (mediaNoun || rokuNoun) {
+      return {
+        kind: rokuNoun ? "roku_discovery" : "media_discovery",
+        primary: rokuNoun ? "roku" : "media",
+        reason: rokuNoun ? "current_turn_roku_information_answer_only" : "current_turn_media_information_answer_only",
+        confidence: 0.985,
+        targetLane: rokuNoun ? "roku" : "watch",
+        actionRequired: false,
+        validateAction: false,
+        answerOnly: true,
+        navigationSuggested: true
+      };
+    }
+
+    return null;
+  }
+
+  function confidence(intent){
+    return {
+      version: "nyx.marion.domainConfidence/1.1",
+      confidence: intent.confidence,
+      confidenceScore: intent.confidence,
+      band: "high",
+      margin: 0.99,
+      ambiguous: false,
+      routeLocked: true,
+      failClosed: false,
+      needsClarifier: false,
+      highStakes: false,
+      primaryDomain: intent.primary,
+      selectedDomain: intent.primary,
+      domain: intent.primary,
+      knowledgeDomain: intent.primary,
+      secondaryDomains: [],
+      reason: intent.reason,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true
+    };
+  }
+
+  function routeResult(intent, norm){
+    const dc = confidence(intent);
+    return {
+      ok: true,
+      routerVersion: VERSION,
+      primary: intent.primary,
+      primaryDomain: intent.primary,
+      selectedDomain: intent.primary,
+      domain: intent.primary,
+      knowledgeDomain: intent.primary,
+      secondary: [],
+      secondaryDomains: [],
+      reason: intent.reason,
+      confidence: intent.confidence,
+      intent: intent.kind,
+      answerMode: "direct",
+      actionRequired: intent.actionRequired,
+      validateAction: intent.validateAction,
+      answerOnly: intent.answerOnly,
+      navigationSuggested: intent.navigationSuggested,
+      highStakes: false,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true,
+      publicSurfaceClean: true,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      explicitCurrentTurnIntent: intent.kind,
+      guideRouting: {
+        contract: "nyx.guideRouting/1.0",
+        version: VERSION,
+        intent: intent.kind,
+        targetLane: intent.targetLane,
+        confidence: intent.confidence,
+        explicitAction: intent.actionRequired,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        routeLocked: true,
+        noKnowledgeDomainHijack: true,
+        executionAuthority: intent.actionRequired ? "client_user_gesture" : "none",
+        nonAuthority: true,
+        noUserFacingDiagnostics: true
+      },
+      routing: {
+        domain: intent.primary,
+        primaryDomain: intent.primary,
+        selectedDomain: intent.primary,
+        knowledgeDomain: intent.primary,
+        secondaryDomains: [],
+        intent: intent.kind,
+        answerMode: "direct",
+        reason: intent.reason,
+        routeLocked: true,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        highStakes: false,
+        targetLane: intent.targetLane,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested
+      },
+      signals: {
+        publicCurrentTurnHardlock: true,
+        currentTurnOnly: true,
+        explicitMediaIntent: intent.primary === "media",
+        explicitRokuIntent: intent.primary === "roku",
+        mediaDiscovery: intent.kind === "media_discovery",
+        rokuDiscovery: intent.kind === "roku_discovery",
+        mediaNavigation: intent.kind === "media_navigation",
+        rokuNavigation: intent.kind === "roku_navigation",
+        staleLawCarrySuppressed: true,
+        noUserFacingDiagnostics: true
+      },
+      domainConfidence: dc,
+      stateSpinePatch: {
+        route: intent.primary,
+        domain: intent.primary,
+        selectedDomain: intent.primary,
+        knowledgeDomain: intent.primary,
+        intent: intent.kind,
+        previousDomainCarryAllowed: false,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        currentTurnAuthority: true,
+        routeLocked: true,
+        shouldAdvanceState: true,
+        targetLane: intent.targetLane,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        pendingActionValidation: intent.actionRequired,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        publicMediaDiscoveryNavigationSplitVersion: VERSION
+      }
+    };
+  }
+
+  function scoreResult(intent, norm){
+    const result = routeResult(intent, norm);
+    return {
+      ok: true,
+      routerVersion: VERSION,
+      scores: {
+        media: intent.primary === "media" ? 12.75 : 0,
+        roku: intent.primary === "roku" ? 12.75 : 0,
+        law: 0,
+        finance: 0,
+        cyber: 0,
+        psychology: 0,
+        english: 0,
+        ai: 0,
+        technical: 0,
+        core: 0.1
+      },
+      primary: intent.primary,
+      primaryDomain: intent.primary,
+      selectedDomain: intent.primary,
+      domain: intent.primary,
+      knowledgeDomain: intent.primary,
+      intent: intent.kind,
+      secondaryDomains: [],
+      confidence: intent.confidence,
+      actionRequired: intent.actionRequired,
+      validateAction: intent.validateAction,
+      answerOnly: intent.answerOnly,
+      navigationSuggested: intent.navigationSuggested,
+      domainConfidence: result.domainConfidence,
+      signals: result.signals,
+      stateSpinePatch: result.stateSpinePatch,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      noCrossDomainBleed: true
+    };
+  }
+
+  function wrapRoute(fn, kind){
+    if (typeof fn !== "function" || fn.__nyxPublicMediaDiscoveryNavigationSplitR3) return fn;
+    const wrapped = function wrappedNyxPublicMediaDiscoveryNavigationSplit(norm, session, cog, opts){
+      const intent = isPublicSurface(norm) ? classify(norm) : null;
+      if (intent) return kind === "score" ? scoreResult(intent, norm) : routeResult(intent, norm);
+      return fn.call(this, norm, session, cog, opts);
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicMediaDiscoveryNavigationSplitR3 = true;
+    return wrapped;
+  }
+
+  try {
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    if (typeof api.routeDomain === "function") api.routeDomain = wrapRoute(api.routeDomain, "route");
+    if (typeof api.scoreDomains === "function") api.scoreDomains = wrapRoute(api.scoreDomains, "score");
+    api.NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_SPLIT_VERSION = VERSION;
+    api.classifyNyxPublicMediaDiscoveryNavigation = classify;
+    api.buildNyxPublicMediaDiscoveryNavigationRoute = function build(norm){
+      const intent = classify(norm);
+      return intent ? routeResult(intent, norm) : null;
+    };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_SPLIT_R3_END */
