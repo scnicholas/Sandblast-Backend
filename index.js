@@ -5601,7 +5601,7 @@ const CFG = {
 };
 
 
-const NYX_LOOP_LATENCY_FIX_VERSION = "nyx.publicLoopLatencyFix/1.0";
+const NYX_LOOP_LATENCY_FIX_VERSION = "nyx.publicLoopLatencyFix/2.0-media-discovery-navigation";
 
 function nestedPublicFlag(source, key) {
   const src = isObj(source) ? source : {};
@@ -5660,6 +5660,46 @@ function buildNyxPublicFastPathDecision(norm = {}) {
     return { intent: "ecosystem_identity", reply: "Sandblast is a connected media and AI ecosystem that brings together live radio, television, Roku viewing, Synapse news, LingoSentinel language tools, entertainment, and business experiences through one guided interface." };
   }
 
+
+  const rokuDiscovery =
+    /\broku\b/.test(t) &&
+    (
+      /^(?:what can i watch on roku|what is on roku|what can i get on roku|can i watch (?:it|that|this) on roku|can i get (?:it|that|this) on roku|is (?:it|that|this) available on roku|what programming is available on roku)$/.test(t) ||
+      /\b(?:what|which|can i|is)\b.{0,70}\broku\b/.test(t)
+    ) &&
+    !/\b(?:open|launch|go to|take me to|continue to|switch to|play)\b/.test(t);
+
+  if (rokuDiscovery) {
+    return {
+      intent: "roku_discovery",
+      lane: "roku",
+      actionRequired: false,
+      validateAction: false,
+      answerOnly: true,
+      navigationSuggested: true,
+      suggestions: ["Roku", "Sandblast TV", "Cartoons", "Classics"],
+      reply: "Yes. Sandblast programming is available through Sandblast on Roku. I can open Roku after you choose it."
+    };
+  }
+
+  const mediaDiscovery =
+    /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what films are available|what shows are available|what programming is available|what do you have to watch|what is available to watch)$/.test(t) ||
+    /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(t) ||
+    /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(t);
+
+  if (mediaDiscovery) {
+    return {
+      intent: "media_discovery",
+      lane: "watch",
+      actionRequired: false,
+      validateAction: false,
+      answerOnly: true,
+      navigationSuggested: true,
+      suggestions: ["Sandblast TV", "Roku", "Cartoons", "Classics"],
+      reply: "You can watch Sandblast TV, classic cartoons, public-domain movies, and Sandblast programming on Roku. Choose TV, Roku, Cartoons, or Classics when you are ready."
+    };
+  }
+
   const navRules = [
     { rx: /\b(?:open|play|start|take me to|go to|listen to|show me)\b.*\b(?:sandblast )?radio\b|^(?:radio|listen)$/i, target: "sandblast_radio", type: "play_radio", lane: "live", label: "Open Sandblast Radio", reply: "Sandblast Radio is ready. Use the Radio action to open the live stream." },
     { rx: /\b(?:open|watch|take me to|go to|show me)\b.*\b(?:sandblast )?(?:tv|television)\b|^(?:tv|television)$/i, target: "sandblast_tv", type: "open_tv", lane: "watch", label: "Open Sandblast TV", reply: "Sandblast TV is ready. Use the TV action to open the viewing experience." },
@@ -5703,6 +5743,11 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
     autoExecute: false,
     executionAuthority: "client_user_gesture"
   } : undefined;
+  const actionRequired = !!action || decision.actionRequired === true;
+  const validateAction = actionRequired && decision.validateAction !== false;
+  const answerOnly = !actionRequired;
+  const navigationSuggested = decision.navigationSuggested === true || answerOnly;
+  const suggestions = Array.isArray(decision.suggestions) ? decision.suggestions.slice(0, 8) : [];
   const latencyMs = Math.max(0, now() - startedAt);
   return applyPublicReplyHygieneToResponse({
     ok: true,
@@ -5727,15 +5772,40 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
     spokenText: reply,
     textDisplay: reply,
     textSpeak: reply,
-    payload: { reply, text: reply, message: reply, spokenText: reply, final: true, finalized: true, handled: true, publicFastPath: true },
-    finalEnvelope: { contractVersion: "nyx.public.final/1.0", authority: "nyx_public_fast_path", reply, text: reply, displayReply: reply, spokenText: reply, final: true, finalized: true, handled: true, publicFastPath: true },
+    actionRequired,
+    validateAction,
+    actionValidationRequired: validateAction,
+    answerOnly,
+    navigationSuggested,
+    suggestions,
+    payload: {
+      reply, text: reply, message: reply, spokenText: reply,
+      final: true, finalized: true, handled: true, publicFastPath: true,
+      actionRequired, validateAction, actionValidationRequired: validateAction,
+      answerOnly, navigationSuggested, suggestions,
+      guideActions: action ? [action] : []
+    },
+    finalEnvelope: {
+      contractVersion: "nyx.public.final/1.0", authority: "nyx_public_fast_path",
+      reply, text: reply, displayReply: reply, spokenText: reply,
+      final: true, finalized: true, handled: true, publicFastPath: true,
+      actionRequired, validateAction, actionValidationRequired: validateAction,
+      answerOnly, navigationSuggested, suggestions,
+      guideActions: action ? [action] : []
+    },
     guideActionPlan,
     guideActions: action ? [action] : [],
     lane: decision.lane || norm.lane || "public_interface",
     sessionId,
     turnId: norm.turnId,
     traceId: norm.traceId,
-    meta: { v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "nyx_public_fast_path", semanticAuthority: "nyx", publicFastPath: true, intent: decision.intent, latencyMs, loopLatencyFixVersion: NYX_LOOP_LATENCY_FIX_VERSION, noUserFacingDiagnostics: true }
+    meta: {
+      v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "nyx_public_fast_path",
+      semanticAuthority: "nyx", publicFastPath: true, intent: decision.intent,
+      actionRequired, validateAction, answerOnly, navigationSuggested,
+      latencyMs, loopLatencyFixVersion: NYX_LOOP_LATENCY_FIX_VERSION,
+      mediaDiscoveryNavigationSplit: true, noUserFacingDiagnostics: true
+    }
   });
 }
 
@@ -25964,3 +26034,14 @@ function isSandblastTvOperationalResponseV2(req) {
   try{module.exports=Object.assign(module.exports||{},{PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_VERSION:V});}catch(_){}
 }catch(_){}})();
 /* PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_END */
+
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_INDEX_EXPORT_R3_START */
+try {
+  if (module.exports && typeof module.exports === "object") {
+    module.exports.NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_INDEX_VERSION = "nyx.index.publicMediaDiscoveryNavigation/3.0";
+    module.exports.buildNyxPublicFastPathDecision = buildNyxPublicFastPathDecision;
+    module.exports.buildNyxPublicFastPathResponse = buildNyxPublicFastPathResponse;
+    module.exports.isNyxPublicSurfaceRequest = isNyxPublicSurfaceRequest;
+  }
+} catch (_) {}
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_INDEX_EXPORT_R3_END */
