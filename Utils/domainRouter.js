@@ -1710,3 +1710,33 @@ function r18cApplyLawRouterSignals(result,norm,session,cog){
   try{if(typeof module.exports==="function")module.exports=wrap(module.exports);const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of["routeDomain","scoreDomains","route","run","handle","default"])if(typeof api[n]==="function")api[n]=wrap(api[n]);api.NYX_GUIDE_STEPS_10_11_12_ROUTER_VERSION=V;api.attachNyxGuideRouteBoundary=(v,i)=>project(v,[i||{}])}}catch(_){}
 })();
 /* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_END */
+
+/* NYX_DOMAIN_ROUTER_LOOP_LATENCY_FIX_R1_START */
+(function nyxDomainRouterLoopLatencyFixR1(){
+  "use strict";
+  const V="nyx.domainRouter.loopLatencyFix/1.0",TTL=2000,MAX=256;
+  const cache=new Map();
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function txt(v,n=1200){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
+  function low(v){return txt(v).toLowerCase();}
+  function inputText(n){const x=obj(n),p=obj(x.payload),b=obj(x.body),m=obj(x.meta);return txt(x.text||x.userText||x.message||x.query||x.userQuery||x.prompt||p.text||p.message||p.query||b.text||b.message||b.query||m.text||m.message);}
+  function pub(n){const x=obj(n),p=obj(x.payload),b=obj(x.body),m=obj(x.meta);return low(x.audience||p.audience||b.audience||m.audience)==="public"||low(x.lane||p.lane||b.lane)==="public_interface"||x.publicSurfaceOnly===true||p.publicSurfaceOnly===true||b.publicSurfaceOnly===true||x.publicIdentityLock===true||p.publicIdentityLock===true||b.publicIdentityLock===true;}
+  function ecosystemRoute(n){if(!pub(n))return null;const t=low(inputText(n));if(!t)return null;let primary="",reason="";
+    if(/\b(radio|listen|music|love letters)\b/.test(t)){primary="music";reason="public_sandblast_radio_fast_route";}
+    else if(/\b(roku)\b/.test(t)){primary="roku";reason="public_sandblast_roku_fast_route";}
+    else if(/\b(tv|television|cartoons?|classics?|watch)\b/.test(t)){primary="media";reason="public_sandblast_media_fast_route";}
+    else if(/\b(synapse|news|headline|story|stories)\b/.test(t)){primary="news";reason="public_sandblast_news_fast_route";}
+    else if(/\b(lingosentinel|lingo sentinel|translation|language)\b/.test(t)){primary="english";reason="public_lingosentinel_fast_route";}
+    else if(/\b(who are you|what are you|what is sandblast|sandblast ecosystem|what can you do|capabilities|home)\b/.test(t)){primary="general";reason="public_identity_ecosystem_fast_route";}
+    if(!primary)return null;
+    return{ok:true,routerVersion:V,primary,selectedDomain:primary,secondary:[],secondaryDomains:[],reason,confidence:0.98,signals:{publicFastRoute:true,ecosystem:true},domainConfidence:{version:"nyx.marion.domainConfidence/1.1",confidence:0.98,band:"high",ambiguous:false,routeLocked:true,failClosed:false,primaryDomain:primary,knowledgeDomain:primary,reason},stateSpinePatch:{route:primary,domain:primary,routeLocked:true,publicFastRoute:true,loopLatencyFixVersion:V},noCrossDomainBleed:true};
+  }
+  function key(kind,n,s,c,o){const x=obj(n),ss=obj(s),cc=obj(c),oo=obj(o);return[kind,inputText(x).toLowerCase(),low(x.lane||ss.lane),low(x.intent||cc.intent),low(x.domainHint||x.requestedDomain),oo.macMode||""].join("|");}
+  function clone(v){if(!v||typeof v!=="object")return v;const out={...v};for(const k of["scores","signals","domainConfidence","stateSpinePatch","routing","meta"])if(obj(v[k])===v[k])out[k]={...v[k]};for(const k of["secondary","secondaryDomains","sixDomainCoverage","allKnowledgeDomains"])if(Array.isArray(v[k]))out[k]=v[k].slice();return out;}
+  function get(k){const e=cache.get(k);if(!e||Date.now()-e.at>TTL){if(e)cache.delete(k);return null;}cache.delete(k);cache.set(k,e);return clone(e.value);}
+  function put(k,v){cache.delete(k);cache.set(k,{at:Date.now(),value:clone(v)});while(cache.size>MAX)cache.delete(cache.keys().next().value);return v;}
+  function wrap(fn,kind){if(typeof fn!=="function"||fn.__nyxDomainRouterLoopLatencyFixR1)return fn;const w=function(norm,session,cog,opts){const fast=ecosystemRoute(norm);if(fast){if(kind==="score")return{ok:true,routerVersion:V,scores:{[fast.primary]:0.98},confidence:0.98,domainConfidence:fast.domainConfidence,signals:fast.signals,stateSpinePatch:fast.stateSpinePatch,sixDomainCoverage:[],allKnowledgeDomains:Array.isArray(module.exports.SIX_KNOWLEDGE_DOMAINS)?module.exports.SIX_KNOWLEDGE_DOMAINS.slice():[]};return fast;}const k=key(kind,norm,session,cog,opts),hit=get(k);if(hit)return hit;return put(k,fn.call(this,norm,session,cog,opts));};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__nyxDomainRouterLoopLatencyFixR1=true;return w;}
+  try{if(module.exports&&typeof module.exports==="object"){if(typeof module.exports.routeDomain==="function")module.exports.routeDomain=wrap(module.exports.routeDomain,"route");if(typeof module.exports.scoreDomains==="function")module.exports.scoreDomains=wrap(module.exports.scoreDomains,"score");module.exports.NYX_DOMAIN_ROUTER_LOOP_LATENCY_FIX_VERSION=V;module.exports.clearNyxDomainRouterFastCache=()=>cache.clear();module.exports.buildNyxEcosystemFastRoute=ecosystemRoute;}}
+  catch(_){}
+})();
+/* NYX_DOMAIN_ROUTER_LOOP_LATENCY_FIX_R1_END */
