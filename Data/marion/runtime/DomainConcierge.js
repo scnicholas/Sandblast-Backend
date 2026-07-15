@@ -3578,3 +3578,252 @@ function r18cApplyLawConciergeProtocol(result,packet){
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_CONCIERGE_R3_END */
+
+
+/* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_SEPARATION_CONCIERGE_R4_START */
+(function nyxPublicKnowledgeNavigationSeparationConciergeR4(){
+  "use strict";
+  const VERSION = "nyx.domainConcierge.publicKnowledgeNavigationSeparation/4.0";
+  const KNOWLEDGE_DOMAINS = new Set(["law","finance","cyber","ai","psychology","english","business","general","general_reasoning"]);
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 1800){
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){
+    return lower(value)
+      .replace(/[’‘]/g, "'")
+      .replace(/[^a-z0-9']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  function currentTurnText(packet){
+    const p = obj(packet), payload = obj(p.payload), body = obj(p.body), meta = obj(p.meta), turn = obj(p.turn);
+    return clean(
+      p.rawUserText || p.userText || p.text || p.message || p.query || p.userQuery || p.prompt || p.effectivePrompt || p.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      turn.rawUserText || turn.userText || turn.text || turn.message || turn.query ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+  function isPublicSurface(packet){
+    const p = obj(packet), payload = obj(p.payload), body = obj(p.body), meta = obj(p.meta);
+    const audience = lower(p.audience || payload.audience || body.audience || meta.audience);
+    const lane = lower(p.lane || payload.lane || body.lane || meta.lane);
+    const profile = lower(p.presentationProfile || payload.presentationProfile || body.presentationProfile || meta.presentationProfile);
+    return audience === "public" || profile === "public" || lane === "public_interface" ||
+      p.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+      p.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true;
+  }
+  function isExplicitNavigation(text){
+    const t = normalize(text);
+    return /\b(?:open|launch|go to|take me to|continue to|switch to|return to|play|start watching|show me)\b.{0,70}\b(?:sandblast|radio|tv|television|roku|synapse|lingosentinel|cartoons?|classics?|home|media)\b/.test(t) ||
+      /^(?:open|launch|play|start|go to|take me to)\s+(?:sandblast\s+)?(?:radio|tv|television|roku|synapse|lingosentinel|cartoons?|classics?|home)$/.test(t);
+  }
+  function classifyKnowledgeDomain(packet){
+    if (!isPublicSurface(packet)) return null;
+    const raw = currentTurnText(packet);
+    const t = normalize(raw);
+    if (!t || t.length > 1200 || isExplicitNavigation(t)) return null;
+    if (/\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|employment law|privacy law|regulatory compliance|fiduciary|tort)\b/.test(t)) return { domain:"law", intent:"domain_question", highStakes:true };
+    if (/\b(?:cash flow|revenue|pricing|margin|runway|budget|forecast|finance|financial|profit|cost control|accounts receivable|working capital)\b/.test(t)) return { domain:"finance", intent:"domain_question", highStakes:true };
+    if (/\b(?:cybersecurity|cyber security|cyber|least privilege|zero trust|phishing|ransomware|data breach|access control|mfa|multi factor|incident response|credential security)\b/.test(t)) return { domain:"cyber", intent:"domain_question", highStakes:true };
+    if (/\b(?:artificial intelligence|machine learning|large language model|llm|generative ai|agentic ai|rag|retrieval augmented generation|ai system|ai model)\b/.test(t) || /(?:^|\s)ai(?:\s|$)/.test(t)) return { domain:"ai", intent:"domain_question", highStakes:false };
+    if (/\b(?:psychology|cognitive bias|behavio[u]?r|motivation|emotion|anxiety|trauma|attachment|decision making)\b/.test(t)) return { domain:"psychology", intent:"domain_question", highStakes:false };
+    if (/\b(?:grammar|wording|sentence structure|plain english|idiom|phrase meaning|rewrite this sentence|english usage)\b/.test(t)) return { domain:"english", intent:"domain_question", highStakes:false };
+    return null;
+  }
+  function knowledgeDecision(packet, info, base){
+    const currentText = currentTurnText(packet);
+    const prior = obj(base);
+    const confidence = 0.995;
+    const domainConfidence = {
+      ...obj(prior.domainConfidence),
+      version: "nyx.marion.domainConfidence/1.1",
+      confidence,
+      confidenceScore: confidence,
+      band: "high",
+      confidenceBand: "high",
+      margin: 0.98,
+      ambiguous: false,
+      routeLocked: true,
+      failClosed: false,
+      needsClarifier: false,
+      highStakes: info.highStakes === true,
+      primaryDomain: info.domain,
+      selectedDomain: info.domain,
+      domain: info.domain,
+      knowledgeDomain: info.domain,
+      secondaryDomains: [],
+      reason: "current_turn_public_knowledge_answer_only",
+      semanticRoute: true,
+      navigationRoute: false,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true
+    };
+    const out = {
+      ...prior,
+      version: VERSION,
+      contract: "nyx.marion.domainConcierge/1.0",
+      source: "DomainConcierge.publicKnowledgeNavigationSeparation",
+      action: "route",
+      actionMode: "answer",
+      routeType: "knowledge",
+      semanticRoute: true,
+      navigationRoute: false,
+      route: info.domain,
+      domain: info.domain,
+      primaryDomain: info.domain,
+      selectedDomain: info.domain,
+      knowledgeDomain: info.domain,
+      intent: info.intent,
+      confidence,
+      actionRequired: false,
+      validateAction: false,
+      actionValidationRequired: false,
+      pendingActionValidation: false,
+      answerOnly: true,
+      navigationSuggested: false,
+      guideActions: [],
+      guideActionPlan: null,
+      needsClarifier: false,
+      clarifier: "",
+      reason: "current_turn_public_knowledge_answer_only",
+      routeLocked: true,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true,
+      finalEnvelopeRequired: true,
+      bridgeCompatible: true,
+      composerCompatible: true,
+      stateSpineCompatible: true,
+      normalizedUserIntent: currentText,
+      rawUserText: currentText,
+      domainConfidence
+    };
+    out.routing = {
+      ...obj(prior.routing),
+      route: info.domain,
+      domain: info.domain,
+      primaryDomain: info.domain,
+      selectedDomain: info.domain,
+      knowledgeDomain: info.domain,
+      intent: info.intent,
+      routeType: "knowledge",
+      actionMode: "answer",
+      semanticRoute: true,
+      navigationRoute: false,
+      actionRequired: false,
+      validateAction: false,
+      actionValidationRequired: false,
+      pendingActionValidation: false,
+      answerOnly: true,
+      navigationSuggested: false,
+      guideActions: [],
+      routeLocked: true,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      highStakes: info.highStakes === true,
+      domainConfidence
+    };
+    out.composerContext = {
+      ...obj(prior.composerContext),
+      route: info.domain,
+      domain: info.domain,
+      knowledgeDomain: info.domain,
+      intent: info.intent,
+      routeType: "knowledge",
+      actionMode: "answer",
+      semanticRoute: true,
+      navigationRoute: false,
+      actionRequired: false,
+      validateAction: false,
+      actionValidationRequired: false,
+      pendingActionValidation: false,
+      answerOnly: true,
+      navigationSuggested: false,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      domainConfidence,
+      publicKnowledgeNavigationSeparationVersion: VERSION
+    };
+    out.stateSpinePatch = {
+      ...obj(prior.stateSpinePatch),
+      route: info.domain,
+      domain: info.domain,
+      selectedDomain: info.domain,
+      knowledgeDomain: info.domain,
+      intent: info.intent,
+      routeType: "knowledge",
+      actionMode: "answer",
+      semanticRoute: true,
+      navigationRoute: false,
+      actionRequired: false,
+      validateAction: false,
+      actionValidationRequired: false,
+      pendingActionValidation: false,
+      answerOnly: true,
+      navigationSuggested: false,
+      previousDomainCarryAllowed: false,
+      staleCarrySuppressed: true,
+      currentTurnAuthority: true,
+      routeLocked: true,
+      shouldAdvanceState: true,
+      publicKnowledgeNavigationSeparationVersion: VERSION
+    };
+    return out;
+  }
+  function wrap(fn, name){
+    if (typeof fn !== "function" || fn.__nyxPublicKnowledgeNavigationSeparationR4) return fn;
+    const wrapped = function wrappedNyxPublicKnowledgeNavigationSeparation(packet, options){
+      const info = classifyKnowledgeDomain(packet);
+      if (info) return knowledgeDecision(packet, info, {});
+      const result = fn.call(this, packet, options);
+      if (result && typeof result.then === "function") {
+        return result.then((value) => {
+          const lateInfo = classifyKnowledgeDomain(packet);
+          return lateInfo ? knowledgeDecision(packet, lateInfo, value) : value;
+        });
+      }
+      const lateInfo = classifyKnowledgeDomain(packet);
+      return lateInfo ? knowledgeDecision(packet, lateInfo, result) : result;
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicKnowledgeNavigationSeparationR4 = true;
+    wrapped.__nyxWrappedName = name;
+    return wrapped;
+  }
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default");
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of ["runDomainConcierge","routeOrClarify","run","route","handle","default","normalizeConciergeDecision"]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    if (typeof api.shouldClarify === "function" && !api.shouldClarify.__nyxPublicKnowledgeNavigationSeparationR4) {
+      const previous = api.shouldClarify;
+      api.shouldClarify = function shouldClarifyPublicKnowledgeR4(packet, options){
+        if (classifyKnowledgeDomain(packet)) return false;
+        return previous.call(this, packet, options);
+      };
+      api.shouldClarify.__nyxPublicKnowledgeNavigationSeparationR4 = true;
+    }
+    api.NYX_PUBLIC_KNOWLEDGE_NAVIGATION_SEPARATION_CONCIERGE_VERSION = VERSION;
+    api.classifyNyxPublicKnowledgeDomain = classifyKnowledgeDomain;
+    api.buildNyxPublicKnowledgeDecision = function build(packet){
+      const info = classifyKnowledgeDomain(packet);
+      return info ? knowledgeDecision(packet, info, {}) : null;
+    };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_SEPARATION_CONCIERGE_R4_END */
