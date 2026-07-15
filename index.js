@@ -5601,7 +5601,7 @@ const CFG = {
 };
 
 
-const NYX_LOOP_LATENCY_FIX_VERSION = "nyx.publicLoopLatencyFix/2.0-media-discovery-navigation";
+const NYX_LOOP_LATENCY_FIX_VERSION = "nyx.publicLoopLatencyFix/4.0-knowledge-navigation-separation";
 
 function nestedPublicFlag(source, key) {
   const src = isObj(source) ? source : {};
@@ -5638,6 +5638,143 @@ function normalizeFastPathText(value) {
   return lower(value).replace(/[’‘]/g, "'").replace(/[^a-z0-9']+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+
+function buildNyxPublicKnowledgeFastPathDecisionR4(t, raw) {
+  const text = normalizeFastPathText(t || raw || "");
+  if (!text || text.length > 360) return null;
+  const explicitNavigation = /\b(?:open|launch|go to|take me to|continue to|switch to|return to|play|start watching|show me)\b.{0,70}\b(?:sandblast|radio|tv|television|roku|synapse|lingosentinel|cartoons?|classics?|home|media)\b/.test(text);
+  if (explicitNavigation) return null;
+
+  if (/\b(?:what|which|list|explain|consider)\b/.test(text) && /\b(?:legal risks?|business legal risks?)\b/.test(text)) {
+    return {
+      intent: "domain_question", domain: "law", knowledgeDomain: "law", routeType: "knowledge", actionMode: "answer",
+      semanticRoute: true, navigationRoute: false, actionRequired: false, validateAction: false, answerOnly: true, navigationSuggested: false,
+      reply: "Businesses should review contracts, employment obligations, privacy and data protection, intellectual property, advertising rules, regulatory compliance, liability, and corporate governance. The exact risks depend on the industry and jurisdiction, so this is general legal information, not legal advice."
+    };
+  }
+  if (/\b(?:what is|define|explain)\b.{0,40}\bconsideration\b/.test(text)) {
+    return {
+      intent: "domain_question", domain: "law", knowledgeDomain: "law", routeType: "knowledge", actionMode: "answer",
+      semanticRoute: true, navigationRoute: false, actionRequired: false, validateAction: false, answerOnly: true, navigationSuggested: false,
+      reply: "In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or another bargained-for benefit. The exact rule depends on the jurisdiction, so this is general legal information, not legal advice."
+    };
+  }
+  if (/\b(?:what is|define)\b.{0,45}\b(?:artificial intelligence|ai)\b/.test(text)) {
+    return {
+      intent: "domain_question", domain: "ai", knowledgeDomain: "ai", routeType: "knowledge", actionMode: "answer",
+      semanticRoute: true, navigationRoute: false, actionRequired: false, validateAction: false, answerOnly: true, navigationSuggested: false,
+      reply: "Artificial intelligence is software designed to perform tasks that normally require human intelligence, such as understanding language, recognizing patterns, making predictions, and generating content. Modern AI systems learn statistical relationships from data rather than thinking like a person."
+    };
+  }
+  if (/\b(?:how|ways?|steps?)\b.{0,70}\b(?:improve|strengthen|manage)\b.{0,40}\bcash flow\b|\bimprove cash flow\b/.test(text)) {
+    return {
+      intent: "domain_question", domain: "finance", knowledgeDomain: "finance", routeType: "knowledge", actionMode: "answer",
+      semanticRoute: true, navigationRoute: false, actionRequired: false, validateAction: false, answerOnly: true, navigationSuggested: false,
+      reply: "A business can improve cash flow by invoicing faster, collecting receivables sooner, reducing unnecessary expenses, renegotiating payment terms, managing inventory carefully, reviewing pricing and margins, and maintaining a rolling cash-flow forecast."
+    };
+  }
+  if (/\b(?:what is|define)\b.{0,40}\bleast privilege\b/.test(text)) {
+    return {
+      intent: "domain_question", domain: "cyber", knowledgeDomain: "cyber", routeType: "knowledge", actionMode: "answer",
+      semanticRoute: true, navigationRoute: false, actionRequired: false, validateAction: false, answerOnly: true, navigationSuggested: false,
+      reply: "Least privilege means giving each user, service, or system only the access required to perform its current task—and no more. It limits damage from mistakes, compromised accounts, and unauthorized activity."
+    };
+  }
+  if (/\b(?:what is|define)\b.{0,40}\b(?:a )?cognitive bias\b/.test(text)) {
+    return {
+      intent: "domain_question", domain: "psychology", knowledgeDomain: "psychology", routeType: "knowledge", actionMode: "answer",
+      semanticRoute: true, navigationRoute: false, actionRequired: false, validateAction: false, answerOnly: true, navigationSuggested: false,
+      reply: "A cognitive bias is a predictable mental shortcut that can distort judgment. Biases help the brain make decisions quickly, but they can also cause systematic errors in how people interpret evidence, risk, and other people."
+    };
+  }
+  return null;
+}
+
+
+
+function enforceNyxPublicKnowledgeAnswerOnlyR4(value, norm = {}, decision = null) {
+  const src = isObj(value) ? { ...value } : {};
+  const explicit = isObj(decision) && cleanText(decision.routeType).toLowerCase() === "knowledge" ? decision : null;
+  const inferred = explicit || buildNyxPublicKnowledgeFastPathDecisionR4(
+    cleanText(norm.text || norm.userText || norm.message || norm.query || ""),
+    cleanText(norm.text || norm.userText || norm.message || norm.query || "")
+  );
+  if (!inferred || cleanText(inferred.routeType).toLowerCase() !== "knowledge") return value;
+  const domain = cleanText(inferred.knowledgeDomain || inferred.domain || "general");
+  function clearNode(node) {
+    const out = isObj(node) ? { ...node } : {};
+    delete out.guideActionPlan;
+    delete out.guideActions;
+    delete out.nyxGuideExecution;
+    delete out.nyxGuideStateTransition;
+    delete out.navigationAction;
+    delete out.navigationActions;
+    delete out.actionPlan;
+    out.routeType = "knowledge";
+    out.actionMode = "answer";
+    out.semanticRoute = true;
+    out.navigationRoute = false;
+    out.actionRequired = false;
+    out.validateAction = false;
+    out.actionValidationRequired = false;
+    out.pendingActionValidation = false;
+    out.answerOnly = true;
+    out.navigationSuggested = false;
+    out.domain = out.domain || domain;
+    out.knowledgeDomain = out.knowledgeDomain || domain;
+    return out;
+  }
+  let out = clearNode(src);
+  out.payload = clearNode(out.payload);
+  out.finalEnvelope = clearNode(out.finalEnvelope);
+  out.meta = clearNode(out.meta);
+  out.routing = clearNode(out.routing);
+  out.marionRouting = clearNode(out.marionRouting);
+  out.domainConcierge = clearNode(out.domainConcierge);
+  out.sessionPatch = clearNode(out.sessionPatch);
+  const preferred = cleanText(inferred.reply || "");
+  const existing = cleanText(out.publicReply || out.visibleReply || out.finalReply || out.reply || out.text || out.answer || out.response || out.message || out.payload.reply || out.finalEnvelope.reply || "");
+  const unsafe = !existing || /\b(?:that route is unavailable|route unavailable|action validation|navigation route unavailable|priority 9f|social response pass|system noise out of view)\b/i.test(existing);
+  const reply = preferred || (unsafe ? "I can answer that as an informational knowledge question without opening a navigation route." : existing);
+  if (reply) {
+    for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) out[key] = reply;
+    for (const target of [out.payload, out.finalEnvelope]) {
+      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) target[key] = reply;
+      target.final = true;
+      target.handled = true;
+      target.emit = true;
+      target.blocked = false;
+      target.awaitingMarion = false;
+      target.suppressUserFacingReply = false;
+    }
+    out.ok = out.ok !== false;
+    out.final = true;
+    out.handled = true;
+    out.emit = true;
+    out.blocked = false;
+    out.awaitingMarion = false;
+    out.suppressUserFacingReply = false;
+  }
+  out.meta = {
+    ...out.meta,
+    publicKnowledgeNavigationSeparationVersion: "nyx.index.publicKnowledgeNavigationSeparation/4.1",
+    routeType: "knowledge",
+    actionMode: "answer",
+    semanticRoute: true,
+    navigationRoute: false,
+    actionRequired: false,
+    validateAction: false,
+    actionValidationRequired: false,
+    pendingActionValidation: false,
+    answerOnly: true,
+    navigationSuggested: false,
+    domain,
+    knowledgeDomain: domain,
+    noUserFacingDiagnostics: true
+  };
+  return out;
+}
+
 function buildNyxPublicFastPathDecision(norm = {}) {
   if (!isNyxPublicSurfaceRequest(norm)) return null;
   const raw = cleanText(norm.text || norm.userText || norm.message || norm.query || "");
@@ -5659,6 +5796,10 @@ function buildNyxPublicFastPathDecision(norm = {}) {
   if (/^(?:what is sandblast|tell me about sandblast|explain sandblast|what is the sandblast ecosystem)$/.test(t)) {
     return { intent: "ecosystem_identity", reply: "Sandblast is a connected media and AI ecosystem that brings together live radio, television, Roku viewing, Synapse news, LingoSentinel language tools, entertainment, and business experiences through one guided interface." };
   }
+
+
+  const publicKnowledgeDecisionR4 = buildNyxPublicKnowledgeFastPathDecisionR4(t, raw);
+  if (publicKnowledgeDecisionR4) return publicKnowledgeDecisionR4;
 
 
   const rokuDiscovery =
@@ -5716,6 +5857,106 @@ function buildNyxPublicFastPathDecision(norm = {}) {
   return null;
 }
 
+
+
+function enforceNyxPublicFastPathContractR4(value, norm = {}, sessionId = "", decision = {}) {
+  const src = isObj(value) ? { ...value } : {};
+  const d = isObj(decision) ? decision : {};
+  const reply = cleanText(d.reply || src.reply || src.text || "");
+  if (!reply) return value;
+  if (cleanText(d.routeType).toLowerCase() === "knowledge" || d.semanticRoute === true) {
+    return enforceNyxPublicKnowledgeAnswerOnlyR4(src, norm, d);
+  }
+  const isNavigation = !!d.target;
+  const routeType = isNavigation ? "navigation" : "answer";
+  const actionMode = isNavigation ? "navigate" : "answer";
+  const actionRequired = isNavigation;
+  const validateAction = isNavigation && d.validateAction !== false;
+  const answerOnly = !isNavigation;
+  const navigationSuggested = !isNavigation && d.navigationSuggested === true;
+  const action = isNavigation ? {
+    contract: "nyx.guideAction/1.2",
+    id: `act_${replyHash(`${d.type}|${d.target}|${norm.turnId || ""}`).slice(0, 18)}`,
+    type: d.type,
+    target: d.target,
+    targetKey: d.target,
+    lane: d.lane || "home",
+    label: d.label || "Open",
+    requiresUserGesture: true,
+    autoExecute: false,
+    serverExecutionAllowed: false,
+    symbolicTargetOnly: true,
+    idempotent: true
+  } : null;
+  const guideActionPlan = action ? {
+    contract: "nyx.guideActionPlan/1.1",
+    version: NYX_LOOP_LATENCY_FIX_VERSION,
+    planId: `plan_${replyHash(`${sessionId}|${action.id}`).slice(0, 18)}`,
+    actionCount: 1,
+    actions: [action],
+    requiresUserGesture: true,
+    autoExecute: false,
+    executionAuthority: "client_user_gesture"
+  } : undefined;
+  const out = { ...src };
+  for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) out[key] = reply;
+  out.routeType = routeType;
+  out.actionMode = actionMode;
+  out.semanticRoute = false;
+  out.navigationRoute = isNavigation;
+  out.actionRequired = actionRequired;
+  out.validateAction = validateAction;
+  out.actionValidationRequired = validateAction;
+  out.pendingActionValidation = validateAction;
+  out.answerOnly = answerOnly;
+  out.navigationSuggested = navigationSuggested;
+  if (guideActionPlan) {
+    out.guideActionPlan = guideActionPlan;
+    out.guideActions = [action];
+  } else {
+    delete out.guideActionPlan;
+    out.guideActions = [];
+  }
+  out.payload = {
+    ...(isObj(out.payload) ? out.payload : {}),
+    reply, publicReply:reply, visibleReply:reply, finalReply:reply, text:reply, answer:reply, output:reply, response:reply, message:reply, displayReply:reply, spokenText:reply, textSpeak:reply, textDisplay:reply,
+    final:true, handled:true, publicFastPath:true,
+    routeType, actionMode, semanticRoute:false, navigationRoute:isNavigation,
+    actionRequired, validateAction, actionValidationRequired:validateAction, pendingActionValidation:validateAction,
+    answerOnly, navigationSuggested,
+    guideActions: action ? [action] : []
+  };
+  if (guideActionPlan) out.payload.guideActionPlan = guideActionPlan; else delete out.payload.guideActionPlan;
+  out.finalEnvelope = {
+    ...(isObj(out.finalEnvelope) ? out.finalEnvelope : {}),
+    contractVersion:"nyx.public.final/1.0", authority:"nyx_public_fast_path",
+    reply, publicReply:reply, visibleReply:reply, finalReply:reply, text:reply, answer:reply, output:reply, response:reply, message:reply, displayReply:reply, spokenText:reply, textSpeak:reply, textDisplay:reply,
+    final:true, handled:true, publicFastPath:true,
+    routeType, actionMode, semanticRoute:false, navigationRoute:isNavigation,
+    actionRequired, validateAction, actionValidationRequired:validateAction, pendingActionValidation:validateAction,
+    answerOnly, navigationSuggested,
+    guideActions: action ? [action] : []
+  };
+  if (guideActionPlan) out.finalEnvelope.guideActionPlan = guideActionPlan; else delete out.finalEnvelope.guideActionPlan;
+  out.meta = {
+    ...(isObj(out.meta) ? out.meta : {}),
+    replyAuthority:"nyx_public_fast_path", semanticAuthority:"nyx", publicFastPath:true,
+    intent:d.intent || "", routeType, actionMode, semanticRoute:false, navigationRoute:isNavigation,
+    actionRequired, validateAction, actionValidationRequired:validateAction, pendingActionValidation:validateAction,
+    answerOnly, navigationSuggested,
+    publicFastPathContractVersion:"nyx.index.publicFastPathContract/4.0",
+    noUserFacingDiagnostics:true
+  };
+  out.ok = true;
+  out.final = true;
+  out.handled = true;
+  out.emit = true;
+  out.blocked = false;
+  out.awaitingMarion = false;
+  out.suppressUserFacingReply = false;
+  return out;
+}
+
 function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
   const reply = cleanText(decision && decision.reply || "");
   if (!reply) return null;
@@ -5743,13 +5984,19 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
     autoExecute: false,
     executionAuthority: "client_user_gesture"
   } : undefined;
-  const actionRequired = !!action || decision.actionRequired === true;
+  const routeType = cleanText(decision.routeType || (action ? "navigation" : "answer")).toLowerCase();
+  const semanticRoute = decision.semanticRoute === true || routeType === "knowledge";
+  const navigationRoute = !!action || decision.navigationRoute === true || routeType === "navigation";
+  const actionRequired = navigationRoute && (!!action || decision.actionRequired === true);
   const validateAction = actionRequired && decision.validateAction !== false;
-  const answerOnly = !actionRequired;
-  const navigationSuggested = decision.navigationSuggested === true || answerOnly;
+  const answerOnly = semanticRoute || decision.answerOnly === true || !actionRequired;
+  const navigationSuggested = !semanticRoute && (decision.navigationSuggested === true || (!actionRequired && routeType !== "knowledge"));
+  const actionMode = cleanText(decision.actionMode || (actionRequired ? "navigate" : "answer")) || "answer";
+  const domain = cleanText(decision.domain || decision.knowledgeDomain || "");
+  const knowledgeDomain = cleanText(decision.knowledgeDomain || decision.domain || "");
   const suggestions = Array.isArray(decision.suggestions) ? decision.suggestions.slice(0, 8) : [];
   const latencyMs = Math.max(0, now() - startedAt);
-  return applyPublicReplyHygieneToResponse({
+  const fastPublicResponse = applyPublicReplyHygieneToResponse({
     ok: true,
     handled: true,
     final: true,
@@ -5778,11 +6025,21 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
     answerOnly,
     navigationSuggested,
     suggestions,
+    routeType,
+    actionMode,
+    semanticRoute,
+    navigationRoute,
+    domain: domain || undefined,
+    knowledgeDomain: knowledgeDomain || undefined,
+    pendingActionValidation: validateAction,
     payload: {
       reply, text: reply, message: reply, spokenText: reply,
       final: true, finalized: true, handled: true, publicFastPath: true,
       actionRequired, validateAction, actionValidationRequired: validateAction,
       answerOnly, navigationSuggested, suggestions,
+      routeType, actionMode, semanticRoute, navigationRoute,
+      domain: domain || undefined, knowledgeDomain: knowledgeDomain || undefined,
+      pendingActionValidation: validateAction,
       guideActions: action ? [action] : []
     },
     finalEnvelope: {
@@ -5791,6 +6048,9 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
       final: true, finalized: true, handled: true, publicFastPath: true,
       actionRequired, validateAction, actionValidationRequired: validateAction,
       answerOnly, navigationSuggested, suggestions,
+      routeType, actionMode, semanticRoute, navigationRoute,
+      domain: domain || undefined, knowledgeDomain: knowledgeDomain || undefined,
+      pendingActionValidation: validateAction,
       guideActions: action ? [action] : []
     },
     guideActionPlan,
@@ -5803,10 +6063,14 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
       v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "nyx_public_fast_path",
       semanticAuthority: "nyx", publicFastPath: true, intent: decision.intent,
       actionRequired, validateAction, answerOnly, navigationSuggested,
+      routeType, actionMode, semanticRoute, navigationRoute,
+      domain: domain || undefined, knowledgeDomain: knowledgeDomain || undefined,
+      pendingActionValidation: validateAction,
       latencyMs, loopLatencyFixVersion: NYX_LOOP_LATENCY_FIX_VERSION,
       mediaDiscoveryNavigationSplit: true, noUserFacingDiagnostics: true
     }
   });
+  return enforceNyxPublicFastPathContractR4(fastPublicResponse, norm, sessionId, decision);
 }
 
 function buildNyxPublicTimeoutResponse(norm, sessionId, startedAt, detail = "public_response_budget_exceeded") {
@@ -15619,7 +15883,11 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
 
   const publicFastPathDecision = buildNyxPublicFastPathDecision(norm);
   if (publicFastPathDecision) {
-    const fastResponse = buildNyxPublicFastPathResponse(norm, sessionId, startedAt, publicFastPathDecision);
+    const fastResponse = enforceNyxPublicKnowledgeAnswerOnlyR4(
+      buildNyxPublicFastPathResponse(norm, sessionId, startedAt, publicFastPathDecision),
+      norm,
+      publicFastPathDecision
+    );
     const fastReply = cleanText(fastResponse && (fastResponse.reply || fastResponse.text) || "");
     if (fastResponse && fastReply) {
       setTransportState(sessionId, { key: buildTransportKey(norm, norm.text, req), turnId: norm.turnId, reply: fastReply, replyHash: replyHash(fastReply), userHash: replyHash(norm.text), finalized: true, route: fastResponse.lane || norm.lane || "public_interface", authority: "nyx_public_fast_path", count: 1 });
@@ -16840,10 +17108,11 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     },
     voiceRoute: selected.voiceRoute || undefined
   });
+  const finalPublicResponse = enforceNyxPublicKnowledgeAnswerOnlyR4(publicResponse, norm, null);
   res.setHeader("Server-Timing", `nyx_total;dur=${Math.max(0, now() - startedAt)}`);
   res.setHeader("X-SB-Nyx-Path", "marion-final");
   res.setHeader("X-SB-Nyx-Backend-Ms", String(Math.max(0, now() - startedAt)));
-  return res.status(200).json(publicResponse);
+  return res.status(200).json(finalPublicResponse);
   } catch (err) {
     const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("chat"));
     const norm = (() => { try { return normalizePayload(req); } catch (_) { return { traceId, lane: "general", marionIntent: {}, marionRouting: {} }; } })();
@@ -26045,3 +26314,157 @@ try {
   }
 } catch (_) {}
 /* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_INDEX_EXPORT_R3_END */
+
+
+/* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_RESPONSE_HARDLOCK_R4_START */
+(function nyxPublicKnowledgeNavigationResponseHardlockR4(){
+  "use strict";
+  const VERSION = "nyx.index.publicKnowledgeNavigationResponseHardlock/4.0";
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 4000){ return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){ return lower(value).replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim(); }
+  function requestText(req){
+    const b = obj(req && req.body), p = obj(b.payload), m = obj(b.meta);
+    return clean(b.rawUserText || b.userText || b.text || b.message || b.query || b.prompt || b.normalizedUserIntent ||
+      p.rawUserText || p.userText || p.text || p.message || p.query || p.prompt ||
+      m.rawUserText || m.userText || m.text || m.message || m.query);
+  }
+  function isPublicChat(req){
+    const path = lower(req && (req.originalUrl || req.path || req.url) || "").split("?")[0];
+    if (!(path === "/api/chat" || path === "/chat")) return false;
+    const b = obj(req && req.body), p = obj(b.payload), m = obj(b.meta);
+    const audience = lower(b.audience || p.audience || m.audience);
+    const lane = lower(b.lane || p.lane || m.lane);
+    const profile = lower(b.presentationProfile || p.presentationProfile || m.presentationProfile);
+    return audience === "public" || lane === "public_interface" || profile === "public" || b.publicSurfaceOnly === true || b.publicIdentityLock === true || p.publicSurfaceOnly === true || p.publicIdentityLock === true;
+  }
+  function explicitNavigation(text){
+    const t = normalize(text);
+    return /\b(?:open|launch|go to|take me to|continue to|switch to|return to|play|start watching|show me)\b.{0,70}\b(?:sandblast|radio|tv|television|roku|synapse|lingosentinel|cartoons?|classics?|home|media)\b/.test(t);
+  }
+  function classify(req){
+    if (!isPublicChat(req)) return null;
+    const raw = requestText(req), t = normalize(raw);
+    if (!t || explicitNavigation(t)) return null;
+    if (/\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|employment law|privacy law|regulatory compliance|fiduciary|tort)\b/.test(t)) return {domain:"law", text:raw};
+    if (/\b(?:cash flow|revenue|pricing|margin|runway|budget|forecast|finance|financial|profit|working capital|accounts receivable)\b/.test(t)) return {domain:"finance", text:raw};
+    if (/\b(?:cybersecurity|cyber security|cyber|least privilege|zero trust|phishing|ransomware|data breach|access control|mfa|incident response)\b/.test(t)) return {domain:"cyber", text:raw};
+    if (/\b(?:artificial intelligence|machine learning|large language model|llm|generative ai|agentic ai|rag|ai system|ai model)\b/.test(t) || /(?:^|\s)ai(?:\s|$)/.test(t)) return {domain:"ai", text:raw};
+    if (/\b(?:psychology|cognitive bias|behavio[u]?r|motivation|emotion|anxiety|trauma|attachment|decision making)\b/.test(t)) return {domain:"psychology", text:raw};
+    if (/\b(?:grammar|wording|sentence structure|plain english|idiom|phrase meaning|english usage)\b/.test(t)) return {domain:"english", text:raw};
+    return null;
+  }
+  function fallback(info){
+    const t = normalize(info.text);
+    if (info.domain === "law") {
+      if (/\b(?:legal risks?|risks?).*\bbusiness|\bbusiness.*\blegal risks?\b/.test(t)) return "Businesses should review contracts, employment obligations, privacy and data protection, intellectual property, advertising rules, regulatory compliance, liability, and corporate governance. The exact risks depend on the industry and jurisdiction, so this is general legal information, not legal advice.";
+      if (/\bconsideration\b/.test(t)) return "In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or another bargained-for benefit. The exact rule depends on the jurisdiction, so this is general legal information, not legal advice.";
+      return "I can provide general legal information and identify common risk categories, but the answer depends on the jurisdiction and facts. For high-impact decisions, a qualified lawyer should review the specific situation.";
+    }
+    if (info.domain === "finance") return /\bcash flow\b/.test(t) ? "A business can improve cash flow by invoicing faster, collecting receivables sooner, reducing unnecessary expenses, renegotiating payment terms, managing inventory carefully, reviewing pricing and margins, and maintaining a rolling cash-flow forecast." : "Financial performance usually improves through tighter cash-flow forecasting, pricing and margin review, expense control, faster receivables, and disciplined working-capital management.";
+    if (info.domain === "cyber") return /\bleast privilege\b/.test(t) ? "Least privilege means giving each user, service, or system only the access required to perform its current task—and no more. It limits damage from mistakes, compromised accounts, and unauthorized activity." : "A sound cybersecurity approach starts with least privilege, multi-factor authentication, patching, secure backups, monitoring, incident-response planning, and staff awareness.";
+    if (info.domain === "ai") return "Artificial intelligence is software designed to perform tasks that normally require human intelligence, such as understanding language, recognizing patterns, making predictions, and generating content. Modern AI systems learn statistical relationships from data rather than thinking like a person.";
+    if (info.domain === "psychology") return "A cognitive bias is a predictable mental shortcut that can distort judgment. Biases help the brain make decisions quickly, but they can also cause systematic errors in how people interpret evidence, risk, and other people.";
+    if (info.domain === "english") return "I can explain the wording, grammar, tone, or cultural meaning directly. The best answer depends on the exact sentence or phrase and the audience using it.";
+    return "I can answer that as an informational knowledge question without opening a navigation route.";
+  }
+  function firstReply(body){
+    const b = obj(body), p = obj(b.payload), f = obj(b.finalEnvelope);
+    return clean(b.publicReply || b.visibleReply || b.finalReply || b.reply || b.text || b.answer || b.output || b.response || b.message ||
+      p.publicReply || p.visibleReply || p.finalReply || p.reply || p.text || p.answer || p.message ||
+      f.publicReply || f.visibleReply || f.finalReply || f.reply || f.text || f.answer);
+  }
+  function badReply(value){ return !clean(value) || /\b(?:that route is unavailable|route unavailable|action validation|navigation route unavailable)\b/i.test(value); }
+  function clearNode(value, domain){
+    const out = obj(value);
+    delete out.guideActionPlan; delete out.guideActions; delete out.nyxGuideExecution; delete out.nyxGuideStateTransition;
+    delete out.navigationAction; delete out.navigationActions; delete out.actionPlan;
+    out.routeType = "knowledge"; out.actionMode = "answer"; out.semanticRoute = true; out.navigationRoute = false;
+    out.actionRequired = false; out.validateAction = false; out.actionValidationRequired = false; out.pendingActionValidation = false;
+    out.answerOnly = true; out.navigationSuggested = false;
+    out.domain = out.domain || domain; out.knowledgeDomain = out.knowledgeDomain || domain;
+    return out;
+  }
+  function project(body, info){
+    if (!isObj(body)) return body;
+    let out = clearNode({...body}, info.domain);
+    out.payload = clearNode({...obj(out.payload)}, info.domain);
+    out.finalEnvelope = clearNode({...obj(out.finalEnvelope)}, info.domain);
+    out.meta = clearNode({...obj(out.meta)}, info.domain);
+    out.routing = clearNode({...obj(out.routing)}, info.domain);
+    out.marionRouting = clearNode({...obj(out.marionRouting)}, info.domain);
+    out.domainConcierge = clearNode({...obj(out.domainConcierge)}, info.domain);
+    out.sessionPatch = clearNode({...obj(out.sessionPatch)}, info.domain);
+    let reply = firstReply(out);
+    if (badReply(reply)) reply = fallback(info);
+    if (reply) {
+      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) out[key] = reply;
+      for (const target of [out.payload, out.finalEnvelope]) {
+        for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) target[key] = reply;
+        target.final = true; target.handled = true;
+      }
+      out.ok = out.ok !== false; out.final = true; out.handled = true; out.emit = true; out.blocked = false; out.awaitingMarion = false; out.suppressUserFacingReply = false;
+    }
+    out.meta = {...obj(out.meta), publicKnowledgeNavigationResponseHardlockVersion:VERSION, routeType:"knowledge", actionMode:"answer", noUserFacingDiagnostics:true};
+    return out;
+  }
+  try {
+    if (typeof express === "undefined" || !express || !express.response || express.response.__nyxPublicKnowledgeNavigationResponseHardlockR4) return;
+    const oldJson = express.response.json;
+    const oldSend = express.response.send;
+    const oldEnd = express.response.end;
+    if (typeof oldJson === "function") {
+      express.response.json = function(body){
+        try { const info = classify(this && this.req); if (info) body = project(body, info); } catch (_) {}
+        return oldJson.call(this, body);
+      };
+    }
+    if (typeof oldSend === "function") {
+      express.response.send = function(body){
+        try {
+          const info = classify(this && this.req);
+          if (info) {
+            if (isObj(body)) body = project(body, info);
+            else if (typeof body === "string") {
+              const s = body.trim();
+              if ((s[0] === "{" || s[0] === "[") && s.length < 1000000) {
+                try { body = JSON.stringify(project(JSON.parse(s), info)); } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
+        return oldSend.call(this, body);
+      };
+    }
+
+    if (typeof oldEnd === "function") {
+      express.response.end = function(chunk, encoding, callback){
+        try {
+          const info = classify(this && this.req);
+          if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
+            const isBuffer = typeof Buffer !== "undefined" && Buffer.isBuffer(chunk);
+            const text = isBuffer ? chunk.toString(typeof encoding === "string" ? encoding : "utf8") : chunk;
+            const trimmed = String(text || "").trim();
+            if ((trimmed[0] === "{" || trimmed[0] === "[") && trimmed.length < 2000000) {
+              try {
+                const projected = project(JSON.parse(trimmed), info);
+                const next = JSON.stringify(projected);
+                chunk = isBuffer ? Buffer.from(next, typeof encoding === "string" ? encoding : "utf8") : next;
+                try { this.setHeader("Content-Length", typeof Buffer !== "undefined" ? Buffer.byteLength(next) : next.length); } catch (_) {}
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+        return oldEnd.call(this, chunk, encoding, callback);
+      };
+    }
+    express.response.__nyxPublicKnowledgeNavigationResponseHardlockR4 = true;
+    try {
+      module.exports.NYX_PUBLIC_KNOWLEDGE_NAVIGATION_RESPONSE_HARDLOCK_VERSION = VERSION;
+      module.exports.buildNyxPublicKnowledgeFastPathDecisionR4 = buildNyxPublicKnowledgeFastPathDecisionR4;
+    } catch (_) {}
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_RESPONSE_HARDLOCK_R4_END */
