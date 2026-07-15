@@ -3055,3 +3055,38 @@ function r18cApplyLawConciergeProtocol(result,packet){
   try{if(typeof module.exports==="function")module.exports=wrap(module.exports);const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of["runDomainConcierge","routeOrClarify","normalizeConciergeDecision","run","route","handle","default"])if(typeof api[n]==="function")api[n]=wrap(api[n]);api.NYX_GUIDE_STEPS_10_11_12_CONCIERGE_VERSION=V;api.buildNyxGuideExecutionBoundary=(p,c)=>({plan:normalize(p,c),contract:EC,stateContract:SC,releaseContract:RC});api.attachNyxGuideExecutionBoundary=(v,i)=>project(v,[i||{}])}}catch(_){}
 })();
 /* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_END */
+
+/* NYX_DOMAIN_CONCIERGE_LOOP_LATENCY_FIX_R1_START */
+(function nyxDomainConciergeLoopLatencyFixR1(){
+  "use strict";
+  const V="nyx.domainConcierge.loopLatencyFix/1.0",TTL=2000,MAX=256;
+  const cache=new Map();
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function txt(v,n=1200){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
+  function low(v){return txt(v).toLowerCase();}
+  function inputText(p){const x=obj(p),b=obj(x.body),q=obj(x.payload),m=obj(x.meta);return txt(x.text||x.userText||x.message||x.query||x.prompt||b.text||b.message||b.query||q.text||q.message||q.query||m.text||m.message);}
+  function isPublic(p){const x=obj(p),b=obj(x.body),q=obj(x.payload),m=obj(x.meta);return low(x.audience||b.audience||q.audience||m.audience)==="public"||low(x.lane||b.lane||q.lane)==="public_interface"||x.publicSurfaceOnly===true||b.publicSurfaceOnly===true||q.publicSurfaceOnly===true||x.publicIdentityLock===true||b.publicIdentityLock===true||q.publicIdentityLock===true;}
+  function fast(p){if(!isPublic(p))return null;const t=low(inputText(p));if(!t)return null;let route="",intent="simple_chat",reason="";
+    if(/\b(radio|listen|music|love letters)\b/.test(t)){route="music";intent="music_query";reason="public_radio_fast_route";}
+    else if(/\broku\b/.test(t)){route="roku";intent="roku_query";reason="public_roku_fast_route";}
+    else if(/\b(tv|television|cartoons?|classics?|watch)\b/.test(t)){route="media";intent="simple_chat";reason="public_media_fast_route";}
+    else if(/\b(synapse|news|headline|stories?)\b/.test(t)){route="news";intent="news_query";reason="public_news_fast_route";}
+    else if(/\b(lingosentinel|lingo sentinel|translation|language)\b/.test(t)){route="english";intent="domain_question";reason="public_language_fast_route";}
+    else if(/\b(who are you|what are you|what is sandblast|sandblast ecosystem|what can you do|capabilities|home)\b/.test(t)){route="identity";intent="identity_query";reason="public_identity_fast_route";}
+    if(!route)return null;
+    const confidence=0.98;
+    return{version:V,contract:"nyx.marion.domainConcierge/1.0",source:"DomainConcierge",action:"route",route,intent,confidence,needsClarifier:false,clarifier:"",reason,noUserFacingDiagnostics:true,finalEnvelopeRequired:false,bridgeCompatible:true,composerCompatible:true,stateSpineCompatible:true,domainConfidence:{version:"nyx.marion.domainConfidence/1.1",confidence,band:"high",ambiguous:false,routeLocked:true,failClosed:false,primaryDomain:route,knowledgeDomain:route,reason},questionShape:{questionShape:"direct_public_ecosystem",changed:false},composerContext:{route,intent,publicFastRoute:true,loopLatencyFixVersion:V},stateSpinePatch:{route,intent,publicFastRoute:true,loopLatencyFixVersion:V,shouldAdvanceState:true}};
+  }
+  function previousClarifier(p){const x=obj(p),prev=obj(x.previousMemory||x.memory||x.turnMemory),state=obj(x.state||x.conversationState||prev.stateSpine),dc=obj(prev.domainConcierge||state.domainConcierge||obj(prev.lastDecision));return txt(dc.clarifier||prev.lastClarifier||state.lastClarifier||"");}
+  function normalize(v,p){if(!v||typeof v!=="object"||Array.isArray(v))return v;const out={...v,meta:{...obj(v.meta),loopLatencyFixVersion:V}};if(out.needsClarifier===true){const prev=previousClarifier(p),cur=txt(out.clarifier);if(prev&&cur&&low(prev)===low(cur)){out.action="route";out.route=txt(out.route||obj(out.domainConfidence).primaryDomain||"general",80)||"general";out.intent=txt(out.intent||"simple_chat",80)||"simple_chat";out.needsClarifier=false;out.clarifier="";out.reason="clarifier_loop_bypassed";out.confidence=Math.max(Number(out.confidence)||0,0.62);out.stateSpinePatch={...obj(out.stateSpinePatch),clarifierLoopBypassed:true,shouldAdvanceState:true,loopLatencyFixVersion:V};out.composerContext={...obj(out.composerContext),clarifierLoopBypassed:true,loopLatencyFixVersion:V};}}
+    return out;
+  }
+  function key(p,o){return[inputText(p).toLowerCase(),low(obj(p).lane),low(obj(p).intent),JSON.stringify(obj(o)).slice(0,300)].join("|");}
+  function clone(v){if(!v||typeof v!=="object")return v;const out={...v};for(const k of["domainConfidence","questionShape","composerContext","stateSpinePatch","meta"])if(v[k]&&typeof v[k]==="object"&&!Array.isArray(v[k]))out[k]={...v[k]};return out;}
+  function get(k){const e=cache.get(k);if(!e||Date.now()-e.at>TTL){if(e)cache.delete(k);return null;}cache.delete(k);cache.set(k,e);return clone(e.value);}
+  function put(k,v){cache.delete(k);cache.set(k,{at:Date.now(),value:clone(v)});while(cache.size>MAX)cache.delete(cache.keys().next().value);return v;}
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__nyxDomainConciergeLoopLatencyFixR1)return fn;const w=function(packet,options){const f=fast(packet);if(f)return f;const k=key(packet,options),hit=get(k);if(hit)return hit;return put(k,normalize(fn.call(this,packet,options),packet));};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__nyxDomainConciergeLoopLatencyFixR1=true;w.__nyxWrappedName=name;return w;}
+  try{const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of["runDomainConcierge","routeOrClarify"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);if(typeof api.shouldClarify==="function"){const old=api.shouldClarify;api.shouldClarify=function(packet,options){return api.runDomainConcierge(packet,options).needsClarifier===true;};api.shouldClarify.__nyxDomainConciergeLoopLatencyFixR1=true;}api.NYX_DOMAIN_CONCIERGE_LOOP_LATENCY_FIX_VERSION=V;api.clearNyxDomainConciergeFastCache=()=>cache.clear();api.buildNyxPublicConciergeFastRoute=fast;api.guardNyxClarifierLoop=normalize;}}
+  catch(_){}
+})();
+/* NYX_DOMAIN_CONCIERGE_LOOP_LATENCY_FIX_R1_END */
