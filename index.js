@@ -1,6 +1,7 @@
 "use strict";
 
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: public media discovery bypasses all R18C law projection and response-edge mutation.
+// NYX-PUBLIC-MEDIA-RESPONSE-CONTRACT-R5.1: preserve explicit answer-only action metadata through final public projection.
 
 // NYX-GUIDE-STEPS-7-8-9-R1: action validation, consent-bound preferences, redacted telemetry, and release hardening.
 
@@ -4637,6 +4638,185 @@ function buildSuppressedPublicChatResponse(packet, reason = "public_reply_suppre
   };
 }
 
+
+const NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_R5_VERSION = "nyx.index.publicMediaResponseContract/5.1";
+
+function firstPublicContractBooleanR5() {
+  for (let i = 0; i < arguments.length; i += 1) {
+    if (arguments[i] === true || arguments[i] === false) return arguments[i];
+  }
+  return undefined;
+}
+
+function sanitizeNyxGuideActionR5(value) {
+  const src = safeObj(value);
+  const type = cleanText(src.type || "");
+  const target = cleanText(src.target || src.targetKey || "");
+  if (!type || !target) return null;
+  return {
+    contract: cleanText(src.contract || "nyx.guideAction/1.2") || "nyx.guideAction/1.2",
+    id: cleanText(src.id || "") || undefined,
+    type,
+    target,
+    targetKey: cleanText(src.targetKey || target) || target,
+    lane: cleanText(src.lane || "") || undefined,
+    label: cleanText(src.label || "") || undefined,
+    requiresUserGesture: src.requiresUserGesture !== false,
+    autoExecute: src.autoExecute === true,
+    serverExecutionAllowed: src.serverExecutionAllowed === true,
+    symbolicTargetOnly: src.symbolicTargetOnly !== false,
+    idempotent: src.idempotent !== false
+  };
+}
+
+function resolveNyxPublicRouteContractR5(packet) {
+  const src = safeObj(packet);
+  const payload = safeObj(src.payload);
+  const finalEnvelope = safeObj(src.finalEnvelope);
+  const meta = safeObj(src.meta);
+  const routing = safeObj(src.routing);
+  const concierge = safeObj(src.domainConcierge);
+  const containers = [src, payload, finalEnvelope, meta, routing, concierge];
+
+  function firstTextField(name) {
+    for (const item of containers) {
+      const value = cleanText(item && item[name]);
+      if (value) return value;
+    }
+    return "";
+  }
+
+  function firstBooleanField(name) {
+    return firstPublicContractBooleanR5(...containers.map((item) => item && item[name]));
+  }
+
+  const intent = firstTextField("intent").toLowerCase();
+  const requestedRouteType = firstTextField("routeType").toLowerCase();
+  const requestedActionMode = firstTextField("actionMode").toLowerCase();
+  const rawDomain = cleanText(
+    firstTextField("knowledgeDomain") ||
+    firstTextField("domain") ||
+    firstTextField("primaryDomain") ||
+    firstTextField("selectedDomain")
+  ).toLowerCase();
+
+  const mediaDiscovery = intent === "media_discovery" || intent === "roku_discovery";
+  const semanticRoute = mediaDiscovery ||
+    requestedRouteType === "knowledge" ||
+    firstBooleanField("semanticRoute") === true;
+  const routeType = semanticRoute
+    ? "knowledge"
+    : (requestedRouteType === "navigation" || firstBooleanField("navigationRoute") === true ? "navigation" : (requestedRouteType || "answer"));
+  const navigationRoute = semanticRoute
+    ? false
+    : (routeType === "navigation" || firstBooleanField("navigationRoute") === true);
+
+  const explicitActionRequired = firstBooleanField("actionRequired");
+  const actionRequired = semanticRoute
+    ? false
+    : (explicitActionRequired === true || navigationRoute);
+
+  const explicitValidateAction = firstBooleanField("validateAction");
+  const validateAction = actionRequired && explicitValidateAction !== false;
+  const actionValidationRequired = actionRequired && firstBooleanField("actionValidationRequired") !== false && validateAction;
+  const pendingActionValidation = actionValidationRequired && firstBooleanField("pendingActionValidation") !== false;
+  const answerOnly = semanticRoute || firstBooleanField("answerOnly") === true || !actionRequired;
+  const navigationSuggested = firstBooleanField("navigationSuggested") === true;
+  const actionMode = semanticRoute ? "answer" : (requestedActionMode || (actionRequired ? "navigate" : "answer"));
+
+  const domain = mediaDiscovery ? "media" : rawDomain;
+  const knowledgeDomain = semanticRoute ? (domain || "general") : cleanText(firstTextField("knowledgeDomain") || "");
+  const suggestionsSource = containers.find((item) => Array.isArray(item && item.suggestions));
+  const suggestions = Array.from(new Set(
+    (suggestionsSource && suggestionsSource.suggestions || [])
+      .map((item) => cleanText(item))
+      .filter(Boolean)
+  )).slice(0, 8);
+
+  const actionSources = [
+    src.guideActions, payload.guideActions, finalEnvelope.guideActions,
+    safeObj(src.guideActionPlan).actions,
+    safeObj(payload.guideActionPlan).actions,
+    safeObj(finalEnvelope.guideActionPlan).actions
+  ];
+  const guideActions = [];
+  for (const list of actionSources) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const action = sanitizeNyxGuideActionR5(item);
+      if (action && !guideActions.some((existing) => existing.type === action.type && existing.target === action.target)) {
+        guideActions.push(action);
+      }
+      if (guideActions.length >= 4) break;
+    }
+    if (guideActions.length >= 4) break;
+  }
+
+  const hasContractSignal = !!(
+    intent || requestedRouteType || requestedActionMode || rawDomain || mediaDiscovery ||
+    ["semanticRoute","navigationRoute","actionRequired","validateAction","actionValidationRequired","pendingActionValidation","answerOnly","navigationSuggested"]
+      .some((name) => firstBooleanField(name) !== undefined)
+  );
+  if (!hasContractSignal) return { present: false };
+
+  return {
+    present: true,
+    version: NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_R5_VERSION,
+    intent,
+    routeType,
+    actionMode,
+    semanticRoute,
+    navigationRoute,
+    actionRequired,
+    validateAction,
+    actionValidationRequired,
+    pendingActionValidation,
+    answerOnly,
+    navigationSuggested,
+    domain: domain || undefined,
+    primaryDomain: domain || undefined,
+    selectedDomain: domain || undefined,
+    knowledgeDomain: knowledgeDomain || undefined,
+    suggestions,
+    guideActions: actionRequired ? guideActions : []
+  };
+}
+
+function applyNyxPublicRouteContractR5(target, contract, options) {
+  const out = safeObj(target);
+  if (!contract || contract.present !== true) return out;
+  const opts = safeObj(options);
+  out.intent = contract.intent || out.intent || "";
+  out.routeType = contract.routeType;
+  out.actionMode = contract.actionMode;
+  out.semanticRoute = contract.semanticRoute;
+  out.navigationRoute = contract.navigationRoute;
+  out.actionRequired = contract.actionRequired;
+  out.validateAction = contract.validateAction;
+  out.actionValidationRequired = contract.actionValidationRequired;
+  out.pendingActionValidation = contract.pendingActionValidation;
+  out.answerOnly = contract.answerOnly;
+  out.navigationSuggested = contract.navigationSuggested;
+  if (contract.domain) {
+    out.domain = contract.domain;
+    out.primaryDomain = contract.primaryDomain || contract.domain;
+    out.selectedDomain = contract.selectedDomain || contract.domain;
+  }
+  if (contract.knowledgeDomain) out.knowledgeDomain = contract.knowledgeDomain;
+  out.suggestions = Array.isArray(contract.suggestions) ? contract.suggestions.slice(0, 8) : [];
+  out.guideActions = contract.actionRequired && Array.isArray(contract.guideActions)
+    ? contract.guideActions.slice(0, 4)
+    : [];
+  if (!contract.actionRequired) {
+    delete out.guideActionPlan;
+    delete out.navigationAction;
+    delete out.navigationActions;
+    delete out.actionPlan;
+  }
+  if (opts.includeVersion !== false) out.publicMediaResponseContractVersion = contract.version;
+  return out;
+}
+
 function buildPublicChatResponse(packet, reply) {
   const src = safeObj(packet);
   const payload = safeObj(src.payload);
@@ -4715,8 +4895,9 @@ function buildPublicChatResponse(packet, reply) {
   const lane = cleanText(src.lane || src.laneId || src.sessionLane || payload.lane || "general") || "general";
   const voiceRoute = cleanPublicVoiceRoute(src.voiceRoute || payload.voiceRoute || playbackSrc.route || "");
   const publicVoiceSurface = buildPublicVoiceSurfaceFromReply(safeReply, voiceRoute);
+  const publicRouteContractR5 = resolveNyxPublicRouteContractR5(src);
 
-  return {
+  const response = {
     ok: src.ok !== false,
     final: true,
     marionFinal,
@@ -4789,6 +4970,24 @@ function buildPublicChatResponse(packet, reply) {
       noUserFacingDiagnostics: true
     }
   };
+
+  if (publicRouteContractR5.present === true) {
+    applyNyxPublicRouteContractR5(response, publicRouteContractR5);
+    response.payload = applyNyxPublicRouteContractR5(response.payload, publicRouteContractR5);
+    response.finalEnvelope = applyNyxPublicRouteContractR5(response.finalEnvelope, publicRouteContractR5);
+    response.meta = applyNyxPublicRouteContractR5({
+      ...safeObj(src.meta),
+      ...safeObj(response.meta),
+      noUserFacingDiagnostics: true
+    }, publicRouteContractR5);
+    response.publicSurface = {
+      ...safeObj(response.publicSurface),
+      routeContractPreserved: true,
+      routeContractVersion: publicRouteContractR5.version
+    };
+  }
+
+  return response;
 }
 
 function applyPublicReplyHygieneToResponse(packet) {
@@ -5819,8 +6018,16 @@ function buildNyxPublicFastPathDecision(norm = {}) {
     return {
       intent: "roku_discovery",
       lane: "roku",
+      domain: "media",
+      knowledgeDomain: "media",
+      routeType: "knowledge",
+      actionMode: "answer",
+      semanticRoute: true,
+      navigationRoute: false,
       actionRequired: false,
       validateAction: false,
+      actionValidationRequired: false,
+      pendingActionValidation: false,
       answerOnly: true,
       navigationSuggested: true,
       suggestions: ["Roku", "Sandblast TV", "Cartoons", "Classics"],
@@ -5830,16 +6037,26 @@ function buildNyxPublicFastPathDecision(norm = {}) {
 
   const mediaDiscovery =
     !explicitLegalMediaQuestion &&
-    /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what films are available|what shows are available|what programming is available|what do you have to watch|what is available to watch)$/.test(t) ||
-    /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(t) ||
-    /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(t);
+    (
+      /^(?:what can i watch(?: on sandblast)?|what is there to watch(?: on sandblast)?|what can we watch(?: on sandblast)?|what should i watch(?: on sandblast)?|show me something to watch(?: on sandblast)?|what movies are available(?: on sandblast)?|what films are available(?: on sandblast)?|what shows are available(?: on sandblast)?|what programming is available(?: on sandblast)?|what do you have to watch(?: on sandblast)?|what is available to watch(?: on sandblast)?)$/.test(t) ||
+      /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(t) ||
+      /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(t)
+    );
 
   if (mediaDiscovery) {
     return {
       intent: "media_discovery",
       lane: "watch",
+      domain: "media",
+      knowledgeDomain: "media",
+      routeType: "knowledge",
+      actionMode: "answer",
+      semanticRoute: true,
+      navigationRoute: false,
       actionRequired: false,
       validateAction: false,
+      actionValidationRequired: false,
+      pendingActionValidation: false,
       answerOnly: true,
       navigationSuggested: true,
       suggestions: ["Sandblast TV", "Roku", "Cartoons", "Classics"],
@@ -6076,7 +6293,31 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
       mediaDiscoveryNavigationSplit: true, noUserFacingDiagnostics: true
     }
   });
-  return enforceNyxPublicFastPathContractR4(fastPublicResponse, norm, sessionId, decision);
+  const contractedResponse = enforceNyxPublicFastPathContractR4(fastPublicResponse, norm, sessionId, decision);
+  const publicRouteContractR5 = resolveNyxPublicRouteContractR5({
+    ...contractedResponse,
+    intent: decision.intent,
+    routeType,
+    actionMode,
+    semanticRoute,
+    navigationRoute,
+    actionRequired,
+    validateAction,
+    actionValidationRequired: validateAction,
+    pendingActionValidation: validateAction,
+    answerOnly,
+    navigationSuggested,
+    domain: domain || undefined,
+    knowledgeDomain: knowledgeDomain || undefined,
+    suggestions
+  });
+  if (publicRouteContractR5.present === true) {
+    applyNyxPublicRouteContractR5(contractedResponse, publicRouteContractR5);
+    contractedResponse.payload = applyNyxPublicRouteContractR5(contractedResponse.payload, publicRouteContractR5);
+    contractedResponse.finalEnvelope = applyNyxPublicRouteContractR5(contractedResponse.finalEnvelope, publicRouteContractR5);
+    contractedResponse.meta = applyNyxPublicRouteContractR5(contractedResponse.meta, publicRouteContractR5);
+  }
+  return contractedResponse;
 }
 
 function buildNyxPublicTimeoutResponse(norm, sessionId, startedAt, detail = "public_response_budget_exceeded") {
@@ -26559,3 +26800,207 @@ try {
   } catch (_) {}
 })();
 /* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_RESPONSE_HARDLOCK_R4_END */
+/* NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_HARDLOCK_R5_1_START */
+(function nyxPublicMediaResponseContractHardlockR5_1(){
+  "use strict";
+  const VERSION = NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_R5_VERSION;
+  function isObjR5(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function objR5(value){ return isObjR5(value) ? value : {}; }
+  function cleanR5(value, max = 4000){ return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
+  function normalizeR5(value){ return cleanR5(value).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim(); }
+  function requestTextR5(req){
+    const body = objR5(req && req.body), payload = objR5(body.payload), meta = objR5(body.meta);
+    return cleanR5(
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt || body.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+  function isPublicChatR5(req){
+    const path = cleanR5(req && (req.originalUrl || req.path || req.url) || "").toLowerCase().split("?")[0];
+    if (!(path === "/api/chat" || path === "/chat")) return false;
+    const body = objR5(req && req.body), payload = objR5(body.payload), meta = objR5(body.meta);
+    const audience = cleanR5(body.audience || payload.audience || meta.audience).toLowerCase();
+    const lane = cleanR5(body.lane || payload.lane || meta.lane).toLowerCase();
+    const profile = cleanR5(body.presentationProfile || payload.presentationProfile || meta.presentationProfile).toLowerCase();
+    return audience === "public" || lane === "public_interface" || profile === "public" ||
+      body.publicSurfaceOnly === true || body.publicIdentityLock === true ||
+      payload.publicSurfaceOnly === true || payload.publicIdentityLock === true;
+  }
+  function classifyMediaDiscoveryR5(req){
+    if (!isPublicChatR5(req)) return null;
+    const raw = requestTextR5(req);
+    const text = normalizeR5(raw);
+    if (!text) return null;
+    const explicitNavigation = /\b(?:open|launch|go to|take me to|continue to|switch to|return to|play|start watching)\b.{0,70}\b(?:sandblast|radio|tv|television|roku|synapse|lingosentinel|cartoons?|classics?|home|media)\b/.test(text);
+    if (explicitNavigation) return null;
+    const explicitLegal = /\b(?:law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(text);
+    if (explicitLegal) return null;
+    const rokuDiscovery =
+      /\broku\b/.test(text) &&
+      (
+        /^(?:what can i watch on roku|what is on roku|what can i get on roku|can i watch (?:it|that|this) on roku|can i get (?:it|that|this) on roku|is (?:it|that|this) available on roku|what programming is available on roku)$/.test(text) ||
+        /\b(?:what|which|can i|is)\b.{0,70}\broku\b/.test(text)
+      );
+    if (rokuDiscovery) return {
+      intent: "roku_discovery",
+      domain: "media",
+      knowledgeDomain: "media",
+      fallbackReply: "Yes. Sandblast programming is available through Sandblast on Roku. I can open Roku after you choose it."
+    };
+    const mediaDiscovery =
+      /^(?:what can i watch(?: on sandblast)?|what is there to watch(?: on sandblast)?|what can we watch(?: on sandblast)?|what should i watch(?: on sandblast)?|show me something to watch(?: on sandblast)?|what movies are available(?: on sandblast)?|what films are available(?: on sandblast)?|what shows are available(?: on sandblast)?|what programming is available(?: on sandblast)?|what do you have to watch(?: on sandblast)?|what is available to watch(?: on sandblast)?)$/.test(text) ||
+      /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(text) ||
+      /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(text);
+    if (!mediaDiscovery) return null;
+    return {
+      intent: "media_discovery",
+      domain: "media",
+      knowledgeDomain: "media",
+      fallbackReply: "You can watch Sandblast TV, classic cartoons, public-domain movies, and Sandblast programming on Roku. Choose TV, Roku, Cartoons, or Classics when you are ready."
+    };
+  }
+  function firstReplyR5(body){
+    const out = objR5(body), payload = objR5(out.payload), finalEnvelope = objR5(out.finalEnvelope);
+    return cleanR5(
+      out.publicReply || out.visibleReply || out.finalReply || out.reply || out.text || out.answer || out.output || out.response || out.message ||
+      payload.publicReply || payload.visibleReply || payload.finalReply || payload.reply || payload.text || payload.answer || payload.message ||
+      finalEnvelope.publicReply || finalEnvelope.visibleReply || finalEnvelope.finalReply || finalEnvelope.reply || finalEnvelope.text || finalEnvelope.answer
+    );
+  }
+  function unsafeMediaReplyR5(reply){
+    const value = cleanR5(reply);
+    return !value ||
+      /\b(?:that route is unavailable|route unavailable|action validation|navigation route unavailable)\b/i.test(value) ||
+      /\b(?:legal-risk triage|not legal advice|legal category|jurisdiction sensitivity|attorney-client relationship)\b/i.test(value);
+  }
+  function stampNodeR5(value, info){
+    const out = objR5(value);
+    delete out.guideActionPlan;
+    delete out.navigationAction;
+    delete out.navigationActions;
+    delete out.actionPlan;
+    delete out.legalCategory;
+    delete out.legalCategories;
+    delete out.legalAdviceBoundary;
+    delete out.lawAssessmentFrame;
+    delete out.legalRiskBoundary;
+    out.intent = info.intent;
+    out.routeType = "knowledge";
+    out.actionMode = "answer";
+    out.semanticRoute = true;
+    out.navigationRoute = false;
+    out.actionRequired = false;
+    out.validateAction = false;
+    out.actionValidationRequired = false;
+    out.pendingActionValidation = false;
+    out.answerOnly = true;
+    out.navigationSuggested = true;
+    out.domain = "media";
+    out.primaryDomain = "media";
+    out.selectedDomain = "media";
+    out.knowledgeDomain = "media";
+    out.guideActions = [];
+    out.suggestions = ["Sandblast TV","Roku","Cartoons","Classics"];
+    out.publicMediaResponseContractVersion = VERSION;
+    return out;
+  }
+  function projectR5(body, info){
+    if (!isObjR5(body)) return body;
+    const out = stampNodeR5({...body}, info);
+    out.payload = stampNodeR5({...objR5(out.payload)}, info);
+    out.finalEnvelope = stampNodeR5({...objR5(out.finalEnvelope)}, info);
+    out.meta = stampNodeR5({...objR5(out.meta)}, info);
+    out.routing = stampNodeR5({...objR5(out.routing)}, info);
+    out.marionRouting = stampNodeR5({...objR5(out.marionRouting)}, info);
+    out.domainConcierge = stampNodeR5({...objR5(out.domainConcierge)}, info);
+    out.sessionPatch = stampNodeR5({...objR5(out.sessionPatch)}, info);
+    let reply = firstReplyR5(out);
+    if (unsafeMediaReplyR5(reply)) reply = info.fallbackReply;
+    for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) out[key] = reply;
+    for (const target of [out.payload, out.finalEnvelope]) {
+      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) target[key] = reply;
+      target.final = true;
+      target.finalized = true;
+      target.handled = true;
+      target.emit = true;
+      target.blocked = false;
+      target.awaitingMarion = false;
+      target.suppressUserFacingReply = false;
+    }
+    out.ok = out.ok !== false;
+    out.final = true;
+    out.finalized = true;
+    out.handled = true;
+    out.emit = true;
+    out.blocked = false;
+    out.awaitingMarion = false;
+    out.suppressUserFacingReply = false;
+    out.meta = {
+      ...objR5(out.meta),
+      replyAuthority: "nyx_public_media_fast_path",
+      semanticAuthority: "nyx",
+      noUserFacingDiagnostics: true
+    };
+    return out;
+  }
+  try {
+    if (typeof express === "undefined" || !express || !express.response || express.response.__nyxPublicMediaResponseContractHardlockR5_1) return;
+    const oldJson = express.response.json;
+    const oldSend = express.response.send;
+    const oldEnd = express.response.end;
+    if (typeof oldJson === "function") {
+      express.response.json = function(body){
+        try {
+          const info = classifyMediaDiscoveryR5(this && this.req);
+          if (info) body = projectR5(body, info);
+        } catch (_) {}
+        return oldJson.call(this, body);
+      };
+    }
+    if (typeof oldSend === "function") {
+      express.response.send = function(body){
+        try {
+          const info = classifyMediaDiscoveryR5(this && this.req);
+          if (info) {
+            if (isObjR5(body)) body = projectR5(body, info);
+            else if (typeof body === "string") {
+              const trimmed = body.trim();
+              if ((trimmed[0] === "{" || trimmed[0] === "[") && trimmed.length < 1000000) {
+                try { body = JSON.stringify(projectR5(JSON.parse(trimmed), info)); } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
+        return oldSend.call(this, body);
+      };
+    }
+    if (typeof oldEnd === "function") {
+      express.response.end = function(chunk, encoding, callback){
+        try {
+          const info = classifyMediaDiscoveryR5(this && this.req);
+          if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
+            const isBuffer = typeof Buffer !== "undefined" && Buffer.isBuffer(chunk);
+            const source = isBuffer ? chunk.toString(typeof encoding === "string" ? encoding : "utf8") : chunk;
+            const trimmed = String(source || "").trim();
+            if ((trimmed[0] === "{" || trimmed[0] === "[") && trimmed.length < 2000000) {
+              try {
+                const next = JSON.stringify(projectR5(JSON.parse(trimmed), info));
+                chunk = isBuffer ? Buffer.from(next, typeof encoding === "string" ? encoding : "utf8") : next;
+                try { this.setHeader("Content-Length", typeof Buffer !== "undefined" ? Buffer.byteLength(next) : next.length); } catch (_) {}
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+        return oldEnd.call(this, chunk, encoding, callback);
+      };
+    }
+    express.response.__nyxPublicMediaResponseContractHardlockR5_1 = true;
+    try {
+      module.exports.NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_R5_VERSION = VERSION;
+      module.exports.resolveNyxPublicRouteContractR5 = resolveNyxPublicRouteContractR5;
+      module.exports.applyNyxPublicRouteContractR5 = applyNyxPublicRouteContractR5;
+    } catch (_) {}
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_HARDLOCK_R5_1_END */
