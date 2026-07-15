@@ -5126,3 +5126,207 @@ module.exports = { normalizeVisibleFinalReplyFields,
   catch(_){}
 })();
 /* NYX_PUBLIC_LOOP_LATENCY_FIX_R1_END */
+
+/* NYX_PUBLIC_MEDIA_DISCOVERY_FAST_COORDINATOR_R2_START */
+(function nyxPublicMediaDiscoveryFastCoordinatorR2(){
+  "use strict";
+  const VERSION = "nyx.chatEngine.publicMediaDiscoveryFastCoordinator/2.0";
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 1800){
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){
+    return lower(value)
+      .replace(/[’‘]/g, "'")
+      .replace(/[^a-z0-9']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  function source(args){
+    for (const value of Array.from(args || [])) if (isObj(value)) return value;
+    return {};
+  }
+  function prompt(input){
+    const p = obj(input);
+    const payload = obj(p.payload);
+    const body = obj(p.body);
+    const meta = obj(p.meta);
+    return clean(
+      p.rawUserText || p.userText || p.text || p.message || p.query || p.userQuery || p.prompt ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+  function isPublic(input){
+    const p = obj(input);
+    const payload = obj(p.payload);
+    const body = obj(p.body);
+    const meta = obj(p.meta);
+    const audience = lower(p.audience || payload.audience || body.audience || meta.audience);
+    const lane = lower(p.lane || payload.lane || body.lane || meta.lane);
+    const profile = lower(p.presentationProfile || payload.presentationProfile || body.presentationProfile || meta.presentationProfile);
+    return audience === "public" || profile === "public" || lane === "public_interface" ||
+      p.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+      p.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true;
+  }
+  function classify(input){
+    if (!isPublic(input)) return null;
+    const text = normalize(prompt(input));
+    if (!text || text.length > 500) return null;
+    const roku =
+      /\broku\b/.test(text) &&
+      (/\b(?:what|which|can i|is|available|watch|view|stream|get)\b/.test(text) ||
+       /^(?:roku)$/.test(text));
+    if (roku && !/\b(?:open|launch|go to|take me to|continue to|switch to|play)\b/.test(text)) {
+      return {
+        intent: "roku_discovery",
+        lane: "roku",
+        reply: "Yes. Sandblast programming is available through Sandblast on Roku. I can open Roku after you choose it."
+      };
+    }
+    const mediaDiscovery =
+      /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what films are available|what shows are available|what programming is available|what do you have to watch|what is available to watch)$/.test(text) ||
+      /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(text) ||
+      /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(text);
+    if (mediaDiscovery) {
+      return {
+        intent: "media_discovery",
+        lane: "watch",
+        reply: "You can watch Sandblast TV, classic cartoons, public-domain movies, and Sandblast programming on Roku. Choose TV, Roku, Cartoons, or Classics when you are ready."
+      };
+    }
+    return null;
+  }
+  function packet(input, decision){
+    const reply = decision.reply;
+    return {
+      ok: true,
+      handled: true,
+      final: true,
+      finalized: true,
+      marionFinal: false,
+      awaitingMarion: false,
+      suppressUserFacingReply: false,
+      emit: true,
+      blocked: false,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
+      message: reply,
+      displayReply: reply,
+      publicReply: reply,
+      visibleReply: reply,
+      finalReply: reply,
+      spokenText: reply,
+      actionRequired: false,
+      validateAction: false,
+      actionValidationRequired: false,
+      answerOnly: true,
+      navigationSuggested: true,
+      guideActions: [],
+      payload: {
+        reply,
+        text: reply,
+        message: reply,
+        spokenText: reply,
+        final: true,
+        publicFastPath: true,
+        actionRequired: false,
+        validateAction: false,
+        actionValidationRequired: false,
+        answerOnly: true,
+        navigationSuggested: true,
+        guideActions: []
+      },
+      finalEnvelope: {
+        contractVersion: "nyx.public.final/1.0",
+        authority: "nyx_public_media_discovery_fast_path",
+        reply,
+        text: reply,
+        displayReply: reply,
+        spokenText: reply,
+        final: true,
+        handled: true,
+        publicFastPath: true,
+        actionRequired: false,
+        validateAction: false,
+        actionValidationRequired: false,
+        answerOnly: true,
+        navigationSuggested: true,
+        guideActions: []
+      },
+      lane: decision.lane,
+      meta: {
+        replyAuthority: "nyx_public_media_discovery_fast_path",
+        semanticAuthority: "current_user_turn",
+        intent: decision.intent,
+        publicFastPath: true,
+        actionRequired: false,
+        validateAction: false,
+        answerOnly: true,
+        navigationSuggested: true,
+        mediaDiscoveryFastCoordinatorVersion: VERSION,
+        noUserFacingDiagnostics: true
+      }
+    };
+  }
+  function readReply(value){
+    const v = obj(value), p = obj(v.payload), f = obj(v.finalEnvelope);
+    return clean(v.publicReply || v.visibleReply || v.finalReply || v.reply || v.text || v.answer || v.response || v.message ||
+      p.publicReply || p.visibleReply || p.finalReply || p.reply || p.text || p.message ||
+      f.publicReply || f.visibleReply || f.finalReply || f.reply || f.text);
+  }
+  function needsRepair(value){
+    const text = lower(readReply(value));
+    if (!text) return true;
+    return /\b(?:that route is unavailable|route unavailable|general legal-risk triage|not legal advice|legal category|law domain)\b/.test(text) ||
+      !/\b(?:watch|tv|roku|cartoons?|movies?|films?|programming|classics?)\b/.test(text);
+  }
+  function wrap(fn, name){
+    if (typeof fn !== "function" || fn.__nyxPublicMediaDiscoveryFastCoordinatorR2) return fn;
+    const asyncLike = fn.constructor && fn.constructor.name === "AsyncFunction";
+    const wrapped = function wrappedNyxPublicMediaDiscoveryFastCoordinator(){
+      const args = arguments;
+      const input = source(args);
+      const decision = classify(input);
+      if (decision) {
+        const out = packet(input, decision);
+        return asyncLike ? Promise.resolve(out) : out;
+      }
+      const result = fn.apply(this, args);
+      const repair = (value) => {
+        const lateDecision = classify(input);
+        return lateDecision && needsRepair(value) ? packet(input, lateDecision) : value;
+      };
+      return result && typeof result.then === "function" ? result.then(repair) : repair(result);
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicMediaDiscoveryFastCoordinatorR2 = true;
+    wrapped.__nyxWrappedName = name;
+    return wrapped;
+  }
+  try {
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of ["handleChat", "run", "chat", "handle", "reply", "default"]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    api.NYX_PUBLIC_MEDIA_DISCOVERY_FAST_COORDINATOR_VERSION = VERSION;
+    api.classifyNyxPublicMediaDiscoveryFastCoordinator = classify;
+    api.buildNyxPublicMediaDiscoveryFastReply = function build(input){
+      const decision = classify(input);
+      return decision ? packet(input, decision) : null;
+    };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_MEDIA_DISCOVERY_FAST_COORDINATOR_R2_END */
