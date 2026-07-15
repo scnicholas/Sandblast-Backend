@@ -9126,3 +9126,492 @@ try{
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_SEMANTIC_FINAL_HARDLOCK_R2_END */
+
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_FINAL_R3_START */
+(function nyxPublicMediaDiscoveryNavigationFinalR3(){
+  "use strict";
+  const VERSION = "nyx.composeMarionResponse.publicMediaDiscoveryNavigationFinal/3.0";
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 6000){
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){
+    return lower(value)
+      .replace(/[’‘]/g, "'")
+      .replace(/[^a-z0-9']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function currentTurnText(input){
+    const p = obj(input);
+    const payload = obj(p.payload);
+    const body = obj(p.body);
+    const meta = obj(p.meta);
+    const turn = obj(p.turn);
+    return clean(
+      p.rawUserText || p.userText || p.text || p.message || p.query || p.userQuery ||
+      p.prompt || p.effectivePrompt || p.finalPrompt || p.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      turn.rawUserText || turn.userText || turn.text || turn.message || turn.query ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+
+  function findInput(args){
+    const values = Array.from(args || []);
+    for (let i = values.length - 1; i >= 0; i -= 1) {
+      const value = obj(values[i]);
+      if (currentTurnText(value)) return value;
+    }
+    return obj(values[1] || values[0]);
+  }
+
+  function isPublicSurface(input, routed){
+    for (const p of [obj(input), obj(routed)]) {
+      const payload = obj(p.payload);
+      const body = obj(p.body);
+      const meta = obj(p.meta);
+      const guide = obj(p.guideContext || payload.guideContext || body.guideContext || meta.guideContext);
+      const audience = lower(p.audience || payload.audience || body.audience || meta.audience);
+      const lane = lower(p.lane || payload.lane || body.lane || meta.lane);
+      const profile = lower(p.presentationProfile || payload.presentationProfile || body.presentationProfile || meta.presentationProfile);
+      if (audience === "public" || profile === "public" || lane === "public_interface" ||
+          p.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+          p.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true ||
+          /sandblast\.channel|nyx|ecosystem/i.test(clean(guide.surface || guide.site || p.surface || payload.surface))) return true;
+    }
+    return false;
+  }
+
+  function targetFromText(text){
+    if (/\broku\b/.test(text)) return { type: "roku", domain: "roku", targetLane: "roku", target: "sandblast_roku", actionType: "open_roku", label: "Open Roku" };
+    if (/\b(?:cartoons?|animation|animated)\b/.test(text)) return { type: "cartoons", domain: "media", targetLane: "watch", target: "sandblast_cartoons", actionType: "open_tv", label: "Open Cartoons" };
+    if (/\b(?:classics?|classic movies?|old movies?|public domain movies?|public domain films?)\b/.test(text)) return { type: "classics", domain: "media", targetLane: "watch", target: "sandblast_classics", actionType: "open_tv", label: "Open Classics" };
+    return { type: "media", domain: "media", targetLane: "watch", target: "sandblast_tv", actionType: "open_tv", label: "Open TV" };
+  }
+
+  function classify(input){
+    const raw = currentTurnText(input);
+    const text = normalize(raw);
+    if (!text) return null;
+
+    const mediaNoun = /\b(?:watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|animated|classics?|classic movies?|public domain movies?|public domain films?|sandblast tv|television|video)\b/.test(text);
+    const rokuNoun = /\broku\b/.test(text);
+    const legalExplicit = /\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|legal advice)\b/.test(text);
+    if (legalExplicit && !mediaNoun && !rokuNoun) return null;
+
+    const discovery =
+      /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what films are available|what shows are available|what programming is available|what do you have to watch|what is available to watch)$/.test(text) ||
+      /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(text) ||
+      /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(text) ||
+      /\bis\b.{0,50}\b(?:available|on roku|on tv)\b/.test(text) ||
+      /\b(?:tell me about|what is on)\b.{0,50}\b(?:sandblast tv|roku|cartoons?|classics?)\b/.test(text);
+
+    const navigation =
+      /\b(?:open|launch|go to|take me to|continue to|switch to|start watching|play)\b.{0,55}\b(?:sandblast tv|television|tv|roku|cartoons?|classics?|classic movies?|media|video)\b/.test(text) ||
+      /^(?:open|launch|play|start)\s+(?:sandblast\s+)?(?:tv|television|roku|cartoons?|classics?|classic movies?)$/.test(text) ||
+      /^(?:show me|take me to)\s+(?:the\s+)?(?:tv|roku|cartoons?|classics?|classic movies?)$/.test(text);
+
+    const target = targetFromText(text);
+    if (discovery || (!navigation && (mediaNoun || rokuNoun))) {
+      return {
+        ...target,
+        intent: target.domain === "roku" ? "roku_discovery" : "media_discovery",
+        actionRequired: false,
+        validateAction: false,
+        answerOnly: true,
+        navigationSuggested: true
+      };
+    }
+    if (navigation) {
+      return {
+        ...target,
+        intent: target.domain === "roku" ? "roku_navigation" : "media_navigation",
+        actionRequired: true,
+        validateAction: true,
+        answerOnly: false,
+        navigationSuggested: false
+      };
+    }
+    return null;
+  }
+
+  function replyFor(intent){
+    if (intent.intent === "roku_discovery") {
+      return "Yes. Sandblast programming is available through Sandblast on Roku. I can open Roku after you choose it.";
+    }
+    if (intent.intent === "roku_navigation") {
+      return "Sandblast on Roku is ready. Use the Roku action to continue to the television experience.";
+    }
+    if (intent.intent === "media_navigation") {
+      if (intent.type === "cartoons") return "Sandblast Cartoons is ready. Use the Cartoons action to open the animated programming.";
+      if (intent.type === "classics") return "Sandblast Classics is ready. Use the Classics action to open the classic-film programming.";
+      return "Sandblast TV is ready. Use the TV action to open the viewing experience.";
+    }
+    if (intent.type === "cartoons") {
+      return "You can watch classic cartoons on Sandblast Cartoons, with additional viewing available through Sandblast TV and Roku. Choose Cartoons, TV, or Roku when you are ready.";
+    }
+    if (intent.type === "classics") {
+      return "You can watch classic and public-domain films through Sandblast Classics, with more viewing available on Sandblast TV and Roku. Choose Classics, TV, or Roku when you are ready.";
+    }
+    return "You can watch Sandblast TV, classic cartoons, public-domain movies, and Sandblast programming on Roku. Choose TV, Roku, Cartoons, or Classics when you are ready.";
+  }
+
+  function actionPlan(intent){
+    if (!intent.actionRequired) return null;
+    const action = {
+      contract: "nyx.guideAction/1.2",
+      id: `nyx_${intent.actionType}_${intent.type}`,
+      type: intent.actionType,
+      target: intent.target,
+      targetKey: intent.target,
+      lane: intent.targetLane,
+      label: intent.label,
+      requiresUserGesture: true,
+      autoExecute: false,
+      serverExecutionAllowed: false,
+      symbolicTargetOnly: true,
+      idempotent: true
+    };
+    return {
+      contract: "nyx.guideActionPlan/1.1",
+      version: VERSION,
+      planId: `nyx_navigation_${intent.type}`,
+      actionCount: 1,
+      actions: [action],
+      requiresUserGesture: true,
+      autoExecute: false,
+      executionAuthority: "client_user_gesture",
+      serverExecutionAllowed: false
+    };
+  }
+
+  function readReply(value){
+    const v = obj(value);
+    const payload = obj(v.payload);
+    const finalEnvelope = obj(v.finalEnvelope);
+    return clean(
+      v.publicReply || v.visibleReply || v.displayReply || v.finalReply || v.reply || v.text || v.answer || v.output || v.response || v.message ||
+      finalEnvelope.publicReply || finalEnvelope.visibleReply || finalEnvelope.displayReply || finalEnvelope.finalReply || finalEnvelope.reply || finalEnvelope.text ||
+      payload.publicReply || payload.visibleReply || payload.displayReply || payload.finalReply || payload.reply || payload.text || payload.message
+    );
+  }
+
+  function conflicts(reply, intent){
+    const text = lower(reply);
+    if (!text) return true;
+    if (/\b(?:general legal-risk triage|not legal advice|legal category|legal risk|law domain|liability|jurisdiction|that route is unavailable|route unavailable)\b/.test(text)) return true;
+    if (intent.domain === "roku") return !/\broku\b/.test(text);
+    return !/\b(?:watch|tv|roku|cartoons?|movies?|films?|programming|classics?)\b/.test(text);
+  }
+
+  function finalResult(base, input, intent, authority){
+    const reply = replyFor(intent);
+    const plan = actionPlan(intent);
+    const source = obj(base);
+    const payload = { ...obj(source.payload) };
+    const envelope = { ...obj(source.finalEnvelope) };
+    const meta = { ...obj(source.meta) };
+    const routing = { ...obj(source.routing) };
+    const memoryPatch = { ...obj(source.memoryPatch) };
+    const sessionPatch = { ...obj(source.sessionPatch) };
+    const domainConfidence = {
+      version: "nyx.marion.domainConfidence/1.1",
+      confidence: 0.997,
+      confidenceScore: 0.997,
+      band: "high",
+      margin: 0.99,
+      ambiguous: false,
+      routeLocked: true,
+      failClosed: false,
+      needsClarifier: false,
+      highStakes: false,
+      primaryDomain: intent.domain,
+      selectedDomain: intent.domain,
+      domain: intent.domain,
+      knowledgeDomain: intent.domain,
+      secondaryDomains: [],
+      reason: `public_current_turn_${intent.intent}`,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      staleLawCarrySuppressed: true,
+      noCrossDomainBleed: true
+    };
+
+    const out = {
+      ...source,
+      ok: true,
+      handled: true,
+      final: true,
+      finalized: true,
+      marionFinal: true,
+      awaitingMarion: false,
+      suppressUserFacingReply: false,
+      emit: true,
+      blocked: false,
+      composedOnce: true,
+      finalizedBy: authority || "composeMarionResponse.publicMediaDiscoveryNavigationFinal",
+      version: clean(source.version || VERSION),
+      composerVersion: clean(source.composerVersion || VERSION),
+      domain: intent.domain,
+      primaryDomain: intent.domain,
+      selectedDomain: intent.domain,
+      knowledgeDomain: intent.domain,
+      intent: intent.intent,
+      highStakes: false,
+      noCrossDomainBleed: true,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      staleLawCarrySuppressed: true,
+      actionRequired: intent.actionRequired,
+      validateAction: intent.validateAction,
+      actionValidationRequired: intent.validateAction,
+      answerOnly: intent.answerOnly,
+      navigationSuggested: intent.navigationSuggested,
+      reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
+      message: reply,
+      spokenText: reply,
+      displayReply: reply,
+      publicReply: reply,
+      visibleReply: reply,
+      finalReply: reply,
+      rawUserText: currentTurnText(input),
+      normalizedUserIntent: currentTurnText(input),
+      guideActions: plan ? plan.actions : [],
+      domainConfidence,
+      routing: {
+        ...routing,
+        route: intent.domain,
+        domain: intent.domain,
+        primaryDomain: intent.domain,
+        selectedDomain: intent.domain,
+        knowledgeDomain: intent.domain,
+        secondaryDomains: [],
+        intent: intent.intent,
+        targetLane: intent.targetLane,
+        routeLocked: true,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        highStakes: false,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        domainConfidence
+      },
+      payload: {
+        ...payload,
+        ok: true,
+        handled: true,
+        final: true,
+        marionFinal: true,
+        domain: intent.domain,
+        intent: intent.intent,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        actionValidationRequired: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        reply,
+        text: reply,
+        answer: reply,
+        output: reply,
+        response: reply,
+        message: reply,
+        spokenText: reply,
+        displayReply: reply,
+        publicReply: reply,
+        visibleReply: reply,
+        finalReply: reply,
+        guideActions: plan ? plan.actions : [],
+        domainConfidence,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true
+      },
+      finalEnvelope: {
+        ...envelope,
+        contract: "nyx.marion.final/1.0",
+        contractVersion: "nyx.marion.final/1.0",
+        signature: "MARION_FINAL_AUTHORITY",
+        authority: authority || "composeMarionResponse.publicMediaDiscoveryNavigationFinal",
+        source: "marion",
+        domain: intent.domain,
+        intent: intent.intent,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        actionValidationRequired: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        reply,
+        text: reply,
+        answer: reply,
+        output: reply,
+        response: reply,
+        message: reply,
+        spokenText: reply,
+        displayReply: reply,
+        publicReply: reply,
+        visibleReply: reply,
+        finalReply: reply,
+        final: true,
+        finalized: true,
+        marionFinal: true,
+        handled: true,
+        qualityPass: true,
+        canEmit: true,
+        guideActions: plan ? plan.actions : [],
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        domainConfidence
+      },
+      memoryPatch: {
+        ...memoryPatch,
+        route: intent.domain,
+        domain: intent.domain,
+        selectedDomain: intent.domain,
+        knowledgeDomain: intent.domain,
+        intent: intent.intent,
+        previousDomainCarryAllowed: false,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        currentTurnAuthority: true,
+        targetLane: intent.targetLane,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        pendingActionValidation: intent.actionRequired,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        publicMediaDiscoveryNavigationFinalVersion: VERSION
+      },
+      sessionPatch: {
+        ...sessionPatch,
+        route: intent.domain,
+        domain: intent.domain,
+        selectedDomain: intent.domain,
+        knowledgeDomain: intent.domain,
+        intent: intent.intent,
+        previousDomainCarryAllowed: false,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        currentTurnAuthority: true,
+        targetLane: intent.targetLane,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        pendingActionValidation: intent.actionRequired,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        publicMediaDiscoveryNavigationFinalVersion: VERSION
+      },
+      speech: {
+        ...obj(source.speech),
+        enabled: true,
+        silent: false,
+        silentAudio: false,
+        textDisplay: reply,
+        textSpeak: reply
+      },
+      ui: {
+        ...obj(source.ui),
+        targetLane: intent.targetLane,
+        openOverlay: false,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested
+      },
+      meta: {
+        ...meta,
+        replyAuthority: authority || "composeMarionResponse.publicMediaDiscoveryNavigationFinal",
+        semanticAuthority: "current_user_turn",
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        crossDomainMismatchCorrected: true,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        publicMediaDiscoveryNavigationFinalVersion: VERSION,
+        noUserFacingDiagnostics: true
+      }
+    };
+
+    if (plan) {
+      out.guideActionPlan = plan;
+      out.payload.guideActionPlan = plan;
+      out.finalEnvelope.guideActionPlan = plan;
+      out.memoryPatch.guideActionPlan = plan;
+      out.ui.guideActionPlan = plan;
+    } else {
+      delete out.guideActionPlan;
+      delete out.payload.guideActionPlan;
+      delete out.finalEnvelope.guideActionPlan;
+      delete out.memoryPatch.guideActionPlan;
+      delete out.sessionPatch.guideActionPlan;
+      delete out.ui.guideActionPlan;
+    }
+    return out;
+  }
+
+  function wrap(fn, name){
+    if (typeof fn !== "function" || fn.__nyxPublicMediaDiscoveryNavigationFinalR3) return fn;
+    const wrapped = function wrappedNyxPublicMediaDiscoveryNavigationFinal(){
+      const args = arguments;
+      const routed = obj(args[0]);
+      const input = findInput(args);
+      const intent = isPublicSurface(input, routed) ? classify(input) : null;
+      if (intent) return finalResult({}, input, intent, `${name || "compose"}.publicMediaDiscoveryNavigationFastFinal`);
+      const result = fn.apply(this, args);
+      const validate = (value) => {
+        const lateIntent = isPublicSurface(input, routed) ? classify(input) : null;
+        if (lateIntent && conflicts(readReply(value), lateIntent)) {
+          return finalResult(value, input, lateIntent, `${name || "compose"}.mediaDiscoveryNavigationMismatchRepair`);
+        }
+        return value;
+      };
+      return result && typeof result.then === "function" ? result.then(validate) : validate(result);
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicMediaDiscoveryNavigationFinalR3 = true;
+    wrapped.__nyxWrappedName = name;
+    return wrapped;
+  }
+
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default");
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of [
+      "composeMarionResponse", "compose", "buildReply", "run", "default",
+      "handle", "handleChat", "reply", "processWithMarion", "finalize",
+      "safeResponse", "buildResponse", "createResponse"
+    ]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    api.NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_FINAL_VERSION = VERSION;
+    api.classifyNyxPublicMediaDiscoveryNavigationFinal = classify;
+    api.buildNyxPublicMediaDiscoveryNavigationFinal = function build(input){
+      const intent = classify(input);
+      return intent ? finalResult({}, input, intent, "manual.publicMediaDiscoveryNavigationFinal") : null;
+    };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_FINAL_R3_END */
