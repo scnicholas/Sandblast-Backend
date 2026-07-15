@@ -5721,3 +5721,32 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
   try{if(typeof module.exports==="function")module.exports=wrap(module.exports);const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of["createState","coerceState","finalizeTurn","normalizeStateForPipelineCohesion","buildStateCarryForwardSummary","applyLoopRecoveryPatch","mergeState","updateState","advanceState","run","handle","default"])if(typeof api[n]==="function")api[n]=wrap(api[n]);api.NYX_GUIDE_STEPS_10_11_12_STATE_VERSION=V;api.normalizeNyxGuideExecutionState=(input,previous)=>normalize({plan:o(input).guideActionPlan,exec:o(input).nyxGuideExecution,result:o(input).guideActionResult,ctx:o(input).guideContext,prior:previous||o(input).nyxGuideExecutionState});api.attachNyxGuideExecutionState=(v,i)=>project(v,[i||{}])}}catch(_){}
 })();
 /* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_END */
+
+/* NYX_STATE_SPINE_LOOP_LATENCY_FIX_R1_START */
+(function nyxStateSpineLoopLatencyFixR1(){
+  "use strict";
+  const V="nyx.stateSpine.loopLatencyFix/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function txt(v,n=1400){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
+  function norm(v){return txt(v).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();}
+  function hash(v){let h=2166136261,s=norm(v);for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
+  function generic(v){const t=norm(v);return !t||/\b(i(?:'|’)?m here|i am here|still here|fully online|what(?:'|’)?s next|what are we working on|give me the target|send the next target|try again|run that one more time|final envelope|diagnostic packet|recovery path|loop detected)\b/.test(t)||(t.length<180&&/\b(ready|continue|next|target|online|connected|send|help)\b/.test(t));}
+  function project(next,params){if(!next||typeof next!=="object"||Array.isArray(next))return next;const p=obj(params),prev=obj(p.prevState),inbound=obj(p.inbound),decision=obj(p.decision),n={...next};const prevReply=txt(prev.lastAssistantReply),curReply=txt(n.lastAssistantReply||decision.speak||p.reply||p.assistantText),prevUserHash=txt(prev.lastUserHash),curUserHash=txt(n.lastUserHash||hash(inbound.text||inbound.message||inbound.query||"")),sameReply=!!(prevReply&&curReply&&hash(prevReply)===hash(curReply)),sameUser=!!(prevUserHash&&curUserHash&&prevUserHash===curUserHash);
+    n.marionCohesion={...obj(n.marionCohesion),loopLatencyFixVersion:V};
+    n.repetition={...obj(n.repetition)};
+    if(sameReply&&sameUser){n.marionCohesion.duplicateTransportReplay=true;n.marionCohesion.staleReplyAcrossDifferentInput=false;return n;}
+    if(sameReply&&!sameUser&&generic(curReply)){
+      n.stage="recover";n.phase="recovery";n.progressionLock=true;
+      n.repetition.sameAssistantHashCount=Math.max(2,Number(n.repetition.sameAssistantHashCount||0)+1);
+      n.repetition.noProgressCount=Math.max(1,Number(n.repetition.noProgressCount||0)+1);
+      n.marionCohesion.loopPhraseRejected=true;n.marionCohesion.shouldAdvanceState=false;n.marionCohesion.staleReplyAcrossDifferentInput=true;n.marionCohesion.loopSuppressionReason="same_generic_reply_for_new_input";
+      n.loopGuard={...obj(n.loopGuard),version:V,loopDetected:true,allowReply:false,forceRecovery:true,reason:"same_generic_reply_for_new_input",noUserFacingDiagnostics:true};
+    }
+    if(Number(n.repetition.sameStageCount||0)>=3&&Number(n.repetition.noProgressCount||0)>=2&&!n.marionCohesion.finalEnvelopeTrusted){n.stage="recover";n.phase="recovery";n.progressionLock=true;n.marionCohesion.shouldAdvanceState=false;n.marionCohesion.stageReplaySuppressed=true;n.loopGuard={...obj(n.loopGuard),version:V,loopDetected:true,allowReply:false,forceRecovery:true,reason:"same_stage_without_progress",noUserFacingDiagnostics:true};}
+    return n;
+  }
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__nyxStateSpineLoopLatencyFixR1)return fn;const w=function(){const a=arguments,r=fn.apply(this,a);return r&&typeof r.then==="function"?r.then(v=>project(v,a[0])):project(r,a[0]);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__nyxStateSpineLoopLatencyFixR1=true;w.__nyxWrappedName=name;return w;}
+  try{const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){if(typeof api.finalizeTurn==="function")api.finalizeTurn=wrap(api.finalizeTurn,"finalizeTurn");api.NYX_STATE_SPINE_LOOP_LATENCY_FIX_VERSION=V;api.applyNyxStateLoopLatencyGuard=project;api.normalizeNyxLoopSignature=norm;}}
+  catch(_){}
+})();
+/* NYX_STATE_SPINE_LOOP_LATENCY_FIX_R1_END */
