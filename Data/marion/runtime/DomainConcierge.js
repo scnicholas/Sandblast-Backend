@@ -3090,3 +3090,213 @@ function r18cApplyLawConciergeProtocol(result,packet){
   catch(_){}
 })();
 /* NYX_DOMAIN_CONCIERGE_LOOP_LATENCY_FIX_R1_END */
+
+/* NYX_PUBLIC_CURRENT_TURN_CONCIERGE_HARDLOCK_R2_START */
+(function nyxPublicCurrentTurnConciergeHardlockR2(){
+  "use strict";
+  const VERSION = "nyx.domainConcierge.publicCurrentTurnMediaHardlock/2.0";
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 1800){
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){
+    return lower(value)
+      .replace(/[’‘]/g, "'")
+      .replace(/[^a-z0-9']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function currentTurnText(packet){
+    const p = obj(packet);
+    const payload = obj(p.payload);
+    const body = obj(p.body);
+    const meta = obj(p.meta);
+    const turn = obj(p.turn);
+    return clean(
+      p.rawUserText || p.userText || p.text || p.message || p.query || p.userQuery ||
+      p.prompt || p.effectivePrompt || p.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      turn.rawUserText || turn.userText || turn.text || turn.message || turn.query ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+
+  function isPublicSurface(packet){
+    const p = obj(packet);
+    const payload = obj(p.payload);
+    const body = obj(p.body);
+    const meta = obj(p.meta);
+    const guide = obj(p.guideContext || payload.guideContext || body.guideContext || meta.guideContext);
+    const audience = lower(p.audience || payload.audience || body.audience || meta.audience);
+    const lane = lower(p.lane || payload.lane || body.lane || meta.lane);
+    return audience === "public" || lane === "public_interface" ||
+      p.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+      p.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true ||
+      /sandblast\.channel|nyx|ecosystem/i.test(clean(guide.surface || guide.site || p.surface || payload.surface));
+  }
+
+  function explicitIntent(packet){
+    const text = normalize(currentTurnText(packet));
+    if (!text) return null;
+    const legalExplicit = /\b(law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|legal advice)\b/.test(text);
+    const roku = /\broku\b/.test(text) || /\bwatch (?:it|that|this) on (?:my )?tv\b/.test(text);
+    const media =
+      /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what shows are available|what programming is available)$/.test(text) ||
+      /\b(?:watch|view|stream|movies?|films?|shows?|programming|cartoons?|classics?|sandblast tv|television|video)\b/.test(text);
+    if (legalExplicit && !media && !roku) return null;
+    if (roku) return { route: "roku", intent: "roku_query", reason: "current_turn_explicit_roku_hardlock", targetLane: "roku" };
+    if (media) return { route: "media", intent: "media_request", reason: "current_turn_explicit_media_hardlock", targetLane: "watch" };
+    return null;
+  }
+
+  function decision(packet, intent){
+    const confidence = 0.995;
+    const currentText = currentTurnText(packet);
+    return {
+      version: VERSION,
+      contract: "nyx.marion.domainConcierge/1.0",
+      source: "DomainConcierge.currentTurnHardlock",
+      action: "route",
+      route: intent.route,
+      domain: intent.route,
+      primaryDomain: intent.route,
+      selectedDomain: intent.route,
+      knowledgeDomain: intent.route,
+      intent: intent.intent,
+      confidence,
+      needsClarifier: false,
+      clarifier: "",
+      reason: intent.reason,
+      routeLocked: true,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      staleLawCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true,
+      finalEnvelopeRequired: false,
+      bridgeCompatible: true,
+      composerCompatible: true,
+      stateSpineCompatible: true,
+      questionShape: {
+        version: "nyx.marion.questionShapeNormalization/1.0",
+        rawText: currentText,
+        normalizedText: currentText,
+        normalizedUserIntent: currentText,
+        questionShape: intent.intent === "roku_query" ? "direct_roku_request" : "direct_media_request",
+        changed: false,
+        reason: intent.reason,
+        source: "DomainConcierge.currentTurnHardlock"
+      },
+      domainConfidence: {
+        version: "nyx.marion.domainConfidence/1.1",
+        confidence,
+        confidenceScore: confidence,
+        band: "high",
+        margin: 0.99,
+        ambiguous: false,
+        routeLocked: true,
+        failClosed: false,
+        needsClarifier: false,
+        highStakes: false,
+        primaryDomain: intent.route,
+        selectedDomain: intent.route,
+        domain: intent.route,
+        knowledgeDomain: intent.route,
+        secondaryDomains: [],
+        reason: intent.reason,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        noCrossDomainBleed: true
+      },
+      composerContext: {
+        route: intent.route,
+        domain: intent.route,
+        intent: intent.intent,
+        targetLane: intent.targetLane,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        publicCurrentTurnMediaHardlockVersion: VERSION
+      },
+      routing: {
+        route: intent.route,
+        domain: intent.route,
+        primaryDomain: intent.route,
+        selectedDomain: intent.route,
+        knowledgeDomain: intent.route,
+        intent: intent.intent,
+        targetLane: intent.targetLane,
+        routeLocked: true,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        highStakes: false
+      },
+      stateSpinePatch: {
+        route: intent.route,
+        domain: intent.route,
+        selectedDomain: intent.route,
+        knowledgeDomain: intent.route,
+        intent: intent.intent,
+        targetLane: intent.targetLane,
+        previousDomainCarryAllowed: false,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        currentTurnAuthority: true,
+        routeLocked: true,
+        clarifierLoopBypassed: true,
+        shouldAdvanceState: true,
+        publicCurrentTurnMediaHardlockVersion: VERSION
+      }
+    };
+  }
+
+  function wrap(fn, name){
+    if (typeof fn !== "function" || fn.__nyxPublicCurrentTurnConciergeHardlockR2) return fn;
+    const wrapped = function wrappedNyxPublicCurrentTurnConcierge(packet, options){
+      const intent = isPublicSurface(packet) ? explicitIntent(packet) : null;
+      if (intent) return decision(packet, intent);
+      return fn.call(this, packet, options);
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicCurrentTurnConciergeHardlockR2 = true;
+    wrapped.__nyxWrappedName = name;
+    return wrapped;
+  }
+
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default");
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of ["runDomainConcierge", "routeOrClarify", "run", "route", "handle", "default"]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    if (typeof api.shouldClarify === "function") {
+      const oldShouldClarify = api.shouldClarify;
+      api.shouldClarify = function shouldClarifyCurrentTurnHardlock(packet, options){
+        const intent = isPublicSurface(packet) ? explicitIntent(packet) : null;
+        if (intent) return false;
+        return oldShouldClarify.call(this, packet, options);
+      };
+      api.shouldClarify.__nyxPublicCurrentTurnConciergeHardlockR2 = true;
+    }
+    api.NYX_PUBLIC_CURRENT_TURN_CONCIERGE_HARDLOCK_VERSION = VERSION;
+    api.classifyNyxPublicCurrentTurnConciergeIntent = explicitIntent;
+    api.buildNyxPublicCurrentTurnConciergeDecision = function build(packet){
+      const intent = explicitIntent(packet);
+      return intent ? decision(packet, intent) : null;
+    };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_CURRENT_TURN_CONCIERGE_HARDLOCK_R2_END */
