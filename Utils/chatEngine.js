@@ -96,7 +96,17 @@ function compactDomainConciergeForTransport(value = {}) {
     finalEnvelopeRequired: src.finalEnvelopeRequired !== false,
     bridgeCompatible: src.bridgeCompatible !== false,
     composerCompatible: src.composerCompatible !== false,
-    stateSpineCompatible: src.stateSpineCompatible !== false
+    stateSpineCompatible: src.stateSpineCompatible !== false,
+    routeType: cleanText(src.routeType || (src.semanticRoute === true ? "knowledge" : (src.navigationRoute === true ? "navigation" : ""))),
+    actionMode: cleanText(src.actionMode || (src.actionRequired === true ? "navigate" : "answer")),
+    semanticRoute: src.semanticRoute === true || cleanText(src.routeType).toLowerCase() === "knowledge",
+    navigationRoute: src.navigationRoute === true || cleanText(src.routeType).toLowerCase() === "navigation",
+    actionRequired: src.actionRequired === true,
+    validateAction: src.actionRequired === true && src.validateAction !== false,
+    actionValidationRequired: src.actionRequired === true && src.validateAction !== false,
+    answerOnly: src.answerOnly === true || src.actionRequired !== true,
+    navigationSuggested: src.navigationSuggested === true,
+    pendingActionValidation: src.actionRequired === true && src.validateAction !== false
   };
 
   if (Object.keys(domainConfidence).length) {
@@ -5330,3 +5340,174 @@ module.exports = { normalizeVisibleFinalReplyFields,
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_DISCOVERY_FAST_COORDINATOR_R2_END */
+
+
+/* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_SEPARATION_CHATENGINE_R4_START */
+(function nyxPublicKnowledgeNavigationSeparationChatEngineR4(){
+  "use strict";
+  const VERSION = "nyx.chatEngine.publicKnowledgeNavigationSeparation/4.0";
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 3000){
+    return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){ return lower(value).replace(/[’‘]/g, "'").replace(/[^a-z0-9']+/g, " ").replace(/\s+/g, " ").trim(); }
+  function source(args){ for (const value of Array.from(args || [])) if (isObj(value)) return value; return {}; }
+  function prompt(input){
+    const p = obj(input), payload = obj(p.payload), body = obj(p.body), meta = obj(p.meta);
+    return clean(p.rawUserText || p.userText || p.text || p.message || p.query || p.userQuery || p.prompt || p.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query);
+  }
+  function isPublic(input){
+    const p = obj(input), payload = obj(p.payload), body = obj(p.body), meta = obj(p.meta);
+    const audience = lower(p.audience || payload.audience || body.audience || meta.audience);
+    const lane = lower(p.lane || payload.lane || body.lane || meta.lane);
+    const profile = lower(p.presentationProfile || payload.presentationProfile || body.presentationProfile || meta.presentationProfile);
+    return audience === "public" || profile === "public" || lane === "public_interface" ||
+      p.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+      p.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true;
+  }
+  function explicitNavigation(text){
+    const t = normalize(text);
+    return /\b(?:open|launch|go to|take me to|continue to|switch to|return to|play|start watching|show me)\b.{0,70}\b(?:sandblast|radio|tv|television|roku|synapse|lingosentinel|cartoons?|classics?|home|media)\b/.test(t);
+  }
+  function classify(input){
+    if (!isPublic(input)) return null;
+    const raw = prompt(input), t = normalize(raw);
+    if (!t || t.length > 1200 || explicitNavigation(t)) return null;
+    if (/\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|employment law|privacy law|regulatory compliance|fiduciary|tort)\b/.test(t)) return {domain:"law", highStakes:true};
+    if (/\b(?:cash flow|revenue|pricing|margin|runway|budget|forecast|finance|financial|profit|working capital|accounts receivable)\b/.test(t)) return {domain:"finance", highStakes:true};
+    if (/\b(?:cybersecurity|cyber security|cyber|least privilege|zero trust|phishing|ransomware|data breach|access control|mfa|incident response)\b/.test(t)) return {domain:"cyber", highStakes:true};
+    if (/\b(?:artificial intelligence|machine learning|large language model|llm|generative ai|agentic ai|rag|ai system|ai model)\b/.test(t) || /(?:^|\s)ai(?:\s|$)/.test(t)) return {domain:"ai", highStakes:false};
+    if (/\b(?:psychology|cognitive bias|behavio[u]?r|motivation|emotion|anxiety|trauma|attachment|decision making)\b/.test(t)) return {domain:"psychology", highStakes:false};
+    if (/\b(?:grammar|wording|sentence structure|plain english|idiom|phrase meaning|english usage)\b/.test(t)) return {domain:"english", highStakes:false};
+    return null;
+  }
+  function fallbackReply(domain, text){
+    const t = normalize(text);
+    if (domain === "law") {
+      if (/\b(?:legal risks?|risks?).*\bbusiness|\bbusiness.*\blegal risks?\b/.test(t)) return "Businesses should review contracts, employment obligations, privacy and data protection, intellectual property, advertising rules, regulatory compliance, liability, and corporate governance. The exact risks depend on the industry and jurisdiction, so this is general legal information, not legal advice.";
+      if (/\bconsideration\b/.test(t)) return "In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or another bargained-for benefit. The exact rule depends on the jurisdiction, so this is general legal information, not legal advice.";
+      return "I can provide general legal information and help identify common risk categories, but the answer depends on the jurisdiction and facts. For high-impact decisions, a qualified lawyer should review the specific situation.";
+    }
+    if (domain === "finance") {
+      if (/\bcash flow\b/.test(t)) return "A business can improve cash flow by invoicing faster, collecting receivables sooner, reducing unnecessary expenses, renegotiating payment terms, managing inventory carefully, reviewing pricing and margins, and maintaining a rolling cash-flow forecast.";
+      return "Financial performance usually improves through tighter cash-flow forecasting, pricing and margin review, expense control, faster receivables, and disciplined working-capital management. The right action depends on the company’s numbers and constraints.";
+    }
+    if (domain === "cyber") return "A sound cybersecurity approach starts with least privilege, multi-factor authentication, patching, secure backups, monitoring, incident-response planning, and staff awareness. Controls should be proportionate to the system and risk.";
+    if (domain === "ai") return "Artificial intelligence is software designed to perform tasks that normally require human intelligence, such as understanding language, recognizing patterns, making predictions, and generating content. Modern AI systems learn statistical relationships from data rather than thinking like a person.";
+    if (domain === "psychology") return "Psychology examines how people think, feel, learn, decide, and behave. A useful explanation connects the concept to observable patterns, context, and practical outcomes without assuming more than the evidence supports.";
+    if (domain === "english") return "I can explain the wording, grammar, tone, or cultural meaning directly. The best answer depends on the exact sentence or phrase and the audience using it.";
+    return "I can answer that as an informational knowledge question without opening or validating a navigation route.";
+  }
+  function readReply(value){
+    const v = obj(value), p = obj(v.payload), f = obj(v.finalEnvelope);
+    return clean(v.publicReply || v.visibleReply || v.finalReply || v.reply || v.text || v.answer || v.response || v.message ||
+      p.publicReply || p.visibleReply || p.finalReply || p.reply || p.text || p.answer || p.message ||
+      f.publicReply || f.visibleReply || f.finalReply || f.reply || f.text || f.answer);
+  }
+  function unsafeReply(value){
+    const t = lower(readReply(value));
+    return !t || /\b(?:that route is unavailable|route unavailable|action validation|navigation route unavailable)\b/.test(t);
+  }
+  function clearExecutable(node, domain){
+    if (!isObj(node)) return node;
+    const out = {...node};
+    delete out.guideActionPlan;
+    delete out.guideActions;
+    delete out.nyxGuideExecution;
+    delete out.nyxGuideStateTransition;
+    delete out.navigationAction;
+    delete out.navigationActions;
+    delete out.actionPlan;
+    out.routeType = "knowledge";
+    out.actionMode = "answer";
+    out.semanticRoute = true;
+    out.navigationRoute = false;
+    out.actionRequired = false;
+    out.validateAction = false;
+    out.actionValidationRequired = false;
+    out.pendingActionValidation = false;
+    out.answerOnly = true;
+    out.navigationSuggested = false;
+    out.domain = out.domain || domain;
+    out.knowledgeDomain = out.knowledgeDomain || domain;
+    return out;
+  }
+  function project(value, input, info){
+    if (!isObj(value)) value = {};
+    let out = clearExecutable(value, info.domain);
+    out.payload = clearExecutable(obj(out.payload), info.domain);
+    out.finalEnvelope = clearExecutable(obj(out.finalEnvelope), info.domain);
+    out.meta = clearExecutable(obj(out.meta), info.domain);
+    out.routing = clearExecutable(obj(out.routing), info.domain);
+    out.marionRouting = clearExecutable(obj(out.marionRouting), info.domain);
+    out.domainConcierge = clearExecutable(obj(out.domainConcierge), info.domain);
+    out.sessionPatch = clearExecutable(obj(out.sessionPatch), info.domain);
+    const reply = unsafeReply(out) ? fallbackReply(info.domain, prompt(input)) : readReply(out);
+    if (reply) {
+      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) out[key] = reply;
+      for (const target of [out.payload, out.finalEnvelope]) {
+        for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) target[key] = reply;
+        target.final = true;
+        target.handled = true;
+      }
+      out.ok = out.ok !== false;
+      out.final = true;
+      out.handled = true;
+      out.emit = true;
+      out.blocked = false;
+      out.awaitingMarion = false;
+      out.suppressUserFacingReply = false;
+    }
+    out.meta = {...obj(out.meta), knowledgeNavigationSeparationVersion: VERSION, routeType:"knowledge", actionMode:"answer", noUserFacingDiagnostics:true};
+    return out;
+  }
+  function fastPacket(input, info){
+    const reply = fallbackReply(info.domain, prompt(input));
+    return project({ok:true,final:true,handled:true,reply,text:reply,payload:{reply,text:reply},finalEnvelope:{reply,text:reply,final:true,handled:true}}, input, info);
+  }
+  function shouldFastPath(input, info){
+    const t = normalize(prompt(input));
+    if (info.domain === "law") return /\b(?:what|which|list|explain|define|consider)\b/.test(t) && /\b(?:legal risks?|consideration|contract law)\b/.test(t);
+    if (info.domain === "finance") return /\b(?:cash flow|working capital)\b/.test(t) && /\b(?:what|how|improve|explain|define)\b/.test(t);
+    if (info.domain === "ai") return /\bwhat is (?:artificial intelligence|ai)\b|\bdefine (?:artificial intelligence|ai)\b/.test(t);
+    if (info.domain === "cyber") return /\bwhat is least privilege\b|\bdefine least privilege\b/.test(t);
+    if (info.domain === "psychology") return /\bwhat is (?:a )?cognitive bias\b|\bdefine cognitive bias\b/.test(t);
+    return false;
+  }
+  function wrap(fn, name, allowFast){
+    if (typeof fn !== "function" || fn.__nyxPublicKnowledgeNavigationSeparationR4) return fn;
+    const asyncLike = fn.constructor && fn.constructor.name === "AsyncFunction";
+    const wrapped = function wrappedNyxPublicKnowledgeNavigationSeparation(){
+      const args = arguments, input = source(args), info = classify(input);
+      if (info && allowFast && shouldFastPath(input, info)) {
+        const packet = fastPacket(input, info);
+        return asyncLike ? Promise.resolve(packet) : packet;
+      }
+      const result = fn.apply(this, args);
+      const repair = (value) => info ? project(value, input, info) : value;
+      return result && typeof result.then === "function" ? result.then(repair) : repair(result);
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicKnowledgeNavigationSeparationR4 = true;
+    wrapped.__nyxWrappedName = name;
+    return wrapped;
+  }
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default", true);
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of ["handleChat","run","chat","handle","reply","default"]) if (typeof api[name] === "function") api[name] = wrap(api[name], name, true);
+    for (const name of ["normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields","finalTransportPacket"]) if (typeof api[name] === "function") api[name] = wrap(api[name], name, false);
+    api.NYX_PUBLIC_KNOWLEDGE_NAVIGATION_SEPARATION_CHATENGINE_VERSION = VERSION;
+    api.classifyNyxPublicKnowledgeRequest = classify;
+    api.projectNyxPublicKnowledgeAnswerOnly = function projectPublic(value, input){ const info = classify(input); return info ? project(value, input, info) : value; };
+    api.buildNyxPublicKnowledgeFastReply = function build(input){ const info = classify(input); return info && shouldFastPath(input, info) ? fastPacket(input, info) : null; };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_SEPARATION_CHATENGINE_R4_END */
