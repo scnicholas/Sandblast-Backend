@@ -3300,3 +3300,281 @@ function r18cApplyLawConciergeProtocol(result,packet){
   } catch (_) {}
 })();
 /* NYX_PUBLIC_CURRENT_TURN_CONCIERGE_HARDLOCK_R2_END */
+
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_CONCIERGE_R3_START */
+(function nyxPublicMediaDiscoveryNavigationConciergeR3(){
+  "use strict";
+  const VERSION = "nyx.domainConcierge.publicMediaDiscoveryNavigationSplit/3.0";
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 1800){
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){
+    return lower(value)
+      .replace(/[’‘]/g, "'")
+      .replace(/[^a-z0-9']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function currentTurnText(packet){
+    const p = obj(packet);
+    const payload = obj(p.payload);
+    const body = obj(p.body);
+    const meta = obj(p.meta);
+    const turn = obj(p.turn);
+    return clean(
+      p.rawUserText || p.userText || p.text || p.message || p.query || p.userQuery ||
+      p.prompt || p.effectivePrompt || p.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      turn.rawUserText || turn.userText || turn.text || turn.message || turn.query ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+
+  function isPublicSurface(packet){
+    const p = obj(packet);
+    const payload = obj(p.payload);
+    const body = obj(p.body);
+    const meta = obj(p.meta);
+    const guide = obj(p.guideContext || payload.guideContext || body.guideContext || meta.guideContext);
+    const audience = lower(p.audience || payload.audience || body.audience || meta.audience);
+    const lane = lower(p.lane || payload.lane || body.lane || meta.lane);
+    const profile = lower(p.presentationProfile || payload.presentationProfile || body.presentationProfile || meta.presentationProfile);
+    return audience === "public" || profile === "public" || lane === "public_interface" ||
+      p.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+      p.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true ||
+      /sandblast\.channel|nyx|ecosystem/i.test(clean(guide.surface || guide.site || p.surface || payload.surface));
+  }
+
+  function classify(packet){
+    const text = normalize(currentTurnText(packet));
+    if (!text) return null;
+
+    const mediaNoun = /\b(?:watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|animated|classics?|classic movies?|public domain movies?|public domain films?|sandblast tv|television|video)\b/.test(text);
+    const rokuNoun = /\broku\b/.test(text);
+    const legalExplicit = /\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|legal advice)\b/.test(text);
+    if (legalExplicit && !mediaNoun && !rokuNoun) return null;
+
+    const discovery =
+      /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what films are available|what shows are available|what programming is available|what do you have to watch|what is available to watch)$/.test(text) ||
+      /\b(?:what|which)\b.{0,60}\b(?:watch|movies?|films?|shows?|programming|cartoons?|classics?)\b/.test(text) ||
+      /\bcan i\b.{0,50}\b(?:watch|view|stream|see|get)\b/.test(text) ||
+      /\bis\b.{0,50}\b(?:available|on roku|on tv)\b/.test(text) ||
+      /\b(?:tell me about|what is on)\b.{0,50}\b(?:sandblast tv|roku|cartoons?|classics?)\b/.test(text);
+
+    const navigation =
+      /\b(?:open|launch|go to|take me to|continue to|switch to|start watching|play)\b.{0,55}\b(?:sandblast tv|television|tv|roku|cartoons?|classics?|classic movies?|media|video)\b/.test(text) ||
+      /^(?:open|launch|play|start)\s+(?:sandblast\s+)?(?:tv|television|roku|cartoons?|classics?|classic movies?)$/.test(text) ||
+      /^(?:show me|take me to)\s+(?:the\s+)?(?:tv|roku|cartoons?|classics?|classic movies?)$/.test(text);
+
+    if (discovery) {
+      const roku = rokuNoun || /\bon (?:my )?tv\b/.test(text);
+      return {
+        route: roku ? "roku" : "media",
+        intent: roku ? "roku_discovery" : "media_discovery",
+        reason: roku ? "current_turn_roku_discovery_answer_only" : "current_turn_media_discovery_answer_only",
+        targetLane: roku ? "roku" : "watch",
+        actionRequired: false,
+        validateAction: false,
+        answerOnly: true,
+        navigationSuggested: true
+      };
+    }
+
+    if (navigation) {
+      const roku = rokuNoun;
+      return {
+        route: roku ? "roku" : "media",
+        intent: roku ? "roku_navigation" : "media_navigation",
+        reason: roku ? "current_turn_explicit_roku_navigation" : "current_turn_explicit_media_navigation",
+        targetLane: roku ? "roku" : "watch",
+        actionRequired: true,
+        validateAction: true,
+        answerOnly: false,
+        navigationSuggested: false
+      };
+    }
+
+    if (mediaNoun || rokuNoun) {
+      return {
+        route: rokuNoun ? "roku" : "media",
+        intent: rokuNoun ? "roku_discovery" : "media_discovery",
+        reason: rokuNoun ? "current_turn_roku_information_answer_only" : "current_turn_media_information_answer_only",
+        targetLane: rokuNoun ? "roku" : "watch",
+        actionRequired: false,
+        validateAction: false,
+        answerOnly: true,
+        navigationSuggested: true
+      };
+    }
+    return null;
+  }
+
+  function decision(packet, intent){
+    const confidence = 0.997;
+    const currentText = currentTurnText(packet);
+    return {
+      version: VERSION,
+      contract: "nyx.marion.domainConcierge/1.0",
+      source: "DomainConcierge.mediaDiscoveryNavigationSplit",
+      action: "route",
+      route: intent.route,
+      domain: intent.route,
+      primaryDomain: intent.route,
+      selectedDomain: intent.route,
+      knowledgeDomain: intent.route,
+      intent: intent.intent,
+      confidence,
+      actionRequired: intent.actionRequired,
+      validateAction: intent.validateAction,
+      answerOnly: intent.answerOnly,
+      navigationSuggested: intent.navigationSuggested,
+      needsClarifier: false,
+      clarifier: "",
+      reason: intent.reason,
+      routeLocked: true,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      staleLawCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true,
+      finalEnvelopeRequired: false,
+      bridgeCompatible: true,
+      composerCompatible: true,
+      stateSpineCompatible: true,
+      questionShape: {
+        version: "nyx.marion.questionShapeNormalization/1.0",
+        rawText: currentText,
+        normalizedText: currentText,
+        normalizedUserIntent: currentText,
+        questionShape: intent.answerOnly ? "media_discovery_question" : "media_navigation_command",
+        changed: false,
+        reason: intent.reason,
+        source: "DomainConcierge.mediaDiscoveryNavigationSplit"
+      },
+      domainConfidence: {
+        version: "nyx.marion.domainConfidence/1.1",
+        confidence,
+        confidenceScore: confidence,
+        band: "high",
+        margin: 0.99,
+        ambiguous: false,
+        routeLocked: true,
+        failClosed: false,
+        needsClarifier: false,
+        highStakes: false,
+        primaryDomain: intent.route,
+        selectedDomain: intent.route,
+        domain: intent.route,
+        knowledgeDomain: intent.route,
+        secondaryDomains: [],
+        reason: intent.reason,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        noCrossDomainBleed: true
+      },
+      composerContext: {
+        route: intent.route,
+        domain: intent.route,
+        intent: intent.intent,
+        targetLane: intent.targetLane,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        publicMediaDiscoveryNavigationSplitVersion: VERSION
+      },
+      routing: {
+        route: intent.route,
+        domain: intent.route,
+        primaryDomain: intent.route,
+        selectedDomain: intent.route,
+        knowledgeDomain: intent.route,
+        intent: intent.intent,
+        targetLane: intent.targetLane,
+        routeLocked: true,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        highStakes: false,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested
+      },
+      stateSpinePatch: {
+        route: intent.route,
+        domain: intent.route,
+        selectedDomain: intent.route,
+        knowledgeDomain: intent.route,
+        intent: intent.intent,
+        targetLane: intent.targetLane,
+        previousDomainCarryAllowed: false,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        currentTurnAuthority: true,
+        routeLocked: true,
+        clarifierLoopBypassed: true,
+        shouldAdvanceState: true,
+        actionRequired: intent.actionRequired,
+        validateAction: intent.validateAction,
+        pendingActionValidation: intent.actionRequired,
+        answerOnly: intent.answerOnly,
+        navigationSuggested: intent.navigationSuggested,
+        publicMediaDiscoveryNavigationSplitVersion: VERSION
+      }
+    };
+  }
+
+  function wrap(fn, name){
+    if (typeof fn !== "function" || fn.__nyxPublicMediaDiscoveryNavigationConciergeR3) return fn;
+    const wrapped = function wrappedNyxPublicMediaDiscoveryNavigationConcierge(packet, options){
+      const intent = isPublicSurface(packet) ? classify(packet) : null;
+      if (intent) return decision(packet, intent);
+      return fn.call(this, packet, options);
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicMediaDiscoveryNavigationConciergeR3 = true;
+    wrapped.__nyxWrappedName = name;
+    return wrapped;
+  }
+
+  try {
+    if (typeof module.exports === "function") module.exports = wrap(module.exports, "default");
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    for (const name of ["runDomainConcierge", "routeOrClarify", "run", "route", "handle", "default"]) {
+      if (typeof api[name] === "function") api[name] = wrap(api[name], name);
+    }
+    if (typeof api.shouldClarify === "function") {
+      const oldShouldClarify = api.shouldClarify;
+      api.shouldClarify = function shouldClarifyMediaDiscoveryNavigation(packet, options){
+        const intent = isPublicSurface(packet) ? classify(packet) : null;
+        if (intent) return false;
+        return oldShouldClarify.call(this, packet, options);
+      };
+      api.shouldClarify.__nyxPublicMediaDiscoveryNavigationConciergeR3 = true;
+    }
+    api.NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_CONCIERGE_VERSION = VERSION;
+    api.classifyNyxPublicMediaDiscoveryNavigationConcierge = classify;
+    api.buildNyxPublicMediaDiscoveryNavigationConciergeDecision = function build(packet){
+      const intent = classify(packet);
+      return intent ? decision(packet, intent) : null;
+    };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_CONCIERGE_R3_END */
