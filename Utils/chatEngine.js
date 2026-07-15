@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: media discovery cannot be reclassified by R18C law repair or final materialization.
+
 /**
  * chatEngine.js
  *
@@ -3034,7 +3036,19 @@ module.exports = { normalizeVisibleFinalReplyFields,
       return /\b(activefeaturelane|knowledgeDomain|primaryDomain|selectedDomain|domain|route|lastTopic|currentObjective)\b/.test(c) &&
         /\b(law|legal|contract|copyright|licensing|liability|compliance|jurisdiction)\b/.test(c);
     }
+
+    function isExplicitMediaCurrentTurn(text){
+      const t = lower(text);
+      if (!t) return false;
+      const explicitLegal = /\b(law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(t);
+      if (explicitLegal) return false;
+      const mediaSignal = /\b(watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|classics?|classic movies?|public[-\s]?domain movies?|sandblast tv|television|roku|media|video)\b/.test(t);
+      const discoveryOrNavigation = /\b(what|which|can i|is|are|available|show me|open|launch|go to|take me to|play|start|tell me about|on sandblast)\b/.test(t);
+      return mediaSignal && discoveryOrNavigation;
+    }
+
     function r18cDetectLawCategories(text){
+      if (isExplicitMediaCurrentTurn(text)) return [];
       const t = lower(text);
       const out = [];
       if (/\b(copyright|license|licence|licensing|distribution rights?|broadcast rights?|streaming rights?|public performance|sync rights?|roku|ott|movie|movies|moneti[sz]e|platform rights?)\b/.test(t)) out.push("copyright_licensing");
@@ -3047,7 +3061,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
       if (/\b(jurisdiction|province|territory|court|tribunal|deadline|limitation|file|filing|procedure|serve|served|hearing)\b/.test(t)) out.push("jurisdiction_procedure");
       if (/\b(contract|agreement|clause|terms|breach|enforceable|consideration|promise|release|waiver|indemnity|distribution rights?)\b/.test(t)) out.push("contract");
       if (/\b(source|sources|verify|verification|case law|canlii|statute|regulation|official source|research)\b/.test(t)) out.push("source_verification");
-      if (!out.length && /\b(law|legal|rights?|obligation|permitted|allowed|can i|should i sign|safe to)\b/.test(t)) out.push("general_legal_risk");
+      if (!out.length && (/\b(law|legal|rights?|obligation|permitted|allowed|should i sign|safe to)\b/.test(t) || /\bcan i\s+(?:legally|lawfully|sue|sign|license|licence|distribute|publish|use copyrighted|terminate|fire)\b/.test(t))) out.push("general_legal_risk");
       const priority = ["employment_contractor","copyright_licensing","privacy_data","liability_dispute","ip_trademark_patent","compliance_regulatory","jurisdiction_procedure","corporate_business","contract","source_verification","general_legal_risk"];
       return Array.from(new Set(out)).sort((a,b)=>priority.indexOf(a)-priority.indexOf(b));
     }
@@ -3060,12 +3074,28 @@ module.exports = { normalizeVisibleFinalReplyFields,
       return Array.from(new Set(out.filter(x => x && x !== "law"))).slice(0,4);
     }
     function r18cIsLaw(text, ctx){
+      if (isExplicitMediaCurrentTurn(text)) return false;
       if (r18cTechnicalLawFileWork(text)) return false;
       const cats = r18cDetectLawCategories(text);
       if (cats.length && !(cats.length === 1 && cats[0] === "general_legal_risk" && !/\b(law|legal|rights|liability|contract|copyright|license|employment|fired|defamation|privacy|compliance|jurisdiction|safe to|permitted|allowed)\b/i.test(T(text)))) return true;
       return r18cShortLawFollowup(text, ctx);
     }
     function r18cProfile(text, ctx){
+      if (isExplicitMediaCurrentTurn(text)) return {
+        version: V,
+        active: false,
+        domain: "media",
+        primaryDomain: "media",
+        selectedDomain: "media",
+        knowledgeDomain: "media",
+        legalCategory: "",
+        legalCategories: [],
+        secondaryDomains: [],
+        currentTurnAuthority: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        noUserFacingDiagnostics: true
+      };
       const cats = r18cDetectLawCategories(text);
       const shortCarry = r18cShortLawFollowup(text, ctx);
       const category = cats[0] || (shortCarry ? "general_legal_risk" : "");
@@ -3261,7 +3291,19 @@ module.exports = { normalizeVisibleFinalReplyFields,
     const t = L(text).replace(/[.!?]+$/g, "").trim();
     return /^(next|next steps|continue|keep going|go on|what now|what's next|what is next|then what)$/i.test(t);
   }
+
+  function isExplicitMediaCurrentTurn(text){
+    const t = L(text);
+    if (!t) return false;
+    const explicitLegal = /\b(law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/i.test(t);
+    if (explicitLegal) return false;
+    const mediaSignal = /\b(watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|classics?|classic movies?|public[-\s]?domain movies?|sandblast tv|television|roku|media|video)\b/i.test(t);
+    const discoveryOrNavigation = /\b(what|which|can i|is|are|available|show me|open|launch|go to|take me to|play|start|tell me about|on sandblast)\b/i.test(t);
+    return mediaSignal && discoveryOrNavigation;
+  }
+
   function categories(text){
+    if (isExplicitMediaCurrentTurn(text)) return [];
     const t = L(text);
     const out = [];
     function add(c){ if (out.indexOf(c) < 0) out.push(c); }
@@ -3275,7 +3317,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
     if (/\b(jurisdiction|province|territory|ontario|canada|court|tribunal|deadline|limitation period|statute of limitations|file|filing)\b/i.test(t)) add("jurisdiction_procedure");
     if (/\b(contract|agreement|clause|terms|breach|consideration|indemnity|warranty|representation|termination clause)\b/i.test(t)) add("contract");
     if (/\b(source|sources|verify|case law|statute|official source|canlii|justice laws|e-laws|legal research)\b/i.test(t)) add("source_verification");
-    if (/\b(legal|law|lawful|illegal|rights|risk|allowed|can i|should i sign|am i safe)\b/i.test(t) && !out.length) add("general_legal_risk");
+    if ((/\b(legal|law|lawful|illegal|rights|risk|allowed|should i sign|am i safe)\b/i.test(t) || /\bcan i\s+(?:legally|lawfully|sue|sign|license|licence|distribute|publish|use copyrighted|terminate|fire)\b/i.test(t)) && !out.length) add("general_legal_risk");
     return out;
   }
   function secondaryDomains(text){
@@ -3290,6 +3332,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
     return s.slice(0,4);
   }
   function isLawTurn(text, packet){
+    if (isExplicitMediaCurrentTurn(text)) return false;
     if (technicalLawFileWork(text)) return false;
     const p = O(packet);
     const dc = O(p.domainConfidence || O(p.routing).domainConfidence || O(p.result).domainConfidence || O(p.meta).domainConfidence);
@@ -3312,6 +3355,21 @@ module.exports = { normalizeVisibleFinalReplyFields,
     return false;
   }
   function profile(text, packet){
+    if (isExplicitMediaCurrentTurn(text)) return {
+      version: V,
+      active: false,
+      domain: "media",
+      primaryDomain: "media",
+      selectedDomain: "media",
+      knowledgeDomain: "media",
+      legalCategory: "",
+      legalCategories: [],
+      secondaryDomains: [],
+      currentTurnAuthority: true,
+      staleLawCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true
+    };
     const cats = categories(text);
     const shortCarry = shortLawFollowup(text) && /law/i.test(JSON.stringify(packet || {}).slice(0, 2500));
     return {
@@ -3628,7 +3686,19 @@ module.exports = { normalizeVisibleFinalReplyFields,
     const lawFile = /\b(law domain|law manifest|law payload|law files?|legal payload|legal manifest|r18c|full[-\s]?stack regression|live handler|final answer materializer|route|routing|registry|envelope integration)\b/i.test(t);
     return technical && lawFile;
   }
+
+  function isExplicitMediaCurrentTurn(text){
+    const t = L(text);
+    if (!t) return false;
+    const explicitLegal = /\b(law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/i.test(t);
+    if (explicitLegal) return false;
+    const mediaSignal = /\b(watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|classics?|classic movies?|public[-\s]?domain movies?|sandblast tv|television|roku|media|video)\b/i.test(t);
+    const discoveryOrNavigation = /\b(what|which|can i|is|are|available|show me|open|launch|go to|take me to|play|start|tell me about|on sandblast)\b/i.test(t);
+    return mediaSignal && discoveryOrNavigation;
+  }
+
   function promptCategories(text){
+    if (isExplicitMediaCurrentTurn(text)) return [];
     const t = L(text);
     const out = [];
     function add(c){ if (out.indexOf(c) < 0) out.push(c); }
@@ -3642,7 +3712,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
     if (/\b(jurisdiction|province|territory|ontario|canada|court|tribunal|deadline|limitation period|statute of limitations|file|filing)\b/i.test(t)) add("jurisdiction_procedure");
     if (/\b(contract|agreement|clause|terms|breach|consideration|indemnity|warranty|representation|termination clause)\b/i.test(t)) add("contract");
     if (/\b(source|sources|verify|case law|statute|official source|canlii|justice laws|e-laws|legal research)\b/i.test(t)) add("source_verification");
-    if (/\b(legal|law|lawful|illegal|rights|risk|allowed|can i|should i sign|am i safe)\b/i.test(t) && !out.length) add("general_legal_risk");
+    if ((/\b(legal|law|lawful|illegal|rights|risk|allowed|should i sign|am i safe)\b/i.test(t) || /\bcan i\s+(?:legally|lawfully|sue|sign|license|licence|distribute|publish|use copyrighted|terminate|fire)\b/i.test(t)) && !out.length) add("general_legal_risk");
     return out;
   }
   function objectHasLawMarkers(obj, depth, seen){
@@ -3699,6 +3769,21 @@ module.exports = { normalizeVisibleFinalReplyFields,
     return s.slice(0,4);
   }
   function profile(prompt, packet){
+    if (isExplicitMediaCurrentTurn(prompt)) return {
+      version: V,
+      active: false,
+      domain: "media",
+      primaryDomain: "media",
+      selectedDomain: "media",
+      knowledgeDomain: "media",
+      legalCategory: "",
+      legalCategories: [],
+      secondaryDomains: [],
+      currentTurnAuthority: true,
+      staleLawCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true
+    };
     const fields = collectLawFields(packet, 0, [], {});
     const cats = fields.legalCategories && fields.legalCategories.length ? fields.legalCategories : promptCategories(prompt);
     const cat = fields.legalCategory || cats[0] || (objectHasLawMarkers(packet, 0, []) ? "general_legal_risk" : "");
@@ -5191,6 +5276,8 @@ module.exports = { normalizeVisibleFinalReplyFields,
     if (!isPublic(input)) return null;
     const text = normalize(prompt(input));
     if (!text || text.length > 500) return null;
+    const explicitLegalMediaQuestion = /\b(?:law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(text);
+    if (explicitLegalMediaQuestion) return null;
     const roku =
       /\broku\b/.test(text) &&
       (/\b(?:what|which|can i|is|available|watch|view|stream|get)\b/.test(text) ||
