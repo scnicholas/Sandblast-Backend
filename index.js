@@ -1676,7 +1676,7 @@ app.locals.nyxGuideSteps789 = {
   for(const path of Object.values(PATHS).flat())app.options(path,(req,res)=>{const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req))return res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});return res.status(204).end();});
   app.post(PATHS.stateValidate,(req,res)=>{const pf=preflight(req,res);if(!pf)return;if(!FEATURES.stateValidation)return res.status(503).json({ok:false,error:"guide_state_validation_disabled",traceId:pf.traceId,diagnosticsRedacted:true});const tr=transition(obj(req.body));if(!tr){counters.rejected+=1;return res.status(400).json({ok:false,error:"invalid_guide_state_transition",traceId:pf.traceId,diagnosticsRedacted:true});}counters.validated+=1;return res.status(200).json({ok:true,validated:true,executed:false,executionAuthority:"client_user_gesture",transition:tr,traceId:pf.traceId,diagnosticsRedacted:true});});
   app.post(PATHS.executionReceipt,(req,res)=>{const pf=preflight(req,res);if(!pf)return;if(!FEATURES.execution)return res.status(503).json({ok:false,error:"guide_execution_receipts_disabled",traceId:pf.traceId,diagnosticsRedacted:true});const b=obj(req.body),tr=obj(b.transition),action=actionFrom({...b,action:b.action||tr.action,currentState:b.currentState||tr});if(!action){counters.rejected+=1;return res.status(400).json({ok:false,error:"invalid_guide_execution_receipt",traceId:pf.traceId,diagnosticsRedacted:true});}const status=text(b.status||b.result||"completed",20).toLowerCase();if(!STATUS.has(status)){counters.rejected+=1;return res.status(400).json({ok:false,error:"invalid_guide_execution_status",traceId:pf.traceId,diagnosticsRedacted:true});}const session=nyxGuideSafeText(req.headers["x-sb-session-id"],96)||"anonymous",planId=id(b.planId||tr.planId,"plan"),key=hash(`${session}|${planId}|${action.id}`).slice(0,40),now=Date.now(),prior=receipts.get(key);if(prior&&["completed","failed","cancelled"].includes(prior.status)){counters.duplicates+=1;return res.status(409).json({ok:false,error:"duplicate_guide_action_receipt",duplicate:true,priorStatus:prior.status,traceId:pf.traceId,diagnosticsRedacted:true});}const current=lane(obj(b.currentState||tr).currentLane||tr.currentLane,"home"),target=TARGET_LANE[action.target]||current,rollback=lane(tr.rollbackLane,current),revision=num(obj(b.currentState||tr).revision||tr.revision,0,0,999999999)+1;const nextLane=status==="completed"?target:(status==="failed"||status==="cancelled")?rollback:current;const receipt={contract:EXECUTION_CONTRACT,version:VERSION,receiptId:`rcpt_${hash(`${key}|${status}|${now}`).slice(0,20)}`,planId,actionId:action.id,status,duplicate:false,previousLane:current,currentLane:nextLane,rollbackLane:rollback,revision,requiresUserGesture:true,autoExecute:false,publicSessionOnly:true,privateMemoryAccess:false,at:now,expiresAt:now+10*60*1000};receipts.set(key,receipt);cleanup();counters[status]=(counters[status]||0)+1;return res.status(202).json({ok:true,accepted:true,receipt,serverExecuted:false,rawConversationStored:false,traceId:pf.traceId,diagnosticsRedacted:true});});
-  app.get(PATHS.releaseGate,(req,res)=>{const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req))return res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});const gate=readiness();return res.status(gate.releaseReady?200:503).json({ok:gate.releaseReady,service:"nyx-guide-steps-10-11-12",version:VERSION,contract:RELEASE_CONTRACT,releaseReady:gate.releaseReady,rollbackSafeMode:FEATURES.rollbackSafeMode,features:FEATURES,dependencies:{bridgeReady:gate.bridgeReady,moduleCount:gate.moduleCount,moduleTotal:gate.moduleTotal,modules:gate.modules},contracts:{execution:EXECUTION_CONTRACT,stateTransition:TRANSITION_CONTRACT,releaseGate:RELEASE_CONTRACT,actionPlan:NYX_GUIDE_ACTION_PLAN_CONTRACT,continuity:"nyx.guideContinuity/1.0"},policy:{clientUserGestureRequired:true,serverActionExecution:false,symbolicTargetsOnly:true,idempotencyRequired:true,rollbackRequired:true,publicSessionOnly:true,privateMemoryAccess:false,rawConversationStored:false,diagnosticsRedacted:true},counters:{...counters},uptimeMs:Math.max(0,Date.now()-SERVER_BOOT_AT),traceId:trace,t:Date.now()});});
+  app.get(PATHS.releaseGate,(req,res)=>{const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req))return res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});const gate=readiness();const degraded=!gate.releaseReady;return res.status(200).json({ok:true,service:"nyx-guide-steps-10-11-12",version:VERSION,contract:RELEASE_CONTRACT,releaseReady:gate.releaseReady,degraded,actionExecutionReady:gate.releaseReady,chatAvailable:true,rollbackSafeMode:FEATURES.rollbackSafeMode,features:FEATURES,dependencies:{bridgeReady:gate.bridgeReady,moduleCount:gate.moduleCount,moduleTotal:gate.moduleTotal,modules:gate.modules},contracts:{execution:EXECUTION_CONTRACT,stateTransition:TRANSITION_CONTRACT,releaseGate:RELEASE_CONTRACT,actionPlan:NYX_GUIDE_ACTION_PLAN_CONTRACT,continuity:"nyx.guideContinuity/1.0"},policy:{clientUserGestureRequired:true,serverActionExecution:false,symbolicTargetsOnly:true,idempotencyRequired:true,rollbackRequired:true,publicSessionOnly:true,privateMemoryAccess:false,rawConversationStored:false,diagnosticsRedacted:true},counters:{...counters},uptimeMs:Math.max(0,Date.now()-SERVER_BOOT_AT),traceId:trace,t:Date.now()});});
   app.locals.nyxGuideSteps101112={version:VERSION,contracts:{execution:EXECUTION_CONTRACT,stateTransition:TRANSITION_CONTRACT,releaseGate:RELEASE_CONTRACT},features:FEATURES,readiness,publicOnly:true,nonAuthority:true,actionExecutionAuthority:"client_user_gesture",serverActionExecution:false};
 })();
 /* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_END */
@@ -5587,6 +5587,10 @@ const CFG = {
   duplicateReplyWindowMs: clamp(Number(process.env.SB_DUPLICATE_REPLY_MS || 15000), 3000, 45000),
   supportHoldMaxTurns: clamp(Number(process.env.SB_SUPPORT_HOLD_MAX_TURNS || 1), 0, 3),
   transportReplayCacheMs: clamp(Number(process.env.SB_TRANSPORT_REPLAY_CACHE_MS || 12000), 3000, 45000),
+  duplicateSubmitWindowMs: clamp(Number(process.env.SB_DUPLICATE_SUBMIT_WINDOW_MS || 2500), 500, 8000),
+  publicRequestTimeoutMs: clamp(Number(process.env.SB_PUBLIC_CHAT_TIMEOUT_MS || 5200), 2500, 12000),
+  composerFallbackTimeoutMs: clamp(Number(process.env.SB_COMPOSER_FALLBACK_TIMEOUT_MS || 1200), 250, 5000),
+  publicDiagnostics: boolEnv("SB_PUBLIC_CHAT_DIAGNOSTICS", false),
   requestTimeoutMs: clamp(Number(process.env.SB_REQUEST_TIMEOUT_MS || 18000), 6000, 45000),
   httpLogEnabled: boolEnv("SB_HTTP_LOG_ENABLED", false),
   httpLogSlowMs: clamp(Number(process.env.SB_HTTP_LOG_SLOW_MS || 2500), 250, 30000),
@@ -5595,6 +5599,159 @@ const CFG = {
   memorySweepEveryMs: clamp(Number(process.env.SB_MEMORY_SWEEP_EVERY_MS || 60 * 1000), 10000, 10 * 60 * 1000),
   port: PORT
 };
+
+
+const NYX_LOOP_LATENCY_FIX_VERSION = "nyx.publicLoopLatencyFix/1.0";
+
+function nestedPublicFlag(source, key) {
+  const src = isObj(source) ? source : {};
+  const containers = [src, src.body, src.payload, src.meta, src.guideContext, src.client, src.options].filter(isObj);
+  return containers.some((item) => item[key] === true);
+}
+
+function isNyxPublicSurfaceRequest(norm = {}) {
+  const src = isObj(norm) ? norm : {};
+  const audience = lower(src.audience || src.body?.audience || src.payload?.audience || src.meta?.audience || "");
+  const lane = lower(src.lane || src.body?.lane || src.payload?.lane || src.meta?.lane || "");
+  const profile = lower(src.presentationProfile || src.body?.presentationProfile || src.payload?.presentationProfile || "");
+  return audience === "public" || profile === "public" || lane === "public_interface" ||
+    nestedPublicFlag(src, "publicSurfaceOnly") || nestedPublicFlag(src, "publicIdentityLock");
+}
+
+function shouldRunLanguageSphereForTurn(norm = {}) {
+  const src = isObj(norm) ? norm : {};
+  const value = cleanText([
+    src.text, src.originalText, src.rawUserText, src.message,
+    src.sourceLanguage, src.targetLanguage, src.outputLanguage,
+    src.body && src.body.targetLanguage, src.payload && src.payload.targetLanguage
+  ].filter(Boolean).join(" "));
+  const target = lower(src.targetLanguage || src.outputLanguage || src.body?.targetLanguage || src.payload?.targetLanguage || "");
+  const source = lower(src.sourceLanguage || src.body?.sourceLanguage || src.payload?.sourceLanguage || "");
+  if (src.languageSphereDirectTranslation === true || src.inputNormalizedForMarion === true) return true;
+  if (target && !["en", "eng", "english", "auto"].includes(target)) return true;
+  if (source && !["en", "eng", "english", "auto"].includes(source)) return true;
+  if (/\b(translate|translation|translator|language\s*sphere|languagesphere|lingosentinel|in\s+(?:french|spanish|german|italian|portuguese|arabic|mandarin|cantonese|japanese|korean|hindi|punjabi))\b/i.test(value)) return true;
+  return /[^\x00-\x7F]/.test(value);
+}
+
+function normalizeFastPathText(value) {
+  return lower(value).replace(/[’‘]/g, "'").replace(/[^a-z0-9']+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function buildNyxPublicFastPathDecision(norm = {}) {
+  if (!isNyxPublicSurfaceRequest(norm)) return null;
+  const raw = cleanText(norm.text || norm.userText || norm.message || norm.query || "");
+  const t = normalizeFastPathText(raw);
+  if (!t || t.length > 360) return null;
+
+  if (/^(?:hi|hello|hey|good morning|good afternoon|good evening)(?: nyx| nix)?$/.test(t)) {
+    return { intent: "greeting", reply: "Hello. I’m Nyx, your public Sandblast guide. I can help you find radio, TV, Roku, Synapse, LingoSentinel, media, AI, and business tools." };
+  }
+  if (/\b(?:are you|is this) marion\b/.test(t)) {
+    return { intent: "identity_boundary", reply: "No. I’m Nyx, the public Sandblast guide. Marion is reserved for the private operator environment and is not exposed through this public interface." };
+  }
+  if (/^(?:who are you|what are you|tell me who you are|who is nyx|who is nix)$/.test(t)) {
+    return { intent: "identity", reply: "I’m Nyx, the public Sandblast assistant. I help you explore Sandblast Radio, TV, Roku, Synapse, LingoSentinel, media, AI, and business tools." };
+  }
+  if (/\b(?:what can you do|what can you help with|show me your capabilities|how can you help)\b/.test(t)) {
+    return { intent: "capabilities", reply: "I can guide you through the Sandblast ecosystem, answer questions, help you find radio, TV, Roku, Synapse, LingoSentinel, cartoons and classics, and direct you toward AI or business tools." };
+  }
+  if (/^(?:what is sandblast|tell me about sandblast|explain sandblast|what is the sandblast ecosystem)$/.test(t)) {
+    return { intent: "ecosystem_identity", reply: "Sandblast is a connected media and AI ecosystem that brings together live radio, television, Roku viewing, Synapse news, LingoSentinel language tools, entertainment, and business experiences through one guided interface." };
+  }
+
+  const navRules = [
+    { rx: /\b(?:open|play|start|take me to|go to|listen to|show me)\b.*\b(?:sandblast )?radio\b|^(?:radio|listen)$/i, target: "sandblast_radio", type: "play_radio", lane: "live", label: "Open Sandblast Radio", reply: "Sandblast Radio is ready. Use the Radio action to open the live stream." },
+    { rx: /\b(?:open|watch|take me to|go to|show me)\b.*\b(?:sandblast )?(?:tv|television)\b|^(?:tv|television)$/i, target: "sandblast_tv", type: "open_tv", lane: "watch", label: "Open Sandblast TV", reply: "Sandblast TV is ready. Use the TV action to open the viewing experience." },
+    { rx: /\b(?:open|watch|take me to|go to|show me)\b.*\broku\b|^(?:roku)$/i, target: "sandblast_roku", type: "open_roku", lane: "roku", label: "Open Sandblast on Roku", reply: "Sandblast on Roku is ready. Use the Roku action to continue to the television experience." },
+    { rx: /\b(?:open|read|take me to|go to|show me)\b.*\bsynapse\b|^(?:synapse|news)$/i, target: "synapse", type: "open_synapse", lane: "news", label: "Open Synapse", reply: "Synapse is ready. Use the Synapse action to open Sandblast news and stories." },
+    { rx: /\b(?:open|take me to|go to|show me)\b.*\blingo\s*sentinel\b|^(?:lingosentinel|lingo sentinel)$/i, target: "lingosentinel", type: "navigate", lane: "about", label: "Open LingoSentinel", reply: "LingoSentinel is ready. Use the LingoSentinel action to open the language experience." },
+    { rx: /\b(?:open|watch|show me)\b.*\b(?:classic )?cartoons?\b|^(?:cartoons?|classic cartoons?)$/i, target: "sandblast_cartoons", type: "open_media", lane: "watch", label: "Open Sandblast Cartoons", reply: "Sandblast Cartoons is ready. Use the Cartoons action to open the animated programming." },
+    { rx: /\b(?:open|watch|show me)\b.*\b(?:sandblast )?classics?\b|^(?:classics?|classic movies?)$/i, target: "sandblast_classics", type: "open_media", lane: "watch", label: "Open Sandblast Classics", reply: "Sandblast Classics is ready. Use the Classics action to open the classic-film programming." },
+    { rx: /\b(?:go|take me|return|back)\b.*\bhome\b|^(?:home)$/i, target: "sandblast_home", type: "navigate", lane: "home", label: "Return Home", reply: "The Sandblast home experience is ready. Use the Home action to return." }
+  ];
+  for (const rule of navRules) {
+    if (rule.rx.test(raw)) return { intent: "navigation", ...rule };
+  }
+  return null;
+}
+
+function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
+  const reply = cleanText(decision && decision.reply || "");
+  if (!reply) return null;
+  const action = decision.target ? {
+    contract: "nyx.guideAction/1.2",
+    id: `act_${replyHash(`${decision.type}|${decision.target}|${norm.turnId || ""}`).slice(0, 18)}`,
+    type: decision.type,
+    target: decision.target,
+    targetKey: decision.target,
+    lane: decision.lane || "home",
+    label: decision.label || "Open",
+    requiresUserGesture: true,
+    autoExecute: false,
+    serverExecutionAllowed: false,
+    symbolicTargetOnly: true,
+    idempotent: true
+  } : null;
+  const guideActionPlan = action ? {
+    contract: "nyx.guideActionPlan/1.1",
+    version: NYX_LOOP_LATENCY_FIX_VERSION,
+    planId: `plan_${replyHash(`${sessionId}|${action.id}`).slice(0, 18)}`,
+    actionCount: 1,
+    actions: [action],
+    requiresUserGesture: true,
+    autoExecute: false,
+    executionAuthority: "client_user_gesture"
+  } : undefined;
+  const latencyMs = Math.max(0, now() - startedAt);
+  return applyPublicReplyHygieneToResponse({
+    ok: true,
+    handled: true,
+    final: true,
+    finalized: true,
+    marionFinal: false,
+    awaitingMarion: false,
+    suppressUserFacingReply: false,
+    emit: true,
+    blocked: false,
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    response: reply,
+    message: reply,
+    displayReply: reply,
+    publicReply: reply,
+    visibleReply: reply,
+    finalReply: reply,
+    spokenText: reply,
+    textDisplay: reply,
+    textSpeak: reply,
+    payload: { reply, text: reply, message: reply, spokenText: reply, final: true, finalized: true, handled: true, publicFastPath: true },
+    finalEnvelope: { contractVersion: "nyx.public.final/1.0", authority: "nyx_public_fast_path", reply, text: reply, displayReply: reply, spokenText: reply, final: true, finalized: true, handled: true, publicFastPath: true },
+    guideActionPlan,
+    guideActions: action ? [action] : [],
+    lane: decision.lane || norm.lane || "public_interface",
+    sessionId,
+    turnId: norm.turnId,
+    traceId: norm.traceId,
+    meta: { v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "nyx_public_fast_path", semanticAuthority: "nyx", publicFastPath: true, intent: decision.intent, latencyMs, loopLatencyFixVersion: NYX_LOOP_LATENCY_FIX_VERSION, noUserFacingDiagnostics: true }
+  });
+}
+
+function buildNyxPublicTimeoutResponse(norm, sessionId, startedAt, detail = "public_response_budget_exceeded") {
+  const reply = "I couldn’t complete that response within the public response-time limit. Please try the request once more.";
+  const latencyMs = Math.max(0, now() - startedAt);
+  return applyPublicReplyHygieneToResponse({
+    ok: false, handled: true, final: true, finalized: true, marionFinal: false,
+    awaitingMarion: false, suppressUserFacingReply: false, emit: true, blocked: false,
+    reply, text: reply, answer: reply, output: reply, response: reply, message: reply, displayReply: reply, spokenText: reply,
+    payload: { reply, text: reply, message: reply, spokenText: reply, final: true, timeout: true },
+    finalEnvelope: { contractVersion: "nyx.public.timeout/1.0", authority: "nyx_public_timeout", reply, text: reply, displayReply: reply, spokenText: reply, final: true, handled: true, timeout: true },
+    sessionId, turnId: norm.turnId, traceId: norm.traceId, lane: norm.lane || "public_interface",
+    meta: { v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "nyx_public_timeout", latencyMs, timeoutBudgetMs: CFG.publicRequestTimeoutMs, detail, loopLatencyFixVersion: NYX_LOOP_LATENCY_FIX_VERSION, noUserFacingDiagnostics: true }
+  });
+}
 
 function isSandblastOrigin(origin) {
   const o = cleanText(origin);
@@ -7008,10 +7165,12 @@ function maybeSweepMemory() {
   prune(memory.supportBySession);
   prune(memory.transportBySession);
   prune(memory.spineBySession);
+  prune(memory.conversationInFlight);
   pruneMapToMaxSize(memory.lastBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
   pruneMapToMaxSize(memory.supportBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
   pruneMapToMaxSize(memory.transportBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
   pruneMapToMaxSize(memory.spineBySession, HARDENING_CONSTANTS.MAX_SESSIONS);
+  pruneMapToMaxSize(memory.conversationInFlight, HARDENING_CONSTANTS.MAX_SESSIONS);
 }
 
 function shouldLogRequest(req, statusCode, durationMs) {
@@ -9903,7 +10062,8 @@ const memory = {
   lastBySession: new Map(),
   supportBySession: new Map(),
   transportBySession: new Map(),
-  spineBySession: new Map()
+  spineBySession: new Map(),
+  conversationInFlight: new Map()
 };
 
 function getSessionId(req) {
@@ -12252,7 +12412,9 @@ function detectLoop(sessionId, reply, userText, opts) {
   const sameTurn = !!(o.turnId && ((prev && prev.turnId === o.turnId) || (transport && transport.turnId === o.turnId)));
   const sameRoute = !o.route || !prev || !prev.route || prev.route === o.route;
   const sameAuthority = !o.authority || !prev || !prev.replyAuthority || prev.replyAuthority === o.authority;
-  return { sameReply, sameUser, sameTurn, sameRoute, sameAuthority, repeated: (sameReply && sameUser && sameRoute && sameAuthority) || sameTurn, curHash, userHash, previousTurnId: cleanText(prev && prev.turnId || "") };
+  const staleReplyAcrossDifferentInput = sameReply && !sameUser && sameRoute && sameAuthority;
+  const duplicateTurnSubmission = sameTurn && sameUser;
+  return { sameReply, sameUser, sameTurn, sameRoute, sameAuthority, staleReplyAcrossDifferentInput, duplicateTurnSubmission, repeated: staleReplyAcrossDifferentInput || duplicateTurnSubmission, curHash, userHash, previousTurnId: cleanText(prev && prev.turnId || "") };
 }
 
 function applyAffectBridge(base, affectInput) {
@@ -15385,7 +15547,21 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     });
   }
 
-  const languageSphereApiMiddlewareResult = await applyLanguageSphereApiMiddlewareToNorm(norm, req, sessionId);
+  const publicFastPathDecision = buildNyxPublicFastPathDecision(norm);
+  if (publicFastPathDecision) {
+    const fastResponse = buildNyxPublicFastPathResponse(norm, sessionId, startedAt, publicFastPathDecision);
+    const fastReply = cleanText(fastResponse && (fastResponse.reply || fastResponse.text) || "");
+    if (fastResponse && fastReply) {
+      setTransportState(sessionId, { key: buildTransportKey(norm, norm.text, req), turnId: norm.turnId, reply: fastReply, replyHash: replyHash(fastReply), userHash: replyHash(norm.text), finalized: true, route: fastResponse.lane || norm.lane || "public_interface", authority: "nyx_public_fast_path", count: 1 });
+      setLastTurn(sessionId, { replyHash: replyHash(fastReply), userHash: replyHash(norm.text), lane: fastResponse.lane || norm.lane || "public_interface", replyAuthority: "nyx_public_fast_path", turnId: norm.turnId, route: fastResponse.lane || norm.lane || "public_interface", finalized: true, userText: cleanText(norm.originalText || norm.rawUserText || norm.text), resolvedUserText: cleanText(norm.text), reply: fastReply, topic: cleanText(publicFastPathDecision.target || publicFastPathDecision.intent || "sandblast") });
+      res.setHeader("Server-Timing", `nyx_fast;dur=${Math.max(0, now() - startedAt)}`);
+      res.setHeader("X-SB-Nyx-Path", "public-fast");
+      return res.status(200).json(fastResponse);
+    }
+  }
+
+  const languageSphereRequired = shouldRunLanguageSphereForTurn(norm);
+  const languageSphereApiMiddlewareResult = languageSphereRequired ? await applyLanguageSphereApiMiddlewareToNorm(norm, req, sessionId) : null;
   if (languageSphereApiMiddlewareResult && languageSphereApiMiddlewareResult.blocked) {
     const blocked = isObj(languageSphereApiMiddlewareResult.result && languageSphereApiMiddlewareResult.result.marionPayload)
       ? languageSphereApiMiddlewareResult.result.marionPayload
@@ -15403,10 +15579,13 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
 
   const transportKey = buildTransportKey(norm, norm.text, req);
   const transportState = getTransportState(sessionId);
+  const transportAgeMs = startedAt - Number(transportState.at || 0);
+  const sameTurnTransportReplay = cleanText(transportState.turnId || "") === cleanText(norm.turnId || "");
+  const recentFinalDuplicateSubmit = transportState.finalized === true && !!cleanText(transportState.reply || "") && transportAgeMs >= 0 && transportAgeMs < CFG.duplicateSubmitWindowMs;
   const priorTransportReplay = transportKey &&
     transportState.key === transportKey &&
-    cleanText(transportState.turnId || "") === cleanText(norm.turnId || "") &&
-    (startedAt - Number(transportState.at || 0) < CFG.transportReplayCacheMs);
+    (sameTurnTransportReplay || recentFinalDuplicateSubmit) &&
+    transportAgeMs < CFG.transportReplayCacheMs;
   if (priorTransportReplay && !norm.resetConversation && !norm.staleCarryBypass) {
     const cachedReply = finalizeRenderableReply(transportState.reply || priorTurn && priorTurn.reply || "", norm, "transport_replay_cache", "cached_reply_guard");
     if (isBlockedLoopingSupportReply(cachedReply) || hasUserVisibleDebugLeak(cachedReply) || isPublicWorkflowStateLeak(cachedReply) || isLastMileProgressionIntentText(norm.text)) {
@@ -15439,7 +15618,16 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
   setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, userHash: replyHash(norm.text), count: 1, finalized: false, route: norm.lane || "general" });
 
-  const languageSphereInput = await normalizeIndexInputForMarion(norm);
+  const languageSphereInput = languageSphereRequired ? await normalizeIndexInputForMarion(norm) : {
+    ok: true,
+    bypassed: true,
+    originalText: cleanText(norm.originalText || norm.text),
+    normalizedText: cleanText(norm.text),
+    translatedForRouting: false,
+    sourceLanguage: cleanText(norm.sourceLanguage || "en") || "en",
+    targetLanguage: cleanText(norm.targetLanguage || "en") || "en",
+    version: NYX_LOOP_LATENCY_FIX_VERSION
+  };
   norm.languageSphereInput = languageSphereInput;
   norm.languageSphere = {
     ...(isObj(norm.languageSphere) ? norm.languageSphere : {}),
@@ -15679,21 +15867,44 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   let errorDetail = "";
   let loopReplyWasBlocked = false;
 
+  const publicSurfaceTurn = isNyxPublicSurfaceRequest(norm);
+  const bridgeBudgetMs = publicSurfaceTurn ? CFG.publicRequestTimeoutMs : CFG.requestTimeoutMs;
+  const inFlightKey = `${sessionId}|${transportKey || replyHash(norm.text)}`;
   try {
-    marion = await callWithTimeout(callMarionBridge(marionInput), CFG.requestTimeoutMs, "marion_bridge");
+    let sharedBridgePromise = memory.conversationInFlight.get(inFlightKey);
+    if (!sharedBridgePromise) {
+      sharedBridgePromise = callWithTimeout(callMarionBridge(marionInput), bridgeBudgetMs, "marion_bridge")
+        .finally(() => memory.conversationInFlight.delete(inFlightKey));
+      touchMapEntry(memory.conversationInFlight, inFlightKey, sharedBridgePromise);
+    }
+    marion = await sharedBridgePromise;
   } catch (err) {
     errorDetail = cleanText(err && (err.message || err) || "marion_bridge_failed");
-    console.log("[Sandblast][chatRoute:marion_transport_error]", { traceId: norm.traceId, error: errorDetail });
+    console.log("[Sandblast][chatRoute:marion_transport_error]", { traceId: norm.traceId, error: errorDetail, bridgeBudgetMs, publicSurfaceTurn });
   }
 
   marion = normalizeMarionBridgeResult(marion, marionInput);
-  if (marion && !getMarionAuthorityReply(marion)) {
-    const promotedFromComposer = await callComposeMarionResponseRuntime(marionInput, marion);
+  const bridgeTimedOut = /marion_bridge_timeout|timeout/i.test(errorDetail);
+  if (marion && !getMarionAuthorityReply(marion) && !(publicSurfaceTurn && bridgeTimedOut)) {
+    let promotedFromComposer = null;
+    try {
+      promotedFromComposer = await callWithTimeout(callComposeMarionResponseRuntime(marionInput, marion), CFG.composerFallbackTimeoutMs, "compose_marion_fallback");
+    } catch (composerErr) {
+      console.log("[Sandblast][chatRoute:composer_fallback_timeout]", { traceId: norm.traceId, error: cleanText(composerErr && (composerErr.message || composerErr) || "composer_fallback_failed") });
+    }
     if (promotedFromComposer && getMarionAuthorityReply(promotedFromComposer)) {
       marion = promotedFromComposer;
       errorDetail = "";
       console.log("[Sandblast][chatRoute:finalEnvelopeReplyPromotionV50]", { traceId: norm.traceId, promoted: true, source: "composeMarionResponse" });
     }
+  }
+  if (!marion && publicSurfaceTurn && bridgeTimedOut) {
+    const timeoutResponse = buildNyxPublicTimeoutResponse(norm, sessionId, startedAt, errorDetail);
+    const timeoutReply = cleanText(timeoutResponse && (timeoutResponse.reply || timeoutResponse.text) || "");
+    setTransportState(sessionId, { key: "", turnId: norm.turnId, reply: timeoutReply, replyHash: replyHash(timeoutReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "public_interface", authority: "nyx_public_timeout", count: 1, timedOut: true });
+    res.setHeader("Server-Timing", `nyx_timeout;dur=${Math.max(0, now() - startedAt)}`);
+    res.setHeader("X-SB-Nyx-Path", "public-timeout");
+    return res.status(200).json(timeoutResponse);
   }
   const marionReply = getMarionAuthorityReply(marion);
   const marionHasFreshEnvelope = hasFreshMarionFinalEnvelope(marion);
@@ -16178,7 +16389,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     }
   }
 
-  const languageSphereFinal = await applyIndexLanguageSphereToTrustedFinal(selected, norm, reply);
+  const languageSphereFinal = languageSphereRequired ? await applyIndexLanguageSphereToTrustedFinal(selected, norm, reply) : null;
   if (languageSphereFinal && isObj(languageSphereFinal.packet)) {
     selected = languageSphereFinal.packet;
     reply = finalizeRenderableReply(languageSphereFinal.reply || selected.reply || selected.text || reply, norm, authority, "language_sphere_final_route_guard");
@@ -16474,7 +16685,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     lane: selected.lane || norm.lane || "general",
     laneId: selected.laneId || selected.lane || norm.lane || "general",
     sessionLane: selected.sessionLane || selected.lane || norm.lane || "general",
-    bridge: selected.bridge || null,
+    bridge: CFG.publicDiagnostics ? (selected.bridge || null) : undefined,
     marionIntent: norm.marionIntent,
     marionRouting: norm.marionRouting,
     matchedPacketId: selected.matchedPacketId || undefined,
@@ -16559,6 +16770,9 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     },
     voiceRoute: selected.voiceRoute || undefined
   });
+  res.setHeader("Server-Timing", `nyx_total;dur=${Math.max(0, now() - startedAt)}`);
+  res.setHeader("X-SB-Nyx-Path", "marion-final");
+  res.setHeader("X-SB-Nyx-Backend-Ms", String(Math.max(0, now() - startedAt)));
   return res.status(200).json(publicResponse);
   } catch (err) {
     const traceId = cleanText((req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"]))) || makeTraceId("chat"));
