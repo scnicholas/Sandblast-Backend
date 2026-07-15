@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: explicit public media discovery overrides stale and generated law signals.
+
 // NYX-GUIDE-STEPS-7-8-9-R1: safe action orchestration and public preference intent routing.
 
 /**
@@ -1958,7 +1960,19 @@ function r18cConStr(value){return value==null?"":String(value).replace(/\s+/g," 
 function r18cConObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function r18cConFirst(){for(let i=0;i<arguments.length;i+=1){const v=r18cConStr(arguments[i]);if(v)return v;}return"";}
 function r18cConExtractText(packet){const p=r18cConObj(packet),payload=r18cConObj(p.payload),meta=r18cConObj(p.meta),session=r18cConObj(p.session);return r18cConFirst(p.text,p.userText,p.message,p.prompt,p.query,p.rawUserText,p.normalizedUserIntent,p.effectivePrompt,payload.text,payload.userText,payload.message,meta.text,session.lastUserText);}
+
+function r18cConIsExplicitMediaTurn(text=""){
+  const t=r18cConStr(text).toLowerCase();
+  if(!t)return false;
+  const explicitLegal=/\b(law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/i.test(t);
+  if(explicitLegal)return false;
+  const mediaSignal=/\b(watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|classics?|classic movies?|public[-\s]?domain movies?|sandblast tv|television|roku|media|video)\b/i.test(t);
+  const discoveryOrNavigation=/\b(what|which|can i|is|are|available|show me|open|launch|go to|take me to|play|start|tell me about|on sandblast)\b/i.test(t);
+  return mediaSignal&&discoveryOrNavigation;
+}
+
 function r18cConCategories(text=""){
+  if(r18cConIsExplicitMediaTurn(text))return [];
   const t=r18cConStr(text).toLowerCase(), out=[]; const add=(key,rx)=>{if(rx.test(t)&&!out.includes(key))out.push(key);};
   add("contract",/\b(contract|agreement|nda|terms|clause|consideration|breach|indemnity|warranty|termination|assignment)\b/i);
   add("copyright_licensing",/\b(copyright|copyrighted|licen[cs]e|licen[cs]ing|distribution rights?|broadcast rights?|ott rights?|roku rights?|streaming rights?|content rights?|fair use|public domain|royalty)\b/i);
@@ -1977,10 +1991,11 @@ function r18cConTechnicalSuppressed(text=""){
 }
 function buildR18CLawConciergeProtocol(packet={},base={}){
   const text=r18cConExtractText(packet)||r18cConFirst(r18cConObj(base).rawUserText,r18cConObj(base).normalizedUserIntent,r18cConObj(base).text);
-  const src=[text,JSON.stringify(r18cConObj(base)).slice(0,1400)].join(" ");
-  const categories=r18cConCategories(src);
-  const explicit=/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(src);
-  const active=(categories.length>0||explicit)&&!r18cConTechnicalSuppressed(text);
+  const src=text;
+  const mediaCurrentTurn=r18cConIsExplicitMediaTurn(text);
+  const categories=mediaCurrentTurn?[]:r18cConCategories(text);
+  const explicit=!mediaCurrentTurn&&/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(text);
+  const active=!mediaCurrentTurn&&(categories.length>0||explicit)&&!r18cConTechnicalSuppressed(text);
   const secondary=[];
   if(/\b(ai|artificial intelligence|model|llm|automation|agent)\b/i.test(src))secondary.push("ai");
   if(/\b(cyber|security|privacy|data protection|credential|access|identity)\b/i.test(src))secondary.push("cyber");
@@ -2059,7 +2074,19 @@ function r18cApplyLawConciergeProtocol(result,packet){
       return /\b(activefeaturelane|knowledgeDomain|primaryDomain|selectedDomain|domain|route|lastTopic|currentObjective)\b/.test(c) &&
         /\b(law|legal|contract|copyright|licensing|liability|compliance|jurisdiction)\b/.test(c);
     }
+
+    function isExplicitMediaCurrentTurn(text){
+      const t = lower(text);
+      if (!t) return false;
+      const explicitLegal = /\b(law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(t);
+      if (explicitLegal) return false;
+      const mediaSignal = /\b(watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|classics?|classic movies?|public[-\s]?domain movies?|sandblast tv|television|roku|media|video)\b/.test(t);
+      const discoveryOrNavigation = /\b(what|which|can i|is|are|available|show me|open|launch|go to|take me to|play|start|tell me about|on sandblast)\b/.test(t);
+      return mediaSignal && discoveryOrNavigation;
+    }
+
     function r18cDetectLawCategories(text){
+      if (isExplicitMediaCurrentTurn(text)) return [];
       const t = lower(text);
       const out = [];
       if (/\b(copyright|license|licence|licensing|distribution rights?|broadcast rights?|streaming rights?|public performance|sync rights?|roku|ott|movie|movies|moneti[sz]e|platform rights?)\b/.test(t)) out.push("copyright_licensing");
@@ -2072,7 +2099,7 @@ function r18cApplyLawConciergeProtocol(result,packet){
       if (/\b(jurisdiction|province|territory|court|tribunal|deadline|limitation|file|filing|procedure|serve|served|hearing)\b/.test(t)) out.push("jurisdiction_procedure");
       if (/\b(contract|agreement|clause|terms|breach|enforceable|consideration|promise|release|waiver|indemnity|distribution rights?)\b/.test(t)) out.push("contract");
       if (/\b(source|sources|verify|verification|case law|canlii|statute|regulation|official source|research)\b/.test(t)) out.push("source_verification");
-      if (!out.length && /\b(law|legal|rights?|obligation|permitted|allowed|can i|should i sign|safe to)\b/.test(t)) out.push("general_legal_risk");
+      if (!out.length && (/\b(law|legal|rights?|obligation|permitted|allowed|should i sign|safe to)\b/.test(t) || /\bcan i\s+(?:legally|lawfully|sue|sign|license|licence|distribute|publish|use copyrighted|terminate|fire)\b/.test(t))) out.push("general_legal_risk");
       const priority = ["employment_contractor","copyright_licensing","privacy_data","liability_dispute","ip_trademark_patent","compliance_regulatory","jurisdiction_procedure","corporate_business","contract","source_verification","general_legal_risk"];
       return Array.from(new Set(out)).sort((a,b)=>priority.indexOf(a)-priority.indexOf(b));
     }
@@ -2085,12 +2112,28 @@ function r18cApplyLawConciergeProtocol(result,packet){
       return Array.from(new Set(out.filter(x => x && x !== "law"))).slice(0,4);
     }
     function r18cIsLaw(text, ctx){
+      if (isExplicitMediaCurrentTurn(text)) return false;
       if (r18cTechnicalLawFileWork(text)) return false;
       const cats = r18cDetectLawCategories(text);
       if (cats.length && !(cats.length === 1 && cats[0] === "general_legal_risk" && !/\b(law|legal|rights|liability|contract|copyright|license|employment|fired|defamation|privacy|compliance|jurisdiction|safe to|permitted|allowed)\b/i.test(T(text)))) return true;
       return r18cShortLawFollowup(text, ctx);
     }
     function r18cProfile(text, ctx){
+      if (isExplicitMediaCurrentTurn(text)) return {
+        version: V,
+        active: false,
+        domain: "media",
+        primaryDomain: "media",
+        selectedDomain: "media",
+        knowledgeDomain: "media",
+        legalCategory: "",
+        legalCategories: [],
+        secondaryDomains: [],
+        currentTurnAuthority: true,
+        staleLawCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        noUserFacingDiagnostics: true
+      };
       const cats = r18cDetectLawCategories(text);
       const shortCarry = r18cShortLawFollowup(text, ctx);
       const category = cats[0] || (shortCarry ? "general_legal_risk" : "");
@@ -3066,7 +3109,7 @@ function r18cApplyLawConciergeProtocol(result,packet){
   function low(v){return txt(v).toLowerCase();}
   function inputText(p){const x=obj(p),b=obj(x.body),q=obj(x.payload),m=obj(x.meta);return txt(x.text||x.userText||x.message||x.query||x.prompt||b.text||b.message||b.query||q.text||q.message||q.query||m.text||m.message);}
   function isPublic(p){const x=obj(p),b=obj(x.body),q=obj(x.payload),m=obj(x.meta);return low(x.audience||b.audience||q.audience||m.audience)==="public"||low(x.lane||b.lane||q.lane)==="public_interface"||x.publicSurfaceOnly===true||b.publicSurfaceOnly===true||q.publicSurfaceOnly===true||x.publicIdentityLock===true||b.publicIdentityLock===true||q.publicIdentityLock===true;}
-  function fast(p){if(!isPublic(p))return null;const t=low(inputText(p));if(!t)return null;let route="",intent="simple_chat",reason="";
+  function fast(p){if(!isPublic(p))return null;const t=low(inputText(p));if(!t)return null;if(/\b(law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(t))return null;let route="",intent="simple_chat",reason="";
     if(/\b(radio|listen|music|love letters)\b/.test(t)){route="music";intent="music_query";reason="public_radio_fast_route";}
     else if(/\broku\b/.test(t)){route="roku";intent="roku_query";reason="public_roku_fast_route";}
     else if(/\b(tv|television|cartoons?|classics?|watch)\b/.test(t)){route="media";intent="simple_chat";reason="public_media_fast_route";}
@@ -3147,12 +3190,12 @@ function r18cApplyLawConciergeProtocol(result,packet){
   function explicitIntent(packet){
     const text = normalize(currentTurnText(packet));
     if (!text) return null;
-    const legalExplicit = /\b(law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|legal advice)\b/.test(text);
+    const legalExplicit = /\b(law|legal|legally|lawfully|lawyer|attorney|rights?|contract|liability|negligence|lawsuit|litigation|copyright|licen[cs]e|licen[cs]ing|trademark|jurisdiction|compliance|regulatory|legal risk|legal advice|distribution rights?|streaming rights?)\b/.test(text);
     const roku = /\broku\b/.test(text) || /\bwatch (?:it|that|this) on (?:my )?tv\b/.test(text);
     const media =
       /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what shows are available|what programming is available)$/.test(text) ||
       /\b(?:watch|view|stream|movies?|films?|shows?|programming|cartoons?|classics?|sandblast tv|television|video)\b/.test(text);
-    if (legalExplicit && !media && !roku) return null;
+    if (legalExplicit) return null;
     if (roku) return { route: "roku", intent: "roku_query", reason: "current_turn_explicit_roku_hardlock", targetLane: "roku" };
     if (media) return { route: "media", intent: "media_request", reason: "current_turn_explicit_media_hardlock", targetLane: "watch" };
     return null;
@@ -3361,8 +3404,8 @@ function r18cApplyLawConciergeProtocol(result,packet){
 
     const mediaNoun = /\b(?:watch|view|stream|movies?|films?|shows?|programming|cartoons?|animation|animated|classics?|classic movies?|public domain movies?|public domain films?|sandblast tv|television|video)\b/.test(text);
     const rokuNoun = /\broku\b/.test(text);
-    const legalExplicit = /\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|legal advice)\b/.test(text);
-    if (legalExplicit && !mediaNoun && !rokuNoun) return null;
+    const legalExplicit = /\b(?:law|legal|legally|lawfully|lawyer|attorney|rights?|contract|liability|negligence|lawsuit|litigation|copyright|licen[cs]e|licen[cs]ing|trademark|jurisdiction|compliance|regulatory|legal risk|legal advice|distribution rights?|streaming rights?)\b/.test(text);
+    if (legalExplicit) return null;
 
     const discovery =
       /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what films are available|what shows are available|what programming is available|what do you have to watch|what is available to watch)$/.test(text) ||
@@ -3632,7 +3675,7 @@ function r18cApplyLawConciergeProtocol(result,packet){
     const raw = currentTurnText(packet);
     const t = normalize(raw);
     if (!t || t.length > 1200 || isExplicitNavigation(t)) return null;
-    if (/\b(?:law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|employment law|privacy law|regulatory compliance|fiduciary|tort)\b/.test(t)) return { domain:"law", intent:"domain_question", highStakes:true };
+    if (/\b(?:law|legal|legally|lawfully|lawyer|attorney|rights?|contract|liability|negligence|lawsuit|litigation|copyright|licen[cs]e|licen[cs]ing|trademark|jurisdiction|legal risk|employment law|privacy law|regulatory compliance|distribution rights?|streaming rights?|public performance|fiduciary|tort)\b/.test(t)) return { domain:"law", intent:"domain_question", highStakes:true };
     if (/\b(?:cash flow|revenue|pricing|margin|runway|budget|forecast|finance|financial|profit|cost control|accounts receivable|working capital)\b/.test(t)) return { domain:"finance", intent:"domain_question", highStakes:true };
     if (/\b(?:cybersecurity|cyber security|cyber|least privilege|zero trust|phishing|ransomware|data breach|access control|mfa|multi factor|incident response|credential security)\b/.test(t)) return { domain:"cyber", intent:"domain_question", highStakes:true };
     if (/\b(?:artificial intelligence|machine learning|large language model|llm|generative ai|agentic ai|rag|retrieval augmented generation|ai system|ai model)\b/.test(t) || /(?:^|\s)ai(?:\s|$)/.test(t)) return { domain:"ai", intent:"domain_question", highStakes:false };
