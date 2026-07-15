@@ -1740,3 +1740,262 @@ function r18cApplyLawRouterSignals(result,norm,session,cog){
   catch(_){}
 })();
 /* NYX_DOMAIN_ROUTER_LOOP_LATENCY_FIX_R1_END */
+
+/* NYX_PUBLIC_CURRENT_TURN_MEDIA_ROUTE_HARDLOCK_R2_START */
+(function nyxPublicCurrentTurnMediaRouteHardlockR2(){
+  "use strict";
+  const VERSION = "nyx.domainRouter.publicCurrentTurnMediaHardlock/2.0";
+
+  function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
+  function obj(value){ return isObj(value) ? value : {}; }
+  function clean(value, max = 1800){
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
+  }
+  function lower(value){ return clean(value).toLowerCase(); }
+  function normalize(value){
+    return lower(value)
+      .replace(/[’‘]/g, "'")
+      .replace(/[^a-z0-9']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // Deliberately reads the current request only. It never falls back to session or
+  // previous-state text, because that is the exact mechanism that allowed Law carry
+  // to hijack an explicit Sandblast media request.
+  function currentTurnText(norm){
+    const n = obj(norm);
+    const payload = obj(n.payload);
+    const body = obj(n.body);
+    const meta = obj(n.meta);
+    const turn = obj(n.turn);
+    return clean(
+      n.rawUserText || n.userText || n.text || n.message || n.query || n.userQuery ||
+      n.prompt || n.effectivePrompt || n.normalizedUserIntent ||
+      payload.rawUserText || payload.userText || payload.text || payload.message || payload.query || payload.prompt ||
+      body.rawUserText || body.userText || body.text || body.message || body.query || body.prompt ||
+      turn.rawUserText || turn.userText || turn.text || turn.message || turn.query ||
+      meta.rawUserText || meta.userText || meta.text || meta.message || meta.query
+    );
+  }
+
+  function isPublicSurface(norm){
+    const n = obj(norm);
+    const payload = obj(n.payload);
+    const body = obj(n.body);
+    const meta = obj(n.meta);
+    const guide = obj(n.guideContext || payload.guideContext || body.guideContext || meta.guideContext);
+    const audience = lower(n.audience || payload.audience || body.audience || meta.audience);
+    const lane = lower(n.lane || payload.lane || body.lane || meta.lane);
+    return audience === "public" || lane === "public_interface" ||
+      n.publicSurfaceOnly === true || payload.publicSurfaceOnly === true || body.publicSurfaceOnly === true ||
+      n.publicIdentityLock === true || payload.publicIdentityLock === true || body.publicIdentityLock === true ||
+      /sandblast\.channel|nyx|ecosystem/i.test(clean(guide.surface || guide.site || n.surface || payload.surface));
+  }
+
+  function explicitCurrentTurnIntent(norm){
+    const raw = currentTurnText(norm);
+    const text = normalize(raw);
+    if (!text) return null;
+
+    const legalExplicit = /\b(law|legal|lawyer|attorney|contract|liability|negligence|lawsuit|litigation|copyright|trademark|jurisdiction|legal risk|legal advice)\b/.test(text);
+    const mediaExplicit =
+      /^(?:what can i watch|what is there to watch|what can we watch|what should i watch|show me something to watch|what movies are available|what shows are available|what programming is available)$/.test(text) ||
+      /\b(?:watch|view|stream|movies?|films?|shows?|programming|cartoons?|classics?|sandblast tv|television|video)\b/.test(text);
+    const rokuExplicit = /\broku\b/.test(text) || /\bwatch (?:it|that|this) on (?:my )?tv\b/.test(text);
+
+    // Explicit legal language wins only when the current turn itself contains it.
+    // Historical Law state is never allowed to manufacture a legal route.
+    if (legalExplicit && !mediaExplicit && !rokuExplicit) return null;
+
+    if (rokuExplicit) {
+      return {
+        kind: "roku_query",
+        primary: "roku",
+        reason: "current_turn_explicit_roku_hardlock",
+        confidence: 0.995,
+        targetLane: "roku"
+      };
+    }
+
+    if (mediaExplicit) {
+      return {
+        kind: "media_request",
+        primary: "media",
+        reason: "current_turn_explicit_media_hardlock",
+        confidence: 0.995,
+        targetLane: "watch"
+      };
+    }
+
+    return null;
+  }
+
+  function confidence(intent){
+    return {
+      version: "nyx.marion.domainConfidence/1.1",
+      confidence: intent.confidence,
+      confidenceScore: intent.confidence,
+      band: "high",
+      margin: 0.99,
+      ambiguous: false,
+      routeLocked: true,
+      failClosed: false,
+      needsClarifier: false,
+      highStakes: false,
+      primaryDomain: intent.primary,
+      selectedDomain: intent.primary,
+      domain: intent.primary,
+      knowledgeDomain: intent.primary,
+      secondaryDomains: [],
+      reason: intent.reason,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true
+    };
+  }
+
+  function routeResult(intent, norm){
+    const text = currentTurnText(norm);
+    const dc = confidence(intent);
+    return {
+      ok: true,
+      routerVersion: VERSION,
+      primary: intent.primary,
+      primaryDomain: intent.primary,
+      selectedDomain: intent.primary,
+      domain: intent.primary,
+      knowledgeDomain: intent.primary,
+      secondary: [],
+      secondaryDomains: [],
+      reason: intent.reason,
+      confidence: intent.confidence,
+      answerMode: "direct",
+      highStakes: false,
+      noCrossDomainBleed: true,
+      noUserFacingDiagnostics: true,
+      publicSurfaceClean: true,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      explicitCurrentTurnIntent: intent.kind,
+      guideRouting: {
+        contract: "nyx.guideRouting/1.0",
+        version: VERSION,
+        intent: intent.kind,
+        targetLane: intent.targetLane,
+        confidence: intent.confidence,
+        explicitAction: true,
+        routeLocked: true,
+        noKnowledgeDomainHijack: true,
+        executionAuthority: "client_user_gesture",
+        nonAuthority: true,
+        noUserFacingDiagnostics: true
+      },
+      routing: {
+        domain: intent.primary,
+        primaryDomain: intent.primary,
+        selectedDomain: intent.primary,
+        knowledgeDomain: intent.primary,
+        secondaryDomains: [],
+        intent: intent.kind,
+        answerMode: "direct",
+        reason: intent.reason,
+        routeLocked: true,
+        currentTurnAuthority: true,
+        staleCarrySuppressed: true,
+        noCrossDomainBleed: true,
+        highStakes: false,
+        targetLane: intent.targetLane
+      },
+      signals: {
+        publicCurrentTurnHardlock: true,
+        currentTurnOnly: true,
+        explicitMediaIntent: intent.kind === "media_request",
+        explicitRokuIntent: intent.kind === "roku_query",
+        staleLawCarrySuppressed: true,
+        sourceTextPresent: !!text,
+        noUserFacingDiagnostics: true
+      },
+      domainConfidence: dc,
+      stateSpinePatch: {
+        route: intent.primary,
+        domain: intent.primary,
+        selectedDomain: intent.primary,
+        knowledgeDomain: intent.primary,
+        intent: intent.kind,
+        previousDomainCarryAllowed: false,
+        staleCarrySuppressed: true,
+        staleLawCarrySuppressed: true,
+        currentTurnAuthority: true,
+        routeLocked: true,
+        shouldAdvanceState: true,
+        targetLane: intent.targetLane,
+        publicCurrentTurnMediaHardlockVersion: VERSION
+      }
+    };
+  }
+
+  function scoreResult(intent, norm){
+    const result = routeResult(intent, norm);
+    return {
+      ok: true,
+      routerVersion: VERSION,
+      scores: {
+        media: intent.primary === "media" ? 12.5 : 0,
+        roku: intent.primary === "roku" ? 12.5 : 0,
+        law: 0,
+        finance: 0,
+        cyber: 0,
+        psychology: 0,
+        english: 0,
+        ai: 0,
+        technical: 0,
+        core: 0.1
+      },
+      primary: intent.primary,
+      primaryDomain: intent.primary,
+      selectedDomain: intent.primary,
+      domain: intent.primary,
+      knowledgeDomain: intent.primary,
+      secondaryDomains: [],
+      confidence: intent.confidence,
+      domainConfidence: result.domainConfidence,
+      signals: result.signals,
+      stateSpinePatch: result.stateSpinePatch,
+      currentTurnAuthority: true,
+      staleCarrySuppressed: true,
+      noCrossDomainBleed: true
+    };
+  }
+
+  function wrapRoute(fn, kind){
+    if (typeof fn !== "function" || fn.__nyxPublicCurrentTurnMediaHardlockR2) return fn;
+    const wrapped = function wrappedNyxPublicCurrentTurnMediaHardlock(norm, session, cog, opts){
+      const intent = isPublicSurface(norm) ? explicitCurrentTurnIntent(norm) : null;
+      if (intent) return kind === "score" ? scoreResult(intent, norm) : routeResult(intent, norm);
+      return fn.call(this, norm, session, cog, opts);
+    };
+    try { Object.keys(fn).forEach((key) => { wrapped[key] = fn[key]; }); } catch (_) {}
+    wrapped.__nyxPublicCurrentTurnMediaHardlockR2 = true;
+    return wrapped;
+  }
+
+  try {
+    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+    if (!api) return;
+    if (typeof api.routeDomain === "function") api.routeDomain = wrapRoute(api.routeDomain, "route");
+    if (typeof api.scoreDomains === "function") api.scoreDomains = wrapRoute(api.scoreDomains, "score");
+    api.NYX_PUBLIC_CURRENT_TURN_MEDIA_ROUTE_HARDLOCK_VERSION = VERSION;
+    api.classifyNyxPublicCurrentTurnMediaIntent = explicitCurrentTurnIntent;
+    api.buildNyxPublicCurrentTurnMediaRoute = function build(norm){
+      const intent = explicitCurrentTurnIntent(norm);
+      return intent ? routeResult(intent, norm) : null;
+    };
+  } catch (_) {}
+})();
+/* NYX_PUBLIC_CURRENT_TURN_MEDIA_ROUTE_HARDLOCK_R2_END */
