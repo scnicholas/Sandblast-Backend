@@ -1,6 +1,7 @@
 "use strict";
 
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: media discovery cannot be reclassified by R18C law repair or final materialization.
+// NYX-MEDIA-CATALOG-RETRIEVAL-R6: dynamically read growing movie/cartoon manifests without fixed slot limits.
 
 /**
  * chatEngine.js
@@ -5225,7 +5226,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
 /* NYX_PUBLIC_MEDIA_DISCOVERY_FAST_COORDINATOR_R2_START */
 (function nyxPublicMediaDiscoveryFastCoordinatorR2(){
   "use strict";
-  const VERSION = "nyx.chatEngine.publicMediaDiscoveryFastCoordinator/2.0";
+  const VERSION = "nyx.chatEngine.publicMediaCatalogRetrieval/6.0";
 
   function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function obj(value){ return isObj(value) ? value : {}; }
@@ -5244,6 +5245,187 @@ module.exports = { normalizeVisibleFinalReplyFields,
       .replace(/\s+/g, " ")
       .trim();
   }
+
+  const CATALOG_VERSION = "nyx.chatEngine.mediaCatalogRetrieval/6.0";
+  const catalogFs = (() => { try { return require("fs"); } catch (_) { return null; } })();
+  const catalogPath = (() => { try { return require("path"); } catch (_) { return null; } })();
+  const catalogCache = new Map();
+
+  function catalogReadJson(candidates){
+    if (!catalogFs || !catalogPath) return null;
+    for (const candidate of Array.isArray(candidates) ? candidates : []) {
+      const filePath = clean(candidate, 1200);
+      if (!filePath) continue;
+      try {
+        const resolved = catalogPath.resolve(filePath);
+        const stat = catalogFs.statSync(resolved);
+        if (!stat.isFile()) continue;
+        const signature = `${Number(stat.mtimeMs || 0)}:${Number(stat.size || 0)}`;
+        const cached = catalogCache.get(resolved);
+        if (cached && cached.signature === signature) return cached.data;
+        const data = JSON.parse(catalogFs.readFileSync(resolved, "utf8"));
+        catalogCache.set(resolved, { signature, data });
+        return data;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  function catalogRoots(){
+    if (!catalogPath) return [];
+    return [
+      process.env.SB_NYX_MEDIA_CATALOG_ROOT,
+      catalogPath.join(__dirname, "..", "Data", "SandblastTV"),
+      catalogPath.join(process.cwd(), "Data", "SandblastTV")
+    ].map((value) => clean(value, 1200)).filter(Boolean);
+  }
+
+  function catalogChannel(kind){
+    if (!catalogPath) return {};
+    const candidates = [];
+    if (process.env.SB_NYX_CHANNELS_CATALOG_PATH) candidates.push(process.env.SB_NYX_CHANNELS_CATALOG_PATH);
+    for (const root of catalogRoots()) candidates.push(catalogPath.join(root, "channels.json"));
+    const channels = obj(catalogReadJson(candidates));
+    const list = Array.isArray(channels.channels) ? channels.channels : [];
+    return obj(list.find((item) => {
+      const slug = lower(obj(item).slug || obj(item).channel || obj(item).id);
+      return slug === kind || (kind === "classic" && slug === "classics");
+    }));
+  }
+
+  function catalogManifest(kind){
+    if (!catalogPath) return {};
+    const normalized = kind === "cartoons" ? "cartoons" : "classic";
+    const fileName = normalized === "cartoons" ? "cartoons.json" : "classic.json";
+    const candidates = [];
+    const envPath = normalized === "cartoons" ? process.env.SB_NYX_CARTOON_CATALOG_PATH : process.env.SB_NYX_CLASSIC_CATALOG_PATH;
+    if (envPath) candidates.push(envPath);
+    const channel = catalogChannel(normalized);
+    const manifestRef = clean(channel.guideManifestUrl || channel.manifestUrl || channel.catalogUrl, 1200);
+    if (manifestRef) {
+      const relative = manifestRef.replace(/^https?:\/\/[^/]+/i, "").replace(/^\/+/, "");
+      for (const root of catalogRoots()) {
+        candidates.push(catalogPath.join(catalogPath.dirname(root), relative));
+        candidates.push(catalogPath.join(root, relative.replace(/^Data[\\/]+SandblastTV[\\/]+/i, "")));
+      }
+    }
+    for (const root of catalogRoots()) {
+      candidates.push(catalogPath.join(root, "blocks", fileName));
+      candidates.push(catalogPath.join(root, fileName));
+    }
+    return obj(catalogReadJson(candidates));
+  }
+
+  function catalogRows(manifest){
+    const src = obj(manifest), nested = obj(src.data);
+    for (const value of [src.slots, src.items, src.programs, src.lineup, src.entries, src.catalog, nested.slots, nested.items, nested.programs]) {
+      if (Array.isArray(value)) return value;
+    }
+    return [];
+  }
+
+  function catalogSnapshot(kind){
+    const normalized = kind === "cartoons" ? "cartoons" : "classic";
+    const manifest = catalogManifest(normalized);
+    const rows = catalogRows(manifest);
+    const active = rows.map((row, index) => {
+      const item = obj(row);
+      const title = clean(item.title || item.name || item.displayName || item.programTitle || item.episodeTitle, 180);
+      const note = clean(item.notes || item.subtitle || item.episode || item.description, 120);
+      const status = lower(item.validationStatus || item.status || item.state);
+      const enabled = !!title && item.enabled !== false && item.active !== false && item.available !== false &&
+        !/^(?:empty|disabled|inactive|removed|unavailable)$/.test(status) &&
+        !/^sandblast\s+(?:classics?|cartoons?)\s+slot\s+\d+$/i.test(title);
+      return enabled ? { title, note, position: Number(item.position) || index + 1 } : null;
+    }).filter(Boolean).sort((a,b) => a.position - b.position);
+    const counts = new Map();
+    active.forEach((item) => counts.set(item.title.toLowerCase(), (counts.get(item.title.toLowerCase()) || 0) + 1));
+    const seen = new Set(), labels = [];
+    for (const item of active) {
+      const duplicate = (counts.get(item.title.toLowerCase()) || 0) > 1;
+      const useful = item.note && !/^duration verified\b/i.test(item.note) && item.note.toLowerCase() !== item.title.toLowerCase();
+      const label = duplicate && useful ? `${item.title} — ${item.note}` : item.title;
+      const key = label.toLowerCase();
+      if (!seen.has(key)) { seen.add(key); labels.push(label); }
+    }
+    return {
+      version: CATALOG_VERSION,
+      kind: normalized,
+      channel: clean(manifest.channel || normalized, 80),
+      displayName: clean(manifest.displayName || (normalized === "cartoons" ? "Sandblast Cartoons" : "Sandblast Classics"), 120),
+      updatedAt: clean(manifest.updatedAt || manifest.lastStructuredAt, 80),
+      activeCount: labels.length,
+      labels,
+      dynamic: true
+    };
+  }
+
+  function naturalList(values){
+    const list = (Array.isArray(values) ? values : []).map((value) => clean(value, 180)).filter(Boolean);
+    if (!list.length) return "";
+    if (list.length === 1) return list[0];
+    if (list.length === 2) return `${list[0]} and ${list[1]}`;
+    return `${list.slice(0,-1).join(", ")}, and ${list[list.length-1]}`;
+  }
+
+  function catalogIntent(text){
+    const t = normalize(text);
+    if (!t || /\b(?:open|launch|go to|take me to|continue to|switch to|return to|play|start watching)\b/.test(t)) return "";
+    const listing = /\b(?:what|which|list|name|tell me|show me|available|availability|lineup|catalog|selection|selections|have|offering|offerings|currently)\b/.test(t);
+    if (listing && /\b(?:cartoons?|animation|animated)\b/.test(t)) return "cartoon_catalog";
+    if (listing && /\b(?:movies?|films?|classics?|classic films?|classic movies?)\b/.test(t)) return "movie_catalog";
+    if (/^(?:what can i watch(?: on sandblast)?|what is there to watch(?: on sandblast)?|what can we watch(?: on sandblast)?|what should i watch(?: on sandblast)?|what programming is available(?: on sandblast)?|what shows are available(?: on sandblast)?|what do you have to watch(?: on sandblast)?|what is available to watch(?: on sandblast)?)$/.test(t) ||
+      /\b(?:what|which)\b.{0,50}\b(?:watch|programming|shows?)\b/.test(t)) return "media_overview";
+    return "";
+  }
+
+  function catalogDecision(text){
+    const intent = catalogIntent(text);
+    if (!intent) return null;
+    const movies = catalogSnapshot("classic"), cartoons = catalogSnapshot("cartoons");
+    const all = /\b(?:all|every|full|complete|entire)\b/.test(normalize(text));
+    const limit = Math.max(3, Math.min(50, Number(process.env[all ? "SB_NYX_CATALOG_FULL_LIMIT" : "SB_NYX_CATALOG_PREVIEW_LIMIT"]) || (all ? 20 : 5)));
+    function summary(catalog){
+      const shown = catalog.labels.slice(0, limit);
+      return { ...catalog, shown, shownCount: shown.length, remainingCount: Math.max(0, catalog.activeCount - shown.length) };
+    }
+    const m = summary(movies), c = summary(cartoons);
+    let selected = null, reply = "";
+    if (intent === "movie_catalog") {
+      selected = m;
+      reply = m.activeCount
+        ? `Current ${m.displayName} selections include ${naturalList(m.shown)}.${m.remainingCount ? ` There ${m.remainingCount === 1 ? "is" : "are"} ${m.remainingCount} more active ${m.remainingCount === 1 ? "selection" : "selections"} in the lineup.` : ""} New enabled movie titles appear automatically as the catalog grows. You can watch through Sandblast TV or Roku.`
+        : "The Sandblast Classics catalog is updating right now. Newly enabled movie titles will appear automatically.";
+    } else if (intent === "cartoon_catalog") {
+      selected = c;
+      reply = c.activeCount
+        ? `Current ${c.displayName} selections include ${naturalList(c.shown)}.${c.remainingCount ? ` There ${c.remainingCount === 1 ? "is" : "are"} ${c.remainingCount} more active ${c.remainingCount === 1 ? "selection" : "selections"} in the lineup.` : ""} New enabled cartoon titles appear automatically as the catalog grows. You can watch through Sandblast TV or Roku.`
+        : "The Sandblast Cartoons catalog is updating right now. Newly enabled cartoon titles will appear automatically.";
+    } else {
+      const parts = [];
+      if (m.activeCount) parts.push(`${m.activeCount} active classic-film selections, including ${naturalList(m.labels.slice(0,3))}`);
+      if (c.activeCount) parts.push(`${c.activeCount} active cartoon selections, including ${naturalList(c.labels.slice(0,3))}`);
+      reply = parts.length
+        ? `Sandblast currently offers ${naturalList(parts)}. The lineup updates automatically as new enabled titles are added. You can watch through Sandblast TV or Roku.`
+        : "You can watch Sandblast TV, classic cartoons, public-domain movies, and Sandblast programming on Roku.";
+    }
+    return {
+      intent, lane:"watch", reply,
+      catalog: {
+        version: CATALOG_VERSION,
+        intent,
+        dynamic:true,
+        updatedAt: selected ? selected.updatedAt : clean(m.updatedAt || c.updatedAt, 80),
+        activeCount: selected ? selected.activeCount : m.activeCount + c.activeCount,
+        shownCount: selected ? selected.shownCount : Math.min(3,m.activeCount)+Math.min(3,c.activeCount),
+        remainingCount: selected ? selected.remainingCount : Math.max(0,m.activeCount-3)+Math.max(0,c.activeCount-3),
+        channel: selected ? selected.channel : "sandblast_tv",
+        displayName: selected ? selected.displayName : "Sandblast TV",
+        titles: selected ? selected.shown : m.labels.slice(0,3).concat(c.labels.slice(0,3))
+      }
+    };
+  }
+
   function source(args){
     for (const value of Array.from(args || [])) if (isObj(value)) return value;
     return {};
@@ -5278,6 +5460,8 @@ module.exports = { normalizeVisibleFinalReplyFields,
     if (!text || text.length > 500) return null;
     const explicitLegalMediaQuestion = /\b(?:law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(text);
     if (explicitLegalMediaQuestion) return null;
+    const dynamicCatalogDecision = catalogDecision(prompt(input));
+    if (dynamicCatalogDecision) return dynamicCatalogDecision;
     const roku =
       /\broku\b/.test(text) &&
       (/\b(?:what|which|can i|is|available|watch|view|stream|get)\b/.test(text) ||
@@ -5331,6 +5515,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
       answerOnly: true,
       navigationSuggested: true,
       guideActions: [],
+      catalog: isObj(decision.catalog) ? decision.catalog : undefined,
       payload: {
         reply,
         text: reply,
@@ -5343,6 +5528,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
         actionValidationRequired: false,
         answerOnly: true,
         navigationSuggested: true,
+        catalog: isObj(decision.catalog) ? decision.catalog : undefined,
         guideActions: []
       },
       finalEnvelope: {
@@ -5360,6 +5546,7 @@ module.exports = { normalizeVisibleFinalReplyFields,
         actionValidationRequired: false,
         answerOnly: true,
         navigationSuggested: true,
+        catalog: isObj(decision.catalog) ? decision.catalog : undefined,
         guideActions: []
       },
       lane: decision.lane,
@@ -5372,7 +5559,9 @@ module.exports = { normalizeVisibleFinalReplyFields,
         validateAction: false,
         answerOnly: true,
         navigationSuggested: true,
+        catalog: isObj(decision.catalog) ? decision.catalog : undefined,
         mediaDiscoveryFastCoordinatorVersion: VERSION,
+        mediaCatalogRetrievalVersion: isObj(decision.catalog) ? CATALOG_VERSION : undefined,
         noUserFacingDiagnostics: true
       }
     };
@@ -5419,7 +5608,9 @@ module.exports = { normalizeVisibleFinalReplyFields,
       if (typeof api[name] === "function") api[name] = wrap(api[name], name);
     }
     api.NYX_PUBLIC_MEDIA_DISCOVERY_FAST_COORDINATOR_VERSION = VERSION;
+    api.NYX_MEDIA_CATALOG_RETRIEVAL_VERSION = CATALOG_VERSION;
     api.classifyNyxPublicMediaDiscoveryFastCoordinator = classify;
+    api.readNyxMediaCatalogSnapshot = catalogSnapshot;
     api.buildNyxPublicMediaDiscoveryFastReply = function build(input){
       const decision = classify(input);
       return decision ? packet(input, decision) : null;
