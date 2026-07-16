@@ -2,6 +2,7 @@
 
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: public media discovery bypasses all R18C law projection and response-edge mutation.
 // NYX-PUBLIC-MEDIA-RESPONSE-CONTRACT-R5.1: preserve explicit answer-only action metadata through final public projection.
+// NYX-MEDIA-CATALOG-RETRIEVAL-R6: read growing movie/cartoon manifests dynamically and answer with live titles.
 
 // NYX-GUIDE-STEPS-7-8-9-R1: action validation, consent-bound preferences, redacted telemetry, and release hardening.
 
@@ -5976,6 +5977,318 @@ function enforceNyxPublicKnowledgeAnswerOnlyR4(value, norm = {}, decision = null
   return out;
 }
 
+
+// NYX-MEDIA-CATALOG-RETRIEVAL-R6: manifest-driven movie/cartoon inventory with mtime-aware refresh and no fixed slot ceiling.
+const NYX_MEDIA_CATALOG_R6_VERSION = "nyx.index.mediaCatalogRetrieval/6.0";
+const NYX_MEDIA_CATALOG_CACHE_R6 = new Map();
+
+function nyxCatalogUniquePathsR6(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const item = cleanText(value);
+    if (!item) continue;
+    let resolved = item;
+    try { resolved = path.resolve(item); } catch (_) {}
+    const key = String(resolved).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(resolved);
+  }
+  return out;
+}
+
+function nyxCatalogReadJsonR6(candidates) {
+  for (const filePath of nyxCatalogUniquePathsR6(candidates)) {
+    try {
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile()) continue;
+      const signature = `${Number(stat.mtimeMs || 0)}:${Number(stat.size || 0)}`;
+      const cached = NYX_MEDIA_CATALOG_CACHE_R6.get(filePath);
+      if (cached && cached.signature === signature) {
+        return { ok: true, data: cached.data, filePath, signature, cached: true };
+      }
+      const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      NYX_MEDIA_CATALOG_CACHE_R6.set(filePath, { signature, data });
+      return { ok: true, data, filePath, signature, cached: false };
+    } catch (_) {}
+  }
+  return { ok: false, data: null, filePath: "", signature: "", cached: false };
+}
+
+function nyxCatalogRootCandidatesR6() {
+  return nyxCatalogUniquePathsR6([
+    process.env.SB_NYX_MEDIA_CATALOG_ROOT,
+    path.join(__dirname, "Data", "SandblastTV"),
+    path.join(process.cwd(), "Data", "SandblastTV"),
+    path.join(__dirname, "SandblastTV")
+  ]);
+}
+
+function nyxCatalogChannelsR6() {
+  const candidates = [];
+  if (process.env.SB_NYX_CHANNELS_CATALOG_PATH) candidates.push(process.env.SB_NYX_CHANNELS_CATALOG_PATH);
+  for (const root of nyxCatalogRootCandidatesR6()) candidates.push(path.join(root, "channels.json"));
+  const result = nyxCatalogReadJsonR6(candidates);
+  const data = isObj(result.data) ? result.data : {};
+  return {
+    ok: result.ok,
+    data,
+    channels: Array.isArray(data.channels) ? data.channels : [],
+    updatedAt: cleanText(data.updatedAt || ""),
+    sourceFile: result.filePath
+  };
+}
+
+function nyxCatalogManifestCandidatesR6(kind) {
+  const normalized = kind === "cartoons" ? "cartoons" : "classic";
+  const fileName = normalized === "cartoons" ? "cartoons.json" : "classic.json";
+  const envPath = normalized === "cartoons"
+    ? process.env.SB_NYX_CARTOON_CATALOG_PATH
+    : process.env.SB_NYX_CLASSIC_CATALOG_PATH;
+  const candidates = [];
+  if (envPath) candidates.push(envPath);
+
+  const channelSet = nyxCatalogChannelsR6();
+  const channel = channelSet.channels.find((item) => {
+    const slug = cleanText(item && (item.slug || item.channel || item.id)).toLowerCase();
+    return slug === normalized || (normalized === "classic" && slug === "classics");
+  });
+  const manifestRef = cleanText(channel && (channel.guideManifestUrl || channel.manifestUrl || channel.catalogUrl));
+  if (manifestRef) {
+    const relative = manifestRef.replace(/^https?:\/\/[^/]+/i, "").replace(/^\/+/, "");
+    for (const root of nyxCatalogRootCandidatesR6()) {
+      const parent = path.dirname(root);
+      candidates.push(path.join(parent, relative));
+      candidates.push(path.join(root, relative.replace(/^Data[\\/]+SandblastTV[\\/]+/i, "")));
+    }
+  }
+
+  for (const root of nyxCatalogRootCandidatesR6()) {
+    candidates.push(path.join(root, "blocks", fileName));
+    candidates.push(path.join(root, fileName));
+  }
+  return { candidates, channel: isObj(channel) ? channel : {}, channelsMeta: channelSet };
+}
+
+function nyxCatalogArrayR6(manifest) {
+  const src = isObj(manifest) ? manifest : {};
+  const nested = isObj(src.data) ? src.data : {};
+  for (const value of [
+    src.slots, src.items, src.programs, src.lineup, src.entries, src.catalog,
+    nested.slots, nested.items, nested.programs, nested.lineup, nested.entries
+  ]) {
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
+function nyxCatalogSlotTitleR6(slot) {
+  const item = isObj(slot) ? slot : {};
+  return cleanText(item.title || item.name || item.displayName || item.programTitle || item.episodeTitle || "");
+}
+
+function nyxCatalogSlotEnabledR6(slot) {
+  const item = isObj(slot) ? slot : {};
+  const status = cleanText(item.validationStatus || item.status || item.state || "").toLowerCase();
+  const title = nyxCatalogSlotTitleR6(item);
+  if (!title || item.enabled === false || item.active === false || item.available === false) return false;
+  if (/^(?:empty|disabled|inactive|removed|unavailable)$/.test(status)) return false;
+  if (/^sandblast\s+(?:classics?|cartoons?)\s+slot\s+\d+$/i.test(title)) return false;
+  return true;
+}
+
+function nyxCatalogDisplayTitlesR6(slots) {
+  const active = (Array.isArray(slots) ? slots : [])
+    .filter(nyxCatalogSlotEnabledR6)
+    .map((slot, index) => {
+      const title = nyxCatalogSlotTitleR6(slot);
+      const note = cleanText(slot.notes || slot.subtitle || slot.episode || slot.description || "", 120);
+      const position = Number(slot.position);
+      return {
+        title,
+        note,
+        position: Number.isFinite(position) ? position : index + 1,
+        sourceUrl: cleanText(slot.sourceUrl || slot.url || slot.mediaUrl || ""),
+        id: cleanText(slot.id || "")
+      };
+    })
+    .sort((a, b) => a.position - b.position);
+
+  const counts = new Map();
+  for (const item of active) {
+    const key = item.title.toLowerCase();
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+
+  const seen = new Set();
+  const items = [];
+  for (const item of active) {
+    let label = item.title;
+    const duplicate = (counts.get(item.title.toLowerCase()) || 0) > 1;
+    const usefulNote = item.note &&
+      !/^duration verified\b/i.test(item.note) &&
+      !/^source\b/i.test(item.note) &&
+      item.note.toLowerCase() !== item.title.toLowerCase();
+    if (duplicate && usefulNote) label += ` — ${item.note}`;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push({ ...item, label });
+  }
+  return items;
+}
+
+function readNyxMediaCatalogR6(kind) {
+  const normalized = kind === "cartoons" ? "cartoons" : "classic";
+  const resolved = nyxCatalogManifestCandidatesR6(normalized);
+  const result = nyxCatalogReadJsonR6(resolved.candidates);
+  const manifest = isObj(result.data) ? result.data : {};
+  const items = nyxCatalogDisplayTitlesR6(nyxCatalogArrayR6(manifest));
+  const displayName = cleanText(
+    manifest.displayName ||
+    resolved.channel.displayName ||
+    (normalized === "cartoons" ? "Sandblast Cartoons" : "Sandblast Classics")
+  );
+  return {
+    version: NYX_MEDIA_CATALOG_R6_VERSION,
+    kind: normalized,
+    channel: cleanText(manifest.channel || resolved.channel.slug || normalized),
+    displayName,
+    activeCount: items.length,
+    items,
+    updatedAt: cleanText(manifest.updatedAt || manifest.lastStructuredAt || resolved.channelsMeta.updatedAt || ""),
+    available: result.ok && items.length > 0,
+    dynamic: true
+  };
+}
+
+function nyxCatalogNaturalListR6(values) {
+  const items = (Array.isArray(values) ? values : []).map(cleanText).filter(Boolean);
+  if (!items.length) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function nyxCatalogPreviewLimitR6(text, count) {
+  const full = /\b(?:all|every|full|complete|entire)\b/.test(normalizeFastPathText(text));
+  const base = full
+    ? clampNumberEnv("SB_NYX_CATALOG_FULL_LIMIT", 20, 5, 50)
+    : clampNumberEnv("SB_NYX_CATALOG_PREVIEW_LIMIT", 5, 3, 12);
+  return Math.max(0, Math.min(count, base));
+}
+
+function classifyNyxMediaCatalogIntentR6(text) {
+  const t = normalizeFastPathText(text);
+  if (!t) return "";
+  if (/\b(?:open|launch|go to|take me to|continue to|switch to|return to|play|start watching)\b/.test(t)) return "";
+  const listing = /\b(?:what|which|list|name|tell me|show me|available|availability|lineup|catalog|selection|selections|have|offering|offerings|currently)\b/.test(t);
+  if (listing && /\b(?:cartoons?|animation|animated)\b/.test(t)) return "cartoon_catalog";
+  if (listing && /\b(?:movies?|films?|classics?|classic films?|classic movies?)\b/.test(t)) return "movie_catalog";
+  if (
+    /^(?:what can i watch(?: on sandblast)?|what is there to watch(?: on sandblast)?|what can we watch(?: on sandblast)?|what should i watch(?: on sandblast)?|what programming is available(?: on sandblast)?|what shows are available(?: on sandblast)?|what do you have to watch(?: on sandblast)?|what is available to watch(?: on sandblast)?)$/.test(t) ||
+    /\b(?:what|which)\b.{0,50}\b(?:watch|programming|shows?)\b/.test(t)
+  ) return "media_overview";
+  return "";
+}
+
+function buildNyxMediaCatalogReplyR6(intent, rawText) {
+  const movies = readNyxMediaCatalogR6("classic");
+  const cartoons = readNyxMediaCatalogR6("cartoons");
+
+  function summarize(catalog) {
+    const limit = nyxCatalogPreviewLimitR6(rawText, catalog.activeCount);
+    const shown = catalog.items.slice(0, limit).map((item) => item.label);
+    return {
+      ...catalog,
+      shown,
+      shownCount: shown.length,
+      remainingCount: Math.max(0, catalog.activeCount - shown.length)
+    };
+  }
+
+  const movieSummary = summarize(movies);
+  const cartoonSummary = summarize(cartoons);
+  let reply = "";
+
+  if (intent === "movie_catalog") {
+    if (movieSummary.activeCount) {
+      reply = `Current ${movieSummary.displayName} selections include ${nyxCatalogNaturalListR6(movieSummary.shown)}.`;
+      if (movieSummary.remainingCount) reply += ` There ${movieSummary.remainingCount === 1 ? "is" : "are"} ${movieSummary.remainingCount} more active ${movieSummary.remainingCount === 1 ? "selection" : "selections"} in the lineup.`;
+      reply += " New enabled movie titles appear automatically as the catalog grows. You can watch through Sandblast TV or Roku.";
+    } else {
+      reply = "The Sandblast Classics catalog is updating right now. You can still open Sandblast TV or Roku, and newly enabled movie titles will appear automatically.";
+    }
+  } else if (intent === "cartoon_catalog") {
+    if (cartoonSummary.activeCount) {
+      reply = `Current ${cartoonSummary.displayName} selections include ${nyxCatalogNaturalListR6(cartoonSummary.shown)}.`;
+      if (cartoonSummary.remainingCount) reply += ` There ${cartoonSummary.remainingCount === 1 ? "is" : "are"} ${cartoonSummary.remainingCount} more active ${cartoonSummary.remainingCount === 1 ? "selection" : "selections"} in the lineup.`;
+      reply += " New enabled cartoon titles appear automatically as the catalog grows. You can watch through Sandblast TV or Roku.";
+    } else {
+      reply = "The Sandblast Cartoons catalog is updating right now. You can still open Sandblast TV or Roku, and newly enabled cartoon titles will appear automatically.";
+    }
+  } else {
+    const parts = [];
+    if (movieSummary.activeCount) {
+      const examples = movieSummary.items.slice(0, Math.min(3, movieSummary.activeCount)).map((item) => item.label);
+      parts.push(`${movieSummary.activeCount} active classic-film selections, including ${nyxCatalogNaturalListR6(examples)}`);
+    }
+    if (cartoonSummary.activeCount) {
+      const examples = cartoonSummary.items.slice(0, Math.min(3, cartoonSummary.activeCount)).map((item) => item.label);
+      parts.push(`${cartoonSummary.activeCount} active cartoon selections, including ${nyxCatalogNaturalListR6(examples)}`);
+    }
+    reply = parts.length
+      ? `Sandblast currently offers ${nyxCatalogNaturalListR6(parts)}. The lineup updates automatically as new enabled titles are added. You can watch through Sandblast TV or Roku.`
+      : "You can watch Sandblast TV, classic cartoons, public-domain movies, and Sandblast programming on Roku. The lineup updates automatically as new titles are added.";
+  }
+
+  const selected = intent === "movie_catalog" ? movieSummary : intent === "cartoon_catalog" ? cartoonSummary : null;
+  return {
+    reply,
+    catalog: {
+      version: NYX_MEDIA_CATALOG_R6_VERSION,
+      intent,
+      dynamic: true,
+      updatedAt: selected ? selected.updatedAt : cleanText(movieSummary.updatedAt || cartoonSummary.updatedAt || ""),
+      activeCount: selected ? selected.activeCount : movieSummary.activeCount + cartoonSummary.activeCount,
+      shownCount: selected ? selected.shownCount : Math.min(3, movieSummary.activeCount) + Math.min(3, cartoonSummary.activeCount),
+      remainingCount: selected ? selected.remainingCount : Math.max(0, movieSummary.activeCount - 3) + Math.max(0, cartoonSummary.activeCount - 3),
+      channel: selected ? selected.channel : "sandblast_tv",
+      displayName: selected ? selected.displayName : "Sandblast TV",
+      titles: selected ? selected.shown : [
+        ...movieSummary.items.slice(0, 3).map((item) => item.label),
+        ...cartoonSummary.items.slice(0, 3).map((item) => item.label)
+      ]
+    }
+  };
+}
+
+function buildNyxMediaCatalogDecisionR6(text) {
+  const intent = classifyNyxMediaCatalogIntentR6(text);
+  if (!intent) return null;
+  const built = buildNyxMediaCatalogReplyR6(intent, text);
+  return {
+    intent,
+    lane: "watch",
+    domain: "media",
+    knowledgeDomain: "media",
+    routeType: "knowledge",
+    actionMode: "answer",
+    semanticRoute: true,
+    navigationRoute: false,
+    actionRequired: false,
+    validateAction: false,
+    actionValidationRequired: false,
+    pendingActionValidation: false,
+    answerOnly: true,
+    navigationSuggested: true,
+    suggestions: intent === "cartoon_catalog" ? ["Cartoons", "Sandblast TV", "Roku"] : ["Classics", "Sandblast TV", "Roku"],
+    reply: built.reply,
+    catalog: built.catalog
+  };
+}
+
 function buildNyxPublicFastPathDecision(norm = {}) {
   if (!isNyxPublicSurfaceRequest(norm)) return null;
   const raw = cleanText(norm.text || norm.userText || norm.message || norm.query || "");
@@ -6004,6 +6317,11 @@ function buildNyxPublicFastPathDecision(norm = {}) {
 
 
   const explicitLegalMediaQuestion = /\b(?:law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(t);
+
+  if (!explicitLegalMediaQuestion) {
+    const catalogDecisionR6 = buildNyxMediaCatalogDecisionR6(raw);
+    if (catalogDecisionR6) return catalogDecisionR6;
+  }
 
   const rokuDiscovery =
     !explicitLegalMediaQuestion &&
@@ -6218,6 +6536,18 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
   const domain = cleanText(decision.domain || decision.knowledgeDomain || "");
   const knowledgeDomain = cleanText(decision.knowledgeDomain || decision.domain || "");
   const suggestions = Array.isArray(decision.suggestions) ? decision.suggestions.slice(0, 8) : [];
+  const catalog = isObj(decision.catalog) ? {
+    version: cleanText(decision.catalog.version || NYX_MEDIA_CATALOG_R6_VERSION),
+    intent: cleanText(decision.catalog.intent || decision.intent || ""),
+    dynamic: decision.catalog.dynamic === true,
+    updatedAt: cleanText(decision.catalog.updatedAt || ""),
+    activeCount: Math.max(0, Number(decision.catalog.activeCount || 0) || 0),
+    shownCount: Math.max(0, Number(decision.catalog.shownCount || 0) || 0),
+    remainingCount: Math.max(0, Number(decision.catalog.remainingCount || 0) || 0),
+    channel: cleanText(decision.catalog.channel || ""),
+    displayName: cleanText(decision.catalog.displayName || ""),
+    titles: Array.isArray(decision.catalog.titles) ? decision.catalog.titles.map((item) => cleanText(item, 180)).filter(Boolean).slice(0, 50) : []
+  } : null;
   const latencyMs = Math.max(0, now() - startedAt);
   const fastPublicResponse = applyPublicReplyHygieneToResponse({
     ok: true,
@@ -6255,6 +6585,7 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
     domain: domain || undefined,
     knowledgeDomain: knowledgeDomain || undefined,
     pendingActionValidation: validateAction,
+    catalog: catalog || undefined,
     payload: {
       reply, text: reply, message: reply, spokenText: reply,
       final: true, finalized: true, handled: true, publicFastPath: true,
@@ -6263,6 +6594,7 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
       routeType, actionMode, semanticRoute, navigationRoute,
       domain: domain || undefined, knowledgeDomain: knowledgeDomain || undefined,
       pendingActionValidation: validateAction,
+      catalog: catalog || undefined,
       guideActions: action ? [action] : []
     },
     finalEnvelope: {
@@ -6274,6 +6606,7 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
       routeType, actionMode, semanticRoute, navigationRoute,
       domain: domain || undefined, knowledgeDomain: knowledgeDomain || undefined,
       pendingActionValidation: validateAction,
+      catalog: catalog || undefined,
       guideActions: action ? [action] : []
     },
     guideActionPlan,
@@ -6290,7 +6623,8 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
       domain: domain || undefined, knowledgeDomain: knowledgeDomain || undefined,
       pendingActionValidation: validateAction,
       latencyMs, loopLatencyFixVersion: NYX_LOOP_LATENCY_FIX_VERSION,
-      mediaDiscoveryNavigationSplit: true, noUserFacingDiagnostics: true
+      mediaDiscoveryNavigationSplit: true, mediaCatalogRetrievalVersion: catalog ? NYX_MEDIA_CATALOG_R6_VERSION : undefined,
+      catalog: catalog || undefined, noUserFacingDiagnostics: true
     }
   });
   const contractedResponse = enforceNyxPublicFastPathContractR4(fastPublicResponse, norm, sessionId, decision);
@@ -6316,6 +6650,12 @@ function buildNyxPublicFastPathResponse(norm, sessionId, startedAt, decision) {
     contractedResponse.payload = applyNyxPublicRouteContractR5(contractedResponse.payload, publicRouteContractR5);
     contractedResponse.finalEnvelope = applyNyxPublicRouteContractR5(contractedResponse.finalEnvelope, publicRouteContractR5);
     contractedResponse.meta = applyNyxPublicRouteContractR5(contractedResponse.meta, publicRouteContractR5);
+  }
+  if (catalog) {
+    contractedResponse.catalog = catalog;
+    contractedResponse.payload = { ...(isObj(contractedResponse.payload) ? contractedResponse.payload : {}), catalog };
+    contractedResponse.finalEnvelope = { ...(isObj(contractedResponse.finalEnvelope) ? contractedResponse.finalEnvelope : {}), catalog };
+    contractedResponse.meta = { ...(isObj(contractedResponse.meta) ? contractedResponse.meta : {}), catalog, mediaCatalogRetrievalVersion: NYX_MEDIA_CATALOG_R6_VERSION };
   }
   return contractedResponse;
 }
@@ -26643,6 +26983,10 @@ try {
     module.exports.buildNyxPublicFastPathDecision = buildNyxPublicFastPathDecision;
     module.exports.buildNyxPublicFastPathResponse = buildNyxPublicFastPathResponse;
     module.exports.isNyxPublicSurfaceRequest = isNyxPublicSurfaceRequest;
+    module.exports.NYX_MEDIA_CATALOG_R6_VERSION = NYX_MEDIA_CATALOG_R6_VERSION;
+    module.exports.readNyxMediaCatalogR6 = readNyxMediaCatalogR6;
+    module.exports.classifyNyxMediaCatalogIntentR6 = classifyNyxMediaCatalogIntentR6;
+    module.exports.buildNyxMediaCatalogDecisionR6 = buildNyxMediaCatalogDecisionR6;
   }
 } catch (_) {}
 /* NYX_PUBLIC_MEDIA_DISCOVERY_NAVIGATION_INDEX_EXPORT_R3_END */
@@ -26836,6 +27180,14 @@ try {
     if (explicitNavigation) return null;
     const explicitLegal = /\b(?:law|legal|legally|lawfully|lawyer|attorney|rights?|copyright|licen[cs]e|licen[cs]ing|contract|liability|negligence|lawsuit|litigation|jurisdiction|compliance|regulatory|regulation|indemnity|trademark|patent|privacy law|employment law|public performance|distribution rights?|streaming rights?)\b/.test(text);
     if (explicitLegal) return null;
+    const catalogDecisionR6 = buildNyxMediaCatalogDecisionR6(raw);
+    if (catalogDecisionR6) return {
+      intent: catalogDecisionR6.intent,
+      domain: "media",
+      knowledgeDomain: "media",
+      fallbackReply: catalogDecisionR6.reply,
+      catalog: catalogDecisionR6.catalog
+    };
     const rokuDiscovery =
       /\broku\b/.test(text) &&
       (
@@ -26901,7 +27253,12 @@ try {
     out.selectedDomain = "media";
     out.knowledgeDomain = "media";
     out.guideActions = [];
-    out.suggestions = ["Sandblast TV","Roku","Cartoons","Classics"];
+    out.suggestions = info.intent === "cartoon_catalog"
+      ? ["Cartoons","Sandblast TV","Roku"]
+      : info.intent === "movie_catalog"
+        ? ["Classics","Sandblast TV","Roku"]
+        : ["Sandblast TV","Roku","Cartoons","Classics"];
+    if (isObjR5(info.catalog)) out.catalog = { ...info.catalog };
     out.publicMediaResponseContractVersion = VERSION;
     return out;
   }
@@ -26940,8 +27297,15 @@ try {
       ...objR5(out.meta),
       replyAuthority: "nyx_public_media_fast_path",
       semanticAuthority: "nyx",
+      mediaCatalogRetrievalVersion: isObjR5(info.catalog) ? NYX_MEDIA_CATALOG_R6_VERSION : undefined,
+      catalog: isObjR5(info.catalog) ? { ...info.catalog } : objR5(out.meta).catalog,
       noUserFacingDiagnostics: true
     };
+    if (isObjR5(info.catalog)) {
+      out.catalog = { ...info.catalog };
+      out.payload.catalog = { ...info.catalog };
+      out.finalEnvelope.catalog = { ...info.catalog };
+    }
     return out;
   }
   try {
