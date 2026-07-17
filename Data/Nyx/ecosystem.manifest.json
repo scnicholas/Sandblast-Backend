@@ -1,0 +1,20 @@
+{
+  "contract": "nyx.ecosystemManifest/1.0",
+  "version": "1.0.0-phases-1-2",
+  "publicOnly": true,
+  "defaultSurface": "home",
+  "surfaces": {
+    "home": {"label":"Sandblast Home","url":"https://www.sandblast.channel/","capabilities":["guide","media","radio","navigation"]},
+    "radio": {"label":"Sandblast Radio","url":"https://www.sandblast.channel/radio","capabilities":["guide","play_radio","stop_radio","programming"]},
+    "tv": {"label":"Sandblast TV","url":"https://www.sandblast.channel/tv","capabilities":["guide","media","programming","now_next"]},
+    "roku": {"label":"Sandblast on Roku","url":"https://www.sandblast.channel/sandblast-on-roku","capabilities":["guide","roku","programming"]},
+    "synapse": {"label":"Synapse","url":"https://www.sandblast.channel/synapse","capabilities":["guide","news","summarize","discover"]},
+    "lingosentinel": {"label":"Lingo Sentinel","url":"https://www.sandblast.channel/lingosentinel","capabilities":["guide","language","cultural_dialogue"]},
+    "apps": {"label":"Sandblast Apps","url":"https://www.sandblast.channel/apps","capabilities":["guide","apps","navigation"]},
+    "about": {"label":"About Sandblast","url":"https://www.sandblast.channel/about","capabilities":["guide","ecosystem","navigation"]},
+    "start": {"label":"Get Started","url":"https://www.sandblast.channel/start","capabilities":["guide","onboarding","navigation"]}
+  },
+  "aliases": {"live":"radio","watch":"tv","television":"tv","news":"synapse","nyx":"home","guide":"home","sandblast_tv":"tv","sandblast_radio":"radio","sandblast_roku":"roku"},
+  "allowedActions": ["navigate","play_radio","stop_radio","open_media","open_tv","open_roku","open_synapse","summarize","focus_input","dismiss_guide","go_back","continue"],
+  "privateSurfaces": ["marion","admin","operator"]
+}
