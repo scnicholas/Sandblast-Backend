@@ -25752,20 +25752,31 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 })();
 /* R18C_FULL_STACK_INDEX_TRANSPORT_GUARD_END */
 
-/* SANDBLAST_TV_OPERATIONAL_RESPONSE_BOUNDARY_V2_START
- * Hard namespace isolation for Sandblast TV operational/admin JSON.
- * Prevents global Marion/Nyx Express response projectors from mutating
- * /api/sandblast-tv/v1 and all descendants.
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V3_START
+ * Hard namespace isolation for machine-readable Sandblast TV and NYX
+ * ecosystem operational JSON. Prevents global Marion/NYX conversation,
+ * identity and voice projectors from mutating these API contracts.
  */
+function isNyxEcosystemOperationalResponseV1(req) {
+  const requestPath = String(
+    (req && (req.originalUrl || req.url || req.path)) || ""
+  ).split("?")[0].toLowerCase();
+
+  return requestPath === "/api/nyx/ecosystem" ||
+    requestPath.startsWith("/api/nyx/ecosystem/");
+}
+
 function isSandblastTvOperationalResponseV2(req) {
   const requestPath = String(
     (req && (req.originalUrl || req.url || req.path)) || ""
   ).split("?")[0].toLowerCase();
 
-  return requestPath === "/api/sandblast-tv/v1" ||
+  const sandblastTvOperational = requestPath === "/api/sandblast-tv/v1" ||
     requestPath.startsWith("/api/sandblast-tv/v1/");
+
+  return sandblastTvOperational || isNyxEcosystemOperationalResponseV1(req);
 }
-/* SANDBLAST_TV_OPERATIONAL_RESPONSE_BOUNDARY_V2_END */
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V3_END */
 
 /* R18C_LIVE_HANDLER_REPAIR_START */
 (function(){
@@ -27117,12 +27128,14 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
+        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldJson.call(this, body);
         try { const info = classify(this && this.req); if (info) body = project(body, info); } catch (_) {}
         return oldJson.call(this, body);
       };
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
+        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classify(this && this.req);
           if (info) {
@@ -27141,6 +27154,7 @@ try {
 
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
+        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classify(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
@@ -27339,6 +27353,7 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
+        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldJson.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) body = projectR5(body, info);
@@ -27348,6 +27363,7 @@ try {
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
+        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) {
@@ -27365,6 +27381,7 @@ try {
     }
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
+        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
