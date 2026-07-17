@@ -1,7 +1,27 @@
 {
-  "schemaVersion": 2,
-  "guideVersion": 1,
-  "updatedAt": "2026-07-13T15:42:10Z",
+  "schemaVersion": 3,
+  "guideVersion": 2,
+  "updatedAt": "2026-07-17T03:15:00Z",
+  "phaseContract": {
+    "phase2": "nyx.pageContext/1.0",
+    "phase3": "nyx.contentReadiness/1.0",
+    "releaseValidation": "nyx.releaseValidation/1.0"
+  },
+  "contentReadiness": {
+    "source": "channels",
+    "required": true,
+    "collectionKey": "channels",
+    "catalogStatus": "ready",
+    "mediaValidationStatus": "pending",
+    "releaseGate": "content-structure-ready-media-validation-pending"
+  },
+  "nyxGuideContext": {
+    "surface": "tv",
+    "publicOnly": true,
+    "capabilities": ["programming", "now_next", "open_tv", "open_roku"],
+    "defaultIntent": "discover_programming",
+    "fallbackSurface": "home"
+  },
   "timezone": "America/Toronto",
   "guideRefreshSeconds": 60,
   "homeUrl": "https://www.sandblast.channel/",
@@ -17,6 +37,8 @@
       "fallbackUrl": "https://dn600300.us.archive.org/0/items/strangers-on-a-train-720p/Strangers%20On%20A%20Train%20720p.mp4",
       "recoveryUrl": "https://www.sandblast.channel/sandblasttv",
       "showNowNext": true
+      ,"nyxTarget": "sandblast_classics"
+      ,"contentSource": "classic"
     },
     {
       "slug": "cartoons",
@@ -29,6 +51,8 @@
       "fallbackUrl": "https://dn600209.us.archive.org/0/items/billion_dollar_limited/billion_dollar_limited_512kb.mp4",
       "recoveryUrl": "https://www.sandblast.channel/sandblasttv",
       "showNowNext": true
+      ,"nyxTarget": "sandblast_cartoons"
+      ,"contentSource": "cartoons"
     }
   ]
 }
