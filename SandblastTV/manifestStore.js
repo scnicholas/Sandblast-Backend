@@ -40,8 +40,9 @@ class ManifestStore {
     this.publishedDir = path.join(dataDir, "published");
     this.backupsDir = path.join(dataDir, "backups");
     this.auditDir = path.join(dataDir, "audit");
+    this.certificationDir = path.join(dataDir, "certification");
 
-    [dataDir, this.blocksDir, this.publishedDir, this.backupsDir, this.auditDir].forEach(ensureDir);
+    [dataDir, this.blocksDir, this.publishedDir, this.backupsDir, this.auditDir, this.certificationDir].forEach(ensureDir);
   }
 
   channelsPath() {
@@ -54,6 +55,10 @@ class ManifestStore {
 
   publishedPath(channel) {
     return path.join(this.publishedDir, `${cleanChannel(channel)}.json`);
+  }
+
+  certificationPath(channel) {
+    return path.join(this.certificationDir, `${cleanChannel(channel)}.latest.json`);
   }
 
   getChannels() {
@@ -77,6 +82,17 @@ class ManifestStore {
 
   getPublished(channel) {
     return safeReadJson(this.publishedPath(channel), null);
+  }
+
+  getCertification(channel) {
+    return safeReadJson(this.certificationPath(channel), null);
+  }
+
+  saveCertification(channel, report) {
+    const slug=cleanChannel(channel), stamp=new Date().toISOString().replace(/[:.]/g,"-");
+    atomicWriteJson(path.join(this.certificationDir,`${slug}.${stamp}.json`),report);
+    atomicWriteJson(this.certificationPath(slug),report);
+    return report;
   }
 
   publish(channel, manifest) {
