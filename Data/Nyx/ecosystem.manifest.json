@@ -16,5 +16,15 @@
   },
   "aliases": {"live":"radio","watch":"tv","television":"tv","news":"synapse","nyx":"home","guide":"home","sandblast_tv":"tv","sandblast_radio":"radio","sandblast_roku":"roku"},
   "allowedActions": ["navigate","play_radio","stop_radio","open_media","open_tv","open_roku","open_synapse","summarize","focus_input","dismiss_guide","go_back","continue"],
-  "privateSurfaces": ["marion","admin","operator"]
+  "privateSurfaces": ["marion","admin","operator"],
+  "contentContract": "nyx.contentReadiness/1.0",
+  "contentSources": {
+    "channels": {"required":true,"surface":"tv"},
+    "cartoons": {"required":true,"surface":"tv"},
+    "classic": {"required":true,"surface":"tv"},
+    "radio": {"required":false,"surface":"radio"},
+    "synapse": {"required":false,"surface":"synapse"},
+    "lingosentinel": {"required":false,"surface":"lingosentinel"},
+    "apps": {"required":false,"surface":"apps"}
+  }
 }
