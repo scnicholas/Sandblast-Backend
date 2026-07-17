@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const { validateDraft, normalizeSlot, safeTokenEqual, MAX_SLOTS } = require("./mediaValidator");
+const { validateDraft, normalizeSlot, certifyDraft, safeTokenEqual, MAX_SLOTS } = require("./mediaValidator");
 
 function createRouter({ store, scheduler }) {
   const router = express.Router();
@@ -190,6 +190,29 @@ function createRouter({ store, scheduler }) {
     } catch (err) {
       return sendError(res, err);
     }
+  });
+
+  router.get("/admin/channels/:channel/certification", adminOnly, (req,res) => {
+    try {
+      const report=store.getCertification(req.params.channel);
+      if(!report)return res.status(404).json({ok:false,error:"certification_not_found"});
+      res.set("Cache-Control","no-store");
+      return res.json({ok:true,report});
+    } catch(err){return sendError(res,err);}
+  });
+
+  router.post("/admin/channels/:channel/certify", adminOnly, async (req,res) => {
+    try {
+      const channel=req.params.channel,draft=store.getDraft(channel);
+      if(!draft)return res.status(404).json({ok:false,error:"draft_not_found"});
+      const apply=req.query.apply==="true"||req.body&&req.body.apply===true;
+      const quarantineFailures=req.query.quarantineFailures!=="false"&&(!req.body||req.body.quarantineFailures!==false);
+      const report=await certifyDraft(draft,channel,{timeoutMs:req.body&&req.body.timeoutMs,quarantineFailures:apply&&quarantineFailures});
+      store.saveCertification(channel,{...report,applied:apply});
+      if(apply)store.saveDraft(channel,report.manifest);
+      store.appendAudit({action:"media_certification",channel,applied:apply,summary:report.summary,requestId:req.get("x-request-id")||null});
+      return res.status(report.summary.quarantined?422:200).json({ok:report.summary.quarantined===0,applied:apply,report});
+    } catch(err){return sendError(res,err);}
   });
 
   return router;
