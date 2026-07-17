@@ -726,7 +726,7 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
  * not_found guard near the end of the route table.
  */
 try {
-  const nyxEcosystemRoute = require("./Routes/nyxEcosystemRoute.js");
+  const nyxEcosystemRoute = require("./utils/nyxEcosystemRoute.js");
   app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
   app.locals.nyxEcosystemSpine = {
     mounted: true,
