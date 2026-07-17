@@ -3,7 +3,7 @@
 const express = require("express");
 const path = require("path");
 const router = express.Router();
-const BRIDGE_PATH = path.join(__dirname, "..", "public", "nyx-surface-bridge.js");
+const BRIDGE_PATH = path.join(__dirname, "..", "public", "Nyx", "nyx-surface-bridge.js");
 const spine = require("../Utils/nyxEcosystemSpine.js");
 const {VERSION, readManifest, surfaceName, normalizeContext, transition} = spine;
 function object(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
