@@ -1,14 +1,15 @@
 "use strict";
 
-const { validateDraft } = require("./mediaValidator");
+const { validateDraft, certificationIsCurrent } = require("./mediaValidator");
 
 class SchedulerService {
-  constructor({ store }) {
+  constructor({ store } = {}) {
+    if (!store) throw new Error("store_required");
     this.store = store;
   }
 
   buildPublishedManifest(channel, draft) {
-    const checked = validateDraft(draft, channel, { requireValidated:true });
+    const checked = validateDraft(draft, channel, { requireValidated: true });
     if (!checked.ok) {
       const err = new Error("draft_validation_failed");
       err.statusCode = 422;
@@ -16,21 +17,31 @@ class SchedulerService {
       throw err;
     }
 
-    const activeSlots = checked.value.slots.filter((slot) => slot.enabled && slot.validationStatus === "validated");
+    const activeSlots = checked.value.slots.filter(
+      (slot) => slot.enabled && certificationIsCurrent(slot)
+    );
     const totalDurationSeconds = activeSlots.reduce(
       (sum, slot) => sum + slot.durationSeconds,
       0
     );
 
+    if (!(totalDurationSeconds > 0)) {
+      const err = new Error("manifest_duration_invalid");
+      err.statusCode = 422;
+      throw err;
+    }
+
     const previous = this.store.getPublished(channel);
     const version = Math.max(1, Number(previous && previous.version || 0) + 1);
+    const publishedAt = new Date().toISOString();
 
     return {
       ...checked.value,
+      contract: "sandblast.tv.publishedManifest/2.0",
       slots: activeSlots,
       version,
       totalDurationSeconds,
-      publishedAt: new Date().toISOString()
+      publishedAt
     };
   }
 
@@ -47,12 +58,19 @@ class SchedulerService {
   }
 
   getNow(channel, atMs = Date.now()) {
+    const requestedAt = Number(atMs);
+    if (!Number.isFinite(requestedAt)) {
+      const err = new Error("invalid_schedule_time");
+      err.statusCode = 400;
+      throw err;
+    }
+
     const manifest = this.store.getPublished(channel);
     const channelConfig = this.store.getChannel(channel);
-
     const certifiedSlots = manifest && Array.isArray(manifest.slots)
-      ? manifest.slots.filter((slot) => slot && slot.enabled !== false && slot.validationStatus === "validated")
+      ? manifest.slots.filter((slot) => slot && slot.enabled !== false && certificationIsCurrent(slot))
       : [];
+
     if (!manifest || !certifiedSlots.length) {
       const err = new Error("channel_not_published");
       err.statusCode = 503;
@@ -63,21 +81,33 @@ class SchedulerService {
       throw err;
     }
 
-    const total = certifiedSlots.reduce((sum,slot)=>sum+Number(slot.durationSeconds||0),0);
+    const total = certifiedSlots.reduce(
+      (sum, slot) => sum + Number(slot.durationSeconds || 0),
+      0
+    );
     if (!(total > 0)) {
       const err = new Error("manifest_duration_invalid");
       err.statusCode = 500;
       throw err;
     }
 
-    const anchorMs = Number(manifest.anchorEpochMs || Date.parse(manifest.publishedAt) || atMs);
-    const elapsedSeconds = Math.max(0, (Number(atMs) - anchorMs) / 1000);
+    const parsedPublishedAt = Date.parse(manifest.publishedAt);
+    const anchorCandidate = Number(manifest.anchorEpochMs);
+    const anchorMs = (
+      manifest.anchorEpochMs !== null &&
+      manifest.anchorEpochMs !== "" &&
+      Number.isFinite(anchorCandidate) &&
+      anchorCandidate > 0
+    )
+      ? anchorCandidate
+      : (Number.isFinite(parsedPublishedAt) ? parsedPublishedAt : requestedAt);
+    const elapsedSeconds = Math.max(0, (requestedAt - anchorMs) / 1000);
     const cycleOffset = manifest.loop === false
       ? Math.min(elapsedSeconds, Math.max(0, total - 0.001))
       : ((elapsedSeconds % total) + total) % total;
 
     let cursor = 0;
-    let selectedIndex = 0;
+    let selectedIndex = certifiedSlots.length - 1;
 
     for (let index = 0; index < certifiedSlots.length; index += 1) {
       const duration = Number(certifiedSlots[index].durationSeconds);
@@ -89,9 +119,12 @@ class SchedulerService {
     }
 
     const slot = certifiedSlots[selectedIndex];
+    const offsetSeconds = Math.max(0, cycleOffset - cursor);
+    const remainingSeconds = Math.max(0, Number(slot.durationSeconds) - offsetSeconds);
     const nextSlot = manifest.loop === false && selectedIndex === certifiedSlots.length - 1
       ? null
       : certifiedSlots[(selectedIndex + 1) % certifiedSlots.length];
+    const slotStartedAtMs = requestedAt - (offsetSeconds * 1000);
 
     return {
       ok: true,
@@ -100,11 +133,15 @@ class SchedulerService {
       displayName: manifest.displayName,
       slot,
       slotIndex: selectedIndex,
-      offsetSeconds: Math.max(0, cycleOffset - cursor),
-      nextSlot: nextSlot || null,
+      offsetSeconds,
+      remainingSeconds,
+      nextSlot,
       totalDurationSeconds: total,
+      cycleOffsetSeconds: cycleOffset,
       certificationRequired: true,
-      serverTime: new Date(Number(atMs)).toISOString()
+      slotStartedAt: new Date(slotStartedAtMs).toISOString(),
+      nextChangeAt: nextSlot ? new Date(requestedAt + (remainingSeconds * 1000)).toISOString() : null,
+      serverTime: new Date(requestedAt).toISOString()
     };
   }
 }
