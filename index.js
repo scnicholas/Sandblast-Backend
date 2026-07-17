@@ -721,6 +721,30 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
+/* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_START
+ * This specific public router must be registered before the generic /api
+ * not_found guard near the end of the route table.
+ */
+try {
+  const nyxEcosystemRoute = require("./Routes/nyxEcosystemRoute.js");
+  app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
+  app.locals.nyxEcosystemSpine = {
+    mounted: true,
+    mountPath: "/api/nyx/ecosystem",
+    version: nyxEcosystemRoute.VERSION || "unknown"
+  };
+  module.exports.NYX_ECOSYSTEM_SPINE_VERSION = nyxEcosystemRoute.VERSION;
+  module.exports.NYX_ECOSYSTEM_SPINE_MOUNTED = true;
+} catch (error) {
+  app.locals.nyxEcosystemSpine = {
+    mounted: false,
+    mountPath: "/api/nyx/ecosystem",
+    error: error && error.message ? error.message : "mount_failed"
+  };
+  console.error("[Sandblast][NYX ecosystem spine early mount]", error && error.message);
+}
+/* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_END */
+
 /* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_START
  * Public, non-authoritative guide configuration boundary.
  * This layer exposes UI capability metadata only. It never composes replies,
@@ -27368,14 +27392,3 @@ try {
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_HARDLOCK_R5_1_END */
-
-/* NYX_ECOSYSTEM_SPINE_PHASES_1_2_START */
-try {
-  const nyxEcosystemRoute = require("./Routes/nyxEcosystemRoute.js");
-  app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
-  module.exports.NYX_ECOSYSTEM_SPINE_VERSION = nyxEcosystemRoute.VERSION;
-  module.exports.NYX_ECOSYSTEM_SPINE_MOUNTED = true;
-} catch (error) {
-  console.error("[Sandblast][NYX ecosystem spine mount]", error && error.message);
-}
-/* NYX_ECOSYSTEM_SPINE_PHASES_1_2_END */
