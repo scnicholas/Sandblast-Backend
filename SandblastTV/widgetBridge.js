@@ -10,7 +10,9 @@ function createSandblastTvChannelPlayer({
   channel,
   apiBase = "https://sandblast-backend.onrender.com/api/sandblast-tv/v1",
   fallbackUrl = "",
-  resyncMs = 60000
+  resyncMs = 60000,
+  requestTimeoutMs = 10000,
+  onState = null
 }) {
   let destroyed = false;
   let timer = null;
@@ -20,10 +22,12 @@ function createSandblastTvChannelPlayer({
   async function sync({ autoplay = false } = {}) {
     if (destroyed) return;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Math.max(1000, requestTimeoutMs));
     try {
       const response = await fetch(
         `${apiBase}/channels/${encodeURIComponent(channel)}/now`,
-        { cache: "no-store", credentials: "omit" }
+        { cache: "no-store", credentials: "omit", signal:controller.signal }
       );
       const payload = await response.json();
 
@@ -34,7 +38,7 @@ function createSandblastTvChannelPlayer({
       const changed =
         activeVersion !== payload.version ||
         activeSlotId !== payload.slot.id ||
-        video.src !== payload.slot.sourceUrl;
+        String(video.currentSrc || video.src || "") !== payload.slot.sourceUrl;
 
       if (changed) {
         activeVersion = payload.version;
@@ -53,9 +57,12 @@ function createSandblastTvChannelPlayer({
 
       if (video.readyState >= 1) seek();
       else video.addEventListener("loadedmetadata", seek, { once: true });
-    } catch (_) {
+      if(typeof onState==="function")onState({status:"ready",channel,slot:payload.slot,nextSlot:payload.nextSlot||null,version:payload.version});
+    } catch (error) {
       if (fallbackUrl && video.src !== fallbackUrl) video.src = fallbackUrl;
+      if(typeof onState==="function")onState({status:"recovery",channel,error:error&&error.name==="AbortError"?"scheduler_timeout":"scheduler_unavailable"});
     } finally {
+      clearTimeout(timeout);
       clearTimeout(timer);
       if (!destroyed) timer = setTimeout(() => sync({ autoplay: false }), resyncMs);
     }
