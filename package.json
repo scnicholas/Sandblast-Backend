@@ -1,6 +1,6 @@
 {
   "name": "sandblast-backend",
-  "version": "1.1.0-nyx-ecosystem-spine",
+  "version": "1.2.0-nyx-phase3-content-readiness",
   "description": "Sandblast backend with NYX ecosystem spine, cross-surface guidance, voice playback, Marion boundaries, and TV scheduling",
   "main": "index.js",
   "type": "commonjs",
@@ -8,7 +8,7 @@
     "start": "node index.js",
     "lint:syntax": "node scripts/check-syntax.js",
     "test:marion-layering": "node tests/marion_layering_smoke_test.js",
-    "verify": "npm run lint:syntax && npm run test:nyx-ecosystem && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv",
+    "verify": "npm run lint:syntax && npm run test:nyx-ecosystem && npm run test:nyx-content && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv",
     "dev": "node --check index.js && npm run lint:sandblast-tv && node index.js",
     "lint:sandblast-tv": "node --check SandblastTV/index.js && node --check SandblastTV/routes.js && node --check SandblastTV/manifestStore.js && node --check SandblastTV/schedulerService.js && node --check SandblastTV/mediaValidator.js && node --check SandblastTV/widgetBridge.js",
     "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js",
@@ -18,7 +18,8 @@
     "test:nyx-widget": "node scripts/widget-byte-certification.js",
     "test:nyx-widget-playback": "node scripts/widget-playback-certification.js",
     "test:nyx-route-mount": "node scripts/route-mount-certification.js",
-    "test:nyx-ecosystem": "node --test tests/nyx-ecosystem-spine.test.js"
+    "test:nyx-ecosystem": "node --test tests/nyx-ecosystem-spine.test.js",
+    "test:nyx-content": "node --test tests/nyx-content-data-registry.test.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
