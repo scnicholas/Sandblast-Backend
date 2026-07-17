@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "guideVersion": 1,
+  "schemaVersion": 3,
+  "guideVersion": 2,
   "channel": "cartoons",
   "displayName": "Sandblast Cartoons",
   "programmingStatus": "active",
@@ -8,8 +8,34 @@
   "timezone": "America/Toronto",
   "loop": true,
   "anchorEpochMs": 0,
-  "updatedAt": "2026-07-13T15:42:10Z",
-  "lastStructuredAt": "2026-07-13T15:42:10Z",
+  "updatedAt": "2026-07-17T03:15:00Z",
+  "lastStructuredAt": "2026-07-17T03:15:00Z",
+  "phaseContract": {
+    "phase2": "nyx.pageContext/1.0",
+    "phase3": "nyx.contentReadiness/1.0",
+    "releaseValidation": "nyx.releaseValidation/1.0"
+  },
+  "contentReadiness": {
+    "source": "cartoons",
+    "required": true,
+    "collectionKey": "slots",
+    "catalogStatus": "ready",
+    "mediaValidationStatus": "pending",
+    "releaseGate": "content-structure-ready-media-validation-pending",
+    "totalSlots": 15,
+    "activeItems": 10,
+    "inactiveItems": 5,
+    "scheduledDurationSeconds": 5363
+  },
+  "nyxGuideContext": {
+    "surface": "tv",
+    "lane": "watch",
+    "target": "sandblast_cartoons",
+    "publicOnly": true,
+    "capabilities": ["programming", "now_next", "open_tv", "open_roku"],
+    "defaultIntent": "discover_cartoons",
+    "fallbackSurface": "home"
+  },
   "publicGuide": {
     "showNowNext": true,
     "refreshSeconds": 60,
