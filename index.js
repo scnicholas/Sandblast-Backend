@@ -27368,3 +27368,14 @@ try {
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_HARDLOCK_R5_1_END */
+
+/* NYX_ECOSYSTEM_SPINE_PHASES_1_2_START */
+try {
+  const nyxEcosystemRoute = require("./Routes/nyxEcosystemRoute.js");
+  app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
+  module.exports.NYX_ECOSYSTEM_SPINE_VERSION = nyxEcosystemRoute.VERSION;
+  module.exports.NYX_ECOSYSTEM_SPINE_MOUNTED = true;
+} catch (error) {
+  console.error("[Sandblast][NYX ecosystem spine mount]", error && error.message);
+}
+/* NYX_ECOSYSTEM_SPINE_PHASES_1_2_END */
