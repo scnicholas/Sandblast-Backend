@@ -1,170 +1,334 @@
 {
-  "schemaVersion": 2,
-  "guideVersion": 1,
-  "channel": "cartoons",
-  "displayName": "Sandblast Cartoons",
-  "programmingStatus": "active",
-  "scheduleType": "continuous-loop",
-  "timezone": "America/Toronto",
-  "loop": true,
-  "anchorEpochMs": 0,
-  "updatedAt": "2026-07-13T15:42:10Z",
-  "lastStructuredAt": "2026-07-13T15:42:10Z",
-  "publicGuide": {
-    "showNowNext": true,
-    "refreshSeconds": 60,
-    "unknownDurationPolicy": "exclude-from-clock-retain-in-lineup"
-  },
-  "slots": [
-    {
-      "id": "cartoons-01",
-      "position": 1,
-      "title": "Superman",
-      "sourceUrl": "https://dn600209.us.archive.org/0/items/billion_dollar_limited/billion_dollar_limited_512kb.mp4",
-      "durationSeconds": 512,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "Billion Dollar Limited"
-    },
-    {
-      "id": "cartoons-02",
-      "position": 2,
-      "title": "Popeye The Sailor Meets Ali Baba's Forty Thieves",
-      "sourceUrl": "https://dn801207.us.archive.org/0/items/PopeyeTheSailorMeetsAliBabasFortyThieves/PopeyeAliBabaRestored_512kb.mp4",
-      "durationSeconds": 1035,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
-    },
-    {
-      "id": "cartoons-03",
-      "position": 3,
-      "title": "Superman",
-      "sourceUrl": "https://dn801201.us.archive.org/0/items/superman_the_mechanical_monsters/superman_the_mechanical_monsters_512kb.mp4",
-      "durationSeconds": 614,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "The Mechanical Monsters"
-    },
-    {
-      "id": "cartoons-04",
-      "position": 4,
-      "title": "The Lone Ranger",
-      "sourceUrl": "https://dn710709.ca.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Day%20of%20the%20Dragon%20-%20Great%20TV%20Animated%20Cartoon.mp4",
-      "durationSeconds": 0,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "Day of the Dragon"
-    },
-    {
-      "id": "cartoons-05",
-      "position": 5,
-      "title": "The Lone Ranger",
-      "sourceUrl": "https://dn710709.ca.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Puppet%20Master%20-%20Full%20Cartoon%20Episode.mp4",
-      "durationSeconds": 393,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
-    },
-    {
-      "id": "cartoons-06",
-      "position": 6,
-      "title": "Popeye The Sailor",
-      "sourceUrl": "https://dn711205.ca.archive.org/0/items/popeye-pubdomain/Private_Eye_Popeye.mp4",
-      "durationSeconds": 392,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "Private Eye Popeye"
-    },
-    {
-      "id": "cartoons-07",
-      "position": 7,
-      "title": "Superman",
-      "sourceUrl": "https://dn720401.ca.archive.org/0/items/1942publicdomainanimation/1942.08.30%20-%20Terror%20on%20the%20Midway.ia.mp4",
-      "durationSeconds": 492,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "Terror on the Midway"
-    },
-    {
-      "id": "cartoons-08",
-      "position": 8,
-      "title": "Popeye The Sailor",
-      "sourceUrl": "https://dn720309.ca.archive.org/0/items/1956publicdomainanimation/1956.08.10%20-%20Insect%20to%20Injury.ia.mp4",
-      "durationSeconds": 365,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "Insect to Injury"
-    },
-    {
-      "id": "cartoons-09",
-      "position": 9,
-      "title": "Clutch Cargo",
-      "sourceUrl": "https://dn710908.ca.archive.org/0/items/ToonClassics_93/ClutchcargoThecaseofripcordvanwinkle.mp4",
-      "durationSeconds": 1200,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "The Case of Ripcord Van Winkle"
-    },
-    {
-      "id": "cartoons-10",
-      "position": 10,
-      "title": "The Lone Ranger",
-      "sourceUrl": "https://dn801209.us.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Valley%20of%20the%20Dead%20-%20spectacular%20full%20western%20cartoon.mp4",
-      "durationSeconds": 360,
-      "enabled": true,
-      "validationStatus": "pending",
-      "notes": "Valley of the Dead"
-    },
-    {
-      "id": "cartoons-11",
-      "position": 11,
-      "title": "Sandblast Cartoons Slot 11",
-      "sourceUrl": "",
-      "durationSeconds": 0,
-      "enabled": false,
-      "validationStatus": "empty",
-      "notes": ""
-    },
-    {
-      "id": "cartoons-12",
-      "position": 12,
-      "title": "Sandblast Cartoons Slot 12",
-      "sourceUrl": "",
-      "durationSeconds": 0,
-      "enabled": false,
-      "validationStatus": "empty",
-      "notes": ""
-    },
-    {
-      "id": "cartoons-13",
-      "position": 13,
-      "title": "Sandblast Cartoons Slot 13",
-      "sourceUrl": "",
-      "durationSeconds": 0,
-      "enabled": false,
-      "validationStatus": "empty",
-      "notes": ""
-    },
-    {
-      "id": "cartoons-14",
-      "position": 14,
-      "title": "Sandblast Cartoons Slot 14",
-      "sourceUrl": "",
-      "durationSeconds": 0,
-      "enabled": false,
-      "validationStatus": "empty",
-      "notes": ""
-    },
-    {
-      "id": "cartoons-15",
-      "position": 15,
-      "title": "Sandblast Cartoons Slot 15",
-      "sourceUrl": "",
-      "durationSeconds": 0,
-      "enabled": false,
-      "validationStatus": "empty",
-      "notes": ""
-    }
-  ]
+    "schemaVersion":  3,
+    "guideVersion":  2,
+    "channel":  "cartoons",
+    "displayName":  "Sandblast Cartoons",
+    "programmingStatus":  "active",
+    "scheduleType":  "continuous-loop",
+    "timezone":  "America/Toronto",
+    "loop":  true,
+    "anchorEpochMs":  0,
+    "updatedAt":  "2026-07-17T19:40:26.526Z",
+    "lastStructuredAt":  "2026-07-17T03:15:00Z",
+    "phaseContract":  {
+                          "phase2":  "nyx.pageContext/1.0",
+                          "phase3":  "nyx.contentReadiness/1.0",
+                          "releaseValidation":  "nyx.releaseValidation/1.0"
+                      },
+    "contentReadiness":  {
+                             "source":  "cartoons",
+                             "required":  true,
+                             "collectionKey":  "slots",
+                             "catalogStatus":  "ready",
+                             "mediaValidationStatus":  "pending",
+                             "releaseGate":  "content-structure-ready-media-validation-pending",
+                             "totalSlots":  15,
+                             "activeItems":  10,
+                             "inactiveItems":  5,
+                             "scheduledDurationSeconds":  5363
+                         },
+    "nyxGuideContext":  {
+                            "surface":  "tv",
+                            "lane":  "watch",
+                            "target":  "sandblast_cartoons",
+                            "publicOnly":  true,
+                            "capabilities":  [
+                                                 "programming",
+                                                 "now_next",
+                                                 "open_tv",
+                                                 "open_roku"
+                                             ],
+                            "defaultIntent":  "discover_cartoons",
+                            "fallbackSurface":  "home"
+                        },
+    "publicGuide":  {
+                        "showNowNext":  true,
+                        "refreshSeconds":  60,
+                        "unknownDurationPolicy":  "exclude-from-clock-retain-in-lineup"
+                    },
+    "slots":  [
+                  {
+                      "id":  "cartoons-01",
+                      "position":  1,
+                      "title":  "Superman",
+                      "sourceUrl":  "https://dn600209.us.archive.org/0/items/billion_dollar_limited/billion_dollar_limited_512kb.mp4",
+                      "durationSeconds":  512,
+                      "enabled":  false,
+                      "validationStatus":  "quarantined",
+                      "notes":  "Billion Dollar Limited",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  false,
+                                            "probe":  {
+                                                          "ok":  false,
+                                                          "error":  "probe_failed",
+                                                          "sourceUrl":  "https://dn600209.us.archive.org/0/items/billion_dollar_limited/billion_dollar_limited_512kb.mp4",
+                                                          "latencyMs":  10809,
+                                                          "checkedAt":  "2026-07-17T19:40:02.773Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:40:02.773Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-02",
+                      "position":  2,
+                      "title":  "Popeye The Sailor Meets Ali Baba\u0027s Forty Thieves",
+                      "sourceUrl":  "https://dn801207.us.archive.org/0/items/PopeyeTheSailorMeetsAliBabasFortyThieves/PopeyeAliBabaRestored_512kb.mp4",
+                      "durationSeconds":  1035,
+                      "enabled":  false,
+                      "validationStatus":  "quarantined",
+                      "notes":  "",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  false,
+                                            "probe":  {
+                                                          "ok":  false,
+                                                          "error":  "probe_failed",
+                                                          "sourceUrl":  "https://dn801207.us.archive.org/0/items/PopeyeTheSailorMeetsAliBabasFortyThieves/PopeyeAliBabaRestored_512kb.mp4",
+                                                          "latencyMs":  10655,
+                                                          "checkedAt":  "2026-07-17T19:40:13.429Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:40:13.429Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-03",
+                      "position":  3,
+                      "title":  "Superman",
+                      "sourceUrl":  "https://dn801201.us.archive.org/0/items/superman_the_mechanical_monsters/superman_the_mechanical_monsters_512kb.mp4",
+                      "durationSeconds":  614,
+                      "enabled":  true,
+                      "validationStatus":  "validated",
+                      "notes":  "The Mechanical Monsters",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  true,
+                                            "probe":  {
+                                                          "ok":  true,
+                                                          "error":  "",
+                                                          "sourceUrl":  "https://dn801201.us.archive.org/0/items/superman_the_mechanical_monsters/superman_the_mechanical_monsters_512kb.mp4",
+                                                          "finalUrl":  "https://dn801201.us.archive.org/0/items/superman_the_mechanical_monsters/superman_the_mechanical_monsters_512kb.mp4",
+                                                          "httpStatus":  200,
+                                                          "contentType":  "video/mp4",
+                                                          "contentLength":  44743802,
+                                                          "acceptRanges":  "bytes",
+                                                          "latencyMs":  9111,
+                                                          "checkedAt":  "2026-07-17T19:40:22.540Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:40:22.540Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-04",
+                      "position":  4,
+                      "title":  "The Lone Ranger",
+                      "sourceUrl":  "https://dn710709.ca.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Day%20of%20the%20Dragon%20-%20Great%20TV%20Animated%20Cartoon.mp4",
+                      "durationSeconds":  399,
+                      "enabled":  false,
+                      "validationStatus":  "pending",
+                      "notes":  "Day of the Dragon",
+                      "certification":  null
+                  },
+                  {
+                      "id":  "cartoons-05",
+                      "position":  5,
+                      "title":  "The Lone Ranger",
+                      "sourceUrl":  "https://dn710709.ca.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Puppet%20Master%20-%20Full%20Cartoon%20Episode.mp4",
+                      "durationSeconds":  393,
+                      "enabled":  false,
+                      "validationStatus":  "quarantined",
+                      "notes":  "",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  false,
+                                            "probe":  {
+                                                          "ok":  false,
+                                                          "error":  "probe_failed",
+                                                          "sourceUrl":  "https://dn710709.ca.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Puppet%20Master%20-%20Full%20Cartoon%20Episode.mp4",
+                                                          "latencyMs":  10475,
+                                                          "checkedAt":  "2026-07-17T19:36:31.296Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:36:31.296Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-06",
+                      "position":  6,
+                      "title":  "Popeye The Sailor",
+                      "sourceUrl":  "https://dn711205.ca.archive.org/0/items/popeye-pubdomain/Private_Eye_Popeye.mp4",
+                      "durationSeconds":  392,
+                      "enabled":  false,
+                      "validationStatus":  "quarantined",
+                      "notes":  "Private Eye Popeye",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  false,
+                                            "probe":  {
+                                                          "ok":  false,
+                                                          "error":  "probe_failed",
+                                                          "sourceUrl":  "https://dn711205.ca.archive.org/0/items/popeye-pubdomain/Private_Eye_Popeye.mp4",
+                                                          "latencyMs":  10641,
+                                                          "checkedAt":  "2026-07-17T19:36:41.938Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:36:41.938Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-07",
+                      "position":  7,
+                      "title":  "Superman",
+                      "sourceUrl":  "https://dn720401.ca.archive.org/0/items/1942publicdomainanimation/1942.08.30%20-%20Terror%20on%20the%20Midway.ia.mp4",
+                      "durationSeconds":  492,
+                      "enabled":  false,
+                      "validationStatus":  "quarantined",
+                      "notes":  "Terror on the Midway",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  false,
+                                            "probe":  {
+                                                          "ok":  false,
+                                                          "error":  "probe_failed",
+                                                          "sourceUrl":  "https://dn720401.ca.archive.org/0/items/1942publicdomainanimation/1942.08.30%20-%20Terror%20on%20the%20Midway.ia.mp4",
+                                                          "latencyMs":  10638,
+                                                          "checkedAt":  "2026-07-17T19:36:52.576Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:36:52.576Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-08",
+                      "position":  8,
+                      "title":  "Popeye The Sailor",
+                      "sourceUrl":  "https://dn720309.ca.archive.org/0/items/1956publicdomainanimation/1956.08.10%20-%20Insect%20to%20Injury.ia.mp4",
+                      "durationSeconds":  365,
+                      "enabled":  false,
+                      "validationStatus":  "quarantined",
+                      "notes":  "Insect to Injury",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  false,
+                                            "probe":  {
+                                                          "ok":  false,
+                                                          "error":  "probe_failed",
+                                                          "sourceUrl":  "https://dn720309.ca.archive.org/0/items/1956publicdomainanimation/1956.08.10%20-%20Insect%20to%20Injury.ia.mp4",
+                                                          "latencyMs":  10589,
+                                                          "checkedAt":  "2026-07-17T19:37:03.165Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:37:03.165Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-09",
+                      "position":  9,
+                      "title":  "Clutch Cargo",
+                      "sourceUrl":  "https://dn710908.ca.archive.org/0/items/ToonClassics_93/ClutchcargoThecaseofripcordvanwinkle.mp4",
+                      "durationSeconds":  1200,
+                      "enabled":  true,
+                      "validationStatus":  "validated",
+                      "notes":  "The Case of Ripcord Van Winkle",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  true,
+                                            "probe":  {
+                                                          "ok":  true,
+                                                          "error":  "",
+                                                          "sourceUrl":  "https://dn710908.ca.archive.org/0/items/ToonClassics_93/ClutchcargoThecaseofripcordvanwinkle.mp4",
+                                                          "finalUrl":  "https://dn710908.ca.archive.org/0/items/ToonClassics_93/ClutchcargoThecaseofripcordvanwinkle.mp4",
+                                                          "httpStatus":  200,
+                                                          "contentType":  "video/mp4",
+                                                          "contentLength":  61162069,
+                                                          "acceptRanges":  "bytes",
+                                                          "latencyMs":  1208,
+                                                          "checkedAt":  "2026-07-17T19:40:23.748Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:40:23.748Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-10",
+                      "position":  10,
+                      "title":  "The Lone Ranger",
+                      "sourceUrl":  "https://dn801209.us.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Valley%20of%20the%20Dead%20-%20spectacular%20full%20western%20cartoon.mp4",
+                      "durationSeconds":  360,
+                      "enabled":  true,
+                      "validationStatus":  "validated",
+                      "notes":  "Valley of the Dead",
+                      "certification":  {
+                                            "contract":  "sandblast.tv.mediaCertification/1.0",
+                                            "validated":  true,
+                                            "probe":  {
+                                                          "ok":  true,
+                                                          "error":  "",
+                                                          "sourceUrl":  "https://dn801209.us.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Valley%20of%20the%20Dead%20-%20spectacular%20full%20western%20cartoon.mp4",
+                                                          "finalUrl":  "https://dn801209.us.archive.org/0/items/LoneRangerCartoon1966CrackOfDoom/Lone%20Ranger%201966%20-%20Valley%20of%20the%20Dead%20-%20spectacular%20full%20western%20cartoon.mp4",
+                                                          "httpStatus":  200,
+                                                          "contentType":  "video/mp4",
+                                                          "contentLength":  47339534,
+                                                          "acceptRanges":  "bytes",
+                                                          "latencyMs":  2778,
+                                                          "checkedAt":  "2026-07-17T19:40:26.526Z"
+                                                      },
+                                            "durationValid":  true,
+                                            "certifiedAt":  "2026-07-17T19:40:26.526Z"
+                                        }
+                  },
+                  {
+                      "id":  "cartoons-11",
+                      "position":  11,
+                      "title":  "Sandblast Cartoons Slot 11",
+                      "sourceUrl":  "",
+                      "durationSeconds":  0,
+                      "enabled":  false,
+                      "validationStatus":  "empty",
+                      "notes":  ""
+                  },
+                  {
+                      "id":  "cartoons-12",
+                      "position":  12,
+                      "title":  "Sandblast Cartoons Slot 12",
+                      "sourceUrl":  "",
+                      "durationSeconds":  0,
+                      "enabled":  false,
+                      "validationStatus":  "empty",
+                      "notes":  ""
+                  },
+                  {
+                      "id":  "cartoons-13",
+                      "position":  13,
+                      "title":  "Sandblast Cartoons Slot 13",
+                      "sourceUrl":  "",
+                      "durationSeconds":  0,
+                      "enabled":  false,
+                      "validationStatus":  "empty",
+                      "notes":  ""
+                  },
+                  {
+                      "id":  "cartoons-14",
+                      "position":  14,
+                      "title":  "Sandblast Cartoons Slot 14",
+                      "sourceUrl":  "",
+                      "durationSeconds":  0,
+                      "enabled":  false,
+                      "validationStatus":  "empty",
+                      "notes":  ""
+                  },
+                  {
+                      "id":  "cartoons-15",
+                      "position":  15,
+                      "title":  "Sandblast Cartoons Slot 15",
+                      "sourceUrl":  "",
+                      "durationSeconds":  0,
+                      "enabled":  false,
+                      "validationStatus":  "empty",
+                      "notes":  ""
+                  }
+              ]
 }
