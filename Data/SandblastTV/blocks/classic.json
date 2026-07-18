@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "guideVersion": 1,
+  "schemaVersion": 4,
+  "guideVersion": 2,
   "channel": "classic",
   "displayName": "Sandblast Classics",
   "programmingStatus": "active",
@@ -8,8 +8,39 @@
   "timezone": "America/Toronto",
   "loop": true,
   "anchorEpochMs": 0,
-  "updatedAt": "2026-07-13T15:42:10Z",
-  "lastStructuredAt": "2026-07-13T15:42:10Z",
+  "updatedAt": "2026-07-18T04:17:56.955Z",
+  "lastStructuredAt": "2026-07-17T03:15:00Z",
+  "phaseContract": {
+    "phase2": "nyx.pageContext/1.0",
+    "phase3": "nyx.contentReadiness/1.0",
+    "releaseValidation": "nyx.releaseValidation/1.0"
+  },
+  "contentReadiness": {
+    "source": "classic",
+    "required": true,
+    "collectionKey": "slots",
+    "catalogStatus": "ready",
+    "mediaValidationStatus": "pending",
+    "releaseGate": "content-structure-ready-media-validation-pending",
+    "totalSlots": 15,
+    "activeItems": 10,
+    "inactiveItems": 5,
+    "scheduledDurationSeconds": 71886
+  },
+  "nyxGuideContext": {
+    "surface": "tv",
+    "lane": "watch",
+    "target": "sandblast_classics",
+    "publicOnly": true,
+    "capabilities": [
+      "programming",
+      "now_next",
+      "open_tv",
+      "open_roku"
+    ],
+    "defaultIntent": "discover_classics",
+    "fallbackSurface": "home"
+  },
   "publicGuide": {
     "showNowNext": true,
     "refreshSeconds": 60,
@@ -23,8 +54,28 @@
       "sourceUrl": "https://dn600300.us.archive.org/0/items/strangers-on-a-train-720p/Strangers%20On%20A%20Train%20720p.mp4",
       "durationSeconds": 6049,
       "enabled": true,
-      "validationStatus": "pending",
-      "notes": "Duration verified from Internet Archive metadata."
+      "validationStatus": "validated",
+      "notes": "Duration verified from Internet Archive metadata.",
+      "certification": {
+        "contract": "sandblast.tv.mediaCertification/2.0",
+        "fingerprint": "1b83c2a56c6c1ef403c99afd2fb9dfc36f8d89475e34e72a3824f3026b813bdf",
+        "validated": true,
+        "probe": {
+          "ok": true,
+          "error": "",
+          "sourceUrl": "https://dn600300.us.archive.org/0/items/strangers-on-a-train-720p/Strangers%20On%20A%20Train%20720p.mp4",
+          "finalUrl": "https://dn600300.us.archive.org/0/items/strangers-on-a-train-720p/Strangers%20On%20A%20Train%20720p.mp4",
+          "redirectCount": 0,
+          "httpStatus": 200,
+          "contentType": "video/mp4",
+          "contentLength": 1570923021,
+          "acceptRanges": "bytes",
+          "latencyMs": 327,
+          "checkedAt": "2026-07-18T04:17:54.684Z"
+        },
+        "durationValid": true,
+        "certifiedAt": "2026-07-18T04:17:54.685Z"
+      }
     },
     {
       "id": "classic-02",
@@ -33,8 +84,28 @@
       "sourceUrl": "https://dn720302.ca.archive.org/0/items/alaska-seas-1954/Alaska%20Seas%20%281954%29.mp4",
       "durationSeconds": 7654,
       "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
+      "validationStatus": "validated",
+      "notes": "",
+      "certification": {
+        "contract": "sandblast.tv.mediaCertification/2.0",
+        "fingerprint": "0905b703fef04a2b8dcb3871e8fd51e5565f3d28c51d879b0697372d67aa7bed",
+        "validated": true,
+        "probe": {
+          "ok": true,
+          "error": "",
+          "sourceUrl": "https://dn720302.ca.archive.org/0/items/alaska-seas-1954/Alaska%20Seas%20%281954%29.mp4",
+          "finalUrl": "https://dn720302.ca.archive.org/0/items/alaska-seas-1954/Alaska%20Seas%20%281954%29.mp4",
+          "redirectCount": 0,
+          "httpStatus": 200,
+          "contentType": "video/mp4",
+          "contentLength": 473019283,
+          "acceptRanges": "bytes",
+          "latencyMs": 2276,
+          "checkedAt": "2026-07-18T04:17:56.635Z"
+        },
+        "durationValid": true,
+        "certifiedAt": "2026-07-18T04:17:56.635Z"
+      }
     },
     {
       "id": "classic-03",
@@ -43,8 +114,28 @@
       "sourceUrl": "https://dn601206.us.archive.org/0/items/Crime_Inc_1945/Crime_Inc_512kb.mp4",
       "durationSeconds": 7334,
       "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
+      "validationStatus": "validated",
+      "notes": "",
+      "certification": {
+        "contract": "sandblast.tv.mediaCertification/2.0",
+        "fingerprint": "c52b0b9fdb8cc97ea8b91eebbd49a5f2ca755984d0a8819d07f640a7b5e3fea9",
+        "validated": true,
+        "probe": {
+          "ok": true,
+          "error": "",
+          "sourceUrl": "https://dn601206.us.archive.org/0/items/Crime_Inc_1945/Crime_Inc_512kb.mp4",
+          "finalUrl": "https://dn601206.us.archive.org/0/items/Crime_Inc_1945/Crime_Inc_512kb.mp4",
+          "redirectCount": 0,
+          "httpStatus": 200,
+          "contentType": "video/mp4",
+          "contentLength": 317841171,
+          "acceptRanges": "bytes",
+          "latencyMs": 1131,
+          "checkedAt": "2026-07-18T04:17:55.496Z"
+        },
+        "durationValid": true,
+        "certifiedAt": "2026-07-18T04:17:55.497Z"
+      }
     },
     {
       "id": "classic-04",
@@ -52,7 +143,7 @@
       "title": "Dick Tracy's Dilemna",
       "sourceUrl": "https://dn710903.ca.archive.org/0/items/dick_tracys_dilemma/dick_tracys_dilemma.mp4",
       "durationSeconds": 3580,
-      "enabled": true,
+      "enabled": false,
       "validationStatus": "pending",
       "notes": ""
     },
@@ -63,8 +154,28 @@
       "sourceUrl": "https://dn710901.ca.archive.org/0/items/DickTracyvsCueball/Dick_Tracy_vs_Cueball.mp4",
       "durationSeconds": 6222,
       "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
+      "validationStatus": "validated",
+      "notes": "",
+      "certification": {
+        "contract": "sandblast.tv.mediaCertification/2.0",
+        "fingerprint": "465bb8310782b961e9a426c9299cac2edffc25e0c433bf8779c037278181fd87",
+        "validated": true,
+        "probe": {
+          "ok": true,
+          "error": "",
+          "sourceUrl": "https://dn710901.ca.archive.org/0/items/DickTracyvsCueball/Dick_Tracy_vs_Cueball.mp4",
+          "finalUrl": "https://dn710901.ca.archive.org/0/items/DickTracyvsCueball/Dick_Tracy_vs_Cueball.mp4",
+          "redirectCount": 0,
+          "httpStatus": 200,
+          "contentType": "video/mp4",
+          "contentLength": 391548628,
+          "acceptRanges": "bytes",
+          "latencyMs": 1108,
+          "checkedAt": "2026-07-18T04:17:55.477Z"
+        },
+        "durationValid": true,
+        "certifiedAt": "2026-07-18T04:17:55.477Z"
+      }
     },
     {
       "id": "classic-06",
@@ -72,7 +183,7 @@
       "title": "Suddenly",
       "sourceUrl": "https://dn711109.ca.archive.org/0/items/suddenly_avi/Sudenly.mp4",
       "durationSeconds": 7533,
-      "enabled": true,
+      "enabled": false,
       "validationStatus": "pending",
       "notes": ""
     },
@@ -82,7 +193,7 @@
       "title": "Captain Kidd",
       "sourceUrl": "https://dn721800.ca.archive.org/0/items/captain-kidd-1945_202312/Captain%20Kidd%20%281945%29.mp4",
       "durationSeconds": 8731,
-      "enabled": true,
+      "enabled": false,
       "validationStatus": "pending",
       "notes": ""
     },
@@ -93,8 +204,28 @@
       "sourceUrl": "https://dn711305.ca.archive.org/0/items/go-for-broke-1951/Go%20for%20Broke%20%281951%29.mp4",
       "durationSeconds": 9020,
       "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
+      "validationStatus": "validated",
+      "notes": "",
+      "certification": {
+        "contract": "sandblast.tv.mediaCertification/2.0",
+        "fingerprint": "a6739ba3309709d19dd57240644d83d06e3d977319662eb3f197dd0975e0985f",
+        "validated": true,
+        "probe": {
+          "ok": true,
+          "error": "",
+          "sourceUrl": "https://dn711305.ca.archive.org/0/items/go-for-broke-1951/Go%20for%20Broke%20%281951%29.mp4",
+          "finalUrl": "https://dn711305.ca.archive.org/0/items/go-for-broke-1951/Go%20for%20Broke%20%281951%29.mp4",
+          "redirectCount": 0,
+          "httpStatus": 200,
+          "contentType": "video/mp4",
+          "contentLength": 562265454,
+          "acceptRanges": "bytes",
+          "latencyMs": 2269,
+          "checkedAt": "2026-07-18T04:17:56.954Z"
+        },
+        "durationValid": true,
+        "certifiedAt": "2026-07-18T04:17:56.954Z"
+      }
     },
     {
       "id": "classic-09",
@@ -103,8 +234,28 @@
       "sourceUrl": "https://dn711100.ca.archive.org/0/items/the-golden-eye-1948-dvd-mkv/The%20Golden%20Eye%20%281948%29%20%7Btmdb-55603%7D%20%5BDVD%5D%5BAC3%201.0%5D%5BMPEG2%5D.mp4",
       "durationSeconds": 6916,
       "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
+      "validationStatus": "validated",
+      "notes": "",
+      "certification": {
+        "contract": "sandblast.tv.mediaCertification/2.0",
+        "fingerprint": "732860c34c67c7f3190ec615cd5b3c2fd27d45129079d38d781b6c083aa73a78",
+        "validated": true,
+        "probe": {
+          "ok": true,
+          "error": "",
+          "sourceUrl": "https://dn711100.ca.archive.org/0/items/the-golden-eye-1948-dvd-mkv/The%20Golden%20Eye%20%281948%29%20%7Btmdb-55603%7D%20%5BDVD%5D%5BAC3%201.0%5D%5BMPEG2%5D.mp4",
+          "finalUrl": "https://dn711100.ca.archive.org/0/items/the-golden-eye-1948-dvd-mkv/The%20Golden%20Eye%20%281948%29%20%7Btmdb-55603%7D%20%5BDVD%5D%5BAC3%201.0%5D%5BMPEG2%5D.mp4",
+          "redirectCount": 0,
+          "httpStatus": 200,
+          "contentType": "video/mp4",
+          "contentLength": 404493171,
+          "acceptRanges": "bytes",
+          "latencyMs": 1212,
+          "checkedAt": "2026-07-18T04:17:56.689Z"
+        },
+        "durationValid": true,
+        "certifiedAt": "2026-07-18T04:17:56.689Z"
+      }
     },
     {
       "id": "classic-10",
@@ -113,8 +264,28 @@
       "sourceUrl": "https://dn710802.ca.archive.org/0/items/Saint_Louis_Bank_Robbery/Saint_Louis_Bank_Robbery.mp4",
       "durationSeconds": 8847,
       "enabled": true,
-      "validationStatus": "pending",
-      "notes": ""
+      "validationStatus": "validated",
+      "notes": "",
+      "certification": {
+        "contract": "sandblast.tv.mediaCertification/2.0",
+        "fingerprint": "b782c5aa2512fa76375a84756f8a5514d9a4a1addf03b2885ca947aa1df5368e",
+        "validated": true,
+        "probe": {
+          "ok": true,
+          "error": "",
+          "sourceUrl": "https://dn710802.ca.archive.org/0/items/Saint_Louis_Bank_Robbery/Saint_Louis_Bank_Robbery.mp4",
+          "finalUrl": "https://dn710802.ca.archive.org/0/items/Saint_Louis_Bank_Robbery/Saint_Louis_Bank_Robbery.mp4",
+          "redirectCount": 0,
+          "httpStatus": 200,
+          "contentType": "video/mp4",
+          "contentLength": 555218751,
+          "acceptRanges": "bytes",
+          "latencyMs": 682,
+          "checkedAt": "2026-07-18T04:17:56.179Z"
+        },
+        "durationValid": true,
+        "certifiedAt": "2026-07-18T04:17:56.179Z"
+      }
     },
     {
       "id": "classic-11",
