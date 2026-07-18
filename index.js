@@ -6822,15 +6822,19 @@ app.use((req, res, next) => {
  * This mount remains before every /api not_found guard and preserves the TV
  * scheduler as a standalone module. It supports two storage strategies:
  *   persistent - use SB_TV_DATA_DIR and seed only missing canonical drafts.
- *   stateless  - rebuild a writable runtime snapshot from Git on every boot.
+ *   stateless  - rebuild a writable runtime snapshot from Git blocks on every boot.
  *
  * Stateless mode is the free-tier Render path. Set:
  *   SB_TV_STORAGE_MODE=stateless
  * Optional:
  *   SB_TV_STATELESS_DIR=/tmp/SandblastTV
  *   SB_TV_CANONICAL_DIR=/opt/render/project/src/Data/SandblastTV
+ *
+ * In stateless mode, blocks/*.json are the canonical release authority.
+ * Runtime published/*.json files are reconstructed only from already validated
+ * block manifests; they are generated artifacts and are not required in Git.
  */
-const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/3.0-stateless-git-restore";
+const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/3.1-stateless-block-authority";
 const SANDBLAST_TV_SCHEDULER_MOUNT_PATH = "/api/sandblast-tv/v1";
 const SANDBLAST_TV_MODULE_CANDIDATES = Object.freeze([
   process.env.SB_TV_MODULE_PATH,
@@ -6997,9 +7001,10 @@ function sandblastTvCopyJsonFile(source, target, overwrite) {
 
 function sandblastTvCollectCanonicalReleaseFiles(canonicalRoot) {
   const files = [...SANDBLAST_TV_BOOT_REQUIRED_FILES];
-  for (const directory of ["published", "certification"]) {
-    const root = path.join(canonicalRoot, directory);
-    if (!fs.existsSync(root)) continue;
+  // blocks/*.json are canonical. published/*.json is always reconstructed at
+  // runtime from validated blocks so stale generated files cannot override Git.
+  const root = path.join(canonicalRoot, "certification");
+  if (fs.existsSync(root)) {
     const queue = [root];
     while (queue.length) {
       const current = queue.shift();
@@ -7094,7 +7099,7 @@ function sandblastTvRestoreStatelessData(dataDir, canonical) {
     configured: true,
     writable,
     bootable: writable && missing.length === 0 && bootInvalid.length === 0,
-    releaseReady: writable && missing.length === 0 && releaseMissing.length === 0 && bootInvalid.length === 0 && releaseInvalid.length === 0,
+    releaseReady: false, // set after validated blocks are published into the runtime directory
     copied,
     existing: [],
     missing,
@@ -7168,6 +7173,11 @@ function loadSandblastTvSchedulerModule() {
         : loaded && loaded.default && typeof loaded.default.createSandblastTvRouter === "function"
           ? loaded.default.createSandblastTvRouter
           : typeof loaded === "function" ? loaded : null;
+      const servicesFactory = loaded && typeof loaded.createSandblastTvServices === "function"
+        ? loaded.createSandblastTvServices
+        : loaded && loaded.default && typeof loaded.default.createSandblastTvServices === "function"
+          ? loaded.default.createSandblastTvServices
+          : null;
       if (!factory) {
         attempts.push({ candidate: sandblastTvPublicCandidate(candidate), ok: false, code: "factory_missing" });
         continue;
@@ -7175,6 +7185,7 @@ function loadSandblastTvSchedulerModule() {
       return {
         ok: true,
         factory,
+        servicesFactory,
         candidate: sandblastTvPublicCandidate(candidate),
         resolvedPath: sandblastTvPublicResolvedPath(resolvedPath),
         attempts
@@ -7184,7 +7195,7 @@ function loadSandblastTvSchedulerModule() {
       attempts.push({ candidate: sandblastTvPublicCandidate(candidate), ok: false, code: safe.code, message: safe.message });
     }
   }
-  return { ok: false, factory: null, candidate: "", resolvedPath: "", attempts };
+  return { ok: false, factory: null, servicesFactory: null, candidate: "", resolvedPath: "", attempts };
 }
 
 const SANDBLAST_TV_STORAGE_MODE = sandblastTvNormalizeStorageMode();
@@ -7196,6 +7207,77 @@ const SANDBLAST_TV_DATA_BOOTSTRAP = SANDBLAST_TV_STORAGE_MODE === "stateless"
 process.env.SB_TV_DATA_DIR = SANDBLAST_TV_DATA_DIR;
 
 const SANDBLAST_TV_MODULE_LOAD = loadSandblastTvSchedulerModule();
+
+function sandblastTvReconstructRuntimePublished(moduleLoad, dataDir, storageMode) {
+  const channels = {};
+  const status = {
+    attempted: storageMode === "stateless",
+    sourceAuthority: "blocks",
+    generatedDirectory: "published",
+    releaseReady: false,
+    channels,
+    error: null
+  };
+  if (storageMode !== "stateless") {
+    status.attempted = false;
+    status.releaseReady = SANDBLAST_TV_RELEASE_REQUIRED_FILES.every(
+      (relative) => fs.existsSync(path.join(dataDir, relative))
+    );
+    return { status, services: null };
+  }
+  if (!moduleLoad.ok || typeof moduleLoad.servicesFactory !== "function") {
+    status.error = {
+      code: "scheduler_services_factory_unavailable",
+      message: "The scheduler module cannot reconstruct published manifests from blocks."
+    };
+    return { status, services: null };
+  }
+  let services = null;
+  try {
+    services = moduleLoad.servicesFactory({ rootDir: __dirname, dataDir });
+    if (!services || !services.store || !services.scheduler || typeof services.scheduler.publish !== "function") {
+      throw Object.assign(new Error("scheduler_services_invalid"), { code: "scheduler_services_invalid" });
+    }
+    for (const channel of ["cartoons", "classic"]) {
+      try {
+        const draft = services.store.getDraft(channel);
+        if (!draft) {
+          channels[channel] = { ok: false, error: "draft_not_found" };
+          continue;
+        }
+        const manifest = services.scheduler.publish(channel);
+        channels[channel] = {
+          ok: true,
+          version: Number(manifest && manifest.version || 0),
+          activeSlots: Array.isArray(manifest && manifest.slots) ? manifest.slots.length : 0,
+          totalDurationSeconds: Number(manifest && manifest.totalDurationSeconds || 0)
+        };
+      } catch (err) {
+        const safe = sandblastTvSafeError(err);
+        channels[channel] = {
+          ok: false,
+          error: safe.code || "publish_reconstruction_failed",
+          message: safe.message
+        };
+      }
+    }
+    status.releaseReady = ["cartoons", "classic"].every(
+      (channel) => channels[channel] && channels[channel].ok === true
+    );
+  } catch (err) {
+    status.error = sandblastTvSafeError(err);
+  }
+  return { status, services };
+}
+
+const SANDBLAST_TV_RUNTIME_RELEASE = sandblastTvReconstructRuntimePublished(
+  SANDBLAST_TV_MODULE_LOAD,
+  SANDBLAST_TV_DATA_DIR,
+  SANDBLAST_TV_STORAGE_MODE
+);
+SANDBLAST_TV_DATA_BOOTSTRAP.releaseReady = SANDBLAST_TV_RUNTIME_RELEASE.status.releaseReady === true;
+SANDBLAST_TV_DATA_BOOTSTRAP.release = SANDBLAST_TV_RUNTIME_RELEASE.status;
+
 let SANDBLAST_TV_SCHEDULER_MOUNTED = false;
 let SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = null;
 
@@ -7206,10 +7288,13 @@ if (!SANDBLAST_TV_DATA_BOOTSTRAP.bootable) {
   };
 } else if (!app.locals.__sandblastTvSchedulerMounted && SANDBLAST_TV_MODULE_LOAD.ok) {
   try {
-    const schedulerRouter = SANDBLAST_TV_MODULE_LOAD.factory({
-      rootDir: __dirname,
-      dataDir: SANDBLAST_TV_DATA_DIR
-    });
+    const schedulerRouter = SANDBLAST_TV_RUNTIME_RELEASE.services &&
+      typeof SANDBLAST_TV_RUNTIME_RELEASE.services.router === "function"
+        ? SANDBLAST_TV_RUNTIME_RELEASE.services.router
+        : SANDBLAST_TV_MODULE_LOAD.factory({
+            rootDir: __dirname,
+            dataDir: SANDBLAST_TV_DATA_DIR
+          });
     if (typeof schedulerRouter !== "function") {
       throw Object.assign(new Error("scheduler_router_invalid"), { code: "scheduler_router_invalid" });
     }
@@ -7238,6 +7323,8 @@ function getSandblastTvSchedulerMountStatus() {
     storageMode: SANDBLAST_TV_STORAGE_MODE,
     stateless: SANDBLAST_TV_STORAGE_MODE === "stateless",
     releaseReady: SANDBLAST_TV_DATA_BOOTSTRAP.releaseReady === true,
+    releaseAuthority: "blocks",
+    release: SANDBLAST_TV_RUNTIME_RELEASE.status,
     moduleCandidate: SANDBLAST_TV_MODULE_LOAD.candidate || "",
     moduleResolvedPath: SANDBLAST_TV_MODULE_LOAD.resolvedPath || "",
     moduleAttempts: SANDBLAST_TV_MODULE_LOAD.attempts,
