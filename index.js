@@ -39,6 +39,7 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const os = require("os");
 
 let compression = null;
 try {
@@ -6818,11 +6819,18 @@ app.use((req, res, next) => {
 
 /* SANDBLAST_TV_SCHEDULER_ROUTE_MOUNT_START
  * Dedicated Sandblast TV scheduling boundary.
- * This mount is intentionally before every /api not_found guard. It resolves
- * Linux filename-casing drift, passes the persistent data directory explicitly,
- * seeds only missing canonical data files and exposes a redacted mount probe.
+ * This mount remains before every /api not_found guard and preserves the TV
+ * scheduler as a standalone module. It supports two storage strategies:
+ *   persistent - use SB_TV_DATA_DIR and seed only missing canonical drafts.
+ *   stateless  - rebuild a writable runtime snapshot from Git on every boot.
+ *
+ * Stateless mode is the free-tier Render path. Set:
+ *   SB_TV_STORAGE_MODE=stateless
+ * Optional:
+ *   SB_TV_STATELESS_DIR=/tmp/SandblastTV
+ *   SB_TV_CANONICAL_DIR=/opt/render/project/src/Data/SandblastTV
  */
-const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/2.0-persistent-boot-hardlock";
+const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/3.0-stateless-git-restore";
 const SANDBLAST_TV_SCHEDULER_MOUNT_PATH = "/api/sandblast-tv/v1";
 const SANDBLAST_TV_MODULE_CANDIDATES = Object.freeze([
   process.env.SB_TV_MODULE_PATH,
@@ -6843,10 +6851,22 @@ const SANDBLAST_TV_MODULE_CANDIDATES = Object.freeze([
   "./Data/sandblast-tv",
   "./Data/sandblast-tv/index.js"
 ].filter(Boolean));
-const SANDBLAST_TV_SEED_FILES = Object.freeze([
+const SANDBLAST_TV_BOOT_REQUIRED_FILES = Object.freeze([
   "channels.json",
   path.join("blocks", "cartoons.json"),
   path.join("blocks", "classic.json")
+]);
+const SANDBLAST_TV_RELEASE_REQUIRED_FILES = Object.freeze([
+  path.join("published", "cartoons.json"),
+  path.join("published", "classic.json")
+]);
+const SANDBLAST_TV_MANAGED_PATHS = Object.freeze([
+  "channels.json",
+  "blocks",
+  "published",
+  "certification",
+  "backups",
+  "audit"
 ]);
 
 function sandblastTvSafeError(err) {
@@ -6875,66 +6895,264 @@ function sandblastTvPublicResolvedPath(filePath) {
   if (!filePath) return "";
   try {
     const relative = path.relative(__dirname, filePath);
-    return relative && !relative.startsWith("..") ? relative.replace(/\\/g, "/") : path.basename(filePath);
+    return relative && !relative.startsWith("..")
+      ? relative.replace(/\\/g, "/")
+      : path.basename(filePath);
   } catch (_) {
     return path.basename(String(filePath));
   }
 }
 
-function sandblastTvResolveDataDir() {
-  const configured = cleanText(process.env.SB_TV_DATA_DIR || "", 2048);
-  return path.resolve(configured || path.join(__dirname, "Data", "SandblastTV"));
+function sandblastTvNormalizeStorageMode() {
+  const raw = cleanText(process.env.SB_TV_STORAGE_MODE || "auto", 40).toLowerCase();
+  if (["stateless", "ephemeral", "git", "restore"].includes(raw)) return "stateless";
+  if (["persistent", "disk"].includes(raw)) return "persistent";
+  const onRender = String(process.env.RENDER || "").toLowerCase() === "true" ||
+    !!cleanText(process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_HOSTNAME || "", 300);
+  return onRender ? "stateless" : "persistent";
 }
 
-function sandblastTvSeedPersistentData(dataDir) {
-  const targetRoot = path.resolve(dataDir);
-  const sourceRoots = Array.from(new Set([
+function sandblastTvIsWithin(parentDir, childDir) {
+  try {
+    const parent = path.resolve(parentDir);
+    const child = path.resolve(childDir);
+    const relative = path.relative(parent, child);
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  } catch (_) {
+    return false;
+  }
+}
+
+function sandblastTvResolveCanonicalDir() {
+  const attempts = [];
+  const candidates = Array.from(new Set([
+    process.env.SB_TV_CANONICAL_DIR,
     path.join(__dirname, "Data", "SandblastTV"),
     path.join(process.cwd(), "Data", "SandblastTV"),
     path.join(__dirname, "SandblastTV", "Data"),
     path.join(__dirname, "SandblastTV")
-  ].map((value) => path.resolve(value))));
+  ].filter(Boolean).map((value) => path.resolve(value))));
+  for (const candidate of candidates) {
+    const missing = SANDBLAST_TV_BOOT_REQUIRED_FILES.filter(
+      (relative) => !fs.existsSync(path.join(candidate, relative))
+    );
+    attempts.push({
+      candidate: sandblastTvPublicResolvedPath(candidate),
+      complete: missing.length === 0,
+      missing: missing.map((item) => item.replace(/\\/g, "/"))
+    });
+    if (!missing.length) return { ok: true, root: candidate, attempts };
+  }
+  return { ok: false, root: "", attempts };
+}
+
+function sandblastTvResolveDataDir(storageMode) {
+  if (storageMode === "stateless") {
+    const tempRoot = path.resolve(os.tmpdir());
+    const requested = cleanText(
+      process.env.SB_TV_STATELESS_DIR ||
+      (sandblastTvIsWithin(tempRoot, process.env.SB_TV_DATA_DIR || "") ? process.env.SB_TV_DATA_DIR : "") ||
+      path.join(tempRoot, "SandblastTV"),
+      2048
+    );
+    const resolved = path.resolve(requested || path.join(tempRoot, "SandblastTV"));
+    return sandblastTvIsWithin(tempRoot, resolved)
+      ? resolved
+      : path.join(tempRoot, "SandblastTV");
+  }
+  const configured = cleanText(process.env.SB_TV_DATA_DIR || "", 2048);
+  return path.resolve(configured || path.join(__dirname, "Data", "SandblastTV"));
+}
+
+function sandblastTvReadJsonStatus(filePath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return { ok: true, value: parsed };
+  } catch (err) {
+    return { ok: false, error: sandblastTvSafeError(err) };
+  }
+}
+
+function sandblastTvCopyJsonFile(source, target, overwrite) {
+  const sourceStat = fs.lstatSync(source);
+  if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) {
+    const err = new Error("canonical_file_not_regular");
+    err.code = "canonical_file_not_regular";
+    throw err;
+  }
+  const validation = sandblastTvReadJsonStatus(source);
+  if (!validation.ok) {
+    const err = new Error(`canonical_json_invalid:${path.basename(source)}`);
+    err.code = "canonical_json_invalid";
+    throw err;
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  if (!overwrite && fs.existsSync(target)) return false;
+  const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
+  fs.copyFileSync(source, temp);
+  try { fs.chmodSync(temp, 0o600); } catch (_) {}
+  fs.renameSync(temp, target);
+  return true;
+}
+
+function sandblastTvCollectCanonicalReleaseFiles(canonicalRoot) {
+  const files = [...SANDBLAST_TV_BOOT_REQUIRED_FILES];
+  for (const directory of ["published", "certification"]) {
+    const root = path.join(canonicalRoot, directory);
+    if (!fs.existsSync(root)) continue;
+    const queue = [root];
+    while (queue.length) {
+      const current = queue.shift();
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        const absolute = path.join(current, entry.name);
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) {
+          queue.push(absolute);
+          continue;
+        }
+        if (!entry.isFile() || !/\.json$/i.test(entry.name)) continue;
+        const relative = path.relative(canonicalRoot, absolute);
+        if (!relative.startsWith("..") && !path.isAbsolute(relative)) files.push(relative);
+      }
+    }
+  }
+  return Array.from(new Set(files));
+}
+
+function sandblastTvResetStatelessRuntime(targetRoot, canonicalRoot) {
+  if (path.resolve(targetRoot) === path.resolve(canonicalRoot)) {
+    const err = new Error("stateless_target_matches_canonical_source");
+    err.code = "unsafe_stateless_target";
+    throw err;
+  }
+  fs.mkdirSync(targetRoot, { recursive: true });
+  for (const relative of SANDBLAST_TV_MANAGED_PATHS) {
+    fs.rmSync(path.join(targetRoot, relative), { recursive: true, force: true });
+  }
+}
+
+function sandblastTvRestoreStatelessData(dataDir, canonical) {
+  const targetRoot = path.resolve(dataDir);
+  const copied = [];
+  const invalid = [];
+  let writable = false;
+  let error = null;
+  if (!canonical.ok || !canonical.root) {
+    return {
+      mode: "stateless",
+      target: sandblastTvPublicResolvedPath(targetRoot),
+      canonical: "",
+      configured: true,
+      writable: false,
+      bootable: false,
+      releaseReady: false,
+      copied,
+      existing: [],
+      missing: [...SANDBLAST_TV_BOOT_REQUIRED_FILES].map((item) => item.replace(/\\/g, "/")),
+      releaseMissing: [...SANDBLAST_TV_RELEASE_REQUIRED_FILES].map((item) => item.replace(/\\/g, "/")),
+      invalid,
+      canonicalAttempts: canonical.attempts || [],
+      error: { code: "canonical_tv_data_unavailable", message: "Canonical Sandblast TV data files were not found." }
+    };
+  }
+  try {
+    sandblastTvResetStatelessRuntime(targetRoot, canonical.root);
+    const canonicalFiles = sandblastTvCollectCanonicalReleaseFiles(canonical.root);
+    for (const relative of canonicalFiles) {
+      const source = path.join(canonical.root, relative);
+      const target = path.join(targetRoot, relative);
+      try {
+        if (sandblastTvCopyJsonFile(source, target, true)) copied.push(relative.replace(/\\/g, "/"));
+      } catch (err) {
+        invalid.push({
+          file: relative.replace(/\\/g, "/"),
+          ...sandblastTvSafeError(err)
+        });
+      }
+    }
+    fs.mkdirSync(path.join(targetRoot, "backups"), { recursive: true });
+    fs.mkdirSync(path.join(targetRoot, "audit"), { recursive: true });
+    fs.accessSync(targetRoot, fs.constants.R_OK | fs.constants.W_OK);
+    writable = true;
+  } catch (err) {
+    error = sandblastTvSafeError(err);
+  }
+  const missing = SANDBLAST_TV_BOOT_REQUIRED_FILES.filter(
+    (relative) => !fs.existsSync(path.join(targetRoot, relative))
+  ).map((item) => item.replace(/\\/g, "/"));
+  const releaseMissing = SANDBLAST_TV_RELEASE_REQUIRED_FILES.filter(
+    (relative) => !fs.existsSync(path.join(targetRoot, relative))
+  ).map((item) => item.replace(/\\/g, "/"));
+  const bootRequired = new Set(SANDBLAST_TV_BOOT_REQUIRED_FILES.map((item) => item.replace(/\\/g, "/")));
+  const releaseRequired = new Set(SANDBLAST_TV_RELEASE_REQUIRED_FILES.map((item) => item.replace(/\\/g, "/")));
+  const bootInvalid = invalid.filter((item) => bootRequired.has(item.file));
+  const releaseInvalid = invalid.filter((item) => releaseRequired.has(item.file));
+  return {
+    mode: "stateless",
+    target: sandblastTvPublicResolvedPath(targetRoot),
+    canonical: sandblastTvPublicResolvedPath(canonical.root),
+    configured: true,
+    writable,
+    bootable: writable && missing.length === 0 && bootInvalid.length === 0,
+    releaseReady: writable && missing.length === 0 && releaseMissing.length === 0 && bootInvalid.length === 0 && releaseInvalid.length === 0,
+    copied,
+    existing: [],
+    missing,
+    releaseMissing,
+    invalid,
+    canonicalAttempts: canonical.attempts || [],
+    restoredAt: new Date().toISOString(),
+    error
+  };
+}
+
+function sandblastTvSeedPersistentData(dataDir, canonical) {
+  const targetRoot = path.resolve(dataDir);
   const copied = [];
   const existing = [];
   const missing = [];
+  const invalid = [];
   let writable = false;
   let error = null;
   try {
     fs.mkdirSync(path.join(targetRoot, "blocks"), { recursive: true });
     fs.accessSync(targetRoot, fs.constants.R_OK | fs.constants.W_OK);
     writable = true;
-    for (const relative of SANDBLAST_TV_SEED_FILES) {
+    for (const relative of SANDBLAST_TV_BOOT_REQUIRED_FILES) {
       const target = path.join(targetRoot, relative);
       if (fs.existsSync(target)) {
-        existing.push(relative.replace(/\\/g, "/"));
+        const validation = sandblastTvReadJsonStatus(target);
+        if (validation.ok) existing.push(relative.replace(/\\/g, "/"));
+        else invalid.push({ file: relative.replace(/\\/g, "/"), ...validation.error });
         continue;
       }
-      let source = "";
-      for (const root of sourceRoots) {
-        const candidate = path.join(root, relative);
-        if (path.resolve(candidate) !== path.resolve(target) && fs.existsSync(candidate)) {
-          source = candidate;
-          break;
-        }
-      }
-      if (!source) {
+      const source = canonical.ok && canonical.root ? path.join(canonical.root, relative) : "";
+      if (!source || path.resolve(source) === path.resolve(target) || !fs.existsSync(source)) {
         missing.push(relative.replace(/\\/g, "/"));
         continue;
       }
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
-      copied.push(relative.replace(/\\/g, "/"));
+      if (sandblastTvCopyJsonFile(source, target, false)) copied.push(relative.replace(/\\/g, "/"));
     }
   } catch (err) {
     error = sandblastTvSafeError(err);
   }
+  const releaseMissing = SANDBLAST_TV_RELEASE_REQUIRED_FILES.filter(
+    (relative) => !fs.existsSync(path.join(targetRoot, relative))
+  ).map((item) => item.replace(/\\/g, "/"));
   return {
+    mode: "persistent",
     target: sandblastTvPublicResolvedPath(targetRoot),
+    canonical: canonical.ok ? sandblastTvPublicResolvedPath(canonical.root) : "",
     configured: !!cleanText(process.env.SB_TV_DATA_DIR || ""),
     writable,
+    bootable: writable && missing.length === 0 && invalid.length === 0,
+    releaseReady: writable && missing.length === 0 && releaseMissing.length === 0 && invalid.length === 0,
     copied,
     existing,
     missing,
+    releaseMissing,
+    invalid,
+    canonicalAttempts: canonical.attempts || [],
     error
   };
 }
@@ -6969,13 +7187,24 @@ function loadSandblastTvSchedulerModule() {
   return { ok: false, factory: null, candidate: "", resolvedPath: "", attempts };
 }
 
-const SANDBLAST_TV_DATA_DIR = sandblastTvResolveDataDir();
-const SANDBLAST_TV_DATA_BOOTSTRAP = sandblastTvSeedPersistentData(SANDBLAST_TV_DATA_DIR);
+const SANDBLAST_TV_STORAGE_MODE = sandblastTvNormalizeStorageMode();
+const SANDBLAST_TV_CANONICAL_DATA = sandblastTvResolveCanonicalDir();
+const SANDBLAST_TV_DATA_DIR = sandblastTvResolveDataDir(SANDBLAST_TV_STORAGE_MODE);
+const SANDBLAST_TV_DATA_BOOTSTRAP = SANDBLAST_TV_STORAGE_MODE === "stateless"
+  ? sandblastTvRestoreStatelessData(SANDBLAST_TV_DATA_DIR, SANDBLAST_TV_CANONICAL_DATA)
+  : sandblastTvSeedPersistentData(SANDBLAST_TV_DATA_DIR, SANDBLAST_TV_CANONICAL_DATA);
+process.env.SB_TV_DATA_DIR = SANDBLAST_TV_DATA_DIR;
+
 const SANDBLAST_TV_MODULE_LOAD = loadSandblastTvSchedulerModule();
 let SANDBLAST_TV_SCHEDULER_MOUNTED = false;
 let SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = null;
 
-if (!app.locals.__sandblastTvSchedulerMounted && SANDBLAST_TV_MODULE_LOAD.ok) {
+if (!SANDBLAST_TV_DATA_BOOTSTRAP.bootable) {
+  SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = {
+    code: "scheduler_data_bootstrap_failed",
+    message: "Sandblast TV runtime data could not be prepared safely."
+  };
+} else if (!app.locals.__sandblastTvSchedulerMounted && SANDBLAST_TV_MODULE_LOAD.ok) {
   try {
     const schedulerRouter = SANDBLAST_TV_MODULE_LOAD.factory({
       rootDir: __dirname,
@@ -7006,6 +7235,9 @@ function getSandblastTvSchedulerMountStatus() {
     version: SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
     mountPath: SANDBLAST_TV_SCHEDULER_MOUNT_PATH,
     mounted: SANDBLAST_TV_SCHEDULER_MOUNTED,
+    storageMode: SANDBLAST_TV_STORAGE_MODE,
+    stateless: SANDBLAST_TV_STORAGE_MODE === "stateless",
+    releaseReady: SANDBLAST_TV_DATA_BOOTSTRAP.releaseReady === true,
     moduleCandidate: SANDBLAST_TV_MODULE_LOAD.candidate || "",
     moduleResolvedPath: SANDBLAST_TV_MODULE_LOAD.resolvedPath || "",
     moduleAttempts: SANDBLAST_TV_MODULE_LOAD.attempts,
