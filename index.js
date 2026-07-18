@@ -6834,7 +6834,7 @@ app.use((req, res, next) => {
  * Runtime published/*.json files are reconstructed only from already validated
  * block manifests; they are generated artifacts and are not required in Git.
  */
-const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/3.1-stateless-block-authority";
+const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/3.2-auth-normalization-diagnostic";
 const SANDBLAST_TV_SCHEDULER_MOUNT_PATH = "/api/sandblast-tv/v1";
 const SANDBLAST_TV_MODULE_CANDIDATES = Object.freeze([
   process.env.SB_TV_MODULE_PATH,
@@ -6872,6 +6872,115 @@ const SANDBLAST_TV_MANAGED_PATHS = Object.freeze([
   "backups",
   "audit"
 ]);
+
+const SANDBLAST_TV_AUTH_DIAGNOSTIC_VERSION = "sandblast.tv.authDiagnostic/1.0-redacted";
+const SANDBLAST_TV_ADMIN_TOKEN_ENV_KEYS = Object.freeze([
+  "SB_TV_ADMIN_TOKEN",
+  "SANDBLAST_TV_ADMIN_TOKEN",
+  "SAND_BLAST_TV_ADMIN_TOKEN",
+  "SBTV_ADMIN_TOKEN"
+]);
+const SANDBLAST_TV_AUTH_DIAGNOSTICS_ENABLED = ["1", "true", "yes", "on", "enabled"].includes(
+  String(process.env.SB_TV_AUTH_DIAGNOSTICS || "").trim().toLowerCase()
+);
+const SANDBLAST_TV_AUTH_DIAGNOSTIC_RATE_LIMIT = 30;
+const sandblastTvAuthDiagnosticRate = new Map();
+
+function sandblastTvNormalizeAdminToken(value) {
+  let token = value == null ? "" : String(value);
+  token = token.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (token.length >= 2) {
+    const first = token[0];
+    const last = token[token.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      token = token.slice(1, -1).trim();
+    }
+  }
+  return token;
+}
+
+function sandblastTvTokenFingerprint(value) {
+  const token = value == null ? "" : String(value);
+  return {
+    configured: token.length > 0,
+    length: Buffer.byteLength(token, "utf8"),
+    fingerprint: token
+      ? crypto.createHash("sha256").update(token, "utf8").digest("hex").slice(0, 16)
+      : "",
+    firstCode: token.length ? token.charCodeAt(0) : null,
+    lastCode: token.length ? token.charCodeAt(token.length - 1) : null
+  };
+}
+
+function sandblastTvTimingSafeTokenMatch(left, right) {
+  const leftDigest = crypto.createHash("sha256").update(String(left || ""), "utf8").digest();
+  const rightDigest = crypto.createHash("sha256").update(String(right || ""), "utf8").digest();
+  return crypto.timingSafeEqual(leftDigest, rightDigest);
+}
+
+function sandblastTvApplyAdminTokenEnvironmentBridge() {
+  const candidates = SANDBLAST_TV_ADMIN_TOKEN_ENV_KEYS.map((key) => {
+    const raw = process.env[key];
+    const normalized = sandblastTvNormalizeAdminToken(raw);
+    return {
+      key,
+      present: raw !== undefined && raw !== null && String(raw).length > 0,
+      rawLength: raw == null ? 0 : Buffer.byteLength(String(raw), "utf8"),
+      normalized
+    };
+  }).filter((item) => item.present || item.normalized);
+
+  const canonical = candidates.find((item) => item.key === "SB_TV_ADMIN_TOKEN" && item.normalized) ||
+    candidates.find((item) => item.normalized) ||
+    { key: "", present: false, rawLength: 0, normalized: "" };
+
+  const distinct = Array.from(new Set(candidates.map((item) => item.normalized).filter(Boolean)));
+  const conflicts = candidates
+    .filter((item) => item.normalized && item.normalized !== canonical.normalized)
+    .map((item) => item.key);
+
+  process.env.SB_TV_ADMIN_TOKEN = canonical.normalized;
+
+  return Object.freeze({
+    configured: canonical.normalized.length > 0,
+    sourceKey: canonical.key || "unavailable",
+    normalized: canonical.rawLength !== Buffer.byteLength(canonical.normalized, "utf8"),
+    aliasesPresent: candidates.map((item) => item.key),
+    conflict: distinct.length > 1,
+    conflictingKeys: conflicts,
+    token: canonical.normalized
+  });
+}
+
+const SANDBLAST_TV_ADMIN_AUTH = sandblastTvApplyAdminTokenEnvironmentBridge();
+
+function sandblastTvAuthDiagnosticAllowed(req) {
+  const now = Date.now();
+  const forwarded = String(req && req.headers && req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  const key = cleanText(forwarded || req && req.ip || req && req.socket && req.socket.remoteAddress || "unknown", 160);
+  let entry = sandblastTvAuthDiagnosticRate.get(key);
+  if (!entry || now >= entry.resetAt) entry = { count: 0, resetAt: now + 60_000 };
+  entry.count += 1;
+  sandblastTvAuthDiagnosticRate.set(key, entry);
+  if (sandblastTvAuthDiagnosticRate.size > 500) {
+    for (const [storedKey, stored] of sandblastTvAuthDiagnosticRate) {
+      if (!stored || now >= stored.resetAt) sandblastTvAuthDiagnosticRate.delete(storedKey);
+      if (sandblastTvAuthDiagnosticRate.size <= 400) break;
+    }
+  }
+  return entry.count <= SANDBLAST_TV_AUTH_DIAGNOSTIC_RATE_LIMIT;
+}
+
+function sandblastTvNormalizeAdminHeader(req, res, next) {
+  try {
+    const headerName = "x-sandblast-tv-admin-token";
+    const raw = req && req.headers ? req.headers[headerName] : "";
+    if (raw !== undefined && raw !== null) {
+      req.headers[headerName] = sandblastTvNormalizeAdminToken(Array.isArray(raw) ? raw[0] : raw);
+    }
+  } catch (_) {}
+  return next();
+}
 
 function sandblastTvSafeError(err) {
   const raw = String(err && err.message || String(err || "mount_failed")).split(/\r?\n/)[0];
@@ -7281,6 +7390,44 @@ SANDBLAST_TV_DATA_BOOTSTRAP.release = SANDBLAST_TV_RUNTIME_RELEASE.status;
 let SANDBLAST_TV_SCHEDULER_MOUNTED = false;
 let SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = null;
 
+app.get(`${SANDBLAST_TV_SCHEDULER_MOUNT_PATH}/_auth-diagnostic`, (req, res) => {
+  applyCors(req, res);
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  if (!SANDBLAST_TV_AUTH_DIAGNOSTICS_ENABLED) {
+    return res.status(404).json({ ok: false, error: "not_found" });
+  }
+  if (!sandblastTvAuthDiagnosticAllowed(req)) {
+    return res.status(429).json({ ok: false, error: "rate_limited", retryAfterSeconds: 60 });
+  }
+  const expected = SANDBLAST_TV_ADMIN_AUTH.token;
+  const supplied = sandblastTvNormalizeAdminToken(req.get("x-sandblast-tv-admin-token") || "");
+  const expectedStatus = sandblastTvTokenFingerprint(expected);
+  const suppliedStatus = sandblastTvTokenFingerprint(supplied);
+  return res.status(200).json({
+    ok: true,
+    service: "sandblast-tv-auth-diagnostic",
+    version: SANDBLAST_TV_AUTH_DIAGNOSTIC_VERSION,
+    environment: expectedStatus,
+    requestHeader: suppliedStatus,
+    match: expectedStatus.configured && suppliedStatus.configured
+      ? sandblastTvTimingSafeTokenMatch(expected, supplied)
+      : false,
+    environmentSource: SANDBLAST_TV_ADMIN_AUTH.sourceKey,
+    environmentNormalized: SANDBLAST_TV_ADMIN_AUTH.normalized,
+    aliasConflict: SANDBLAST_TV_ADMIN_AUTH.conflict,
+    conflictingKeys: SANDBLAST_TV_ADMIN_AUTH.conflictingKeys,
+    valuesExposed: false,
+    temporaryDiagnostic: true,
+    disableWith: "SB_TV_AUTH_DIAGNOSTICS=false",
+    ts: new Date().toISOString()
+  });
+});
+
+app.use(SANDBLAST_TV_SCHEDULER_MOUNT_PATH, sandblastTvNormalizeAdminHeader);
+
 if (!SANDBLAST_TV_DATA_BOOTSTRAP.bootable) {
   SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = {
     code: "scheduler_data_bootstrap_failed",
@@ -7325,6 +7472,13 @@ function getSandblastTvSchedulerMountStatus() {
     releaseReady: SANDBLAST_TV_DATA_BOOTSTRAP.releaseReady === true,
     releaseAuthority: "blocks",
     release: SANDBLAST_TV_RUNTIME_RELEASE.status,
+    auth: {
+      configured: SANDBLAST_TV_ADMIN_AUTH.configured,
+      sourceKey: SANDBLAST_TV_ADMIN_AUTH.sourceKey,
+      normalized: SANDBLAST_TV_ADMIN_AUTH.normalized,
+      aliasConflict: SANDBLAST_TV_ADMIN_AUTH.conflict,
+      diagnosticsEnabled: SANDBLAST_TV_AUTH_DIAGNOSTICS_ENABLED
+    },
     moduleCandidate: SANDBLAST_TV_MODULE_LOAD.candidate || "",
     moduleResolvedPath: SANDBLAST_TV_MODULE_LOAD.resolvedPath || "",
     moduleAttempts: SANDBLAST_TV_MODULE_LOAD.attempts,
@@ -7355,6 +7509,21 @@ if (!SANDBLAST_TV_SCHEDULER_MOUNTED) {
 }
 
 app.locals.sandblastTvScheduler = getSandblastTvSchedulerMountStatus();
+app.locals.sandblastTvAdminAuth = {
+  configured: SANDBLAST_TV_ADMIN_AUTH.configured,
+  sourceKey: SANDBLAST_TV_ADMIN_AUTH.sourceKey,
+  normalized: SANDBLAST_TV_ADMIN_AUTH.normalized,
+  aliasConflict: SANDBLAST_TV_ADMIN_AUTH.conflict,
+  diagnosticsEnabled: SANDBLAST_TV_AUTH_DIAGNOSTICS_ENABLED
+};
+if (!SANDBLAST_TV_ADMIN_AUTH.configured) {
+  console.warn("[SandblastTV][Auth] SB_TV_ADMIN_TOKEN is not configured.");
+} else if (SANDBLAST_TV_ADMIN_AUTH.conflict) {
+  console.warn("[SandblastTV][Auth] Conflicting admin-token environment aliases detected.", {
+    sourceKey: SANDBLAST_TV_ADMIN_AUTH.sourceKey,
+    conflictingKeys: SANDBLAST_TV_ADMIN_AUTH.conflictingKeys
+  });
+}
 console.log(
   SANDBLAST_TV_SCHEDULER_MOUNTED
     ? "[SandblastTV][Scheduler] route mounted"
