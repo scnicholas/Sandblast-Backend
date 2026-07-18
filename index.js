@@ -6818,26 +6818,230 @@ app.use((req, res, next) => {
 
 /* SANDBLAST_TV_SCHEDULER_ROUTE_MOUNT_START
  * Dedicated Sandblast TV scheduling boundary.
- * Mounted after global body parsing and CORS middleware, and before API
- * fallback/error routes. Scheduler internals remain isolated in /SandblastTV.
+ * This mount is intentionally before every /api not_found guard. It resolves
+ * Linux filename-casing drift, passes the persistent data directory explicitly,
+ * seeds only missing canonical data files and exposes a redacted mount probe.
  */
-const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/1.0";
-try {
-  const { createSandblastTvRouter } = require("./SandblastTV");
-  app.use(
-    "/api/sandblast-tv/v1",
-    createSandblastTvRouter({ rootDir: __dirname })
-  );
-  console.log("[SandblastTV][Scheduler] route mounted", {
+const SANDBLAST_TV_SCHEDULER_ROUTE_VERSION = "sandblast.tv.scheduler.routeMount/2.0-persistent-boot-hardlock";
+const SANDBLAST_TV_SCHEDULER_MOUNT_PATH = "/api/sandblast-tv/v1";
+const SANDBLAST_TV_MODULE_CANDIDATES = Object.freeze([
+  process.env.SB_TV_MODULE_PATH,
+  "./SandblastTV",
+  "./SandblastTV/index.js",
+  "./sandblastTV",
+  "./sandblastTV/index.js",
+  "./sandblasttv",
+  "./sandblasttv/index.js",
+  "./sandblast-tv",
+  "./sandblast-tv/index.js",
+  "./Data/SandblastTV",
+  "./Data/SandblastTV/index.js",
+  "./Data/sandblastTV",
+  "./Data/sandblastTV/index.js",
+  "./Data/sandblasttv",
+  "./Data/sandblasttv/index.js",
+  "./Data/sandblast-tv",
+  "./Data/sandblast-tv/index.js"
+].filter(Boolean));
+const SANDBLAST_TV_SEED_FILES = Object.freeze([
+  "channels.json",
+  path.join("blocks", "cartoons.json"),
+  path.join("blocks", "classic.json")
+]);
+
+function sandblastTvSafeError(err) {
+  const raw = String(err && err.message || String(err || "mount_failed")).split(/\r?\n/)[0];
+  const message = raw
+    .split(String(__dirname)).join("<app>")
+    .split(String(process.cwd())).join("<cwd>")
+    .replace(/\/opt\/render\/project\/src/gi, "<app>");
+  return {
+    code: cleanText(err && err.code || "mount_failed", 80),
+    message: cleanText(message, 240)
+  };
+}
+
+function sandblastTvPublicCandidate(candidate) {
+  const value = cleanText(candidate || "", 2048);
+  if (!value) return "";
+  try {
+    return path.isAbsolute(value) ? sandblastTvPublicResolvedPath(value) : value.replace(/\\/g, "/");
+  } catch (_) {
+    return path.basename(value);
+  }
+}
+
+function sandblastTvPublicResolvedPath(filePath) {
+  if (!filePath) return "";
+  try {
+    const relative = path.relative(__dirname, filePath);
+    return relative && !relative.startsWith("..") ? relative.replace(/\\/g, "/") : path.basename(filePath);
+  } catch (_) {
+    return path.basename(String(filePath));
+  }
+}
+
+function sandblastTvResolveDataDir() {
+  const configured = cleanText(process.env.SB_TV_DATA_DIR || "", 2048);
+  return path.resolve(configured || path.join(__dirname, "Data", "SandblastTV"));
+}
+
+function sandblastTvSeedPersistentData(dataDir) {
+  const targetRoot = path.resolve(dataDir);
+  const sourceRoots = Array.from(new Set([
+    path.join(__dirname, "Data", "SandblastTV"),
+    path.join(process.cwd(), "Data", "SandblastTV"),
+    path.join(__dirname, "SandblastTV", "Data"),
+    path.join(__dirname, "SandblastTV")
+  ].map((value) => path.resolve(value))));
+  const copied = [];
+  const existing = [];
+  const missing = [];
+  let writable = false;
+  let error = null;
+  try {
+    fs.mkdirSync(path.join(targetRoot, "blocks"), { recursive: true });
+    fs.accessSync(targetRoot, fs.constants.R_OK | fs.constants.W_OK);
+    writable = true;
+    for (const relative of SANDBLAST_TV_SEED_FILES) {
+      const target = path.join(targetRoot, relative);
+      if (fs.existsSync(target)) {
+        existing.push(relative.replace(/\\/g, "/"));
+        continue;
+      }
+      let source = "";
+      for (const root of sourceRoots) {
+        const candidate = path.join(root, relative);
+        if (path.resolve(candidate) !== path.resolve(target) && fs.existsSync(candidate)) {
+          source = candidate;
+          break;
+        }
+      }
+      if (!source) {
+        missing.push(relative.replace(/\\/g, "/"));
+        continue;
+      }
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
+      copied.push(relative.replace(/\\/g, "/"));
+    }
+  } catch (err) {
+    error = sandblastTvSafeError(err);
+  }
+  return {
+    target: sandblastTvPublicResolvedPath(targetRoot),
+    configured: !!cleanText(process.env.SB_TV_DATA_DIR || ""),
+    writable,
+    copied,
+    existing,
+    missing,
+    error
+  };
+}
+
+function loadSandblastTvSchedulerModule() {
+  const attempts = [];
+  for (const candidate of SANDBLAST_TV_MODULE_CANDIDATES) {
+    try {
+      const resolvedPath = require.resolve(candidate);
+      const loaded = require(resolvedPath);
+      const factory = loaded && typeof loaded.createSandblastTvRouter === "function"
+        ? loaded.createSandblastTvRouter
+        : loaded && loaded.default && typeof loaded.default.createSandblastTvRouter === "function"
+          ? loaded.default.createSandblastTvRouter
+          : typeof loaded === "function" ? loaded : null;
+      if (!factory) {
+        attempts.push({ candidate: sandblastTvPublicCandidate(candidate), ok: false, code: "factory_missing" });
+        continue;
+      }
+      return {
+        ok: true,
+        factory,
+        candidate: sandblastTvPublicCandidate(candidate),
+        resolvedPath: sandblastTvPublicResolvedPath(resolvedPath),
+        attempts
+      };
+    } catch (err) {
+      const safe = sandblastTvSafeError(err);
+      attempts.push({ candidate: sandblastTvPublicCandidate(candidate), ok: false, code: safe.code, message: safe.message });
+    }
+  }
+  return { ok: false, factory: null, candidate: "", resolvedPath: "", attempts };
+}
+
+const SANDBLAST_TV_DATA_DIR = sandblastTvResolveDataDir();
+const SANDBLAST_TV_DATA_BOOTSTRAP = sandblastTvSeedPersistentData(SANDBLAST_TV_DATA_DIR);
+const SANDBLAST_TV_MODULE_LOAD = loadSandblastTvSchedulerModule();
+let SANDBLAST_TV_SCHEDULER_MOUNTED = false;
+let SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = null;
+
+if (!app.locals.__sandblastTvSchedulerMounted && SANDBLAST_TV_MODULE_LOAD.ok) {
+  try {
+    const schedulerRouter = SANDBLAST_TV_MODULE_LOAD.factory({
+      rootDir: __dirname,
+      dataDir: SANDBLAST_TV_DATA_DIR
+    });
+    if (typeof schedulerRouter !== "function") {
+      throw Object.assign(new Error("scheduler_router_invalid"), { code: "scheduler_router_invalid" });
+    }
+    app.use(SANDBLAST_TV_SCHEDULER_MOUNT_PATH, schedulerRouter);
+    app.locals.__sandblastTvSchedulerMounted = true;
+    SANDBLAST_TV_SCHEDULER_MOUNTED = true;
+  } catch (err) {
+    SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = sandblastTvSafeError(err);
+  }
+} else if (app.locals.__sandblastTvSchedulerMounted) {
+  SANDBLAST_TV_SCHEDULER_MOUNTED = true;
+} else {
+  SANDBLAST_TV_SCHEDULER_MOUNT_ERROR = {
+    code: "scheduler_module_unavailable",
+    message: "No Sandblast TV scheduler module candidate exported createSandblastTvRouter."
+  };
+}
+
+function getSandblastTvSchedulerMountStatus() {
+  return {
+    ok: SANDBLAST_TV_SCHEDULER_MOUNTED,
+    service: "sandblast-tv-scheduler-mount",
     version: SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
-    route: "/api/sandblast-tv/v1"
-  });
-} catch (err) {
-  console.log("[SandblastTV][Scheduler] route mount degraded", {
-    version: SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
-    error: err && (err.code || err.message || String(err)) || "mount_failed"
+    mountPath: SANDBLAST_TV_SCHEDULER_MOUNT_PATH,
+    mounted: SANDBLAST_TV_SCHEDULER_MOUNTED,
+    moduleCandidate: SANDBLAST_TV_MODULE_LOAD.candidate || "",
+    moduleResolvedPath: SANDBLAST_TV_MODULE_LOAD.resolvedPath || "",
+    moduleAttempts: SANDBLAST_TV_MODULE_LOAD.attempts,
+    data: SANDBLAST_TV_DATA_BOOTSTRAP,
+    error: SANDBLAST_TV_SCHEDULER_MOUNT_ERROR,
+    t: Date.now()
+  };
+}
+
+app.get(`${SANDBLAST_TV_SCHEDULER_MOUNT_PATH}/_mount`, (req, res) => {
+  applyCors(req, res);
+  res.setHeader("Cache-Control", "no-store");
+  const status = getSandblastTvSchedulerMountStatus();
+  return res.status(status.ok ? 200 : 503).json(status);
+});
+
+if (!SANDBLAST_TV_SCHEDULER_MOUNTED) {
+  app.use(SANDBLAST_TV_SCHEDULER_MOUNT_PATH, (req, res) => {
+    applyCors(req, res);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(503).json({
+      ok: false,
+      error: "sandblast_tv_scheduler_unavailable",
+      path: req.path,
+      mount: getSandblastTvSchedulerMountStatus()
+    });
   });
 }
+
+app.locals.sandblastTvScheduler = getSandblastTvSchedulerMountStatus();
+console.log(
+  SANDBLAST_TV_SCHEDULER_MOUNTED
+    ? "[SandblastTV][Scheduler] route mounted"
+    : "[SandblastTV][Scheduler] route mount degraded",
+  app.locals.sandblastTvScheduler
+);
 /* SANDBLAST_TV_SCHEDULER_ROUTE_MOUNT_END */
 
 // LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK:
@@ -22558,6 +22762,9 @@ module.exports = {
   INDEX_VERSION,
   PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION,
   NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
+  SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
+  SANDBLAST_TV_SCHEDULER_MOUNT_PATH,
+  getSandblastTvSchedulerMountStatus,
   NYX_VOICE_TRANSCRIPT_ROUTES,
   NYX_VOICE_TRANSCRIPT_HEALTH_ROUTES,
   NYX_VOICE_DEPLOYMENT_PARITY_VERSION,
