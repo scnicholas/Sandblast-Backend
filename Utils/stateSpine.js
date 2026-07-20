@@ -5750,3 +5750,34 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
   catch(_){}
 })();
 /* NYX_STATE_SPINE_LOOP_LATENCY_FIX_R1_END */
+
+/* ECHO_FRAME_HIP_GENESIS_R1_START */
+(function echoFrameHipGenesisR1(){
+  "use strict";
+  const VERSION="echoframe.hip.stateSpine/0.1-genesis";
+  const CONTRACT="echoframe.historicalIntelligenceState/0.1";
+  const WAVELENGTH_CONTRACT="echoframe.wavelengthDefinition/0.1";
+  const ALLOWED_WAVELENGTHS=new Set(["archival","linguistic","cultural","sociological","cognitive","visual","audio","environmental","behavioral","temporal"]);
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v,n=240){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
+  function num(v,d=0,min=0,max=1){const n=Number(v);return Number.isFinite(n)?Math.max(min,Math.min(max,n)):d;}
+  function bool(v,d=false){return v===true||v==="true"?true:v===false||v==="false"?false:d;}
+  function list(v,max=12,len=120){return (Array.isArray(v)?v:[]).map(x=>text(x,len)).filter(Boolean).slice(0,max);}
+  function wavelength(v={}){
+    const s=obj(v),type=text(s.type||s.kind||s.name,40).toLowerCase().replace(/[^a-z0-9_-]+/g,"_");
+    if(!ALLOWED_WAVELENGTHS.has(type))return null;
+    return {contract:WAVELENGTH_CONTRACT,type,label:text(s.label||type,80),description:text(s.description,320),signalInputs:list(s.signalInputs||s.inputs,10,100),measurement:text(s.measurement||s.metric,180),confidence:num(s.confidence,0,0,1),evidenceCount:Math.round(num(s.evidenceCount,0,0,1000000)),status:["proposed","collecting","calibrating","validated","suspended"].includes(text(s.status,24).toLowerCase())?text(s.status,24).toLowerCase():"proposed",publicReady:bool(s.publicReady,false)};
+  }
+  function normalize(input={},previous={}){
+    const src=obj(input),prev=obj(previous),enabled=bool(src.enabled,process.env.SB_ECHOFRAME_GENESIS_ENABLED==="true");
+    const waves=(Array.isArray(src.wavelengths)?src.wavelengths:Array.isArray(prev.wavelengths)?prev.wavelengths:[]).map(wavelength).filter(Boolean).slice(0,16);
+    const era=obj(src.era||prev.era),evidence=obj(src.evidence||prev.evidence),governance=obj(src.governance||prev.governance);
+    return {contract:CONTRACT,version:VERSION,project:"Echo Frame",platformType:"Historical Intelligence Platform",acronym:"HIP",enabled,dormant:!enabled,mode:enabled?"research_genesis":"dormant_genesis",era:{id:text(era.id,80),label:text(era.label,120),startYear:Math.round(num(era.startYear,0,-10000,3000)),endYear:Math.round(num(era.endYear,0,-10000,3000)),geography:list(era.geography,8,100)},wavelengths:waves,evidence:{sourceCount:Math.round(num(evidence.sourceCount,0,0,10000000)),primarySourceCount:Math.round(num(evidence.primarySourceCount,0,0,10000000)),confidence:num(evidence.confidence,0,0,1),provenanceRequired:true,syntheticContentSeparated:true,uncertaintyVisible:true},governance:{researchOnly:governance.researchOnly!==false,noHistoricalTruthClaims:governance.noHistoricalTruthClaims!==false,humanReviewRequired:governance.humanReviewRequired!==false,copyrightReviewRequired:governance.copyrightReviewRequired!==false,privacyReviewRequired:governance.privacyReviewRequired!==false,publicProjectionAllowed:bool(governance.publicProjectionAllowed,false)},capabilities:{historicalContextModel:true,wavelengthRegistry:true,evidenceConfidence:true,crossModalCorrelation:true,echoGravity:false,immersiveReconstruction:false,predictiveCounterfactuals:false},limits:{storesRawUserText:false,autoIngest:false,autoPublish:false,authoritativeHistory:false},updatedAt:Date.now()};
+  }
+  function attach(value,input){if(!value||typeof value!=="object"||Array.isArray(value))return value;const prior=obj(value.echoFrameState||obj(value.stateSpine).echoFrameState||obj(value.sessionPatch).echoFrameState),state=normalize(obj(input).echoFrame||input,prior),out={...value,echoFrameState:state};if(obj(out.stateSpine)===out.stateSpine)out.stateSpine={...out.stateSpine,echoFrameState:state};out.sessionPatch={...obj(out.sessionPatch),echoFrameState:state};return out;}
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){api.ECHO_FRAME_HIP_GENESIS_VERSION=VERSION;api.ECHO_FRAME_HIP_STATE_CONTRACT=CONTRACT;api.ECHO_FRAME_WAVELENGTH_CONTRACT=WAVELENGTH_CONTRACT;api.normalizeEchoFrameState=normalize;api.normalizeEchoFrameWavelength=wavelength;api.attachEchoFrameState=attach;}
+  }catch(_){}
+})();
+/* ECHO_FRAME_HIP_GENESIS_R1_END */
