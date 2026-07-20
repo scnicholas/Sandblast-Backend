@@ -1,0 +1,17 @@
+"use strict";
+const assert=require("assert");
+const depth=require("../MarionConversationalDepth678.js");
+const first=depth.build({text:"Review the deployment architecture",operatorId:"Mac"});
+assert.equal(first.layers.six.identity,"Marion");
+assert.equal(first.layers.six.nyxVoiceAllowed,false);
+assert.equal(first.privateAccess.authorized,true);
+const second=depth.build({text:"Actually, keep the same architecture but go deeper",operatorId:"Mac",marionConversationalDepth:first});
+assert.equal(second.layers.seven.relationToPreviousTurn,"correction");
+assert.equal(second.layers.seven.currentObjective,first.layers.seven.currentObjective);
+assert.ok(second.layers.eight.inferenceConfidence>=0.72);
+assert.equal(second.identityIsolation.nyxVisibleIdentityBlocked,true);
+assert.equal(depth.sanitizeVisibleIdentity("I'm Nyx. Nyx is ready."),"I’m Marion. Marion is ready.");
+assert.equal(depth.validate(second).ok,true);
+const stranger=depth.build({text:"Open Marion",operatorId:"public-user"});
+assert.equal(stranger.privateAccess.authorized,false);
+console.log("Marion Layers 6-8 Part 1: PASS");
