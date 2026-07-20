@@ -28104,3 +28104,35 @@ try {
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_HARDLOCK_R5_1_END */
+
+/* ECHO_FRAME_HIP_INDEX_GENESIS_R1_START */
+(function echoFrameHipIndexGenesisR1(){
+  "use strict";
+  const VERSION="echoframe.hip.index/0.1-genesis";
+  const enabled=process.env.SB_ECHOFRAME_GENESIS_ENABLED==="true";
+  let spine=null;
+  try{spine=require("./Utils/stateSpine.js");}catch(_){try{spine=require("./Utils/stateSpine");}catch(__){spine=null;}}
+  function buildState(){
+    const base={enabled,era:{id:"",label:"",startYear:0,endYear:0,geography:[]},wavelengths:[
+      {type:"archival",label:"Archival Evidence",description:"Primary and secondary source provenance, chronology, and custody.",status:"proposed"},
+      {type:"linguistic",label:"Linguistic Signal",description:"Idioms, euphemisms, vocabulary drift, rhetoric, and omission patterns.",status:"proposed"},
+      {type:"cultural",label:"Cultural Signal",description:"Customs, symbols, rituals, aesthetics, entertainment, and collective meaning.",status:"proposed"},
+      {type:"sociological",label:"Sociological Signal",description:"Institutions, class, networks, power, migration, and social organization.",status:"proposed"},
+      {type:"cognitive",label:"Cognitive Signal",description:"Period assumptions, uncertainty, fear, aspiration, attention, and decision constraints.",status:"proposed"},
+      {type:"visual",label:"Visual Signal",description:"Photography, film, maps, design, architecture, artifacts, and visual absence.",status:"proposed"},
+      {type:"audio",label:"Audio Signal",description:"Speech, music, ambience, cadence, silence, and acoustic environment.",status:"proposed"},
+      {type:"environmental",label:"Environmental Signal",description:"Weather, geography, infrastructure, lighting, density, and material conditions.",status:"proposed"},
+      {type:"behavioral",label:"Behavioral Signal",description:"Observed routines, transactions, movement, participation, and adaptation.",status:"proposed"},
+      {type:"temporal",label:"Temporal Signal",description:"Sequence, duration, lag, recurrence, causality candidates, and historical echoes.",status:"proposed"}
+    ],evidence:{sourceCount:0,primarySourceCount:0,confidence:0},governance:{researchOnly:true,noHistoricalTruthClaims:true,humanReviewRequired:true,copyrightReviewRequired:true,privacyReviewRequired:true,publicProjectionAllowed:false}};
+    return spine&&typeof spine.normalizeEchoFrameState==="function"?spine.normalizeEchoFrameState(base,{}):{version:VERSION,project:"Echo Frame",platformType:"Historical Intelligence Platform",acronym:"HIP",enabled,dormant:!enabled,mode:enabled?"research_genesis":"dormant_genesis"};
+  }
+  const genesis=buildState();
+  try{app.locals.echoFrameGenesis=genesis;}catch(_){}
+  try{
+    app.get("/api/echoframe/genesis/health",function(req,res){return res.status(200).json({ok:true,service:"echoframe-genesis",version:VERSION,enabled:!!genesis.enabled,dormant:genesis.dormant!==false,mode:genesis.mode||"dormant_genesis",platform:{name:"Echo Frame",type:"Historical Intelligence Platform",acronym:"HIP"},contracts:{state:spine&&spine.ECHO_FRAME_HIP_STATE_CONTRACT||"echoframe.historicalIntelligenceState/0.1",wavelength:spine&&spine.ECHO_FRAME_WAVELENGTH_CONTRACT||"echoframe.wavelengthDefinition/0.1"},readiness:{stateSpineIntegrated:!!(spine&&typeof spine.normalizeEchoFrameState==="function"),wavelengthRegistry:Array.isArray(genesis.wavelengths),researchActivationRequired:!enabled,publicProjectionAllowed:false},safety:{researchOnly:true,authoritativeHistory:false,autoIngest:false,autoPublish:false,provenanceRequired:true,humanReviewRequired:true},meta:{t:Date.now()}});});
+    app.get("/api/echoframe/genesis/wavelengths",function(req,res){const waves=Array.isArray(genesis.wavelengths)?genesis.wavelengths:[];return res.status(200).json({ok:true,service:"echoframe-wavelength-registry",version:VERSION,enabled:!!genesis.enabled,count:waves.length,wavelengths:waves.map(w=>({type:w.type,label:w.label,description:w.description,status:w.status,publicReady:false})),researchOnly:true,meta:{t:Date.now()}});});
+  }catch(_){}
+  try{module.exports.ECHO_FRAME_HIP_INDEX_GENESIS_VERSION=VERSION;module.exports.echoFrameGenesisState=genesis;}catch(_){}
+})();
+/* ECHO_FRAME_HIP_INDEX_GENESIS_R1_END */
