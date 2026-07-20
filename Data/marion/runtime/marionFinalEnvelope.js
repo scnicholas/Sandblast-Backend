@@ -1,5 +1,66 @@
 "use strict";
 
+
+
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_START */
+function marionSafePrimitiveText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const type = typeof value;
+  if (type === "string") return value;
+  if (type === "number" || type === "boolean" || type === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
+  return fallback;
+}
+function marionSafeCleanText(value, fallback = "") {
+  return marionSafePrimitiveText(value, fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function marionExtractReplyText(result) {
+  if (typeof result === "string") return marionSafeCleanText(result);
+  if (!result || typeof result !== "object") return "";
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const nestedResult = result.result && typeof result.result === "object" ? result.result : {};
+  const finalEnvelope =
+    result.finalEnvelope && typeof result.finalEnvelope === "object" ? result.finalEnvelope :
+    payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
+    nestedResult.finalEnvelope && typeof nestedResult.finalEnvelope === "object" ? nestedResult.finalEnvelope : {};
+  const candidates = [
+    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.reply, result.answer, result.response, result.text, result.message,
+    finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.answer, finalEnvelope.text,
+    payload.reply, payload.text, nestedResult.reply, nestedResult.text
+  ];
+  for (const candidate of candidates) {
+    const text = marionSafeCleanText(candidate);
+    if (text) return text;
+  }
+  return "";
+}
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_END */
+
 /**
  * marionFinalEnvelope.js
  * marionFinalEnvelope v2.2.0 FINAL-TRANSPORT-CONTRACT-STABILIZED
@@ -34,7 +95,7 @@ const FINAL_MARKERS = Object.freeze([
   ADAPTIVE_TRUST_VERIFICATION_VERSION
 ]);
 
-function safeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
+function safeStr(value) { return marionSafeCleanText(value); }
 function lower(value) { return safeStr(value).toLowerCase(); }
 function isObj(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
 function safeObj(value) { return isObj(value) ? value : {}; }
@@ -92,7 +153,7 @@ const KNOWN_FAILURE_SIGNATURES = Object.freeze([
   "DEBUG_LEAK_BLOCKED",
   "ADAPTIVE_TRUST_BLOCKED"
 ]);
-function telemetryAuditText(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function telemetryAuditText(value){return marionSafeCleanText(value);}
 function telemetryAuditObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function classifyFailureSignature(fields={}){
   const f=telemetryAuditObj(fields);
