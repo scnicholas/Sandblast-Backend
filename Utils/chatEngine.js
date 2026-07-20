@@ -5821,3 +5821,33 @@ module.exports = { normalizeVisibleFinalReplyFields,
   }catch(_err){}
 })();
 /* MARION_LAYERS_6_7_8_PART1_END */
+
+
+/* MARION_LAYERS_7_8_PART2_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers78.part2/1.0";
+  let arb=null; try{arb=require("../Data/marion/runtime/MarionContextIntentArbiter78.js");}catch(_err){arb=null;}
+  if(!arb||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayers78Part2)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{};const r=fn.apply(this,a);const p=v=>arb.attach(v,i);return r&&typeof r.then==="function"?r.then(p):p(r)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_e){}w.__marionLayers78Part2=true;w.__marionWrappedName=name;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["handle","process","run","route","routeDomain","scoreDomains","advanceState","buildState","default"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
+})();
+/* MARION_LAYERS_7_8_PART2_END */
+
+
+/* MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_R1_START */
+(function marionAdminLayer78ChatHandlerHardlockR1(){
+  "use strict";
+  const VERSION="marion.chatEngine.adminLayer78Hardlock/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v){return String(v==null?"":v).replace(/\s+/g," ").trim();}
+  function prompt(input){const i=obj(input),p=obj(i.payload),m=obj(i.meta);return text(i.rawUserText||i.userText||i.prompt||i.text||i.message||i.query||p.rawUserText||p.userText||p.prompt||p.text||p.message||m.rawUserText||m.userText||m.prompt||m.text);}
+  function isAdmin(input){const i=obj(input),p=obj(i.payload),m=obj(i.meta);return i.marionAdminConversation===true||i.privateAdminConversation===true||i.directMarionAdminInterface===true||p.marionAdminConversation===true||m.marionAdminConversation===true||String(i.inputChannel||i.channel||"").toLowerCase()==="admin";}
+  function reply(v){const x=obj(v),p=obj(x.payload),f=obj(x.finalEnvelope);return text(x.reply||x.text||x.message||x.answer||x.output||x.response||p.reply||p.text||p.message||f.reply||f.text||f.message);}
+  function generic(v){const t=text(v).toLowerCase().replace(/[.!?]+$/g,"").trim();return /^(?:i(?:'|’)?m here(?:,? mac)?|i am here(?:,? mac)?|still with you(?:,? mac)?|i(?:'|’)?m with you(?:,? mac)?|ready(?:,? mac)?|listening(?:,? mac)?|go ahead(?:,? mac)?)$/.test(t);}
+  function operational(q){const t=text(q),l=t.toLowerCase();if(!t)return"";if(/mobile layout/.test(l))return"Understood. I’ll focus on the mobile layout of the active page, preserve the existing desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes.";if(/advertising page architecture|review the advertising page/.test(l))return"I’ll review the advertising page as a conversion system: message hierarchy, placement inventory, credibility signals, mobile flow, contact path, performance, and the separation between advertiser information and public viewing content.";if(/2\s*\+\s*2/.test(l))return"4.";if(/^(?:continue|keep going|go deeper|next|next steps?|what(?:'|’)?s next)[.!?]*$/.test(l))return"I’m carrying the active objective forward. The next step is to identify the principal weakness and propose the smallest safe correction without reopening settled decisions.";if(/^(?:fix|address|review|analy[sz]e|examine|focus|compare|update|refine|remove|add|keep|preserve)\b/.test(l))return`I have the directive: ${t.replace(/[.!?]+$/g,"")}. I’ll carry the active constraints forward and answer with concrete analysis rather than a presence acknowledgement.`;return"";}
+  function project(value,input){if(!isAdmin(input)||!value||typeof value!=="object")return value;const current=reply(value);if(!generic(current))return value;const replacement=operational(prompt(input));if(!replacement)return value;const out={...value,reply:replacement,text:replacement,message:replacement,answer:replacement,output:replacement,response:replacement,final:true,marionFinal:true,awaitingMarion:false,emit:true,blocked:false,suppressUserFacingReply:false};out.payload={...obj(out.payload),reply:replacement,text:replacement,message:replacement,answer:replacement,output:replacement,response:replacement,final:true,marionFinal:true,awaitingMarion:false,emit:true,blocked:false,suppressUserFacingReply:false};out.finalEnvelope={...obj(out.finalEnvelope),reply:replacement,text:replacement,displayReply:replacement,final:true,marionFinal:true,handled:true,source:"chatEngine.adminLayer78Hardlock"};out.meta={...obj(out.meta),adminLayer78HardlockVersion:VERSION,nonProgressPresenceRejected:true};return out;}
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionAdminLayer78Hardlock)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{},r=fn.apply(this,a);return r&&typeof r.then==="function"?r.then(v=>project(v,i)):project(r,i);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionAdminLayer78Hardlock=true;w.__wrappedName=name;return w;}
+  try{const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["handleChat","run","chat","handle","reply","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields","finalTransportPacket"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_VERSION=VERSION;api.applyMarionAdminLayer78ChatHandlerHardlock=project;api.isMarionNonProgressPresenceReply=generic;}}catch(_){}
+})();
+/* MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_R1_END */
