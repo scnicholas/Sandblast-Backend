@@ -1,5 +1,66 @@
 "use strict";
 
+
+
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_START */
+function marionSafePrimitiveText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const type = typeof value;
+  if (type === "string") return value;
+  if (type === "number" || type === "boolean" || type === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
+  return fallback;
+}
+function marionSafeCleanText(value, fallback = "") {
+  return marionSafePrimitiveText(value, fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function marionExtractReplyText(result) {
+  if (typeof result === "string") return marionSafeCleanText(result);
+  if (!result || typeof result !== "object") return "";
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const nestedResult = result.result && typeof result.result === "object" ? result.result : {};
+  const finalEnvelope =
+    result.finalEnvelope && typeof result.finalEnvelope === "object" ? result.finalEnvelope :
+    payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
+    nestedResult.finalEnvelope && typeof nestedResult.finalEnvelope === "object" ? nestedResult.finalEnvelope : {};
+  const candidates = [
+    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.reply, result.answer, result.response, result.text, result.message,
+    finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.answer, finalEnvelope.text,
+    payload.reply, payload.text, nestedResult.reply, nestedResult.text
+  ];
+  for (const candidate of candidates) {
+    const text = marionSafeCleanText(candidate);
+    if (text) return text;
+  }
+  return "";
+}
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_END */
+
 /**
  * MarionAdminConsoleGateway
  * Private admin-only bridge for Marion control, diagnostics, voice/text commands,
@@ -54,13 +115,9 @@ function isoNow() {
   return new Date().toISOString();
 }
 
-function safeStr(value) {
-  return typeof value === "string" ? value : value == null ? "" : String(value);
-}
+function safeStr(value){ return marionSafePrimitiveText(value, ""); }
 
-function cleanText(value) {
-  return safeStr(value).replace(/\s+/g, " ").trim();
-}
+function cleanText(value){ return marionSafeCleanText(value); }
 
 function lower(value) {
   return cleanText(value).toLowerCase();
@@ -4057,7 +4114,7 @@ try {
   "use strict";
   const V="marion.privateRuntime.terminalHardlock/3.0-json-safe-substantive-final";
   function O(v){return !!v&&typeof v==="object"&&!Array.isArray(v)}
-  function T(v,max){const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();const n=Number(max)||6000;return s.length>n?s.slice(0,n):s}
+  function T(v,max){const s=marionSafeCleanText(v);const n=Number(max)||6000;return s.length>n?s.slice(0,n):s}
   function first(){for(let i=0;i<arguments.length;i++){const v=T(arguments[i]);if(v)return v}return""}
   function promptOf(input){const x=O(input)?input:{};const p=O(x.payload)?x.payload:{};const c=O(x.command)?x.command:{};return first(x.prompt,x.message,x.text,x.query,x.userText,x.input,x.commandText,c.intent,c.message,c.text,c.query,p.prompt,p.message,p.text,p.query)}
   function verified(input,ctx){input=O(input)?input:{};ctx=O(ctx)?ctx:{};return ctx.adminVerified===true||ctx.sessionVerified===true||ctx.trustedServerAuth===true||input.adminVerified===true||input.sessionVerified===true}
@@ -4082,3 +4139,93 @@ try {
   exp.MARION_PRIVATE_RUNTIME_TERMINAL_HARDLOCK_VERSION=V;exp.MARION_PRIVATE_RUNTIME_TERMINAL_HARDLOCK=true;
 })();
 /* MARION_PRIVATE_RUNTIME_TERMINAL_HARDLOCK_V3_END */
+
+
+
+/* MARION_GATEWAY_PRIMITIVE_CONVERSION_HARDLOCK_V4_START */
+(function(){
+  "use strict";
+  const V = "marion.gatewayPrimitiveConversionHardlock/4.0";
+  const exp = typeof module !== "undefined" && module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!exp) return;
+  function compactPrivateResult(result, input, context) {
+    const reply = marionExtractReplyText(result);
+    const statusCode = Number(result && result.statusCode);
+    const ok = result && result.ok === false ? false : !!reply;
+    return {
+      ok,
+      statusCode: Number.isFinite(statusCode) ? statusCode : (ok ? 200 : 502),
+      stage: marionSafeCleanText(result && result.stage, ok ? "private_marion_runtime_complete" : "private_marion_reply_missing"),
+      version: V,
+      scope: "private_admin",
+      audience: "admin",
+      authority: "Marion",
+      surfaceAgent: "Marion",
+      publicSurfaceOnly: false,
+      authenticatedOperator: !!(context && (context.adminVerified === true || context.sessionVerified === true)),
+      publicFallbackBlocked: true,
+      memoryPartition: "private:marion-admin",
+      reply,
+      displayReply: reply,
+      visibleReply: reply,
+      directReply: reply,
+      finalReply: reply,
+      response: reply,
+      text: reply,
+      message: reply,
+      spokenText: reply,
+      speechText: reply,
+      responseFinalized: true,
+      meta: {
+        version: V,
+        jsonSafe: true,
+        primitiveConversionSafe: true,
+        originalStage: marionSafeCleanText(result && result.stage),
+        promptAccepted: !!marionSafeCleanText(input && (input.prompt || input.message || input.text || input.query))
+      }
+    };
+  }
+  function wrap(fn) {
+    if (typeof fn !== "function" || fn.__marionPrimitiveSafeV4) return fn;
+    const wrapped = async function(input, context) {
+      try {
+        const result = await Promise.resolve(fn.call(this, input, context));
+        return compactPrivateResult(result, input, context);
+      } catch (error) {
+        return {
+          ok: false,
+          statusCode: 500,
+          stage: "private_marion_runtime_exception",
+          version: V,
+          scope: "private_admin",
+          audience: "admin",
+          authority: "Marion",
+          surfaceAgent: "Marion",
+          publicSurfaceOnly: false,
+          authenticatedOperator: !!(context && (context.adminVerified === true || context.sessionVerified === true)),
+          publicFallbackBlocked: true,
+          memoryPartition: "private:marion-admin",
+          error: "marion_private_runtime_error",
+          detail: marionSafeCleanText(error && (error.message || error.code || error.name), "Private Marion runtime failed.").slice(0, 280),
+          reply: "",
+          displayReply: "",
+          visibleReply: "",
+          directReply: "",
+          responseFinalized: true
+        };
+      }
+    };
+    wrapped.__marionPrimitiveSafeV4 = true;
+    return wrapped;
+  }
+  ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(function(name){
+    if (typeof exp[name] === "function") exp[name] = wrap(exp[name]);
+  });
+  if (exp.defaultGateway && typeof exp.defaultGateway === "object") {
+    ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(function(name){
+      if (typeof exp.defaultGateway[name] === "function") exp.defaultGateway[name] = wrap(exp.defaultGateway[name]);
+    });
+  }
+  exp.MARION_GATEWAY_PRIMITIVE_CONVERSION_HARDLOCK_VERSION = V;
+})();
+/* MARION_GATEWAY_PRIMITIVE_CONVERSION_HARDLOCK_V4_END */
