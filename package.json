@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.2.0-nyx-phase3-content-readiness",
-  "description": "Sandblast backend with NYX ecosystem spine, cross-surface guidance, voice playback, Marion boundaries, and TV scheduling",
+  "version": "1.2.1-marion-layers-6-8-part1",
+  "description": "Sandblast backend with private Marion Layers 6-8 conversational continuity and intent depth isolation",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -19,7 +19,10 @@
     "test:nyx-widget-playback": "node scripts/widget-playback-certification.js",
     "test:nyx-route-mount": "node scripts/route-mount-certification.js",
     "test:nyx-ecosystem": "node --test tests/nyx-ecosystem-spine.test.js",
-    "test:nyx-content": "node --test tests/nyx-content-data-registry.test.js"
+    "test:nyx-content": "node --test tests/nyx-content-data-registry.test.js",
+    "test:marion-layers-6-8": "node tests/marion-layers-6-8-part1.test.js",
+    "verify:marion-layers-6-8": "node --check Data/marion/runtime/MarionConversationalDepth678.js && npm run test:marion-layers-6-8",
+    "test:marion-layers-7-8-part2": "node tests/marion-layers-7-8-part2.test.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
