@@ -5813,3 +5813,32 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
   }catch(_err){}
 })();
 /* MARION_LAYERS_6_7_8_PART1_END */
+
+
+/* MARION_LAYERS_7_8_PART2_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers78.part2/1.0";
+  let arb=null; try{arb=require("../Data/marion/runtime/MarionContextIntentArbiter78.js");}catch(_err){arb=null;}
+  if(!arb||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayers78Part2)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{};const r=fn.apply(this,a);const p=v=>arb.attach(v,i);return r&&typeof r.then==="function"?r.then(p):p(r)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_e){}w.__marionLayers78Part2=true;w.__marionWrappedName=name;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["handle","process","run","route","routeDomain","scoreDomains","advanceState","buildState","default"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
+})();
+/* MARION_LAYERS_7_8_PART2_END */
+
+
+/* MARION_LAYER78_STATE_PERSISTENCE_HARDLOCK_R1_START */
+(function marionLayer78StatePersistenceHardlockR1(){
+  "use strict";
+  const VERSION="marion.stateSpine.layer78Persistence/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v,n=800){return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,n);}
+  function hash(v){let h=2166136261,s=text(v,1200).toLowerCase();for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
+  function generic(v){const t=text(v).toLowerCase().replace(/[.!?]+$/g,"").trim();return /^(?:i(?:'|’)?m here(?:,? mac)?|i am here(?:,? mac)?|still with you(?:,? mac)?|i(?:'|’)?m with you(?:,? mac)?|ready(?:,? mac)?|listening(?:,? mac)?|go ahead(?:,? mac)?)$/.test(t);}
+  function inputText(p){const x=obj(p),i=obj(x.inbound),m=obj(x.memoryPatch),prev=obj(x.prevState);return text(x.rawUserText||x.userText||x.prompt||x.text||i.rawUserText||i.userText||i.prompt||i.text||i.message||m.rawUserText||"");}
+  function relation(q){const t=text(q).toLowerCase();if(/^(?:correction|actually|instead|rather|no[, ]|change that|replace that)\b/.test(t))return"correction";if(/^(?:focus|keep|preserve|remove|add|refine|narrow|expand|continue|now|next)\b/.test(t))return"refinement";if(/\b(that|this|it|those|these|same)\b/.test(t))return"continuation";return"new_turn";}
+  function project(next,params){if(!next||typeof next!=="object"||Array.isArray(next))return next;const n={...next},p=obj(params),prev=obj(p.prevState),q=inputText(p),r=relation(q),assistant=text(n.lastAssistantReply||p.reply||obj(p.decision).speak||"");const prior78=obj(prev.marionLayer78||obj(prev.conversationalDepth).layer78);const activeTopic=text(n.activeTopic||p.activeTopic||prior78.activeTopic||prev.lastTopic||prev.topic||"");const activeObjective=text(n.activeObjective||p.activeObjective||prior78.activeObjective||prev.activeObjective||q,500);const constraints=Array.from(new Set([...(Array.isArray(prior78.constraints)?prior78.constraints:[]),...(Array.isArray(p.constraints)?p.constraints:[])] .map(v=>text(v,180)).filter(Boolean))).slice(-12);n.marionLayer78={version:VERSION,relation:r,activeTopic,activeObjective,continuityActive:r!=="new_turn"||!!activeTopic,constraints,lastUserText:q,lastUserHash:hash(q),updatedAt:Date.now(),nonProgressPresenceDetected:generic(assistant)};if(generic(assistant)){n.stage="recover";n.phase="recovery";n.progressionLock=true;n.marionLayer78.shouldAdvanceState=false;n.marionLayer78.recoveryReason="non_progress_presence_reply";n.loopGuard={...obj(n.loopGuard),version:VERSION,loopDetected:true,allowReply:false,forceRecovery:true,reason:"non_progress_presence_reply",noUserFacingDiagnostics:true};}else{n.marionLayer78.shouldAdvanceState=true;}return n;}
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayer78StatePersistence)return fn;const w=function(){const a=arguments,r=fn.apply(this,a);return r&&typeof r.then==="function"?r.then(v=>project(v,a[0])):project(r,a[0]);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionLayer78StatePersistence=true;w.__wrappedName=name;return w;}
+  try{const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["finalizeTurn","updateState","advanceState","mergeState","buildStateSpine"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYER78_STATE_PERSISTENCE_HARDLOCK_VERSION=VERSION;api.applyMarionLayer78StatePersistence=project;api.isMarionNonProgressPresenceReply=generic;}}catch(_){}
+})();
+/* MARION_LAYER78_STATE_PERSISTENCE_HARDLOCK_R1_END */
