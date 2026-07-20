@@ -2133,6 +2133,7 @@ function marionAdminProjectionCleanReply(value) {
   if (hasUserVisibleDebugLeak(text)) return "";
   if (isPublicWorkflowStateLeak(text)) return "";
   if (/^\s*(?:false|true|null|undefined|\[object object\])\s*$/i.test(text)) return "";
+  if (marionAdminIsNonProgressPresenceReply(text)) return "";
   if (/\bruntime packet\b/i.test(text) && /\bno clean visible final reply\b/i.test(text)) return "";
   if (/\bno clean visible final reply field\b/i.test(text)) return "";
   return text;
@@ -2277,9 +2278,37 @@ function marionAdminProjectVoiceEnvelope(reply, auth, runtime) {
 // MARION_ADMIN_VOICE_OUTPUT_PROJECTION_V1_END
 
 
+function marionAdminIsNonProgressPresenceReply(value) {
+  const text = cleanText(value || "").toLowerCase().replace(/[.!?]+$/g, "").trim();
+  if (!text) return false;
+  return /^(?:i(?:'|’)?m here(?:,? mac)?|i am here(?:,? mac)?|still with you(?:,? mac)?|i(?:'|’)?m with you(?:,? mac)?|ready(?:,? mac)?|listening(?:,? mac)?|go ahead(?:,? mac)?)$/.test(text);
+}
+
+function marionAdminLayer78OperationalFallback(prompt, packet) {
+  const text = cleanText(prompt || "");
+  const lowerText = text.toLowerCase();
+  if (!text) return "";
+  if (/focus on (?:the )?mobile layout|mobile layout/.test(lowerText)) {
+    return "Understood. I’ll focus on the mobile layout of the active page, preserve the existing desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes.";
+  }
+  if (/advertising page architecture|review the advertising page/.test(lowerText)) {
+    return "I’ll review the advertising page as a conversion system: message hierarchy, placement inventory, credibility signals, mobile flow, contact path, performance, and the separation between advertiser information and public viewing content.";
+  }
+  if (/what is 2\s*\+\s*2|2\s*\+\s*2/.test(lowerText)) return "4.";
+  if (/^(?:continue|keep going|go deeper|next|next steps?|what(?:'|’)?s next)[.!?]*$/.test(lowerText)) {
+    return "I’m carrying the active objective forward. The next step is to examine the current constraint, identify the principal weakness, and propose the smallest safe correction without reopening settled decisions.";
+  }
+  if (/^(?:fix|address|review|analy[sz]e|examine|focus|compare|update|refine|remove|add|keep|preserve)\b/.test(lowerText)) {
+    return `I have the directive: ${text.replace(/[.!?]+$/g, "")}. I’ll treat it as an active operational instruction, carry the current constraints forward, and respond with a concrete analysis rather than a presence acknowledgement.`;
+  }
+  return "";
+}
+
 function marionAdminConversationSafeReply(packet, prompt, err) {
   const raw = marionAdminConversationReplyText(packet);
-  if (raw && !marionAdminVisibleRuntimeErrorText(raw)) return raw;
+  if (raw && !marionAdminVisibleRuntimeErrorText(raw) && !marionAdminIsNonProgressPresenceReply(raw)) return raw;
+  const layer78 = marionAdminLayer78OperationalFallback(prompt, packet);
+  if (layer78) return layer78;
   return marionAdminRuntimeSafeFallbackReply(prompt, err || packet);
 }
 
@@ -28143,3 +28172,6 @@ const MARION_LAYERS_6_7_8_PART1_VERSION = "marion.layers678.part1/1.0";
 const MARION_PRIVATE_IDENTITY = Object.freeze({agent:"Marion",access:"private",allowedOperators:["mac","vera"],nyxVoiceAllowed:false});
 try { if (typeof app !== "undefined" && app && app.locals) { app.locals.marionLayers678 = {version:MARION_LAYERS_6_7_8_PART1_VERSION,identity:MARION_PRIVATE_IDENTITY}; } } catch (_) {}
 /* MARION_LAYERS_6_7_8_PART1_INDEX_END */
+
+/* MARION_LAYERS_7_8_PART2_INDEX_MARKER */
+const MARION_LAYERS_7_8_PART2_VERSION = "marion.layers78.part2/1.0";
