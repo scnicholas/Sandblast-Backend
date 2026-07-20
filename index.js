@@ -28136,3 +28136,13 @@ try {
   try{module.exports.ECHO_FRAME_HIP_INDEX_GENESIS_VERSION=VERSION;module.exports.echoFrameGenesisState=genesis;}catch(_){}
 })();
 /* ECHO_FRAME_HIP_INDEX_GENESIS_R1_END */
+
+
+/* MARION_LAYERS_6_7_8_PART1_INDEX_START */
+const MARION_LAYERS_6_7_8_PART1_VERSION = "marion.layers678.part1/1.0";
+const MARION_PRIVATE_IDENTITY = Object.freeze({agent:"Marion",access:"private",allowedOperators:["mac","vera"],nyxVoiceAllowed:false});
+try { if (typeof app !== "undefined" && app && app.locals) { app.locals.marionLayers678 = {version:MARION_LAYERS_6_7_8_PART1_VERSION,identity:MARION_PRIVATE_IDENTITY}; } } catch (_) {}
+/* MARION_LAYERS_6_7_8_PART1_INDEX_END */
+
+/* MARION_LAYERS_7_8_PART2_INDEX_MARKER */
+const MARION_LAYERS_7_8_PART2_VERSION = "marion.layers78.part2/1.0";
