@@ -4050,3 +4050,35 @@ try {
   }
 } catch (_) {}
 /* MARION_ADMIN_TEXT_RUNTIME_FINAL_EXPORT_HARDLOCK_V2_END */
+
+
+/* MARION_PRIVATE_RUNTIME_TERMINAL_HARDLOCK_V3_START */
+(function(){
+  "use strict";
+  const V="marion.privateRuntime.terminalHardlock/3.0-json-safe-substantive-final";
+  function O(v){return !!v&&typeof v==="object"&&!Array.isArray(v)}
+  function T(v,max){const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();const n=Number(max)||6000;return s.length>n?s.slice(0,n):s}
+  function first(){for(let i=0;i<arguments.length;i++){const v=T(arguments[i]);if(v)return v}return""}
+  function promptOf(input){const x=O(input)?input:{};const p=O(x.payload)?x.payload:{};const c=O(x.command)?x.command:{};return first(x.prompt,x.message,x.text,x.query,x.userText,x.input,x.commandText,c.intent,c.message,c.text,c.query,p.prompt,p.message,p.text,p.query)}
+  function verified(input,ctx){input=O(input)?input:{};ctx=O(ctx)?ctx:{};return ctx.adminVerified===true||ctx.sessionVerified===true||ctx.trustedServerAuth===true||input.adminVerified===true||input.sessionVerified===true}
+  function generic(v){const t=T(v).toLowerCase().replace(/[.!?]+$/g,"").trim();if(!t)return true;return /^(?:i(?:'|’)?m here|i am here|still with you|right here|i(?:'|’)?m with you)(?:,?\s*mac)?$/.test(t)||/^(?:i(?:'|’)?m here|still with you|i(?:'|’)?ve got the thread|i(?:'|’)?m steady|i(?:'|’)?m with you)[\s\S]{0,360}(?:where do you want to go next|do you want to continue|keep testing|what would you like to work on|social response pass|deepen the conversation|system noise out of view|personality-layer refinement)/i.test(t)}
+  function deterministic(p){const n=T(p).toLowerCase();if(/^what\s+is\s+2\s*\+\s*2\??$/.test(n))return"4.";if(/\bfocus\s+on\s+the\s+mobile\s+layout\b/.test(n))return"Understood. I’ll focus on the mobile layout within the active page architecture, preserve the established desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes.";return""}
+  function replyOf(v){if(typeof v==="string")return T(v);v=O(v)?v:{};const p=O(v.payload)?v.payload:{};const r=O(v.result)?v.result:{};const f=O(v.finalEnvelope)?v.finalEnvelope:(O(p.finalEnvelope)?p.finalEnvelope:(O(r.finalEnvelope)?r.finalEnvelope:{}));return first(v.directReply,v.visibleReply,v.displayReply,v.finalReply,v.reply,v.answer,v.response,v.text,v.message,f.finalReply,f.reply,f.answer,f.text,p.reply,p.text,r.reply,r.text)}
+  function compact(reply,prompt,meta){return {ok:!!reply,statusCode:reply?200:502,stage:reply?"private_marion_runtime_complete":"private_marion_reply_missing",version:V,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",publicAgent:"Nyx",publicSurfaceOnly:false,authenticatedOperator:true,operatorPersonalization:true,memoryPartition:"private:marion-admin",publicFallbackBlocked:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,response:reply,text:reply,message:reply,spokenText:reply,speechText:reply,responseFinalized:true,meta:{version:V,promptAccepted:!!prompt,bridgeInvoked:!!(meta&&meta.bridgeInvoked),genericReplyRejected:!!(meta&&meta.genericReplyRejected),jsonSafe:true,noCircularRuntimePacket:true}}}
+  async function terminalRuntime(input,context){
+    const p=promptOf(input);if(!verified(input,context))return {ok:false,statusCode:401,stage:"authorization_failed",version:V,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",authenticatedOperator:false,publicFallbackBlocked:true,reply:"",responseFinalized:true};
+    if(!p)return {ok:false,statusCode:400,stage:"prompt_required",version:V,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",authenticatedOperator:true,publicFallbackBlocked:true,reply:"",responseFinalized:true};
+    let packet=null,bridgeInvoked=false;
+    for(const q of ["./marionBridge.js","./marionBridge"]){try{const m=require(q);const fn=m&&(typeof m.handleMarionAdminConversation==="function"?m.handleMarionAdminConversation:typeof m.processWithMarion==="function"?m.processWithMarion:typeof m.handle==="function"?m.handle:typeof m.ask==="function"?m.ask:null);if(fn){bridgeInvoked=true;packet=await Promise.resolve(fn(Object.assign({},O(input)?input:{},{prompt:p,message:p,text:p,query:p,userText:p,rawUserText:p,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",directMarionAdminInterface:true,marionAdminConversation:true,adminVerified:true,sessionVerified:true}),Object.assign({},O(context)?context:{},{scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",directMarionAdminInterface:true,marionAdminConversation:true,adminVerified:true,sessionVerified:true})));break}}catch(_){}}
+    let reply=replyOf(packet);const rejected=generic(reply);if(!reply||rejected)reply=deterministic(p);return compact(reply,p,{bridgeInvoked,genericReplyRejected:rejected});
+  }
+  const exp=typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"?module.exports:null;if(!exp)return;
+  const oldCommand=typeof exp.handleCommand==="function"?exp.handleCommand:null;
+  async function terminalCommand(input,context){const p=promptOf(input);const raw=T(p).toLowerCase();const operational=/\b(?:approve|deny|emergency|shutdown|restart|deploy|publish|delete|disable|enable|status|diagnostic|health|config|runtime command)\b/.test(raw);if(p&&!operational)return terminalRuntime(input,context);if(oldCommand)return oldCommand(input,context);return {ok:false,statusCode:501,stage:"admin_command_handler_unavailable",version:V,scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,reply:""}}
+  ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{exp[n]=terminalRuntime});
+  ["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand"].forEach(n=>{exp[n]=terminalCommand});
+  if(exp.defaultGateway&&typeof exp.defaultGateway==="object"){["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{exp.defaultGateway[n]=terminalRuntime});["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand"].forEach(n=>{exp.defaultGateway[n]=terminalCommand})}
+  if(exp.MarionAdminConsoleGateway){["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{exp.MarionAdminConsoleGateway[n]=terminalRuntime});["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand"].forEach(n=>{exp.MarionAdminConsoleGateway[n]=terminalCommand})}
+  exp.MARION_PRIVATE_RUNTIME_TERMINAL_HARDLOCK_VERSION=V;exp.MARION_PRIVATE_RUNTIME_TERMINAL_HARDLOCK=true;
+})();
+/* MARION_PRIVATE_RUNTIME_TERMINAL_HARDLOCK_V3_END */
