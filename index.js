@@ -19629,7 +19629,7 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
 // Private admin console control plane. This must mount before static handlers
 // and the /api not_found guard so the protected Webflow/admin interface does
 // not fall through to 404. Body/query tokens are intentionally ignored.
-const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.7-test-bypass-session-issuer";
+const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.8-runtime-route-cors-contract-repair";
 const MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH = "Data/marion/runtime/MarionAdminConsoleGateway.js";
 const MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH = "./" + MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH;
 
@@ -22166,12 +22166,16 @@ app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.revoke, async (req, res) => handle
 // Private admin-only text conversation bridge for the Marion console.
 // This keeps the existing admin control plane intact while routing conversational
 // text to MarionBridge/ChatEngine through Marion's final-authority pipeline.
-const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/1.0-session-rbac-bridge";
+const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/1.1-route-alias-gateway-fallback";
 const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
   "/api/private/marion/admin/runtime",
   "/private/marion/admin/runtime",
   "/api/private/marion/runtime",
-  "/private/marion/runtime"
+  "/private/marion/runtime",
+  "/api/private/marion/admin/conversation",
+  "/private/marion/admin/conversation",
+  "/api/marion/admin/conversation",
+  "/marion/admin/conversation"
 ]);
 
 function marionAdminTextRuntimeBridgeStatus() {
@@ -22204,6 +22208,28 @@ function marionAdminTextRuntimeBridgeStatus() {
       }
     } catch (_) {}
   }
+  // Deployment-safe fallback: the admin gateway may expose the same private
+  // text-runtime contract when MarionBridge is temporarily unavailable or
+  // deployed under a different path. This never falls through to Nyx.
+  try {
+    const gatewayStatus = marionAdminConsoleGatewayStatus();
+    const gatewayMod = gatewayStatus && gatewayStatus.mod;
+    const gatewayHandler = gatewayMod && (
+      typeof gatewayMod.handleMarionAdminTextRuntime === "function" ? "handleMarionAdminTextRuntime" :
+      typeof gatewayMod.handleAdminConversation === "function" ? "handleAdminConversation" : ""
+    );
+    if (gatewayStatus && gatewayStatus.available && gatewayMod && gatewayHandler) {
+      return {
+        available: true,
+        mod: gatewayMod,
+        requested: MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH,
+        resolvedPath: require.resolve(MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH),
+        version: cleanText(gatewayMod.VERSION || ""),
+        handler: gatewayHandler,
+        gatewayFallback: true
+      };
+    }
+  } catch (_) {}
   return {
     available: false,
     mod: null,
@@ -22211,7 +22237,7 @@ function marionAdminTextRuntimeBridgeStatus() {
     resolvedPath: "",
     version: "",
     handler: "",
-    reason: "marion_bridge_unavailable"
+    reason: "marion_bridge_and_gateway_runtime_unavailable"
   };
 }
 
@@ -22576,6 +22602,8 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
 
   const fn =
     typeof bridgeStatus.mod.handleMarionAdminConversation === "function" ? bridgeStatus.mod.handleMarionAdminConversation :
+    typeof bridgeStatus.mod.handleMarionAdminTextRuntime === "function" ? bridgeStatus.mod.handleMarionAdminTextRuntime :
+    typeof bridgeStatus.mod.handleAdminConversation === "function" ? bridgeStatus.mod.handleAdminConversation :
     typeof bridgeStatus.mod.processWithMarion === "function" ? bridgeStatus.mod.processWithMarion :
     typeof bridgeStatus.mod.handle === "function" ? bridgeStatus.mod.handle :
     typeof bridgeStatus.mod.ask === "function" ? bridgeStatus.mod.ask :
@@ -22711,6 +22739,42 @@ app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
   return res.status(204).end();
 });
 app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES, async (req, res) => handleMarionAdminTextRuntime(req, res));
+// GET is a non-mutating route-contract probe only. It confirms that the
+// private runtime route is mounted without invoking Marion or exposing Nyx.
+app.get(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = cleanText((req && req.sbTraceId) || makeTraceId("marionruntimeprobe"));
+  const auth = marionAdminTextRuntimeRequestAuth(req);
+  return res.status(200).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+    ok: true,
+    stage: "marion_runtime_route_mounted",
+    routeMounted: true,
+    runtimeHandlerMounted: true,
+    runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
+    methodRequired: "POST",
+    authenticatedOperator: !!auth.verified,
+    privateControlPlane: true,
+    publicFallbackBlocked: true,
+    responseFinalized: true
+  }));
+});
+// Exact private-route guard: unsupported methods must never reach the public
+// Nyx/not_found projector.
+app.all(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(405).json({
+    ok: false,
+    error: "method_not_allowed",
+    path: req.path,
+    allowedMethods: ["GET", "POST", "OPTIONS"],
+    scope: "private_admin",
+    surfaceAgent: "Marion",
+    publicFallbackBlocked: true,
+    meta: { v: PUBLIC_INDEX_VERSION, t: now() }
+  });
+});
 
 app.post(MARION_ADMIN_CONSOLE_ROUTES.sessionIssue, async (req, res) => handleMarionAdminConsoleSessionIssue(req, res));
 // MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1:
