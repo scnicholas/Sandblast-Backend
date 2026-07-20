@@ -5817,3 +5817,35 @@ try{
   catch(_){}
 })();
 /* NYX_FINAL_ENVELOPE_LOOP_LATENCY_FIX_R1_END */
+
+
+/* MARION_LAYERS_6_7_8_PART1_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers678.part1/1.0";
+  let depth=null; try{depth=require("./MarionConversationalDepth678.js");}catch(_err){depth=null;}
+  if(!depth||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){
+    if(typeof fn!=="function"||fn.__marionLayers678Part1)return fn;
+    const wrapped=function(){
+      const args=arguments,input=args&&args.length?args[0]:{};
+      const result=fn.apply(this,args);
+      const project=function(value){return depth.attach(value,input);};
+      return result&&typeof result.then==="function"?result.then(project):project(result);
+    };
+    try{Object.keys(fn).forEach(function(k){wrapped[k]=fn[k];});}catch(_e){}
+    wrapped.__marionLayers678Part1=true; wrapped.__marionWrappedName=name; return wrapped;
+  }
+  try{
+    if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      for(const name of ["createMarionFinalEnvelope", "finalize", "buildFinalEnvelope", "toFinalEnvelope", "normalizeFinalEnvelope", "default"])if(typeof api[name]==="function")api[name]=wrap(api[name],name);
+      api.MARION_LAYERS_6_7_8_PART1_VERSION=PATCH_VERSION;
+      api.MARION_CONVERSATIONAL_DEPTH_CONTRACT=depth.CONTRACT;
+      api.buildMarionConversationalDepth=depth.build;
+      api.validateMarionConversationalDepth=depth.validate;
+    }
+  }catch(_err){}
+})();
+/* MARION_LAYERS_6_7_8_PART1_END */
