@@ -1,5 +1,66 @@
 "use strict";
 
+
+
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_START */
+function marionSafePrimitiveText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const type = typeof value;
+  if (type === "string") return value;
+  if (type === "number" || type === "boolean" || type === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
+  return fallback;
+}
+function marionSafeCleanText(value, fallback = "") {
+  return marionSafePrimitiveText(value, fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function marionExtractReplyText(result) {
+  if (typeof result === "string") return marionSafeCleanText(result);
+  if (!result || typeof result !== "object") return "";
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const nestedResult = result.result && typeof result.result === "object" ? result.result : {};
+  const finalEnvelope =
+    result.finalEnvelope && typeof result.finalEnvelope === "object" ? result.finalEnvelope :
+    payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
+    nestedResult.finalEnvelope && typeof nestedResult.finalEnvelope === "object" ? nestedResult.finalEnvelope : {};
+  const candidates = [
+    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.reply, result.answer, result.response, result.text, result.message,
+    finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.answer, finalEnvelope.text,
+    payload.reply, payload.text, nestedResult.reply, nestedResult.text
+  ];
+  for (const candidate of candidates) {
+    const text = marionSafeCleanText(candidate);
+    if (text) return text;
+  }
+  return "";
+}
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_END */
+
 const VERSION = "MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionBridge v7.9.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + VISIBLE-FINAL-PROMPT-SCOPE-HARDLOCK + ADMIN-TEXT-CONSOLE-VOICE-PURGE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + MARION-ADMIN-INTERFACE-CARRY + PHASE2-SPEECH-SYNC-METADATA-CARRY + VOICE-CARRY-FINAL-DELIVERY-STABILIZER + VOICE-LANE-BRIDGE-CONTRACT + AUTHORITY-TRANSPORT-REPLY-SALVAGE + CONTINUITY-DETERMINISTIC-RECOVERY + CONTINUITY-RESOLVED-PROMPT-HANDOFF-HOTFIX + SIX-DOMAIN-FINAL-ENVELOPE-PROMOTION + SIX-DOMAIN-COVERAGE-BRIDGE-CARRY + SIX-DOMAIN-PRIMITIVE-RECOVERY + CURRENT-USER-PROGRESSION-GATE + SILENT-SUPPRESSION-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-CONTEXT-PROTECTION-HARDLOCK + FOUR-PHASE-PROGRESSION-ANCHOR-HARDLOCK + PROGRESSION-SHAPING-ANCHOR-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-NEXT-PHASE-CARRY + PRIMITIVE-PUBLIC-REPLY-HARDLOCK + LANGUAGE-CA-SPOKEN-ALIAS-RECOVERY + MIC-TEXT-SPOKEN-ALIAS-PHASE-ANCHOR-HARDENING + DIRECT-TRANSLATION-TARGET-EN-CARRY + DIRECT-TRANSLATION-COMMAND-CARRY + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-BRIDGE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + RENDER-DEPLOY-HARDENED + LANGUAGESPHERE-SURFACE-PASSTHROUGH + CONFIDENCE-AWARE-SHAPING-CARRY + DOMAIN-CONCIERGE-RUNTIME-ORCHESTRATION + SHORT-CONCEPT-FOLLOWUP-BRIDGE-CARRY + BARE-DOMAIN-ACTIVATION-BRIDGE-LOCK + LOOP-FALLBACK-FINAL-REJECTION + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + OUTER-SCHEDULER-BYPASS-COMPAT + TECHNICAL-TARGET-LOCK + FALLBACK-KNOWLEDGE-DOMAIN-ROUTE-FIX + FINAL-RUNTIME-TELEMETRY + FIVE-TURN-CONTINUITY-PARITY-BRIDGE + FINAL-AUTHORITY-STATE-CREATIVE-COMPAT-HARDENED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + ASTER-PASSIVE-OBSERVATION-BRIDGE + ASTER-AUTHORITY-GUARD + LINGOSENTINEL-GATEWAY-ORCHESTRATION-BRIDGE + LINGOSENTINEL-ALERT-SCANNER-BRIDGE-CARRY + PARALLEL-LANE-COORDINATION-BRIDGE + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const WARM_MARION_GREETING = "Hello, Mac. Marion is ready. What would you like to work through?";
@@ -224,7 +285,7 @@ const DEPENDENCY_STATUS = Object.freeze({
   marionRealWorldRiskClassifier: dependencyStatus("MarionRealWorldRiskClassifier", marionRealWorldRiskClassifierLoaded)
 });
 
-function safeStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function safeStr(value){ return marionSafeCleanText(value); }
 
 function stripPublicReplyScaffold(value){
   let t=safeStr(value);
@@ -1239,7 +1300,7 @@ const KNOWN_FAILURE_SIGNATURES = Object.freeze([
   "CHATENGINE_COORDINATOR_FAULT",
   "DEBUG_LEAK_BLOCKED"
 ]);
-function telemetryAuditText(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function telemetryAuditText(value){return marionSafeCleanText(value);}
 function telemetryAuditObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function classifyFailureSignature(fields={}){
   const f=telemetryAuditObj(fields);
