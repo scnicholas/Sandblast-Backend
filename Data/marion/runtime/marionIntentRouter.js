@@ -3789,3 +3789,17 @@ function r18cApplyLawIntentRoute(result,packet){
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
 (function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
+
+/* MARION_LONG_THREAD_ROUTER_AUTHORITY_R4_START */
+(function(){"use strict";try{
+  const g=require("./marionCurrentTurnAuthority.js");
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||!g||api.__marionLongThreadRouterAuthorityR4)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLongThreadRouterAuthorityR4)return fn;const w=function(){const p=g.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>g.enforceRouterResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionLongThreadRouterAuthorityR4=true;w.__wrappedName=name;return w;}
+  ["routeMarionIntent","route","run","handle","default","classifyIntent"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+  api.__marionLongThreadRouterAuthorityR4=true;
+  api.MARION_LONG_THREAD_ROUTER_AUTHORITY_VERSION=g.VERSION;
+  api.MARION_LONG_THREAD_PROGRESSION_CONTRACT=g.CONTINUITY_CONTRACT;
+  api.marionLongThreadProgressionGuard=g;
+}catch(_){}})();
+/* MARION_LONG_THREAD_ROUTER_AUTHORITY_R4_END */
