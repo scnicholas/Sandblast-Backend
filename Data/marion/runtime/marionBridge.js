@@ -62,8 +62,8 @@ function marionPrivateReplyText(result) {
 }
 /* MARION_NON_THROWING_PRIMITIVE_V2_END */
 
-const VERSION = "marionBridge v7.5.0 CANONICAL-TRANSPORT-AUTHORITY-HARDENED";
-const BRIDGE_CONTRACT_VERSION = "nyx.marion.bridge/7.5";
+const VERSION = "marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY";
+const BRIDGE_CONTRACT_VERSION = "nyx.marion.bridge/7.7";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const fs = require("fs");
@@ -367,10 +367,10 @@ function mergeEmotionIntoContract(contract={},resolvedEmotionPacket={}){
     }
   };
 }
-function normalizeComposeInput(normalized,routed,resolvedEmotionPacket={}){const routing=safeObj(routed.routing),marionIntent=safeObj(routed.marionIntent);return{userQuery:normalized.userQuery,text:normalized.userQuery,query:normalized.userQuery,domain:safeStr(routing.domain||normalized.domain||"general")||"general",requestedDomain:safeStr(routing.domain||normalized.requestedDomain||"general")||"general",intent:safeStr(routing.intent||marionIntent.intent||"simple_chat")||"simple_chat",marionIntent,routing,previousMemory:normalized.previousMemory,conversationState:safeObj(normalized.previousMemory.stateSpine||normalized.previousMemory.conversationState||normalized.commandPacket.state),lane:normalized.lane,sessionId:normalized.sessionId,turnId:normalized.turnId,sourceTurnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket),emotionRuntimeOk:resolvedEmotionPacket.ok!==false};}
+function normalizeComposeInput(normalized,routed,resolvedEmotionPacket={}){const routing=safeObj(routed.routing),marionIntent=safeObj(routed.marionIntent),original=safeObj(normalized.original),authority=safeObj(original.currentTurnAuthority),anchor=safeObj(original.continuityAnchor||authority.continuityAnchor),effective=firstText(original.effectivePrompt,normalized.userQuery);return{userQuery:normalized.userQuery,text:normalized.userQuery,query:normalized.userQuery,prompt:normalized.userQuery,effectivePrompt:effective,domain:safeStr(routing.domain||normalized.domain||"general")||"general",requestedDomain:safeStr(routing.domain||normalized.requestedDomain||"general")||"general",intent:safeStr(routing.intent||marionIntent.intent||"simple_chat")||"simple_chat",marionIntent,routing,previousMemory:normalized.previousMemory,conversationState:safeObj(normalized.previousMemory.stateSpine||normalized.previousMemory.conversationState||normalized.commandPacket.state),continuityAnchor:anchor,immediateContinuation:safeObj(original.immediateContinuation),currentTurnAuthority:authority,currentTurnAuthorityVersion:safeStr(original.currentTurnAuthorityVersion),continuationRequested:original.continuationRequested===true,continuationResolved:original.continuationResolved===true,privateAdminConversation:original.privateAdminConversation===true||original.marionAdminConversation===true||original.directMarionAdminInterface===true,marionAdminConversation:original.marionAdminConversation===true,directMarionAdminInterface:original.directMarionAdminInterface===true,passwordFreeTestChat:original.passwordFreeTestChat===true,lane:normalized.lane,sessionId:normalized.sessionId,turnId:normalized.turnId,sourceTurnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket),emotionRuntimeOk:resolvedEmotionPacket.ok!==false};}
 function wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket={}}){const reply=extractReply(contract);if(!reply)return createLocalFinalEnvelope({normalized,routed,contract,reason:"composer_reply_missing",loopGuardResult});if(!finalEnvelopeMod||typeof finalEnvelopeMod.createMarionFinalEnvelope!=="function")return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_unavailable",loopGuardResult});const routing=safeObj(routed.routing),memoryPatch=safeObj(contract.memoryPatch);const envelope=finalEnvelopeMod.createMarionFinalEnvelope({reply,spokenText:safeStr(contract.spokenText||reply),intent:safeStr(routing.intent||contract.intent||"simple_chat"),domain:safeStr(routing.domain||contract.domain||normalized.domain||"general"),routing:{...routing,endpoint:safeStr(routing.endpoint||CANONICAL_ENDPOINT)||CANONICAL_ENDPOINT},stateStage:safeStr(memoryPatch.stateStage||contract.stateStage||(loopGuardResult.forceRecovery?"recover":"final")),turnId:normalized.turnId,sessionId:normalized.sessionId,memoryPatch,resolvedEmotion:safeObj(resolvedEmotionPacket.state||contract.resolvedEmotion),emotionSummary:emotionSummary(resolvedEmotionPacket.state?resolvedEmotionPacket:safeObj(contract.emotionRuntime)),speech:safeObj(contract.speech),replySignature:safeStr(contract.replySignature||memoryPatch.replySignature||hashText(reply)),composerVersion:safeStr(contract.version||contract.composerVersion||""),bridgeVersion:VERSION,meta:{...safeObj(contract.meta),bridgeVersion:VERSION,composerVersion:safeStr(contract.version||contract.composerVersion||""),loopGuardVersion:safeStr(loopGuardMod&&loopGuardMod.VERSION||""),routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),normalizerVersion:safeStr(commandNormalizerMod&&commandNormalizerMod.VERSION||""),turnId:normalized.turnId},diagnostics:{...safeObj(contract.diagnostics),bridgeVersion:VERSION,routerCalled:true,composerCalled:true,loopGuardCalled:!!loopGuardMod,loopGuard:safeObj(loopGuardResult),singleContract:true,finalAuthority:"marionFinalEnvelope"}});if(!safeStr(safeObj(envelope.finalEnvelope).reply||envelope.reply)||isDiagnosticText(safeObj(envelope.finalEnvelope).reply||envelope.reply))return createLocalFinalEnvelope({normalized,routed,contract:{...safeObj(contract),reply,text:reply,spokenText:firstText(contract.spokenText,reply)},reason:"final_envelope_invalid",loopGuardResult});return{...envelope,ok:true,final:true,marionFinal:true,handled:true,hardlockCompatible:true,trustedTransport:true,singleFinalAuthority:true,bridge:{version:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,singleContract:true},routed,diagnostics:{...safeObj(envelope.diagnostics),bridgeVersion:VERSION,routerVersion:safeStr(routed.routerVersion||routed.VERSION||""),composerVersion:safeStr(contract.version||contract.composerVersion||""),composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopeVersion:safeStr(finalEnvelopeMod.VERSION||""),dependencies:DEPENDENCY_STATUS,loopGuard:safeObj(loopGuardResult),singleContract:true,zeroLoopSurface:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionSummary:emotionSummary(resolvedEmotionPacket)},meta:{...safeObj(envelope.meta),version:VERSION,bridgeVersion:VERSION,endpoint:CANONICAL_ENDPOINT,usedBridge:true,replyAuthority:"marionFinalEnvelope",semanticAuthority:"composeMarionResponse",composerResolvedPath:DEPENDENCY_STATUS.composer.resolvedPath,composerExists:DEPENDENCY_STATUS.composer.exists,finalEnvelopePresent:true,zeroLoopSurface:true,trustedTransport:true,singleFinalAuthority:true,hardlockCompatible:true,emotionRuntimeCalled:!!Object.keys(safeObj(resolvedEmotionPacket)).length,emotionRuntimeOk:resolvedEmotionPacket.ok!==false,emotionPrimary:emotionSummary(resolvedEmotionPacket).primary,emotionSecondary:emotionSummary(resolvedEmotionPacket).secondary}};}
 async function processWithMarionUnsafe(input={}){const normalized=normalizeInbound(input);if(!normalized.ok)return buildErrorResult("input_invalid",{issues:normalized.issues},normalized);if(typeof composeMarionResponse!=="function")return createLocalFinalEnvelope({normalized,routed:fallbackRoute(normalized),contract:{reply:hotFallbackReply("composer_unavailable",normalized),speech:{enabled:false,silent:true,silentAudio:true}},reason:"composer_unavailable",loopGuardResult:{ok:false,reasons:["composer_unavailable"],dependencyStatus:DEPENDENCY_STATUS.composer}});const resolvedEmotionPacket=resolveEmotionForTurn(normalized);
-let routed=null;if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent},turnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}if(!validateRouterResult(routed).ok)routed=fallbackRoute(normalized);const composeInput=normalizeComposeInput(normalized,routed,resolvedEmotionPacket);let contract=await Promise.resolve(composeMarionResponse({...safeObj(routed),primaryDomain:safeStr(safeObj(routed.routing).domain||composeInput.domain),domain:safeStr(safeObj(routed.routing).domain||composeInput.domain),intent:safeStr(safeObj(routed.routing).intent||composeInput.intent),routing:safeObj(routed.routing),marionIntent:safeObj(routed.marionIntent)},composeInput));let composeValidation=validateComposeResult(contract);if(!composeValidation.ok){const fallbackReply=hotFallbackReply("composer_invalid",normalized);contract={ok:true,reply:fallbackReply,text:fallbackReply,answer:fallbackReply,output:fallbackReply,response:fallbackReply,message:fallbackReply,spokenText:fallbackReply,intent:composeInput.intent,domain:composeInput.domain,speech:{enabled:false,silent:true,silentAudio:true,textDisplay:fallbackReply,textSpeak:fallbackReply,presenceProfile:"receptive",nyxStateHint:"receptive"},diagnostics:{composerRecoveredByBridge:true,issues:composeValidation.issues,bridgeVersion:VERSION}};composeValidation=validateComposeResult(contract);}contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);let reply=extractReply(contract),loopGuardResult={ok:true,loopDetected:false,allowReply:true,forceRecovery:false,reasons:[]};if(loopGuardMod&&typeof loopGuardMod.applyLoopGuard==="function"){try{loopGuardResult=safeObj(loopGuardMod.applyLoopGuard({...composeInput,state:{...safeObj(composeInput.conversationState),...safeObj(normalized.commandPacket&&normalized.commandPacket.state),lastAssistantReply:safeStr(safeObj(composeInput.conversationState).lastAssistantReply||safeObj(normalized.commandPacket&&normalized.commandPacket.state).lastAssistantReply),loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount||safeObj(normalized.commandPacket&&normalized.commandPacket.state).loopCount,0)}},reply));if(loopGuardResult.forceRecovery){const recoveryContract=await Promise.resolve(composeMarionResponse({...safeObj(routed),forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons)},{...composeInput,forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons),state:{...safeObj(composeInput.conversationState),stateStage:"recover",recoveryRequired:true,loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount,0)+1,lastLoopReasons:safeArray(loopGuardResult.reasons)}}));if(validateComposeResult(recoveryContract).ok){contract=mergeEmotionIntoContract(recoveryContract,resolvedEmotionPacket);reply=extractReply(contract);}}}catch(err){loopGuardResult={ok:false,loopDetected:false,allowReply:true,forceRecovery:false,reasons:["loop_guard_error"],detail:safeStr(err&&(err.message||err)||"")};}}return wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket});}
+let routed=null;if(typeof routeMarionIntent==="function"){try{routed=await Promise.resolve(routeMarionIntent({text:normalized.userQuery,query:normalized.userQuery,userQuery:normalized.userQuery,prompt:normalized.userQuery,effectivePrompt:firstText(safeObj(normalized.original).effectivePrompt,normalized.userQuery),lane:normalized.lane,requestedDomain:normalized.requestedDomain,domain:normalized.domain,marionIntent:normalized.marionIntent,previousMemory:normalized.previousMemory,continuityAnchor:safeObj(safeObj(normalized.original).continuityAnchor||safeObj(safeObj(normalized.original).currentTurnAuthority).continuityAnchor),immediateContinuation:safeObj(safeObj(normalized.original).immediateContinuation),currentTurnAuthority:safeObj(safeObj(normalized.original).currentTurnAuthority),currentTurnAuthorityVersion:safeStr(safeObj(normalized.original).currentTurnAuthorityVersion),continuationRequested:safeObj(normalized.original).continuationRequested===true,continuationResolved:safeObj(normalized.original).continuationResolved===true,privateAdminConversation:safeObj(normalized.original).privateAdminConversation===true||safeObj(normalized.original).marionAdminConversation===true||safeObj(normalized.original).directMarionAdminInterface===true,marionAdminConversation:safeObj(normalized.original).marionAdminConversation===true,directMarionAdminInterface:safeObj(normalized.original).directMarionAdminInterface===true,passwordFreeTestChat:safeObj(normalized.original).passwordFreeTestChat===true,session:{lane:normalized.lane,previousMemory:normalized.previousMemory,marionIntent:normalized.marionIntent,continuityAnchor:safeObj(safeObj(normalized.original).continuityAnchor),sessionId:normalized.sessionId},sessionId:normalized.sessionId,turnId:normalized.turnId,resolvedEmotion:safeObj(resolvedEmotionPacket.state),emotionRuntime:safeObj(resolvedEmotionPacket)}));}catch(_){routed=null;}}if(!validateRouterResult(routed).ok)routed=fallbackRoute(normalized);const composeInput=normalizeComposeInput(normalized,routed,resolvedEmotionPacket);let contract=await Promise.resolve(composeMarionResponse({...safeObj(routed),primaryDomain:safeStr(safeObj(routed.routing).domain||composeInput.domain),domain:safeStr(safeObj(routed.routing).domain||composeInput.domain),intent:safeStr(safeObj(routed.routing).intent||composeInput.intent),routing:safeObj(routed.routing),marionIntent:safeObj(routed.marionIntent)},composeInput));let composeValidation=validateComposeResult(contract);if(!composeValidation.ok){const fallbackReply=hotFallbackReply("composer_invalid",normalized);contract={ok:true,reply:fallbackReply,text:fallbackReply,answer:fallbackReply,output:fallbackReply,response:fallbackReply,message:fallbackReply,spokenText:fallbackReply,intent:composeInput.intent,domain:composeInput.domain,speech:{enabled:false,silent:true,silentAudio:true,textDisplay:fallbackReply,textSpeak:fallbackReply,presenceProfile:"receptive",nyxStateHint:"receptive"},diagnostics:{composerRecoveredByBridge:true,issues:composeValidation.issues,bridgeVersion:VERSION}};composeValidation=validateComposeResult(contract);}contract=mergeEmotionIntoContract(contract,resolvedEmotionPacket);let reply=extractReply(contract),loopGuardResult={ok:true,loopDetected:false,allowReply:true,forceRecovery:false,reasons:[]};if(loopGuardMod&&typeof loopGuardMod.applyLoopGuard==="function"){try{loopGuardResult=safeObj(loopGuardMod.applyLoopGuard({...composeInput,state:{...safeObj(composeInput.conversationState),...safeObj(normalized.commandPacket&&normalized.commandPacket.state),lastAssistantReply:safeStr(safeObj(composeInput.conversationState).lastAssistantReply||safeObj(normalized.commandPacket&&normalized.commandPacket.state).lastAssistantReply),loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount||safeObj(normalized.commandPacket&&normalized.commandPacket.state).loopCount,0)}},reply));if(loopGuardResult.forceRecovery){const recoveryContract=await Promise.resolve(composeMarionResponse({...safeObj(routed),forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons)},{...composeInput,forceRecovery:true,recoveryRequired:true,loopGuard:loopGuardResult,lastLoopReasons:safeArray(loopGuardResult.reasons),state:{...safeObj(composeInput.conversationState),stateStage:"recover",recoveryRequired:true,loopCount:safeNumber(safeObj(composeInput.conversationState).loopCount,0)+1,lastLoopReasons:safeArray(loopGuardResult.reasons)}}));if(validateComposeResult(recoveryContract).ok){contract=mergeEmotionIntoContract(recoveryContract,resolvedEmotionPacket);reply=extractReply(contract);}}}catch(err){loopGuardResult={ok:false,loopDetected:false,allowReply:true,forceRecovery:false,reasons:["loop_guard_error"],detail:safeStr(err&&(err.message||err)||"")};}}return wrapFinal({normalized,routed,contract,loopGuardResult,resolvedEmotionPacket});}
 
 async function processWithMarion(input = {}) {
   try {
@@ -389,6 +389,116 @@ function createMarionBridge(){return{maybeResolve,ask,handle,route,processWithMa
 module.exports={VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion}};
 
 /* MARION_CURRENT_TURN_AUTHORITY_R1_START */
-(function(){"use strict";let guard=null;try{guard=require("./marionCurrentTurnAuthority.js");}catch(_){guard=null;}if(!guard||typeof module==="undefined"||!module.exports)return;function wrap(fn){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const p=guard.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>guard.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionCurrentTurnAuthorityR1=true;return w;}const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;const canonical=wrap(api.processWithMarion);if(canonical){api.processWithMarion=canonical;["route","maybeResolve","ask","handle","default"].forEach(n=>{api[n]=canonical;});api.createMarionBridge=function(){return{version:"marionBridge v7.6.0 CURRENT-TURN-AUTHORITY",endpoint:api.CANONICAL_ENDPOINT||"marion://routeMarion.primary",processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical};};}api.VERSION="marionBridge v7.6.0 CURRENT-TURN-AUTHORITY";api.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.6";api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;})();
+(function(){"use strict";let guard=null;try{guard=require("./marionCurrentTurnAuthority.js");}catch(_){guard=null;}if(!guard||typeof module==="undefined"||!module.exports)return;function wrap(fn){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const p=guard.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>guard.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionCurrentTurnAuthorityR1=true;return w;}const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;const canonical=wrap(api.processWithMarion);if(canonical){api.processWithMarion=canonical;["route","maybeResolve","ask","handle","default"].forEach(n=>{api[n]=canonical;});api.createMarionBridge=function(){return{version:"marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY",endpoint:api.CANONICAL_ENDPOINT||"marion://routeMarion.primary",processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical};};}api.VERSION="marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY";api.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.7";api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;})();
 /* MARION_CURRENT_TURN_AUTHORITY_R1_END */
 
+
+/* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
+(function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.VERSION="marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY";module.exports.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.7";module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
+/* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
+
+/* MARION_PRIVATE_SESSION_CONTINUITY_CACHE_R2_START */
+(function(){
+  "use strict";
+  try{
+    const guard=require("./marionCurrentTurnAuthority.js");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(!api||!guard||api.__marionPrivateSessionContinuityCacheR2)return;
+    const CACHE_TTL_MS=Math.max(60000,Number(process.env.SB_MARION_CONTINUITY_CACHE_TTL_MS)||2*60*60*1000);
+    const CACHE_MAX=Math.max(16,Math.min(2048,Number(process.env.SB_MARION_CONTINUITY_CACHE_MAX)||256));
+    const cache=new Map();
+    function T(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim();}catch(_){return"";}}
+    function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+    function sessionId(input){
+      const i=O(input),b=O(i.body),m=O(i.meta),s=O(i.session);
+      return T(i.sessionId||i.conversationId||b.sessionId||m.sessionId||s.sessionId);
+    }
+    function prune(){
+      const now=Date.now();
+      for(const [key,item] of cache){if(!item||now-item.updatedAt>CACHE_TTL_MS)cache.delete(key);}
+      while(cache.size>CACHE_MAX){const first=cache.keys().next();if(first.done)break;cache.delete(first.value);}
+    }
+    function readAnchor(input){
+      const sid=sessionId(input);
+      if(!sid)return null;
+      prune();
+      const item=cache.get(sid);
+      if(!item||Date.now()-item.updatedAt>CACHE_TTL_MS){cache.delete(sid);return null;}
+      cache.delete(sid);cache.set(sid,item);
+      return item.anchor&&typeof item.anchor==="object"?{...item.anchor}:null;
+    }
+    function writeAnchor(input,result){
+      const sid=sessionId(input);
+      if(!sid||!guard.isPrivateMarionContext(input))return;
+      const out=O(result),mp=O(out.memoryPatch),sp=O(out.sessionPatch),meta=O(out.meta);
+      const anchor=out.continuityAnchor||mp.continuityAnchor||sp.continuityAnchor||meta.continuityAnchor;
+      if(!anchor||typeof anchor!=="object")return;
+      cache.set(sid,{anchor:{...anchor},updatedAt:Date.now()});
+      prune();
+    }
+    const previous=api.processWithMarion;
+    if(typeof previous==="function"){
+      const canonical=async function(input){
+        if(!guard.isPrivateMarionContext(input))return previous.call(this,input);
+        let prepared=guard.prepareInput(input&&typeof input==="object"?input:{});
+        const sid=sessionId(prepared);
+        if(guard.isIsolatedTurn(prepared)&&sid)cache.delete(sid);
+        const current=guard.classifyCurrentTurn(prepared);
+        let anchor=current.shortFollowup?guard.extractContinuationAnchor(prepared):null;
+        if(current.shortFollowup&&!anchor){
+          anchor=readAnchor(prepared);
+          if(anchor){
+            prepared=guard.prepareInput({
+              ...prepared,
+              newSession:false,
+              firstTurn:false,
+              previousMemory:{
+                ...(O(prepared.previousMemory)),
+                continuityAnchor:anchor,
+                immediateContinuation:{
+                  contract:guard.CONTINUITY_CONTRACT,
+                  domain:anchor.domain||"general",
+                  previousUserText:anchor.userText||"",
+                  previousAssistantReply:anchor.assistantReply||"",
+                  activeTask:anchor.activeTask||anchor.topic||"",
+                  surfaceRequest:anchor.surfaceRequest||anchor.userText||"",
+                  deeperIntent:anchor.deeperIntent||"",
+                  operationalRisk:anchor.operationalRisk||"",
+                  executionMode:anchor.executionMode||"",
+                  nextAction:anchor.nextAction||"",
+                  technicalTarget:anchor.technicalTarget||"",
+                  authority:"bridge_private_session_cache",
+                  noOlderDomainOverride:true,
+                  updatedAt:Date.now()
+                }
+              },
+              continuityAnchor:anchor,
+              continuationRequested:true,
+              continuationResolved:true,
+              continuityResolved:true
+            });
+          }
+        }
+        const result=await previous.call(this,prepared);
+        const enforced=guard.enforceResult(result,prepared);
+        writeAnchor(prepared,enforced);
+        return enforced;
+      };
+      try{Object.keys(previous).forEach(k=>{canonical[k]=previous[k];});}catch(_){}
+      canonical.__marionPrivateSessionContinuityCacheR2=true;
+      api.processWithMarion=canonical;
+      ["route","maybeResolve","ask","handle","default"].forEach(n=>{api[n]=canonical;});
+      api.createMarionBridge=function(){return{
+        version:"marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY",
+        endpoint:api.CANONICAL_ENDPOINT||"marion://routeMarion.primary",
+        processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical
+      };};
+    }
+    api.__marionPrivateSessionContinuityCacheR2=true;
+    api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_VERSION="nyx.marion.privateSessionContinuityCache/1.0";
+    api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_TTL_MS=CACHE_TTL_MS;
+    api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_MAX=CACHE_MAX;
+    api._continuityCacheDiagnostics=function(){prune();return{version:api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_VERSION,size:cache.size,ttlMs:CACHE_TTL_MS,max:CACHE_MAX,privateOnly:true,publicNyxNoOp:true};};
+  }catch(_err){}
+})();
+/* MARION_PRIVATE_SESSION_CONTINUITY_CACHE_R2_END */
