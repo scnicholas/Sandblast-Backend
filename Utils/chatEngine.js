@@ -5955,3 +5955,7 @@ try {
   } catch(_){}
 })();
 /* MARION_CHATENGINE_CIRCULAR_SAFE_TRANSPORT_V6_END */
+
+
+/* MARION_UNIFIED_PRIVATE_RUNTIME_CHATENGINE_V8_MARKER */
+try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"){module.exports.MARION_UNIFIED_PRIVATE_RUNTIME_CONTRACT="nyx.marion.privateRuntime/8.0";module.exports.MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY="marionPrivateRuntimeAdapter";module.exports.MARION_PRIVATE_RUNTIME_COORDINATOR_ONLY=true;}}catch(_){}
