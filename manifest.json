@@ -1,70 +1,55 @@
 {
-  "files": {
-    "AUTOPSY.md": {
-      "bytes": 613,
-      "sha256": "e028b01d08d2e657bd0cdc28981d272c9c662265943c484b9216973037436782"
+  "checks": {
+    "index.js": {
+      "ok": true,
+      "stderr": ""
     },
-    "Data/marion/runtime/MarionAdminConsoleGateway.js": {
-      "bytes": 321338,
-      "sha256": "90c92f880944fee4da91d5e0451deefd27cbf859cb874ea9eff1b1174f904d9f"
+    "Utils/marionRouter.js": {
+      "ok": true,
+      "stderr": ""
     },
-    "Data/marion/runtime/composeMarionResponse.js": {
-      "bytes": 1044595,
-      "sha256": "9a7838746acd0dc54baf67eef96b00046e26b9c0a3c24391695e0a134d823c2e"
+    "Data/marion/runtime/marionIntentRouter.js": {
+      "ok": true,
+      "stderr": ""
     },
     "Data/marion/runtime/marionBridge.js": {
-      "bytes": 771276,
-      "sha256": "86cd681db3d1a779d53d8acf2412fcf833ab60fd5e6fc266c4b331de6e80a827"
-    },
-    "Data/marion/runtime/marionFinalEnvelope.js": {
-      "bytes": 568976,
-      "sha256": "78f7eb28fc46663299859686694d5e8a010567b58448b742c799c7fdfc94d629"
-    },
-    "README.md": {
-      "bytes": 1327,
-      "sha256": "51c59af318adae9a803cda97ef4e0ecf0d5bd949525ff47c2116d24a42baaf83"
-    },
-    "Utils/chatEngine.js": {
-      "bytes": 315247,
-      "sha256": "cc4146cdede954dce51103cd33e70c19bd1156bb3c398544bf24a5964d064264"
-    },
-    "Utils/stateSpine.js": {
-      "bytes": 409346,
-      "sha256": "132f4cfdd997fdc3e554c07f2c3e146835006d6d74821108583535bd863885ae"
-    },
-    "index.js": {
-      "bytes": 1471955,
-      "sha256": "f870811af9736cc1b561eba4ba62c11e46c41c3798ee11b15bacb5fc2f10f5fe"
+      "ok": true,
+      "stderr": ""
     }
   },
-  "checks": {
-    "Data/marion/runtime/composeMarionResponse.js": {
-      "ok": true,
-      "stderr": ""
+  "contractTest": {
+    "ok": true,
+    "stdout": "[MARION] marionRouter patch active marionRouter v1.4.1 SIX-DOMAIN-COVERAGE-CARRY + STATE-SPINE-COHESION-HARDENED\nprimitive-conversion contract passed",
+    "stderr": ""
+  },
+  "files": {
+    "AUTOPSY.md": {
+      "bytes": 701,
+      "sha256": "b4dd3ea53b87901e508155ed8795b5cbef8a39e82e8dc57f131f4cc6816759a3"
     },
     "Data/marion/runtime/marionBridge.js": {
-      "ok": true,
-      "stderr": ""
+      "bytes": 38082,
+      "sha256": "1cdc2f5985ef9523463363128fd68ebc6f5f32b774f581ea42b5bada2ed22e93"
+    },
+    "Data/marion/runtime/marionIntentRouter.js": {
+      "bytes": 238907,
+      "sha256": "94d1b7a33c04582043a4cee5473b7a91fa4d4132a4a2e9a6452e0dff3f8684e3"
+    },
+    "README.md": {
+      "bytes": 1032,
+      "sha256": "1a18ef5c95d2c89c532c1a059bd3a05d4dfd1ba87fa223666bb43f01e41b72d6"
+    },
+    "Utils/marionRouter.js": {
+      "bytes": 23941,
+      "sha256": "2bac225f2cefd02277c7c4b7236067b9ff8b8b4b6cbebf7246686a56a062ce4c"
     },
     "index.js": {
-      "ok": true,
-      "stderr": ""
+      "bytes": 1476061,
+      "sha256": "2cfcd24264c7239db05afa5f6fd2042422004c42e60807e2bbb15fbf0a871290"
     },
-    "Utils/chatEngine.js": {
-      "ok": true,
-      "stderr": ""
-    },
-    "Utils/stateSpine.js": {
-      "ok": true,
-      "stderr": ""
-    },
-    "Data/marion/runtime/MarionAdminConsoleGateway.js": {
-      "ok": true,
-      "stderr": ""
-    },
-    "Data/marion/runtime/marionFinalEnvelope.js": {
-      "ok": true,
-      "stderr": ""
+    "tests/primitive-conversion-contract.js": {
+      "bytes": 776,
+      "sha256": "d3f6a3911a368ea739e38baf4d42da8951313f7f2618ce3de196ea5ee160a49c"
     }
   }
 }
