@@ -164,6 +164,78 @@ const fs = require("fs");
 const crypto = require("crypto");
 const os = require("os");
 
+
+/* MARION_PRIVATE_RUNTIME_CIRCULAR_SAFE_EXPORTS_V6_START
+ * Stable export facade for modules that inspect index.js during a CommonJS
+ * circular load. The facade is installed before any Marion runtime module is
+ * required, so consumers never observe missing properties from a partially
+ * initialized index module. Calls are delegated only after the live function
+ * exists; response helpers remain transport-only identity operations.
+ */
+const MARION_PRIVATE_RUNTIME_CIRCULAR_SAFE_EXPORTS_V6 = "marion.privateRuntime.circularSafeExports/6.0";
+const marionIndexDeferredExportNamesV6 = Object.freeze([
+  "handleMarionAdminTextRuntime",
+  "invokeMarionAdminTextRuntime",
+  "handleTextRuntime",
+  "handleAdminConversation",
+  "processWithMarion",
+  "safeResponse",
+  "buildResponse",
+  "createResponse",
+  "finalizeTurn"
+]);
+const marionIndexDeferredExportFacadeV6 = Object.create(null);
+function marionIndexResolveLiveExportV6(name) {
+  const indexReady = !!(typeof module !== "undefined" && module.loaded === true);
+  if (!indexReady) {
+    if (/^(?:safeResponse|buildResponse|createResponse)$/.test(name)) {
+      return function marionIndexTransportIdentityV6(value) { return value; };
+    }
+    return null;
+  }
+  try {
+    if (name === "handleMarionAdminTextRuntime" && typeof handleMarionAdminTextRuntime === "function") return handleMarionAdminTextRuntime;
+    if (name === "invokeMarionAdminTextRuntime" && typeof invokeMarionAdminTextRuntime === "function") return invokeMarionAdminTextRuntime;
+    if (name === "processWithMarion" && typeof callMarionBridge === "function") return function marionIndexProcessWithMarionV6(input) { return callMarionBridge(input); };
+    if (name === "finalizeTurn" && typeof finalizeTurn === "function") return finalizeTurn;
+  } catch (_) {}
+  try {
+    const engine = typeof getChatEngineModV6 === "function" ? getChatEngineModV6({ force: true }) : null;
+    if (engine && Object.prototype.hasOwnProperty.call(engine, name) && typeof engine[name] === "function") return engine[name].bind(engine);
+  } catch (_) {}
+  if (/^(?:safeResponse|buildResponse|createResponse)$/.test(name)) {
+    return function marionIndexTransportIdentityV6(value) { return value; };
+  }
+  return null;
+}
+function marionIndexDeferredExportCallV6(name, thisArg, args) {
+  const live = marionIndexResolveLiveExportV6(name);
+  const facade = marionIndexDeferredExportFacadeV6[name];
+  if (typeof live === "function" && live !== facade) return live.apply(thisArg, args);
+  const error = new Error(`marion_private_runtime_not_ready:${name}`);
+  error.code = "MARION_PRIVATE_RUNTIME_NOT_READY";
+  throw error;
+}
+try {
+  if (typeof module !== "undefined" && module.exports) {
+    for (const name of marionIndexDeferredExportNamesV6) {
+      const facade = function marionIndexCircularSafeFacadeV6() {
+        return marionIndexDeferredExportCallV6(name, this, arguments);
+      };
+      Object.defineProperty(facade, "__marionCircularSafeExportV6", { value: true });
+      marionIndexDeferredExportFacadeV6[name] = facade;
+      Object.defineProperty(module.exports, name, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: facade
+      });
+    }
+    module.exports.MARION_PRIVATE_RUNTIME_CIRCULAR_SAFE_EXPORTS_V6 = MARION_PRIVATE_RUNTIME_CIRCULAR_SAFE_EXPORTS_V6;
+  }
+} catch (_) {}
+/* MARION_PRIVATE_RUNTIME_CIRCULAR_SAFE_EXPORTS_V6_END */
+
 let compression = null;
 try {
   compression = require("compression");
@@ -5646,7 +5718,7 @@ function routeMarionIntentThroughRuntime(intentPacket, lane, text) {
   const normalized = isObj(intentPacket) ? intentPacket : normalizeIncomingMarionIntent(null, text || "");
   if (marionIntentRouterMod && typeof marionIntentRouterMod.routeMarionIntent === "function") {
     try {
-      const routed = marionIntentRouterMod.routeMarionIntent({
+      const routed = activeIntentRouter.routeMarionIntent({
         text: cleanText(text || ""),
         lane: cleanText(lane || "general") || "general",
         marionIntent: normalized,
@@ -8988,16 +9060,46 @@ app.use((req, res, next) => {
   return next();
 });
 
-const chatEngineMod = tryRequireMany([
-  "./chatEngine",
-  "./chatEngine.js",
-  "./ChatEngine",
-  "./ChatEngine.js",
-  "./utils/chatEngine",
-  "./utils/chatEngine.js",
+const CHAT_ENGINE_REQUIRE_CANDIDATES_V6 = Object.freeze([
+  "./Utils/chatEngine.js",
   "./Utils/chatEngine",
-  "./Utils/chatEngine.js"
+  "./utils/chatEngine.js",
+  "./utils/chatEngine",
+  "./chatEngine.js",
+  "./chatEngine",
+  "./ChatEngine.js",
+  "./ChatEngine"
 ]);
+let chatEngineMod = null;
+const chatEngineLoadStateV6 = { loading: false, attempted: false, resolvedPath: "", error: "" };
+function getChatEngineModV6(options = {}) {
+  if (chatEngineMod) return chatEngineMod;
+  if (chatEngineLoadStateV6.loading) return null;
+  if (!options.force && typeof module !== "undefined" && module.loaded === false) return null;
+  chatEngineLoadStateV6.loading = true;
+  chatEngineLoadStateV6.attempted = true;
+  try {
+    for (const candidate of CHAT_ENGINE_REQUIRE_CANDIDATES_V6) {
+      try {
+        const resolved = require.resolve(candidate);
+        const cached = require.cache && require.cache[resolved];
+        if (cached && cached.loaded === false && !options.allowPartial) continue;
+        const loaded = require(resolved);
+        if (!loaded) continue;
+        chatEngineMod = loaded;
+        chatEngineLoadStateV6.resolvedPath = resolved;
+        chatEngineLoadStateV6.error = "";
+        return chatEngineMod;
+      } catch (err) {
+        chatEngineLoadStateV6.error = marionNonThrowingClean(err && (err.code || err.message || err.name), "chat_engine_unavailable");
+      }
+    }
+  } finally {
+    chatEngineLoadStateV6.loading = false;
+  }
+  return null;
+}
+if (typeof setImmediate === "function") setImmediate(() => { try { getChatEngineModV6({ force: true }); } catch (_) {} });
 
 const universalTranslatorAdapterMod = tryRequireMany([
   "./Data/marion/runtime/UniversalTranslatorAdapter",
@@ -9240,10 +9342,7 @@ function mountLingoSentinelSubscribeTokenRoute(appRef, mod) {
   }
 }
 
-const marionBridgeMod = tryRequireMany([
-  // RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41:
-  // Prefer the active Data runtime bridge first so index.js, MarionBridge,
-  // ComposeMarionResponse, and ChatEngine share one live authority path.
+const MARION_BRIDGE_REQUIRE_CANDIDATES_V6 = Object.freeze([
   "./Data/marion/runtime/marionBridge.js",
   "./Data/marion/runtime/marionBridge",
   "./marionBridge.js",
@@ -9251,6 +9350,37 @@ const marionBridgeMod = tryRequireMany([
   "./runtime/marionBridge.js",
   "./runtime/marionBridge"
 ]);
+let marionBridgeMod = null;
+const marionBridgeLoadStateV6 = { loading: false, attempted: false, resolvedPath: "", requested: "", error: "" };
+function getMarionBridgeModV6(options = {}) {
+  if (marionBridgeMod) return marionBridgeMod;
+  if (marionBridgeLoadStateV6.loading) return null;
+  if (!options.force && typeof module !== "undefined" && module.loaded === false) return null;
+  marionBridgeLoadStateV6.loading = true;
+  marionBridgeLoadStateV6.attempted = true;
+  try {
+    for (const candidate of MARION_BRIDGE_REQUIRE_CANDIDATES_V6) {
+      try {
+        const resolved = require.resolve(candidate);
+        const cached = require.cache && require.cache[resolved];
+        if (cached && cached.loaded === false && !options.allowPartial) continue;
+        const loaded = require(resolved);
+        if (!loaded) continue;
+        marionBridgeMod = loaded;
+        marionBridgeLoadStateV6.resolvedPath = resolved;
+        marionBridgeLoadStateV6.requested = candidate;
+        marionBridgeLoadStateV6.error = "";
+        return marionBridgeMod;
+      } catch (err) {
+        marionBridgeLoadStateV6.error = marionNonThrowingClean(err && (err.code || err.message || err.name), "marion_bridge_unavailable");
+      }
+    }
+  } finally {
+    marionBridgeLoadStateV6.loading = false;
+  }
+  return null;
+}
+if (typeof setImmediate === "function") setImmediate(() => { try { getMarionBridgeModV6({ force: true }); } catch (_) {} });
 
 const lingoSentinelGatewayMod = tryRequireMany([
   // LINGOSENTINEL LINK GATEWAY HOTFIX:
@@ -9302,23 +9432,40 @@ function resolveIndexLingoSentinelGatewayRunner(mod) {
 const runIndexLingoSentinelGateway = resolveIndexLingoSentinelGatewayRunner(lingoSentinelGatewayMod);
 const buildIndexLingoSentinelMarionPayload = lingoSentinelGatewayMod && typeof lingoSentinelGatewayMod.buildMarionBridgePayload === "function" ? lingoSentinelGatewayMod.buildMarionBridgePayload.bind(lingoSentinelGatewayMod) : null;
 
-const composeMarionResponseMod = tryRequireMany([
-  "./Data/marion/runtime/composeMarionResponse",
+const COMPOSE_MARION_REQUIRE_CANDIDATES_V6 = Object.freeze([
   "./Data/marion/runtime/composeMarionResponse.js",
-  "./composeMarionResponse",
+  "./Data/marion/runtime/composeMarionResponse",
   "./composeMarionResponse.js",
-  "./runtime/composeMarionResponse",
+  "./composeMarionResponse",
   "./runtime/composeMarionResponse.js",
-  "./utils/composeMarionResponse",
-  "./utils/composeMarionResponse.js",
+  "./runtime/composeMarionResponse",
+  "./Utils/composeMarionResponse.js",
   "./Utils/composeMarionResponse",
-  "./Utils/composeMarionResponse.js"
+  "./utils/composeMarionResponse.js",
+  "./utils/composeMarionResponse"
 ]);
-
-const marionIntentRouterMod = tryRequireMany([
-  "./Data/marion/runtime/marionIntentRouter",
-  "./Data/marion/runtime/marionIntentRouter.js"
+let composeMarionResponseMod = null;
+function getComposeMarionResponseModV6(options = {}) {
+  if (composeMarionResponseMod) return composeMarionResponseMod;
+  if (!options.force && typeof module !== "undefined" && module.loaded === false) return null;
+  composeMarionResponseMod = tryRequireMany(COMPOSE_MARION_REQUIRE_CANDIDATES_V6);
+  return composeMarionResponseMod;
+}
+const MARION_INTENT_ROUTER_REQUIRE_CANDIDATES_V6 = Object.freeze([
+  "./Data/marion/runtime/marionIntentRouter.js",
+  "./Data/marion/runtime/marionIntentRouter"
 ]);
+let marionIntentRouterMod = null;
+function getMarionIntentRouterModV6(options = {}) {
+  if (marionIntentRouterMod) return marionIntentRouterMod;
+  if (!options.force && typeof module !== "undefined" && module.loaded === false) return null;
+  marionIntentRouterMod = tryRequireMany(MARION_INTENT_ROUTER_REQUIRE_CANDIDATES_V6);
+  return marionIntentRouterMod;
+}
+if (typeof setImmediate === "function") setImmediate(() => {
+  try { getComposeMarionResponseModV6({ force: true }); } catch (_) {}
+  try { getMarionIntentRouterModV6({ force: true }); } catch (_) {}
+});
 
 const marionDomainRegistryMod = tryRequireMany([
   "./Data/marion/runtime/marionDomainRegistry",
@@ -10042,11 +10189,11 @@ function getMarionRuntimeDiagnostics() {
   return {
     marionBridgeLoaded: !!marionBridgeMod,
     marionBridgeKeys: marionBridgeMod && typeof marionBridgeMod === "object" ? Object.keys(marionBridgeMod).slice(0, 20) : [],
-    marionBridgeHasRoute: !!(marionBridgeMod && typeof marionBridgeMod.route === "function"),
-    marionBridgeHasAsk: !!(marionBridgeMod && typeof marionBridgeMod.ask === "function"),
-    marionBridgeHasHandle: !!(marionBridgeMod && typeof marionBridgeMod.handle === "function"),
+    marionBridgeHasRoute: !!(marionBridgeMod && typeof activeMarionBridge.route === "function"),
+    marionBridgeHasAsk: !!(marionBridgeMod && typeof activeMarionBridge.ask === "function"),
+    marionBridgeHasHandle: !!(marionBridgeMod && typeof activeMarionBridge.handle === "function"),
     marionBridgeHasProcessWithMarion: !!(marionBridgeMod && typeof marionBridgeMod.processWithMarion === "function"),
-    marionBridgeHasDefault: !!(marionBridgeMod && typeof marionBridgeMod.default === "function"),
+    marionBridgeHasDefault: !!(marionBridgeMod && typeof activeMarionBridge.default === "function"),
     marionBridgeHasFactory: !!(marionBridgeMod && typeof marionBridgeMod.createMarionBridge === "function"),
     marionBridgeVersion: cleanText(marionBridgeMod && marionBridgeMod.VERSION || ""),
     lingoSentinelGatewayLoaded: !!lingoSentinelGatewayMod,
@@ -15092,13 +15239,14 @@ function getChatEngineRuntime() {
 }
 
 async function callChatEngine(input) {
-  if (!chatEngineMod) return null;
+  const activeChatEngine = getChatEngineModV6({ force: true }) || chatEngineMod;
+  if (!activeChatEngine) return null;
   try {
-    if (typeof chatEngineMod.handleChat === "function") return await chatEngineMod.handleChat(input);
-    if (typeof chatEngineMod.run === "function") return await chatEngineMod.run(input);
-    if (typeof chatEngineMod.chat === "function") return await chatEngineMod.chat(input);
-    if (typeof chatEngineMod.handle === "function") return await chatEngineMod.handle(input);
-    if (typeof chatEngineMod.reply === "function") return await chatEngineMod.reply(input);
+    if (typeof activeChatEngine.handleChat === "function") return await activeChatEngine.handleChat(input);
+    if (typeof activeChatEngine.run === "function") return await activeChatEngine.run(input);
+    if (typeof activeChatEngine.chat === "function") return await activeChatEngine.chat(input);
+    if (typeof activeChatEngine.handle === "function") return await activeChatEngine.handle(input);
+    if (typeof activeChatEngine.reply === "function") return await activeChatEngine.reply(input);
     const runtime = getChatEngineRuntime();
     if (runtime && typeof runtime.processInput === "function") {
       const response = await Promise.resolve(runtime.processInput(cleanText(input && input.text || ""), input || {}));
@@ -15120,7 +15268,7 @@ async function callChatEngine(input) {
         meta: { replyAuthority: "chat_engine_runtime", engineVersion: INDEX_VERSION }
       };
     }
-    if (typeof chatEngineMod === "function") return await chatEngineMod(input);
+    if (typeof activeChatEngine === "function") return await activeChatEngine(input);
   } catch (err) {
     console.log("[Sandblast][chatEngine:error]", err && (err.stack || err.message || err));
     return { __engineError: err };
@@ -15182,7 +15330,8 @@ function buildIndexSixDomainMarionRoutedPacket(text = "", source = {}) {
 }
 
 async function callComposeMarionResponseRuntime(input, upstream) {
-  if (!composeMarionResponseMod) return null;
+  const activeComposer = getComposeMarionResponseModV6({ force: true }) || composeMarionResponseMod;
+  if (!activeComposer) return null;
   const source = isObj(input) ? input : {};
   const text = cleanText(source.text || source.userQuery || source.query || "");
   if (!text) return null;
@@ -15232,9 +15381,9 @@ async function callComposeMarionResponseRuntime(input, upstream) {
       marionIntent: routedPacket.marionIntent
     } : packet;
     let out = null;
-    if (typeof composeMarionResponseMod.composeMarionResponse === "function") out = routedPacket ? await composeMarionResponseMod.composeMarionResponse(routedPacket, composeInput) : await composeMarionResponseMod.composeMarionResponse(packet);
-    else if (typeof composeMarionResponseMod.default === "function") out = routedPacket ? await composeMarionResponseMod.default(routedPacket, composeInput) : await composeMarionResponseMod.default(packet);
-    else if (typeof composeMarionResponseMod === "function") out = routedPacket ? await composeMarionResponseMod(routedPacket, composeInput) : await composeMarionResponseMod(packet);
+    if (typeof activeComposer.composeMarionResponse === "function") out = routedPacket ? await activeComposer.composeMarionResponse(routedPacket, composeInput) : await activeComposer.composeMarionResponse(packet);
+    else if (typeof activeComposer.default === "function") out = routedPacket ? await activeComposer.default(routedPacket, composeInput) : await activeComposer.default(packet);
+    else if (typeof activeComposer === "function") out = routedPacket ? await activeComposer(routedPacket, composeInput) : await activeComposer(packet);
     if (!isObj(out)) return null;
     const reply = getMarionAuthorityReply(out);
     if (!reply || isBlockedLoopingSupportReply(reply) || isConversationDiagnosticFallbackReply(reply)) return null;
@@ -15271,25 +15420,26 @@ async function callComposeMarionResponseRuntime(input, upstream) {
 }
 
 async function callMarionBridge(input) {
-  if (!marionBridgeMod) return null;
+  const activeMarionBridge = getMarionBridgeModV6({ force: true }) || marionBridgeMod;
+  if (!activeMarionBridge) return null;
   const finish = (value) => normalizeMarionBridgeResult(value, input);
   try {
-    // v7.5 canonical authority: use the module-level transport-safe entry point first.
-    if (typeof marionBridgeMod.processWithMarion === "function") {
-      return finish(await marionBridgeMod.processWithMarion(input));
+    // Canonical authority: use one normalized packet and no index/gateway recursion.
+    if (Object.prototype.hasOwnProperty.call(activeMarionBridge, "processWithMarion") && typeof activeMarionBridge.processWithMarion === "function") {
+      return finish(await activeMarionBridge.processWithMarion(input));
     }
-    if (typeof marionBridgeMod.createMarionBridge === "function") {
-      const bridge = marionBridgeMod.createMarionBridge();
+    if (Object.prototype.hasOwnProperty.call(activeMarionBridge, "createMarionBridge") && typeof activeMarionBridge.createMarionBridge === "function") {
+      const bridge = activeMarionBridge.createMarionBridge();
       if (bridge && typeof bridge.processWithMarion === "function") return finish(await bridge.processWithMarion(input));
       if (bridge && typeof bridge.maybeResolve === "function") return finish(await bridge.maybeResolve(input));
     }
     // Legacy compatibility only after the canonical method is unavailable.
-    if (typeof marionBridgeMod.maybeResolve === "function") return finish(await marionBridgeMod.maybeResolve(input));
-    if (typeof marionBridgeMod.route === "function") return finish(await marionBridgeMod.route(input));
-    if (typeof marionBridgeMod.ask === "function") return finish(await marionBridgeMod.ask(input));
-    if (typeof marionBridgeMod.handle === "function") return finish(await marionBridgeMod.handle(input));
-    if (typeof marionBridgeMod.default === "function") return finish(await marionBridgeMod.default(input));
-    if (typeof marionBridgeMod === "function") return finish(await marionBridgeMod(input));
+    if (typeof activeMarionBridge.maybeResolve === "function") return finish(await activeMarionBridge.maybeResolve(input));
+    if (typeof marionBridgeMod.route === "function") return finish(await activeMarionBridge.route(input));
+    if (typeof marionBridgeMod.ask === "function") return finish(await activeMarionBridge.ask(input));
+    if (typeof marionBridgeMod.handle === "function") return finish(await activeMarionBridge.handle(input));
+    if (typeof marionBridgeMod.default === "function") return finish(await activeMarionBridge.default(input));
+    if (typeof activeMarionBridge === "function") return finish(await activeMarionBridge(input));
   } catch (err) {
     console.log("[Sandblast][marionBridge:error]", marionNonThrowingClean(err && (err.stack || err.message || err.code || err.name), "marion bridge failed"));
     return {
@@ -22379,7 +22529,7 @@ app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.revoke, async (req, res) => handle
 // Private admin-only text conversation bridge for the Marion console.
 // This keeps the existing admin control plane intact while routing conversational
 // text to MarionBridge/ChatEngine through Marion's final-authority pipeline.
-const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/1.3-regression-safe-bridge-compat";
+const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/2.0-circular-safe-canonical-bridge";
 const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
   "/api/private/marion/admin/runtime",
   "/private/marion/admin/runtime",
@@ -22391,102 +22541,53 @@ const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
   "/marion/admin/conversation"
 ]);
 
+function marionAdminTextRuntimeOwnFunction(mod, name) {
+  if (!mod) return null;
+  try {
+    if (!Object.prototype.hasOwnProperty.call(mod, name)) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(mod, name);
+    if (!descriptor || typeof descriptor.value !== "function") return null;
+    return descriptor.value;
+  } catch (_) { return null; }
+}
 function marionAdminTextRuntimeHandlerName(mod) {
   if (!mod) return "";
-  if (typeof mod.handleMarionAdminConversation === "function") return "handleMarionAdminConversation";
-  if (typeof mod.handleMarionAdminTextRuntime === "function") return "handleMarionAdminTextRuntime";
-  if (typeof mod.handleAdminConversation === "function") return "handleAdminConversation";
-  if (typeof mod.processWithMarion === "function") return "processWithMarion";
-  if (typeof mod.handle === "function") return "handle";
-  if (typeof mod.ask === "function") return "ask";
-  if (typeof mod.route === "function") return "route";
-  if (typeof mod.default === "function") return "default";
+  const ordered = ["processWithMarion", "createMarionBridge", "route", "maybeResolve", "ask", "handle", "default"];
+  for (const name of ordered) if (marionAdminTextRuntimeOwnFunction(mod, name)) return name;
   if (typeof mod === "function") return "module";
   return "";
 }
 
 function marionAdminTextRuntimeBridgeCandidates() {
-  // Preserve the established root bridge first. The canonical Data runtime is
-  // retained as a verified fallback rather than being allowed to shadow a
-  // healthy admin-specific bridge merely because its file resolves first.
-  const requestedCandidates = [
-    "./marionBridge.js",
-    "./marionBridge",
-    "./Data/marion/runtime/marionBridge.js",
-    "./Data/marion/runtime/marionBridge",
-    "./Utils/marionBridge.js",
-    "./Utils/marionBridge"
-  ];
-  const out = [];
-  const seen = new Set();
-  for (const candidate of requestedCandidates) {
-    try {
-      const resolved = require.resolve(candidate);
-      if (seen.has(resolved)) continue;
-      const mod = require(resolved);
-      const handler = marionAdminTextRuntimeHandlerName(mod);
-      if (!mod || !handler) continue;
-      seen.add(resolved);
-      const adminSpecific = /^(?:handleMarionAdminConversation|handleMarionAdminTextRuntime|handleAdminConversation)$/.test(handler);
-      const canonicalDataRuntime = candidate.startsWith("./Data/marion/runtime/");
-      const compatibilityRank = adminSpecific ? 0 : (canonicalDataRuntime ? 1 : (candidate.startsWith("./marionBridge") ? 2 : 3));
-      out.push({
-        available: true,
-        mod,
-        requested: candidate,
-        resolvedPath: resolved,
-        version: cleanText(mod.VERSION || ""),
-        handler,
-        gatewayFallback: false,
-        compatibilityRank
-      });
-    } catch (_) {}
-  }
-
-  // Prefer an established admin-specific handler; otherwise use the canonical
-  // Data runtime before generic root/Utils aliases. This avoids both the v5
-  // shadowing regression and accidental reversion to an older generic bridge.
-  out.sort((a, b) => Number(a.compatibilityRank || 0) - Number(b.compatibilityRank || 0));
-
-  // The admin gateway remains a private-only compatibility fallback. It is
-  // never projected to Nyx and is attempted only after bridge candidates.
-  try {
-    const gatewayStatus = marionAdminConsoleGatewayStatus();
-    const gatewayMod = gatewayStatus && gatewayStatus.mod;
-    const gatewayHandler = marionAdminTextRuntimeHandlerName(gatewayMod);
-    if (gatewayStatus && gatewayStatus.available && gatewayMod && gatewayHandler) {
-      let resolvedPath = "";
-      try { resolvedPath = require.resolve(MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH); } catch (_) {}
-      const dedupeKey = resolvedPath || `gateway:${gatewayHandler}`;
-      if (!seen.has(dedupeKey)) {
-        seen.add(dedupeKey);
-        out.push({
-          available: true,
-          mod: gatewayMod,
-          requested: MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH,
-          resolvedPath,
-          version: cleanText(gatewayMod.VERSION || ""),
-          handler: gatewayHandler,
-          gatewayFallback: true
-        });
-      }
-    }
-  } catch (_) {}
-  return out;
+  const mod = getMarionBridgeModV6({ force: true }) || marionBridgeMod;
+  if (!mod) return [];
+  const handler = marionAdminTextRuntimeHandlerName(mod);
+  if (!handler) return [];
+  return [{
+    available: true,
+    mod,
+    requested: marionBridgeLoadStateV6.requested || "./Data/marion/runtime/marionBridge.js",
+    resolvedPath: marionBridgeLoadStateV6.resolvedPath || "",
+    version: cleanText((Object.prototype.hasOwnProperty.call(mod, "VERSION") && mod.VERSION) || ""),
+    handler,
+    gatewayFallback: false,
+    compatibilityRank: 0,
+    canonicalPrivateRuntime: true
+  }];
 }
 
 function marionAdminTextRuntimeBridgeStatus() {
   const candidates = marionAdminTextRuntimeBridgeCandidates();
-  if (candidates.length) return { ...candidates[0], candidateCount: candidates.length };
+  if (candidates.length) return { ...candidates[0], candidateCount: 1 };
   return {
     available: false,
     mod: null,
-    requested: "",
-    resolvedPath: "",
+    requested: marionBridgeLoadStateV6.requested || "./Data/marion/runtime/marionBridge.js",
+    resolvedPath: marionBridgeLoadStateV6.resolvedPath || "",
     version: "",
     handler: "",
     candidateCount: 0,
-    reason: "marion_bridge_and_gateway_runtime_unavailable"
+    reason: marionBridgeLoadStateV6.error || "canonical_marion_bridge_unavailable"
   };
 }
 
@@ -22963,15 +23064,19 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     const handlerName = status.handler;
     let fn = null;
     try {
-      fn = handlerName === "module" ? mod : mod && mod[handlerName];
+      fn = handlerName === "module" ? mod : marionAdminTextRuntimeOwnFunction(mod, handlerName);
+      if (handlerName === "createMarionBridge" && typeof fn === "function") {
+        const bridgeInstance = fn.call(mod);
+        fn = bridgeInstance && typeof bridgeInstance.processWithMarion === "function" ? bridgeInstance.processWithMarion.bind(bridgeInstance) : null;
+      }
       if (typeof fn !== "function") {
         attempts.push({ requested: status.requested, resolvedPath: status.resolvedPath, handler: handlerName, ok: false, reason: "handler_not_callable" });
         continue;
       }
       // Canonical bridge aliases accept one normalized input packet. Admin
       // gateway handlers retain their historical two-argument contract.
-      const adminHandler = /^(?:handleMarionAdminConversation|handleMarionAdminTextRuntime|handleAdminConversation)$/.test(handlerName);
-      let packet = await Promise.resolve(adminHandler ? fn.call(mod, input, context) : fn.call(mod, input));
+      const adminHandler = false; // Conversation always enters the canonical one-packet bridge contract.
+      let packet = await Promise.resolve(fn.call(mod, input));
       lastPacket = packet;
       let extracted = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
       let packetReply = priority9JR1BAdminVisibleReply(extracted, prompt) || extracted || priority9JR1BAdminVisibleReply(packet, prompt) || "";
@@ -22985,7 +23090,7 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
       // route remount, or synthetic HTTP answer is introduced.
       if (marionAdminTextRuntimePacketDomain(packet) === "technical" && marionAdminTextRuntimeLooksLegalFallback(reply)) {
         const retryInput = marionAdminTextRuntimeTechnicalRetryInput(input, prompt);
-        const retryPacket = await Promise.resolve(adminHandler ? fn.call(mod, retryInput, { ...context, semanticRetry: true }) : fn.call(mod, retryInput));
+        const retryPacket = await Promise.resolve(fn.call(mod, retryInput));
         const retryExtracted = marionAdminTextRuntimeReplyFromPacket(retryPacket, prompt, retryInput);
         const retryPacketReply = priority9JR1BAdminVisibleReply(retryExtracted, prompt) || retryExtracted || priority9JR1BAdminVisibleReply(retryPacket, prompt) || "";
         const retryReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, retryPacketReply, voiceApproval), prompt) || retryPacketReply;
@@ -23165,7 +23270,7 @@ app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
 
 
 /* MARION_PRIVATE_RUNTIME_HTTP_TERMINAL_HARDLOCK_V3_START */
-const MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION = "marion.privateRuntime.httpTerminalHardlock/4.1-regression-safe-bridge-compat";
+const MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION = "marion.privateRuntime.httpTerminalHardlock/6.0-circular-safe-single-mount";
 function marionPrivateRuntimeHttpJsonSafe(value, depth = 0, seen = new WeakSet()) {
   if (value == null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -23234,7 +23339,7 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
         bridgeHandler:bridgeStatus.handler||"",bridgeVersion:bridgeStatus.version||"",
         bridgeRequested:bridgeStatus.requested||"",bridgeResolvedPath:bridgeStatus.resolvedPath||"",
         bridgeAttempts:Array.isArray(runtime&&runtime.bridgeAttempts)?runtime.bridgeAttempts:[],
-        regressionRecoveryVersion:"marion.privateRuntime.backendRegressionRecovery/5.1",
+        regressionRecoveryVersion:"marion.privateRuntime.permanentRepair/6.0",
         semanticHealth:ok?"ready":"degraded",jsonSafe:true,noCircularRuntimePacket:true
       }
     });
@@ -23249,18 +23354,20 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   }
 }
 
-app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES,(req,res)=>{applyCors(req,res);hardenConversationNoStore(res);return res.status(204).end();});
-app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES,handleMarionPrivateRuntimeHttpHardlock);
+if (!app.locals.__marionPrivateRuntimeRoutesMountedV6) {
+  app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES,(req,res)=>{applyCors(req,res);hardenConversationNoStore(res);return res.status(204).end();});
+  app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES,handleMarionPrivateRuntimeHttpHardlock);
+  app.locals.__marionPrivateRuntimeRoutesMountedV6 = {
+    version: "marion.privateRuntime.singleMount/6.0",
+    postHandler: "handleMarionPrivateRuntimeHttpHardlock",
+    canonicalBridgeOnly: true,
+    mountedAt: Date.now()
+  };
+}
 // Some frontend revisions submit ordinary conversation text to the command alias.
 app.post(["/api/private/marion/admin/command","/private/marion/admin/command"],(req,res,next)=>{const p=marionPrivateRuntimeHttpPrompt(req&&req.body);const operational=/\b(?:approve|deny|emergency|shutdown|restart|deploy|publish|delete|disable|enable|status|diagnostic|health|config|runtime command)\b/i.test(p);return p&&!operational?handleMarionPrivateRuntimeHttpHardlock(req,res,next):next();});
 /* MARION_PRIVATE_RUNTIME_HTTP_TERMINAL_HARDLOCK_V3_END */
 
-app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
-  applyCors(req, res);
-  hardenConversationNoStore(res);
-  return res.status(204).end();
-});
-app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES, async (req, res) => handleMarionAdminTextRuntime(req, res));
 // GET is a non-mutating route-contract probe only. It confirms that the
 // private runtime route is mounted without invoking Marion or exposing Nyx.
 app.get(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
@@ -28896,3 +29003,49 @@ try {
   if (typeof module !== "undefined" && module.exports) module.exports.MARION_BACKEND_REGRESSION_RECOVERY_V51 = MARION_BACKEND_REGRESSION_RECOVERY_V51;
 } catch (_) {}
 /* MARION_BACKEND_REGRESSION_RECOVERY_V51_EXPORT_END */
+
+
+/* MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6_EXPORT_START */
+const MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6 = Object.freeze({
+  version: "marion.privateRuntime.permanentRepair/6.0",
+  circularSafeEarlyExports: true,
+  lazySemanticRuntimeLoading: true,
+  canonicalBridgeOnly: true,
+  adminGatewayConversationFallbackRemoved: true,
+  privateRuntimeRoutesMountedOnce: true,
+  coordinatorOnlyChatEnginePreserved: true,
+  boundedIntentRouterContinuity: true,
+  indexStructuralIntegrityPreserved: true,
+  nyxPublicArchitecturePreserved: true
+});
+try {
+  if (typeof app !== "undefined" && app && app.locals) {
+    app.locals.marionPrivateRuntimePermanentRepair = MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6;
+    const refresh = () => {
+      const bridge = getMarionBridgeModV6({ force: true });
+      app.locals.marionPrivateRuntimePermanentRepairStatus = {
+        version: MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6.version,
+        bridgeLoaded: !!bridge,
+        bridgeResolvedPath: marionBridgeLoadStateV6.resolvedPath || "",
+        bridgeHandler: marionAdminTextRuntimeHandlerName(bridge),
+        chatEngineLoaded: !!getChatEngineModV6({ force: true }),
+        intentRouterLoaded: !!getMarionIntentRouterModV6({ force: true }),
+        composerLoaded: !!getComposeMarionResponseModV6({ force: true }),
+        updatedAt: Date.now()
+      };
+    };
+    if (typeof setImmediate === "function") setImmediate(() => { try { refresh(); } catch (_) {} });
+  }
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports.MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6 = MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6;
+    module.exports.getMarionBridgeModV6 = getMarionBridgeModV6;
+    module.exports.getChatEngineModV6 = getChatEngineModV6;
+    module.exports.getMarionIntentRouterModV6 = getMarionIntentRouterModV6;
+    for (const name of marionIndexDeferredExportNamesV6) {
+      if (!Object.prototype.hasOwnProperty.call(module.exports, name) || typeof module.exports[name] !== "function") {
+        module.exports[name] = marionIndexDeferredExportFacadeV6[name];
+      }
+    }
+  }
+} catch (_) {}
+/* MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6_EXPORT_END */
