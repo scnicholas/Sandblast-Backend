@@ -5910,3 +5910,17 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
 (function(){"use strict";try{const g=require("../Data/marion/runtime/marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
+
+/* MARION_LONG_THREAD_STATE_PERSISTENCE_R4_START */
+(function(){"use strict";try{
+  const g=require("../Data/marion/runtime/marionCurrentTurnAuthority.js");
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||!g||api.__marionLongThreadStatePersistenceR4)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLongThreadStatePersistenceR4)return fn;const w=function(){const p=g.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>g.scrubStateForCurrentTurn(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionLongThreadStatePersistenceR4=true;w.__wrappedName=name;return w;}
+  ["createState","coerceState","finalizeTurn","updateState","advanceState","mergeState","buildStateSpine","applyStatePatch","applyLoopRecoveryPatch","normalizeStateForPipelineCohesion","default"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+  api.__marionLongThreadStatePersistenceR4=true;
+  api.MARION_LONG_THREAD_STATE_PERSISTENCE_VERSION=g.VERSION;
+  api.MARION_LONG_THREAD_PROGRESSION_CONTRACT=g.CONTINUITY_CONTRACT;
+  api.marionLongThreadProgressionGuard=g;
+}catch(_){}})();
+/* MARION_LONG_THREAD_STATE_PERSISTENCE_R4_END */
