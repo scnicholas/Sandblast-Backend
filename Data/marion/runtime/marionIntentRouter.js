@@ -1,5 +1,67 @@
 "use strict";
 
+
+
+/* MARION_NON_THROWING_PRIMITIVE_V2_START */
+function marionNonThrowingText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const type = typeof value;
+  if (type === "string") return value;
+  if (type === "number" || type === "boolean" || type === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
+  return fallback;
+}
+function marionNonThrowingClean(value, fallback = "") {
+  return marionNonThrowingText(value, fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function marionPrivateReplyText(result) {
+  if (typeof result === "string") return marionNonThrowingClean(result);
+  if (!result || typeof result !== "object") return "";
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const nested = result.result && typeof result.result === "object" ? result.result : {};
+  const envelope =
+    result.finalEnvelope && typeof result.finalEnvelope === "object" ? result.finalEnvelope :
+    payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
+    nested.finalEnvelope && typeof nested.finalEnvelope === "object" ? nested.finalEnvelope : {};
+  const candidates = [
+    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.reply, result.answer, result.response, result.text, result.message,
+    envelope.finalReply, envelope.reply, envelope.answer, envelope.text,
+    payload.directReply, payload.reply, payload.text, payload.message,
+    nested.directReply, nested.reply, nested.text, nested.message
+  ];
+  for (const candidate of candidates) {
+    const text = marionNonThrowingClean(candidate);
+    if (text) return text;
+  }
+  return "";
+}
+/* MARION_NON_THROWING_PRIMITIVE_V2_END */
+
 /**
  * marionIntentRouter.js
  * Deterministic Marion intent router.
@@ -186,9 +248,7 @@ const KNOWLEDGE_DOMAIN_DEPTH = Object.freeze({
   finance: "balanced"
 });
 
-function safeStr(v) {
-  return v == null ? "" : String(v).replace(/\s+/g, " ").trim();
-}
+function safeStr(v) { return marionNonThrowingClean(v); }
 
 function lower(v) {
   return safeStr(v).toLowerCase();
@@ -3669,7 +3729,7 @@ function r18cApplyLawIntentRoute(result,packet){
 (function(){
   "use strict";
   const PATCH_VERSION="marion.layers678.part1/1.0";
-  let depth=null; try{depth=require("./MarionConversationalDepth678.js");}catch(_err){depth=null;}
+  let depth=null; try{depth=require(require("path").join(__dirname,"MarionConversationalDepth678.js"));}catch(_err){depth=null;}
   if(!depth||typeof module==="undefined"||!module.exports)return;
   function wrap(fn,name){
     if(typeof fn!=="function"||fn.__marionLayers678Part1)return fn;
@@ -3695,3 +3755,15 @@ function r18cApplyLawIntentRoute(result,packet){
   }catch(_err){}
 })();
 /* MARION_LAYERS_6_7_8_PART1_END */
+
+
+/* MARION_LAYERS_7_8_PART2_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers78.part2/1.0";
+  let arb=null; try{arb=require(require("path").join(__dirname,"MarionContextIntentArbiter78.js"));}catch(_err){arb=null;}
+  if(!arb||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayers78Part2)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{};const r=fn.apply(this,a);const p=v=>arb.attach(v,i);return r&&typeof r.then==="function"?r.then(p):p(r)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_e){}w.__marionLayers78Part2=true;w.__marionWrappedName=name;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["processWithMarion","composeMarionResponse","compose","buildReply","run","handle","route","default","finalize","normalize","detectLoop","buildFinalEnvelope"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
+})();
+/* MARION_LAYERS_7_8_PART2_END */
