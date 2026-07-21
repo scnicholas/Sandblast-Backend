@@ -699,3 +699,20 @@ module.exports.default = module.exports;
   } catch(_err) {}
 })();
 /* MARION_IMMEDIATE_CONTINUATION_MEMORY_R2_END */
+
+/* MARION_LONG_THREAD_MEMORY_AUTHORITY_R4_START */
+(function(){"use strict";try{
+  const g=require("./marionCurrentTurnAuthority.js");
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||!g||api.__marionLongThreadMemoryAuthorityR4)return;
+  function stripLaw(obj){if(!obj||typeof obj!=="object")return obj;for(const k of Object.keys(obj)){if(/^(?:r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*)$/i.test(k))delete obj[k];}return obj;}
+  function normalizeSnapshot(snap){if(!snap||typeof snap!=="object")return snap;const a=snap.continuityAnchor||(snap.immediateContinuation&&snap.immediateContinuation.continuityAnchor)||null;const d=(a&&a.domain)||snap.domain||snap.primaryDomain||"";if(d&&d!=="law"){stripLaw(snap);snap.domain=d;snap.primaryDomain=d;snap.selectedDomain=d;snap.knowledgeDomain="";snap.activeFeatureLane=d;}return snap;}
+  const oldRemember=api.rememberTurn;
+  if(typeof oldRemember==="function")api.rememberTurn=function(guardian,turn,options){const prepared=g.prepareInput(turn&&typeof turn==="object"?turn:{}),r=oldRemember.call(this,guardian,prepared,options);return normalizeSnapshot(r);};
+  for(const n of ["getGuardianMemory","getGuardianSnapshot"]){const old=api[n];if(typeof old==="function")api[n]=function(){return normalizeSnapshot(old.apply(this,arguments));};}
+  api.__marionLongThreadMemoryAuthorityR4=true;
+  api.MARION_LONG_THREAD_MEMORY_AUTHORITY_VERSION=g.VERSION;
+  api.MARION_LONG_THREAD_PROGRESSION_CONTRACT=g.CONTINUITY_CONTRACT;
+  api.marionLongThreadProgressionGuard=g;
+}catch(_){}})();
+/* MARION_LONG_THREAD_MEMORY_AUTHORITY_R4_END */
