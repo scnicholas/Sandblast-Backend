@@ -23270,7 +23270,7 @@ app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
 
 
 /* MARION_PRIVATE_RUNTIME_HTTP_TERMINAL_HARDLOCK_V3_START */
-const MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION = "marion.privateRuntime.httpTerminalHardlock/6.0-circular-safe-single-mount";
+const MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION = "marion.privateRuntime.httpTerminalHardlock/8.0-adapter-authority";
 function marionPrivateRuntimeHttpJsonSafe(value, depth = 0, seen = new WeakSet()) {
   if (value == null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -23308,6 +23308,42 @@ function marionPrivateRuntimeHttpPrompt(body) { return marionNonThrowingClean(bo
 function marionPrivateRuntimeHttpGeneric(value) { const t=marionNonThrowingClean(value).toLowerCase().replace(/[.!?]+$/g,"").trim(); return !t || /^(?:i(?:'|’)?m here|i am here|still with you|right here|i(?:'|’)?m with you)(?:,?\s*mac)?$/.test(t) || /^(?:i(?:'|’)?m here|still with you|i(?:'|’)?ve got the thread|i(?:'|’)?m steady|i(?:'|’)?m with you)[\s\S]{0,360}(?:where do you want to go next|do you want to continue|keep testing|what would you like to work on|social response pass|deepen the conversation|system noise out of view|personality-layer refinement)/i.test(t); }
 function marionPrivateRuntimeHttpDeterministic(prompt) { const n=marionNonThrowingClean(prompt).toLowerCase(); if(/^what\s+is\s+2\s*\+\s*2\??$/.test(n))return "4."; if(/\bfocus\s+on\s+the\s+mobile\s+layout\b/.test(n))return "Understood. I’ll focus on the mobile layout within the active page architecture, preserve the established desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes."; return ""; }
 
+const MARION_PRIVATE_RUNTIME_ADAPTER_V8_PATH = "./Data/marion/runtime/marionPrivateRuntimeAdapter.js";
+let marionPrivateRuntimeAdapterV8 = null;
+let marionPrivateRuntimeAdapterV8Error = "";
+function getMarionPrivateRuntimeAdapterV8(force = false) {
+  if (!force && marionPrivateRuntimeAdapterV8 && typeof marionPrivateRuntimeAdapterV8.invokePrivateRuntime === "function") return marionPrivateRuntimeAdapterV8;
+  try {
+    const resolved = require.resolve(MARION_PRIVATE_RUNTIME_ADAPTER_V8_PATH);
+    const mod = require(resolved);
+    if (!mod || typeof mod.invokePrivateRuntime !== "function") throw Object.assign(new Error("private_runtime_adapter_handler_missing"), { code: "PRIVATE_RUNTIME_ADAPTER_HANDLER_MISSING" });
+    marionPrivateRuntimeAdapterV8 = mod;
+    marionPrivateRuntimeAdapterV8Error = "";
+    return mod;
+  } catch (err) {
+    marionPrivateRuntimeAdapterV8 = null;
+    marionPrivateRuntimeAdapterV8Error = marionNonThrowingClean(err && (err.code || err.message || err.name), "private_runtime_adapter_unavailable");
+    return null;
+  }
+}
+async function invokeMarionPrivateRuntimeAdapterV8(body, auth, traceId, voiceApproval = {}) {
+  let adapter = getMarionPrivateRuntimeAdapterV8(false);
+  if (!adapter) { await new Promise((resolve) => setImmediate(resolve)); adapter = getMarionPrivateRuntimeAdapterV8(true); }
+  if (!adapter) return { ok:false, statusCode:503, stage:"private_runtime_adapter_unavailable", reason:marionPrivateRuntimeAdapterV8Error || "private_runtime_adapter_unavailable", reply:"", bridgeStatus:{available:false,handler:"invokePrivateRuntime",requested:MARION_PRIVATE_RUNTIME_ADAPTER_V8_PATH,error:marionPrivateRuntimeAdapterV8Error} };
+  return adapter.invokePrivateRuntime(body, {
+    traceId,
+    adminVerified: !!(auth && auth.verified),
+    verified: !!(auth && auth.verified),
+    sessionVerified: !!(auth && auth.sessionVerified),
+    sessionId: cleanText(body && (body.sessionId || body.conversationId) || auth && auth.sessionId || ""),
+    conversationId: cleanText(body && (body.conversationId || body.sessionId) || auth && auth.sessionId || ""),
+    turnId: cleanText(body && body.turnId || traceId || ""),
+    passwordFreeTestChat: body && body.passwordFreeTestChat === true,
+    voiceApproval: safeObj(voiceApproval)
+  });
+}
+
+
 async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   applyCors(req,res); hardenConversationNoStore(res);
   const body=safeObj(req&&req.body), prompt=marionPrivateRuntimeHttpPrompt(body), traceId=marionNonThrowingClean((req&&req.sbTraceId)||body.traceId||makeTraceId("marionruntime"));
@@ -23318,7 +23354,7 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   if(!prompt)return res.status(400).json(marionAdminConsoleBaseResponse("runtime",traceId,auth,{ok:false,stage:"prompt_required",reason:"prompt_required",scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,responseFinalized:true}));
   try{
     const voiceApproval=marionAdminRuntimePrivateVoiceApproval(req,body,auth);
-    const runtime=await invokeMarionAdminTextRuntime(Object.assign({},body,{prompt,message:prompt,text:prompt,query:prompt,userText:prompt,rawUserText:prompt,privateAdminConversation:true,directMarionAdminInterface:true,marionAdminConversation:true}),auth,traceId,voiceApproval);
+    const runtime=await invokeMarionPrivateRuntimeAdapterV8(Object.assign({},body,{prompt,message:prompt,text:prompt,query:prompt,userText:prompt,rawUserText:prompt,privateAdminConversation:true,directMarionAdminInterface:true,marionAdminConversation:true}),auth,traceId,voiceApproval);
     let reply=marionPrivateReplyText(runtime)||marionNonThrowingClean(runtime&&runtime.reply);
     if(marionPrivateRuntimeHttpGeneric(reply))reply=marionPrivateRuntimeHttpDeterministic(prompt);
     const ok=!!reply;
@@ -23339,7 +23375,7 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
         bridgeHandler:bridgeStatus.handler||"",bridgeVersion:bridgeStatus.version||"",
         bridgeRequested:bridgeStatus.requested||"",bridgeResolvedPath:bridgeStatus.resolvedPath||"",
         bridgeAttempts:Array.isArray(runtime&&runtime.bridgeAttempts)?runtime.bridgeAttempts:[],
-        regressionRecoveryVersion:"marion.privateRuntime.permanentRepair/6.0",
+        regressionRecoveryVersion:"marion.privateRuntime.unifiedDefinitive/8.0",adapterVersion:cleanText(runtime&&runtime.adapterVersion||""),adapterContract:cleanText(runtime&&runtime.contract||""),
         semanticHealth:ok?"ready":"degraded",jsonSafe:true,noCircularRuntimePacket:true
       }
     });
@@ -29049,3 +29085,10 @@ try {
   }
 } catch (_) {}
 /* MARION_PRIVATE_RUNTIME_PERMANENT_REPAIR_V6_EXPORT_END */
+
+
+/* MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8_EXPORT_START */
+const MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8 = Object.freeze({version:"marion.privateRuntime.unifiedDefinitive/8.0",canonicalAdapterPath:"Data/marion/runtime/marionPrivateRuntimeAdapter.js",routeUsesClosureLocalAdapter:true,legacyInvokeWrappersBypassed:true,indexStructuralIntegrityPreserved:true,nyxPublicArchitecturePreserved:true});
+try{if(typeof app!=="undefined"&&app&&app.locals){app.locals.marionUnifiedPrivateRuntime=MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8;app.locals.marionUnifiedPrivateRuntimeStatus=()=>{const a=getMarionPrivateRuntimeAdapterV8(false);return a&&typeof a.getStatus==="function"?a.getStatus():{available:false,error:marionPrivateRuntimeAdapterV8Error}}}if(typeof module!=="undefined"&&module.exports){module.exports.MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8=MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8;module.exports.getMarionPrivateRuntimeAdapterV8=getMarionPrivateRuntimeAdapterV8;}}
+catch(_){}
+/* MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8_EXPORT_END */
