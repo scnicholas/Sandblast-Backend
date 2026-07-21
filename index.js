@@ -28653,3 +28653,23 @@ try {
   }
 } catch (_) {}
 /* MARION_BRIDGE_CANONICAL_TRANSPORT_INDEX_R75_EXPORT_END */
+
+/* MARION_CURRENT_TURN_AUTHORITY_INDEX_R1_START */
+const MARION_CURRENT_TURN_AUTHORITY_INDEX_VERSION="nyx.marion.currentTurnAuthority.index/1.0";
+let marionCurrentTurnAuthorityMod=null;try{marionCurrentTurnAuthorityMod=require("./Data/marion/runtime/marionCurrentTurnAuthority.js");}catch(_){marionCurrentTurnAuthorityMod=null;}
+try{
+  if(marionCurrentTurnAuthorityMod&&typeof invokeMarionAdminTextRuntime==="function"&&!invokeMarionAdminTextRuntime.__marionCurrentTurnAuthorityR1){
+    const originalInvokeMarionAdminTextRuntime=invokeMarionAdminTextRuntime;
+    invokeMarionAdminTextRuntime=async function(body,auth,traceId,voiceApproval){
+      const base=Object.assign({},safeObj(body),{route:"/api/private/marion/admin/runtime",path:"/api/private/marion/admin/runtime",lane:"private",audience:"operator",privateAdminConversation:true,directMarionAdminInterface:true,marionAdminConversation:true,adminVerified:!!(auth&&auth.verified),sessionVerified:!!(auth&&auth.sessionVerified)});
+      const prepared=marionCurrentTurnAuthorityMod.prepareInput(base);
+      const result=await originalInvokeMarionAdminTextRuntime.call(this,prepared,auth,traceId,voiceApproval);
+      return marionCurrentTurnAuthorityMod.enforceResult(result,prepared);
+    };
+    invokeMarionAdminTextRuntime.__marionCurrentTurnAuthorityR1=true;
+  }
+  if(typeof app!=="undefined"&&app&&app.locals)app.locals.marionCurrentTurnAuthority={version:marionCurrentTurnAuthorityMod&&marionCurrentTurnAuthorityMod.VERSION||MARION_CURRENT_TURN_AUTHORITY_INDEX_VERSION,loaded:!!marionCurrentTurnAuthorityMod,scope:"private_marion_only",nyxPublicArchitecturePreserved:true};
+  if(typeof module!=="undefined"&&module.exports){module.exports.MARION_CURRENT_TURN_AUTHORITY_INDEX_VERSION=MARION_CURRENT_TURN_AUTHORITY_INDEX_VERSION;module.exports.marionCurrentTurnAuthority=marionCurrentTurnAuthorityMod;}
+}catch(_){ }
+/* MARION_CURRENT_TURN_AUTHORITY_INDEX_R1_END */
+
