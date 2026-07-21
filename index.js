@@ -2,6 +2,68 @@
 
 
 
+
+
+/* MARION_NON_THROWING_PRIMITIVE_V2_START */
+function marionNonThrowingText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const type = typeof value;
+  if (type === "string") return value;
+  if (type === "number" || type === "boolean" || type === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
+  return fallback;
+}
+function marionNonThrowingClean(value, fallback = "") {
+  return marionNonThrowingText(value, fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function marionPrivateReplyText(result) {
+  if (typeof result === "string") return marionNonThrowingClean(result);
+  if (!result || typeof result !== "object") return "";
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const nested = result.result && typeof result.result === "object" ? result.result : {};
+  const envelope =
+    result.finalEnvelope && typeof result.finalEnvelope === "object" ? result.finalEnvelope :
+    payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
+    nested.finalEnvelope && typeof nested.finalEnvelope === "object" ? nested.finalEnvelope : {};
+  const candidates = [
+    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.reply, result.answer, result.response, result.text, result.message,
+    envelope.finalReply, envelope.reply, envelope.answer, envelope.text,
+    payload.directReply, payload.reply, payload.text, payload.message,
+    nested.directReply, nested.reply, nested.text, nested.message
+  ];
+  for (const candidate of candidates) {
+    const text = marionNonThrowingClean(candidate);
+    if (text) return text;
+  }
+  return "";
+}
+/* MARION_NON_THROWING_PRIMITIVE_V2_END */
+
 /* MARION_SAFE_PRIMITIVE_TEXT_V1_START */
 function marionSafePrimitiveText(value, fallback = "") {
   if (value === null || value === undefined) return fallback;
@@ -22798,7 +22860,7 @@ function marionPrivateRuntimeHttpJsonSafe(value, depth = 0, seen = new WeakSet()
   if (typeof value === "bigint") return String(value);
   if (typeof value === "function" || typeof value === "symbol" || typeof value === "undefined") return undefined;
   if (depth > 6) return "[truncated]";
-  if (typeof value !== "object") return cleanText(value);
+  if (typeof value !== "object") return marionNonThrowingClean(value);
   if (seen.has(value)) return "[circular]";
   seen.add(value);
   if (Array.isArray(value)) return value.slice(0, 60).map(v => marionPrivateRuntimeHttpJsonSafe(v, depth + 1, seen));
@@ -22810,12 +22872,12 @@ function marionPrivateRuntimeHttpJsonSafe(value, depth = 0, seen = new WeakSet()
   }
   return out;
 }
-function marionPrivateRuntimeHttpPrompt(body) { return cleanText(body && (body.prompt || body.message || body.text || body.query || body.userText || body.input || body.commandText || "")).slice(0,6000); }
-function marionPrivateRuntimeHttpGeneric(value) { const t=cleanText(value).toLowerCase().replace(/[.!?]+$/g,"").trim(); return !t || /^(?:i(?:'|’)?m here|i am here|still with you|right here|i(?:'|’)?m with you)(?:,?\s*mac)?$/.test(t) || /^(?:i(?:'|’)?m here|still with you|i(?:'|’)?ve got the thread|i(?:'|’)?m steady|i(?:'|’)?m with you)[\s\S]{0,360}(?:where do you want to go next|do you want to continue|keep testing|what would you like to work on|social response pass|deepen the conversation|system noise out of view|personality-layer refinement)/i.test(t); }
-function marionPrivateRuntimeHttpDeterministic(prompt) { const n=cleanText(prompt).toLowerCase(); if(/^what\s+is\s+2\s*\+\s*2\??$/.test(n))return "4."; if(/\bfocus\s+on\s+the\s+mobile\s+layout\b/.test(n))return "Understood. I’ll focus on the mobile layout within the active page architecture, preserve the established desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes."; return ""; }
+function marionPrivateRuntimeHttpPrompt(body) { return marionNonThrowingClean(body && (body.prompt || body.message || body.text || body.query || body.userText || body.input || body.commandText || "")).slice(0,6000); }
+function marionPrivateRuntimeHttpGeneric(value) { const t=marionNonThrowingClean(value).toLowerCase().replace(/[.!?]+$/g,"").trim(); return !t || /^(?:i(?:'|’)?m here|i am here|still with you|right here|i(?:'|’)?m with you)(?:,?\s*mac)?$/.test(t) || /^(?:i(?:'|’)?m here|still with you|i(?:'|’)?ve got the thread|i(?:'|’)?m steady|i(?:'|’)?m with you)[\s\S]{0,360}(?:where do you want to go next|do you want to continue|keep testing|what would you like to work on|social response pass|deepen the conversation|system noise out of view|personality-layer refinement)/i.test(t); }
+function marionPrivateRuntimeHttpDeterministic(prompt) { const n=marionNonThrowingClean(prompt).toLowerCase(); if(/^what\s+is\s+2\s*\+\s*2\??$/.test(n))return "4."; if(/\bfocus\s+on\s+the\s+mobile\s+layout\b/.test(n))return "Understood. I’ll focus on the mobile layout within the active page architecture, preserve the established desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes."; return ""; }
 async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   applyCors(req,res); hardenConversationNoStore(res);
-  const body=safeObj(req&&req.body), prompt=marionPrivateRuntimeHttpPrompt(body), traceId=cleanText((req&&req.sbTraceId)||body.traceId||makeTraceId("marionruntime"));
+  const body=safeObj(req&&req.body), prompt=marionPrivateRuntimeHttpPrompt(body), traceId=marionNonThrowingClean((req&&req.sbTraceId)||body.traceId||makeTraceId("marionruntime"));
   const auth=marionAdminTextRuntimeRequestAuth(req);
   if(!auth.verified)return marionAdminConsoleAuthRequired(res,traceId,auth);
   const permission=marionAdminConsolePermissionDecision(auth,"runtime",{requireSession:true});
@@ -22826,14 +22888,14 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
     if(!fn)return next();
     const context=marionAdminConsoleContext(req,traceId,auth);
     const result=await Promise.resolve(fn(Object.assign({},body,{prompt,message:prompt,text:prompt,query:prompt,userText:prompt,adminVerified:true,sessionVerified:true}),context));
-    let reply=cleanText(result&&(result.directReply||result.visibleReply||result.displayReply||result.finalReply||result.reply||result.response||result.text||result.message)||"");
+    let reply=marionPrivateReplyText(result);
     if(marionPrivateRuntimeHttpGeneric(reply))reply=marionPrivateRuntimeHttpDeterministic(prompt);
     const ok=!!reply; const status=ok?200:502;
     const safeResult=marionPrivateRuntimeHttpJsonSafe({ok,statusCode:status,stage:ok?"private_marion_runtime_complete":"private_marion_reply_missing",version:MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",publicSurfaceOnly:false,authenticatedOperator:true,operatorPersonalization:true,memoryPartition:"private:marion-admin",publicFallbackBlocked:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,response:reply,text:reply,message:reply,spokenText:reply,speechText:reply,responseFinalized:true,meta:{routeMounted:true,gatewayReady:true,jsonSafe:true,noCircularRuntimePacket:true}});
     return res.status(status).json(safeResult);
   }catch(err){
     const fallback=marionPrivateRuntimeHttpDeterministic(prompt); if(fallback)return res.status(200).json({ok:true,statusCode:200,stage:"private_marion_runtime_exception_recovered",version:MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",authenticatedOperator:true,publicFallbackBlocked:true,reply:fallback,displayReply:fallback,visibleReply:fallback,directReply:fallback,response:fallback,text:fallback,message:fallback,spokenText:fallback,speechText:fallback,responseFinalized:true,meta:{jsonSafe:true,errorSuppressed:true}});
-    return res.status(502).json({ok:false,statusCode:502,stage:"private_marion_runtime_exception",version:MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",authenticatedOperator:true,publicFallbackBlocked:true,reply:"",responseFinalized:true,reason:cleanText(err&&(err.code||err.message)||"runtime_exception").slice(0,160)});
+    return res.status(502).json({ok:false,statusCode:502,stage:"private_marion_runtime_exception",version:MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",authenticatedOperator:true,publicFallbackBlocked:true,reply:"",responseFinalized:true,reason:marionNonThrowingClean(err&&(err.code||err.message||err.name),"runtime_exception").slice(0,160)});
   }
 }
 app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES,(req,res)=>{applyCors(req,res);hardenConversationNoStore(res);return res.status(204).end();});
@@ -23171,6 +23233,45 @@ app.use((req, res, next) => {
   });
 })();
 /* MARION_PRIVATE_ERROR_BOUNDARY_V4_END */
+
+
+
+/* MARION_PRIVATE_ROUTE_ERROR_ISOLATION_V5_START */
+(function installMarionPrivateRouteErrorIsolationV5(){
+  if (typeof app === "undefined" || !app || typeof app.use !== "function") return;
+  function isPrivateMarionRequest(req) {
+    const p = marionNonThrowingClean(req && (req.path || req.originalUrl || req.url)).split("?")[0];
+    return p.startsWith("/api/private/marion/") ||
+      p.startsWith("/private/marion/") ||
+      p === "/api/marion/admin/conversation" ||
+      p === "/marion/admin/conversation";
+  }
+  app.use(function marionPrivateRouteErrorIsolationV5(error, req, res, next) {
+    if (!isPrivateMarionRequest(req)) return next(error);
+    if (res && res.headersSent) return next(error);
+    try { applyCors(req, res); hardenConversationNoStore(res); } catch (_) {}
+    const traceId = marionNonThrowingClean(req && (req.sbTraceId || (req.headers && req.headers["x-sb-trace-id"])));
+    return res.status(500).json({
+      ok: false,
+      error: "marion_private_route_failure",
+      detail: marionNonThrowingClean(error && (error.message || error.code || error.name), "Private Marion runtime failed.").slice(0, 280),
+      scope: "private_admin",
+      audience: "admin",
+      authority: "Marion",
+      surfaceAgent: "Marion",
+      publicSurfaceOnly: false,
+      publicFallbackBlocked: true,
+      memoryPartition: "private:marion-admin",
+      reply: "",
+      displayReply: "",
+      visibleReply: "",
+      directReply: "",
+      responseFinalized: true,
+      traceId
+    });
+  });
+})();
+/* MARION_PRIVATE_ROUTE_ERROR_ISOLATION_V5_END */
 
 
 app.use((err, req, res, _next) => {
