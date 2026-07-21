@@ -28,15 +28,40 @@ const GUARDIAN_ALIASES = Object.freeze({
 const SECRET_KEY_RE = /(token|secret|password|apikey|api_key|authorization|cookie|session|sessiontoken|runtimeToken|masterToken|credential|private[_-]?key)/i;
 const SECRET_TEXT_RE = /(bearer\s+[a-z0-9._~+/-]+=*|(?:token|secret|password|api[_-]?key|session[_-]?token|runtime[_-]?token|master[_-]?token)\s*[:=]\s*[^\s,"'}]+)/gi;
 
+function nonThrowingText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try { const out = String(value); return typeof out === "string" ? out : fallback; } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const out = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[Circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof out === "string" ? out : fallback;
+  } catch (_) {}
+  return fallback;
+}
 function now() { return new Date().toISOString(); }
 function isObject(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function guardianKey(value = "marion") {
-  const key = String(value || "marion").trim().toLowerCase();
+  const key = nonThrowingText(value || "marion", "marion").trim().toLowerCase();
   return GUARDIAN_ALIASES[key] || "marion";
 }
 function cleanText(value, max = 1200) {
   if (value === null || value === undefined) return "";
-  const text = String(value).replace(/\s+/g, " ").replace(SECRET_TEXT_RE, "[REDACTED]").trim();
+  const text = nonThrowingText(value).replace(/\s+/g, " ").replace(SECRET_TEXT_RE, "[REDACTED]").trim();
   return text.length > max ? text.slice(0, max - 1).trim() + "…" : text;
 }
 function normalizeRisk(value) {
@@ -551,3 +576,126 @@ module.exports.default = module.exports;
 (function(){"use strict";let guard=null;try{guard=require("./marionCurrentTurnAuthority.js");}catch(_){guard=null;}if(!guard||typeof module==="undefined"||!module.exports)return;const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;function wrap(fn){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const p=guard.prepareArgumentList(arguments),current=guard.classifyCurrentTurn(p.input);if(guard.isPrivateMarionContext(p.input)&&guard.isIsolatedTurn(p.input)&&typeof api.resetGuardianMemory==="function"){try{api.resetGuardianMemory("marion");}catch(_){}}const r=fn.apply(this,p.args),x=v=>guard.scrubStateForCurrentTurn(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};w.__marionCurrentTurnAuthorityR1=true;return w;}if(typeof api.rememberTurn==="function")api.rememberTurn=wrap(api.rememberTurn);if(typeof api.mergeGuardianContext==="function")api.mergeGuardianContext=wrap(api.mergeGuardianContext);api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;})();
 /* MARION_CURRENT_TURN_AUTHORITY_R1_END */
 
+
+/* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
+(function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
+/* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
+
+/* MARION_IMMEDIATE_CONTINUATION_MEMORY_R2_START */
+(function(){
+  "use strict";
+  try {
+    const guard=require("./marionCurrentTurnAuthority.js");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(!api||!guard||api.__marionImmediateContinuationMemoryR2)return;
+    function removeConflictingLawFields(obj){
+      if(!obj||typeof obj!=="object")return obj;
+      for(const key of Object.keys(obj)){
+        if(/^(?:r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*)$/i.test(key))delete obj[key];
+      }
+      return obj;
+    }
+    function persist(guardian,prepared,turn){
+      if(!guard.isPrivateMarionContext(prepared))return;
+      const current=guard.classifyCurrentTurn(prepared);
+      const enforce=current.anchor||current.technicalFileWork||current.law||current.shortFollowup;
+      if(!enforce)return;
+      const prior=current.shortFollowup?guard.extractContinuationAnchor(prepared):null;
+      const desired=guard.desiredDomain(prepared,current,prior)||"general";
+      const next=guard.buildNextAnchor(prepared,turn||prepared,desired,current,prior);
+      const m=typeof ensureMemory==="function"?ensureMemory(guardian):null;
+      if(!m)return;
+      if(desired!=="law")removeConflictingLawFields(m);
+      m.domain=desired;
+      m.primaryDomain=desired;
+      m.selectedDomain=desired;
+      m.knowledgeDomain=desired==="law"?"law":"";
+      m.activeFeatureLane=desired;
+      m.continuityAnchor=next;
+      m.immediateContinuation={
+        contract:guard.CONTINUITY_CONTRACT,
+        active:true,
+        domain:desired,
+        intent:next.intent,
+        followupDepth:next.followupDepth,
+        followupKind:next.followupKind,
+        previousUserText:next.userText,
+        previousAssistantReply:next.assistantReply,
+        activeTask:next.activeTask,
+        surfaceRequest:next.surfaceRequest,
+        deeperIntent:next.deeperIntent,
+        operationalRisk:next.operationalRisk,
+        executionMode:next.executionMode,
+        nextAction:next.nextAction,
+        technicalTarget:next.technicalTarget,
+        authority:next.authority,
+        noOlderDomainOverride:true,
+        updatedAt:next.updatedAt
+      };
+      m.lastTopic=next.topic||m.lastTopic;
+      m.lastDecision=next.assistantReply||m.lastDecision;
+      m.currentObjective=next.activeTask||m.currentObjective;
+      m.updatedAt=new Date(next.updatedAt).toISOString();
+      if(Array.isArray(m.turns)&&m.turns.length){
+        const last=m.turns[m.turns.length-1];
+        if(last&&typeof last==="object"){
+          if(desired!=="law")removeConflictingLawFields(last);
+          Object.assign(last,{
+            domain:desired,
+            primaryDomain:desired,
+            selectedDomain:desired,
+            knowledgeDomain:desired==="law"?"law":"",
+            activeFeatureLane:desired,
+            continuityAnchor:next,
+            immediateContinuation:m.immediateContinuation,
+            currentTurnAuthorityVersion:guard.VERSION,
+            noOlderDomainOverride:true
+          });
+        }
+      }
+    }
+    const oldRemember=api.rememberTurn;
+    if(typeof oldRemember==="function"){
+      api.rememberTurn=function(guardian,turn,options){
+        const prepared=guard.prepareInput(turn&&typeof turn==="object"?turn:{});
+        const result=oldRemember.call(this,guardian,prepared,options);
+        persist(guardian,prepared,prepared);
+        return typeof api.getGuardianSnapshot==="function"?api.getGuardianSnapshot(guardian,(options&&options.maxTurns)||8):result;
+      };
+      api.rememberTurn.__marionImmediateContinuationMemoryR2=true;
+    }
+    const oldSnapshot=api.getGuardianSnapshot;
+    if(typeof oldSnapshot==="function"){
+      api.getGuardianSnapshot=function(guardian,limit){
+        let snap=oldSnapshot.call(this,guardian,limit);
+        const m=typeof ensureMemory==="function"?ensureMemory(guardian):null;
+        if(!m||!snap||typeof snap!=="object")return snap;
+        snap={...snap,
+          domain:m.domain||"",
+          primaryDomain:m.primaryDomain||m.domain||"",
+          selectedDomain:m.selectedDomain||m.domain||"",
+          knowledgeDomain:m.knowledgeDomain||"",
+          activeFeatureLane:m.activeFeatureLane||"",
+          continuityAnchor:m.continuityAnchor||null,
+          immediateContinuation:m.immediateContinuation||null,
+          currentTurnAuthorityVersion:guard.VERSION
+        };
+        if((m.domain||"")!=="law")removeConflictingLawFields(snap);
+        return snap;
+      };
+      api.getGuardianSnapshot.__marionImmediateContinuationMemoryR2=true;
+    }
+    const oldGet=api.getGuardianMemory;
+    if(typeof oldGet==="function"){
+      api.getGuardianMemory=function(guardian){
+        const m=oldGet.call(this,guardian);
+        if(m&&typeof m==="object"&&m.domain!=="law")removeConflictingLawFields(m);
+        return m;
+      };
+      api.getGuardianMemory.__marionImmediateContinuationMemoryR2=true;
+    }
+    api.__marionImmediateContinuationMemoryR2=true;
+    api.MARION_IMMEDIATE_CONTINUATION_MEMORY_VERSION=guard.VERSION;
+  } catch(_err) {}
+})();
+/* MARION_IMMEDIATE_CONTINUATION_MEMORY_R2_END */
