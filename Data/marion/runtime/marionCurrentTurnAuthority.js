@@ -10,8 +10,8 @@
  * - Short follow-ups inherit only the immediately preceding accepted turn.
  * - New/isolated sessions cannot inherit an older lane.
  */
-const VERSION = "nyx.marion.currentTurnAuthority/3.0-substantive-continuation";
-const CONTINUITY_CONTRACT = "nyx.marion.immediateContinuation/2.0";
+const VERSION = "nyx.marion.currentTurnAuthority/4.0-long-thread-progression";
+const CONTINUITY_CONTRACT = "nyx.marion.longThreadProgression/3.0";
 const MAX_DEPTH = 7;
 const MAX_KEYS = 180;
 const MAX_ARRAY = 48;
@@ -123,12 +123,20 @@ function isIsolatedTurn(input) {
 function followupKind(value) {
   const n = norm(value);
   if (!n) return "";
-  if (/^(?:go deeper|deeper|more depth|drill down|expand|expand that|unpack that|break that down)$/.test(n)) return "depth";
+  if (/^(?:go deeper|deeper|more depth|drill down|expand|expand that|unpack that|break that down|take that further)$/.test(n)) return "depth";
   if (/^(?:continue|keep going|carry on|go on|proceed|continue from there|from there|same thread|same lane|stay in lane)$/.test(n)) return "continue";
-  if (/^(?:next|next step|next steps|what next|what now|whats next|then what)$/.test(n)) return "next";
+  if (/^(?:next|next step|next steps|what next|what now|whats next|then what|what comes next)$/.test(n)) return "next";
+  if (/^(?:what should be fixed first|what do we fix first|which part should be fixed first|which part first|what is the first priority|whats the first priority|first priority|what should come first)$/.test(n)) return "priority";
+  if (/^(?:why|why is that|why is that first|why is that the first priority|why does that come first|why does that matter|why is that important)$/.test(n)) return "reason";
+  if (/^(?:what could break|what could break if we fix it incorrectly|what breaks if we fix it incorrectly|what can go wrong|what could go wrong|what is the failure mode|what are the failure modes)$/.test(n)) return "failure";
+  if (/^(?:what is the safest implementation order|whats the safest implementation order|safest implementation order|what is the safest order|whats the safest order|safest order|implementation order|what order should we use|in what order|how should we implement it|how should this be implemented)$/.test(n)) return "order";
+  if (/^(?:how do we validate that|how should we validate that|how do we test that|how should we test that|what is the validation step|whats the validation step|what test comes next|how do we confirm it worked)$/.test(n)) return "validation";
+  if (/^(?:what is the main risk|whats the main risk|main risk|what are the risks|what is the risk now|risk now|update the risk|what changed|what changed now|pressure check|context check|final check)$/.test(n)) return "pressure";
+  if (/^(?:what happens after that|what comes after that|what happens next|and after that|and then|then what happens)$/.test(n)) return "after";
+  if (/^(?:what are the tradeoffs|what is the tradeoff|whats the tradeoff|what do we give up|what is the downside|whats the downside)$/.test(n)) return "tradeoff";
+  if (/^(?:where exactly|which file|which function|which module|what line|where is the defect|where does it happen)$/.test(n)) return "location";
   if (/^(?:again|run that again|run it again|do that again|repeat that|same thing|rerun that)$/.test(n)) return "repeat";
   if (/^(?:slow down|one step at a time|take it slower)$/.test(n)) return "pace";
-  if (/^(?:what is the risk now|risk now|update the risk|what changed|what changed now|pressure check|context check|final check)$/.test(n)) return "pressure";
   if (/^(?:no not that|not that|stay on the architecture|stay with the architecture|wrong target)$/.test(n)) return "correction";
   return "";
 }
@@ -308,7 +316,7 @@ function collectCandidates(input) {
 
 
 const NON_SUBSTANTIVE_ANCHOR_RX = /^(?:hi|hello|hey|hiya|yo|morning|evening|good morning|good afternoon|good evening|thanks|thank you|okay|ok|alright|all right|got it|understood|yes|no|sure|ready|test|testing|mic check|are you there|you there|how are you|how are you doing)(?:\s+(?:there|marion|mac))?[.!?]*$/i;
-const INTERNAL_CONTINUATION_SCAFFOLD_RX = /\b(?:immediate(?:ly)? preceding turn|immediate technical turn|current[- ]turn authority|continuation authority|continuity anchor|active (?:code )?target|active subject|active lane|stay on the technical lane|preserve the active|preserve that active|must remain the authority|older unrelated lane|older legal thread|no older domain override|route(?:r)?[- ]to[- ]state[- ]to[- ]final[- ]envelope|continuing from the current thread|continuing from the immediately preceding|technical routing preserved|law[- ]domain file work|keep the surgery on|i have the thread|give me the exact file or prompt target|keep the next update surgical|protect the signal|backend noise)\b/i;
+const INTERNAL_CONTINUATION_SCAFFOLD_RX = /\b(?:immediate(?:ly)? preceding turn|immediate technical turn|current[- ]turn authority|continuation authority|continuity anchor|active (?:code )?target|active subject|active lane|stay on the technical lane|preserve the active|preserve that active|must remain the authority|older unrelated lane|older legal thread|no older domain override|route(?:r)?[- ]to[- ]state[- ]to[- ]final[- ]envelope|continuing from the current thread|continuing from the immediately preceding|technical routing preserved|law[- ]domain file work|keep the surgery on|i have the thread|the active task remains|the domain remains locked|contextual follow-up detected|long-thread authority|give me the exact file or prompt target|keep the next update surgical|protect the signal|backend noise)\b/i;
 
 function isInternalContinuationScaffold(value) {
   return INTERNAL_CONTINUATION_SCAFFOLD_RX.test(text(value, 12000));
@@ -343,33 +351,64 @@ function technicalSubstantiveReply(current, anchor) {
   const kind = current && current.followupKind;
 
   if (routingWork) {
-    if (kind === "next") return "Fix the router entry first: classify the current user text before merging remembered domain fields. Then allow session memory to update only after a trusted final response. That order prevents an old legal classification from overwriting a new technical request.";
-    if (kind === "pressure") return "The main risk is precedence inversion: historical domain metadata can be merged before the current prompt is classified. When that happens, the router may send a technical follow-up into the legal response path even though the user is asking about JavaScript.";
-    if (kind === "depth") return "The deeper defect is commit timing. Even with correct classification, a prior legal result can be written into session state before validation and then rehydrated on the next request. Instrument four checkpoints—raw prompt, routed domain, pre-commit reply, and committed state—and refuse the state write unless the final reply is trusted and matches the current domain.";
-    return "The first concrete defect to inspect is precedence. Confirm that the current prompt is classified before any remembered law or domain fields are merged. Next, verify that only an accepted final response updates session memory; otherwise stale legal state can contaminate the next technical follow-up.";
+    const replies = {
+      depth: "The deeper defect is commit timing. A prior legal classification can be written into session state before the technical reply is validated, then rehydrated on a later follow-up. Instrument raw input, selected domain, pre-commit reply, and committed state; refuse the write unless the trusted final reply matches the current technical domain.",
+      priority: "Fix router precedence first. Classify the current user text before merging remembered domain fields, and lock that decision for the turn. Every downstream layer depends on that classification, so correcting state or projection first would only mask the original misroute.",
+      reason: "Router precedence comes first because it is the earliest authority decision. If the turn is mislabeled there, the composer, memory layer, and final envelope can all behave consistently while still producing the wrong legal answer.",
+      failure: "The main regression risk is overcorrecting the router so aggressively that legitimate legal follow-ups lose their law context. The guard must prefer an explicit current domain, otherwise inherit only a verified substantive anchor from the same session, and never infer law from words such as risk, order, or priority alone.",
+      order: "Use this order: 1) expand contextual follow-up detection; 2) lock the verified active domain and task in the router; 3) commit that anchor atomically after a trusted final; 4) strip conflicting law metadata from non-law turns; 5) reject domain-mismatched final replies; 6) run fresh-session, technical-chain, legal-chain, and Nyx-boundary regression tests.",
+      validation: "Validate with two parallel chains. Technical: explicit JavaScript routing task, then Go deeper, first priority, why, failure mode, safest order. Legal: explicit contract-risk question followed by the same prompts. Every turn must retain its own domain, advance the answer, and produce identical visible reply aliases.",
+      pressure: "The main risk is precedence inversion: historical law metadata is merged before the current technical objective is resolved. That lets a valid old domain overrule a valid new task several turns later.",
+      after: "After router precedence is stable, move to atomic state persistence, then final-envelope domain validation, and finish with long-session stress tests. Do not tune personality or latency until semantic continuity is clean.",
+      tradeoff: "A stronger domain lock improves continuity but can make real topic changes harder to detect. Balance it by allowing explicit current-language signals to override the anchor immediately, while ambiguous follow-ups inherit only the latest verified substantive task.",
+      location: "Inspect the first function that merges routed output with previousMemory or session state. The defect is where remembered domain fields can overwrite the current classification before the route lock is finalized.",
+      next: "Start by classifying the current user text before any remembered law fields are merged. Then permit memory updates only after a trusted final reply. That sequence removes the source of stale-law resurrection rather than patching its symptoms."
+    };
+    if (replies[kind]) return replies[kind];
+    return "The first concrete defect to inspect is precedence. Confirm that the current prompt is classified before remembered law or domain fields are merged, then verify that only an accepted final response updates session memory.";
   }
   if (stateWork) {
-    return kind === "next"
-      ? "Repair state mutation first: write the accepted user topic, assistant result, domain, and turn identifier together only after finalization. Partial or early writes are what let stale context survive into the next request."
-      : "Inspect when the state record is mutated. The safe sequence is classify, compose, validate, then commit the accepted turn atomically. If the state is written before validation—or only some fields are updated—the next follow-up can inherit a mismatched topic or domain.";
+    if (kind === "order") return "Use this order for State Spine: define one accepted-turn record, write topic/domain/reply/turn ID atomically after final validation, increment revision, then expose the committed snapshot to the next request. Finally test interruption, reset, and rollback paths.";
+    if (kind === "failure") return "The dangerous failure mode is a partial commit: the domain updates but the active task or assistant result does not. The next follow-up then combines fields from different turns and appears coherent while following the wrong subject.";
+    if (kind === "validation") return "Validate State Spine by asserting that revision, user text, active task, domain, final reply, and turn ID change together. A test should fail if any field advances without the others.";
+    if (kind === "priority" || kind === "next") return "Repair atomic state mutation first: commit the accepted topic, domain, assistant result, and turn identifier together only after finalization. Partial or early writes are what let stale context survive.";
+    return "Inspect when the state record is mutated. The safe sequence is classify, compose, validate, then commit the accepted turn atomically; any earlier or partial write can contaminate the next follow-up.";
   }
   if (envelopeWork) {
-    return "Inspect the visible-reply projection first. A final envelope should promote one validated answer across every reply alias and reject diagnostic, policy, or fallback text. If different aliases carry different values, the interface can display an internal scaffold instead of the substantive answer.";
+    if (kind === "order") return "For the final envelope, validate domain and reply substance first, choose one canonical reply, copy it to every visible alias, attach the accepted state patch, then serialize. Never promote an alias before the domain check passes.";
+    if (kind === "failure") return "The failure mode is alias divergence: one field carries the technical answer while another still carries legal fallback text. The interface may select the wrong alias even though the envelope looks final.";
+    return "Inspect visible-reply projection. The envelope must promote one validated answer across every alias and reject diagnostic, policy, fallback, or domain-mismatched text before transport.";
   }
   if (bridgeWork) {
-    return "Trace the bridge at three boundaries: normalized input, composer result, and final packet. The bridge should call each stage once, preserve the same session and turn identifiers, and refuse to promote a fallback packet when the composer has not produced a valid substantive answer.";
+    if (kind === "order") return "At the bridge: normalize once, hydrate the verified session anchor, route once, compose once, validate once, wrap one final packet, then cache only the accepted anchor. That order prevents re-entry and stale fallback promotion.";
+    if (kind === "failure") return "The bridge can fail by caching a rejected or partial turn. Cache only after final validation, key it by the private session ID, and clear it on an explicit new-session marker.";
+    return "Trace normalized input, routed domain, composer result, and final packet. The bridge must preserve one session and turn identity and must not cache or promote a fallback packet as a substantive anchor.";
   }
   if (widgetWork) {
-    return "Start with the interface state machine. Separate typing availability from send authorization, prevent overlapping requests, and ignore late responses whose turn identifier is no longer current. Those checks eliminate most lockups and stale reply overwrites without changing the visual architecture.";
+    if (kind === "order") return "For the interface: keep typing independent of authorization, generate a unique turn ID, disable duplicate sends, accept only the latest response, update semantic health, then append the transcript. Privileged controls remain separately authenticated.";
+    return "Start with the interface state machine: separate typing from send authorization, prevent overlapping requests, and ignore late responses whose turn ID is no longer current.";
   }
-  if (kind === "next") return `Start at the earliest transformation boundary for ${target || "this technical task"}: verify the exact input, identify the first state mutation, and confirm the final visible answer still matches the current request. Fix the first divergence before changing downstream layers.`;
-  return `Go one layer deeper by locating the first point where ${target || "the technical task"} diverges from the user’s current request. Compare the normalized input, the state written for the turn, and the final visible reply; the earliest mismatch is the defect to repair first.`;
+  if (kind === "order") return `Use this implementation order for ${target || "the technical task"}: identify the earliest divergence, repair its authority rule, persist the accepted result atomically, validate the final projection, then run a long-thread regression before changing downstream behavior.`;
+  if (kind === "priority" || kind === "next") return `Start at the earliest transformation boundary for ${target || "this technical task"}. Fix the first point where current input and remembered state diverge, then validate the downstream layers without changing them prematurely.`;
+  if (kind === "reason") return `That boundary has priority because every later stage consumes its result. A mistake there propagates cleanly through the system and becomes harder to distinguish from a composer or transport defect.`;
+  if (kind === "failure") return `The main failure mode is a partial correction that fixes one reply but leaves the stale state intact. The next ambiguous follow-up then resurrects the old domain.`;
+  if (kind === "validation") return `Validate ${target || "the technical task"} with a multi-turn chain, an explicit domain switch, a fresh-session reset, and a deliberately wrong downstream reply that the final validator must reject.`;
+  if (kind === "pressure") return `The main operational risk is silent semantic drift: the transport remains healthy while the active task changes underneath the user.`;
+  if (kind === "after") return `After the first defect is corrected, verify state persistence, final projection, and long-thread behavior in that order, then run public Nyx boundary tests.`;
+  return `Go one layer deeper by locating the first point where ${target || "the technical task"} diverges from the current request. Compare normalized input, selected domain, committed state, and final visible reply; repair the earliest mismatch.`;
 }
 
 function lawSubstantiveReply(current, anchor) {
   const target = bounded(firstText(anchor && anchor.activeTask, anchor && anchor.topic, anchor && anchor.userText), 700).replace(/[.!?]+$/g, "");
-  if (current && current.followupKind === "next") return "The next useful step is to identify the governing jurisdiction and the exact clause or obligation at issue, then separate enforceability, liability, remedies, and missing evidence. That keeps the review concrete while remaining general legal information.";
-  return `The deeper legal-risk analysis should separate four questions for ${target || "the issue"}: what obligation exists, what facts could constitute breach, what remedies or exposure may follow, and which jurisdiction-specific rules or documents are still missing. This is general information, not legal advice.`;
+  const kind = current && current.followupKind;
+  if (kind === "priority" || kind === "next") return "Start with the governing jurisdiction and the exact clause or obligation at issue. Then separate enforceability, breach facts, liability, remedies, and missing evidence. This is general legal information, not legal advice.";
+  if (kind === "reason") return "Jurisdiction and the controlling clause come first because legal standards, deadlines, available remedies, and even contract interpretation can change materially across provinces, states, courts, and governing-law provisions.";
+  if (kind === "failure") return "The main risk is reaching a confident conclusion from incomplete facts or the wrong governing law. Missing amendments, notices, schedules, limitation clauses, or procedural deadlines can materially change the assessment.";
+  if (kind === "order") return "Use this review order: confirm jurisdiction and governing law, identify the operative clauses, reconstruct the facts and evidence, test breach and defenses, assess remedies and exposure, then flag deadlines and questions for qualified counsel.";
+  if (kind === "validation") return "Validate the assessment against the complete signed agreement, amendments, notices, correspondence, performance records, and the governing jurisdiction. Any conclusion should be revised when those facts change.";
+  if (kind === "pressure") return "The main legal risk cannot be ranked reliably until the governing law, operative clause, alleged conduct, and available evidence are known. Those four inputs determine whether the issue is enforceability, breach, liability, remedy, or procedure.";
+  if (kind === "after") return "After the preliminary issue map is complete, gather the missing documents and dates, quantify practical exposure, and take the jurisdiction-specific questions to qualified counsel before acting.";
+  return `The deeper legal-risk analysis for ${target || "the issue"} should separate the obligation, possible breach facts, defenses, remedies or exposure, procedural deadlines, and missing jurisdiction-specific information. This is general legal information, not legal advice.`;
 }
 
 function extractContinuationAnchor(input) {
@@ -420,15 +459,32 @@ function desiredIntent(domain, current) {
 
 function effectivePromptFor(current, anchor) {
   if (!current.shortFollowup || !anchor || !isSubstantiveAnchor(anchor)) return current.raw;
-  const target = bounded(firstText(anchor.userText, anchor.activeTask, anchor.topic, anchor.technicalTarget), 1200);
+  const target = bounded(firstText(anchor.activeTask, anchor.topic, anchor.userText, anchor.technicalTarget), 1200);
   if (anchor.domain === "technical") {
-    const action = current.followupKind === "next" ? "Identify the safest first fix and its validation step" :
-      current.followupKind === "pressure" ? "Identify the main defect and operational risk" :
-      "Add one new layer of concrete technical analysis";
-    return `${action} for this task: ${target}. Answer with the actual defect, why it occurs, and the safest correction. Do not describe conversation-routing policy.`;
+    const actions = {
+      depth: "Add a deeper layer of concrete technical analysis",
+      continue: "Advance the technical analysis with one new finding and one correction",
+      next: "Identify the next concrete repair and its validation step",
+      priority: "Identify the first technical priority and explain why it comes first",
+      reason: "Explain why the preceding technical priority is correct",
+      failure: "Identify what could break if the repair is implemented incorrectly",
+      order: "Provide the safest implementation order with validation gates",
+      validation: "Provide the exact regression tests that prove the repair",
+      pressure: "Identify the main technical risk and the earliest divergence",
+      after: "Explain the next technical phase after the current repair",
+      tradeoff: "Explain the technical tradeoffs without changing the active task",
+      location: "Identify the exact function or boundary where the defect occurs",
+      repeat: "Re-run the technical analysis with a different concrete example",
+      pace: "Explain the technical repair one step at a time",
+      correction: "Correct the technical target while preserving compatible constraints"
+    };
+    const action = actions[current.followupKind] || "Advance the active technical analysis";
+    return `${action} for this task: ${target}. Answer with substantive code or runtime reasoning. Do not describe conversation policy or switch to legal analysis.`;
   }
-  if (anchor.domain === "law") return `Deepen the legal-risk analysis of: ${target}. Separate the governing issue, assumptions, exposure, missing facts, and safest next step. Keep it general information, not legal advice.`;
-  return `Advance this substantive topic directly: ${target}. Add new analysis or a concrete next action without discussing internal conversation state.`;
+  if (anchor.domain === "law") {
+    return `Continue the legal-risk analysis of: ${target}. Address the user’s ${current.followupKind || "follow-up"} question with jurisdiction-aware general information, not technical routing commentary.`;
+  }
+  return `Continue this active task: ${target}. Answer the ${current.followupKind || "follow-up"} directly and add new substance without repeating the prior reply.`;
 }
 
 const STALE_DOMAIN_KEYS = /^(?:domain|requestedDomain|primaryDomain|selectedDomain|knowledgeDomain|routing|routeLock|domainConfidence|domainConcierge|domainConciergeSeed|r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*|activeFeatureLane|finalEnvelope|marionFinal)$/i;
@@ -644,10 +700,10 @@ function anchorReply(current) {
   if (current.checkin) return "I’m doing well, Mac. I’m here, focused, and with you. How are you doing?";
   if (current.presence) return "I’m here, Mac. I’m with you.";
   const n = current.normalized;
-  if (/good morning|^morning/.test(n)) return "Good morning, Mac. I’m here with you.";
-  if (/good afternoon/.test(n)) return "Good afternoon, Mac. I’m here with you.";
-  if (/good evening|^evening/.test(n)) return "Good evening, Mac. I’m here with you.";
-  if (/^hey/.test(n)) return "Hey, Mac. I’m here with you.";
+  if (/\bgood morning\b|^morning\b/.test(n)) return "Good morning, Mac. I’m here with you.";
+  if (/\bgood afternoon\b/.test(n)) return "Good afternoon, Mac. I’m here with you.";
+  if (/\bgood evening\b|^evening\b/.test(n)) return "Good evening, Mac. I’m here with you.";
+  if (/^hey\b/.test(n)) return "Hey, Mac. I’m here with you.";
   return "Hello, Mac. I’m here with you.";
 }
 
@@ -664,7 +720,7 @@ function domainMismatch(reply, desired, current, anchor) {
   const r = lower(reply);
   if (!r) return true;
   if (current.shortFollowup && isInternalContinuationScaffold(reply)) return true;
-  const lawReply = /\b(?:legal-risk|not legal advice|legal category|jurisdiction sensitivity|contract risk|law assessment|r18c)\b/.test(r);
+  const lawReply = /\b(?:legal-risk|legal risk|not legal advice|legal category|jurisdiction sensitivity|governing jurisdiction|contract risk|law assessment|r18c)\b/.test(r);
   const technicalReply = /\b(?:javascript|code|runtime|router|routing|state spine|final envelope|technical|debug|file|module)\b/.test(r);
   if (desired !== "law" && lawReply) return true;
   if (desired === "technical" && !technicalReply && current.shortFollowup) return true;
@@ -707,8 +763,11 @@ function buildNextAnchor(input, result, desired, current, prior) {
     deeperIntent: bounded(base.deeperIntent, 1000),
     operationalRisk: bounded(base.operationalRisk, 1000),
     executionMode: bounded(base.executionMode, 500),
-    nextAction: bounded(base.nextAction, 1000),
+    nextAction: bounded(firstText(current.followupKind === "order" ? "implement_in_guarded_sequence" : "", current.followupKind === "validation" ? "run_regression_validation" : "", base.nextAction), 1000),
     technicalTarget: bounded(firstText(base.technicalTarget, desired === "technical" ? topic : ""), 600),
+    activeSubject: bounded(firstText(base.activeSubject, base.activeTask, topic, activeUserText), 1000),
+    lastFollowupText: bounded(current.shortFollowup ? current.raw : "", 600),
+    progressionStage: bounded(current.followupKind || (explicit ? "anchor" : base.progressionStage), 64),
     followupDepth: Math.max(0, Number(base.followupDepth || 0)) + (current.shortFollowup ? 1 : 0),
     followupKind: current.followupKind || "",
     trustedFinal: true,
@@ -737,6 +796,9 @@ function projectContinuityFields(out, input, desired, current, priorAnchor) {
       executionMode: nextAnchor.executionMode,
       nextAction: nextAnchor.nextAction,
       technicalTarget: nextAnchor.technicalTarget,
+      activeSubject: nextAnchor.activeSubject,
+      lastFollowupText: nextAnchor.lastFollowupText,
+      progressionStage: nextAnchor.progressionStage,
       authority: nextAnchor.authority,
       noOlderDomainOverride: true,
       updatedAt: nextAnchor.updatedAt
@@ -745,6 +807,9 @@ function projectContinuityFields(out, input, desired, current, priorAnchor) {
     lastAssistantReply: nextAnchor.assistantReply,
     lastTopic: nextAnchor.topic,
     activeTask: nextAnchor.activeTask,
+    activeSubject: nextAnchor.activeSubject,
+    lastFollowupText: nextAnchor.lastFollowupText,
+    progressionStage: nextAnchor.progressionStage,
     domain: nextAnchor.domain,
     primaryDomain: nextAnchor.domain,
     selectedDomain: nextAnchor.domain,
@@ -866,6 +931,8 @@ function enforceResult(result, input) {
     continuityResolved: current.shortFollowup ? !!anchor : true,
     continuityAnchor: anchor || null,
     semanticHealth: current.shortFollowup && !anchor ? "degraded" : "ready",
+    semanticDomain: desired,
+    progressionDepth: anchor ? Math.max(1, Number(anchor.followupDepth || 0) + 1) : 0,
     semanticFailureSignature: current.shortFollowup && !anchor ? "CONTINUATION_ANCHOR_MISSING" : "none"
   };
   out.currentTurnAuthorityVersion = VERSION;
@@ -921,6 +988,9 @@ function scrubStateForCurrentTurn(state, input) {
   out.operationalRisk = nextAnchor.operationalRisk || out.operationalRisk || "";
   out.executionMode = nextAnchor.executionMode || out.executionMode || "";
   out.nextAction = nextAnchor.nextAction || out.nextAction || "";
+  out.activeSubject = nextAnchor.activeSubject || out.activeSubject || "";
+  out.lastFollowupText = nextAnchor.lastFollowupText || out.lastFollowupText || "";
+  out.progressionStage = nextAnchor.progressionStage || out.progressionStage || "";
   return out;
 }
 
