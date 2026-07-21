@@ -78,12 +78,27 @@ const STATE_SPINE_SCHEMA_COMPAT = "nyx.marion.stateSpine/1.6";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const ADAPTIVE_TRUST_VERIFICATION_VERSION = "nyx.marion.adaptiveTrustVerification/1.0";
 const FINAL_RENDER_TELEMETRY_VERSION = "nyx.marion.finalRenderTelemetry/1.0";
-const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTelemetry.js"); } catch (_) { return null; } })();
+let finalRenderTelemetryMod = null;
+let finalRenderTelemetryAttempted = false;
+function getFinalRenderTelemetryMod(){if(!finalRenderTelemetryAttempted){finalRenderTelemetryAttempted=true;try{finalRenderTelemetryMod=require("./finalRenderTelemetry.js");}catch(_){finalRenderTelemetryMod=null;}}return finalRenderTelemetryMod;}
 const HIGH_STAKES_DOMAINS = Object.freeze(["law", "finance", "cyber"]);
 const SIX_KNOWLEDGE_DOMAINS = Object.freeze(["psychology", "english", "ai", "cyber", "law", "finance"]);
 const MAX_STRING_LENGTH = 12000;
 const MAX_DEPTH = 7;
 const MAX_ARRAY = 80;
+
+/* Stable CommonJS export identity for circular-safe loading. */
+const FINAL_ENVELOPE_EXPORTS = module.exports;
+Object.assign(FINAL_ENVELOPE_EXPORTS,{
+  VERSION,CONTRACT_VERSION,FINAL_SIGNATURE,SOURCE,REQUIRED_CHAT_ENGINE_SIGNATURE,MARION_FINAL_SIGNATURE_PREFIX,STATE_SPINE_SCHEMA,STATE_SPINE_SCHEMA_COMPAT,CANONICAL_ENDPOINT,
+  createMarionFinalEnvelope:function(input){return createMarionFinalEnvelope(input);},
+  createMarionErrorEnvelope:function(input){return createMarionErrorEnvelope(input);},
+  attachVisibleReplyAliases:function(input){return attachVisibleReplyAliases(input);},
+  buildResponse:function(input){return createMarionFinalEnvelope(input);},
+  createResponse:function(input){return createMarionFinalEnvelope(input);},
+  finalizeTurn:function(input){return createMarionFinalEnvelope(input);},
+  safeResponse:function(input){return attachVisibleReplyAliases(input);}
+});
 
 const FINAL_MARKERS = Object.freeze([
   REQUIRED_CHAT_ENGINE_SIGNATURE,
@@ -475,7 +490,8 @@ function createMarionFinalEnvelope(input = {}) {
   const stabilized = completionStatus.stabilized;
   const transportMeta = normalizeFinalTransport({ ...core, requiresRetry, recoverySuggested });
   const failureSignatureAudit = buildFailureSignatureAudit({source:"marionFinalEnvelope",stage:stateStage,intent:firstText(routing.intent,""),domain:firstText(routing.domain,routing.knowledgeDomain,""),knowledgeDomain:firstText(routing.knowledgeDomain,""),primaryDomain:firstText(routing.knowledgeDomain,routing.domain,""),secondaryDomains:safeArray(routing.secondaryDomains),answerMode:firstText(routing.answerMode,""),reply,canEmit:!requiresRetry,finalEnvelopeTrusted:!requiresRetry,error:firstText(diagnostics.error,metaInput.error,""),trustVerificationBlocked:adaptiveTrustVerification.allowEmit===false});
-  const finalRenderTelemetry = finalRenderTelemetryMod && typeof finalRenderTelemetryMod.buildFinalRenderTelemetry === "function" ? safeObj(finalRenderTelemetryMod.buildFinalRenderTelemetry({source:"marionFinalEnvelope",stage:stateStage,reply,canEmit:!requiresRetry,finalEnvelopeTrusted:!requiresRetry,runtimeTelemetry:{failureSignature:failureSignatureAudit.failureSignature,intent:firstText(routing.intent,""),domain:firstText(routing.domain,routing.knowledgeDomain,"")},domainConfidence:routing.domainConfidence,error:firstText(diagnostics.error,metaInput.error,"")})) : {};
+  const finalRenderTelemetryRuntime=getFinalRenderTelemetryMod();
+  const finalRenderTelemetry = finalRenderTelemetryRuntime && typeof finalRenderTelemetryRuntime.buildFinalRenderTelemetry === "function" ? safeObj(finalRenderTelemetryRuntime.buildFinalRenderTelemetry({source:"marionFinalEnvelope",stage:stateStage,reply,canEmit:!requiresRetry,finalEnvelopeTrusted:!requiresRetry,runtimeTelemetry:{failureSignature:failureSignatureAudit.failureSignature,intent:firstText(routing.intent,""),domain:firstText(routing.domain,routing.knowledgeDomain,"")},domainConfidence:routing.domainConfidence,error:firstText(diagnostics.error,metaInput.error,"")})) : {};
 
   const finalEnvelope = { ...core, adminInterface, publicAgent: adminInterface.marionAdminConversationAllowed ? "Marion" : "Nyx", sixDomainCoverage: safeArray(routing.sixDomainCoverage), allKnowledgeDomains: safeArray(routing.allKnowledgeDomains), memoryPatch, sessionPatch, resolvedEmotion, emotionSummary, ethicalGate, defensiveEscalation, defensiveJustification, ethicalCarryActive, adaptiveTrustVerification, completionStatus, completionConfidence, requiresRetry, recoverySuggested, stabilized, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit, finalRenderTelemetry, finalRenderTelemetryActive: !!Object.keys(finalRenderTelemetry).length, publicSurfaceClean: safeObj(finalRenderTelemetry).publicSurfaceClean !== false, validation: { finalReply: validateFinalReply(reply, { diagnostics, meta: metaInput, adaptiveTrustVerification }), replyContract: null }, meta: { freshMarionFinal: true, singleFinalAuthority: true, contractVersion: CONTRACT_VERSION, envelopeVersion: VERSION, source: SOURCE, signature: marionFinalSignature, marionFinalSignature, requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, finalMarkers: FINAL_MARKERS.slice(), turnId, replySignature, stateSpineSchema: STATE_SPINE_SCHEMA, stateSpineSchemaCompat: STATE_SPINE_SCHEMA_COMPAT, telemetryVisibilityVersion: TELEMETRY_VISIBILITY_VERSION, failureSignature: failureSignatureAudit.failureSignature, failureSignatureAudit, adaptiveTrustVerificationVersion: ADAPTIVE_TRUST_VERIFICATION_VERSION, ethicalCarryActive, adminInterface } };
   finalEnvelope.validation.replyContract = validateReplyContract(finalEnvelope);
@@ -525,8 +541,7 @@ function attachVisibleReplyAliases(packet={}){
 }
 // MARION_VISIBLE_FINAL_ENVELOPE_ALIAS_PATCH_END
 
-module.exports = { attachVisibleReplyAliases, VERSION, ADAPTIVE_TRUST_VERIFICATION_VERSION, TELEMETRY_VISIBILITY_VERSION, FAILURE_SIGNATURE_AUDIT_VERSION, CONTRACT_VERSION, FINAL_SIGNATURE, SOURCE, REQUIRED_CHAT_ENGINE_SIGNATURE, MARION_FINAL_SIGNATURE_PREFIX, STATE_SPINE_SCHEMA, STATE_SPINE_SCHEMA_COMPAT, CANONICAL_ENDPOINT, FINAL_MARKERS, buildFinalSignature, createMarionFinalEnvelope, createMarionErrorEnvelope, isMarionFinalEnvelope, unwrapReply, validateFinalReply, validateReplyContract, normalizeFinalTransport, sanitizeFinalEnvelope, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply, buildAdaptiveTrustVerification, buildAdminInterfaceTransport, isDirectMarionAdminEnvelope, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, extractEthicalGate, extractDefensiveEscalation, extractDefensiveJustification, _internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray, jsonSafeClone, normalizePatch, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, extractEthicalGate, extractDefensiveEscalation, extractDefensiveJustification, buildAdaptiveTrustVerification, buildAdminInterfaceTransport, isDirectMarionAdminEnvelope, isSoftRecoveryReply, isDiagnosticReply, isActionableFinalReply, buildCompletionStatus, hasHardFailure, normalizeStateStage, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply } ,
-  FINAL_RENDER_TELEMETRY_VERSION};
+Object.assign(module.exports,{ attachVisibleReplyAliases, VERSION, ADAPTIVE_TRUST_VERIFICATION_VERSION, TELEMETRY_VISIBILITY_VERSION, FAILURE_SIGNATURE_AUDIT_VERSION, CONTRACT_VERSION, FINAL_SIGNATURE, SOURCE, REQUIRED_CHAT_ENGINE_SIGNATURE, MARION_FINAL_SIGNATURE_PREFIX, STATE_SPINE_SCHEMA, STATE_SPINE_SCHEMA_COMPAT, CANONICAL_ENDPOINT, FINAL_MARKERS, buildFinalSignature, createMarionFinalEnvelope, createMarionErrorEnvelope, isMarionFinalEnvelope, unwrapReply, validateFinalReply, validateReplyContract, normalizeFinalTransport, sanitizeFinalEnvelope, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply, buildAdaptiveTrustVerification, buildAdminInterfaceTransport, isDirectMarionAdminEnvelope, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, extractEthicalGate, extractDefensiveEscalation, extractDefensiveJustification, buildResponse:createMarionFinalEnvelope,createResponse:createMarionFinalEnvelope,finalizeTurn:createMarionFinalEnvelope,safeResponse:attachVisibleReplyAliases,_internal: { extractReply, extractResolvedEmotion, normalizeRouting, hashText, safeObj, safeArray, jsonSafeClone, normalizePatch, extractDomainConfidence, extractDomainConcierge, extractResponseShaping, extractEthicalGate, extractDefensiveEscalation, extractDefensiveJustification, buildAdaptiveTrustVerification, buildAdminInterfaceTransport, isDirectMarionAdminEnvelope, isSoftRecoveryReply, isDiagnosticReply, isActionableFinalReply, buildCompletionStatus, hasHardFailure, normalizeStateStage, classifyFailureSignature, buildFailureSignatureAudit, isTelemetryLeakText, stripTelemetryLeakFromReply } , FINAL_RENDER_TELEMETRY_VERSION});
 
 
 // PRIORITY_90_FINAL_ENVELOPE_ECHO_FALLBACK_REPAIR_PATCH_START
@@ -5994,3 +6009,30 @@ try{
   api.marionLongThreadProgressionGuard=g;
 }catch(_){}})();
 /* MARION_LONG_THREAD_FINAL_PROJECTION_R4_END */
+
+
+/* MARION_DEFINITIVE_FINAL_PROJECTION_V7_START */
+(function(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+  const previous=typeof api.createMarionFinalEnvelope==="function"?api.createMarionFinalEnvelope:createMarionFinalEnvelope;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function first(){for(let i=0;i<arguments.length;i++){const t=marionSafeCleanText(arguments[i]);if(t)return t}return""}
+  function promptOf(input){const x=obj(input),p=obj(x.payload),m=obj(x.meta);return first(x.rawUserText,x.userText,x.originalUserText,x.prompt,x.query,x.inputText,x.text,x.message,p.rawUserText,p.userText,p.prompt,p.query,p.text,m.rawUserText,m.userText,m.prompt,m.query)}
+  function inputReply(input){const x=obj(input),p=obj(x.payload),f=obj(x.finalEnvelope);return first(x.directReply,x.visibleReply,x.displayReply,x.finalReply,x.reply,x.answer,x.response,x.text,x.message,f.finalReply,f.reply,f.text,p.reply,p.text)}
+  function outputReply(value){const v=obj(value),p=obj(v.payload),f=obj(v.finalEnvelope);return first(v.directReply,v.visibleReply,v.displayReply,v.finalReply,v.reply,v.answer,v.response,v.text,v.message,f.directReply,f.visibleReply,f.finalReply,f.reply,f.text,p.reply,p.text)}
+  function legalReply(v){return /\b(?:general legal-risk triage|not legal advice|legal category|governing jurisdiction|source documents|jurisdiction sensitivity)\b/i.test(first(v))}
+  function greetingPrompt(v){return /^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))\b/i.test(first(v).trim())}
+  function technicalPrompt(v){return /\b(?:javascript|typescript|node(?:\.js)?|code|runtime|router|routing|debug|autopsy|function|module|backend|index\.js|file|api|server|bridge|envelope)\b/i.test(first(v))}
+  function explicitLegalPrompt(v){return /\b(?:contract|legal advice|legal risk|law|lawsuit|liability|jurisdiction|statute|regulation|compliance|court|tribunal)\b/i.test(first(v))&&!/\b(?:javascript|code|runtime|router|routing|file|module|backend)\b/i.test(first(v))}
+  function semanticReply(value,input){const prompt=promptOf(input),incoming=inputReply(input),projected=outputReply(value),norm=v=>first(v).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();const incomingUsable=valid(incoming)&&norm(incoming)!==norm(prompt);if(incomingUsable)return incoming;if(greetingPrompt(prompt))return "Hello, Mac. I’m here.";if(technicalPrompt(prompt)&&!explicitLegalPrompt(prompt)&&legalReply(projected))return "I can examine the technical path. The response must stay on the code, routing, state, and transport behaviour rather than switch into legal-risk triage.";return projected||deterministicEnvelopeKnowledgeReply(prompt)}
+  function valid(reply){return !!reply&&!isDiagnosticReply(reply)&&!isSoftRecoveryReply(reply)&&!isTelemetryLeakText(reply)}
+  function project(value,input){const out=obj(value),reply=semanticReply(out,input);if(!valid(reply))return out;const payload={...obj(out.payload),reply,text:reply,message:reply,final:true,marionFinal:true};const envelope={...obj(out.finalEnvelope),reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:first(out.spokenText,reply),final:true,marionFinal:true,handled:true,source:"marion",signature:FINAL_SIGNATURE,contractVersion:CONTRACT_VERSION,requiresRetry:false,recoverySuggested:false,canEmit:true,completionStatus:{...obj(obj(out.finalEnvelope).completionStatus),complete:true,stabilized:true,actionableReply:true,requiresRetry:false,recoverySuggested:false,reason:"definitive_valid_reply"}};return{...out,ok:true,statusCode:200,final:true,marionFinal:true,handled:true,awaitingMarion:false,canEmit:true,requiresRetry:false,recoverySuggested:false,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:first(out.spokenText,reply),payload,finalEnvelope:envelope,meta:{...obj(out.meta),definitiveFinalProjection:true,definitiveFinalProjectionVersion:"nyx.marion.definitiveFinalProjection/7.1",semanticMismatchCorrected:legalReply(outputReply(out))&&reply!==outputReply(out)}}}
+  const definitive=function(input){try{return project(previous.call(this,input),input)}catch(error){const reply=inputReply(input);if(valid(reply))return project({reply},input);return createMarionErrorEnvelope({...obj(input),reply:"Marion could not complete that turn cleanly.",code:"MARION_FINAL_PROJECTION_EXCEPTION",detail:marionSafeCleanText(error&&(error.message||error.code||error.name))})}};
+  definitive.__marionDefinitiveFinalProjectionV7=true;
+  api.createMarionFinalEnvelope=definitive;
+  api.buildFinalEnvelope=definitive;api.toFinalEnvelope=definitive;api.normalizeFinalEnvelope=definitive;api.buildResponse=definitive;api.createResponse=definitive;api.finalizeTurn=definitive;
+  api.safeResponse=function(value){return project(attachVisibleReplyAliases(value),value)};
+  api.MARION_DEFINITIVE_FINAL_PROJECTION_VERSION="nyx.marion.definitiveFinalProjection/7.1";
+})();
+/* MARION_DEFINITIVE_FINAL_PROJECTION_V7_END */
