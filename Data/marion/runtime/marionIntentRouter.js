@@ -3393,10 +3393,14 @@ function r18cIsTechnicalFileOperation(text=""){
   return /\b(surgical autopsy|autopsy|audit|patch|update|resend|zip|downloadable|files?|node --check|domain routing|domain registry|domainrouter|mariondomainregistry|marionintentrouter|domainconcierge|domainconfidence|runtime file|javascript|\.js)\b/i.test(t) && r18cLawCategories(t).length===0 && !/\b(r18c|law domain|legal domain)\b/i.test(t);
 }
 function r18cDetectLawIntentSignals(text="", context={}){
-  const src=[r18cIrStr(text),JSON.stringify(r18cIrObj(context)).slice(0,1400)].join(" ");
+  const src=r18cIrStr(text);
+  const ctx=r18cIrObj(context), routing=r18cIrObj(ctx.routing), mi=r18cIrObj(ctx.marionIntent);
+  const carrySource=[ctx.activeFeatureLane,ctx.domain,ctx.primaryDomain,ctx.selectedDomain,ctx.knowledgeDomain,routing.domain,routing.primaryDomain,routing.selectedDomain,routing.knowledgeDomain,mi.knowledgeDomain].map(r18cIrStr).join(" ");
+  const shortFollowup=/^(next|next steps|what now|what(?:'|’)s next|continue|keep going|carry on|proceed|pass|passed|locked|green|success)$/i.test(src.replace(/[.!?]+$/,""));
+  const carry=shortFollowup&&/\b(law|legal|contract|copyright|licensing|liability|compliance|jurisdiction)\b/i.test(carrySource);
   const categories=r18cLawCategories(src);
   const explicit=/\b(r18c|law domain|legal domain|legal lane|route.*law|activate.*law|law real[-\s]?world assessment|legal risk assessment)\b/i.test(src);
-  const active=(categories.length>0||explicit)&&!r18cIsTechnicalFileOperation(text);
+  const active=(categories.length>0||explicit||carry)&&!r18cIsTechnicalFileOperation(text);
   const secondary=[];
   if(/\b(ai|artificial intelligence|model|llm|automation|agent)\b/i.test(src))secondary.push("ai");
   if(/\b(cyber|security|privacy|data protection|credential|access|identity)\b/i.test(src))secondary.push("cyber");
@@ -3767,3 +3771,17 @@ function r18cApplyLawIntentRoute(result,packet){
   try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["processWithMarion","composeMarionResponse","compose","buildReply","run","handle","route","default","finalize","normalize","detectLoop","buildFinalEnvelope"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
 })();
 /* MARION_LAYERS_7_8_PART2_END */
+
+/* MARION_CURRENT_TURN_AUTHORITY_R1_START */
+(function(){
+  "use strict";
+  let guard=null;try{guard=require("./marionCurrentTurnAuthority.js");}catch(_){guard=null;}
+  if(!guard||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const prepared=guard.prepareArgumentList(arguments);const result=fn.apply(this,prepared.args);const project=(value)=>guard.enforceRouterResult(value,prepared.input);return result&&typeof result.then==="function"?result.then(project):project(result);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionCurrentTurnAuthorityR1=true;return w;}
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+  ["routeMarionIntent","route","default"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+  if(typeof api.detectKnowledgeDomain==="function"){const old=api.detectKnowledgeDomain;api.detectKnowledgeDomain=function(){const a=Array.from(arguments),candidate=a.find(v=>v&&typeof v==="object"&&!Array.isArray(v));if(candidate){const prepared=guard.prepareInput(candidate),current=guard.classifyCurrentTurn(prepared);if(guard.isPrivateMarionContext(prepared)&&current.anchor)return{knowledgeDomain:"",domain:"general",explicit:false,reason:"current_turn_anchor_precedence",currentTurnAuthorityVersion:guard.VERSION};}return old.apply(this,arguments);};}
+  api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;
+})();
+/* MARION_CURRENT_TURN_AUTHORITY_R1_END */
+
