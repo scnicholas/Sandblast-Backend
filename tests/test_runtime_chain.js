@@ -1,0 +1,20 @@
+"use strict";
+const assert=require("assert");
+const bridge=require("../Data/marion/runtime/marionBridge.js");
+const guard=require("../Data/marion/runtime/marionCurrentTurnAuthority.js");
+(async()=>{
+  const base={privateAdminConversation:true,marionAdminConversation:true,directMarionAdminInterface:true,passwordFreeTestChat:true,lane:"marion_admin",sessionId:"runtime-test"};
+  const first=await bridge.processWithMarion({...base,turnId:"rt1",text:"Do a surgical autopsy on the JavaScript law-routing file.",userText:"Do a surgical autopsy on the JavaScript law-routing file."});
+  assert(first&&first.final===true);
+  assert.equal(first.domain||first.finalEnvelope&&first.finalEnvelope.domain,"technical");
+  const mem=first.memoryPatch||first.sessionPatch||{};
+  assert(mem.continuityAnchor);
+  assert.equal(mem.continuityAnchor.domain,"technical");
+  const second=await bridge.processWithMarion({...base,turnId:"rt2",text:"Go deeper.",userText:"Go deeper.",previousMemory:mem});
+  assert(second&&second.final===true);
+  assert.equal(second.domain||second.finalEnvelope&&second.finalEnvelope.domain,"technical");
+  const reply=guard.replyFrom(second);
+  assert(!/not legal advice|legal-risk triage|jurisdiction sensitivity/i.test(reply));
+  assert(/technical|router|runtime|code|javascript|state|final envelope/i.test(reply));
+  console.log(JSON.stringify({ok:true,bridgeVersion:bridge.VERSION,firstDomain:first.domain,secondDomain:second.domain,reply:reply.slice(0,260),dependencies:bridge.DEPENDENCY_STATUS},null,2));
+})().catch(e=>{console.error(e);process.exit(1)});
