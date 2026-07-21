@@ -2440,7 +2440,41 @@ function continuationAwareBusinessReply(text,input={},routed={}){
   return stripDuplicateStrategicOpener("Commercially, the clean move is to define the offer, identify the sponsor’s audience, package the AI interface as a premium engagement layer, and tie it to measurable outcomes like retention, clicks, listening time, or campaign recall.");
 }
 function followUpAnchor(ctx){const topic=ctx.topic||"the current thread";const prior=ctx.carry||ctx.prevReply||ctx.prevUser;return prior?`Continuing from ${topic}: ${prior}`:`Continuing from ${topic}`;}
-function continuationAwareReply(intent,text,input={},routed={}){const posture=extractGreetingPosture(input,routed,text);if(posture&&posture.active&&!continuationCue(text))return"";const ctx=continuityContext(input,routed,text);if(!ctx.active)return"";const t=lower(text),anchor=followUpAnchor(ctx);if(intent==="business_strategy"||/sponsor|business value|investor|premium|pitch/.test(t))return continuationAwareBusinessReply(text,input,routed);if(/prioriti[sz]e|next three|three upgrades/.test(t))return`${anchor}. Prioritize the upgrades in this order: continuity carry first, because Nyx must preserve the user's working goal; response-depth shaping second, because the answer has to feel useful rather than flat; domain synthesis third, because Marion needs to connect business, media, technical, and emotional signals without making the reply noisy.`;if(/turn that into|short pitch|say out loud/.test(t))return"Here is the clean version: we are building an AI media interface that feels alive because it remembers the thread, understands intent, adjusts tone, and gives practical answers across media, business, technology, and support. That gives users a more useful experience and gives sponsors a stronger, more memorable engagement layer.";if(/premium|investor[- ]?facing/.test(t))return"Premium framing: Nyx and Marion turn the media interface into an intelligent engagement layer, not just a chat widget. The value is defensibility: continuity, domain-aware guidance, emotional calibration, and sponsor-ready interaction paths create a product experience that is harder to copy than static media.";if(intent==="technical_debug"||/state spine|chatengine|marionbridge|compose|intent router|domain registry|backend|code-level|hardening|refinement/.test(t))return`${anchor}. The safest next refinement is to gate the follow-up governor behind explicit continuation cues and bounded carry summaries, so a phrase like “next steps” can use prior context while a fresh unrelated prompt cannot be hijacked by old state. That matters because it preserves continuity without recreating sticky fallback memory.`;if(intent==="emotional_support")return`${anchor}. The safest follow-up is to keep one pressure point in focus, reflect it briefly, and ask one grounded question instead of widening the emotional scope. That keeps continuity supportive without making the response clingy or repetitive.`;if(intent==="contextual_directive"||intent==="directive_response")return`${anchor}. The next move is one specific action: apply the prior rule, verify the output once, and only deepen if the user asks for more detail.`;return`${anchor}. The next move is to carry only the useful part of the prior answer, answer the current request directly, and avoid generic “what next” filler.`;}
+function continuationSubstantiveTarget(input={},routed={},ctx={}){
+  const i=safeObj(input),pm=safeObj(i.previousMemory||i.turnMemory||i.memory||i.state),ic=safeObj(i.immediateContinuation||pm.immediateContinuation),ca=safeObj(i.continuityAnchor||pm.continuityAnchor);
+  return firstText(ic.technicalTarget,ic.activeTask,ca.technicalTarget,ca.activeTask,ca.topic,ca.userText,ctx.topic,ctx.prevUser);
+}
+function continuationTargetIsSubstantive(target=""){
+  const t=safeStr(target).replace(/\s+/g," ").trim();
+  if(!t)return false;
+  if(/^(?:hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you|okay|ok|got it|ready|are you there|how are you)[.!?]*$/i.test(t))return false;
+  return t.split(/\s+/).length>=4||/\b(?:review|analy[sz]e|fix|repair|build|create|explain|audit|autopsy|plan|strategy|contract|risk|javascript|code|file|router|runtime|business|marketing|finance|cyber|law)\b/i.test(t);
+}
+function technicalContinuationAdvance(text="",target=""){
+  const t=lower(text),x=safeStr(target).replace(/[.!?]+$/g,"");const n=lower(x);
+  const next=/\bnext\b|what now|what'?s next/.test(t),risk=/risk|what changed|main defect|pressure/.test(t);
+  if(/law[-\s]?routing|routing file|intent router|domain router|\brouter\b/.test(n)){
+    if(next)return"Fix the router entry first: classify the current user text before merging remembered domain fields. Then update session memory only after a trusted final response, so an old legal classification cannot overwrite a new technical request.";
+    if(risk)return"The main defect to inspect is precedence inversion. If historical domain metadata is merged before the current prompt is classified, a JavaScript debugging request can be sent into the legal response path even though the user never asked for legal advice.";
+    if(/go deeper|deeper|expand|unpack|drill down/.test(t))return"The deeper defect is commit timing. Even with correct classification, a prior legal result can be written into session state before validation and then rehydrated on the next request. Instrument the raw prompt, routed domain, pre-commit reply, and committed state, and reject the write unless the final answer is trusted and matches the current domain.";
+    return"The first concrete defect to inspect is precedence. Verify that the current prompt is classified before any remembered law or domain fields are merged. Then confirm that only an accepted final response updates session memory; otherwise stale legal state can contaminate the next technical follow-up.";
+  }
+  if(/state spine|state carry|memory|session state|continuity/.test(n))return"Inspect when state is committed. The safe sequence is classify, compose, validate, then write the accepted topic, domain, and reply together. Early or partial state writes are what allow stale context to survive into the next turn.";
+  if(/final envelope|projection|visible reply|transport/.test(n))return"Inspect the visible-reply projection. Every reply alias should receive the same validated substantive answer, while policy, diagnostic, and fallback text must be rejected before the packet reaches the interface.";
+  if(/bridge|handoff/.test(n))return"Trace the bridge at normalized input, composer output, and final packet. Each stage should run once, preserve the same session and turn identifiers, and refuse to promote an incomplete fallback as the final answer.";
+  return`Start at the earliest boundary where ${x||"the technical task"} changes form. Compare the normalized input, the first state mutation, and the final visible reply; the earliest mismatch is the defect to repair first.`;
+}
+function continuationAwareReply(intent,text,input={},routed={}){
+  const posture=extractGreetingPosture(input,routed,text);if(posture&&posture.active&&!continuationCue(text))return"";
+  const ctx=continuityContext(input,routed,text);if(!ctx.active)return"";
+  const t=lower(text),target=continuationSubstantiveTarget(input,routed,ctx);
+  if(!continuationTargetIsSubstantive(target))return"There isn’t a substantive topic to deepen yet. Tell me what you want to examine, and I’ll take it from there.";
+  if(intent==="business_strategy"||/sponsor|business value|investor|premium|pitch/.test(t))return continuationAwareBusinessReply(text,input,routed);
+  if(intent==="technical_debug"||/state spine|chatengine|marionbridge|compose|intent router|domain registry|backend|code-level|hardening|refinement/.test(lower(target)))return technicalContinuationAdvance(text,target);
+  if(intent==="emotional_support")return"The next layer is the pressure underneath the surface statement. Name the one part that is creating the most strain, and we’ll turn that into one manageable action.";
+  if(intent==="contextual_directive"||intent==="directive_response")return`The next step for ${safeStr(target)} is to choose the highest-impact unresolved question, answer it directly, and turn that answer into one concrete action.`;
+  return`The deeper layer of ${safeStr(target)} is the underlying decision: what is actually changing, what matters most, and what action should follow.`;
+}
 
 function hotFallbackReply(intent,text,input={}){const distress=detectDistress(text),emotion=resolveEffectiveEmotion(input,normalizeResolvedEmotion(input));if((intent==="emotional_support"||distress.emotional||(emotion.present&&emotion.primary!=="neutral"&&hasEmotionalContinuityCue(text)))&&!distress.crisis)return emotionalReply(text,input);if(intent==="contextual_directive")return contextualDirectiveReply(text,input);if(intent==="directive_response")return directiveReply(text,input);if(intent==="identity_query")return identityReply(text,input);if(intent==="technical_debug")return buildFinalLoopRecoveryReply(intent,text,input);if(intent==="emotional_support"||distress.emotional){if(distress.crisis)return"Your safety comes first. If you might hurt yourself or you’re in immediate danger, contact emergency services or a local crisis line now.";return"I’m with you. Let’s slow it down and stay with the specific pressure point instead of repeating a flat support line.";}if(intent==="business_strategy")return"Let’s keep this commercial: define the offer, identify the buyer psychology, package the value, and turn it into the next execution step.";if(intent==="music_query")return"Music lane is ready. Give me the year, artist, chart, or story angle and I’ll route it cleanly.";if(intent==="news_query")return isNewsMediaPositioningRequest(text)?newsMediaPositioningReply(text):"News Canada lane is ready. Give me the story, headline, or feed issue and I’ll keep the source path clean.";if(intent==="roku_query")return"Roku lane is ready. Tell me whether we’re checking the app path, live TV lane, content feed, or deployment issue.";return"";}
 function recoveryReply(intent,text,input={}){
@@ -9765,3 +9799,16 @@ try{
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
 (function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
+
+
+/* MARION_SUBSTANTIVE_CONTINUATION_SURFACE_R3_START */
+(function(){"use strict";try{
+  const g=require("./marionCurrentTurnAuthority.js");if(!g||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionSubstantiveContinuationR3)return fn;const w=function(){const p=g.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>g.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionSubstantiveContinuationR3=true;w.__wrappedName=name;return w;}
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+  ["composeMarionResponse","run","default","ensureFinalReply","assertFinalEnvelope"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+  api.MARION_SUBSTANTIVE_CONTINUATION_SURFACE_VERSION=g.VERSION;
+  api.MARION_SUBSTANTIVE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;
+  api.marionSubstantiveContinuationGuard=g;
+}catch(_){}})();
+/* MARION_SUBSTANTIVE_CONTINUATION_SURFACE_R3_END */
