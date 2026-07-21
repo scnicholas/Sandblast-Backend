@@ -3785,3 +3785,7 @@ function r18cApplyLawIntentRoute(result,packet){
 })();
 /* MARION_CURRENT_TURN_AUTHORITY_R1_END */
 
+
+/* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
+(function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
+/* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
