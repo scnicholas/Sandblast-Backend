@@ -5967,3 +5967,16 @@ try{
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
 (function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
+
+
+/* MARION_SUBSTANTIVE_FINAL_PROJECTION_R3_START */
+(function(){"use strict";try{
+  const g=require("./marionCurrentTurnAuthority.js");if(!g||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionSubstantiveFinalProjectionR3)return fn;const w=function(){const p=g.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>g.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionSubstantiveFinalProjectionR3=true;w.__wrappedName=name;return w;}
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+  ["createMarionFinalEnvelope","attachVisibleReplyAliases","normalizeFinalTransport","sanitizeFinalEnvelope","default"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+  api.MARION_SUBSTANTIVE_FINAL_PROJECTION_VERSION=g.VERSION;
+  api.MARION_SUBSTANTIVE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;
+  api.marionSubstantiveContinuationGuard=g;
+}catch(_){}})();
+/* MARION_SUBSTANTIVE_FINAL_PROJECTION_R3_END */
