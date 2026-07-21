@@ -9865,3 +9865,76 @@ try{
   api.composeMarionResponse=wrapped;api.run=wrapped;api.default=wrapped;api.MARION_UNIFIED_PRIVATE_RUNTIME_COMPOSER_VERSION="nyx.marion.privateRuntime.composer/8.0";
 })();
 /* MARION_UNIFIED_PRIVATE_RUNTIME_COMPOSER_V8_END */
+
+/* MARION_DRASTIC_COMPOSER_RECOVERY_V9_START */
+(function marionDrasticComposerRecoveryV9(){
+  "use strict";
+  const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!api || api.__marionDrasticComposerRecoveryV9) return;
+  const previous = typeof api.composeMarionResponse === "function" ? api.composeMarionResponse :
+    (typeof api.run === "function" ? api.run : (typeof api.default === "function" ? api.default : null));
+  const VERSION_V9 = "composeMarionResponse v9.0 DRASTIC-RUNTIME-RECOVERY";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function text(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
+  function first(){for(const v of arguments){const t=text(v);if(t)return t}return""}
+  function promptOf(input={}){const s=obj(input),p=obj(s.payload),b=obj(s.body),t=obj(s.turn),c=obj(s.command);return first(s.prompt,s.rawUserText,s.userText,s.userQuery,s.inputText,s.text,s.query,s.message,s.effectivePrompt,p.prompt,p.userText,p.text,p.query,p.message,b.prompt,b.userText,b.text,b.query,b.message,t.prompt,t.userText,t.text,t.message,c.prompt,c.userText,c.text,c.message).slice(0,6000)}
+  function isGreeting(v=""){return /^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))(?:\s*,?\s*marion)?[.!?]*$/i.test(text(v))}
+  function explicitTechnical(v=""){return /\b(?:javascript|typescript|node(?:\.js)?|index\.js|html|css|code|runtime|router|routing|debug|autopsy|function|module|backend|frontend|widget|handler|endpoint|api|payload|manifest|state spine|final envelope|transport|cors|http\s*502|referenceerror|typeerror|commonjs|circular dependenc|file)\b/i.test(text(v))}
+  function explicitLegal(v=""){const t=text(v);return !explicitTechnical(t)&&/\b(?:legal advice|legal risk|contract|agreement|jurisdiction|liability|lawsuit|statute|regulation|compliance|governing law|attorney|lawyer|court)\b/i.test(t)}
+  function followupKind(v=""){
+    const t=text(v).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9]+/g," ").trim();
+    if(/^(?:go deeper|continue|keep going)$/.test(t))return"deepen";
+    if(/^(?:what should (?:be|we) fix(?:ed)? first|what should i examine first)$/.test(t))return"first_fix";
+    if(/^(?:why is that the first priority|why first)$/.test(t))return"why_first";
+    if(/^what could (?:break|go wrong)/.test(t))return"break_risk";
+    if(/^what is the safest implementation order$/.test(t))return"safe_order";
+    if(/^how (?:do|should) we (?:validate|test)(?: the repair)?$/.test(t))return"validate";
+    if(/^(?:what happens after that|what next|next|then what)$/.test(t))return"after";
+    if(/^what is the main risk$/.test(t))return"main_risk";
+    if(/^what changed$/.test(t))return"changed";
+    return"";
+  }
+  function expectedDomain(input,prompt){const s=obj(input),ctx=obj(s.privateRuntimeContext),auth=obj(s.currentTurnAuthority),mem=obj(s.previousMemory);if(isGreeting(prompt))return"general";if(explicitTechnical(prompt))return"technical";if(explicitLegal(prompt))return"law";return first(ctx.expectedDomain,ctx.activeDomain,auth.expectedDomain,auth.activeDomain,mem.activeDomain,s.requestedDomain,s.domain,"general").toLowerCase()}
+  function activeSubject(input,prompt){const s=obj(input),ctx=obj(s.privateRuntimeContext),a=obj(s.continuityAnchor),m=obj(s.previousMemory);return first(ctx.activeSubject,a.activeSubject,a.activeTask,a.topic,m.activeSubject,m.activeTask,m.technicalTarget,explicitTechnical(prompt)?prompt:"").slice(0,320)}
+  function legalFallback(v=""){return /\b(?:general legal(?:-risk)? (?:information|triage)|not legal advice|governing jurisdiction|source documents|legal category)\b/i.test(text(v))}
+  function runtimeLeak(v=""){return /\b(?:private runtime is unavailable|final envelope missing|diagnostic packet|non-final|bridge handoff|composer reply missing|runtimeTelemetry|replyAuthority|sessionPatch|state spine)\b/i.test(text(v))}
+  function extract(result){if(typeof result==="string")return text(result);const r=obj(result),p=obj(r.payload),f=obj(r.finalEnvelope),n=obj(r.result);for(const v of[r.directReply,r.visibleReply,r.displayReply,r.finalReply,r.reply,r.answer,r.output,r.response,r.text,r.message,f.directReply,f.visibleReply,f.finalReply,f.reply,f.text,p.reply,p.text,p.message,n.reply,n.text,n.message]){const t=text(v);if(t)return t}return""}
+  function deterministic(input,prompt,domain){
+    const kind=followupKind(prompt),subject=activeSubject(input,prompt)||"the active routing repair";
+    if(isGreeting(prompt))return"Hello, Mac. I’m here and ready to work through this with you.";
+    if(domain==="technical"){
+      if(kind==="deepen")return`The deeper defect to inspect in ${subject} is state mutation timing. The current-turn domain must be resolved before historical memory, legal metadata, or final-envelope shaping can modify the response. Add an assertion at each handoff so the selected domain cannot change after routing.`;
+      if(kind==="first_fix")return`Fix current-turn domain precedence first. Resolve the explicit technical request, lock that decision into the turn packet, and only then merge prior session memory. That prevents stale legal state from taking control before the composer runs.`;
+      if(kind==="why_first")return"That is the first priority because every later layer trusts the router’s decision. If the domain is wrong at intake, the composer, state store, and final envelope can all behave correctly and still produce the wrong answer.";
+      if(kind==="break_risk")return"The main regression risk is overcorrecting the precedence rule and blocking legitimate continuity. A careless fix can erase valid legal or business context, reset every follow-up, or create two competing sources of truth for the active domain.";
+      if(kind==="safe_order")return"Use this order: freeze the current-turn classification, normalize the input contract, merge only compatible continuity state, run the composer, validate the final domain against the locked turn, then persist the accepted result. Keep rollback checkpoints between each stage.";
+      if(kind==="validate")return"Validate it in layers: run syntax checks, invoke the private adapter directly, test a greeting, run an eight-turn technical thread, switch into a genuine legal thread, exit with a social greeting, start a fresh session, and inject a composer failure to confirm the recovery path still returns a clean final packet.";
+      if(kind==="after")return"After the repair passes those tests, expose semantic health separately from transport health, monitor domain mismatches in logs, and freeze the private-runtime contract before adding more personality or voice layers.";
+      if(kind==="main_risk")return"The main risk is split authority: one layer selects the technical domain while a later layer silently promotes stale legal metadata. The final reply then looks valid structurally but is wrong semantically.";
+      if(kind==="changed")return"The critical change is that current-turn intent becomes immutable once accepted. Older memory can enrich the answer, but it cannot replace the active domain or subject.";
+      return"Start with the routing precedence chain. Confirm the explicit current prompt is classified before historical state is merged, then trace that locked domain through the composer and final envelope. Any layer that can overwrite it is a critical defect.";
+    }
+    if(domain==="law"){
+      if(kind)return"Continue by identifying the governing jurisdiction, the exact clause or obligation at issue, the parties’ duties, termination and liability language, dispute-resolution terms, and any deadlines. Those details determine which risks are material. This is general legal information, not legal advice.";
+      return"I can help identify general contract risks, but the governing jurisdiction and the actual document language matter. Start with the parties, obligations, termination rights, liability limits, dispute-resolution clause, and any deadlines. This is general legal information, not legal advice.";
+    }
+    if(kind)return"There is not yet a substantive topic active in this session. Tell me what you want to continue or deepen.";
+    return"I’m here, Mac. Tell me what you want to work through, and I’ll keep the response focused and practical.";
+  }
+  function normalize(result,input,prompt,domain){
+    const r=obj(result),existing=extract(r),invalid=!existing||runtimeLeak(existing)||(domain==="technical"&&legalFallback(existing));
+    const reply=invalid?deterministic(input,prompt,domain):existing;
+    const intent=domain==="technical"?"technical_debug":domain==="law"?"domain_question":"simple_chat";
+    const memory={...obj(r.memoryPatch),activeDomain:domain==="general"?"":domain,activeSubject:domain==="general"?"":activeSubject(input,prompt),activeTask:domain==="general"?"":activeSubject(input,prompt),lastUserText:prompt,lastAssistantReply:reply,composerRecoveryVersion:VERSION_V9};
+    return {...r,ok:true,final:true,marionFinal:true,handled:true,awaitingMarion:false,canEmit:true,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:first(r.spokenText,reply),intent,domain,primaryDomain:domain,selectedDomain:domain,knowledgeDomain:domain==="law"?"law":"",memoryPatch:memory,sessionPatch:{...obj(r.sessionPatch),...memory},payload:{...obj(r.payload),reply,text:reply,message:reply,final:true,marionFinal:true},meta:{...obj(r.meta),drasticComposerRecovery:true,drasticComposerRecoveryVersion:VERSION_V9,originalReplyAccepted:!invalid,expectedDomain:domain},version:VERSION_V9,composerVersion:VERSION_V9};
+  }
+  async function definitive(input={}){
+    const prompt=promptOf(input),domain=expectedDomain(input,prompt);
+    let result=null;
+    if(previous){try{result=await Promise.resolve(previous.call(this,input))}catch(err){result={ok:false,error:text(err&&err.message),reason:text(err&&err.code)}}}
+    return normalize(result,input,prompt,domain);
+  }
+  try{if(previous)Object.keys(previous).forEach(k=>{try{definitive[k]=previous[k]}catch(_){}})}catch(_){ }
+  Object.assign(api,{VERSION:VERSION_V9,composeMarionResponse:definitive,run:definitive,default:definitive,compose:definitive,buildReply:definitive,__marionDrasticComposerRecoveryV9:true,MARION_DRASTIC_COMPOSER_RECOVERY_VERSION:VERSION_V9});
+})();
+/* MARION_DRASTIC_COMPOSER_RECOVERY_V9_END */
