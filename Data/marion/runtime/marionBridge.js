@@ -62,8 +62,8 @@ function marionPrivateReplyText(result) {
 }
 /* MARION_NON_THROWING_PRIMITIVE_V2_END */
 
-const VERSION = "marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY";
-const BRIDGE_CONTRACT_VERSION = "nyx.marion.bridge/7.7";
+const VERSION = "marionBridge v7.8.0 LONG-THREAD-PROGRESSION-AUTHORITY";
+const BRIDGE_CONTRACT_VERSION = "nyx.marion.bridge/7.8";
 const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 
 const fs = require("fs");
@@ -389,12 +389,12 @@ function createMarionBridge(){return{maybeResolve,ask,handle,route,processWithMa
 module.exports={VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT,DEPENDENCY_STATUS,retrieveLayer2Signals,processWithMarion,createMarionBridge,route,maybeResolve,ask,handle,default:processWithMarion,_internal:{normalizeInbound,fallbackRoute,validateRouterResult,extractReply,validateComposeResult,wrapFinal,buildErrorResult,createLocalFinalEnvelope,hotFallbackReply,identityAnchorReply,isDiagnosticText,DEPENDENCY_STATUS,COMPOSER_REQUIRE_CANDIDATES,resolveEmotionForTurn,emotionSummary,mergeEmotionIntoContract,jsonSafe,transportSafePacket,transportSafeError,compactPatchForTransport,compactResolvedEmotion}};
 
 /* MARION_CURRENT_TURN_AUTHORITY_R1_START */
-(function(){"use strict";let guard=null;try{guard=require("./marionCurrentTurnAuthority.js");}catch(_){guard=null;}if(!guard||typeof module==="undefined"||!module.exports)return;function wrap(fn){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const p=guard.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>guard.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionCurrentTurnAuthorityR1=true;return w;}const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;const canonical=wrap(api.processWithMarion);if(canonical){api.processWithMarion=canonical;["route","maybeResolve","ask","handle","default"].forEach(n=>{api[n]=canonical;});api.createMarionBridge=function(){return{version:"marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY",endpoint:api.CANONICAL_ENDPOINT||"marion://routeMarion.primary",processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical};};}api.VERSION="marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY";api.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.7";api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;})();
+(function(){"use strict";let guard=null;try{guard=require("./marionCurrentTurnAuthority.js");}catch(_){guard=null;}if(!guard||typeof module==="undefined"||!module.exports)return;function wrap(fn){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const p=guard.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>guard.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionCurrentTurnAuthorityR1=true;return w;}const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;const canonical=wrap(api.processWithMarion);if(canonical){api.processWithMarion=canonical;["route","maybeResolve","ask","handle","default"].forEach(n=>{api[n]=canonical;});api.createMarionBridge=function(){return{version:"marionBridge v7.8.0 LONG-THREAD-PROGRESSION-AUTHORITY",endpoint:api.CANONICAL_ENDPOINT||"marion://routeMarion.primary",processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical};};}api.VERSION="marionBridge v7.8.0 LONG-THREAD-PROGRESSION-AUTHORITY";api.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.8";api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;})();
 /* MARION_CURRENT_TURN_AUTHORITY_R1_END */
 
 
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_START */
-(function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.VERSION="marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY";module.exports.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.7";module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
+(function(){"use strict";try{const g=require("./marionCurrentTurnAuthority.js");if(module&&module.exports){module.exports.VERSION="marionBridge v7.8.0 LONG-THREAD-PROGRESSION-AUTHORITY";module.exports.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.8";module.exports.MARION_IMMEDIATE_CONTINUATION_AUTHORITY_VERSION=g.VERSION;module.exports.MARION_IMMEDIATE_CONTINUATION_CONTRACT=g.CONTINUITY_CONTRACT;}}catch(_){}})();
 /* MARION_IMMEDIATE_CONTINUATION_AUTHORITY_R2_METADATA_END */
 
 /* MARION_PRIVATE_SESSION_CONTINUITY_CACHE_R2_START */
@@ -489,16 +489,46 @@ module.exports={VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT,DEPENDENCY_ST
       api.processWithMarion=canonical;
       ["route","maybeResolve","ask","handle","default"].forEach(n=>{api[n]=canonical;});
       api.createMarionBridge=function(){return{
-        version:"marionBridge v7.7.0 IMMEDIATE-CONTINUATION-AUTHORITY",
+        version:"marionBridge v7.8.0 LONG-THREAD-PROGRESSION-AUTHORITY",
         endpoint:api.CANONICAL_ENDPOINT||"marion://routeMarion.primary",
         processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical
       };};
     }
     api.__marionPrivateSessionContinuityCacheR2=true;
-    api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_VERSION="nyx.marion.privateSessionContinuityCache/1.0";
+    api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_VERSION="nyx.marion.privateSessionContinuityCache/2.0-long-thread";
     api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_TTL_MS=CACHE_TTL_MS;
     api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_MAX=CACHE_MAX;
     api._continuityCacheDiagnostics=function(){prune();return{version:api.MARION_PRIVATE_SESSION_CONTINUITY_CACHE_VERSION,size:cache.size,ttlMs:CACHE_TTL_MS,max:CACHE_MAX,privateOnly:true,publicNyxNoOp:true};};
   }catch(_err){}
 })();
 /* MARION_PRIVATE_SESSION_CONTINUITY_CACHE_R2_END */
+
+/* MARION_LONG_THREAD_BRIDGE_AUTHORITY_R4_START */
+(function(){"use strict";try{
+  const g=require("./marionCurrentTurnAuthority.js");
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||!g||api.__marionLongThreadBridgeAuthorityR4)return;
+  const previous=api.processWithMarion,cache=new Map();
+  const TTL=Math.max(60000,Number(process.env.SB_MARION_LONG_THREAD_CACHE_TTL_MS)||2*60*60*1000),MAX=Math.max(16,Math.min(2048,Number(process.env.SB_MARION_LONG_THREAD_CACHE_MAX)||256));
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function T(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+  function sid(v){const x=O(v),b=O(x.body),m=O(x.meta),q=O(x.session);return T(x.sessionId||x.conversationId||b.sessionId||m.sessionId||q.sessionId)}
+  function prune(){const now=Date.now();for(const [k,v] of cache)if(!v||now-v.at>TTL)cache.delete(k);while(cache.size>MAX){const k=cache.keys().next();if(k.done)break;cache.delete(k.value)}}
+  function get(v){const k=sid(v);if(!k)return null;prune();const item=cache.get(k);if(!item)return null;cache.delete(k);cache.set(k,item);return item.anchor&&typeof item.anchor==="object"?{...item.anchor}:null}
+  function put(v,out){const k=sid(v);if(!k||!g.isPrivateMarionContext(v)||!out||typeof out!=="object")return;const mp=O(out.memoryPatch),sp=O(out.sessionPatch),meta=O(out.meta),a=out.continuityAnchor||mp.continuityAnchor||sp.continuityAnchor||meta.continuityAnchor;if(!a||typeof a!=="object"||!g.isSubstantiveAnchor(a))return;cache.set(k,{anchor:{...a},at:Date.now()});prune()}
+  if(typeof previous==="function"){
+    const canonical=async function(input){
+      let raw=input&&typeof input==="object"?input:{};const k=sid(raw),current=g.classifyCurrentTurn(raw);
+      if(g.isPrivateMarionContext(raw)&&g.isIsolatedTurn(raw)){if(k)cache.delete(k);}else if(g.isPrivateMarionContext(raw)&&current.shortFollowup&&!g.extractContinuationAnchor(raw)){
+        const a=get(raw);if(a)raw={...raw,newSession:false,firstTurn:false,continuityAnchor:a,continuationRequested:true,continuationResolved:true,continuityResolved:true,previousMemory:{...O(raw.previousMemory),continuityAnchor:a,immediateContinuation:{contract:g.CONTINUITY_CONTRACT,active:true,domain:a.domain||"general",intent:a.intent||"",followupDepth:Number(a.followupDepth||0),previousUserText:a.userText||"",previousAssistantReply:a.assistantReply||"",activeTask:a.activeTask||a.topic||a.userText||"",surfaceRequest:a.surfaceRequest||a.userText||"",deeperIntent:a.deeperIntent||"",operationalRisk:a.operationalRisk||"",executionMode:a.executionMode||"",nextAction:a.nextAction||"",technicalTarget:a.technicalTarget||"",activeSubject:a.activeSubject||a.activeTask||a.topic||"",authority:"bridge_long_thread_cache",noOlderDomainOverride:true,updatedAt:Date.now()}}};
+      }
+      const prepared=g.prepareInput(raw),result=await previous.call(this,prepared),out=g.enforceResult(result,prepared),nowCurrent=g.classifyCurrentTurn(prepared),anchor=nowCurrent.shortFollowup?g.extractContinuationAnchor(prepared):null,desired=g.desiredDomain(prepared,nowCurrent,anchor)||out&&out.domain||"general";
+      if(out&&typeof out==="object")out.meta={...O(out.meta),longThreadProgressionVersion:g.VERSION,longThreadProgressionContract:g.CONTINUITY_CONTRACT,semanticDomain:desired,semanticHealth:nowCurrent.shortFollowup&&!anchor?"degraded":"ready",semanticFailureSignature:nowCurrent.shortFollowup&&!anchor?"CONTINUATION_ANCHOR_MISSING":"none"};
+      put(prepared,out);return out;
+    };
+    try{Object.keys(previous).forEach(k=>canonical[k]=previous[k]);}catch(_){}
+    canonical.__marionLongThreadBridgeAuthorityR4=true;api.processWithMarion=canonical;["route","maybeResolve","ask","handle","default"].forEach(n=>api[n]=canonical);
+    api.createMarionBridge=function(){return{version:"marionBridge v7.8.0 LONG-THREAD-PROGRESSION-AUTHORITY",endpoint:api.CANONICAL_ENDPOINT||"marion://routeMarion.primary",processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical};};
+  }
+  api.__marionLongThreadBridgeAuthorityR4=true;api.VERSION="marionBridge v7.8.0 LONG-THREAD-PROGRESSION-AUTHORITY";api.BRIDGE_CONTRACT_VERSION="nyx.marion.bridge/7.8";api.MARION_LONG_THREAD_PROGRESSION_VERSION=g.VERSION;api.MARION_LONG_THREAD_PROGRESSION_CONTRACT=g.CONTINUITY_CONTRACT;api._longThreadCacheDiagnostics=function(){prune();return{version:"nyx.marion.longThreadBridgeCache/1.0",size:cache.size,ttlMs:TTL,max:MAX,privateOnly:true,publicNyxNoOp:true}};
+}catch(_){}})();
+/* MARION_LONG_THREAD_BRIDGE_AUTHORITY_R4_END */
