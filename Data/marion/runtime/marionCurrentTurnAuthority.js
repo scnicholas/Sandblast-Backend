@@ -1,19 +1,25 @@
 "use strict";
 
 /**
- * Marion current-turn authority boundary.
+ * Marion current-turn and immediate-continuation authority boundary.
  *
- * Keeps private Marion turns bound to the user's current text while preserving
- * Nyx public routes and all legitimate domain lanes. Internal version strings,
- * diagnostics, prior final envelopes, and stale state must never classify a
- * fresh turn.
+ * Scope:
+ * - Private Marion/admin conversation only.
+ * - Public Nyx surfaces are a strict no-op.
+ * - Current explicit text outranks all remembered domains.
+ * - Short follow-ups inherit only the immediately preceding accepted turn.
+ * - New/isolated sessions cannot inherit an older lane.
  */
-const VERSION = "nyx.marion.currentTurnAuthority/1.0";
+const VERSION = "nyx.marion.currentTurnAuthority/2.0-short-followup-continuity";
+const CONTINUITY_CONTRACT = "nyx.marion.immediateContinuation/1.0";
 const MAX_DEPTH = 7;
-const MAX_KEYS = 160;
+const MAX_KEYS = 180;
+const MAX_ARRAY = 48;
+const MAX_TEXT = 8000;
 
 function isObj(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
-function text(value, max = 8000) {
+function safeGet(obj, key) { try { return obj && obj[key]; } catch (_) { return undefined; } }
+function text(value, max = MAX_TEXT) {
   if (value == null) return "";
   try {
     const out = typeof value === "string" ? value : String(value);
@@ -21,6 +27,9 @@ function text(value, max = 8000) {
   } catch (_) { return ""; }
 }
 function lower(value) { return text(value).toLowerCase().replace(/[’‘]/g, "'"); }
+function norm(value) {
+  return lower(value).replace(/[“”]/g, '"').replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
 function firstText() {
   for (let i = 0; i < arguments.length; i += 1) {
     const value = text(arguments[i]);
@@ -28,17 +37,19 @@ function firstText() {
   }
   return "";
 }
-function safeGet(obj, key) { try { return obj && obj[key]; } catch (_) { return undefined; } }
-function safeShallowObject(value) {
+function safeKeys(value, limit = MAX_KEYS) {
+  if (!isObj(value)) return [];
+  try { return Object.keys(value).slice(0, limit); } catch (_) { return []; }
+}
+function shallow(value) {
   const out = {};
-  if (!isObj(value)) return out;
-  let keys = [];
-  try { keys = Object.keys(value).slice(0, MAX_KEYS); } catch (_) { return out; }
-  for (const key of keys) {
+  for (const key of safeKeys(value)) {
     try { out[key] = value[key]; } catch (_) {}
   }
   return out;
 }
+function nowMs() { return Date.now(); }
+function bounded(value, max = 900) { return text(value, max); }
 
 function extractCurrentText(input) {
   if (typeof input === "string") return text(input);
@@ -74,7 +85,8 @@ function isPrivateMarionContext(input) {
   const flags = [src, body, payload, meta];
   if (flags.some((o) => o.privateAdminConversation === true || o.marionAdminConversation === true ||
     o.directMarionAdminInterface === true || o.adminVerified === true || o.authenticatedOperator === true ||
-    o.privateTextDelivery === true || o.adminOnlyTextDelivery === true)) return true;
+    o.privateTextDelivery === true || o.adminOnlyTextDelivery === true ||
+    o.passwordFreeTestChat === true || o.adminInterfaceScope === "marion_admin_conversation")) return true;
   const lane = lower(firstText(src.lane, src.sessionLane, body.lane, payload.lane, meta.lane));
   const audience = lower(firstText(src.audience, body.audience, payload.audience, meta.audience));
   const source = lower(firstText(src.source, src.inputChannel, body.source, body.inputChannel, payload.source, payload.inputChannel));
@@ -84,169 +96,470 @@ function isPrivateMarionContext(input) {
     path.startsWith("/private/marion/") || path === "/api/marion/admin/conversation" || path === "/marion/admin/conversation";
 }
 
+function isIsolatedContext(input) {
+  const src = isObj(input) ? input : {};
+  const body = isObj(src.body) ? src.body : {};
+  const payload = isObj(src.payload) ? src.payload : {};
+  const session = isObj(src.session) ? src.session : {};
+  const nodes = [src, body, payload, session];
+  return nodes.some((o) => o.isolatedTestSession === true || o.isolatedSession === true ||
+    lower(o.sessionMode) === "isolated" || lower(o.mode) === "isolated_test" ||
+    o.passwordFreeTestChat === true);
+}
+
 function isIsolatedTurn(input) {
   const src = isObj(input) ? input : {};
   const body = isObj(src.body) ? src.body : {};
   const payload = isObj(src.payload) ? src.payload : {};
   const session = isObj(src.session) ? src.session : {};
   const nodes = [src, body, payload, session];
-  return nodes.some((o) => o.newSession === true || o.isolatedTestSession === true || o.isolatedSession === true ||
-    o.resetSession === true || o.resetMemory === true || o.clearMemory === true || o.freshSession === true ||
-    lower(o.sessionMode) === "isolated" || lower(o.mode) === "isolated_test");
+  // "isolatedSession" identifies the private partition; it is not a reset signal
+  // on every turn. Only explicit fresh/reset markers clear continuity.
+  return nodes.some((o) => o.newSession === true || o.firstTurn === true ||
+    o.resetSession === true || o.resetMemory === true || o.clearMemory === true ||
+    o.freshSession === true || o.startNewSession === true);
+}
+
+function followupKind(value) {
+  const n = norm(value);
+  if (!n) return "";
+  if (/^(?:go deeper|deeper|more depth|drill down|expand|expand that|unpack that|break that down)$/.test(n)) return "depth";
+  if (/^(?:continue|keep going|carry on|go on|proceed|continue from there|from there|same thread|same lane|stay in lane)$/.test(n)) return "continue";
+  if (/^(?:next|next step|next steps|what next|what now|whats next|then what)$/.test(n)) return "next";
+  if (/^(?:again|run that again|run it again|do that again|repeat that|same thing|rerun that)$/.test(n)) return "repeat";
+  if (/^(?:slow down|one step at a time|take it slower)$/.test(n)) return "pace";
+  if (/^(?:what is the risk now|risk now|update the risk|what changed|what changed now|pressure check|context check|final check)$/.test(n)) return "pressure";
+  if (/^(?:no not that|not that|stay on the architecture|stay with the architecture|wrong target)$/.test(n)) return "correction";
+  return "";
 }
 
 function classifyCurrentTurn(input) {
   const raw = extractCurrentText(input);
-  const n = lower(raw).replace(/[.!?,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  const n = norm(raw);
   const greeting = /^(?:hi|hello|hey|hiya|yo|morning|evening|good morning|good afternoon|good evening)(?:\s+(?:there|marion|mac))?$/.test(n) ||
     /^(?:hi|hello|hey|good morning|good afternoon|good evening)\s+marion\b/.test(n);
-  const checkin = /^(?:marion\s+)?(?:how are you|how are you doing|how's it going|how is it going|you okay|are you okay|you good|are you alright)(?:\s+marion)?$/.test(n);
+  const checkin = /^(?:marion\s+)?(?:how are you|how are you doing|hows it going|how is it going|you okay|are you okay|you good|are you alright)(?:\s+marion)?$/.test(n);
   const presence = /^(?:marion\s+)?(?:are you there|you there|are you with me|you with me|still there|still with me|can you hear me|are we connected|you online)(?:\s+marion)?$/.test(n);
+  const fk = followupKind(raw);
   const lawSignal = /\b(?:law|legal|lawyer|attorney|court|tribunal|lawsuit|sue|liability|negligence|damages|indemnity|contract|agreement|nda|clause|breach|copyright|licen[cs]e|licensing|trademark|patent|jurisdiction|statute|regulation|compliance|privacy law|employment law|severance|wrongful dismissal|defamation|legal risk)\b/.test(n);
-  const technical = /\b(?:bug|error|stack trace|endpoint|router|routing|index\.js|javascript|node|runtime|bridge|final envelope|state spine|chat engine|surgical autopsy|patch|hotfix|syntax)\b/.test(n);
-  const technicalFileWork = technical && /\b(?:file|files|router|routing|index\.js|javascript|node|runtime|bridge|final envelope|state spine|chat engine|script|code|payload|manifest|module|function|syntax|patch|hotfix|autopsy)\b/.test(n);
+  const technical = /\b(?:bug|error|stack trace|endpoint|router|routing|index js|javascript|node|runtime|bridge|final envelope|state spine|chat engine|surgical autopsy|patch|hotfix|syntax|widget|backend|frontend|module|function|payload|manifest|code)\b/.test(n);
+  const technicalFileWork = technical && /\b(?:file|files|router|routing|index js|javascript|node|runtime|bridge|final envelope|state spine|chat engine|script|code|payload|manifest|module|function|syntax|patch|hotfix|autopsy|widget|backend|frontend)\b/.test(n);
   const law = lawSignal && !technicalFileWork;
-  const kind = checkin ? "social_checkin" : presence ? "presence_check" : greeting ? "greeting" : technicalFileWork ? "technical" : law ? "law" : technical ? "technical" : "standard";
-  return { raw, normalized: n, kind, greeting, checkin, presence, anchor: greeting || checkin || presence, law, lawSignal, technical, technicalFileWork };
+  const kind = checkin ? "social_checkin" : presence ? "presence_check" : greeting ? "greeting" :
+    technicalFileWork ? "technical" : law ? "law" : technical ? "technical" : fk ? "short_followup" : "standard";
+  return {
+    raw, normalized: n, kind, greeting, checkin, presence,
+    anchor: greeting || checkin || presence,
+    shortFollowup: !!fk, followupKind: fk,
+    law, lawSignal, technical, technicalFileWork
+  };
 }
 
-const STALE_KEYS = /^(?:domain|requestedDomain|primaryDomain|selectedDomain|knowledgeDomain|intent|subIntent|routing|routeLock|domainConfidence|domainConcierge|domainConciergeSeed|r18c.*|legal.*|law.*|activeFeatureLane|currentObjective|nextAction|finalEnvelope|marionFinal|lastAssistantReply|lastReply|previousReply|replyHistory|recentReplies|memoryPatch|sessionPatch|stateSpine|conversationState)$/i;
-function scrubCarry(value, depth = 0, seen = new WeakSet()) {
+function explicitDomainFromText(value) {
+  const c = classifyCurrentTurn({ text: value });
+  if (c.technicalFileWork || c.technical) return "technical";
+  if (c.law) return "law";
+  const n = c.normalized;
+  if (/\b(?:business|revenue|sales|advertising|marketing|sponsor|monetize|strategy|funding)\b/.test(n)) return "business";
+  if (/\b(?:sad|stressed|overwhelmed|anxious|hurt|alone|frustrated|panic|grief)\b/.test(n)) return "emotional";
+  if (/\b(?:who are you|your role|identity|what are you)\b/.test(n)) return "identity";
+  if (/\b(?:radio|song|music|playlist|artist|album)\b/.test(n)) return "music";
+  if (/\b(?:roku|television|sandblast tv|channel)\b/.test(n)) return "roku";
+  if (/\b(?:news|headline|article|synapse)\b/.test(n)) return "news";
+  return "";
+}
+
+function objectText(obj, keys) {
+  if (!isObj(obj)) return "";
+  const vals = [];
+  for (const key of keys) {
+    const value = safeGet(obj, key);
+    if (typeof value === "string" || typeof value === "number") {
+      const t = bounded(value, 1800);
+      if (t) vals.push(t);
+    }
+  }
+  return firstText(...vals);
+}
+
+const USER_KEYS = ["rawUserText","userText","userQuery","prompt","query","inputText","input","message","text","lastUserText","lastPrompt","activePrompt","normalizedUserIntent"];
+const REPLY_KEYS = ["lastAssistantReply","assistantReply","reply","finalReply","visibleReply","displayReply","directReply","answer","response","output","spokenText"];
+const TOPIC_KEYS = ["lastTopic","activeTopic","topic","activeTask","currentTask","lastValidTask","currentObjective","regressionTarget","turnObjective","pendingAction"];
+const DOMAIN_KEYS = ["domain","primaryDomain","selectedDomain","knowledgeDomain","requestedDomain","activeFeatureLane","conversationLane"];
+const TURN_CONTAINER_KEYS = [
+  "continuityAnchor","immediateContinuation","activeContinuation","lastAcceptedTurn","lastCompletedTurn","previousTurn","lastTurn",
+  "progressionMemory","fiveTurnContinuity","fiveTurnContract","stateSpine","conversationState","turnMemory","memory","previousMemory"
+];
+const ARRAY_KEYS = ["turns","recentTurns","history","messages","conversationHistory","window","recentMessages","timeline"];
+
+function normalizeDomain(value) {
+  const n = norm(value);
+  if (!n) return "";
+  if (/technical|debug|code|runtime|javascript/.test(n)) return "technical";
+  if (/law|legal/.test(n)) return "law";
+  if (/business|strategy|finance|marketing/.test(n)) return n.includes("finance") ? "finance" : "business";
+  if (/emotional|psychology|support/.test(n)) return "emotional";
+  if (/identity/.test(n)) return "identity";
+  if (/music|radio/.test(n)) return "music";
+  if (/roku|television|tv/.test(n)) return "roku";
+  if (/news|synapse/.test(n)) return "news";
+  if (/general|conversation|simple/.test(n)) return "general";
+  return "";
+}
+
+function technicalTargetFrom(obj) {
+  if (!isObj(obj)) return "";
+  const lock = isObj(obj.technicalTargetLock) ? obj.technicalTargetLock : {};
+  return firstText(lock.targetPath, lock.targetFile, lock.targetName, lock.targetKey,
+    obj.technicalTarget, obj.regressionTarget, obj.targetFile, obj.targetPath);
+}
+
+function candidateFromObject(obj, source = "", index = 0, currentText = "") {
+  if (!isObj(obj)) return null;
+  const userText = objectText(obj, USER_KEYS);
+  const assistantReply = objectText(obj, REPLY_KEYS);
+  const topic = firstText(objectText(obj, TOPIC_KEYS), technicalTargetFrom(obj));
+  if (!userText && !topic && !assistantReply) return null;
+  if (userText && norm(userText) === norm(currentText)) {
+    const alternate = firstText(obj.lastUserText, obj.previousUserText);
+    if (!alternate || norm(alternate) === norm(currentText)) return null;
+  }
+  const userDomain = explicitDomainFromText(userText);
+  const topicDomain = explicitDomainFromText(topic);
+  const replyDomain = explicitDomainFromText(assistantReply);
+  let metadataDomain = "";
+  for (const key of DOMAIN_KEYS) {
+    const d = normalizeDomain(safeGet(obj, key));
+    if (d) { metadataDomain = d; break; }
+  }
+  let domain = userDomain || topicDomain || metadataDomain || replyDomain || "general";
+  if (userDomain === "technical" || topicDomain === "technical") domain = "technical";
+  const ts = Number(obj.updatedAt || obj.timestamp || obj.at || obj.completedAt || obj.createdAt || 0) || 0;
+  let score = index;
+  if (userText) score += 120;
+  if (topic) score += 55;
+  if (assistantReply) score += 25;
+  if (obj.trustedFinal === true || obj.final === true || obj.marionFinal === true) score += 20;
+  if (source.includes("continuityAnchor") || source.includes("lastAcceptedTurn")) score += 90;
+  if (source.includes("turns") || source.includes("recentTurns") || source.includes("window")) score += 35;
+  if (userDomain) score += 45;
+  if (technicalTargetFrom(obj)) score += 40;
+  return {
+    contract: CONTINUITY_CONTRACT,
+    source,
+    score,
+    timestamp: ts,
+    turnId: firstText(obj.turnId, obj.sourceTurnId, obj.id),
+    sessionId: firstText(obj.sessionId, obj.conversationId),
+    domain,
+    intent: firstText(obj.intent, isObj(obj.routing) ? obj.routing.intent : ""),
+    userText: bounded(userText, 1800),
+    assistantReply: bounded(assistantReply, 1800),
+    topic: bounded(topic || userText, 1000),
+    activeTask: bounded(firstText(obj.activeTask, obj.currentTask, obj.lastValidTask, topic), 1000),
+    surfaceRequest: bounded(obj.surfaceRequest, 1000),
+    deeperIntent: bounded(obj.deeperIntent, 1000),
+    operationalRisk: bounded(firstText(obj.operationalRisk, obj.risk, obj.lastRisk), 1000),
+    executionMode: bounded(obj.executionMode, 500),
+    nextAction: bounded(firstText(obj.nextAction, obj.pendingAction), 1000),
+    technicalTarget: bounded(technicalTargetFrom(obj), 600),
+    followupDepth: Math.max(0, Number(obj.followupDepth || (isObj(obj.immediateContinuation) ? obj.immediateContinuation.followupDepth : 0) || 0)),
+    trustedFinal: obj.trustedFinal === true || obj.final === true || obj.marionFinal === true
+  };
+}
+
+function collectCandidates(input) {
+  const current = extractCurrentText(input);
+  const roots = [];
+  const src = isObj(input) ? input : {};
+  for (const rootName of ["previousMemory","memory","turnMemory","state","conversationState","session","meta","payload","body","commandPacket"]) {
+    const root = safeGet(src, rootName);
+    if (isObj(root)) roots.push({ value: root, path: rootName });
+  }
+  const candidates = [];
+  const seen = new WeakSet();
+  let seq = 0;
+  function walk(value, path, depth) {
+    if (!isObj(value) || depth > MAX_DEPTH) return;
+    try { if (seen.has(value)) return; seen.add(value); } catch (_) { return; }
+    const direct = candidateFromObject(value, path, seq++, current);
+    if (direct) candidates.push(direct);
+    for (const key of TURN_CONTAINER_KEYS) {
+      const child = safeGet(value, key);
+      if (isObj(child)) walk(child, `${path}.${key}`, depth + 1);
+    }
+    for (const key of ARRAY_KEYS) {
+      const arr = safeGet(value, key);
+      if (!Array.isArray(arr)) continue;
+      const start = Math.max(0, arr.length - MAX_ARRAY);
+      for (let i = start; i < arr.length; i += 1) {
+        const item = arr[i];
+        if (isObj(item)) {
+          const c = candidateFromObject(item, `${path}.${key}[${i}]`, seq++ + i, current);
+          if (c) candidates.push(c);
+          walk(item, `${path}.${key}[${i}]`, depth + 1);
+        }
+      }
+    }
+  }
+  roots.forEach((r) => walk(r.value, r.path, 0));
+  return candidates;
+}
+
+function extractContinuationAnchor(input) {
+  if (!isPrivateMarionContext(input) || isIsolatedTurn(input)) return null;
+  const current = classifyCurrentTurn(input);
+  if (!current.shortFollowup) return null;
+  const candidates = collectCandidates(input).filter((c) => c && (c.userText || c.topic));
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => {
+    if (a.timestamp && b.timestamp && a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
+    return b.score - a.score;
+  });
+  const winner = { ...candidates[0] };
+  winner.version = VERSION;
+  winner.contract = CONTINUITY_CONTRACT;
+  winner.followupKind = current.followupKind;
+  winner.resolvedAt = nowMs();
+  winner.authority = "immediate_previous_accepted_turn";
+  winner.noOlderDomainOverride = true;
+  return winner;
+}
+
+function desiredDomain(input, current = classifyCurrentTurn(input), anchor = extractContinuationAnchor(input)) {
+  if (current.anchor) return "general";
+  if (current.technicalFileWork || current.technical) return "technical";
+  if (current.law) return "law";
+  if (current.shortFollowup) return anchor ? (anchor.domain || "general") : "general";
+  return explicitDomainFromText(current.raw) || "";
+}
+
+function desiredIntent(domain, current) {
+  if (current.anchor) return current.checkin ? "social_checkin" : current.presence ? "presence_check" : "simple_chat";
+  if (current.shortFollowup) {
+    if (domain === "technical") return "technical_debug";
+    if (domain === "law") return "domain_question";
+    return "contextual_directive";
+  }
+  if (domain === "technical") return "technical_debug";
+  if (domain === "law") return "domain_question";
+  if (domain === "business") return "business_strategy";
+  if (domain === "emotional") return "emotional_support";
+  if (domain === "identity") return "identity_query";
+  if (domain === "music") return "music_query";
+  if (domain === "news") return "news_query";
+  if (domain === "roku") return "roku_query";
+  return "simple_chat";
+}
+
+function effectivePromptFor(current, anchor) {
+  if (!current.shortFollowup || !anchor) return current.raw;
+  const target = bounded(firstText(anchor.userText, anchor.activeTask, anchor.topic, anchor.technicalTarget), 1200);
+  const mode = current.followupKind === "depth" ? "Deepen" :
+    current.followupKind === "next" ? "Advance" :
+    current.followupKind === "repeat" ? "Repeat and improve" :
+    current.followupKind === "pace" ? "Continue more slowly" :
+    current.followupKind === "pressure" ? "Reassess the current pressure and risk for" :
+    current.followupKind === "correction" ? "Correct course while preserving" : "Continue";
+  return `${current.raw}\n${mode} the immediately preceding ${anchor.domain || "active"} task: ${target}. ` +
+    `Use the most recent accepted turn as the authority. Do not revive an older domain.`;
+}
+
+const STALE_DOMAIN_KEYS = /^(?:domain|requestedDomain|primaryDomain|selectedDomain|knowledgeDomain|routing|routeLock|domainConfidence|domainConcierge|domainConciergeSeed|r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*|activeFeatureLane|finalEnvelope|marionFinal)$/i;
+function scrubConflictingCarry(value, desired, depth = 0, seen = new WeakSet()) {
   if (value == null || depth > MAX_DEPTH) return value;
   if (typeof value !== "object") return value;
   try { if (seen.has(value)) return "[Circular]"; seen.add(value); } catch (_) { return {}; }
-  if (Array.isArray(value)) return value.slice(0, 40).map((v) => scrubCarry(v, depth + 1, seen));
+  if (Array.isArray(value)) return value.slice(-MAX_ARRAY).map((v) => scrubConflictingCarry(v, desired, depth + 1, seen));
   const out = {};
-  let keys = [];
-  try { keys = Object.keys(value).slice(0, MAX_KEYS); } catch (_) { return out; }
-  for (const key of keys) {
-    if (STALE_KEYS.test(key)) continue;
+  for (const key of safeKeys(value)) {
+    if (desired !== "law" && STALE_DOMAIN_KEYS.test(key)) continue;
     let item;
     try { item = value[key]; } catch (_) { continue; }
-    out[key] = scrubCarry(item, depth + 1, seen);
+    out[key] = scrubConflictingCarry(item, desired, depth + 1, seen);
   }
   return out;
 }
 
-function applyPreparedFields(node, current, isolated) {
+function memoryFromAnchor(anchor, current, desired) {
+  if (!anchor) return {};
+  return {
+    continuityAnchor: { ...anchor, followupKind: current.followupKind, domain: desired },
+    immediateContinuation: {
+      contract: CONTINUITY_CONTRACT,
+      domain: desired,
+      intent: desiredIntent(desired, current),
+      followupKind: current.followupKind,
+      previousUserText: anchor.userText,
+      previousAssistantReply: anchor.assistantReply,
+      activeTask: anchor.activeTask || anchor.topic,
+      surfaceRequest: anchor.surfaceRequest || anchor.userText,
+      deeperIntent: anchor.deeperIntent,
+      operationalRisk: anchor.operationalRisk,
+      executionMode: anchor.executionMode,
+      nextAction: anchor.nextAction,
+      technicalTarget: anchor.technicalTarget,
+      authority: "immediate_previous_accepted_turn",
+      noOlderDomainOverride: true,
+      updatedAt: nowMs()
+    },
+    lastUserText: anchor.userText,
+    lastAssistantReply: anchor.assistantReply,
+    lastTopic: anchor.topic,
+    activeTask: anchor.activeTask || anchor.topic,
+    surfaceRequest: anchor.surfaceRequest || anchor.userText,
+    deeperIntent: anchor.deeperIntent,
+    operationalRisk: anchor.operationalRisk,
+    executionMode: anchor.executionMode,
+    nextAction: anchor.nextAction,
+    technicalTargetLock: anchor.technicalTarget ? {
+      version: "nyx.marion.technicalTargetLock/2.0",
+      targetPath: anchor.technicalTarget,
+      targetName: anchor.technicalTarget,
+      explicit: true,
+      locked: true,
+      source: "immediate_previous_accepted_turn"
+    } : undefined,
+    domain: desired,
+    primaryDomain: desired,
+    selectedDomain: desired,
+    knowledgeDomain: desired === "law" ? "law" : ""
+  };
+}
+
+function applyPreparedFields(node, current, isolated, anchor) {
   if (!isObj(node)) return node;
-  const out = safeShallowObject(node);
-  const raw = current.raw;
-  if (raw) {
-    out.rawUserText = raw;
-    out.userText = raw;
-    out.prompt = raw;
-    out.query = raw;
-    out.text = raw;
-    out.message = raw;
+  const out = shallow(node);
+  const desired = desiredDomain(out, current, anchor) || "general";
+  const intent = desiredIntent(desired, current);
+  if (desired !== "law") {
+    for (const key of safeKeys(out)) {
+      if (/^(?:r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*)$/i.test(key)) delete out[key];
+    }
+  }
+  if (current.raw) {
+    out.rawUserText = current.raw;
+    out.userText = current.raw;
+    out.prompt = current.raw;
+    out.query = current.raw;
+    out.text = current.raw;
+    out.message = current.raw;
   }
   if (isolated) {
     out.previousMemory = {};
     out.memory = {};
     out.turnMemory = {};
     out.state = {};
-  } else if (current.anchor) {
-    if (isObj(out.previousMemory)) out.previousMemory = scrubCarry(out.previousMemory);
-    if (isObj(out.memory)) out.memory = scrubCarry(out.memory);
-    if (isObj(out.turnMemory)) out.turnMemory = scrubCarry(out.turnMemory);
-    if (isObj(out.state)) out.state = scrubCarry(out.state);
-  }
-  if (current.anchor) {
-    out.domain = "general";
-    out.requestedDomain = "general";
-    out.intent = current.checkin ? "social_checkin" : current.presence ? "presence_check" : "simple_chat";
-    out.marionIntent = {
-      ...(isObj(out.marionIntent) ? scrubCarry(out.marionIntent) : {}),
-      activate: false,
-      intent: out.intent,
-      subIntent: current.kind,
-      confidence: 1,
-      source: "current_turn_authority"
+    out.continuityAnchor = null;
+    out.immediateContinuation = current.shortFollowup ? {
+      contract: CONTINUITY_CONTRACT,
+      unresolved: true,
+      followupKind: current.followupKind,
+      authority: "isolated_session_no_prior_turn",
+      updatedAt: nowMs()
+    } : null;
+    out.continuationRequested = current.shortFollowup;
+    out.continuationResolved = false;
+    out.continuityResolved = false;
+    out.continuationDomain = "general";
+    out.noOlderDomainOverride = true;
+  } else if (current.shortFollowup) {
+    const carry = memoryFromAnchor(anchor, current, desired);
+    out.previousMemory = carry;
+    out.turnMemory = carry;
+    if (isObj(out.memory)) out.memory = { ...scrubConflictingCarry(out.memory, desired), ...carry };
+    if (isObj(out.state)) out.state = { ...scrubConflictingCarry(out.state, desired), ...carry };
+    out.continuityAnchor = anchor || null;
+    out.immediateContinuation = carry.immediateContinuation || {
+      contract: CONTINUITY_CONTRACT, unresolved: true, followupKind: current.followupKind,
+      authority: "no_reliable_immediate_anchor", updatedAt: nowMs()
     };
+    out.effectivePrompt = effectivePromptFor(current, anchor);
+    out.continuationRequested = true;
+    out.continuationResolved = !!anchor;
+    out.continuityResolved = !!anchor;
+    out.continuationDomain = desired;
+    out.noOlderDomainOverride = true;
+  } else if (current.anchor) {
+    out.previousMemory = {};
+    out.turnMemory = {};
+    if (isObj(out.memory)) out.memory = scrubConflictingCarry(out.memory, "general");
+    if (isObj(out.state)) out.state = scrubConflictingCarry(out.state, "general");
     out.staleCarryBypass = true;
+  } else if (current.technicalFileWork || current.law) {
+    if (isObj(out.previousMemory)) out.previousMemory = scrubConflictingCarry(out.previousMemory, desired);
+    if (isObj(out.memory)) out.memory = scrubConflictingCarry(out.memory, desired);
+    if (isObj(out.turnMemory)) out.turnMemory = scrubConflictingCarry(out.turnMemory, desired);
+    if (isObj(out.state)) out.state = scrubConflictingCarry(out.state, desired);
+    out.explicitDomainAuthority = true;
+    out.noOlderDomainOverride = true;
+  }
+
+  if (current.anchor || current.technicalFileWork || current.law || current.shortFollowup) {
+    out.domain = desired;
+    out.requestedDomain = desired;
+    out.primaryDomain = desired;
+    out.selectedDomain = desired;
+    out.intent = intent;
+    out.routing = {
+      ...(isObj(out.routing) ? scrubConflictingCarry(out.routing, desired) : {}),
+      domain: desired, primaryDomain: desired, selectedDomain: desired,
+      knowledgeDomain: desired === "law" ? "law" : "",
+      intent, subIntent: current.shortFollowup ? current.followupKind : current.kind,
+      routeLock: true, routeAmbiguous: false, noCrossDomainBleed: true,
+      continuationAuthority: current.shortFollowup ? (anchor ? "immediate_previous_accepted_turn" : (isolated ? "isolated_session_no_prior_turn" : "no_reliable_immediate_anchor")) : "current_explicit_turn",
+      currentTurnAuthorityVersion: VERSION
+    };
+    out.marionIntent = {
+      ...(isObj(out.marionIntent) ? scrubConflictingCarry(out.marionIntent, desired) : {}),
+      activate: !current.anchor,
+      intent, subIntent: current.shortFollowup ? current.followupKind : current.kind,
+      confidence: anchor || !current.shortFollowup ? 1 : 0.55,
+      source: current.shortFollowup ? "immediate_continuation_authority" : "current_turn_authority",
+      knowledgeDomain: desired === "law" ? "law" : "",
+      routeLock: true, noCrossDomainBleed: true
+    };
     out.currentTurnAuthoritative = true;
   }
+
   out.currentTurnAuthorityVersion = VERSION;
   out.currentTurnClass = current.kind;
+  out.followupKind = current.followupKind || "";
+  out.currentTurnAuthority = {
+    version: VERSION, contract: CONTINUITY_CONTRACT, kind: current.kind,
+    followupKind: current.followupKind || "", isolated: !!isolated, isolatedContext: isIsolatedContext(out),
+    currentText: current.raw, desiredDomain: desired, intent,
+    continuityResolved: !!anchor, continuityAnchor: anchor || null
+  };
   return out;
 }
 
 function prepareInput(input) {
-  if (!isObj(input)) return input;
+  if (!isObj(input) || !isPrivateMarionContext(input)) return input;
   const current = classifyCurrentTurn(input);
-  const privateContext = isPrivateMarionContext(input);
-  if (!privateContext) return input;
   const isolated = isIsolatedTurn(input);
-  let out = applyPreparedFields(input, current, isolated);
+  const anchor = isolated ? null : extractContinuationAnchor(input);
+  let out = applyPreparedFields(input, current, isolated, anchor);
   for (const key of ["body", "payload", "session", "meta"]) {
-    if (isObj(out[key])) out[key] = applyPreparedFields(out[key], current, isolated);
+    if (isObj(out[key])) out[key] = applyPreparedFields(out[key], current, isolated, anchor);
   }
   out.privateAdminConversation = out.privateAdminConversation !== false;
-  out.currentTurnAuthority = { version: VERSION, kind: current.kind, isolated, currentText: current.raw };
   return out;
 }
 
-function cleanLawMetadata(node, depth = 0, seen = new WeakSet()) {
+function cleanConflictingMetadata(node, desired, depth = 0, seen = new WeakSet()) {
   if (!isObj(node) || depth > MAX_DEPTH) return node;
   try { if (seen.has(node)) return node; seen.add(node); } catch (_) { return node; }
-  const out = safeShallowObject(node);
-  for (const key of Object.keys(out)) {
-    if (/^(?:r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*)$/i.test(key)) { delete out[key]; continue; }
-    if (["routing", "marionIntent", "meta", "payload", "finalEnvelope", "packet", "synthesis", "result", "stateSpinePatch", "sessionPatch", "memoryPatch"].includes(key) && isObj(out[key])) {
-      out[key] = cleanLawMetadata(out[key], depth + 1, seen);
+  const out = shallow(node);
+  for (const key of safeKeys(out)) {
+    if (desired !== "law" && /^(?:r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*)$/i.test(key)) {
+      delete out[key];
+      continue;
+    }
+    if (["routing","marionIntent","meta","payload","finalEnvelope","packet","synthesis","result","stateSpinePatch","sessionPatch","memoryPatch"].includes(key) && isObj(out[key])) {
+      out[key] = cleanConflictingMetadata(out[key], desired, depth + 1, seen);
     }
   }
-  return out;
-}
-
-function intendedIntent(current) {
-  return current.checkin ? "social_checkin" : current.presence ? "presence_check" : "simple_chat";
-}
-
-function enforceRouterResult(result, input) {
-  const current = classifyCurrentTurn(input);
-  const enforce = current.anchor || current.technicalFileWork;
-  if (!isPrivateMarionContext(input) || !enforce || current.law || !isObj(result)) return result;
-  const out = cleanLawMetadata(result);
-  const intent = current.technicalFileWork ? "technical_debug" : intendedIntent(current);
-  const domain = current.technicalFileWork ? "technical" : "general";
-  out.ok = out.ok !== false;
-  out.marionIntent = {
-    ...(isObj(out.marionIntent) ? out.marionIntent : {}),
-    activate: false,
-    intent,
-    subIntent: current.kind,
-    confidence: 1,
-    reason: "current_turn_anchor_precedence",
-    knowledgeDomain: "",
-    knowledgeDomainExplicit: false,
-    secondaryDomains: [],
-    routeLock: true,
-    noCrossDomainBleed: true
-  };
-  out.routing = {
-    ...(isObj(out.routing) ? out.routing : {}),
-    domain,
-    primaryDomain: domain,
-    selectedDomain: domain,
-    knowledgeDomain: "",
-    intent,
-    subIntent: current.kind,
-    mode: "private_conversation",
-    depth: "relational",
-    routeLock: true,
-    routeAmbiguous: false,
-    routeFailClosed: false,
-    secondaryDomains: [],
-    noCrossDomainBleed: true,
-    currentTurnAuthorityVersion: VERSION
-  };
-  out.domain = domain;
-  out.primaryDomain = domain;
-  out.selectedDomain = domain;
-  out.intent = intent;
-  out.currentTurnAuthorityVersion = VERSION;
-  out.currentTurnClass = current.kind;
   return out;
 }
 
@@ -256,11 +569,12 @@ function replyFrom(value) {
   const p = isObj(value.payload) ? value.payload : {};
   const f = isObj(value.finalEnvelope) ? value.finalEnvelope : {};
   return firstText(value.directReply, value.visibleReply, value.displayReply, value.finalReply, value.reply,
-    value.answer, value.response, value.text, value.message, f.reply, f.text, f.spokenText, p.reply, p.text, p.message);
+    value.answer, value.response, value.text, value.message, value.lastAssistantReply, value.assistantReply,
+    f.reply, f.text, f.spokenText, p.reply, p.text, p.message);
 }
 
 function anchorReply(current) {
-  if (current.technicalFileWork) return "Technical routing preserved: this is code and runtime work, not a user-facing legal-advice request. I’ll keep the analysis on the router, state carry, final envelope, and transport behavior.";
+  if (current.technicalFileWork) return "Technical routing preserved: this is code and runtime work, not a user-facing legal-advice request. I’ll keep the analysis on the active file, state carry, final envelope, and transport behavior.";
   if (current.checkin) return "I’m doing well, Mac. I’m here, focused, and with you. How are you doing?";
   if (current.presence) return "I’m here, Mac. I’m with you.";
   const n = current.normalized;
@@ -271,79 +585,284 @@ function anchorReply(current) {
   return "Hello, Mac. I’m here with you.";
 }
 
-function isMismatchedAnchorReply(reply, current) {
+function continuationReply(current, anchor) {
+  if (!anchor) return "I don’t have a reliable active thread in this session yet. Give me the specific target you want me to continue or deepen.";
+  const target = bounded(firstText(anchor.userText, anchor.activeTask, anchor.topic, anchor.technicalTarget), 600).replace(/[.!?]+$/g, "");
+  if (anchor.domain === "technical") {
+    if (current.followupKind === "depth") {
+      return `Going deeper on ${target}: the immediate technical turn must remain the authority. I’ll preserve the active code target, trace the router-to-state-to-final-envelope path, reject older domain carry, and identify the next concrete defect rather than falling back into legal framing.`;
+    }
+    if (current.followupKind === "next") {
+      return `The next step on ${target} is to verify the immediate-turn anchor at the router, State Spine, composer, and final envelope, then run the same-session continuation test and reject any reply that revives an older domain.`;
+    }
+    return `Continuing ${target}: I’ll stay on the technical lane, preserve the active code target, and advance the runtime analysis without reopening an older legal thread.`;
+  }
+  if (anchor.domain === "law") {
+    return `Continuing the legal-risk review from the immediately preceding turn: I’ll keep this as general information, preserve the active contract or legal issue, and narrow the next answer around jurisdiction, source documents, assumptions, exposure, and the safest next step.`;
+  }
+  return `Continuing from the immediately preceding turn on ${target}: I’ll preserve that active subject, deepen it directly, and avoid reviving an older unrelated lane.`;
+}
+
+function domainMismatch(reply, desired, current, anchor) {
   const r = lower(reply);
   if (!r) return true;
-  if (/\b(?:legal-risk|not legal advice|contract risk|jurisdiction matters|copyright\/licensing|law assessment|r18c|final envelope missing|diagnostic packet|runtime error|route unavailable)\b/.test(r)) return true;
-  if (current.technicalFileWork && /\b(?:law assessment|legal category|legal-risk|not legal advice|jurisdiction sensitivity)\b/.test(r)) return true;
-  if (current.greeting && !/\b(?:hello|hi|hey|morning|afternoon|evening|i'm here|i am here|here with you)\b/.test(r)) return true;
-  if (current.checkin && !/\b(?:i'm|i am|doing|well|good|steady|here)\b/.test(r)) return true;
-  if (current.presence && !/\b(?:here|with you|connected|present)\b/.test(r)) return true;
+  const lawReply = /\b(?:legal-risk|not legal advice|legal category|jurisdiction sensitivity|contract risk|law assessment|r18c)\b/.test(r);
+  const technicalReply = /\b(?:javascript|code|runtime|router|routing|state spine|final envelope|technical|debug|file|module)\b/.test(r);
+  if (desired !== "law" && lawReply) return true;
+  if (desired === "technical" && !technicalReply && current.shortFollowup) return true;
+  if (desired === "law" && technicalReply && !lawReply && current.shortFollowup) return true;
+  if (current.anchor) {
+    if (lawReply || /\b(?:diagnostic packet|final envelope missing|runtime error|route unavailable)\b/.test(r)) return true;
+    if (current.greeting && !/\b(?:hello|hi|hey|morning|afternoon|evening|i'm here|i am here|here with you)\b/.test(r)) return true;
+    if (current.checkin && !/\b(?:i'm|i am|doing|well|good|steady|here)\b/.test(r)) return true;
+    if (current.presence && !/\b(?:here|with you|connected|present)\b/.test(r)) return true;
+  }
+  if (current.technicalFileWork && lawReply) return true;
+  if (current.shortFollowup && !anchor && (lawReply || technicalReply)) return true;
   return false;
 }
 
 function setReplyAliases(out, reply) {
-  for (const key of ["reply", "directReply", "visibleReply", "displayReply", "finalReply", "publicReply", "answer", "response", "text", "message", "output", "spokenText"]) out[key] = reply;
+  for (const key of ["reply","directReply","visibleReply","displayReply","finalReply","publicReply","answer","response","text","message","output","spokenText"]) out[key] = reply;
+  return out;
+}
+
+function buildNextAnchor(input, result, desired, current, prior) {
+  const reply = replyFrom(result);
+  const base = prior ? { ...prior } : {};
+  const explicit = !current.shortFollowup;
+  const activeUserText = explicit ? current.raw : firstText(base.userText, current.raw);
+  const topic = explicit ? firstText(current.raw, base.topic) : firstText(base.topic, base.userText);
+  return {
+    contract: CONTINUITY_CONTRACT,
+    version: VERSION,
+    authority: "latest_accepted_private_marion_turn",
+    sessionId: firstText(input.sessionId, isObj(input.meta) ? input.meta.sessionId : "", base.sessionId),
+    turnId: firstText(input.turnId, input.requestId, isObj(input.meta) ? input.meta.turnId : ""),
+    domain: desired || base.domain || "general",
+    intent: desiredIntent(desired || base.domain || "general", current),
+    userText: bounded(activeUserText, 1800),
+    assistantReply: bounded(reply, 1800),
+    topic: bounded(topic, 1000),
+    activeTask: bounded(firstText(explicit ? current.raw : "", base.activeTask, base.topic), 1000),
+    surfaceRequest: bounded(firstText(base.surfaceRequest, activeUserText), 1000),
+    deeperIntent: bounded(base.deeperIntent, 1000),
+    operationalRisk: bounded(base.operationalRisk, 1000),
+    executionMode: bounded(base.executionMode, 500),
+    nextAction: bounded(base.nextAction, 1000),
+    technicalTarget: bounded(firstText(base.technicalTarget, desired === "technical" ? topic : ""), 600),
+    followupDepth: Math.max(0, Number(base.followupDepth || 0)) + (current.shortFollowup ? 1 : 0),
+    followupKind: current.followupKind || "",
+    trustedFinal: true,
+    noOlderDomainOverride: true,
+    updatedAt: nowMs()
+  };
+}
+
+function projectContinuityFields(out, input, desired, current, priorAnchor) {
+  const nextAnchor = buildNextAnchor(input, out, desired, current, priorAnchor);
+  const carry = {
+    continuityAnchor: nextAnchor,
+    immediateContinuation: {
+      contract: CONTINUITY_CONTRACT,
+      active: true,
+      domain: nextAnchor.domain,
+      intent: nextAnchor.intent,
+      followupDepth: nextAnchor.followupDepth,
+      followupKind: nextAnchor.followupKind,
+      previousUserText: nextAnchor.userText,
+      previousAssistantReply: nextAnchor.assistantReply,
+      activeTask: nextAnchor.activeTask,
+      surfaceRequest: nextAnchor.surfaceRequest,
+      deeperIntent: nextAnchor.deeperIntent,
+      operationalRisk: nextAnchor.operationalRisk,
+      executionMode: nextAnchor.executionMode,
+      nextAction: nextAnchor.nextAction,
+      technicalTarget: nextAnchor.technicalTarget,
+      authority: nextAnchor.authority,
+      noOlderDomainOverride: true,
+      updatedAt: nextAnchor.updatedAt
+    },
+    lastUserText: current.raw,
+    lastAssistantReply: nextAnchor.assistantReply,
+    lastTopic: nextAnchor.topic,
+    activeTask: nextAnchor.activeTask,
+    domain: nextAnchor.domain,
+    primaryDomain: nextAnchor.domain,
+    selectedDomain: nextAnchor.domain,
+    knowledgeDomain: nextAnchor.domain === "law" ? "law" : "",
+    currentTurnAuthorityVersion: VERSION
+  };
+  out.memoryPatch = { ...(isObj(out.memoryPatch) ? out.memoryPatch : {}), ...carry };
+  out.sessionPatch = { ...(isObj(out.sessionPatch) ? out.sessionPatch : {}), ...carry };
+  out.stateSpinePatch = { ...(isObj(out.stateSpinePatch) ? out.stateSpinePatch : {}), ...carry };
+  out.continuityAnchor = nextAnchor;
+  out.immediateContinuation = carry.immediateContinuation;
+  return out;
+}
+
+function enforceRouterResult(result, input) {
+  const current = classifyCurrentTurn(input);
+  if (!isPrivateMarionContext(input) || !isObj(result)) return result;
+  const anchor = current.shortFollowup ? extractContinuationAnchor(input) : null;
+  const enforce = current.anchor || current.technicalFileWork || current.law || current.shortFollowup;
+  if (!enforce) return result;
+  const desired = desiredDomain(input, current, anchor) || "general";
+  const intent = desiredIntent(desired, current);
+  const out = cleanConflictingMetadata(result, desired);
+  out.ok = out.ok !== false;
+  out.marionIntent = {
+    ...(isObj(out.marionIntent) ? out.marionIntent : {}),
+    activate: !current.anchor, intent,
+    subIntent: current.shortFollowup ? current.followupKind : current.kind,
+    confidence: current.shortFollowup && !anchor ? 0.55 : 1,
+    reason: current.shortFollowup ? (anchor ? "immediate_previous_turn_continuity" : "continuation_anchor_missing") : "current_explicit_turn_precedence",
+    knowledgeDomain: desired === "law" ? "law" : "",
+    knowledgeDomainExplicit: desired === "law",
+    secondaryDomains: [],
+    routeLock: true, noCrossDomainBleed: true,
+    continuationAnchor: anchor || null
+  };
+  out.routing = {
+    ...(isObj(out.routing) ? out.routing : {}),
+    domain: desired, primaryDomain: desired, selectedDomain: desired,
+    knowledgeDomain: desired === "law" ? "law" : "",
+    intent, subIntent: current.shortFollowup ? current.followupKind : current.kind,
+    mode: current.shortFollowup ? "immediate_continuation" : "private_conversation",
+    depth: current.followupKind === "depth" ? "deep" : "relational",
+    routeLock: true, routeAmbiguous: false, routeFailClosed: false,
+    secondaryDomains: [], noCrossDomainBleed: true,
+    continuationAnchor: anchor || null,
+    continuationAuthority: current.shortFollowup ? "immediate_previous_accepted_turn" : "current_explicit_turn",
+    currentTurnAuthorityVersion: VERSION
+  };
+  out.domain = desired;
+  out.primaryDomain = desired;
+  out.selectedDomain = desired;
+  out.knowledgeDomain = desired === "law" ? "law" : "";
+  out.intent = intent;
+  out.effectivePrompt = effectivePromptFor(current, anchor);
+  out.continuityAnchor = anchor || null;
+  out.currentTurnAuthorityVersion = VERSION;
+  out.currentTurnClass = current.kind;
   return out;
 }
 
 function enforceResult(result, input) {
   const current = classifyCurrentTurn(input);
-  const enforce = current.anchor || current.technicalFileWork;
-  if (!isPrivateMarionContext(input) || !enforce || current.law) return result;
-  const intent = current.technicalFileWork ? "technical_debug" : intendedIntent(current);
-  const domain = current.technicalFileWork ? "technical" : "general";
-  if (typeof result === "string") return isMismatchedAnchorReply(result, current) ? anchorReply(current) : result;
+  if (!isPrivateMarionContext(input)) return result;
+  const anchor = current.shortFollowup ? extractContinuationAnchor(input) : null;
+  const enforce = current.anchor || current.technicalFileWork || current.law || current.shortFollowup;
+  if (!enforce) return result;
+  const desired = desiredDomain(input, current, anchor) || "general";
+  const intent = desiredIntent(desired, current);
+  if (typeof result === "string") {
+    if (!domainMismatch(result, desired, current, anchor)) return result;
+    return current.shortFollowup ? continuationReply(current, anchor) : anchorReply(current);
+  }
   if (!isObj(result)) return result;
-  let out = cleanLawMetadata(result);
+  let out = cleanConflictingMetadata(result, desired);
   let reply = replyFrom(out);
-  if (isMismatchedAnchorReply(reply, current)) reply = anchorReply(current);
+  if (domainMismatch(reply, desired, current, anchor)) reply = current.shortFollowup ? continuationReply(current, anchor) : anchorReply(current);
   out = setReplyAliases(out, reply);
   out.ok = out.ok !== false;
   out.final = true;
   out.marionFinal = true;
   out.handled = true;
   out.awaitingMarion = false;
-  out.domain = domain;
-  out.primaryDomain = domain;
-  out.selectedDomain = domain;
+  out.domain = desired;
+  out.primaryDomain = desired;
+  out.selectedDomain = desired;
+  out.knowledgeDomain = desired === "law" ? "law" : "";
   out.intent = intent;
   out.finalEnvelope = setReplyAliases({ ...(isObj(out.finalEnvelope) ? out.finalEnvelope : {}) }, reply);
   Object.assign(out.finalEnvelope, {
-    final: true, marionFinal: true, handled: true, domain, intent,
-    source: out.finalEnvelope.source || "marion", authority: out.finalEnvelope.authority || "marionFinalEnvelope",
+    final: true, marionFinal: true, handled: true, domain: desired, primaryDomain: desired,
+    selectedDomain: desired, knowledgeDomain: desired === "law" ? "law" : "", intent,
+    source: out.finalEnvelope.source || "marion",
+    authority: out.finalEnvelope.authority || "marionFinalEnvelope",
     contractVersion: out.finalEnvelope.contractVersion || "nyx.marion.final/1.0",
+    continuationAnchor: anchor || null,
+    continuationAuthority: current.shortFollowup ? "immediate_previous_accepted_turn" : "current_explicit_turn",
     currentTurnAuthorityVersion: VERSION, currentTurnClass: current.kind
   });
   out.payload = setReplyAliases({ ...(isObj(out.payload) ? out.payload : {}) }, reply);
-  Object.assign(out.payload, { final: true, marionFinal: true, handled: true, domain, intent });
+  Object.assign(out.payload, {
+    final: true, marionFinal: true, handled: true, domain: desired, intent,
+    continuityAnchor: anchor || null, currentTurnAuthorityVersion: VERSION
+  });
   out.routing = {
-    ...(isObj(out.routing) ? out.routing : {}), domain, primaryDomain: domain,
-    selectedDomain: domain, knowledgeDomain: "", intent, subIntent: current.kind,
-    routeLock: true, routeAmbiguous: false, currentTurnAuthorityVersion: VERSION
+    ...(isObj(out.routing) ? out.routing : {}),
+    domain: desired, primaryDomain: desired, selectedDomain: desired,
+    knowledgeDomain: desired === "law" ? "law" : "", intent,
+    subIntent: current.shortFollowup ? current.followupKind : current.kind,
+    routeLock: true, routeAmbiguous: false, noCrossDomainBleed: true,
+    continuationAnchor: anchor || null,
+    continuationAuthority: current.shortFollowup ? "immediate_previous_accepted_turn" : "current_explicit_turn",
+    currentTurnAuthorityVersion: VERSION
   };
   out.meta = {
-    ...(isObj(out.meta) ? out.meta : {}), currentTurnAuthorityVersion: VERSION,
-    currentTurnClass: current.kind, currentTurnText: current.raw, staleCarryRejected: true
+    ...(isObj(out.meta) ? out.meta : {}),
+    currentTurnAuthorityVersion: VERSION, currentTurnClass: current.kind,
+    currentTurnText: current.raw, staleCarryRejected: true,
+    continuityResolved: current.shortFollowup ? !!anchor : true,
+    continuityAnchor: anchor || null,
+    semanticHealth: current.shortFollowup && !anchor ? "degraded" : "ready",
+    semanticFailureSignature: current.shortFollowup && !anchor ? "CONTINUATION_ANCHOR_MISSING" : "none"
   };
   out.currentTurnAuthorityVersion = VERSION;
   out.currentTurnClass = current.kind;
+  out = projectContinuityFields(out, input, desired, current, anchor);
   return out;
 }
 
 function scrubStateForCurrentTurn(state, input) {
+  if (!isPrivateMarionContext(input) || !isObj(state)) return state;
   const current = classifyCurrentTurn(input);
-  const enforce = current.anchor || current.technicalFileWork;
-  if (!isPrivateMarionContext(input) || !enforce || !isObj(state)) return state;
-  const out = cleanLawMetadata(state);
-  const domain = current.technicalFileWork ? "technical" : "general";
-  out.domain = domain;
-  out.primaryDomain = domain;
-  out.selectedDomain = domain;
-  out.knowledgeDomain = "";
-  out.intent = current.technicalFileWork ? "technical_debug" : intendedIntent(current);
+  const anchor = current.shortFollowup ? extractContinuationAnchor(input) : null;
+  const enforce = current.anchor || current.technicalFileWork || current.law || current.shortFollowup;
+  if (!enforce) return state;
+  const desired = desiredDomain(input, current, anchor) || "general";
+  let out = cleanConflictingMetadata(state, desired);
+  out.domain = desired;
+  out.primaryDomain = desired;
+  out.selectedDomain = desired;
+  out.knowledgeDomain = desired === "law" ? "law" : "";
+  out.intent = desiredIntent(desired, current);
   out.currentTurnAuthorityVersion = VERSION;
   out.currentTurnClass = current.kind;
+  const prior = anchor || (isObj(out.continuityAnchor) ? out.continuityAnchor : null);
+  const nextAnchor = buildNextAnchor(input, out, desired, current, prior);
+  out.continuityAnchor = nextAnchor;
+  out.immediateContinuation = {
+    ...(isObj(out.immediateContinuation) ? out.immediateContinuation : {}),
+    contract: CONTINUITY_CONTRACT,
+    domain: desired,
+    intent: out.intent,
+    followupDepth: nextAnchor.followupDepth,
+    followupKind: current.followupKind || "",
+    previousUserText: nextAnchor.userText,
+    previousAssistantReply: nextAnchor.assistantReply,
+    activeTask: nextAnchor.activeTask,
+    surfaceRequest: nextAnchor.surfaceRequest,
+    deeperIntent: nextAnchor.deeperIntent,
+    operationalRisk: nextAnchor.operationalRisk,
+    executionMode: nextAnchor.executionMode,
+    nextAction: nextAnchor.nextAction,
+    technicalTarget: nextAnchor.technicalTarget,
+    authority: current.shortFollowup ? (anchor ? "immediate_previous_accepted_turn" : "no_reliable_immediate_anchor") : "current_explicit_turn",
+    noOlderDomainOverride: true,
+    updatedAt: nextAnchor.updatedAt
+  };
+  out.lastUserText = current.raw || out.lastUserText || "";
+  if (nextAnchor.assistantReply) out.lastAssistantReply = nextAnchor.assistantReply;
+  out.lastTopic = nextAnchor.topic || out.lastTopic || "";
+  out.activeTask = nextAnchor.activeTask || out.activeTask || "";
+  out.surfaceRequest = nextAnchor.surfaceRequest || out.surfaceRequest || "";
+  out.deeperIntent = nextAnchor.deeperIntent || out.deeperIntent || "";
+  out.operationalRisk = nextAnchor.operationalRisk || out.operationalRisk || "";
+  out.executionMode = nextAnchor.executionMode || out.executionMode || "";
+  out.nextAction = nextAnchor.nextAction || out.nextAction || "";
   return out;
 }
 
@@ -363,9 +882,21 @@ function prepareArgumentList(args) {
     const prepared = prepareInput(arr[contextIndex]);
     arr[contextIndex] = prepared;
     const current = classifyCurrentTurn(prepared);
-    if (current.anchor) {
+    const isolated = isIsolatedTurn(prepared);
+    const anchor = current.shortFollowup && !isolated ? extractContinuationAnchor(prepared) : null;
+    if (current.anchor || current.technicalFileWork || current.law || current.shortFollowup) {
       for (let i = 0; i < arr.length; i += 1) {
-        if (i !== contextIndex && isObj(arr[i])) arr[i] = applyPreparedFields(arr[i], current, isIsolatedTurn(prepared));
+        if (i !== contextIndex && isObj(arr[i])) {
+          const withContext = {
+            ...arr[i],
+            privateAdminConversation: prepared.privateAdminConversation !== false,
+            marionAdminConversation: prepared.marionAdminConversation === true,
+            directMarionAdminInterface: prepared.directMarionAdminInterface === true,
+            sessionId: firstText(arr[i].sessionId, prepared.sessionId),
+            turnId: firstText(arr[i].turnId, prepared.turnId)
+          };
+          arr[i] = applyPreparedFields(withContext, current, isolated, anchor);
+        }
       }
     }
   }
@@ -374,17 +905,26 @@ function prepareArgumentList(args) {
 
 module.exports = {
   VERSION,
+  CONTINUITY_CONTRACT,
   extractCurrentText,
   classifyCurrentTurn,
+  followupKind,
   isPrivateMarionContext,
+  isIsolatedContext,
   isIsolatedTurn,
+  extractContinuationAnchor,
+  desiredDomain,
+  desiredIntent,
+  effectivePromptFor,
   prepareInput,
   prepareArgumentList,
-  scrubCarry,
+  scrubConflictingCarry,
   enforceRouterResult,
   enforceResult,
   scrubStateForCurrentTurn,
   replyFrom,
   anchorReply,
-  isMismatchedAnchorReply
+  continuationReply,
+  domainMismatch,
+  buildNextAnchor
 };
