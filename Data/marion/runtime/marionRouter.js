@@ -1,5 +1,67 @@
 "use strict";
 
+
+
+/* MARION_NON_THROWING_PRIMITIVE_V2_START */
+function marionNonThrowingText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const type = typeof value;
+  if (type === "string") return value;
+  if (type === "number" || type === "boolean" || type === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
+  return fallback;
+}
+function marionNonThrowingClean(value, fallback = "") {
+  return marionNonThrowingText(value, fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function marionPrivateReplyText(result) {
+  if (typeof result === "string") return marionNonThrowingClean(result);
+  if (!result || typeof result !== "object") return "";
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const nested = result.result && typeof result.result === "object" ? result.result : {};
+  const envelope =
+    result.finalEnvelope && typeof result.finalEnvelope === "object" ? result.finalEnvelope :
+    payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
+    nested.finalEnvelope && typeof nested.finalEnvelope === "object" ? nested.finalEnvelope : {};
+  const candidates = [
+    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.reply, result.answer, result.response, result.text, result.message,
+    envelope.finalReply, envelope.reply, envelope.answer, envelope.text,
+    payload.directReply, payload.reply, payload.text, payload.message,
+    nested.directReply, nested.reply, nested.text, nested.message
+  ];
+  for (const candidate of candidates) {
+    const text = marionNonThrowingClean(candidate);
+    if (text) return text;
+  }
+  return "";
+}
+/* MARION_NON_THROWING_PRIMITIVE_V2_END */
+
 const VERSION = "marionRouter v1.4.1 SIX-DOMAIN-COVERAGE-CARRY + STATE-SPINE-COHESION-HARDENED";
 const DEBUG_TAG = "[MARION] marionRouter patch active";
 try { console.log(DEBUG_TAG, VERSION); } catch (_e) {}
@@ -12,7 +74,7 @@ try { domainRouter = require("./domainRouter"); } catch (_e) { domainRouter = nu
 
 function _safeArray(v) { return Array.isArray(v) ? v : []; }
 function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
-function _trim(v) { return v == null ? "" : String(v).trim(); }
+function _trim(v) { return marionNonThrowingClean(v); }
 function _lower(v) { return _trim(v).toLowerCase(); }
 function _num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function _clamp(v, min = 0, max = 1) { return Math.max(min, Math.min(max, _num(v, min))); }
