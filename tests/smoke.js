@@ -1,79 +1,150 @@
 "use strict";
-const path=require('path');
-const root=path.resolve(__dirname,'..','Data','marion','runtime');
-const guard=require(path.join(root,'marionCurrentTurnAuthority.js'));
-const composer=require(path.join(root,'composeMarionResponse.js'));
-const envelope=require(path.join(root,'marionFinalEnvelope.js'));
+const fs = require("fs");
+const path = require("path");
+const root = path.resolve(__dirname, "..");
+const router = require(path.join(root, "Data/marion/runtime/marionIntentRouter.js"));
+const chat = require(path.join(root, "Utils/chatEngine.js"));
+const indexText = fs.readFileSync(path.join(root, "index.js"), "utf8");
 
-function input(text, anchor, extra={}){
-  return {
-    directMarionAdminInterface:true,
-    marionAdminConversation:true,
-    privateAdminConversation:true,
-    adminInterfaceScope:'marion_admin_conversation',
-    deliveryChannel:'marion_admin_interface',
-    source:'marion-admin-console', inputChannel:'text',
-    sessionId:'session-test', turnId:'turn-'+Math.random().toString(36).slice(2),
-    prompt:text, text, userText:text, message:text,
-    previousMemory: anchor ? {continuityAnchor:anchor} : {},
-    ...extra
-  };
+const results = [];
+function check(name, pass, detail) {
+  results.push({ name, pass: !!pass, detail: detail || "" });
+  if (!pass) process.exitCode = 1;
 }
-function anchor(userText,domain='technical',reply='Initial analysis complete.'){
-  return {contract:guard.CONTINUITY_CONTRACT,domain,userText,topic:userText,activeTask:userText,assistantReply:reply,trustedFinal:true,updatedAt:Date.now()-1000};
+function privateInput(prompt, sessionId, extra) {
+  return Object.assign({
+    prompt, userText: prompt, text: prompt,
+    sessionId,
+    conversationId: sessionId,
+    marionAdminConversation: true,
+    privateAdminConversation: true,
+    directMarionAdminInterface: true,
+    adminVerified: true
+  }, extra || {});
 }
-function read(v){return guard.replyFrom(v);}
-function assert(name,cond,detail){if(!cond){throw new Error(name+': '+detail)} return {name,ok:true,detail};}
-const results=[];
 
-// 1. Greeting is never a substantive anchor.
-const greetingInput=input('Go deeper.',anchor('Hello Marion.','general','Hello, Mac.'));
-const preparedGreeting=guard.prepareInput(greetingInput);
-const greetingReply=guard.enforceResult({reply:'Continuing from the immediately preceding turn on Hello Marion: I will preserve the active subject.'},preparedGreeting);
-results.push(assert('greeting_anchor_rejected',/There isn.t a substantive topic/i.test(read(greetingReply)),read(greetingReply)));
-results.push(assert('greeting_meta_hidden',!/preceding turn|active subject|authority|lane/i.test(read(greetingReply)),read(greetingReply)));
+const sid = "smoke-technical-v5";
+const sequence = [
+  ["Do a surgical autopsy on the JavaScript law-routing file.", { newSession: true }],
+  ["Go deeper.", {}],
+  ["What should be fixed first?", {}],
+  ["What is the safest implementation order?", {}],
+  ["How do we validate the repair?", {}],
+  ["What happens after that?", {}]
+];
+const routed = sequence.map(([prompt, extra]) =>
+  router.routeMarionIntent(privateInput(prompt, sid, extra))
+);
+check(
+  "router_long_technical_sequence",
+  routed.every((x) => x && x.routing && x.routing.domain === "technical" && x.marionIntent && x.marionIntent.intent === "technical_debug"),
+  routed.map((x) => x && x.routing && x.routing.domain).join(",")
+);
 
-// 2. Technical law-routing follow-up advances substantively.
-const target='Do a surgical autopsy on the JavaScript law-routing file.';
-const techInput=input('Go deeper.',anchor(target,'technical','The law-routing file is technical code work.'));
-const preparedTech=guard.prepareInput(techInput);
-const scaffold='Going deeper on '+target+': the immediate technical turn must remain the authority. I will preserve the active code target and avoid an older unrelated lane.';
-const techFixed=guard.enforceResult({reply:scaffold,finalEnvelope:{reply:scaffold}},preparedTech);
-const techReply=read(techFixed);
-results.push(assert('technical_substantive_reply',/precedence|classified before|remembered law|session memory|commit timing|pre-commit reply/i.test(techReply),techReply));
-results.push(assert('technical_meta_hidden',!/immediate technical turn|must remain the authority|active code target|older unrelated lane|active lane|continuity anchor/i.test(techReply),techReply));
-results.push(assert('aliases_agree',techFixed.reply===techFixed.finalEnvelope.reply&&techFixed.reply===techFixed.payload.reply,'aliases differ'));
+const legal = router.routeMarionIntent(privateInput(
+  "Can you review the legal risks in this contract?",
+  sid
+));
+check(
+  "router_legitimate_law_preserved",
+  legal && legal.routing && legal.routing.domain === "law",
+  legal && legal.routing && legal.routing.domain
+);
 
-// 3. Public Nyx remains a no-op.
-const publicPacket={scope:'public',surfaceAgent:'Nyx',reply:'Public Nyx reply',prompt:'Go deeper.'};
-const publicOut=guard.enforceResult(publicPacket,publicPacket);
-results.push(assert('public_nyx_noop',publicOut===publicPacket && publicOut.reply==='Public Nyx reply','public object changed'));
+const freshSid = "smoke-fresh-v5";
+router.routeMarionIntent(privateInput("Hello Marion.", freshSid, { newSession: true }));
+const noAnchor = router.routeMarionIntent(privateInput("Go deeper.", freshSid));
+check(
+  "router_fresh_session_no_technical_inheritance",
+  !(noAnchor && noAnchor.routing && noAnchor.routing.domain === "technical"),
+  noAnchor && noAnchor.routing && noAnchor.routing.domain
+);
 
-// 4. Law follow-up remains legal and general-information bounded.
-const lawInput=input('Go deeper.',anchor('Can you review the legal risks in this contract?','law','General legal-risk triage.'));
-const lawFixed=guard.enforceResult({reply:'Continuing from the immediately preceding turn.'},guard.prepareInput(lawInput));
-results.push(assert('law_substantive_reply',/legal-risk analysis|obligation|breach|jurisdiction|general information/i.test(read(lawFixed)),read(lawFixed)));
-results.push(assert('law_meta_hidden',!/preceding turn|active lane|authority/i.test(read(lawFixed)),read(lawFixed)));
+const lawReply = "I can give general legal-risk triage, not legal advice. Legal category: general/legal/risk. Jurisdiction sensitivity: governing jurisdiction required.";
+chat.projectMarionPrivateTechnicalFinalMismatch(
+  { reply: "The router must bind the current technical task before stale law metadata is evaluated.", domain: "technical" },
+  privateInput(sequence[0][0], "chat-v5", { newSession: true })
+);
+const recovered = chat.projectMarionPrivateTechnicalFinalMismatch(
+  {
+    reply: lawReply,
+    displayReply: lawReply,
+    domain: "law",
+    routing: { domain: "law" },
+    result: {
+      candidateReply: "Validate the repair with a fresh session, six technical follow-ups, explicit lane-exit tests, and matching final reply aliases."
+    }
+  },
+  privateInput("How do we validate the repair?", "chat-v5")
+);
+check(
+  "chat_semantic_mismatch_recovers_existing_technical_candidate",
+  recovered && recovered.domain === "technical" &&
+    /fresh session/i.test(recovered.reply || "") &&
+    recovered.meta && recovered.meta.semanticHealth === "recovered",
+  recovered && recovered.reply
+);
 
-// 5. Composer integration should not surface continuity policy language.
-const routed={intent:'technical_debug',domain:'technical',routing:{intent:'technical_debug',domain:'technical'}};
-const composed=composer.composeMarionResponse(routed,techInput);
-Promise.resolve(composed).then(value=>{
-  const r=read(value);
-  results.push(assert('composer_substantive_surface',/precedence|classified before|state|visible-reply|earliest boundary|commit timing|pre-commit reply/i.test(r),r));
-  results.push(assert('composer_meta_hidden',!/immediate technical turn|must remain the authority|active code target|older unrelated lane|continuation authority/i.test(r),r));
+const suppressed = chat.projectMarionPrivateTechnicalFinalMismatch(
+  { reply: lawReply, domain: "law", routing: { domain: "law" } },
+  privateInput("What is the safest implementation order?", "chat-v5")
+);
+check(
+  "chat_semantic_mismatch_suppresses_when_no_technical_candidate",
+  suppressed && suppressed.suppressUserFacingReply === true &&
+    suppressed.failureSignature === "ROUTE_DOMAIN_MISMATCH",
+  JSON.stringify({
+    suppressUserFacingReply: suppressed && suppressed.suppressUserFacingReply,
+    failureSignature: suppressed && suppressed.failureSignature
+  })
+);
 
-  // 6. Final-envelope integration with a deliberately bad scaffold.
-  let finalValue;
-  try {
-    finalValue=envelope.createMarionFinalEnvelope({reply:scaffold,domain:'technical',intent:'technical_debug'},techInput);
-  } catch (_) {
-    finalValue=guard.enforceResult({reply:scaffold,finalEnvelope:{reply:scaffold}},techInput);
-  }
-  return Promise.resolve(finalValue).then(v=>{
-    const fr=read(v);
-    results.push(assert('final_projection_meta_hidden',!/immediate technical turn|must remain the authority|active code target|older unrelated lane/i.test(fr),fr));
-    results.push(assert('final_projection_substantive',/precedence|classified before|state|visible-reply|earliest boundary|commit timing|pre-commit reply/i.test(fr),fr));
-    console.log(JSON.stringify({ok:true,version:guard.VERSION,contract:guard.CONTINUITY_CONTRACT,results},null,2));
-  });
-}).catch(err=>{console.error(err.stack||err);process.exit(1)});
+const publicPacket = { reply: lawReply, domain: "law" };
+const publicResult = chat.projectMarionPrivateTechnicalFinalMismatch(
+  publicPacket,
+  { prompt: "How do we validate the repair?", source: "nyx-public", lane: "public" }
+);
+check(
+  "chat_public_nyx_noop",
+  publicResult === publicPacket && publicResult.domain === "law",
+  publicResult && publicResult.domain
+);
+
+check(
+  "index_canonical_bridge_path_first",
+  indexText.indexOf('"./Data/marion/runtime/marionBridge.js"') <
+    indexText.indexOf('"./marionBridge.js"'),
+  "canonical Data/marion/runtime path precedes root fallback"
+);
+check(
+  "index_processWithMarion_preferred",
+  indexText.indexOf('typeof bridgeStatus.mod.processWithMarion === "function" ? bridgeStatus.mod.processWithMarion') >= 0,
+  "canonical processWithMarion selection present"
+);
+check(
+  "index_widget_session_id_preserved",
+  indexText.indexOf('body && (body.sessionId || body.conversationId)') >= 0 &&
+    indexText.indexOf('conversationId: cleanText(body && (body.conversationId || body.sessionId)') >= 0,
+  "widget sessionId/conversationId retained"
+);
+check(
+  "index_terminal_hardlock_uses_canonical_invoke",
+  indexText.indexOf('const runtime=await invokeMarionAdminTextRuntime(') >= 0 &&
+    indexText.indexOf('canonicalBridgeInvoked:true') >= 0,
+  "terminal hardlock invokes canonical bridge path"
+);
+check(
+  "version_markers_present",
+  router.MARION_PRIVATE_CONTEXTUAL_ENGINEERING_ROUTER_VERSION === "nyx.marion.privateContextualEngineeringRouter/5.0" &&
+    chat.MARION_PRIVATE_TECHNICAL_FINAL_MISMATCH_GATE_VERSION === "marion.chatEngine.privateTechnicalFinalMismatchGate/5.0" &&
+    indexText.includes("marion.privateRuntime.canonicalSemanticShield/5.0"),
+  "v5 markers"
+);
+
+console.log(JSON.stringify({
+  ok: results.every((r) => r.pass),
+  testCount: results.length,
+  passed: results.filter((r) => r.pass).length,
+  failed: results.filter((r) => !r.pass).length,
+  results
+}, null, 2));
