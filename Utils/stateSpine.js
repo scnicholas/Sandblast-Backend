@@ -5924,3 +5924,8 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
   api.marionLongThreadProgressionGuard=g;
 }catch(_){}})();
 /* MARION_LONG_THREAD_STATE_PERSISTENCE_R4_END */
+
+
+/* MARION_UNIFIED_PRIVATE_RUNTIME_STATE_V8_START */
+try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"){module.exports.MARION_UNIFIED_PRIVATE_RUNTIME_STATE_CONTRACT="nyx.marion.privateRuntime.state/8.0";module.exports.projectMarionPrivateRuntimeContinuity=function(value){const v=value&&typeof value==="object"?value:{};return{activeDomain:String(v.activeDomain||""),activeSubject:String(v.activeSubject||v.activeTask||""),progressionStage:String(v.progressionStage||""),followUpDepth:Number(v.followUpDepth||0),privateRuntimeContract:"nyx.marion.privateRuntime/8.0"}};}}catch(_){}
+/* MARION_UNIFIED_PRIVATE_RUNTIME_STATE_V8_END */
