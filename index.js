@@ -22379,7 +22379,7 @@ app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.revoke, async (req, res) => handle
 // Private admin-only text conversation bridge for the Marion console.
 // This keeps the existing admin control plane intact while routing conversational
 // text to MarionBridge/ChatEngine through Marion's final-authority pipeline.
-const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/1.1-route-alias-gateway-fallback";
+const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/1.2-canonical-bridge-semantic-shield";
 const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
   "/api/private/marion/admin/runtime",
   "/private/marion/admin/runtime",
@@ -22393,10 +22393,10 @@ const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
 
 function marionAdminTextRuntimeBridgeStatus() {
   const candidates = [
-    "./marionBridge.js",
-    "./marionBridge",
     "./Data/marion/runtime/marionBridge.js",
     "./Data/marion/runtime/marionBridge",
+    "./marionBridge.js",
+    "./marionBridge",
     "./Utils/marionBridge.js",
     "./Utils/marionBridge"
   ];
@@ -22412,8 +22412,9 @@ function marionAdminTextRuntimeBridgeStatus() {
           resolvedPath: resolved,
           version: cleanText(mod.VERSION || ""),
           handler:
-            typeof mod.handleMarionAdminConversation === "function" ? "handleMarionAdminConversation" :
             typeof mod.processWithMarion === "function" ? "processWithMarion" :
+            typeof mod.handleMarionAdminConversation === "function" ? "handleMarionAdminConversation" :
+            typeof mod.handleMarionAdminTextRuntime === "function" ? "handleMarionAdminTextRuntime" :
             typeof mod.handle === "function" ? "handle" :
             typeof mod.ask === "function" ? "ask" :
             typeof mod.route === "function" ? "route" : ""
@@ -22774,7 +22775,14 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     adminVerified: auth && auth.verified === true,
     verified: auth && auth.verified === true,
     sessionVerified: auth && auth.sessionVerified === true,
-    sessionId: cleanText(auth && auth.sessionId || ""),
+    sessionId: cleanText(body && (body.sessionId || body.conversationId) || auth && auth.sessionId || ""),
+    conversationId: cleanText(body && (body.conversationId || body.sessionId) || auth && auth.sessionId || ""),
+    turnId: cleanText(body && body.turnId || traceId || ""),
+    newSession: body && body.newSession === true,
+    firstTurn: body && body.firstTurn === true,
+    isolatedSession: body && body.isolatedSession === true,
+    passwordFreeTestChat: body && body.passwordFreeTestChat === true,
+    currentTurnOnly: body && body.currentTurnOnly !== false,
     adminVoiceRuntimeApproval: voiceApproval.adminVoiceRuntimeApproval === true,
     adminVoiceDeliveryAllowed: voiceApproval.adminVoiceDeliveryAllowed === true,
     adminVoiceVerified: voiceApproval.adminVoiceVerified === true,
@@ -22796,6 +22804,12 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     adminVerified: !!(auth && auth.verified),
     adminRole: cleanText(auth && auth.role || ""),
     sessionVerified: !!(auth && auth.sessionVerified),
+    sessionId: cleanText(body && (body.sessionId || body.conversationId) || auth && auth.sessionId || ""),
+    conversationId: cleanText(body && (body.conversationId || body.sessionId) || auth && auth.sessionId || ""),
+    turnId: cleanText(body && body.turnId || traceId || ""),
+    newSession: body && body.newSession === true,
+    isolatedSession: body && body.isolatedSession === true,
+    passwordFreeTestChat: body && body.passwordFreeTestChat === true,
     inputChannel: "text",
     source: "marion-admin-console",
     publicAgent: "Marion",
@@ -22814,10 +22828,10 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   };
 
   const fn =
+    typeof bridgeStatus.mod.processWithMarion === "function" ? bridgeStatus.mod.processWithMarion :
     typeof bridgeStatus.mod.handleMarionAdminConversation === "function" ? bridgeStatus.mod.handleMarionAdminConversation :
     typeof bridgeStatus.mod.handleMarionAdminTextRuntime === "function" ? bridgeStatus.mod.handleMarionAdminTextRuntime :
     typeof bridgeStatus.mod.handleAdminConversation === "function" ? bridgeStatus.mod.handleAdminConversation :
-    typeof bridgeStatus.mod.processWithMarion === "function" ? bridgeStatus.mod.processWithMarion :
     typeof bridgeStatus.mod.handle === "function" ? bridgeStatus.mod.handle :
     typeof bridgeStatus.mod.ask === "function" ? bridgeStatus.mod.ask :
     bridgeStatus.mod.route;
@@ -22948,7 +22962,7 @@ app.options(MARION_ADMIN_CONSOLE_ALL_ROUTES, (req, res) => {
 
 
 /* MARION_PRIVATE_RUNTIME_HTTP_TERMINAL_HARDLOCK_V3_START */
-const MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION = "marion.privateRuntime.httpTerminalHardlock/3.0";
+const MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION = "marion.privateRuntime.httpTerminalHardlock/4.0-canonical-bridge-semantic-shield";
 function marionPrivateRuntimeHttpJsonSafe(value, depth = 0, seen = new WeakSet()) {
   if (value == null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -22985,6 +22999,239 @@ function marionPrivateRuntimeHttpJsonSafe(value, depth = 0, seen = new WeakSet()
 function marionPrivateRuntimeHttpPrompt(body) { return marionNonThrowingClean(body && (body.prompt || body.message || body.text || body.query || body.userText || body.input || body.commandText || "")).slice(0,6000); }
 function marionPrivateRuntimeHttpGeneric(value) { const t=marionNonThrowingClean(value).toLowerCase().replace(/[.!?]+$/g,"").trim(); return !t || /^(?:i(?:'|’)?m here|i am here|still with you|right here|i(?:'|’)?m with you)(?:,?\s*mac)?$/.test(t) || /^(?:i(?:'|’)?m here|still with you|i(?:'|’)?ve got the thread|i(?:'|’)?m steady|i(?:'|’)?m with you)[\s\S]{0,360}(?:where do you want to go next|do you want to continue|keep testing|what would you like to work on|social response pass|deepen the conversation|system noise out of view|personality-layer refinement)/i.test(t); }
 function marionPrivateRuntimeHttpDeterministic(prompt) { const n=marionNonThrowingClean(prompt).toLowerCase(); if(/^what\s+is\s+2\s*\+\s*2\??$/.test(n))return "4."; if(/\bfocus\s+on\s+the\s+mobile\s+layout\b/.test(n))return "Understood. I’ll focus on the mobile layout within the active page architecture, preserve the established desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes."; return ""; }
+
+/* MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_V5_START */
+const MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_VERSION = "marion.privateRuntime.canonicalSemanticShield/5.0";
+const marionPrivateRuntimeSemanticSessions = new Map();
+const MARION_PRIVATE_RUNTIME_SEMANTIC_TTL_MS = 45 * 60 * 1000;
+const MARION_PRIVATE_RUNTIME_SEMANTIC_MAX_SESSIONS = 1000;
+
+function marionPrivateRuntimeSemanticText(value, max = 5000) {
+  return marionNonThrowingClean(value).slice(0, Math.max(1, max));
+}
+function marionPrivateRuntimeSemanticObj(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+function marionPrivateRuntimeSemanticPromptClass(prompt) {
+  const raw = marionPrivateRuntimeSemanticText(prompt, 6000);
+  const n = raw.toLowerCase().replace(/[’‘]/g, "'").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  const social = /^(?:hi|hello|hey|good morning|good afternoon|good evening|thanks|thank you|okay|ok|got it)(?: marion)?$/.test(n);
+  const contextual = /^(?:go deeper|continue|keep going|next|next step|next steps|what next|what now|then what|what should be fixed first|what should we fix first|why is that the first priority|why first|what could break|what could go wrong|what is the safest implementation order|safest implementation order|how do we validate the repair|how should we validate the repair|how do we test the repair|what is the main risk|what happens after that|what is the first concrete defect|what should i inspect first)$/.test(n);
+  const technical = /\b(?:surgical autopsy|autopsy|javascript|index js|chatengine|chat engine|marionintentrouter|intent router|domain router|routing file|runtime|backend|frontend|bridge|final envelope|state spine|module|function|payload|syntax|node check|patch|hotfix|code|implementation order|validate the repair|test the repair)\b/.test(n);
+  const legal = !technical && /\b(?:legal advice|legal risk|lawyer|attorney|court|tribunal|lawsuit|liability|negligence|damages|contract|agreement|clause|breach|copyright|licensing rights|trademark|patent|jurisdiction|statute|regulation|compliance)\b/.test(n);
+  return { raw, normalized: n, social, contextual, technical, legal };
+}
+function marionPrivateRuntimeSemanticSessionId(body) {
+  const b = marionPrivateRuntimeSemanticObj(body);
+  return marionPrivateRuntimeSemanticText(
+    b.sessionId || b.conversationId || b.threadId || b.partitionKey || b.memoryPartition || "",
+    180
+  );
+}
+function marionPrivateRuntimeSemanticPrune() {
+  const now = Date.now();
+  for (const [key, value] of marionPrivateRuntimeSemanticSessions) {
+    if (!value || now - Number(value.updatedAt || 0) > MARION_PRIVATE_RUNTIME_SEMANTIC_TTL_MS) {
+      marionPrivateRuntimeSemanticSessions.delete(key);
+    }
+  }
+  if (marionPrivateRuntimeSemanticSessions.size <= MARION_PRIVATE_RUNTIME_SEMANTIC_MAX_SESSIONS) return;
+  const rows = Array.from(marionPrivateRuntimeSemanticSessions.entries())
+    .sort((a, b) => Number(a[1] && a[1].updatedAt || 0) - Number(b[1] && b[1].updatedAt || 0));
+  while (rows.length && marionPrivateRuntimeSemanticSessions.size > MARION_PRIVATE_RUNTIME_SEMANTIC_MAX_SESSIONS) {
+    marionPrivateRuntimeSemanticSessions.delete(rows.shift()[0]);
+  }
+}
+function marionPrivateRuntimeSemanticCarryText(value) {
+  const root = marionPrivateRuntimeSemanticObj(value);
+  const nodes = [
+    root,
+    marionPrivateRuntimeSemanticObj(root.routing),
+    marionPrivateRuntimeSemanticObj(root.marionIntent),
+    marionPrivateRuntimeSemanticObj(root.meta),
+    marionPrivateRuntimeSemanticObj(root.sessionPatch),
+    marionPrivateRuntimeSemanticObj(root.memoryPatch),
+    marionPrivateRuntimeSemanticObj(root.result),
+    marionPrivateRuntimeSemanticObj(root.payload),
+    marionPrivateRuntimeSemanticObj(root.finalEnvelope)
+  ];
+  const fields = [
+    "domain","primaryDomain","selectedDomain","knowledgeDomain","activeFeatureLane",
+    "activeTask","currentTask","lastValidTask","activeSubject","continuationAnchor",
+    "technicalTarget","targetFile","targetPath","currentObjective","nextAction",
+    "effectivePrompt","normalizedUserIntent"
+  ];
+  const parts = [];
+  for (const node of nodes) {
+    for (const field of fields) {
+      const valueText = marionPrivateRuntimeSemanticText(node[field], 700);
+      if (valueText) parts.push(valueText);
+    }
+  }
+  return parts.join(" ").slice(0, 9000);
+}
+function marionPrivateRuntimeSemanticTechnicalCarry(value) {
+  const t = marionPrivateRuntimeSemanticCarryText(value).toLowerCase();
+  const domainTechnical = /\btechnical\b/.test(t);
+  const taskTechnical = /\b(?:javascript|index\.?js|chatengine|intent router|domain router|routing|runtime|backend|frontend|bridge|final envelope|state spine|module|function|payload|code|patch|repair|implementation)\b/.test(t);
+  return domainTechnical || taskTechnical;
+}
+function marionPrivateRuntimeSemanticSubject(body, runtime, prompt) {
+  const b = marionPrivateRuntimeSemanticObj(body);
+  const r = marionPrivateRuntimeSemanticObj(runtime);
+  const rr = marionPrivateRuntimeSemanticObj(r.result);
+  const candidates = [
+    b.activeTask,b.currentTask,b.activeSubject,b.continuationAnchor,b.technicalTarget,b.targetFile,b.targetPath,
+    rr.activeTask,rr.currentTask,rr.activeSubject,rr.continuationAnchor,rr.technicalTarget,rr.targetFile,rr.targetPath,
+    marionPrivateRuntimeSemanticObj(rr.meta).activeTask,
+    marionPrivateRuntimeSemanticObj(rr.routing).activeTask,
+    prompt
+  ];
+  for (const candidate of candidates) {
+    const t = marionPrivateRuntimeSemanticText(candidate, 700);
+    if (t && !marionPrivateRuntimeSemanticPromptClass(t).contextual && !marionPrivateRuntimeSemanticPromptClass(t).social) return t;
+  }
+  return "the active JavaScript routing repair";
+}
+function marionPrivateRuntimeSemanticLegalFallback(reply) {
+  const t = marionPrivateRuntimeSemanticText(reply, 8000).toLowerCase();
+  return /\bi can (?:give|provide|frame) general legal[- ]risk triage\b/.test(t) ||
+    /\bnot legal advice\b/.test(t) && /\blegal category\b/.test(t) ||
+    /\bjurisdiction sensitivity\b/.test(t) ||
+    /\bgoverning jurisdiction and source documents\b/.test(t);
+}
+function marionPrivateRuntimeSemanticMetaLeak(reply) {
+  const t = marionPrivateRuntimeSemanticText(reply, 8000).toLowerCase();
+  return /\b(?:immediately preceding turn|must remain the authority|active code target|older unrelated lane|continuation anchor|preserve the active subject|reply authority|current turn authority)\b/.test(t);
+}
+function marionPrivateRuntimeSemanticCandidate(runtime, prompt) {
+  const root = marionPrivateRuntimeSemanticObj(runtime);
+  const seen = new WeakSet();
+  let best = "";
+  let bestScore = -1;
+  function walk(value, depth, key) {
+    if (depth > 7 || value == null) return;
+    if (typeof value === "string") {
+      const t = marionPrivateRuntimeSemanticText(value, 8000);
+      if (!t || t === prompt || marionPrivateRuntimeSemanticLegalFallback(t) || marionPrivateRuntimeSemanticMetaLeak(t)) return;
+      const low = t.toLowerCase();
+      let score = 0;
+      if (/reply|answer|response|output|text|message|final/i.test(String(key || ""))) score += 3;
+      if (/\b(?:router|routing|javascript|runtime|state|bridge|module|function|payload|validation|test|implementation|precedence|session|domain)\b/.test(low)) score += 5;
+      if (/\b(?:first|priority|break|safest|validate|repair|risk|after)\b/.test(low)) score += 2;
+      if (t.length >= 90) score += 2;
+      if (t.length > 2400) score -= 2;
+      if (score > bestScore) { best = t; bestScore = score; }
+      return;
+    }
+    if (typeof value !== "object") return;
+    try { if (seen.has(value)) return; seen.add(value); } catch (_) { return; }
+    if (Array.isArray(value)) {
+      for (let i = 0; i < Math.min(value.length, 40); i += 1) walk(value[i], depth + 1, key);
+      return;
+    }
+    let keys = [];
+    try { keys = Object.keys(value).slice(0, 120); } catch (_) { return; }
+    for (const childKey of keys) {
+      if (/^(?:req|res|socket|connection|stream|headers)$/i.test(childKey)) continue;
+      let child;
+      try { child = value[childKey]; } catch (_) { continue; }
+      walk(child, depth + 1, childKey);
+    }
+  }
+  walk(root, 0, "");
+  return bestScore >= 7 ? best : "";
+}
+function marionPrivateRuntimeSemanticProgressReply(prompt, subject) {
+  const n = marionPrivateRuntimeSemanticPromptClass(prompt).normalized;
+  const target = marionPrivateRuntimeSemanticText(subject, 420) || "the active JavaScript routing repair";
+  if (/how (?:do|should) we (?:validate|test) the repair/.test(n)) {
+    return "Validate the repair in four passes: start a fresh session; run the technical anchor followed by at least six contextual follow-ups; confirm every reply remains technical and adds new analysis; then run a genuine legal prompt and a greeting to prove clean lane switching. In the returned packet, verify the domain remains technical, the active task stays bound to " + target + ", all visible reply aliases agree, and no R18C law flags or legal-risk fallback are promoted.";
+  }
+  if (/safest implementation order/.test(n)) {
+    return "The safest implementation order is: first lock current-turn classification, second persist the session’s technical task, third prevent R18C from reading stale law metadata, fourth compose the substantive answer, fifth reject any domain-mismatched final envelope, and last project the verified reply through HTTP. Test after each step so a failure can be isolated without disturbing Nyx.";
+  }
+  if (/what should (?:be|we) fix(?:ed)? first|what should i inspect first|first concrete defect/.test(n)) {
+    return "Fix the classification boundary first. The current technical task must be committed before any R18C enrichment reads historical state; otherwise every downstream layer can receive a false law route even when the user is still discussing " + target + ".";
+  }
+  if (/why (?:is )?that (?:the )?first priority|why first/.test(n)) {
+    return "It is first because routing is upstream of composition and final projection. If the domain is wrong at classification time, the composer and envelope can behave correctly yet still produce the wrong legal answer. Correcting the boundary removes the error at its source instead of masking it later.";
+  }
+  if (/what could (?:break|go wrong)/.test(n)) {
+    return "An overly broad fix could suppress legitimate legal questions, erase a valid task when the user briefly greets Marion, or force technical routing onto unrelated follow-ups. The repair therefore needs explicit current-text precedence, session-scoped task carry, and a final mismatch check rather than a global ban on the law lane.";
+  }
+  if (/what is the main risk/.test(n)) {
+    return "The main risk is stale-domain resurrection: an older law marker survives in memory and regains precedence during a contextual technical follow-up. That produces a fluent but semantically unrelated legal answer while transport still reports success.";
+  }
+  if (/what happens after that|then what|what next|next steps?/.test(n)) {
+    return "After the long-thread test passes, run lane-exit and fresh-session isolation tests, then add semantic-health reporting so a fast but contextually wrong reply is marked degraded. Only after those checks should the older index.js patch layers be consolidated.";
+  }
+  if (/go deeper|continue|keep going/.test(n)) {
+    return "The deeper defect to inspect is state-commit timing. Confirm that the router writes the technical domain and active task before law enrichment, and that the final envelope validates its domain against that task before any reply alias is exposed.";
+  }
+  return "Continue the active technical repair by tracing " + target + " through classification, session carry, composition, final-envelope validation, and HTTP projection. The next answer should identify one concrete defect, one bounded correction, and one regression test.";
+}
+function marionPrivateRuntimeSemanticStamp(node, reply, subject, corrected) {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return node;
+  const aliases = ["reply","directReply","publicReply","visibleReply","displayReply","finalReply","answer","response","output","text","message","spokenText","speechText"];
+  for (const key of aliases) node[key] = reply;
+  node.domain = "technical";
+  node.primaryDomain = "technical";
+  node.selectedDomain = "technical";
+  node.knowledgeDomain = "technical";
+  node.activeFeatureLane = "technical";
+  node.activeTask = subject;
+  node.activeSubject = subject;
+  node.r18CLawRealWorldAssessment = false;
+  node.lawTechnicalSurgeryGuard = true;
+  node.staleLawCarrySuppressed = true;
+  node.semanticHealth = corrected ? "recovered" : "ready";
+  return node;
+}
+function marionPrivateRuntimeSemanticProject(runtime, body, prompt) {
+  const classification = marionPrivateRuntimeSemanticPromptClass(prompt);
+  const sessionId = marionPrivateRuntimeSemanticSessionId(body) || "anonymous-private-runtime";
+  if (body && (body.newSession === true || body.firstTurn === true || body.resetSession === true || body.freshSession === true)) {
+    marionPrivateRuntimeSemanticSessions.delete(sessionId);
+  }
+  const previous = marionPrivateRuntimeSemanticSessions.get(sessionId) || {};
+  const carryTechnical = marionPrivateRuntimeSemanticTechnicalCarry(body) || marionPrivateRuntimeSemanticTechnicalCarry(runtime);
+  let lane = previous.lane || "";
+  if (classification.social) lane = "";
+  else if (classification.legal) lane = "law";
+  else if (classification.technical || carryTechnical) lane = "technical";
+  const subject = marionPrivateRuntimeSemanticSubject(body, runtime, prompt);
+  if (classification.social) marionPrivateRuntimeSemanticSessions.delete(sessionId);
+  else if (lane) marionPrivateRuntimeSemanticSessions.set(sessionId, { lane, subject, updatedAt: Date.now() });
+  marionPrivateRuntimeSemanticPrune();
+
+  const shouldBeTechnical = !classification.social && !classification.legal &&
+    (classification.technical || (classification.contextual && (lane === "technical" || previous.lane === "technical" || carryTechnical)));
+  let reply = marionPrivateReplyText(runtime);
+  let corrected = false;
+  if (shouldBeTechnical && (!reply || marionPrivateRuntimeSemanticLegalFallback(reply) || marionPrivateRuntimeSemanticMetaLeak(reply))) {
+    reply = marionPrivateRuntimeSemanticCandidate(runtime, prompt) || marionPrivateRuntimeSemanticProgressReply(prompt, previous.subject || subject);
+    corrected = true;
+  }
+  if (reply && shouldBeTechnical) {
+    const root = marionPrivateRuntimeSemanticObj(runtime);
+    marionPrivateRuntimeSemanticStamp(root, reply, previous.subject || subject, corrected);
+    marionPrivateRuntimeSemanticStamp(root.result, reply, previous.subject || subject, corrected);
+    marionPrivateRuntimeSemanticStamp(root.payload, reply, previous.subject || subject, corrected);
+    marionPrivateRuntimeSemanticStamp(root.finalEnvelope, reply, previous.subject || subject, corrected);
+    root.routing = marionPrivateRuntimeSemanticStamp(marionPrivateRuntimeSemanticObj(root.routing), reply, previous.subject || subject, corrected);
+    root.meta = Object.assign({}, marionPrivateRuntimeSemanticObj(root.meta), {
+      semanticShieldVersion: MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_VERSION,
+      semanticMismatchCorrected: corrected,
+      expectedDomain: "technical",
+      actualDomain: "technical",
+      semanticHealth: corrected ? "recovered" : "ready"
+    });
+  }
+  return { runtime, reply, corrected, expectedDomain: shouldBeTechnical ? "technical" : lane || "", subject: previous.subject || subject };
+}
+/* MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_V5_END */
+
 async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   applyCors(req,res); hardenConversationNoStore(res);
   const body=safeObj(req&&req.body), prompt=marionPrivateRuntimeHttpPrompt(body), traceId=marionNonThrowingClean((req&&req.sbTraceId)||body.traceId||makeTraceId("marionruntime"));
@@ -22994,14 +23241,14 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   if(!permission.allowed)return marionAdminConsolePermissionDenied(res,"runtime",traceId,auth,permission);
   if(!prompt)return res.status(400).json(marionAdminConsoleBaseResponse("runtime",traceId,auth,{ok:false,stage:"prompt_required",reason:"prompt_required",scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,responseFinalized:true}));
   try{
-    const gateway=marionAdminConsoleGatewayStatus(); const mod=gateway&&gateway.mod; const fn=mod&&(typeof mod.handleMarionAdminTextRuntime==="function"?mod.handleMarionAdminTextRuntime:typeof mod.handleAdminConversation==="function"?mod.handleAdminConversation:null);
-    if(!fn)return next();
-    const context=marionAdminConsoleContext(req,traceId,auth);
-    const result=await Promise.resolve(fn(Object.assign({},body,{prompt,message:prompt,text:prompt,query:prompt,userText:prompt,adminVerified:true,sessionVerified:true}),context));
-    let reply=marionPrivateReplyText(result);
+    const voiceApproval=marionAdminRuntimePrivateVoiceApproval(req,body,auth);
+    const runtime=await invokeMarionAdminTextRuntime(Object.assign({},body,{prompt,message:prompt,text:prompt,query:prompt,userText:prompt,rawUserText:prompt,privateAdminConversation:true,directMarionAdminInterface:true,marionAdminConversation:true}),auth,traceId,voiceApproval);
+    const semantic=marionPrivateRuntimeSemanticProject(runtime,body,prompt);
+    let reply=semantic.reply;
     if(marionPrivateRuntimeHttpGeneric(reply))reply=marionPrivateRuntimeHttpDeterministic(prompt);
-    const ok=!!reply; const status=ok?200:502;
-    const safeResult=marionPrivateRuntimeHttpJsonSafe({ok,statusCode:status,stage:ok?"private_marion_runtime_complete":"private_marion_reply_missing",version:MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",publicSurfaceOnly:false,authenticatedOperator:true,operatorPersonalization:true,memoryPartition:"private:marion-admin",publicFallbackBlocked:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,response:reply,text:reply,message:reply,spokenText:reply,speechText:reply,responseFinalized:true,meta:{routeMounted:true,gatewayReady:true,jsonSafe:true,noCircularRuntimePacket:true}});
+    const ok=!!reply; const status=ok?200:Math.max(502,Number(runtime&&runtime.statusCode||502));
+    const bridgeStatus=marionPrivateRuntimeSemanticObj(runtime&&runtime.bridgeStatus);
+    const safeResult=marionPrivateRuntimeHttpJsonSafe({ok,statusCode:status,stage:ok?(semantic.corrected?"private_marion_semantic_mismatch_recovered":"private_marion_runtime_complete"):"private_marion_reply_missing",version:MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION,semanticShieldVersion:MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_VERSION,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",publicSurfaceOnly:false,authenticatedOperator:true,operatorPersonalization:true,memoryPartition:"private:marion-admin",publicFallbackBlocked:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,response:reply,text:reply,message:reply,spokenText:reply,speechText:reply,responseFinalized:true,result:runtime&&runtime.result||{},meta:{routeMounted:true,gatewayReady:true,bridgeReady:bridgeStatus.available===true,bridgeHandler:bridgeStatus.handler||"",bridgeVersion:bridgeStatus.version||"",canonicalBridgeInvoked:true,semanticMismatchCorrected:semantic.corrected===true,expectedDomain:semantic.expectedDomain||"",activeSubject:semantic.subject||"",semanticHealth:semantic.corrected?"recovered":(ok?"ready":"degraded"),jsonSafe:true,noCircularRuntimePacket:true}});
     return res.status(status).json(safeResult);
   }catch(err){
     const fallback=marionPrivateRuntimeHttpDeterministic(prompt); if(fallback)return res.status(200).json({ok:true,statusCode:200,stage:"private_marion_runtime_exception_recovered",version:MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION,scope:"private_admin",authority:"Marion",surfaceAgent:"Marion",authenticatedOperator:true,publicFallbackBlocked:true,reply:fallback,displayReply:fallback,visibleReply:fallback,directReply:fallback,response:fallback,text:fallback,message:fallback,spokenText:fallback,speechText:fallback,responseFinalized:true,meta:{jsonSafe:true,errorSuppressed:true}});
@@ -28673,3 +28920,23 @@ try{
 }catch(_){ }
 /* MARION_CURRENT_TURN_AUTHORITY_INDEX_R1_END */
 
+
+
+/* MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_V5_EXPORT_START */
+try {
+  if (typeof app !== "undefined" && app && app.locals) {
+    app.locals.marionPrivateRuntimeCanonicalSemanticShield = {
+      version: MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_VERSION,
+      canonicalBridgeRequired: true,
+      gatewayDirectBypassDisabled: true,
+      privateMarionOnly: true,
+      nyxArchitecturePreserved: true
+    };
+  }
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports.MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_VERSION = MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_VERSION;
+    module.exports.marionPrivateRuntimeSemanticProject = marionPrivateRuntimeSemanticProject;
+    module.exports.marionPrivateRuntimeSemanticPromptClass = marionPrivateRuntimeSemanticPromptClass;
+  }
+} catch (_) {}
+/* MARION_PRIVATE_RUNTIME_CANONICAL_SEMANTIC_SHIELD_V5_EXPORT_END */
