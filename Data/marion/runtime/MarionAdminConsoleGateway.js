@@ -4257,3 +4257,16 @@ try {
   exp.getCanonicalPrivateRuntimeStatus=function(){return{version:V,bridgeResolved:!!cachedHandler,resolution:{...lastResolution},privateOnly:true,publicNyxNoOp:true}};
 })();
 /* MARION_CANONICAL_PRIVATE_RUNTIME_ADAPTER_V7_END */
+
+
+/* MARION_UNIFIED_PRIVATE_RUNTIME_GATEWAY_V8_START */
+(function(){
+  "use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;let adapter=null,error="";
+  function get(force){if(!force&&adapter&&typeof adapter.invokePrivateRuntime==="function")return adapter;try{const m=require("./marionPrivateRuntimeAdapter.js");if(!m||typeof m.invokePrivateRuntime!=="function")throw new Error("private_runtime_adapter_handler_missing");adapter=m;error="";return adapter}catch(e){adapter=null;error=String(e&& (e.code||e.message||e.name)||"adapter_unavailable");return null}}
+  async function runtime(input={},context={}){const src=input&&typeof input==="object"?input:{},ctx=context&&typeof context==="object"?context:{};const verified=ctx.adminVerified===true||ctx.verified===true||src.adminVerified===true||src.verified===true;if(!verified)return{ok:false,statusCode:401,stage:"private_runtime_authorization_required",reason:"verified_operator_required",reply:"",responseFinalized:true};let a=get(false);if(!a){await new Promise(r=>setImmediate(r));a=get(true)}if(!a)return{ok:false,statusCode:503,stage:"private_runtime_adapter_unavailable",reason:error,reply:"",responseFinalized:true};return a.invokePrivateRuntime(src,Object.assign({},ctx,{adminVerified:true,verified:true,sessionVerified:ctx.sessionVerified===true||src.sessionVerified===true}))}
+  ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api[n]=runtime});
+  if(api.defaultGateway&&typeof api.defaultGateway==="object")["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api.defaultGateway[n]=runtime});
+  if(typeof api.MarionAdminConsoleGateway==="function")["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api.MarionAdminConsoleGateway.prototype[n]=runtime;api.MarionAdminConsoleGateway[n]=runtime});
+  api.MARION_UNIFIED_PRIVATE_RUNTIME_GATEWAY_VERSION="nyx.marion.privateRuntime.gateway/8.0";api.getPrivateRuntimeAdapterStatus=()=>{const a=get(false);return a&&typeof a.getStatus==="function"?a.getStatus():{available:false,error}};
+})();
+/* MARION_UNIFIED_PRIVATE_RUNTIME_GATEWAY_V8_END */
