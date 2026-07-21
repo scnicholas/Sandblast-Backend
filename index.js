@@ -174,6 +174,7 @@ try {
 const INDEX_VERSION = "NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
 const PUBLIC_INDEX_VERSION = "NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const SERVER_BOOT_AT = Date.now();
+const MARION_BRIDGE_INDEX_INTEGRATION_VERSION = "nyx.marion.indexBridgeIntegration/7.5-canonical-transport-private-projection-shield";
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
   version: "nyx.marion.releaseReadinessRollbackSafety/1.0",
@@ -257,7 +258,7 @@ const USER_VISIBLE_DEBUG_LEAK_PATTERNS = Object.freeze([
 ]);
 
 function normalizeFailureSignature(value) {
-  const raw = String(value == null ? "" : value).trim();
+  const raw = marionNonThrowingClean(value);
   if (!raw) return INDEX_FAILURE_SIGNATURES.NONE;
   const key = raw.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toUpperCase();
   for (const sig of Object.values(INDEX_FAILURE_SIGNATURES)) {
@@ -267,14 +268,14 @@ function normalizeFailureSignature(value) {
 }
 
 function hasUserVisibleDebugLeak(value) {
-  const text = String(value == null ? "" : value);
+  const text = marionNonThrowingText(value, "");
   if (!text) return false;
   return USER_VISIBLE_DEBUG_LEAK_PATTERNS.some((rx) => rx.test(text)) || isPublicWorkflowStateLeak(text);
 }
 
 
 function isPublicWorkflowStateLeak(value) {
-  const text = String(value == null ? "" : value);
+  const text = marionNonThrowingText(value, "");
   if (!text) return false;
   return /\bprogression active\b/i.test(text) ||
     /\brun next validation\b/i.test(text) ||
@@ -300,7 +301,7 @@ function isPublicWorkflowStateLeak(value) {
 }
 
 function stripUserVisibleDebugLeak(value) {
-  let text = String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+  let text = marionNonThrowingText(value, "").replace(/\s+/g, " ").trim();
   if (!text) return "";
   if (!hasUserVisibleDebugLeak(text)) return text;
   text = text
@@ -344,10 +345,10 @@ function extractFailureSignatureFromPacket(value) {
 function inferIndexFailureSignature({norm={}, selected={}, marion={}, reply="", canEmit=true, error=""}={}) {
   const inherited = extractFailureSignatureFromPacket(selected) || extractFailureSignatureFromPacket(marion);
   if (inherited && inherited !== INDEX_FAILURE_SIGNATURES.NONE) return inherited;
-  const err = String(error == null ? "" : error).toLowerCase();
+  const err = marionNonThrowingText(error, "").toLowerCase();
   const selectedObj = isObj(selected) ? selected : {};
   const marionObj = isObj(marion) ? marion : {};
-  const text = String(reply == null ? "" : reply);
+  const text = marionNonThrowingText(reply, "");
   if (hasUserVisibleDebugLeak(text)) return INDEX_FAILURE_SIGNATURES.DEBUG_LEAK_BLOCKED;
   if (isBlockedLoopingSupportReply(text) || selectedObj.loopReplyBlockedCandidate || marionObj.loopReplyBlockedCandidate) return INDEX_FAILURE_SIGNATURES.LOOP_GUARD_SUPPRESSED;
   if (/schedule|timezone|city/.test(err)) return INDEX_FAILURE_SIGNATURES.SCHEDULE_PRE_ROUTER_INTERCEPT;
@@ -357,7 +358,7 @@ function inferIndexFailureSignature({norm={}, selected={}, marion={}, reply="", 
   if (/bridge|handoff|malformed|packet_invalid|contract_invalid/.test(err)) return INDEX_FAILURE_SIGNATURES.BRIDGE_HANDOFF_INVALID;
   if (/chatengine|coordinator/.test(err)) return INDEX_FAILURE_SIGNATURES.CHATENGINE_COORDINATOR_FAULT;
   if (/final.*missing|envelope.*missing|awaiting_marion|conversation_authority_empty/.test(err)) return INDEX_FAILURE_SIGNATURES.FINAL_ENVELOPE_MISSING;
-  if (!canEmit && !String(reply || "").trim()) return INDEX_FAILURE_SIGNATURES.FINAL_ENVELOPE_MISSING;
+  if (!canEmit && !marionNonThrowingClean(reply)) return INDEX_FAILURE_SIGNATURES.FINAL_ENVELOPE_MISSING;
   return INDEX_FAILURE_SIGNATURES.NONE;
 }
 
@@ -383,7 +384,7 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (err) => {
   console.log("[Sandblast][uncaughtException]", err && (err.stack || err.message || err));
   try {
-    if (err && String(err.message || "").includes("EADDRINUSE")) process.exit(1);
+    if (err && marionNonThrowingText(err.message, "").includes("EADDRINUSE")) process.exit(1);
   } catch (_) {}
 });
 
@@ -1803,10 +1804,10 @@ app.locals.nyxGuideSteps789 = {
   const receipts=new Map();
   const counters={validated:0,selected:0,completed:0,failed:0,cancelled:0,duplicates:0,rejected:0};
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
-  function text(v,n=120){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
+  function text(v,n=120){return marionNonThrowingText(v,"").replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
   function lane(v,f="home"){const x=text(v,32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");return LANES.has(x)?x:f;}
   function num(v,f=0,min=0,max=2147483647){const n=Number(v);return Number.isFinite(n)?Math.max(min,Math.min(max,Math.trunc(n))):f;}
-  function hash(v){return crypto.createHash("sha256").update(String(v==null?"":v),"utf8").digest("hex");}
+  function hash(v){return crypto.createHash("sha256").update(marionNonThrowingText(v,""),"utf8").digest("hex");}
   function id(v,p="g"){const clean=text(v,96).replace(/[^a-zA-Z0-9_.:-]+/g,"_");return clean||`${p}_${Date.now().toString(36)}_${crypto.randomBytes(5).toString("hex")}`;}
   function cleanup(){const now=Date.now();if(receipts.size<2500)return;for(const [k,v] of receipts){if(!v||now>=v.expiresAt)receipts.delete(k);if(receipts.size<=1800)break;}}
   function actionFrom(body){const b=obj(body),source=obj(b.action||b.guideAction||obj(b.transition).action);const rawPlan=nyxGuide789ActionPlan({actions:[source],televisionGuide:b.televisionGuide});const action=obj(rawPlan.actions&&rawPlan.actions[0]);if(!action.type||!action.target)return null;const target=text(action.target,64);const current=lane(obj(b.currentState||b.state||b.guideContext).currentLane||obj(b.guideContext).currentLane,"home");return{...action,id:id(action.id||source.id,`act_${hash(`${action.type}|${target}`).slice(0,12)}`),target,lane:TARGET_LANE[target]||current};}
@@ -14753,6 +14754,84 @@ function normalizeMarionBridgeResult(raw, input) {
     };
   }
 
+  const canonicalTransportSafe = base.transportSafe === true ||
+    safeObj(base.meta).transportSafe === true ||
+    safeObj(base.diagnostics).transportSafe === true;
+  if (canonicalTransportSafe) {
+    const req = isObj(input) ? input : {};
+    const finalEnvelope = isObj(base.finalEnvelope) ? base.finalEnvelope : {};
+    const payload = isObj(base.payload) ? base.payload : {};
+    const bridgeVersion = cleanText(safeObj(base.meta).bridgeVersion || safeObj(base.bridge).version || base.version || marionBridgeMod && marionBridgeMod.VERSION || "");
+    const runtimeTelemetry = buildIndexRuntimeTelemetry({norm:req,selected:base,marion:base,reply,authority:"marion_bridge_transport_safe",startedAt:0,stage:"final",canEmit:true});
+    return {
+      ...base,
+      ok: true,
+      final: true,
+      finalized: true,
+      handled: true,
+      marionFinal: true,
+      awaitingMarion: false,
+      transportSafe: true,
+      socketReconnect: false,
+      reply,
+      directReply: reply,
+      visibleReply: reply,
+      displayReply: reply,
+      finalReply: reply,
+      text: reply,
+      answer: reply,
+      output: reply,
+      response: reply,
+      message: reply,
+      spokenText: cleanText(base.spokenText || finalEnvelope.spokenText || reply),
+      payload: {
+        ...payload,
+        reply,
+        text: reply,
+        message: reply,
+        final: true,
+        marionFinal: true,
+        transportSafe: true
+      },
+      finalEnvelope: {
+        ...finalEnvelope,
+        reply,
+        text: reply,
+        displayReply: reply,
+        spokenText: cleanText(finalEnvelope.spokenText || base.spokenText || reply),
+        final: true,
+        marionFinal: true,
+        handled: true,
+        source: cleanText(finalEnvelope.source || "marionBridge"),
+        authority: cleanText(finalEnvelope.authority || "marionFinalEnvelope"),
+        contractVersion: cleanText(finalEnvelope.contractVersion || "nyx.marion.final/1.0")
+      },
+      runtimeTelemetry,
+      meta: {
+        ...safeObj(base.meta),
+        bridgeVersion,
+        marionBridgeIndexIntegrationVersion: MARION_BRIDGE_INDEX_INTEGRATION_VERSION,
+        replyAuthority: cleanText(safeObj(base.meta).replyAuthority || "marionFinalEnvelope"),
+        semanticAuthority: cleanText(safeObj(base.meta).semanticAuthority || "composeMarionResponse"),
+        currentBridgeTransportPreserved: true,
+        legacySignatureRemintBypassed: true,
+        indexBridgeNormalized: false,
+        transportSafe: true,
+        socketReconnect: false,
+        runtimeTelemetry
+      },
+      diagnostics: {
+        ...safeObj(base.diagnostics),
+        bridgeVersion,
+        marionBridgeIndexIntegrationVersion: MARION_BRIDGE_INDEX_INTEGRATION_VERSION,
+        currentBridgeTransportPreserved: true,
+        legacySignatureRemintBypassed: true,
+        transportSafe: true,
+        runtimeTelemetry
+      }
+    };
+  }
+
   const req = isObj(input) ? input : {};
   const reqMeta = isObj(req.meta) ? req.meta : {};
   const turnId = cleanText(
@@ -14921,6 +15000,15 @@ function normalizeMarionBridgeResult(raw, input) {
     diagnostics,
     result: isObj(result) ? { ...result, final: true, handled: true, marionFinal: true, meta, payload, packet, signature, marionFinalSignature: signature } : result
   };
+}
+
+const normalizeMarionBridgeTransportBase = normalizeMarionBridgeResult;
+function isCanonicalMarionTransportPacket(value) {
+  if (!isObj(value)) return false;
+  return value.transportSafe === true ||
+    safeObj(value.meta).transportSafe === true ||
+    safeObj(value.diagnostics).transportSafe === true ||
+    /^marionBridge v7\.(?:[5-9]|[1-9][0-9])\b/i.test(cleanText(safeObj(value.meta).bridgeVersion || safeObj(value.bridge).version || value.version || ""));
 }
 
 function shouldLockMarionAuthority(marion) {
@@ -15186,35 +15274,42 @@ async function callMarionBridge(input) {
   if (!marionBridgeMod) return null;
   const finish = (value) => normalizeMarionBridgeResult(value, input);
   try {
+    // v7.5 canonical authority: use the module-level transport-safe entry point first.
+    if (typeof marionBridgeMod.processWithMarion === "function") {
+      return finish(await marionBridgeMod.processWithMarion(input));
+    }
     if (typeof marionBridgeMod.createMarionBridge === "function") {
       const bridge = marionBridgeMod.createMarionBridge();
+      if (bridge && typeof bridge.processWithMarion === "function") return finish(await bridge.processWithMarion(input));
       if (bridge && typeof bridge.maybeResolve === "function") return finish(await bridge.maybeResolve(input));
     }
-
-    // Fallback compatibility only if factory is absent.
+    // Legacy compatibility only after the canonical method is unavailable.
     if (typeof marionBridgeMod.maybeResolve === "function") return finish(await marionBridgeMod.maybeResolve(input));
-    if (typeof marionBridgeMod.processWithMarion === "function") return finish(await marionBridgeMod.processWithMarion(input));
     if (typeof marionBridgeMod.route === "function") return finish(await marionBridgeMod.route(input));
     if (typeof marionBridgeMod.ask === "function") return finish(await marionBridgeMod.ask(input));
     if (typeof marionBridgeMod.handle === "function") return finish(await marionBridgeMod.handle(input));
     if (typeof marionBridgeMod.default === "function") return finish(await marionBridgeMod.default(input));
     if (typeof marionBridgeMod === "function") return finish(await marionBridgeMod(input));
   } catch (err) {
-    console.log("[Sandblast][marionBridge:error]", err && (err.stack || err.message || err));
+    console.log("[Sandblast][marionBridge:error]", marionNonThrowingClean(err && (err.stack || err.message || err.code || err.name), "marion bridge failed"));
     return {
       ok: false,
       error: "marion_bridge_runtime_error",
-      detail: cleanText(err && (err.message || err) || "marion bridge failed"),
+      detail: marionNonThrowingClean(err && (err.message || err.code || err.name), "marion bridge failed"),
       reply: "",
       text: "",
       final: false,
       marionFinal: false,
       awaitingMarion: true,
+      transportSafe: true,
+      socketReconnect: false,
       meta: {
         source: "index_callMarionBridge",
         v: PUBLIC_INDEX_VERSION,
         t: now(),
+        marionBridgeIndexIntegrationVersion: MARION_BRIDGE_INDEX_INTEGRATION_VERSION,
         transportOnly: true,
+        transportSafe: true,
         noSupportDecision: true,
         noEmotionDecision: true
       }
@@ -22857,17 +22952,32 @@ const MARION_PRIVATE_RUNTIME_HTTP_HARDLOCK_VERSION = "marion.privateRuntime.http
 function marionPrivateRuntimeHttpJsonSafe(value, depth = 0, seen = new WeakSet()) {
   if (value == null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  if (typeof value === "bigint") return String(value);
+  if (typeof value === "bigint") { try { return String(value); } catch (_) { return "0"; } }
   if (typeof value === "function" || typeof value === "symbol" || typeof value === "undefined") return undefined;
   if (depth > 6) return "[truncated]";
   if (typeof value !== "object") return marionNonThrowingClean(value);
-  if (seen.has(value)) return "[circular]";
-  seen.add(value);
-  if (Array.isArray(value)) return value.slice(0, 60).map(v => marionPrivateRuntimeHttpJsonSafe(v, depth + 1, seen));
+  try { if (seen.has(value)) return "[circular]"; seen.add(value); } catch (_) { return "[unserializable]"; }
+  let isArray = false;
+  try { isArray = Array.isArray(value); } catch (_) { isArray = false; }
+  if (isArray) {
+    const out = [];
+    let length = 0;
+    try { length = Math.min(value.length >>> 0, 60); } catch (_) { length = 0; }
+    for (let i = 0; i < length; i += 1) {
+      let item;
+      try { item = value[i]; } catch (_) { item = "[unreadable]"; }
+      out.push(marionPrivateRuntimeHttpJsonSafe(item, depth + 1, seen));
+    }
+    return out;
+  }
   const out = {};
-  for (const key of Object.keys(value).slice(0, 120)) {
+  let keys = [];
+  try { keys = Object.keys(value).slice(0, 120); } catch (_) { return "[unserializable]"; }
+  for (const key of keys) {
     if (/(token|secret|password|cookie|authorization|api[_-]?key|credential|private[_-]?key)/i.test(key)) { out[key] = "[redacted]"; continue; }
-    const v = marionPrivateRuntimeHttpJsonSafe(value[key], depth + 1, seen);
+    let raw;
+    try { raw = value[key]; } catch (_) { raw = "[unreadable]"; }
+    const v = marionPrivateRuntimeHttpJsonSafe(raw, depth + 1, seen);
     if (v !== undefined) out[key] = v;
   }
   return out;
@@ -23785,7 +23895,7 @@ module.exports.PRIORITY_9F_R3_INDEX_ALT_PROMPT_ECHO_SUPPRESSION_VERSION=PRIORITY
 
 // PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_INDEX_PATCH_START
 const PRIORITY_9F_R4_INDEX_CONTINUATION_CARRY_VERSION = "nyx.marion.priority9fR4.continuationCarry.index/1.0";
-function priority9FR4IndexStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function priority9FR4IndexStr(value){return marionNonThrowingText(value,"").replace(/\s+/g," ").trim();}
 function priority9FR4IndexNorm(value){return priority9FR4IndexStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9FR4IndexIsShortContinuation(value){const n=priority9FR4IndexNorm(value);return /^(next steps?|continue|carry on|proceed|run that again|run it again|do that again|do it again|same thing|what now|whats next|what s next|next)$/.test(n);}
 function priority9FR4IndexIsCarryInstruction(value){const t=priority9FR4IndexNorm(value);return /\b(priority 9f r4|priority9f r4|9f r4|continuation carry|last accepted lane|stay inside the 9f|inside the 9f conversational stack|9f conversational stack lane|short continuation|next steps continue run that again what now)\b/.test(t);}
@@ -23812,8 +23922,8 @@ module.exports.PRIORITY_9F_R4_INDEX_CONTINUATION_CARRY_VERSION=PRIORITY_9F_R4_IN
 // PRIORITY_9G_DEEP_CONTINUITY_MEMORY_INDEX_PATCH_START
 const PRIORITY_9G_DEEP_CONTINUITY_MEMORY_INDEX_VERSION="PRIORITY-9G-DEEP-CONTINUITY-MEMORY-INDEX/1.0";
 
-function priority9GNorm(value){return String(value==null?"":value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function priority9GStr(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
+function priority9GNorm(value){return marionNonThrowingText(value,"").toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9GStr(value){return marionNonThrowingText(value,"").replace(/\s+/g," ").trim();}
 function priority9GObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9GCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||9000);}catch(_){return "";}}
 function priority9GIsShortFollowup(value){const t=priority9GNorm(value);return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it|what now|whats next|what s next|where are we|where do we go next|next)$/.test(t);}
@@ -23906,7 +24016,7 @@ module.exports.PRIORITY_9G_DEEP_CONTINUITY_MEMORY_INDEX_VERSION=PRIORITY_9G_DEEP
 
 const PRIORITY_9H_LONG_FORM_CONTINUITY_VERSION = "nyx.marion.priority9h.longFormContinuityStressDriftGuard/1.0";
 const PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION = "nyx.marion.priority9i.adaptiveSituationalPrecheck/0.1";
-function priority9HStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function priority9HStr(value){return marionNonThrowingText(value,"").replace(/\s+/g," ").trim();}
 function priority9HObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9HNorm(value){return priority9HStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9HCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||16000);}catch(_){return priority9HStr(value).slice(0,limit||16000);}}
@@ -24019,7 +24129,7 @@ module.exports.PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION=PRIORITY_9I_ADA
 // PRIORITY_9I_9J_SEQUENCE_INDEX_PATCH_START
 var PRIORITY_9I_ADAPTIVE_SITUATIONAL_REASONING_VERSION_FULL = "nyx.marion.priority9i.adaptiveSituationalReasoningContextPressure/1.0";
 var PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_VERSION_FULL = "nyx.marion.priority9j.proactiveOperationalGuidanceNextMoveAuthority/1.0";
-function priority9IJStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function priority9IJStr(value){return marionNonThrowingText(value,"").replace(/\s+/g," ").trim();}
 function priority9IJObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9IJNorm(value){return priority9IJStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9IJCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||22000);}catch(_){return priority9IJStr(value).slice(0,limit||22000);}}
@@ -24054,7 +24164,7 @@ if(__priority9IJOriginalApplyPublicReplyHygieneToResponse){applyPublicReplyHygie
 var __priority9IJOriginalShapeEngineReply=typeof shapeEngineReply==="function"?shapeEngineReply:null;
 if(__priority9IJOriginalShapeEngineReply){shapeEngineReply=function priority9IJShapeEngineReply(raw){return priority9IJIndexDisciplinePacket(__priority9IJOriginalShapeEngineReply(raw),raw);};module.exports.shapeEngineReply=shapeEngineReply;}
 var __priority9IJOriginalNormalizeMarionBridgeResult=typeof normalizeMarionBridgeResult==="function"?normalizeMarionBridgeResult:null;
-if(__priority9IJOriginalNormalizeMarionBridgeResult){normalizeMarionBridgeResult=function priority9IJNormalizeMarionBridgeResult(raw,input){return priority9IJIndexDisciplinePacket(__priority9IJOriginalNormalizeMarionBridgeResult(raw,input),input||raw);};module.exports.normalizeMarionBridgeResult=normalizeMarionBridgeResult;}
+if(__priority9IJOriginalNormalizeMarionBridgeResult){normalizeMarionBridgeResult=function priority9IJNormalizeMarionBridgeResult(raw,input){if(isCanonicalMarionTransportPacket(raw))return normalizeMarionBridgeTransportBase(raw,input);return priority9IJIndexDisciplinePacket(__priority9IJOriginalNormalizeMarionBridgeResult(raw,input),input||raw);};module.exports.normalizeMarionBridgeResult=normalizeMarionBridgeResult;}
 if(typeof buildDeterministicLastMilePublicReplyFromText==="function"){var __priority9IJOriginalBuildDeterministicLastMilePublicReplyFromText=buildDeterministicLastMilePublicReplyFromText;buildDeterministicLastMilePublicReplyFromText=function priority9IJBuildDeterministicLastMilePublicReplyFromText(text,source){var out=__priority9IJOriginalBuildDeterministicLastMilePublicReplyFromText(text,source);return priority9IJIndexDisciplinePacket(out,source||{text:text});};}
 module.exports.PRIORITY_9I_ADAPTIVE_SITUATIONAL_REASONING_INDEX_VERSION=PRIORITY_9I_ADAPTIVE_SITUATIONAL_REASONING_VERSION_FULL;
 module.exports.PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_INDEX_VERSION=PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_VERSION_FULL;
@@ -25632,7 +25742,7 @@ var MARION_R6_FUTURE_COMPONENTS = Object.freeze({
   realWorldTransitionVoice: "observation becomes plain-language meaning, risk, and one next move",
   antiMaintenanceManualFilter: "runtime scaffolding informs Marion but never speaks as Marion"
 });
-function marionR6Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function marionR6Str(value){return marionNonThrowingText(value,"").replace(/\s+/g," ").trim();}
 function marionR6Lower(value){return marionR6Str(value).toLowerCase();}
 function marionR6Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR6Array(value){return Array.isArray(value)?value:[];}
@@ -25727,7 +25837,7 @@ var MARION_R7_FUTURE_PERSONALITY_COMPONENTS = Object.freeze({
   oneQuestionDiscipline: "Marion asks only one focused forward-moving question unless Mac explicitly asks for options",
   voiceNaturalization: "voice output avoids robotic service phrasing and keeps number/email readout policy available downstream"
 });
-function marionR7Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function marionR7Str(value){return marionNonThrowingText(value,"").replace(/\s+/g," ").trim();}
 function marionR7Lower(value){return marionR7Str(value).toLowerCase();}
 function marionR7Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR7Array(value){return Array.isArray(value)?value:[];}
@@ -25903,7 +26013,7 @@ var MARION_R89_COMPONENTS = Object.freeze({
   realWorldObservationTranslationReady: true,
   futureNodeExpansion: ["greeting","social_checkin","presence_check","repair_opening","lookup_pause","information_gathering","observation_translation","planning","closing"]
 });
-function marionR89Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function marionR89Str(value){return marionNonThrowingText(value,"").replace(/\s+/g," ").trim();}
 function marionR89Lower(value){return marionR89Str(value).toLowerCase();}
 function marionR89Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR89Array(value){return Array.isArray(value)?value:[];}
@@ -26345,7 +26455,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 (function(){
   "use strict";
   var VERSION="MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13";
-  function s(v){return v==null?"":String(v).replace(/\s+/g," ").trim();}
+  function s(v){return marionNonThrowingText(v,"").replace(/\s+/g," ").trim();}
   function l(v){return s(v).toLowerCase();}
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
   function arr(v){return Array.isArray(v)?v:[];}
@@ -26463,7 +26573,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 (function(){
   "use strict";
   var VERSION="nyx.marion.toneNaturalizationR15/1.0";
-  function S(v){return v==null?"":String(v).replace(/\s+/g," ").trim();}
+  function S(v){return marionNonThrowingText(v,"").replace(/\s+/g," ").trim();}
   function L(v){return S(v).toLowerCase().replace(/[’]/g,"'");}
   function O(v){return !!v&&typeof v==="object"&&!Array.isArray(v);}
   function A(v){return Array.isArray(v)?v:[];}
@@ -26612,7 +26722,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 (function(){
   try {
     const V = "nyx.marion.r18c.fullStackRegression/1.0";
-    function T(v, max){ let s = v == null ? "" : String(v).replace(/\s+/g," ").trim(); if(max && s.length > max) s = s.slice(0, max - 1).trim() + "…"; return s; }
+    function T(v, max){ let s = marionNonThrowingText(v,"").replace(/\s+/g," ").trim(); if(max && s.length > max) s = s.slice(0, max - 1).trim() + "…"; return s; }
     function O(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
     function A(v){ return Array.isArray(v) ? v : []; }
     function lower(v){ return T(v, 4000).toLowerCase(); }
@@ -26810,24 +26920,39 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
  * ecosystem operational JSON. Prevents global Marion/NYX conversation,
  * identity and voice projectors from mutating these API contracts.
  */
+function isMarionPrivateProjectionProtectedRequest(req) {
+  const requestPath = marionNonThrowingClean(
+    req && (req.originalUrl || req.url || req.path),
+    ""
+  ).split("?")[0].toLowerCase();
+  return requestPath.startsWith("/api/private/marion/") ||
+    requestPath.startsWith("/private/marion/") ||
+    requestPath === "/api/marion/admin/conversation" ||
+    requestPath === "/marion/admin/conversation" ||
+    requestPath.startsWith("/api/lingosentinel/private/marion/");
+}
+
 function isNyxEcosystemOperationalResponseV1(req) {
-  const requestPath = String(
-    (req && (req.originalUrl || req.url || req.path)) || ""
+  const requestPath = marionNonThrowingClean(
+    req && (req.originalUrl || req.url || req.path),
+    ""
   ).split("?")[0].toLowerCase();
 
   return requestPath === "/api/nyx/ecosystem" ||
-    requestPath.startsWith("/api/nyx/ecosystem/");
+    requestPath.startsWith("/api/nyx/ecosystem/") ||
+    isMarionPrivateProjectionProtectedRequest(req);
 }
 
 function isSandblastTvOperationalResponseV2(req) {
-  const requestPath = String(
-    (req && (req.originalUrl || req.url || req.path)) || ""
+  const requestPath = marionNonThrowingClean(
+    req && (req.originalUrl || req.url || req.path),
+    ""
   ).split("?")[0].toLowerCase();
 
   const sandblastTvOperational = requestPath === "/api/sandblast-tv/v1" ||
     requestPath.startsWith("/api/sandblast-tv/v1/");
 
-  return sandblastTvOperational || isNyxEcosystemOperationalResponseV1(req);
+  return sandblastTvOperational || isNyxEcosystemOperationalResponseV1(req) || isMarionPrivateProjectionProtectedRequest(req);
 }
 /* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V3_END */
 
@@ -26841,7 +26966,7 @@ function isSandblastTvOperationalResponseV2(req) {
   module.exports.MARION_R18C_LIVE_HANDLER_REPAIR_VERSION = V;
 
   function T(v, max){
-    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+    const s = marionNonThrowingText(v, "").replace(/\s+/g, " ").trim();
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -27191,7 +27316,7 @@ function isSandblastTvOperationalResponseV2(req) {
   module.exports.MARION_R18C_FINAL_ANSWER_MATERIALIZER_VERSION = V;
 
   function T(v, max){
-    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+    const s = marionNonThrowingText(v, "").replace(/\s+/g, " ").trim();
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -27677,7 +27802,7 @@ function isSandblastTvOperationalResponseV2(req) {
   module.exports.__r18cReplyQueueParityRepairPatched = true;
 
   function T(v, max){
-    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+    const s = marionNonThrowingText(v, "").replace(/\s+/g, " ").trim();
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -28086,7 +28211,7 @@ try {
   const VERSION = "nyx.index.publicKnowledgeNavigationResponseHardlock/4.0";
   function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function obj(value){ return isObj(value) ? value : {}; }
-  function clean(value, max = 4000){ return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
+  function clean(value, max = 4000){ return marionNonThrowingText(value, "").replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
   function lower(value){ return clean(value).toLowerCase(); }
   function normalize(value){ return lower(value).replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim(); }
   function requestText(req){
@@ -28241,7 +28366,7 @@ try {
   const VERSION = NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_R5_VERSION;
   function isObjR5(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function objR5(value){ return isObjR5(value) ? value : {}; }
-  function cleanR5(value, max = 4000){ return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
+  function cleanR5(value, max = 4000){ return marionNonThrowingText(value, "").replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
   function normalizeR5(value){ return cleanR5(value).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim(); }
   function requestTextR5(req){
     const body = objR5(req && req.body), payload = objR5(body.payload), meta = objR5(body.meta);
@@ -28504,3 +28629,27 @@ try { if (typeof app !== "undefined" && app && app.locals) { app.locals.marionLa
 
 /* MARION_LAYERS_7_8_PART2_INDEX_MARKER */
 const MARION_LAYERS_7_8_PART2_VERSION = "marion.layers78.part2/1.0";
+
+
+/* MARION_BRIDGE_CANONICAL_TRANSPORT_INDEX_R75_EXPORT_START */
+try {
+  if (typeof app !== "undefined" && app && app.locals) {
+    app.locals.marionBridgeIndexIntegration = {
+      version: MARION_BRIDGE_INDEX_INTEGRATION_VERSION,
+      bridgeVersion: cleanText(marionBridgeMod && marionBridgeMod.VERSION || ""),
+      canonicalMethod: !!(marionBridgeMod && typeof marionBridgeMod.processWithMarion === "function"),
+      privateProjectionShield: true,
+      transportSafePreservation: true
+    };
+  }
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports.MARION_BRIDGE_INDEX_INTEGRATION_VERSION = MARION_BRIDGE_INDEX_INTEGRATION_VERSION;
+    module.exports.isMarionPrivateProjectionProtectedRequest = isMarionPrivateProjectionProtectedRequest;
+    module.exports.isCanonicalMarionTransportPacket = isCanonicalMarionTransportPacket;
+    module.exports.normalizeMarionBridgeResult = function normalizeMarionBridgeResultCanonicalExport(raw, input) {
+      if (isCanonicalMarionTransportPacket(raw)) return normalizeMarionBridgeTransportBase(raw, input);
+      return normalizeMarionBridgeResult(raw, input);
+    };
+  }
+} catch (_) {}
+/* MARION_BRIDGE_CANONICAL_TRANSPORT_INDEX_R75_EXPORT_END */
