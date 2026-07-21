@@ -10,8 +10,8 @@
  * - Short follow-ups inherit only the immediately preceding accepted turn.
  * - New/isolated sessions cannot inherit an older lane.
  */
-const VERSION = "nyx.marion.currentTurnAuthority/2.0-short-followup-continuity";
-const CONTINUITY_CONTRACT = "nyx.marion.immediateContinuation/1.0";
+const VERSION = "nyx.marion.currentTurnAuthority/3.0-substantive-continuation";
+const CONTINUITY_CONTRACT = "nyx.marion.immediateContinuation/2.0";
 const MAX_DEPTH = 7;
 const MAX_KEYS = 180;
 const MAX_ARRAY = 48;
@@ -306,11 +306,77 @@ function collectCandidates(input) {
   return candidates;
 }
 
+
+const NON_SUBSTANTIVE_ANCHOR_RX = /^(?:hi|hello|hey|hiya|yo|morning|evening|good morning|good afternoon|good evening|thanks|thank you|okay|ok|alright|all right|got it|understood|yes|no|sure|ready|test|testing|mic check|are you there|you there|how are you|how are you doing)(?:\s+(?:there|marion|mac))?[.!?]*$/i;
+const INTERNAL_CONTINUATION_SCAFFOLD_RX = /\b(?:immediate(?:ly)? preceding turn|immediate technical turn|current[- ]turn authority|continuation authority|continuity anchor|active (?:code )?target|active subject|active lane|stay on the technical lane|preserve the active|preserve that active|must remain the authority|older unrelated lane|older legal thread|no older domain override|route(?:r)?[- ]to[- ]state[- ]to[- ]final[- ]envelope|continuing from the current thread|continuing from the immediately preceding|technical routing preserved|law[- ]domain file work|keep the surgery on|i have the thread|give me the exact file or prompt target|keep the next update surgical|protect the signal|backend noise)\b/i;
+
+function isInternalContinuationScaffold(value) {
+  return INTERNAL_CONTINUATION_SCAFFOLD_RX.test(text(value, 12000));
+}
+
+function isSubstantiveAnchor(candidate) {
+  if (!candidate || !isObj(candidate)) return false;
+  const primary = firstText(candidate.userText, candidate.activeTask, candidate.topic, candidate.technicalTarget);
+  const normalized = norm(primary);
+  if (!normalized || NON_SUBSTANTIVE_ANCHOR_RX.test(primary)) return false;
+  const cls = classifyCurrentTurn({ text: primary });
+  if (cls.anchor || cls.shortFollowup) return false;
+  if (candidate.domain && candidate.domain !== "general") return true;
+  if (candidate.technicalTarget) return true;
+  if (/\b(?:review|analy[sz]e|fix|repair|build|create|explain|compare|assess|audit|autopsy|plan|strategy|contract|risk|javascript|code|file|router|runtime|business|marketing|psychology|finance|cyber|law)\b/i.test(primary)) return true;
+  return normalized.split(" ").length >= 5;
+}
+
+function technicalContinuationTarget(anchor) {
+  return bounded(firstText(anchor && anchor.technicalTarget, anchor && anchor.activeTask, anchor && anchor.topic, anchor && anchor.userText), 700)
+    .replace(/[.!?]+$/g, "");
+}
+
+function technicalSubstantiveReply(current, anchor) {
+  const target = technicalContinuationTarget(anchor) || bounded(current && current.raw, 700).replace(/[.!?]+$/g, "");
+  const n = norm(target);
+  const routingWork = /\b(?:law routing|law routing file|routing file|intent router|domain router|router|routing)\b/.test(n);
+  const stateWork = /\b(?:state spine|state carry|memory|session state|continuity)\b/.test(n);
+  const envelopeWork = /\b(?:final envelope|final reply|projection|transport)\b/.test(n);
+  const bridgeWork = /\b(?:bridge|marion bridge|handoff)\b/.test(n);
+  const widgetWork = /\b(?:widget|html|frontend|interface|text field|button)\b/.test(n);
+  const kind = current && current.followupKind;
+
+  if (routingWork) {
+    if (kind === "next") return "Fix the router entry first: classify the current user text before merging remembered domain fields. Then allow session memory to update only after a trusted final response. That order prevents an old legal classification from overwriting a new technical request.";
+    if (kind === "pressure") return "The main risk is precedence inversion: historical domain metadata can be merged before the current prompt is classified. When that happens, the router may send a technical follow-up into the legal response path even though the user is asking about JavaScript.";
+    if (kind === "depth") return "The deeper defect is commit timing. Even with correct classification, a prior legal result can be written into session state before validation and then rehydrated on the next request. Instrument four checkpoints—raw prompt, routed domain, pre-commit reply, and committed state—and refuse the state write unless the final reply is trusted and matches the current domain.";
+    return "The first concrete defect to inspect is precedence. Confirm that the current prompt is classified before any remembered law or domain fields are merged. Next, verify that only an accepted final response updates session memory; otherwise stale legal state can contaminate the next technical follow-up.";
+  }
+  if (stateWork) {
+    return kind === "next"
+      ? "Repair state mutation first: write the accepted user topic, assistant result, domain, and turn identifier together only after finalization. Partial or early writes are what let stale context survive into the next request."
+      : "Inspect when the state record is mutated. The safe sequence is classify, compose, validate, then commit the accepted turn atomically. If the state is written before validation—or only some fields are updated—the next follow-up can inherit a mismatched topic or domain.";
+  }
+  if (envelopeWork) {
+    return "Inspect the visible-reply projection first. A final envelope should promote one validated answer across every reply alias and reject diagnostic, policy, or fallback text. If different aliases carry different values, the interface can display an internal scaffold instead of the substantive answer.";
+  }
+  if (bridgeWork) {
+    return "Trace the bridge at three boundaries: normalized input, composer result, and final packet. The bridge should call each stage once, preserve the same session and turn identifiers, and refuse to promote a fallback packet when the composer has not produced a valid substantive answer.";
+  }
+  if (widgetWork) {
+    return "Start with the interface state machine. Separate typing availability from send authorization, prevent overlapping requests, and ignore late responses whose turn identifier is no longer current. Those checks eliminate most lockups and stale reply overwrites without changing the visual architecture.";
+  }
+  if (kind === "next") return `Start at the earliest transformation boundary for ${target || "this technical task"}: verify the exact input, identify the first state mutation, and confirm the final visible answer still matches the current request. Fix the first divergence before changing downstream layers.`;
+  return `Go one layer deeper by locating the first point where ${target || "the technical task"} diverges from the user’s current request. Compare the normalized input, the state written for the turn, and the final visible reply; the earliest mismatch is the defect to repair first.`;
+}
+
+function lawSubstantiveReply(current, anchor) {
+  const target = bounded(firstText(anchor && anchor.activeTask, anchor && anchor.topic, anchor && anchor.userText), 700).replace(/[.!?]+$/g, "");
+  if (current && current.followupKind === "next") return "The next useful step is to identify the governing jurisdiction and the exact clause or obligation at issue, then separate enforceability, liability, remedies, and missing evidence. That keeps the review concrete while remaining general legal information.";
+  return `The deeper legal-risk analysis should separate four questions for ${target || "the issue"}: what obligation exists, what facts could constitute breach, what remedies or exposure may follow, and which jurisdiction-specific rules or documents are still missing. This is general information, not legal advice.`;
+}
+
 function extractContinuationAnchor(input) {
   if (!isPrivateMarionContext(input) || isIsolatedTurn(input)) return null;
   const current = classifyCurrentTurn(input);
   if (!current.shortFollowup) return null;
-  const candidates = collectCandidates(input).filter((c) => c && (c.userText || c.topic));
+  const candidates = collectCandidates(input).filter((c) => c && (c.userText || c.topic) && isSubstantiveAnchor(c));
   if (!candidates.length) return null;
   candidates.sort((a, b) => {
     if (a.timestamp && b.timestamp && a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
@@ -353,16 +419,16 @@ function desiredIntent(domain, current) {
 }
 
 function effectivePromptFor(current, anchor) {
-  if (!current.shortFollowup || !anchor) return current.raw;
+  if (!current.shortFollowup || !anchor || !isSubstantiveAnchor(anchor)) return current.raw;
   const target = bounded(firstText(anchor.userText, anchor.activeTask, anchor.topic, anchor.technicalTarget), 1200);
-  const mode = current.followupKind === "depth" ? "Deepen" :
-    current.followupKind === "next" ? "Advance" :
-    current.followupKind === "repeat" ? "Repeat and improve" :
-    current.followupKind === "pace" ? "Continue more slowly" :
-    current.followupKind === "pressure" ? "Reassess the current pressure and risk for" :
-    current.followupKind === "correction" ? "Correct course while preserving" : "Continue";
-  return `${current.raw}\n${mode} the immediately preceding ${anchor.domain || "active"} task: ${target}. ` +
-    `Use the most recent accepted turn as the authority. Do not revive an older domain.`;
+  if (anchor.domain === "technical") {
+    const action = current.followupKind === "next" ? "Identify the safest first fix and its validation step" :
+      current.followupKind === "pressure" ? "Identify the main defect and operational risk" :
+      "Add one new layer of concrete technical analysis";
+    return `${action} for this task: ${target}. Answer with the actual defect, why it occurs, and the safest correction. Do not describe conversation-routing policy.`;
+  }
+  if (anchor.domain === "law") return `Deepen the legal-risk analysis of: ${target}. Separate the governing issue, assumptions, exposure, missing facts, and safest next step. Keep it general information, not legal advice.`;
+  return `Advance this substantive topic directly: ${target}. Add new analysis or a concrete next action without discussing internal conversation state.`;
 }
 
 const STALE_DOMAIN_KEYS = /^(?:domain|requestedDomain|primaryDomain|selectedDomain|knowledgeDomain|routing|routeLock|domainConfidence|domainConcierge|domainConciergeSeed|r18c.*|legal.*|lawAssessment.*|lawCrossDomain.*|activeFeatureLane|finalEnvelope|marionFinal)$/i;
@@ -574,38 +640,30 @@ function replyFrom(value) {
 }
 
 function anchorReply(current) {
-  if (current.technicalFileWork) return "Technical routing preserved: this is code and runtime work, not a user-facing legal-advice request. I’ll keep the analysis on the active file, state carry, final envelope, and transport behavior.";
+  if (current.technicalFileWork) return technicalSubstantiveReply(current, { userText: current.raw, activeTask: current.raw, topic: current.raw, domain: "technical" });
   if (current.checkin) return "I’m doing well, Mac. I’m here, focused, and with you. How are you doing?";
   if (current.presence) return "I’m here, Mac. I’m with you.";
   const n = current.normalized;
-  if (/\bgood morning\b|^morning\b/.test(n)) return "Good morning, Mac. I’m here with you.";
-  if (/\bgood afternoon\b/.test(n)) return "Good afternoon, Mac. I’m here with you.";
-  if (/\bgood evening\b|^evening\b/.test(n)) return "Good evening, Mac. I’m here with you.";
-  if (/^hey\b/.test(n)) return "Hey, Mac. I’m here with you.";
+  if (/good morning|^morning/.test(n)) return "Good morning, Mac. I’m here with you.";
+  if (/good afternoon/.test(n)) return "Good afternoon, Mac. I’m here with you.";
+  if (/good evening|^evening/.test(n)) return "Good evening, Mac. I’m here with you.";
+  if (/^hey/.test(n)) return "Hey, Mac. I’m here with you.";
   return "Hello, Mac. I’m here with you.";
 }
 
 function continuationReply(current, anchor) {
-  if (!anchor) return "I don’t have a reliable active thread in this session yet. Give me the specific target you want me to continue or deepen.";
-  const target = bounded(firstText(anchor.userText, anchor.activeTask, anchor.topic, anchor.technicalTarget), 600).replace(/[.!?]+$/g, "");
-  if (anchor.domain === "technical") {
-    if (current.followupKind === "depth") {
-      return `Going deeper on ${target}: the immediate technical turn must remain the authority. I’ll preserve the active code target, trace the router-to-state-to-final-envelope path, reject older domain carry, and identify the next concrete defect rather than falling back into legal framing.`;
-    }
-    if (current.followupKind === "next") {
-      return `The next step on ${target} is to verify the immediate-turn anchor at the router, State Spine, composer, and final envelope, then run the same-session continuation test and reject any reply that revives an older domain.`;
-    }
-    return `Continuing ${target}: I’ll stay on the technical lane, preserve the active code target, and advance the runtime analysis without reopening an older legal thread.`;
-  }
-  if (anchor.domain === "law") {
-    return `Continuing the legal-risk review from the immediately preceding turn: I’ll keep this as general information, preserve the active contract or legal issue, and narrow the next answer around jurisdiction, source documents, assumptions, exposure, and the safest next step.`;
-  }
-  return `Continuing from the immediately preceding turn on ${target}: I’ll preserve that active subject, deepen it directly, and avoid reviving an older unrelated lane.`;
+  if (!anchor || !isSubstantiveAnchor(anchor)) return "There isn’t a substantive topic to deepen in this session yet. Tell me what you want to examine, and I’ll take it from there.";
+  if (anchor.domain === "technical") return technicalSubstantiveReply(current, anchor);
+  if (anchor.domain === "law") return lawSubstantiveReply(current, anchor);
+  const target = bounded(firstText(anchor.activeTask, anchor.topic, anchor.userText), 700).replace(/[.!?]+$/g, "");
+  if (current.followupKind === "next") return `The next step for ${target} is to choose the highest-impact unresolved question, answer it directly, and turn that answer into one concrete action.`;
+  return `The deeper layer of ${target} is the underlying decision: what is actually changing, what risk or opportunity matters most, and what action should follow. Start there rather than repeating the surface description.`;
 }
 
 function domainMismatch(reply, desired, current, anchor) {
   const r = lower(reply);
   if (!r) return true;
+  if (current.shortFollowup && isInternalContinuationScaffold(reply)) return true;
   const lawReply = /\b(?:legal-risk|not legal advice|legal category|jurisdiction sensitivity|contract risk|law assessment|r18c)\b/.test(r);
   const technicalReply = /\b(?:javascript|code|runtime|router|routing|state spine|final envelope|technical|debug|file|module)\b/.test(r);
   if (desired !== "law" && lawReply) return true;
@@ -757,13 +815,13 @@ function enforceResult(result, input) {
   const desired = desiredDomain(input, current, anchor) || "general";
   const intent = desiredIntent(desired, current);
   if (typeof result === "string") {
-    if (!domainMismatch(result, desired, current, anchor)) return result;
+    if (!domainMismatch(result, desired, current, anchor) && !isInternalContinuationScaffold(result)) return result;
     return current.shortFollowup ? continuationReply(current, anchor) : anchorReply(current);
   }
   if (!isObj(result)) return result;
   let out = cleanConflictingMetadata(result, desired);
   let reply = replyFrom(out);
-  if (domainMismatch(reply, desired, current, anchor)) reply = current.shortFollowup ? continuationReply(current, anchor) : anchorReply(current);
+  if (domainMismatch(reply, desired, current, anchor) || isInternalContinuationScaffold(reply)) reply = current.shortFollowup ? continuationReply(current, anchor) : anchorReply(current);
   out = setReplyAliases(out, reply);
   out.ok = out.ok !== false;
   out.final = true;
@@ -926,5 +984,9 @@ module.exports = {
   anchorReply,
   continuationReply,
   domainMismatch,
-  buildNextAnchor
+  buildNextAnchor,
+  isSubstantiveAnchor,
+  isInternalContinuationScaffold,
+  technicalSubstantiveReply,
+  lawSubstantiveReply
 };
