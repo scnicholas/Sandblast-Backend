@@ -5910,3 +5910,8 @@ module.exports = { normalizeVisibleFinalReplyFields,
   try{const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["handleChat","run","chat","handle","reply","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields","finalTransportPacket"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_VERSION=VERSION;api.applyMarionAdminLayer78ChatHandlerHardlock=project;api.isMarionNonProgressPresenceReply=generic;}}catch(_){}
 })();
 /* MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_R1_END */
+
+/* MARION_CURRENT_TURN_AUTHORITY_R1_START */
+(function(){"use strict";let guard=null;try{guard=require("../Data/marion/runtime/marionCurrentTurnAuthority.js");}catch(_){guard=null;}if(!guard||typeof module==="undefined"||!module.exports)return;const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;function wrap(fn){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const p=guard.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>guard.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionCurrentTurnAuthorityR1=true;return w;}["handleChat","run","chat","handle","reply","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n]);});api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;})();
+/* MARION_CURRENT_TURN_AUTHORITY_R1_END */
+
