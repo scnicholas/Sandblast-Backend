@@ -5980,3 +5980,17 @@ try{
   api.marionSubstantiveContinuationGuard=g;
 }catch(_){}})();
 /* MARION_SUBSTANTIVE_FINAL_PROJECTION_R3_END */
+
+/* MARION_LONG_THREAD_FINAL_PROJECTION_R4_START */
+(function(){"use strict";try{
+  const g=require("./marionCurrentTurnAuthority.js");
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||!g||api.__marionLongThreadFinalProjectionR4)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLongThreadFinalProjectionR4)return fn;const w=function(){const p=g.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>g.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionLongThreadFinalProjectionR4=true;w.__wrappedName=name;return w;}
+  ["createMarionFinalEnvelope","attachVisibleReplyAliases","normalizeFinalTransport","sanitizeFinalEnvelope","buildFinalEnvelope","toFinalEnvelope","default"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n],n);});
+  api.__marionLongThreadFinalProjectionR4=true;
+  api.MARION_LONG_THREAD_FINAL_PROJECTION_VERSION=g.VERSION;
+  api.MARION_LONG_THREAD_PROGRESSION_CONTRACT=g.CONTINUITY_CONTRACT;
+  api.marionLongThreadProgressionGuard=g;
+}catch(_){}})();
+/* MARION_LONG_THREAD_FINAL_PROJECTION_R4_END */
