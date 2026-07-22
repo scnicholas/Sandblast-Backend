@@ -20,7 +20,7 @@ function stateSignals(prompt=""){
   const p=lower(prompt);
   return {
     cancel:/\b(?:cancel|drop|discard|invalidate|stop)\s+(?:that|this|the)?\s*(?:path|pathway|plan|strategy)\b/.test(p),
-    keepBaseline:/\b(?:keep|retain|preserve)\s+(?:the\s+)?current\s+baseline\b/.test(p),
+    keepBaseline:/\b(?:keep|retain|preserve)\s+(?:the\s+)?current\s+(?:(?:validated|certified)\s+)?baseline\b/.test(p),
     approve:/\b(?:approve|approved|authorize|authorized|go ahead with|proceed with|use|select|choose)\b/.test(p)&&/\b(?:path|pathway|baseline|additive|pilot|phased)\b/.test(p),
     select:/\b(?:select|choose|recommend|go with|use)\b/.test(p)&&/\b(?:path|pathway|option|baseline|additive|pilot|phased)\b/.test(p),
     executing:/\b(?:executing|deploying|implementation has started|now applying)\b/.test(p),
