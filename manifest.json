@@ -1,12 +1,12 @@
 {
-  "package": "Sandblast Backend Marion Unified Manifest",
-  "version": "11.1.1-path-corrected",
-  "contract": "nyx.marion.backendManifest/1.0",
-  "generatedUtc": "2026-07-22T03:22:53.762251+00:00",
+  "package": "Marion Outcome Flow Layers 12-14",
+  "version": "14.0",
+  "contract": "nyx.marion.conversationFlow/2.0",
+  "generatedUtc": "2026-07-22T15:32:32.617569+00:00",
   "target": {
     "backend": "Sandblast backend",
-    "scope": "Marion current-turn authority and conversation-flow layers 9-11",
-    "manifestOnly": true,
+    "scope": "Marion conversational layers 9-14 with cohesive outcome awareness, commitment tracking and anticipatory guidance",
+    "manifestOnly": false,
     "manifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
     "guardianMemoryBridgePath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js"
   },
@@ -28,11 +28,19 @@
   ],
   "summary": {
     "sourceManifestCount": 2,
-    "sourceAFileCount": 15,
-    "sourceBFileCount": 21,
-    "duplicatePathCount": 10,
-    "uniqueFileCount": 26,
-    "pathCorrectionCount": 1
+    "previousUniqueFileCount": 26,
+    "newLayerModuleCount": 4,
+    "newTestArtifactCount": 4,
+    "uniqueFileCount": 34,
+    "pathCorrectionCount": 1,
+    "conversationLayersIncluded": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ]
   },
   "filePaths": [
     "Data/marion/runtime/composeMarionResponse.js",
@@ -60,7 +68,15 @@
     "tests/STATIC_RESULTS.json",
     "tests/TEST_RESULTS.txt",
     "tests/conversation_flow_runtime_test.js",
-    "tests/current_turn_authority_smoke.js"
+    "tests/current_turn_authority_smoke.js",
+    "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
+    "Data/marion/runtime/conversation/marionCommitmentTracker.js",
+    "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
+    "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
+    "tests/outcome_flow_runtime_test.js",
+    "tests/LAYERS_12_14_RESULTS.json",
+    "tests/LAYERS_9_11_REGRESSION_RESULTS.json",
+    "docs/GAP_REFINEMENTS.md"
   ],
   "files": [
     {
@@ -414,6 +430,110 @@
         "sha256": "5bd6d8638e33c7f3083531647d53e10f2b9648f0125cf388b6bfea522c28eda1",
         "status": "preserved_from_source_manifest"
       }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionCommitmentTracker.js",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
+    },
+    {
+      "path": "tests/outcome_flow_runtime_test.js",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
+    },
+    {
+      "path": "tests/LAYERS_12_14_RESULTS.json",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
+    },
+    {
+      "path": "tests/LAYERS_9_11_REGRESSION_RESULTS.json",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
+    },
+    {
+      "path": "docs/GAP_REFINEMENTS.md",
+      "includedBy": [
+        "Marion Outcome Flow Layers 12-14 v14.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Outcome Flow Layers 12-14",
+        "sourceVersion": "14.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "generated_in_current_release"
+      }
     }
   ],
   "architecture": {
@@ -421,29 +541,46 @@
     "widgetModified": false,
     "routeAuthorityModified": false,
     "replyAuthorityReplaced": false,
-    "metadataOnlyLayerRegistry": true,
-    "fullSuppliedFilesIncluded": true,
+    "metadataAndStateCoordinationOnly": true,
+    "boundedCommitmentLedger": true,
+    "autonomousExecutionAllowed": false,
     "currentTurnAuthorityIncluded": true,
     "conversationFlowLayersIncluded": [
       9,
       10,
-      11
+      11,
+      12,
+      13,
+      14
     ],
-    "indexEntryRetainedForProvenance": true,
-    "routeAuthorityPolicy": "Do not replace the certified direct-adapter route authority merely because index.js appears in the older source manifest.",
     "canonicalManifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
-    "guardianMemoryBridgeCanonicalPath": "src/memory/guardian.memory.bridge.js"
+    "guardianMemoryBridgeCanonicalPath": "src/memory/guardian.memory.bridge.js",
+    "routeAuthorityPolicy": "Preserve the certified INDEX_V10_DIRECT_PRIVATE_ADAPTER route. Do not add or replace HTTP route authority for Layers 12-14."
   },
   "validation": {
-    "mergedJsonValid": true,
+    "jsonValid": true,
     "duplicatePathsDeduplicated": true,
-    "sourceMetadataPreserved": true,
-    "sourceIntegritySnapshotsPreserved": true,
-    "freshChecksumsGeneratedForRuntimeFiles": false,
-    "note": "The merge combines manifest metadata only. Checksums from the first manifest remain labelled as source-package snapshots; the second manifest did not provide file checksums.",
     "guardianMemoryBridgePathCorrected": true,
-    "operationalPathReferencesUpdated": true,
-    "embeddedSourceManifestsPreservedUnmodified": true
+    "nodeSyntaxPendingAtManifestGeneration": true,
+    "layers9to11RegressionTest": "passed",
+    "layers12to14RuntimeTests": 26,
+    "layers12to14RuntimeTestsPassed": 26,
+    "adapterHttp200Sequence": "passed",
+    "freshSessionIsolation": "passed",
+    "noInventedDeadline": "passed",
+    "unauthorizedExecutionPrevention": "passed",
+    "fullApplicationBoot": false,
+    "fullApplicationBootReason": "Complete Render production environment is not available in the isolated build sandbox.",
+    "nodeSyntax": true,
+    "nodeSyntaxChecks": 20,
+    "moduleLoadChecks": 14,
+    "moduleLoadChecksPassed": 14,
+    "layers9to11RegressionTests": 13,
+    "layers9to11RegressionFailures": 0,
+    "manifestPathCount": 34,
+    "conflictMarkersAbsent": true,
+    "indexJsIncludedInPackage": false,
+    "routeAuthorityModified": false
   },
   "originalInputChecksums": {
     "chatEngine.js": {
@@ -659,5 +796,176 @@
       "canonicalWindowsPath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
       "reason": "Confirmed backend file location supplied by the operator."
     }
-  ]
+  ],
+  "layers12to14": {
+    "layer12": {
+      "name": "Conversational Outcome Awareness",
+      "module": "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
+      "contract": "nyx.marion.outcomeAwareness/1.0"
+    },
+    "layer13": {
+      "name": "Commitment and Resolution Tracking",
+      "module": "Data/marion/runtime/conversation/marionCommitmentTracker.js",
+      "contract": "nyx.marion.commitmentLedger/1.0",
+      "boundedLedger": true
+    },
+    "layer14": {
+      "name": "Anticipatory Guidance",
+      "module": "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
+      "contract": "nyx.marion.anticipatoryGuidance/1.0",
+      "safeToExecute": false
+    },
+    "coordinator": "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js"
+  },
+  "releaseIntegrity": {
+    "algorithm": "SHA-256",
+    "generatedUtc": "2026-07-22T15:32:32.634934+00:00",
+    "files": [
+      {
+        "path": "Data/marion/runtime/composeMarionResponse.js",
+        "bytes": 1075139,
+        "sha256": "8e5b74c34d0147bdaa8a4eb438d788b35ccd591aff7d85a1e53ece35cbcbefad"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
+        "bytes": 9675,
+        "sha256": "f2feaf4eecae3cc1e9b855d85e61dbe17d9e2c1a2f6e3bb5f3779174ce7dbfd0"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionCommitmentTracker.js",
+        "bytes": 9170,
+        "sha256": "b6144c7e3b327165c14df81e5bf73e5c6253e401387f175cf9cb87b988199e9d"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionContextPivot.js",
+        "bytes": 7744,
+        "sha256": "22af6bc848f6997556c72bf46730e61bd90dc4100f9cd1cb1eaf9c532222e8f2"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
+        "bytes": 15114,
+        "sha256": "c794fd74271fd4971d36371ceb00e19ae220985f4256d19d9443915194abcf44"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionConversationProgression.js",
+        "bytes": 6483,
+        "sha256": "634a569227e18c1b0e559521cbe899cc15fd18880b0ee860b686ad50ceb53336"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+        "bytes": 5619,
+        "sha256": "1de4b4203cacffa83ddb2593654c32786a34be2192032d0f46bf21033fca0ef4"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
+        "bytes": 7821,
+        "sha256": "474eda62e3e1d15b5e86b101ec8ebe00f200840653172253e51a49126754ca7d"
+      },
+      {
+        "path": "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
+        "bytes": 6243,
+        "sha256": "e7725304ee83ff8a470051629bf15770a0a4bb1addf3f9b210fbc72dc1200f32"
+      },
+      {
+        "path": "Data/marion/runtime/emotion/emotionRuntime.js",
+        "bytes": 17628,
+        "sha256": "7d786059931452ab4f700417802c69c64a93d9134abcedfd0b3b16552048321e"
+      },
+      {
+        "path": "Data/marion/runtime/marionBridge.js",
+        "bytes": 76402,
+        "sha256": "c77c21ceff35f59c0721eecaf4f083bbd282edc76732cc599a60973bffb73aad"
+      },
+      {
+        "path": "Data/marion/runtime/marionCurrentTurnAuthority.js",
+        "bytes": 67767,
+        "sha256": "d483d50f26c1a87f4525dd2e387a8e9eef286e248447e261d25ab922bbff28bb"
+      },
+      {
+        "path": "Data/marion/runtime/marionFinalEnvelope.js",
+        "bytes": 593092,
+        "sha256": "46bfe3d2c138bef54d252844235a626c76420d8413a80a7284f31230715e8cf5"
+      },
+      {
+        "path": "Data/marion/runtime/marionIntentRouter.js",
+        "bytes": 258134,
+        "sha256": "af1f662dc97daefb7b82872d863e2d27b0284bd9b1d3effe861d73c62be1c6a9"
+      },
+      {
+        "path": "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+        "bytes": 34430,
+        "sha256": "8e3b4406210ed349a30bc9db0aae090468418ccd133856e40d6e3fc243d38271"
+      },
+      {
+        "path": "README.md",
+        "bytes": 894,
+        "sha256": "a078127a07fe678c7d4d9c59fc55a6bd1a99c4c33df6441af1fb4df8eaba2033"
+      },
+      {
+        "path": "Utils/chatEngine.js",
+        "bytes": 320526,
+        "sha256": "78239053e431ee43761a200a1f103deeb6a7d4d8b979efe5090fe0be1beacdbb"
+      },
+      {
+        "path": "Utils/stateSpine.js",
+        "bytes": 416152,
+        "sha256": "b691db8c62bfb2bbde4b7607394d5160cc33a8b30956477c306214195b6bd819"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "bytes": 1424,
+        "sha256": "029d61ac1b10e7e8c1138a3dfb3469c5a994d69d471b318dc1271cc39cb7218e"
+      },
+      {
+        "path": "docs/DEPLOYMENT.md",
+        "bytes": 736,
+        "sha256": "d35ba070ce93facc711971c6eb17c9abd2ee5bbe88f5907c7ba188bb54a63309"
+      },
+      {
+        "path": "docs/GAP_REFINEMENTS.md",
+        "bytes": 1380,
+        "sha256": "291eee46a4878374f68f3689ed9036846d968f79b71b4a178ddcf6ea0514c4ec"
+      },
+      {
+        "path": "docs/TEST_MATRIX.md",
+        "bytes": 1198,
+        "sha256": "2c1da6d328b6503f10246b16d9792358b1c19a6a805f782f22b645c9b36d7d71"
+      },
+      {
+        "path": "src/memory/guardian.memory.bridge.js",
+        "bytes": 80235,
+        "sha256": "c1047886fd483d3dcffb77b0f1f47b823000f33b16d80b306852dea0635f0782"
+      },
+      {
+        "path": "tests/LAYERS_12_14_RESULTS.json",
+        "bytes": 7811,
+        "sha256": "295d3a00780237efc781d69eb3aea0bfb535da4b24ef831bc5768ce90e95c179"
+      },
+      {
+        "path": "tests/LAYERS_9_11_REGRESSION_RESULTS.json",
+        "bytes": 50,
+        "sha256": "93a89081018e1e3ac453c725a953eaba855a289855fde994f4ddca6f3754252f"
+      },
+      {
+        "path": "tests/RUNTIME_RESULTS.json",
+        "bytes": 18972,
+        "sha256": "64047ab91de580bdecd2fd34bb8a26052f53011353542eeea3c7acab009f7b99"
+      },
+      {
+        "path": "tests/STATIC_RESULTS.json",
+        "bytes": 7372,
+        "sha256": "c54af3af5dc1bdb5812fffdbce0cfe2921a8662278f82af153982f7138233565"
+      },
+      {
+        "path": "tests/conversation_flow_runtime_test.js",
+        "bytes": 6607,
+        "sha256": "939af7f645e22911d8cdad7b8643aa41dd6578b38fa54152d2b585e5ec3a0190"
+      },
+      {
+        "path": "tests/outcome_flow_runtime_test.js",
+        "bytes": 6601,
+        "sha256": "9c5c39fce39dff5fda4c16efbfa855cdf73cfc3d8ad22013ff605c0baeaf9511"
+      }
+    ]
+  }
 }
