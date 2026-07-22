@@ -3916,3 +3916,29 @@ function r18cApplyLawIntentRoute(result,packet){
   }catch(_){}
 })();
 /* MARION_STRATEGIC_INTENT_CLASSIFIER_V17_END */
+
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_ROUTER_V20_START */
+(function marionCompletionFlowRouterV20(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+    api.classifyCompletionFlowIntent=function(value){
+      const prompt=text(value&&typeof value==="object"?(value.prompt||value.userText||value.text||value.message):value);
+      return {
+        crossDomainContext:registry.crossDomainContextIntegrator.isCrossDomainQuery(prompt),
+        goalRealignment:registry.goalRealignment.isRealignmentQuery(prompt)||!!registry.goalRealignment.extractExplicitGoal(prompt)||!!registry.goalRealignment.extractConstraint(prompt),
+        decisionClosure:registry.decisionClosure.querySignal(prompt)||registry.decisionClosure.closureSignal(prompt)||registry.decisionClosure.validationSignal(prompt),
+        hardStopAtLayer20:/\bhard stop at layer 20\b/i.test(prompt)
+      };
+    };
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_COMPLETION_FLOW_VERSION=registry.completionCoordinator.VERSION;
+    api.MARION_COMPLETION_FLOW_ROUTING_ONLY=true;
+    api.MARION_LAYER_HARD_STOP=20;
+    api.__marionCompletionFlowCapabilityV20=true;
+  }catch(_){}
+})();
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_ROUTER_V20_END */
+
