@@ -791,3 +791,44 @@ module.exports.default = module.exports;
   api.__marionStrategicFlowGuardianMemoryV17=true;
 })();
 /* MARION_STRATEGIC_FLOW_GUARDIAN_MEMORY_V17_END */
+
+/* MARION_COMPLETION_FLOW_GUARDIAN_MEMORY_V20_START */
+(function marionCompletionFlowGuardianMemoryV20(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionCompletionFlowGuardianMemoryV20)return;
+  function load(){for(const p of ["../../Data/marion/runtime/conversation/marionConversationLayerRegistry.js","../Data/marion/runtime/conversation/marionConversationLayerRegistry.js","./conversation/marionConversationLayerRegistry.js"]){try{const m=require(p);if(m&&m.completionCoordinator)return m;}catch(_){}}return null;}
+  const registry=load();if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function text(v,max=700){try{return String(v==null?"":v).replace(/\s+/g," ").replace(/(bearer\s+[a-z0-9._~+/-]+=*|(?:token|secret|password|api[_-]?key|session[_-]?token|runtime[_-]?token)\s*[:=]\s*[^\s,"'}]+)/gi,"[REDACTED]").trim().slice(0,max)}catch(_){return""}}
+  function key(v){return text(v||"marion",80).toLowerCase()||"marion"}
+  const completionMemory=new Map();
+  function summary(state){
+    const s=obj(state),c=obj(s.crossDomainContext),g=obj(s.goalRealignment),d=obj(s.decisionClosure);
+    return {version:registry.completionCoordinator.VERSION,domains:Array.isArray(c.domains)?c.domains.slice(0,6):[],activeGoal:text(g.activeGoal),goalStatus:text(g.status,80),controllingConstraint:text(g.constraint,500),closureStatus:text(d.closureStatus,80),validationPassed:d.validationPassed===true,hardStopAtLayer20:d.hardStopAtLayer20===true,finalDecision:text(d.finalDecision,500),additionalLayerRecommended:false,automaticExecutionAllowed:false,updatedAt:new Date().toISOString()};
+  }
+  const remember=api.rememberTurn;
+  if(typeof remember==="function"&&!remember.__marionCompletionFlowGuardianMemoryV20){
+    api.rememberTurn=function(guardian,turn,options){
+      const result=remember.apply(this,arguments),state=obj(result).conversationFlowState||obj(obj(turn).conversationFlowState),completion=obj(state).completionFlow;
+      if(key(guardian)==="marion"&&obj(completion).decisionClosure){completionMemory.set("marion",summary(completion));}
+      return result&&typeof result==="object"&&completionMemory.has(key(guardian))?{...result,completionMemory:completionMemory.get(key(guardian)),completionFlowState:completion}:result;
+    };
+    api.rememberTurn.__marionCompletionFlowGuardianMemoryV20=true;
+  }
+  for(const name of ["getGuardianMemory","getGuardianSnapshot"]){
+    const original=api[name];
+    if(typeof original==="function"&&!original.__marionCompletionFlowGuardianMemoryV20){
+      api[name]=function(guardian){const result=original.apply(this,arguments),state=completionMemory.get(key(guardian));return result&&typeof result==="object"&&state?{...result,completionMemory:state}:result;};
+      api[name].__marionCompletionFlowGuardianMemoryV20=true;
+    }
+  }
+  api.getMarionCompletionMemory=function(guardian){return completionMemory.get(key(guardian))||null;};
+  api.resetMarionCompletionMemory=function(guardian){return completionMemory.delete(key(guardian));};
+  api.MARION_COMPLETION_FLOW_GUARDIAN_MEMORY_VERSION=registry.completionCoordinator.VERSION;
+  api.MARION_LAYER_HARD_STOP=20;
+  api.MARION_ADDITIONAL_LAYER_RECOMMENDED=false;
+  api.MARION_COMPLETION_AUTOMATIC_EXECUTION_ALLOWED=false;
+  api.__marionCompletionFlowGuardianMemoryV20=true;
+})();
+/* MARION_COMPLETION_FLOW_GUARDIAN_MEMORY_V20_END */
