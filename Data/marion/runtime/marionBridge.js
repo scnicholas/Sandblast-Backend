@@ -717,3 +717,17 @@ Object.assign(module.exports,{VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT
   Object.assign(api,{VERSION:VERSION_V9,BRIDGE_CONTRACT_VERSION:"nyx.marion.bridge/9.0",MARION_DRASTIC_BRIDGE_RECOVERY_VERSION:VERSION_V9,processWithMarion:definitive,route:definitive,maybeResolve:definitive,ask:definitive,handle:definitive,default:definitive,handleMarionAdminConversation:admin,handleMarionAdminTextRuntime:admin,handleAdminConversation:admin,invokeMarionAdminTextRuntime:admin,handleTextRuntime:admin,createMarionBridge:function(){return{version:VERSION_V9,endpoint:"marion://routeMarion.primary",processWithMarion:definitive,route:definitive,maybeResolve:definitive,ask:definitive,handle:definitive}},getDependencyStatus:function(){return{version:VERSION_V9,composer:!!loadComposer(),finalEnvelope:!!loadEnvelope(),recoveryKernel:true}},__marionDrasticBridgeRecoveryV9:true});
 })();
 /* MARION_DRASTIC_BRIDGE_RECOVERY_V9_END */
+
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_BRIDGE_V11_START */
+(function marionConversationFlowBridgeV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionConversationFlowBridgeV11)return;
+  let registry=null;try{registry=require("./conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}
+  if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function privateTurn(v){const s=obj(v),c=obj(s.privateRuntimeContext);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.scope==="private_admin"||c.version;}
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionConversationFlowBridgeV11)return fn;const w=function(){const args=Array.from(arguments),input=obj(args[0]);if(!privateTurn(input))return fn.apply(this,args);const prepared=registry.applyToInput(input,obj(input.previousMemory));args[0]=prepared;const apply=result=>registry.attachToResult(result,obj(prepared.conversationFlow));const out=fn.apply(this,args);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k]})}catch(_){}w.__marionConversationFlowBridgeV11=true;w.__wrappedName=name;return w;}
+  for(const name of ["processWithMarion","route","maybeResolve","ask","handle","default","handleMarionAdminConversation","handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"]){if(typeof api[name]==="function")api[name]=wrap(api[name],name);}
+  api.__marionConversationFlowBridgeV11=true;api.MARION_CONVERSATION_FLOW_BRIDGE_VERSION=registry.VERSION;api.marionConversationLayers=registry;
+})();
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_BRIDGE_V11_END */
