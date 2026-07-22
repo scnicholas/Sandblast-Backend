@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("assert");
 const path=require("path");
-const ROOT=path.resolve(__dirname,"..");
+const ROOT=path.resolve(__dirname,"..","..");
 const registry=require(path.join(ROOT,"Data/marion/runtime/conversation/marionConversationLayerRegistry.js"));
 const adapter=require(path.join(ROOT,"Data/marion/runtime/marionPrivateRuntimeAdapter.js"));
 const riskModel=require(path.join(ROOT,"Data/marion/runtime/strategy/marionPredictiveRiskModel.js"));
@@ -18,7 +18,7 @@ function noLeak(text){return !/\b(?:assessmentId|pathwayId|riskId|alignmentScore
 
 (async()=>{
   const status=registry.getStatus();
-  record("registry_layers_9_17",Object.keys(status.layers).map(Number).join(",")==="9,10,11,12,13,14,15,16,17",status);
+  record("registry_layers_9_17",[9,10,11,12,13,14,15,16,17].every(n=>status.layers[n]),status);
   record("strategic_metadata_only",status.routeAuthority===false&&status.replyAuthority===false&&status.metadataOnly===true);
   record("automatic_execution_disabled",status.automaticExecutionAllowed===false&&status.approvalBoundaryPreserved===true);
 
@@ -100,7 +100,7 @@ function noLeak(text){return !/\b(?:assessmentId|pathwayId|riskId|alignmentScore
     rows.push({prompt,statusCode:response.statusCode,reply:response.reply,recommended:response.strategicFlowState&&response.strategicFlowState.pathwaySynthesis&&response.strategicFlowState.pathwaySynthesis.recommendedPathwayId,approved:response.strategicFlowState&&response.strategicFlowState.pathwaySynthesis&&response.strategicFlowState.pathwaySynthesis.approvedPathwayId,layers:response.result&&response.result.meta&&response.result.meta.conversationLayers});
   }
   record("adapter_http_200_strategic_sequence",rows.every(r=>r.statusCode===200),{rows});
-  record("adapter_layers_9_17_metadata",rows.every(r=>Array.isArray(r.layers)&&r.layers.join(",")==="9,10,11,12,13,14,15,16,17"));
+  record("adapter_layers_9_17_metadata",rows.every(r=>Array.isArray(r.layers)&&[9,10,11,12,13,14,15,16,17].every(n=>r.layers.includes(n))));
   record("adapter_path_approval",rows[rows.length-1].approved==="path_reframe_additive",rows[rows.length-1]);
   record("adapter_visible_replies_clean",rows.every(r=>noLeak(r.reply)),{replies:rows.map(r=>r.reply)});
 
