@@ -1,7 +1,7 @@
 "use strict";
 const fs=require("fs");
 const path=require("path");
-const root=path.resolve(__dirname,"..");
+const root=path.resolve(__dirname,"..","..");
 const adapter=require(path.join(root,"Data/marion/runtime/marionPrivateRuntimeAdapter.js"));
 const registry=require(path.join(root,"Data/marion/runtime/conversation/marionConversationLayerRegistry.js"));
 const ctx={adminVerified:true,sessionVerified:true};
