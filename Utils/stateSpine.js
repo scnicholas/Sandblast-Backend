@@ -5929,3 +5929,17 @@ marionR3PatchExports(["composeMarionResponse","compose","buildReply","run","defa
 /* MARION_UNIFIED_PRIVATE_RUNTIME_STATE_V8_START */
 try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"){module.exports.MARION_UNIFIED_PRIVATE_RUNTIME_STATE_CONTRACT="nyx.marion.privateRuntime.state/8.0";module.exports.projectMarionPrivateRuntimeContinuity=function(value){const v=value&&typeof value==="object"?value:{};return{activeDomain:String(v.activeDomain||""),activeSubject:String(v.activeSubject||v.activeTask||""),progressionStage:String(v.progressionStage||""),followUpDepth:Number(v.followUpDepth||0),privateRuntimeContract:"nyx.marion.privateRuntime/8.0"}};}}catch(_){}
 /* MARION_UNIFIED_PRIVATE_RUNTIME_STATE_V8_END */
+
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_STATE_SPINE_V11_START */
+(function marionConversationFlowStateSpineV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionConversationFlowStateSpineV11)return;
+  let registry=null;try{registry=require("../Data/marion/runtime/conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function privateTurn(v){const s=obj(v),c=obj(s.privateRuntimeContext);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.scope==="private_admin"||c.version||obj(s.conversationFlow).contract===registry.CONTRACT;}
+  function decorate(result,flow){if(!result||typeof result!=="object")return result;const state=registry.projectState(flow);return {...result,conversationFlowState:state,conversationStage:flow.stage,contextPivot:flow.contextPivot,interactionCalibration:flow.interactionCalibration,memoryPatch:{...obj(result.memoryPatch),conversationFlowState:state},sessionPatch:{...obj(result.sessionPatch),conversationFlowState:state}};}
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionConversationFlowStateSpineV11)return fn;const w=function(){const args=Array.from(arguments),input=args.find(x=>privateTurn(x));if(!input)return fn.apply(this,args);const prepared=registry.applyToInput(obj(input),obj(obj(input).previousMemory));const index=args.indexOf(input);if(index>=0)args[index]=prepared;const flow=obj(prepared.conversationFlow),apply=result=>decorate(result,flow);const out=fn.apply(this,args);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k]})}catch(_){}w.__marionConversationFlowStateSpineV11=true;return w;}
+  for(const name of ["forceState","finalizeTurn","updateState","advanceState","mergeState","buildStateSpine","applyStatePatch","normalizeStateForPipelineCohesion","default"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.projectMarionConversationFlowState=registry.projectState;api.__marionConversationFlowStateSpineV11=true;api.MARION_CONVERSATION_FLOW_STATE_VERSION=registry.VERSION;api.marionConversationLayers=registry;
+})();
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_STATE_SPINE_V11_END */
