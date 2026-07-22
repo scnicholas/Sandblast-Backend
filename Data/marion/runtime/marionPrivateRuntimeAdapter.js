@@ -16,8 +16,8 @@
 const path = require("path");
 const conversationLayers = (() => { try { return require("./conversation/marionConversationLayerRegistry.js"); } catch (_) { return null; } })();
 
-const VERSION = "marion.privateRuntime.adapter/14.0-outcome-flow-layers-12-13-14";
-const CONTRACT = "nyx.marion.privateRuntime/14.0";
+const VERSION = "marion.privateRuntime.adapter/17.0-strategic-flow-layers-15-16-17";
+const CONTRACT = "nyx.marion.privateRuntime/17.0";
 const MAX_SESSIONS = 256;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const sessionContinuity = new Map();
@@ -74,10 +74,13 @@ function isContextualFollowup(value = "") { return !!followupKind(value); }
 function isOutcomeFlowTurn(value = "") {
   const prompt = safeText(value);
   if (!prompt || isGreeting(prompt)) return false;
-  if (conversationLayers && typeof conversationLayers.outcomeContinuityTurn === "function") {
-    try { return conversationLayers.outcomeContinuityTurn(prompt); } catch (_) {}
+  if (conversationLayers) {
+    try {
+      if (typeof conversationLayers.outcomeContinuityTurn === "function" && conversationLayers.outcomeContinuityTurn(prompt)) return true;
+      if (typeof conversationLayers.strategicContinuityTurn === "function" && conversationLayers.strategicContinuityTurn(prompt)) return true;
+    } catch (_) {}
   }
-  return /\b(?:full pass|passed successfully|completed|finished|done|cancel(?:led)?|defer(?:red)?|blocked|failed|go ahead|proceed|do it|what remains|what is left|are we done|what should happen next|next best action)\b/i.test(prompt);
+  return /\b(?:full pass|passed successfully|completed|finished|done|cancel(?:led)?|defer(?:red)?|blocked|failed|go ahead|proceed|do it|what remains|what is left|are we done|what should happen next|next best action|objective|goal|alignment|risk|consequence|pathway|option|keep the current baseline|approve path)\b/i.test(prompt);
 }
 function explicitTechnical(value = "") {
   return /\b(?:javascript|typescript|node(?:\.js)?|index\.js|html|css|code|runtime|router|routing|debug|autopsy|function|module|backend|frontend|widget|handler|endpoint|api|payload|manifest|state spine|final envelope|transport|cors|http\s*502|referenceerror|typeerror|commonjs|circular dependenc|file)\b/i.test(safeText(value));
@@ -224,6 +227,7 @@ function normalizeInput(input = {}, context = {}) {
     lastUserText: firstText(state.lastUserText), lastSubstantivePrompt: firstText(state.lastSubstantivePrompt, state.activeSubject), lastAssistantReply: firstText(state.lastReply),
     conversationFlowState: obj(state.conversationFlowState),
     outcomeFlowState: obj(state.outcomeFlowState || obj(state.conversationFlowState).outcomeFlow),
+    strategicFlowState: obj(state.strategicFlowState || obj(state.conversationFlowState).strategicFlow),
     followUpDepth: Number(state.followUpDepth || 0),
     privateRuntimeContinuity: { version: CONTRACT, activeDomain: firstText(state.activeDomain, expectedDomain), activeSubject, progressionStage: firstText(state.progressionStage), followUpDepth: Number(state.followUpDepth || 0) }
   };
@@ -272,16 +276,17 @@ function updateContinuity(input, result, reply) {
       activeDomain: firstText(prior.activeDomain, obj(flowState).activeDomain),
       activeSubject: firstText(prior.activeSubject, obj(flowState).activeSubject),
       progressionStage: "social", followUpDepth: 0, lastUserText: input.prompt, lastReply: reply,
-      memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState },
+      memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) },
       conversationFlowState: flowState,
-      outcomeFlowState: obj(flowState.outcomeFlow)
+      outcomeFlowState: obj(flowState.outcomeFlow),
+      strategicFlowState: obj(flowState.strategicFlow)
     });
     return;
   }
   const domain = firstText(ctx.expectedDomain, resultDomain(result), ctx.activeDomain);
   const substantive = !!domain && domain !== "general";
   if (!substantive) {
-    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow) }, conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow) });
+    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) }, conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) });
     return;
   }
   const flowDirection = firstText(obj(input.conversationFlow).direction);
@@ -294,9 +299,10 @@ function updateContinuity(input, result, reply) {
     lastReply: reply,
     progressionStage: firstText(ctx.progressionStage, "analysis"),
     followUpDepth: Number(ctx.followUpDepth || 0),
-    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow) },
+    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) },
     conversationFlowState: flowState,
-    outcomeFlowState: obj(flowState.outcomeFlow)
+    outcomeFlowState: obj(flowState.outcomeFlow),
+    strategicFlowState: obj(flowState.strategicFlow)
   });
 }
 function finalPacket(normalized, result, reply, stage, reason = "", degraded = false, attempts = []) {
@@ -310,9 +316,11 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
   }
   const outcomeFlow = obj(conversationFlow.outcomeFlow);
   const outcomeFlowState = obj(conversationFlowState.outcomeFlow);
+  const strategicFlow = obj(conversationFlow.strategicFlow);
+  const strategicFlowState = obj(conversationFlowState.strategicFlow);
   const memoryPatch = {
     ...obj(result.memoryPatch || result.sessionPatch),
-    conversationFlowState, outcomeFlowState,
+    conversationFlowState, outcomeFlowState, strategicFlowState,
     activeDomain: domain === "general" ? "" : domain,
     activeSubject: domain === "general" ? "" : firstText(obj(normalized.privateRuntimeContext).activeSubject),
     lastUserText: normalized.prompt,
@@ -326,15 +334,15 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
     payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
     finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
-    conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
-    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction) }
+    conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
+    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, automaticExecutionAllowed: false }
   };
   return {
     ok: true, statusCode: 200, stage, reason, degraded, recovered: degraded,
     reply, publicReply: reply, visibleReply: reply, displayReply: reply, directReply: reply, finalReply: reply,
     response: reply, text: reply, message: reply, spokenText: firstText(resultPacket.spokenText, reply), speechText: firstText(resultPacket.speechText, resultPacket.spokenText, reply),
     result: resultPacket, adapterVersion: VERSION, contract: CONTRACT, bridgeStatus: getStatus(), bridgeAttempts: attempts,
-    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
+    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, strategicFlow, strategicFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
     responseFinalized: true
   };
 }
@@ -417,7 +425,7 @@ function getStatus() {
     sessionCount: sessionContinuity.size,
     circularSafe: true, indexIndependent: true, chatEngineIndependent: true, gatewayIndependent: true,
     neverReturnsRecoverable502: true,
-    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14]
+    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowReady: !!(conversationLayers && conversationLayers.strategicCoordinator), strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17], automaticExecutionAllowed: false
   };
 }
 function resetSession(sessionId) { clearSession(safeText(sessionId)); return true; }
