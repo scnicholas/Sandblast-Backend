@@ -9959,3 +9959,22 @@ try{
   api.__marionConversationFlowComposerV11=true;api.MARION_CONVERSATION_FLOW_COMPOSER_VERSION=registry.VERSION;api.marionConversationLayers=registry;
 })();
 /* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_COMPOSER_V11_END */
+
+
+/* MARION_OUTCOME_FLOW_LAYERS_12_13_14_COMPOSER_V14_START */
+(function marionOutcomeFlowCapabilityV14(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_OUTCOME_FLOW_VERSION=registry.outcomeCoordinator&&registry.outcomeCoordinator.VERSION||"";
+    api.MARION_OUTCOME_AWARENESS_VERSION=registry.outcomeAwareness&&registry.outcomeAwareness.VERSION||"";
+    api.MARION_COMMITMENT_TRACKER_VERSION=registry.commitmentTracker&&registry.commitmentTracker.VERSION||"";
+    api.MARION_ANTICIPATORY_GUIDANCE_VERSION=registry.anticipatoryGuidance&&registry.anticipatoryGuidance.VERSION||"";
+    api.getMarionOutcomeFlowStatus=function(){return registry.getStatus();};
+    api.marionConversationLayers=registry;
+    api.__marionOutcomeFlowCapabilityV14=true;
+  }catch(_){}
+})();
+/* MARION_OUTCOME_FLOW_LAYERS_12_13_14_COMPOSER_V14_END */
