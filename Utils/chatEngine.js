@@ -5959,3 +5959,16 @@ try {
 
 /* MARION_UNIFIED_PRIVATE_RUNTIME_CHATENGINE_V8_MARKER */
 try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"){module.exports.MARION_UNIFIED_PRIVATE_RUNTIME_CONTRACT="nyx.marion.privateRuntime/8.0";module.exports.MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY="marionPrivateRuntimeAdapter";module.exports.MARION_PRIVATE_RUNTIME_COORDINATOR_ONLY=true;}}catch(_){}
+
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_CHATENGINE_TRANSPORT_V11_START */
+(function marionConversationFlowChatEngineV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionConversationFlowChatEngineV11)return;
+  let registry=null;try{registry=require("../Data/marion/runtime/conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function privateTurn(v){const s=obj(v),c=obj(s.privateRuntimeContext);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.scope==="private_admin"||c.version||obj(s.conversationFlow).contract===registry.CONTRACT;}
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionConversationFlowChatEngineV11)return fn;const w=function(){const args=Array.from(arguments),input=args.find(x=>privateTurn(x));if(!input)return fn.apply(this,args);const prepared=registry.applyToInput(obj(input),obj(obj(input).previousMemory));const index=args.indexOf(input);if(index>=0)args[index]=prepared;const apply=result=>registry.attachToResult(result,obj(prepared.conversationFlow));const out=fn.apply(this,args);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k]})}catch(_){}w.__marionConversationFlowChatEngineV11=true;return w;}
+  for(const name of ["handleChat","run","chat","handle","reply","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields","finalTransportPacket"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.__marionConversationFlowChatEngineV11=true;api.MARION_CONVERSATION_FLOW_CHATENGINE_VERSION=registry.VERSION;api.MARION_CONVERSATION_FLOW_COORDINATOR_ONLY=true;api.marionConversationLayers=registry;
+})();
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_CHATENGINE_TRANSPORT_V11_END */
