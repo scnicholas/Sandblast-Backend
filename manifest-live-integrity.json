@@ -1,0 +1,158 @@
+[
+    {
+        "path":  "Data/marion/runtime/composeMarionResponse.js",
+        "exists":  true,
+        "bytes":  1074080,
+        "sha256":  "a1cb666ae5c29104fbe4087b572b9e4c36a9bc5f0e15f41c73b225778736ff20"
+    },
+    {
+        "path":  "Data/marion/runtime/conversation/marionContextPivot.js",
+        "exists":  true,
+        "bytes":  7744,
+        "sha256":  "22af6bc848f6997556c72bf46730e61bd90dc4100f9cd1cb1eaf9c532222e8f2"
+    },
+    {
+        "path":  "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
+        "exists":  true,
+        "bytes":  11406,
+        "sha256":  "d4298c244e8b3972d4ee3a273c146930475d4d9ad6540e59d19d5618cf8c2f34"
+    },
+    {
+        "path":  "Data/marion/runtime/conversation/marionConversationProgression.js",
+        "exists":  true,
+        "bytes":  6483,
+        "sha256":  "634a569227e18c1b0e559521cbe899cc15fd18880b0ee860b686ad50ceb53336"
+    },
+    {
+        "path":  "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+        "exists":  true,
+        "bytes":  5619,
+        "sha256":  "1de4b4203cacffa83ddb2593654c32786a34be2192032d0f46bf21033fca0ef4"
+    },
+    {
+        "path":  "Data/marion/runtime/emotion/emotionRuntime.js",
+        "exists":  true,
+        "bytes":  17628,
+        "sha256":  "7d786059931452ab4f700417802c69c64a93d9134abcedfd0b3b16552048321e"
+    },
+    {
+        "path":  "src/memory/guardian.memory.bridge.js",
+        "exists":  true,
+        "bytes":  76722,
+        "sha256":  "dcfb3340cd47fd2689a466b52c53014736199d5f1610a41a4e4014f67c8d2d7b"
+    },
+    {
+        "path":  "Data/marion/runtime/marionBridge.js",
+        "exists":  true,
+        "bytes":  75347,
+        "sha256":  "48fe7cb618f3d9d9ca38fae1f7053c77116d45152962224170440e18dea0fa6a"
+    },
+    {
+        "path":  "Data/marion/runtime/marionCurrentTurnAuthority.js",
+        "exists":  true,
+        "bytes":  66700,
+        "sha256":  "6e915ac4eabd8426131f4d5ff43344341d5b5feed7e3c54fec9a548f3ec7d25e"
+    },
+    {
+        "path":  "Data/marion/runtime/marionFinalEnvelope.js",
+        "exists":  true,
+        "bytes":  592021,
+        "sha256":  "d61e543c4320e6c70adafc5aa7df01e7718c8889cece22b4f34d146adfd43e99"
+    },
+    {
+        "path":  "Data/marion/runtime/marionIntentRouter.js",
+        "exists":  true,
+        "bytes":  257079,
+        "sha256":  "ff6dcc8fc9ba3cdaf7b92aaa44b489b106e33feb592aa5f662476604f16ea96e"
+    },
+    {
+        "path":  "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+        "exists":  true,
+        "bytes":  31942,
+        "sha256":  "6759bcba98fc27d505a4275d73f6252081b7339b912e47ff1cd517f210d80eb5"
+    },
+    {
+        "path":  "README.md",
+        "exists":  true,
+        "bytes":  4595,
+        "sha256":  "48e4d85d7989ab5e8d13fcada04bd6ae22eca650bb3a92d9e86f6b7846169fed"
+    },
+    {
+        "path":  "Utils/chatEngine.js",
+        "exists":  true,
+        "bytes":  319422,
+        "sha256":  "982fa9c2a83759db1788d3361ef90d8bf2df10fa199e2ed967121ab702ce40ab"
+    },
+    {
+        "path":  "Utils/stateSpine.js",
+        "exists":  true,
+        "bytes":  415066,
+        "sha256":  "b9dcb5d745a0d86fb63b42634d9fce1396ac9eb8410ff02a14c0722d844d53e6"
+    },
+    {
+        "path":  "docs/ARCHITECTURE.md",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "docs/DEPLOYMENT.md",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "docs/SURGICAL_AUTOPSY.md",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "docs/TEST_MATRIX.md",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "index.js",
+        "exists":  true,
+        "bytes":  1514969,
+        "sha256":  "8b59faa809465b5aa4de40ef954e88b7b9e999f9723b9fc7993bbf5c146b146b"
+    },
+    {
+        "path":  "tests/RUNTIME_RESULTS.json",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "tests/SMOKE_RESULTS.json",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "tests/STATIC_RESULTS.json",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "tests/TEST_RESULTS.txt",
+        "exists":  false,
+        "bytes":  0,
+        "sha256":  ""
+    },
+    {
+        "path":  "tests/conversation_flow_runtime_test.js",
+        "exists":  true,
+        "bytes":  6607,
+        "sha256":  "939af7f645e22911d8cdad7b8643aa41dd6578b38fa54152d2b585e5ec3a0190"
+    },
+    {
+        "path":  "tests/current_turn_authority_smoke.js",
+        "exists":  true,
+        "bytes":  5545,
+        "sha256":  "5bd6d8638e33c7f3083531647d53e10f2b9648f0125cf388b6bfea522c28eda1"
+    }
+]
