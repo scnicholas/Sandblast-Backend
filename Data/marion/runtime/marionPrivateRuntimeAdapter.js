@@ -16,8 +16,8 @@
 const path = require("path");
 const conversationLayers = (() => { try { return require("./conversation/marionConversationLayerRegistry.js"); } catch (_) { return null; } })();
 
-const VERSION = "marion.privateRuntime.adapter/11.0-conversation-flow-layers-9-10-11";
-const CONTRACT = "nyx.marion.privateRuntime/11.0";
+const VERSION = "marion.privateRuntime.adapter/14.0-outcome-flow-layers-12-13-14";
+const CONTRACT = "nyx.marion.privateRuntime/14.0";
 const MAX_SESSIONS = 256;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const sessionContinuity = new Map();
@@ -65,9 +65,20 @@ function followupKind(value = "") {
   if (/^(?:what happens after that|what next|next|then what)$/.test(text)) return "after";
   if (/^what is the main risk$/.test(text)) return "main_risk";
   if (/^what changed$/.test(text)) return "changed";
+  if (/^(?:what remains|what is left|what s left|anything left)$/.test(text)) return "what_remains";
+  if (/^(?:are we done|is that complete)$/.test(text)) return "closure_status";
+  if (/^(?:what should happen next|what is the next step|what do we do next)$/.test(text)) return "next_best_action";
   return "";
 }
 function isContextualFollowup(value = "") { return !!followupKind(value); }
+function isOutcomeFlowTurn(value = "") {
+  const prompt = safeText(value);
+  if (!prompt || isGreeting(prompt)) return false;
+  if (conversationLayers && typeof conversationLayers.outcomeContinuityTurn === "function") {
+    try { return conversationLayers.outcomeContinuityTurn(prompt); } catch (_) {}
+  }
+  return /\b(?:full pass|passed successfully|completed|finished|done|cancel(?:led)?|defer(?:red)?|blocked|failed|go ahead|proceed|do it|what remains|what is left|are we done|what should happen next|next best action)\b/i.test(prompt);
+}
 function explicitTechnical(value = "") {
   return /\b(?:javascript|typescript|node(?:\.js)?|index\.js|html|css|code|runtime|router|routing|debug|autopsy|function|module|backend|frontend|widget|handler|endpoint|api|payload|manifest|state spine|final envelope|transport|cors|http\s*502|referenceerror|typeerror|commonjs|circular dependenc|file)\b/i.test(safeText(value));
 }
@@ -82,7 +93,7 @@ function classifyExpectedDomain(prompt, cached = {}) {
   if (isGreeting(prompt)) return "general";
   if (explicitTechnical(prompt)) return "technical";
   if (explicitLegal(prompt)) return "law";
-  if (isContextualFollowup(prompt) && cached.activeDomain) return safeText(cached.activeDomain).toLowerCase();
+  if ((isContextualFollowup(prompt) || isOutcomeFlowTurn(prompt)) && cached.activeDomain) return safeText(cached.activeDomain).toLowerCase();
   return "general";
 }
 function pruneSessions() {
@@ -147,6 +158,9 @@ function reconcileReplyToConversationFlow(reply = "", flow = {}) {
   let out = safeText(reply);
   const state = obj(flow), subject = firstText(state.activeSubject, obj(state.contextPivot).activeSubject);
   const direction = firstText(state.direction, obj(state.contextPivot).direction);
+  if (conversationLayers && typeof conversationLayers.reconcileVisibleReply === "function") {
+    try { out = conversationLayers.reconcileVisibleReply(out, state); } catch (_) {}
+  }
   if (!out || !subject || !(direction === "continue" || direction === "return")) return out;
   const match = out.match(/^The deeper defect to inspect in (.*?) is state mutation timing\./i);
   if (match) {
@@ -163,7 +177,7 @@ function reconcileReplyToConversationFlow(reply = "", flow = {}) {
 function domainReplyMismatch(reply = "", domain = "general") {
   const text = safeText(reply);
   if (!text) return true;
-  if (domain === "technical") return genericNonSubstantiveReply(text) || !/\b(?:route|routing|domain|state|composer|envelope|runtime|code|module|handler|validation|implementation|repair|technical|javascript|packet|precedence|session|bridge)\b/i.test(text);
+  if (domain === "technical") return genericNonSubstantiveReply(text) || !/\b(?:route|routing|domain|state|composer|envelope|runtime|code|module|handler|validation|implementation|repair|technical|javascript|packet|precedence|session|bridge|commitment|outcome|baseline|complete|remaining|blocked|deferred)\b/i.test(text);
   if (domain === "law") return genericNonSubstantiveReply(text) || !/\b(?:contract|legal|jurisdiction|clause|liability|obligation|termination|dispute|deadline|law)\b/i.test(text);
   if (domain && domain !== "general") return genericNonSubstantiveReply(text);
   return false;
@@ -201,7 +215,7 @@ function normalizeInput(input = {}, context = {}) {
   if (reset) clearSession(sessionId);
   const state = reset ? {} : getSession(sessionId);
   const expectedDomain = classifyExpectedDomain(prompt, state);
-  const continuation = isContextualFollowup(prompt) && !!state.activeSubject && !isGreeting(prompt);
+  const continuation = (isContextualFollowup(prompt) || isOutcomeFlowTurn(prompt)) && !!state.activeSubject && !isGreeting(prompt);
   const activeSubject = explicitTechnical(prompt) || explicitLegal(prompt) ? deriveSubject(prompt) : firstText(state.activeSubject, state.lastSubstantivePrompt);
   const previousMemory = {
     ...obj(source.previousMemory), ...obj(state.memoryPatch),
@@ -209,6 +223,7 @@ function normalizeInput(input = {}, context = {}) {
     activeSubject, activeTask: activeSubject,
     lastUserText: firstText(state.lastUserText), lastSubstantivePrompt: firstText(state.lastSubstantivePrompt, state.activeSubject), lastAssistantReply: firstText(state.lastReply),
     conversationFlowState: obj(state.conversationFlowState),
+    outcomeFlowState: obj(state.outcomeFlowState || obj(state.conversationFlowState).outcomeFlow),
     followUpDepth: Number(state.followUpDepth || 0),
     privateRuntimeContinuity: { version: CONTRACT, activeDomain: firstText(state.activeDomain, expectedDomain), activeSubject, progressionStage: firstText(state.progressionStage), followUpDepth: Number(state.followUpDepth || 0) }
   };
@@ -258,14 +273,15 @@ function updateContinuity(input, result, reply) {
       activeSubject: firstText(prior.activeSubject, obj(flowState).activeSubject),
       progressionStage: "social", followUpDepth: 0, lastUserText: input.prompt, lastReply: reply,
       memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState },
-      conversationFlowState: flowState
+      conversationFlowState: flowState,
+      outcomeFlowState: obj(flowState.outcomeFlow)
     });
     return;
   }
   const domain = firstText(ctx.expectedDomain, resultDomain(result), ctx.activeDomain);
   const substantive = !!domain && domain !== "general";
   if (!substantive) {
-    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState }, conversationFlowState: flowState });
+    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow) }, conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow) });
     return;
   }
   const flowDirection = firstText(obj(input.conversationFlow).direction);
@@ -278,8 +294,9 @@ function updateContinuity(input, result, reply) {
     lastReply: reply,
     progressionStage: firstText(ctx.progressionStage, "analysis"),
     followUpDepth: Number(ctx.followUpDepth || 0),
-    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState },
-    conversationFlowState: flowState
+    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow) },
+    conversationFlowState: flowState,
+    outcomeFlowState: obj(flowState.outcomeFlow)
   });
 }
 function finalPacket(normalized, result, reply, stage, reason = "", degraded = false, attempts = []) {
@@ -288,9 +305,14 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
   const rawConversationFlow = obj(normalized.conversationFlow);
   const conversationFlow = conversationLayers && typeof conversationLayers.commitTurn === "function" ? conversationLayers.commitTurn(rawConversationFlow, reply, result) : rawConversationFlow;
   const conversationFlowState = conversationLayers && typeof conversationLayers.projectState === "function" ? conversationLayers.projectState(conversationFlow) : conversationFlow;
+  if (conversationLayers && typeof conversationLayers.reconcileVisibleReply === "function") {
+    try { reply = conversationLayers.reconcileVisibleReply(reply, conversationFlow); } catch (_) {}
+  }
+  const outcomeFlow = obj(conversationFlow.outcomeFlow);
+  const outcomeFlowState = obj(conversationFlowState.outcomeFlow);
   const memoryPatch = {
     ...obj(result.memoryPatch || result.sessionPatch),
-    conversationFlowState,
+    conversationFlowState, outcomeFlowState,
     activeDomain: domain === "general" ? "" : domain,
     activeSubject: domain === "general" ? "" : firstText(obj(normalized.privateRuntimeContext).activeSubject),
     lastUserText: normalized.prompt,
@@ -304,15 +326,15 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
     payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
     finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
-    conversationFlow, conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
-    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", conversationLayers: [9,10,11], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction) }
+    conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
+    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction) }
   };
   return {
     ok: true, statusCode: 200, stage, reason, degraded, recovered: degraded,
     reply, publicReply: reply, visibleReply: reply, displayReply: reply, directReply: reply, finalReply: reply,
     response: reply, text: reply, message: reply, spokenText: firstText(resultPacket.spokenText, reply), speechText: firstText(resultPacket.speechText, resultPacket.spokenText, reply),
     result: resultPacket, adapterVersion: VERSION, contract: CONTRACT, bridgeStatus: getStatus(), bridgeAttempts: attempts,
-    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
+    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
     responseFinalized: true
   };
 }
@@ -395,7 +417,7 @@ function getStatus() {
     sessionCount: sessionContinuity.size,
     circularSafe: true, indexIndependent: true, chatEngineIndependent: true, gatewayIndependent: true,
     neverReturnsRecoverable502: true,
-    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", conversationLayers: [9,10,11]
+    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14]
   };
 }
 function resetSession(sessionId) { clearSession(safeText(sessionId)); return true; }
@@ -410,5 +432,5 @@ Object.assign(module.exports, {
   getStatus,
   resetSession,
   conversationLayers,
-  _internal: { promptOf, isGreeting, isContextualFollowup, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, reconcileReplyToConversationFlow, sessionContinuity }
+  _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, reconcileReplyToConversationFlow, sessionContinuity }
 });
