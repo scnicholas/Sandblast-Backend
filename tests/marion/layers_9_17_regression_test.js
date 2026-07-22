@@ -1,7 +1,7 @@
 "use strict";
 const path=require("path");
 const cp=require("child_process");
-const ROOT=path.resolve(__dirname,"..");
+const ROOT=path.resolve(__dirname,"..","..");
 const tests=["conversation_flow_runtime_test.js","outcome_flow_runtime_test.js","strategic_flow_runtime_test.js"];
 const results=[];
 let ok=true;
