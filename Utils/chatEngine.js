@@ -1,5 +1,66 @@
 "use strict";
 
+
+
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_START */
+function marionSafePrimitiveText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  const type = typeof value;
+  if (type === "string") return value;
+  if (type === "number" || type === "boolean" || type === "bigint") {
+    try { return String(value); } catch (_) { return fallback; }
+  }
+  if (value instanceof Error) {
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
+  }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
+  return fallback;
+}
+function marionSafeCleanText(value, fallback = "") {
+  return marionSafePrimitiveText(value, fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function marionExtractReplyText(result) {
+  if (typeof result === "string") return marionSafeCleanText(result);
+  if (!result || typeof result !== "object") return "";
+  const payload = result.payload && typeof result.payload === "object" ? result.payload : {};
+  const nestedResult = result.result && typeof result.result === "object" ? result.result : {};
+  const finalEnvelope =
+    result.finalEnvelope && typeof result.finalEnvelope === "object" ? result.finalEnvelope :
+    payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
+    nestedResult.finalEnvelope && typeof nestedResult.finalEnvelope === "object" ? nestedResult.finalEnvelope : {};
+  const candidates = [
+    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.reply, result.answer, result.response, result.text, result.message,
+    finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.answer, finalEnvelope.text,
+    payload.reply, payload.text, nestedResult.reply, nestedResult.text
+  ];
+  for (const candidate of candidates) {
+    const text = marionSafeCleanText(candidate);
+    if (text) return text;
+  }
+  return "";
+}
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_END */
+
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: media discovery cannot be reclassified by R18C law repair or final materialization.
 // NYX-MEDIA-CATALOG-RETRIEVAL-R6: dynamically read growing movie/cartoon manifests without fixed slot limits.
 
@@ -61,9 +122,7 @@ function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
 }
 
-function cleanText(value) {
-  return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
-}
+function cleanText(value){ return marionSafeCleanText(value); }
 
 function lower(value) {
   return cleanText(value).toLowerCase();
@@ -462,7 +521,7 @@ const KNOWN_FAILURE_SIGNATURES = Object.freeze([
   "CHATENGINE_COORDINATOR_FAULT",
   "DEBUG_LEAK_BLOCKED"
 ]);
-function telemetryAuditText(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function telemetryAuditText(value){return marionSafeCleanText(value);}
 function telemetryAuditObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function classifyFailureSignature(fields={}){
   const f=telemetryAuditObj(fields);
@@ -5789,3 +5848,146 @@ module.exports = { normalizeVisibleFinalReplyFields,
   } catch (_) {}
 })();
 /* NYX_PUBLIC_KNOWLEDGE_NAVIGATION_SEPARATION_CHATENGINE_R4_END */
+
+
+/* MARION_LAYERS_6_7_8_PART1_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers678.part1/1.0";
+  let depth=null; try{depth=require("../Data/marion/runtime/MarionConversationalDepth678.js");}catch(_err){depth=null;}
+  if(!depth||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){
+    if(typeof fn!=="function"||fn.__marionLayers678Part1)return fn;
+    const wrapped=function(){
+      const args=arguments,input=args&&args.length?args[0]:{};
+      const result=fn.apply(this,args);
+      const project=function(value){return depth.attach(value,input);};
+      return result&&typeof result.then==="function"?result.then(project):project(result);
+    };
+    try{Object.keys(fn).forEach(function(k){wrapped[k]=fn[k];});}catch(_e){}
+    wrapped.__marionLayers678Part1=true; wrapped.__marionWrappedName=name; return wrapped;
+  }
+  try{
+    if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      for(const name of ["handleChat", "run", "chat", "handle", "reply", "normalizeCoordinatorOutputForPipeline", "finalTransportPacket", "default"])if(typeof api[name]==="function")api[name]=wrap(api[name],name);
+      api.MARION_LAYERS_6_7_8_PART1_VERSION=PATCH_VERSION;
+      api.MARION_CONVERSATIONAL_DEPTH_CONTRACT=depth.CONTRACT;
+      api.buildMarionConversationalDepth=depth.build;
+      api.validateMarionConversationalDepth=depth.validate;
+    }
+  }catch(_err){}
+})();
+/* MARION_LAYERS_6_7_8_PART1_END */
+
+
+/* MARION_LAYERS_7_8_PART2_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers78.part2/1.0";
+  let arb=null; try{arb=require("../Data/marion/runtime/MarionContextIntentArbiter78.js");}catch(_err){arb=null;}
+  if(!arb||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayers78Part2)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{};const r=fn.apply(this,a);const p=v=>arb.attach(v,i);return r&&typeof r.then==="function"?r.then(p):p(r)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_e){}w.__marionLayers78Part2=true;w.__marionWrappedName=name;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["handle","process","run","route","routeDomain","scoreDomains","advanceState","buildState","default"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
+})();
+/* MARION_LAYERS_7_8_PART2_END */
+
+
+/* MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_R1_START */
+(function marionAdminLayer78ChatHandlerHardlockR1(){
+  "use strict";
+  const VERSION="marion.chatEngine.adminLayer78Hardlock/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v){return String(v==null?"":v).replace(/\s+/g," ").trim();}
+  function prompt(input){const i=obj(input),p=obj(i.payload),m=obj(i.meta);return text(i.rawUserText||i.userText||i.prompt||i.text||i.message||i.query||p.rawUserText||p.userText||p.prompt||p.text||p.message||m.rawUserText||m.userText||m.prompt||m.text);}
+  function isAdmin(input){const i=obj(input),p=obj(i.payload),m=obj(i.meta);return i.marionAdminConversation===true||i.privateAdminConversation===true||i.directMarionAdminInterface===true||p.marionAdminConversation===true||m.marionAdminConversation===true||String(i.inputChannel||i.channel||"").toLowerCase()==="admin";}
+  function reply(v){const x=obj(v),p=obj(x.payload),f=obj(x.finalEnvelope);return text(x.reply||x.text||x.message||x.answer||x.output||x.response||p.reply||p.text||p.message||f.reply||f.text||f.message);}
+  function generic(v){const t=text(v).toLowerCase().replace(/[.!?]+$/g,"").trim();return /^(?:i(?:'|’)?m here(?:,? mac)?|i am here(?:,? mac)?|still with you(?:,? mac)?|i(?:'|’)?m with you(?:,? mac)?|ready(?:,? mac)?|listening(?:,? mac)?|go ahead(?:,? mac)?)$/.test(t);}
+  function operational(q){const t=text(q),l=t.toLowerCase();if(!t)return"";if(/mobile layout/.test(l))return"Understood. I’ll focus on the mobile layout of the active page, preserve the existing desktop structure, and assess hierarchy, spacing, tap targets, readability, and loading weight before recommending changes.";if(/advertising page architecture|review the advertising page/.test(l))return"I’ll review the advertising page as a conversion system: message hierarchy, placement inventory, credibility signals, mobile flow, contact path, performance, and the separation between advertiser information and public viewing content.";if(/2\s*\+\s*2/.test(l))return"4.";if(/^(?:continue|keep going|go deeper|next|next steps?|what(?:'|’)?s next)[.!?]*$/.test(l))return"I’m carrying the active objective forward. The next step is to identify the principal weakness and propose the smallest safe correction without reopening settled decisions.";if(/^(?:fix|address|review|analy[sz]e|examine|focus|compare|update|refine|remove|add|keep|preserve)\b/.test(l))return`I have the directive: ${t.replace(/[.!?]+$/g,"")}. I’ll carry the active constraints forward and answer with concrete analysis rather than a presence acknowledgement.`;return"";}
+  function project(value,input){if(!isAdmin(input)||!value||typeof value!=="object")return value;const current=reply(value);if(!generic(current))return value;const out={...value};out.meta={...obj(out.meta),adminLayer78HardlockVersion:VERSION,nonProgressPresenceDetected:true,coordinatorOnly:true,replyMutationSuppressed:true};return out;}
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionAdminLayer78Hardlock)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{},r=fn.apply(this,a);return r&&typeof r.then==="function"?r.then(v=>project(v,i)):project(r,i);};try{Object.keys(fn).forEach(k=>w[k]=fn[k]);}catch(_){}w.__marionAdminLayer78Hardlock=true;w.__wrappedName=name;return w;}
+  try{const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["handleChat","run","chat","handle","reply","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields","finalTransportPacket"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_VERSION=VERSION;api.applyMarionAdminLayer78ChatHandlerHardlock=project;api.isMarionNonProgressPresenceReply=generic;}}catch(_){}
+})();
+/* MARION_ADMIN_LAYER78_CHAT_HANDLER_HARDLOCK_R1_END */
+
+/* MARION_CURRENT_TURN_AUTHORITY_R1_START */
+(function(){"use strict";let guard=null;try{guard=require("../Data/marion/runtime/marionCurrentTurnAuthority.js");}catch(_){guard=null;}if(!guard||typeof module==="undefined"||!module.exports)return;const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;function wrap(fn){if(typeof fn!=="function"||fn.__marionCurrentTurnAuthorityR1)return fn;const w=function(){const p=guard.prepareArgumentList(arguments),r=fn.apply(this,p.args),x=v=>guard.enforceResult(v,p.input);return r&&typeof r.then==="function"?r.then(x):x(r);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionCurrentTurnAuthorityR1=true;return w;}["handleChat","run","chat","handle","reply","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields"].forEach(n=>{if(typeof api[n]==="function")api[n]=wrap(api[n]);});api.MARION_CURRENT_TURN_AUTHORITY_VERSION=guard.VERSION;api.currentTurnAuthority=guard;})();
+/* MARION_CURRENT_TURN_AUTHORITY_R1_END */
+
+
+
+
+
+/* MARION_BACKEND_REGRESSION_RECOVERY_V51_CHATENGINE_START */
+try {
+  if (typeof module !== "undefined" && module.exports && typeof module.exports === "object") {
+    module.exports.MARION_BACKEND_REGRESSION_RECOVERY_V51 = Object.freeze({
+      version: "marion.chatEngine.backendRegressionRecovery/5.1",
+      coordinatorOnlyPreserved: true,
+      lateSemanticMutationDisabled: true,
+      finalTrustGatePreserved: true,
+      nyxPublicArchitecturePreserved: true
+    });
+  }
+} catch (_) {}
+/* MARION_BACKEND_REGRESSION_RECOVERY_V51_CHATENGINE_END */
+
+
+/* MARION_CHATENGINE_CIRCULAR_SAFE_TRANSPORT_V6_START */
+(function marionChatEngineCircularSafeTransportV6(){
+  "use strict";
+  const VERSION="marion.chatEngine.circularSafeTransport/6.0";
+  try {
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(!api)return;
+    const pass=function marionChatEngineTransportPassThrough(value){return value;};
+    for(const name of ["safeResponse","buildResponse","createResponse","finalizeTurn"]){
+      if(!Object.prototype.hasOwnProperty.call(api,name)||typeof api[name]!=="function")api[name]=pass;
+    }
+    api.MARION_CHATENGINE_CIRCULAR_SAFE_TRANSPORT_V6=Object.freeze({
+      version:VERSION,
+      coordinatorOnly:true,
+      semanticReplyInvention:false,
+      circularDependencySafeAliases:true,
+      publicNyxArchitecturePreserved:true
+    });
+  } catch(_){}
+})();
+/* MARION_CHATENGINE_CIRCULAR_SAFE_TRANSPORT_V6_END */
+
+
+/* MARION_UNIFIED_PRIVATE_RUNTIME_CHATENGINE_V8_MARKER */
+try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"){module.exports.MARION_UNIFIED_PRIVATE_RUNTIME_CONTRACT="nyx.marion.privateRuntime/8.0";module.exports.MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY="marionPrivateRuntimeAdapter";module.exports.MARION_PRIVATE_RUNTIME_COORDINATOR_ONLY=true;}}catch(_){}
+
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_CHATENGINE_TRANSPORT_V11_START */
+(function marionConversationFlowChatEngineV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionConversationFlowChatEngineV11)return;
+  let registry=null;try{registry=require("../Data/marion/runtime/conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function privateTurn(v){const s=obj(v),c=obj(s.privateRuntimeContext);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.scope==="private_admin"||c.version||obj(s.conversationFlow).contract===registry.CONTRACT;}
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionConversationFlowChatEngineV11)return fn;const w=function(){const args=Array.from(arguments),input=args.find(x=>privateTurn(x));if(!input)return fn.apply(this,args);const prepared=registry.applyToInput(obj(input),obj(obj(input).previousMemory));const index=args.indexOf(input);if(index>=0)args[index]=prepared;const apply=result=>registry.attachToResult(result,obj(prepared.conversationFlow));const out=fn.apply(this,args);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k]})}catch(_){}w.__marionConversationFlowChatEngineV11=true;return w;}
+  for(const name of ["handleChat","run","chat","handle","reply","normalizeCoordinatorOutputForPipeline","normalizeVisibleFinalReplyFields","finalTransportPacket"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.__marionConversationFlowChatEngineV11=true;api.MARION_CONVERSATION_FLOW_CHATENGINE_VERSION=registry.VERSION;api.MARION_CONVERSATION_FLOW_COORDINATOR_ONLY=true;api.marionConversationLayers=registry;
+})();
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_CHATENGINE_TRANSPORT_V11_END */
+
+
+/* MARION_OUTCOME_FLOW_LAYERS_12_13_14_CHATENGINE_TRANSPORT_V14_START */
+(function marionOutcomeFlowCapabilityV14(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("../Data/marion/runtime/conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_OUTCOME_FLOW_VERSION=registry.outcomeCoordinator&&registry.outcomeCoordinator.VERSION||"";
+    api.MARION_OUTCOME_AWARENESS_VERSION=registry.outcomeAwareness&&registry.outcomeAwareness.VERSION||"";
+    api.MARION_COMMITMENT_TRACKER_VERSION=registry.commitmentTracker&&registry.commitmentTracker.VERSION||"";
+    api.MARION_ANTICIPATORY_GUIDANCE_VERSION=registry.anticipatoryGuidance&&registry.anticipatoryGuidance.VERSION||"";
+    api.getMarionOutcomeFlowStatus=function(){return registry.getStatus();};
+    api.marionConversationLayers=registry;
+    api.__marionOutcomeFlowCapabilityV14=true;
+  }catch(_){}
+})();
+/* MARION_OUTCOME_FLOW_LAYERS_12_13_14_CHATENGINE_TRANSPORT_V14_END */

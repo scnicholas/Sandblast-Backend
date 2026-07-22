@@ -834,3 +834,47 @@ module.exports.PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_LOOP_GUARD_VERSION=PRI
   try{const obj=module.exports&&typeof module.exports==="object"?module.exports:null;if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","normalizeCommand","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","process","safeResponse","buildResponse","createResponse"].forEach(function(n){if(typeof obj[n]==="function")obj[n]=wrapFn(obj[n],n);});obj.PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_VERSION=V;obj.privateOperatorBoundaryLockProject=lock.projectPrivateOperatorFields;obj.privateOperatorBoundaryLockIsVerified=lock.isVerifiedOperatorContext;}}catch(_err){}
 })();
 /* PRIVATE_OPERATOR_BOUNDARY_LOCK_PHASE2_END */
+
+
+/* MARION_LAYERS_6_7_8_PART1_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers678.part1/1.0";
+  let depth=null; try{depth=require("./MarionConversationalDepth678.js");}catch(_err){depth=null;}
+  if(!depth||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){
+    if(typeof fn!=="function"||fn.__marionLayers678Part1)return fn;
+    const wrapped=function(){
+      const args=arguments,input=args&&args.length?args[0]:{};
+      const result=fn.apply(this,args);
+      const project=function(value){return depth.attach(value,input);};
+      return result&&typeof result.then==="function"?result.then(project):project(result);
+    };
+    try{Object.keys(fn).forEach(function(k){wrapped[k]=fn[k];});}catch(_e){}
+    wrapped.__marionLayers678Part1=true; wrapped.__marionWrappedName=name; return wrapped;
+  }
+  try{
+    if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      for(const name of ["inspectLoop", "checkLoop", "evaluateLoop", "guardReply", "default"])if(typeof api[name]==="function")api[name]=wrap(api[name],name);
+      api.MARION_LAYERS_6_7_8_PART1_VERSION=PATCH_VERSION;
+      api.MARION_CONVERSATIONAL_DEPTH_CONTRACT=depth.CONTRACT;
+      api.buildMarionConversationalDepth=depth.build;
+      api.validateMarionConversationalDepth=depth.validate;
+    }
+  }catch(_err){}
+})();
+/* MARION_LAYERS_6_7_8_PART1_END */
+
+
+/* MARION_LAYERS_7_8_PART2_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers78.part2/1.0";
+  let arb=null; try{arb=require("./MarionContextIntentArbiter78.js");}catch(_err){arb=null;}
+  if(!arb||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayers78Part2)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{};const r=fn.apply(this,a);const p=v=>arb.attach(v,i);return r&&typeof r.then==="function"?r.then(p):p(r)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_e){}w.__marionLayers78Part2=true;w.__marionWrappedName=name;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["processWithMarion","composeMarionResponse","compose","buildReply","run","handle","route","default","finalize","normalize","detectLoop","buildFinalEnvelope"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
+})();
+/* MARION_LAYERS_7_8_PART2_END */
