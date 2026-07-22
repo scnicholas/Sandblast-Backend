@@ -1095,3 +1095,46 @@ module.exports = {
   }catch(_){}
 })();
 /* MARION_OUTCOME_FLOW_LAYERS_12_13_14_CURRENT_TURN_V14_END */
+
+/* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_CURRENT_TURN_V17_START */
+(function marionStrategicFlowCapabilityV17(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_STRATEGIC_FLOW_VERSION=registry.strategicCoordinator&&registry.strategicCoordinator.VERSION||"";
+    api.MARION_STRATEGIC_OBJECTIVE_ALIGNMENT_VERSION=registry.strategicObjectiveAlignment&&registry.strategicObjectiveAlignment.VERSION||"";
+    api.MARION_PREDICTIVE_RISK_MODEL_VERSION=registry.predictiveRiskModel&&registry.predictiveRiskModel.VERSION||"";
+    api.MARION_STRATEGIC_PATHWAY_SYNTHESIS_VERSION=registry.strategicPathwaySynthesizer&&registry.strategicPathwaySynthesizer.VERSION||"";
+    api.getMarionStrategicFlowStatus=function(){return registry.getStatus();};
+    api.projectMarionStrategicFlowState=function(value){return registry.strategicCoordinator.projectState(value&&value.strategicFlow?value.strategicFlow:value);};
+    api.marionConversationLayers=registry;
+    api.MARION_STRATEGIC_FLOW_METADATA_PRIVATE=true;
+    api.MARION_STRATEGIC_AUTOMATIC_EXECUTION_ALLOWED=false;
+    api.__marionStrategicFlowCapabilityV17=true;
+  }catch(_){}
+})();
+/* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_CURRENT_TURN_V17_END */
+
+
+
+/* MARION_STRATEGIC_CURRENT_TURN_DIRECTIVE_V17_START */
+(function marionStrategicCurrentTurnDirectiveV17(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+    api.classifyStrategicCurrentTurnDirective=function(value){
+      const p=text(value&&typeof value==="object"?(value.prompt||value.userText||value.text||value.message):value).toLowerCase();
+      return {
+        objectiveChanged:/\b(?:change|replace|reset|update|new)\s+(?:the\s+)?(?:(?:governing|program|project|milestone|task)\s+)?(?:objective|goal|priority)\b|\b(?:our|the|my)\s+(?:new\s+)?(?:(?:governing|program|project|milestone|task)\s+)?(?:objective|goal|priority)\s+is\b/.test(p),
+        cancelPathway:/\b(?:cancel|drop|discard|invalidate)\s+(?:that|this|the)?\s*(?:path|pathway|plan|strategy)\b/.test(p),
+        keepBaseline:/\b(?:keep|retain|preserve)\s+(?:the\s+)?current\s+baseline\b/.test(p),
+        explicitPathApproval:/\b(?:approve|authorize|go ahead with|proceed with)\b.{0,80}\b(?:path|pathway|option|baseline|additive|pilot|phased)\b/.test(p)
+      };
+    };
+    api.MARION_STRATEGIC_CURRENT_TURN_DIRECTIVE_VERSION="nyx.marion.strategicCurrentTurnDirective/1.0";
+  }catch(_){}
+})();
+/* MARION_STRATEGIC_CURRENT_TURN_DIRECTIVE_V17_END */

@@ -751,3 +751,43 @@ module.exports.default = module.exports;
   api.marionConversationLayers=registry;
 })();
 /* MARION_OUTCOME_FLOW_LAYERS_12_13_14_GUARDIAN_MEMORY_V14_END */
+
+
+/* MARION_STRATEGIC_FLOW_GUARDIAN_MEMORY_V17_START */
+(function marionStrategicFlowGuardianMemoryV17(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionStrategicFlowGuardianMemoryV17)return;
+  function load(){for(const p of ["../../Data/marion/runtime/conversation/marionConversationLayerRegistry.js","../Data/marion/runtime/conversation/marionConversationLayerRegistry.js","./conversation/marionConversationLayerRegistry.js"]){try{const m=require(p);if(m&&m.strategicCoordinator)return m;}catch(_){}}return null;}
+  const registry=load();if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function text(v,max=700){try{return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
+  function key(v){return text(v||"marion",80).toLowerCase()||"marion"}
+  const strategicMemory=new Map();
+  function summary(state){
+    const s=obj(state),a=obj(s.objectiveAlignment),r=obj(s.predictiveRisk),p=obj(s.pathwaySynthesis);
+    return {version:registry.strategicCoordinator.VERSION,governingObjective:text(a.governingObjective),lastAlignmentStatus:text(a.alignmentStatus,80),principalRisk:text(r.principalRisk),overallRisk:text(r.overallRisk,40),recommendedPathway:text(p.recommendedPathwayId,140),approvedPathway:text(p.approvedPathwayId,140),automaticExecutionAllowed:false,updatedAt:new Date().toISOString()};
+  }
+  const remember=api.rememberTurn;
+  if(typeof remember==="function"&&!remember.__marionStrategicFlowGuardianMemoryV17){
+    api.rememberTurn=function(guardian,turn,options){
+      const result=remember.apply(this,arguments),state=obj(result).conversationFlowState||obj(obj(turn).conversationFlowState);
+      if(key(guardian)==="marion"&&obj(state).strategicFlow){strategicMemory.set("marion",summary(obj(state).strategicFlow));}
+      return result&&typeof result==="object"&&strategicMemory.has(key(guardian))?{...result,strategicMemory:strategicMemory.get(key(guardian)),strategicFlowState:obj(state).strategicFlow}:result;
+    };
+    api.rememberTurn.__marionStrategicFlowGuardianMemoryV17=true;
+  }
+  for(const name of ["getGuardianMemory","getGuardianSnapshot"]){
+    const original=api[name];
+    if(typeof original==="function"&&!original.__marionStrategicFlowGuardianMemoryV17){
+      api[name]=function(guardian){const result=original.apply(this,arguments),state=strategicMemory.get(key(guardian));return result&&typeof result==="object"&&state?{...result,strategicMemory:state}:result;};
+      api[name].__marionStrategicFlowGuardianMemoryV17=true;
+    }
+  }
+  api.getMarionStrategicMemory=function(guardian){return strategicMemory.get(key(guardian))||null;};
+  api.resetMarionStrategicMemory=function(guardian){return strategicMemory.delete(key(guardian));};
+  api.MARION_STRATEGIC_FLOW_GUARDIAN_MEMORY_VERSION=registry.strategicCoordinator.VERSION;
+  api.MARION_STRATEGIC_AUTOMATIC_EXECUTION_ALLOWED=false;
+  api.__marionStrategicFlowGuardianMemoryV17=true;
+})();
+/* MARION_STRATEGIC_FLOW_GUARDIAN_MEMORY_V17_END */
