@@ -22967,6 +22967,15 @@ function marionAdminTextRuntimeTechnicalRecoveryReply(prompt) {
 }
 
 async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval = {}) {
+  // Compatibility-only entrypoint. All private Marion conversation calls now
+  // terminate at the immutable adapter authority below. Keeping this function
+  // preserves existing internal callers without allowing late wrappers to
+  // become the HTTP route authority again.
+  if (typeof invokeMarionPrivateRuntimeRouteAuthorityV10 === "function") {
+    return invokeMarionPrivateRuntimeRouteAuthorityV10(body, auth, traceId, voiceApproval, {
+      compatibilityCaller: "invokeMarionAdminTextRuntime"
+    });
+  }
   const prompt = marionAdminTextRuntimeExtractPrompt(body);
   const bridgeCandidates = marionAdminTextRuntimeBridgeCandidates();
   const primaryBridgeStatus = bridgeCandidates.length ? bridgeCandidates[0] : marionAdminTextRuntimeBridgeStatus();
@@ -23184,6 +23193,17 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   };
 }
 
+// Prevent late personality/current-turn wrappers from replacing the canonical
+// private-runtime adapter authority. The legacy name remains available only as
+// a compatibility delegate.
+try {
+  Object.defineProperty(invokeMarionAdminTextRuntime, "__marionPrivateRuntimeRouteAuthorityV10", {
+    value: true, enumerable: false, configurable: false, writable: false
+  });
+} catch (_) {
+  invokeMarionAdminTextRuntime.__marionPrivateRuntimeRouteAuthorityV10 = true;
+}
+
 async function handleMarionAdminTextRuntime(req, res) {
   applyCors(req, res);
   hardenConversationNoStore(res);
@@ -23344,8 +23364,104 @@ async function invokeMarionPrivateRuntimeAdapterV8(body, auth, traceId, voiceApp
 }
 
 
+const MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10 = Object.freeze({
+  version: "marion.privateRuntime.indexRouteAuthority/10.0-direct-adapter",
+  fingerprint: "INDEX_V10_DIRECT_PRIVATE_ADAPTER",
+  adapterPath: MARION_PRIVATE_RUNTIME_ADAPTER_V8_PATH,
+  immutableAtMount: true,
+  legacyInvokeWrappersBypassed: true,
+  adminGatewayConversationBypassed: true,
+  chatEngineConversationBypassed: true,
+  publicNyxArchitecturePreserved: true
+});
+
+function marionPrivateRuntimeResolveAdapterInvokerV10(force = false) {
+  const adapter = getMarionPrivateRuntimeAdapterV8(force);
+  if (!adapter) return { adapter: null, invoke: null, handler: "", error: marionPrivateRuntimeAdapterV8Error || "private_runtime_adapter_unavailable" };
+  const ordered = ["invokePrivateRuntime", "processPrivateMarionTurn", "processWithMarion", "handleMarionAdminTextRuntime", "invokeMarionAdminTextRuntime", "handleTextRuntime", "handleAdminConversation"];
+  for (const name of ordered) {
+    let fn = null;
+    try {
+      if (Object.prototype.hasOwnProperty.call(adapter, name) && typeof adapter[name] === "function") fn = adapter[name];
+    } catch (_) { fn = null; }
+    if (typeof fn === "function") {
+      return {
+        adapter,
+        handler: name,
+        error: "",
+        invoke: function marionPrivateRuntimeCapturedAdapterInvokeV10(input, context) {
+          return Reflect.apply(fn, adapter, [input, context]);
+        }
+      };
+    }
+  }
+  return { adapter, invoke: null, handler: "", error: "private_runtime_adapter_handler_missing" };
+}
+
+async function invokeMarionPrivateRuntimeRouteAuthorityV10(body, auth, traceId, voiceApproval = {}, callMeta = {}) {
+  let resolved = marionPrivateRuntimeResolveAdapterInvokerV10(false);
+  if (!resolved.invoke) {
+    await new Promise((resolve) => setImmediate(resolve));
+    resolved = marionPrivateRuntimeResolveAdapterInvokerV10(true);
+  }
+  if (!resolved.invoke) {
+    return {
+      ok: false, statusCode: 503, stage: "private_runtime_adapter_unavailable",
+      reason: resolved.error || "private_runtime_adapter_unavailable", reply: "",
+      adapterVersion: "", contract: "",
+      routeAuthority: MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10,
+      bridgeStatus: { available: false, handler: resolved.handler || "", requested: MARION_PRIVATE_RUNTIME_ADAPTER_V8_PATH, error: resolved.error || "private_runtime_adapter_unavailable" }
+    };
+  }
+  const source = safeObj(body);
+  const sessionId = cleanText(source.sessionId || source.conversationId || auth && auth.sessionId || "");
+  const context = {
+    traceId,
+    route: "/api/private/marion/admin/runtime",
+    method: "POST",
+    lane: "private",
+    audience: "operator",
+    adminVerified: !!(auth && auth.verified),
+    verified: !!(auth && auth.verified),
+    sessionVerified: !!(auth && auth.sessionVerified),
+    sessionId,
+    conversationId: cleanText(source.conversationId || source.sessionId || sessionId),
+    turnId: cleanText(source.turnId || traceId || ""),
+    passwordFreeTestChat: source.passwordFreeTestChat === true,
+    privateAdminConversation: true,
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    voiceApproval: safeObj(voiceApproval),
+    routeAuthorityVersion: MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.version,
+    routeAuthorityFingerprint: MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.fingerprint,
+    compatibilityCaller: cleanText(safeObj(callMeta).compatibilityCaller || "")
+  };
+  try {
+    const result = await Promise.resolve(resolved.invoke(source, context));
+    if (result && typeof result === "object") {
+      result.routeAuthority = MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10;
+      result.routeAuthorityHandler = resolved.handler;
+    }
+    return result;
+  } catch (err) {
+    return {
+      ok: false, statusCode: 502, stage: "private_runtime_adapter_exception",
+      reason: marionAdminRuntimeErrorSignature(err),
+      detail: marionAdminRuntimeErrorPublicDetail(err),
+      reply: "",
+      routeAuthority: MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10,
+      routeAuthorityHandler: resolved.handler,
+      bridgeStatus: { available: true, handler: resolved.handler, requested: MARION_PRIVATE_RUNTIME_ADAPTER_V8_PATH, error: marionAdminRuntimeErrorSignature(err) }
+    };
+  }
+}
+
 async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   applyCors(req,res); hardenConversationNoStore(res);
+  try {
+    res.setHeader("X-SB-Marion-Route-Authority", MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.fingerprint);
+    res.setHeader("X-SB-Marion-Route-Version", MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.version);
+  } catch (_) {}
   const body=safeObj(req&&req.body), prompt=marionPrivateRuntimeHttpPrompt(body), traceId=marionNonThrowingClean((req&&req.sbTraceId)||body.traceId||makeTraceId("marionruntime"));
   const auth=marionAdminTextRuntimeRequestAuth(req);
   if(!auth.verified)return marionAdminConsoleAuthRequired(res,traceId,auth);
@@ -23354,7 +23470,7 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   if(!prompt)return res.status(400).json(marionAdminConsoleBaseResponse("runtime",traceId,auth,{ok:false,stage:"prompt_required",reason:"prompt_required",scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,responseFinalized:true}));
   try{
     const voiceApproval=marionAdminRuntimePrivateVoiceApproval(req,body,auth);
-    const runtime=await invokeMarionPrivateRuntimeAdapterV8(Object.assign({},body,{prompt,message:prompt,text:prompt,query:prompt,userText:prompt,rawUserText:prompt,privateAdminConversation:true,directMarionAdminInterface:true,marionAdminConversation:true}),auth,traceId,voiceApproval);
+    const runtime=await invokeMarionPrivateRuntimeRouteAuthorityV10(Object.assign({},body,{prompt,message:prompt,text:prompt,query:prompt,userText:prompt,rawUserText:prompt,privateAdminConversation:true,directMarionAdminInterface:true,marionAdminConversation:true}),auth,traceId,voiceApproval,{compatibilityCaller:"http_route"});
     let reply=marionPrivateReplyText(runtime)||marionNonThrowingClean(runtime&&runtime.reply);
     if(marionPrivateRuntimeHttpGeneric(reply))reply=marionPrivateRuntimeHttpDeterministic(prompt);
     const ok=!!reply;
@@ -23376,6 +23492,8 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
         bridgeRequested:bridgeStatus.requested||"",bridgeResolvedPath:bridgeStatus.resolvedPath||"",
         bridgeAttempts:Array.isArray(runtime&&runtime.bridgeAttempts)?runtime.bridgeAttempts:[],
         regressionRecoveryVersion:"marion.privateRuntime.unifiedDefinitive/8.0",adapterVersion:cleanText(runtime&&runtime.adapterVersion||""),adapterContract:cleanText(runtime&&runtime.contract||""),
+        routeAuthorityVersion:MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.version,routeAuthorityFingerprint:MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.fingerprint,
+        routeAuthorityHandler:cleanText(runtime&&runtime.routeAuthorityHandler||""),legacyInvokeWrappersBypassed:true,immutableAdapterAuthority:true,
         semanticHealth:ok?"ready":"degraded",jsonSafe:true,noCircularRuntimePacket:true
       }
     });
@@ -23390,13 +23508,21 @@ async function handleMarionPrivateRuntimeHttpHardlock(req,res,next){
   }
 }
 
+const marionPrivateRuntimeHttpRouteAuthorityV10 = Object.freeze(async function marionPrivateRuntimeHttpRouteAuthorityV10(req,res,next) {
+  return handleMarionPrivateRuntimeHttpHardlock(req,res,next);
+});
 if (!app.locals.__marionPrivateRuntimeRoutesMountedV6) {
-  app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES,(req,res)=>{applyCors(req,res);hardenConversationNoStore(res);return res.status(204).end();});
-  app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES,handleMarionPrivateRuntimeHttpHardlock);
+  const marionPrivateRuntimeOptionsAuthorityV10 = Object.freeze(function marionPrivateRuntimeOptionsAuthorityV10(req,res){applyCors(req,res);hardenConversationNoStore(res);return res.status(204).end();});
+  app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES,marionPrivateRuntimeOptionsAuthorityV10);
+  app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES,marionPrivateRuntimeHttpRouteAuthorityV10);
   app.locals.__marionPrivateRuntimeRoutesMountedV6 = {
-    version: "marion.privateRuntime.singleMount/6.0",
-    postHandler: "handleMarionPrivateRuntimeHttpHardlock",
-    canonicalBridgeOnly: true,
+    version: "marion.privateRuntime.singleMount/10.0-direct-adapter",
+    postHandler: "marionPrivateRuntimeHttpRouteAuthorityV10",
+    routeAuthorityVersion: MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.version,
+    routeAuthorityFingerprint: MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.fingerprint,
+    immutableAtMount: true,
+    legacyInvokeWrappersBypassed: true,
+    canonicalAdapterOnly: true,
     mountedAt: Date.now()
   };
 }
@@ -29004,7 +29130,7 @@ try {
 const MARION_CURRENT_TURN_AUTHORITY_INDEX_VERSION="nyx.marion.currentTurnAuthority.index/1.0";
 let marionCurrentTurnAuthorityMod=null;try{marionCurrentTurnAuthorityMod=require("./Data/marion/runtime/marionCurrentTurnAuthority.js");}catch(_){marionCurrentTurnAuthorityMod=null;}
 try{
-  if(marionCurrentTurnAuthorityMod&&typeof invokeMarionAdminTextRuntime==="function"&&!invokeMarionAdminTextRuntime.__marionCurrentTurnAuthorityR1){
+  if(marionCurrentTurnAuthorityMod&&typeof invokeMarionAdminTextRuntime==="function"&&!invokeMarionAdminTextRuntime.__marionCurrentTurnAuthorityR1&&MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10.legacyInvokeWrappersBypassed!==true){
     const originalInvokeMarionAdminTextRuntime=invokeMarionAdminTextRuntime;
     invokeMarionAdminTextRuntime=async function(body,auth,traceId,voiceApproval){
       const base=Object.assign({},safeObj(body),{route:"/api/private/marion/admin/runtime",path:"/api/private/marion/admin/runtime",lane:"private",audience:"operator",privateAdminConversation:true,directMarionAdminInterface:true,marionAdminConversation:true,adminVerified:!!(auth&&auth.verified),sessionVerified:!!(auth&&auth.sessionVerified)});
@@ -29018,6 +29144,30 @@ try{
   if(typeof module!=="undefined"&&module.exports){module.exports.MARION_CURRENT_TURN_AUTHORITY_INDEX_VERSION=MARION_CURRENT_TURN_AUTHORITY_INDEX_VERSION;module.exports.marionCurrentTurnAuthority=marionCurrentTurnAuthorityMod;}
 }catch(_){ }
 /* MARION_CURRENT_TURN_AUTHORITY_INDEX_R1_END */
+
+/* MARION_PRIVATE_RUNTIME_COMPATIBILITY_REASSERT_V10_START
+ * Reassert the legacy function name only as an adapter delegate after all
+ * personality/current-turn wrappers have run. This preserves old internal
+ * callers while making it impossible for those wrappers to become the HTTP
+ * route authority. The Express POST mount remains bound to the frozen closure
+ * marionPrivateRuntimeHttpRouteAuthorityV10.
+ */
+try {
+  const marionPrivateRuntimeCompatibilityDelegateV10 = async function marionPrivateRuntimeCompatibilityDelegateV10(body,auth,traceId,voiceApproval){
+    return invokeMarionPrivateRuntimeRouteAuthorityV10(body,auth,traceId,voiceApproval,{compatibilityCaller:"final_compatibility_delegate"});
+  };
+  Object.defineProperty(marionPrivateRuntimeCompatibilityDelegateV10,"__marionPrivateRuntimeRouteAuthorityV10",{value:true,enumerable:false,configurable:false,writable:false});
+  Object.defineProperty(marionPrivateRuntimeCompatibilityDelegateV10,"__marionCurrentTurnAuthorityR1",{value:true,enumerable:false,configurable:false,writable:false});
+  invokeMarionAdminTextRuntime = marionPrivateRuntimeCompatibilityDelegateV10;
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports.invokeMarionAdminTextRuntime = marionPrivateRuntimeCompatibilityDelegateV10;
+    module.exports.MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10 = MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10;
+  }
+  if (typeof app !== "undefined" && app && app.locals) {
+    app.locals.marionPrivateRuntimeRouteAuthority = MARION_PRIVATE_RUNTIME_ROUTE_AUTHORITY_V10;
+  }
+} catch (_) {}
+/* MARION_PRIVATE_RUNTIME_COMPATIBILITY_REASSERT_V10_END */
 
 
 
@@ -29088,7 +29238,7 @@ try {
 
 
 /* MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8_EXPORT_START */
-const MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8 = Object.freeze({version:"marion.privateRuntime.unifiedDefinitive/8.0",canonicalAdapterPath:"Data/marion/runtime/marionPrivateRuntimeAdapter.js",routeUsesClosureLocalAdapter:true,legacyInvokeWrappersBypassed:true,indexStructuralIntegrityPreserved:true,nyxPublicArchitecturePreserved:true});
+const MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8 = Object.freeze({version:"marion.privateRuntime.indexDirectAdapterAuthority/10.0",canonicalAdapterPath:"Data/marion/runtime/marionPrivateRuntimeAdapter.js",routeUsesClosureLocalAdapter:true,routeAuthorityFingerprint:"INDEX_V10_DIRECT_PRIVATE_ADAPTER",immutableAtMount:true,legacyInvokeWrappersBypassed:true,indexStructuralIntegrityPreserved:true,nyxPublicArchitecturePreserved:true});
 try{if(typeof app!=="undefined"&&app&&app.locals){app.locals.marionUnifiedPrivateRuntime=MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8;app.locals.marionUnifiedPrivateRuntimeStatus=()=>{const a=getMarionPrivateRuntimeAdapterV8(false);return a&&typeof a.getStatus==="function"?a.getStatus():{available:false,error:marionPrivateRuntimeAdapterV8Error}}}if(typeof module!=="undefined"&&module.exports){module.exports.MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8=MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8;module.exports.getMarionPrivateRuntimeAdapterV8=getMarionPrivateRuntimeAdapterV8;}}
 catch(_){}
 /* MARION_UNIFIED_PRIVATE_RUNTIME_INDEX_V8_EXPORT_END */
