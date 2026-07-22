@@ -14,9 +14,10 @@
  * - Uses the canonical bridge when healthy and an internal bounded recovery kernel when not.
  */
 const path = require("path");
+const conversationLayers = (() => { try { return require("./conversation/marionConversationLayerRegistry.js"); } catch (_) { return null; } })();
 
-const VERSION = "marion.privateRuntime.adapter/9.0-drastic-recovery";
-const CONTRACT = "nyx.marion.privateRuntime/9.0";
+const VERSION = "marion.privateRuntime.adapter/11.0-conversation-flow-layers-9-10-11";
+const CONTRACT = "nyx.marion.privateRuntime/11.0";
 const MAX_SESSIONS = 256;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const sessionContinuity = new Map();
@@ -142,11 +143,29 @@ function resultDomain(result) {
 function legalFallback(reply = "") { return /\b(?:general legal(?:-risk)? (?:information|triage)|not legal advice|governing jurisdiction|source documents|legal category)\b/i.test(safeText(reply)); }
 function runtimeFailureReply(reply = "") { return /\b(?:private runtime is unavailable|final envelope missing|diagnostic packet|non-final|bridge handoff|composer reply missing|turn did not complete cleanly|response did not complete cleanly)\b/i.test(safeText(reply)); }
 function genericNonSubstantiveReply(reply = "") { return /^(?:i[’\']?m here|i am here|hello,? mac|tell me what you want|what would you like|ready to work through)/i.test(safeText(reply)); }
+function reconcileReplyToConversationFlow(reply = "", flow = {}) {
+  let out = safeText(reply);
+  const state = obj(flow), subject = firstText(state.activeSubject, obj(state.contextPivot).activeSubject);
+  const direction = firstText(state.direction, obj(state.contextPivot).direction);
+  if (!out || !subject || !(direction === "continue" || direction === "return")) return out;
+  const match = out.match(/^The deeper defect to inspect in (.*?) is state mutation timing\./i);
+  if (match) {
+    const candidate = safeText(match[1]).toLowerCase();
+    if (/^(?:do a surgical autopsy|back to|return to|continue|keep going|go deeper|what)/.test(candidate)) {
+      out = out.replace(/^The deeper defect to inspect in .*? is state mutation timing\./i, `The deeper defect to inspect in ${subject} is state mutation timing.`);
+    }
+  }
+  if (direction === "return" && /^The first concrete defect to inspect is precedence\./i.test(out)) {
+    out = out.replace(/^The first concrete defect to inspect is precedence\./i, `Returning to ${subject}, the first concrete defect to inspect is precedence.`);
+  }
+  return out;
+}
 function domainReplyMismatch(reply = "", domain = "general") {
   const text = safeText(reply);
   if (!text) return true;
   if (domain === "technical") return genericNonSubstantiveReply(text) || !/\b(?:route|routing|domain|state|composer|envelope|runtime|code|module|handler|validation|implementation|repair|technical|javascript|packet|precedence|session|bridge)\b/i.test(text);
   if (domain === "law") return genericNonSubstantiveReply(text) || !/\b(?:contract|legal|jurisdiction|clause|liability|obligation|termination|dispute|deadline|law)\b/i.test(text);
+  if (domain && domain !== "general") return genericNonSubstantiveReply(text);
   return false;
 }
 
@@ -164,6 +183,10 @@ function recoveryReply(prompt, domain, state = {}) {
     if (kind === "main_risk") return "The main risk is a valid-looking final packet carrying the wrong semantic domain because a later projector overrode the current turn.";
     if (kind === "changed") return "The decisive change is that current-turn intent becomes immutable once accepted. Prior memory may enrich the answer, but it cannot replace the active domain or subject.";
     return "Start with the route-precedence chain. Confirm the explicit current prompt is classified before historical state is merged, and assert that the selected domain cannot be replaced before the final reply is emitted.";
+  }
+  if (domain === "business") {
+    if (kind) return "For this business branch, assess the commercial consequence, affected audience, revenue or trust exposure, operational dependency, and the smallest reversible response. Then return to the primary technical thread with the business constraint recorded rather than replacing it.";
+    return "The principal business risk is not only the defect itself; it is loss of trust, interrupted conversion, repeated engineering cost, and uncertainty about whether Marion can be relied upon in production. Bound the impact, identify the affected users and revenue path, and choose the smallest reversible correction.";
   }
   if (domain === "law") {
     if (kind) return "Continue by identifying the governing jurisdiction, the exact clause or obligation at issue, the parties’ duties, termination and liability language, dispute-resolution terms, and deadlines. This is general legal information, not legal advice.";
@@ -184,11 +207,12 @@ function normalizeInput(input = {}, context = {}) {
     ...obj(source.previousMemory), ...obj(state.memoryPatch),
     activeDomain: firstText(state.activeDomain, expectedDomain === "general" ? "" : expectedDomain),
     activeSubject, activeTask: activeSubject,
-    lastUserText: firstText(state.lastUserText), lastAssistantReply: firstText(state.lastReply),
+    lastUserText: firstText(state.lastUserText), lastSubstantivePrompt: firstText(state.lastSubstantivePrompt, state.activeSubject), lastAssistantReply: firstText(state.lastReply),
+    conversationFlowState: obj(state.conversationFlowState),
     followUpDepth: Number(state.followUpDepth || 0),
     privateRuntimeContinuity: { version: CONTRACT, activeDomain: firstText(state.activeDomain, expectedDomain), activeSubject, progressionStage: firstText(state.progressionStage), followUpDepth: Number(state.followUpDepth || 0) }
   };
-  return {
+  const base = {
     ...source,
     prompt, message: prompt, text: prompt, query: prompt, userText: prompt, rawUserText: prompt, userQuery: prompt, inputText: prompt,
     effectivePrompt: continuation ? `${prompt} Continue the active ${expectedDomain || state.activeDomain || "substantive"} task: ${activeSubject}.` : prompt,
@@ -202,40 +226,71 @@ function normalizeInput(input = {}, context = {}) {
     sessionId, conversationId: firstText(source.conversationId, sessionId), turnId: firstText(source.turnId, ctx.turnId, ctx.traceId, makeId("turn")), traceId: firstText(source.traceId, ctx.traceId),
     previousMemory, requestedDomain: expectedDomain === "general" ? firstText(source.requestedDomain, source.domain, "general") : expectedDomain,
     domain: expectedDomain, continuationRequested: continuation, continuationResolved: continuation, currentTurnOnly: true,
-    continuityAnchor: continuation ? { valid: true, substantive: true, domain: expectedDomain || state.activeDomain, subject: activeSubject, activeSubject, activeTask: activeSubject, lastUserText: state.lastUserText, lastAssistantReply: state.lastReply } : obj(source.continuityAnchor),
+    continuityAnchor: continuation ? { valid: true, substantive: true, domain: expectedDomain || state.activeDomain, subject: activeSubject, activeSubject, activeTask: activeSubject, lastUserText: firstText(state.lastSubstantivePrompt, state.lastUserText), lastSubstantivePrompt: firstText(state.lastSubstantivePrompt, activeSubject), lastAssistantReply: state.lastReply } : obj(source.continuityAnchor),
     currentTurnAuthority: { version: CONTRACT, expectedDomain, activeDomain: expectedDomain || state.activeDomain || "", activeSubject, continuationRequested: continuation, substantiveAnchor: !!activeSubject, noOlderDomainOverride: true },
     privateRuntimeContext: { version: CONTRACT, expectedDomain, activeDomain: expectedDomain || state.activeDomain || "", activeSubject, continuationRequested: continuation, followUpDepth: continuation ? Number(state.followUpDepth || 0) + 1 : 0, progressionStage: firstText(state.progressionStage, "analysis") }
   };
+  if (!conversationLayers || typeof conversationLayers.applyToInput !== "function") return base;
+  const enriched = conversationLayers.applyToInput(base, state, { reset });
+  const flow = obj(enriched.conversationFlow), pivot = obj(flow.contextPivot);
+  const resumedDomain = firstText(flow.activeDomain, expectedDomain), resumedSubject = firstText(flow.activeSubject, activeSubject);
+  if (pivot.direction !== "social_pause" && resumedDomain && resumedDomain !== "general") {
+    const isContinuationDirection = pivot.direction === "return" || pivot.direction === "continue";
+    enriched.domain = resumedDomain; enriched.requestedDomain = resumedDomain;
+    enriched.currentTurnAuthority = { ...obj(enriched.currentTurnAuthority), expectedDomain: resumedDomain, activeDomain: resumedDomain, activeSubject: resumedSubject, continuationRequested: isContinuationDirection, noOlderDomainOverride: true };
+    enriched.privateRuntimeContext = { ...obj(enriched.privateRuntimeContext), expectedDomain: resumedDomain, activeDomain: resumedDomain, activeSubject: resumedSubject, continuationRequested: isContinuationDirection, progressionStage: firstText(flow.stage, obj(enriched.privateRuntimeContext).progressionStage) };
+    enriched.continuationRequested = isContinuationDirection; enriched.continuationResolved = isContinuationDirection;
+    enriched.continuityAnchor = { ...obj(enriched.continuityAnchor), valid: !!resumedSubject, substantive: !!resumedSubject, domain: resumedDomain, subject: resumedSubject, activeSubject: resumedSubject, activeTask: resumedSubject };
+  }
+  return enriched;
 }
 function updateContinuity(input, result, reply) {
   const ctx = obj(input.privateRuntimeContext), sessionId = input.sessionId;
   if (!sessionId) return;
+  const prior = getSession(sessionId);
+  const committedFlow = conversationLayers && typeof conversationLayers.commitTurn === "function"
+    ? conversationLayers.commitTurn(obj(input.conversationFlow), reply, result) : obj(input.conversationFlow);
+  const flowState = conversationLayers && typeof conversationLayers.projectState === "function"
+    ? conversationLayers.projectState(committedFlow) : committedFlow;
   if (isGreeting(input.prompt)) {
-    setSession(sessionId, { activeDomain: "", activeSubject: "", progressionStage: "social", followUpDepth: 0, lastUserText: input.prompt, lastReply: reply, memoryPatch: obj(result.memoryPatch || result.sessionPatch) });
+    setSession(sessionId, {
+      activeDomain: firstText(prior.activeDomain, obj(flowState).activeDomain),
+      activeSubject: firstText(prior.activeSubject, obj(flowState).activeSubject),
+      progressionStage: "social", followUpDepth: 0, lastUserText: input.prompt, lastReply: reply,
+      memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState },
+      conversationFlowState: flowState
+    });
     return;
   }
   const domain = firstText(ctx.expectedDomain, resultDomain(result), ctx.activeDomain);
   const substantive = !!domain && domain !== "general";
   if (!substantive) {
-    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: obj(result.memoryPatch || result.sessionPatch) });
+    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState }, conversationFlowState: flowState });
     return;
   }
+  const flowDirection = firstText(obj(input.conversationFlow).direction);
+  const stableSubject = firstText(ctx.activeSubject, deriveSubject(input.prompt));
   setSession(sessionId, {
     activeDomain: domain,
-    activeSubject: firstText(ctx.activeSubject, deriveSubject(input.prompt)),
-    lastSubstantivePrompt: input.prompt,
+    activeSubject: stableSubject,
+    lastSubstantivePrompt: (flowDirection === "continue" || flowDirection === "return") ? firstText(stableSubject, prior.lastSubstantivePrompt) : input.prompt,
     lastUserText: input.prompt,
     lastReply: reply,
     progressionStage: firstText(ctx.progressionStage, "analysis"),
     followUpDepth: Number(ctx.followUpDepth || 0),
-    memoryPatch: obj(result.memoryPatch || result.sessionPatch)
+    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState },
+    conversationFlowState: flowState
   });
 }
 function finalPacket(normalized, result, reply, stage, reason = "", degraded = false, attempts = []) {
   const domain = firstText(obj(normalized.privateRuntimeContext).expectedDomain, resultDomain(result), "general");
   const intent = domain === "technical" ? "technical_debug" : domain === "law" ? "domain_question" : "simple_chat";
+  const rawConversationFlow = obj(normalized.conversationFlow);
+  const conversationFlow = conversationLayers && typeof conversationLayers.commitTurn === "function" ? conversationLayers.commitTurn(rawConversationFlow, reply, result) : rawConversationFlow;
+  const conversationFlowState = conversationLayers && typeof conversationLayers.projectState === "function" ? conversationLayers.projectState(conversationFlow) : conversationFlow;
   const memoryPatch = {
     ...obj(result.memoryPatch || result.sessionPatch),
+    conversationFlowState,
     activeDomain: domain === "general" ? "" : domain,
     activeSubject: domain === "general" ? "" : firstText(obj(normalized.privateRuntimeContext).activeSubject),
     lastUserText: normalized.prompt,
@@ -248,15 +303,16 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
     spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain,
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
     payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
-    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false },
-    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready" }
+    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
+    conversationFlow, conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
+    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", conversationLayers: [9,10,11], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction) }
   };
   return {
     ok: true, statusCode: 200, stage, reason, degraded, recovered: degraded,
     reply, publicReply: reply, visibleReply: reply, displayReply: reply, directReply: reply, finalReply: reply,
     response: reply, text: reply, message: reply, spokenText: firstText(resultPacket.spokenText, reply), speechText: firstText(resultPacket.speechText, resultPacket.spokenText, reply),
     result: resultPacket, adapterVersion: VERSION, contract: CONTRACT, bridgeStatus: getStatus(), bridgeAttempts: attempts,
-    privateRuntimeContext: normalized.privateRuntimeContext, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
+    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
     responseFinalized: true
   };
 }
@@ -293,7 +349,7 @@ async function invokePrivateRuntime(input = {}, context = {}) {
   if (bridge) {
     try {
       result = await Promise.resolve(bridge.processWithMarion(normalized));
-      reply = extractReply(result);
+      reply = reconcileReplyToConversationFlow(extractReply(result), obj(normalized.conversationFlow));
       attempts.push({ kind: "canonical_bridge", ok: !!reply, domain: resultDomain(result), replyPresent: !!reply });
     } catch (err) {
       reason = safeText(err && (err.code || err.message || err.name), "bridge_exception");
@@ -307,10 +363,10 @@ async function invokePrivateRuntime(input = {}, context = {}) {
   const expectedDomain = obj(normalized.privateRuntimeContext).expectedDomain || "general";
   const progressionOverride = isContextualFollowup(prompt) && !!obj(normalized.privateRuntimeContext).activeSubject && expectedDomain !== "general";
   const semanticMismatch = !reply || runtimeFailureReply(reply) || domainReplyMismatch(reply, expectedDomain) || (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
-  if (progressionOverride) {
+  if (progressionOverride && semanticMismatch) {
     reply = recoveryReply(prompt, expectedDomain, state);
     result = obj(result);
-    attempts.push({ kind: "progression_authority", ok: true, domain: expectedDomain, reason: "recognized_contextual_followup" });
+    attempts.push({ kind: "progression_recovery", ok: true, domain: expectedDomain, reason: reason || "recognized_followup_bridge_reply_unusable" });
   } else if (semanticMismatch) {
     degraded = true;
     reply = recoveryReply(prompt, expectedDomain, state);
@@ -338,7 +394,8 @@ function getStatus() {
     loadAttempts: bridgeLoadAttempts,
     sessionCount: sessionContinuity.size,
     circularSafe: true, indexIndependent: true, chatEngineIndependent: true, gatewayIndependent: true,
-    neverReturnsRecoverable502: true
+    neverReturnsRecoverable502: true,
+    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", conversationLayers: [9,10,11]
   };
 }
 function resetSession(sessionId) { clearSession(safeText(sessionId)); return true; }
@@ -352,5 +409,6 @@ Object.assign(module.exports, {
   handleAdminConversation: invokePrivateRuntime,
   getStatus,
   resetSession,
-  _internal: { promptOf, isGreeting, isContextualFollowup, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, sessionContinuity }
+  conversationLayers,
+  _internal: { promptOf, isGreeting, isContextualFollowup, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, reconcileReplyToConversationFlow, sessionContinuity }
 });
