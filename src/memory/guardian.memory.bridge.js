@@ -716,3 +716,18 @@ module.exports.default = module.exports;
   api.marionLongThreadProgressionGuard=g;
 }catch(_){}})();
 /* MARION_LONG_THREAD_MEMORY_AUTHORITY_R4_END */
+
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_GUARDIAN_MEMORY_V11_START */
+(function marionConversationFlowGuardianMemoryV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionConversationFlowGuardianMemoryV11)return;
+  let registry=null;try{registry=require("./conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}if(!registry)return;
+  const flowMemory=new Map();
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function key(v){try{return String(v||"marion").toLowerCase().slice(0,80);}catch(_){return"marion";}}
+  function bound(){if(flowMemory.size<=64)return;const first=flowMemory.keys().next().value;if(first)flowMemory.delete(first);}
+  const remember=api.rememberTurn;if(typeof remember==="function")api.rememberTurn=function(guardian,turn,options){const k=key(guardian),prev=obj(flowMemory.get(k)),prepared=registry.applyToInput(obj(turn),prev),result=remember.call(this,guardian,prepared,options),reply=obj(prepared).lastAssistantReply||obj(result).lastAssistantReply||"",committed=registry.commitTurn(obj(prepared.conversationFlow),reply,result);flowMemory.set(k,registry.projectState(committed));bound();return result&&typeof result==="object"?{...result,conversationFlowState:flowMemory.get(k)}:result;};
+  for(const name of ["getGuardianMemory","getGuardianSnapshot"]){const original=api[name];if(typeof original==="function")api[name]=function(guardian){const result=original.apply(this,arguments),state=flowMemory.get(key(guardian));return result&&typeof result==="object"&&state?{...result,conversationFlowState:state}:result;};}
+  api.getMarionConversationFlowMemory=function(guardian){return flowMemory.get(key(guardian))||null;};api.resetMarionConversationFlowMemory=function(guardian){return flowMemory.delete(key(guardian));};api.__marionConversationFlowGuardianMemoryV11=true;api.MARION_CONVERSATION_FLOW_GUARDIAN_MEMORY_VERSION=registry.VERSION;api.marionConversationLayers=registry;
+})();
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_GUARDIAN_MEMORY_V11_END */
