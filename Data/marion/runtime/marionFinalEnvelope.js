@@ -6145,3 +6145,24 @@ try{
 })();
 /* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_FINAL_ENVELOPE_V17_END */
 
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_FINAL_ENVELOPE_V20_START */
+(function marionCompletionFlowFinalEnvelopeV20(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_COMPLETION_FLOW_VERSION=registry.completionCoordinator&&registry.completionCoordinator.VERSION||"";
+    api.MARION_CROSS_DOMAIN_CONTEXT_VERSION=registry.crossDomainContextIntegrator&&registry.crossDomainContextIntegrator.VERSION||"";
+    api.MARION_GOAL_REALIGNMENT_VERSION=registry.goalRealignment&&registry.goalRealignment.VERSION||"";
+    api.MARION_DECISION_CLOSURE_VERSION=registry.decisionClosure&&registry.decisionClosure.VERSION||"";
+    api.getMarionCompletionFlowStatus=function(){return registry.getStatus();};
+    api.MARION_COMPLETION_METADATA_PRIVATE=true;
+    api.MARION_LAYER_HARD_STOP=20;
+    api.MARION_ADDITIONAL_LAYER_RECOMMENDED=false;
+    api.MARION_HUMAN_FINAL_AUTHORITY=true;
+    api.__marionCompletionFlowCapabilityV20=true;
+  }catch(_){}
+})();
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_FINAL_ENVELOPE_V20_END */
+
