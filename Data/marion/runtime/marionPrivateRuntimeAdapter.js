@@ -16,8 +16,8 @@
 const path = require("path");
 const conversationLayers = (() => { try { return require("./conversation/marionConversationLayerRegistry.js"); } catch (_) { return null; } })();
 
-const VERSION = "marion.privateRuntime.adapter/17.0-strategic-flow-layers-15-16-17";
-const CONTRACT = "nyx.marion.privateRuntime/17.0";
+const VERSION = "marion.privateRuntime.adapter/20.0-completion-flow-layers-18-19-20";
+const CONTRACT = "nyx.marion.privateRuntime/20.0";
 const MAX_SESSIONS = 256;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const sessionContinuity = new Map();
@@ -228,6 +228,7 @@ function normalizeInput(input = {}, context = {}) {
     conversationFlowState: obj(state.conversationFlowState),
     outcomeFlowState: obj(state.outcomeFlowState || obj(state.conversationFlowState).outcomeFlow),
     strategicFlowState: obj(state.strategicFlowState || obj(state.conversationFlowState).strategicFlow),
+    completionFlowState: obj(state.completionFlowState || obj(state.conversationFlowState).completionFlow),
     followUpDepth: Number(state.followUpDepth || 0),
     privateRuntimeContinuity: { version: CONTRACT, activeDomain: firstText(state.activeDomain, expectedDomain), activeSubject, progressionStage: firstText(state.progressionStage), followUpDepth: Number(state.followUpDepth || 0) }
   };
@@ -276,17 +277,18 @@ function updateContinuity(input, result, reply) {
       activeDomain: firstText(prior.activeDomain, obj(flowState).activeDomain),
       activeSubject: firstText(prior.activeSubject, obj(flowState).activeSubject),
       progressionStage: "social", followUpDepth: 0, lastUserText: input.prompt, lastReply: reply,
-      memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) },
+      memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) },
       conversationFlowState: flowState,
       outcomeFlowState: obj(flowState.outcomeFlow),
-      strategicFlowState: obj(flowState.strategicFlow)
+      strategicFlowState: obj(flowState.strategicFlow),
+      completionFlowState: obj(flowState.completionFlow)
     });
     return;
   }
   const domain = firstText(ctx.expectedDomain, resultDomain(result), ctx.activeDomain);
   const substantive = !!domain && domain !== "general";
   if (!substantive) {
-    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) }, conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) });
+    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) }, conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) });
     return;
   }
   const flowDirection = firstText(obj(input.conversationFlow).direction);
@@ -299,10 +301,11 @@ function updateContinuity(input, result, reply) {
     lastReply: reply,
     progressionStage: firstText(ctx.progressionStage, "analysis"),
     followUpDepth: Number(ctx.followUpDepth || 0),
-    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) },
+    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) },
     conversationFlowState: flowState,
     outcomeFlowState: obj(flowState.outcomeFlow),
-    strategicFlowState: obj(flowState.strategicFlow)
+    strategicFlowState: obj(flowState.strategicFlow),
+    completionFlowState: obj(flowState.completionFlow)
   });
 }
 function finalPacket(normalized, result, reply, stage, reason = "", degraded = false, attempts = []) {
@@ -318,9 +321,11 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
   const outcomeFlowState = obj(conversationFlowState.outcomeFlow);
   const strategicFlow = obj(conversationFlow.strategicFlow);
   const strategicFlowState = obj(conversationFlowState.strategicFlow);
+  const completionFlow = obj(conversationFlow.completionFlow);
+  const completionFlowState = obj(conversationFlowState.completionFlow);
   const memoryPatch = {
     ...obj(result.memoryPatch || result.sessionPatch),
-    conversationFlowState, outcomeFlowState, strategicFlowState,
+    conversationFlowState, outcomeFlowState, strategicFlowState, completionFlowState,
     activeDomain: domain === "general" ? "" : domain,
     activeSubject: domain === "general" ? "" : firstText(obj(normalized.privateRuntimeContext).activeSubject),
     lastUserText: normalized.prompt,
@@ -334,15 +339,15 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
     payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
     finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
-    conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
-    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, automaticExecutionAllowed: false }
+    conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), completionFlow, completionFlowState, crossDomainContext: obj(conversationFlow.crossDomainContext), goalRealignment: obj(conversationFlow.goalRealignment), decisionClosure: obj(conversationFlow.decisionClosure), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
+    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, completionMetadataPrivate: true, hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false }
   };
   return {
     ok: true, statusCode: 200, stage, reason, degraded, recovered: degraded,
     reply, publicReply: reply, visibleReply: reply, displayReply: reply, directReply: reply, finalReply: reply,
     response: reply, text: reply, message: reply, spokenText: firstText(resultPacket.spokenText, reply), speechText: firstText(resultPacket.speechText, resultPacket.spokenText, reply),
     result: resultPacket, adapterVersion: VERSION, contract: CONTRACT, bridgeStatus: getStatus(), bridgeAttempts: attempts,
-    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, strategicFlow, strategicFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
+    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, strategicFlow, strategicFlowState, completionFlow, completionFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
     responseFinalized: true
   };
 }
@@ -425,7 +430,7 @@ function getStatus() {
     sessionCount: sessionContinuity.size,
     circularSafe: true, indexIndependent: true, chatEngineIndependent: true, gatewayIndependent: true,
     neverReturnsRecoverable502: true,
-    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowReady: !!(conversationLayers && conversationLayers.strategicCoordinator), strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17], automaticExecutionAllowed: false
+    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowReady: !!(conversationLayers && conversationLayers.strategicCoordinator), strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowReady: !!(conversationLayers && conversationLayers.completionCoordinator), completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false
   };
 }
 function resetSession(sessionId) { clearSession(safeText(sessionId)); return true; }
