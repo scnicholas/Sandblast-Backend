@@ -1,7 +1,7 @@
 "use strict";
 const assert=require("assert");
 const path=require("path");
-const ROOT=path.resolve(__dirname,"..");
+const ROOT=path.resolve(__dirname,"..","..");
 const registry=require(path.join(ROOT,"Data/marion/runtime/conversation/marionConversationLayerRegistry.js"));
 const adapter=require(path.join(ROOT,"Data/marion/runtime/marionPrivateRuntimeAdapter.js"));
 
