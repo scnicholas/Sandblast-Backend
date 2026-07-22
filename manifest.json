@@ -1,12 +1,14 @@
 {
   "package": "Sandblast Backend Marion Unified Manifest",
-  "version": "11.1-merged",
+  "version": "11.1.1-path-corrected",
   "contract": "nyx.marion.backendManifest/1.0",
-  "generatedUtc": "2026-07-22T03:06:57.472086+00:00",
+  "generatedUtc": "2026-07-22T03:22:53.762251+00:00",
   "target": {
     "backend": "Sandblast backend",
     "scope": "Marion current-turn authority and conversation-flow layers 9-11",
-    "manifestOnly": true
+    "manifestOnly": true,
+    "manifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
+    "guardianMemoryBridgePath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js"
   },
   "sourceManifests": [
     {
@@ -29,7 +31,8 @@
     "sourceAFileCount": 15,
     "sourceBFileCount": 21,
     "duplicatePathCount": 10,
-    "uniqueFileCount": 26
+    "uniqueFileCount": 26,
+    "pathCorrectionCount": 1
   },
   "filePaths": [
     "Data/marion/runtime/composeMarionResponse.js",
@@ -38,7 +41,7 @@
     "Data/marion/runtime/conversation/marionConversationProgression.js",
     "Data/marion/runtime/conversation/marionInteractionCalibration.js",
     "Data/marion/runtime/emotion/emotionRuntime.js",
-    "Data/marion/runtime/guardian.memory.bridge.js",
+    "src/memory/guardian.memory.bridge.js",
     "Data/marion/runtime/marionBridge.js",
     "Data/marion/runtime/marionCurrentTurnAuthority.js",
     "Data/marion/runtime/marionFinalEnvelope.js",
@@ -140,7 +143,7 @@
       }
     },
     {
-      "path": "Data/marion/runtime/guardian.memory.bridge.js",
+      "path": "src/memory/guardian.memory.bridge.js",
       "includedBy": [
         "Marion Current-Turn Authority Surgical Update v1.0",
         "Marion Conversation Flow Layers 9-11 v11.0"
@@ -151,7 +154,10 @@
         "bytes": 68492,
         "sha256": "41f2cbde6958f87f0b8ad163a04b06bb21b3ffaae1d75752d8f5d01dfcb3ed78",
         "status": "preserved_from_source_manifest"
-      }
+      },
+      "relocatedFrom": "Data/marion/runtime/guardian.memory.bridge.js",
+      "canonicalWindowsPath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
+      "pathCorrectionStatus": "canonical_backend_path_confirmed"
     },
     {
       "path": "Data/marion/runtime/marionBridge.js",
@@ -424,7 +430,9 @@
       11
     ],
     "indexEntryRetainedForProvenance": true,
-    "routeAuthorityPolicy": "Do not replace the certified direct-adapter route authority merely because index.js appears in the older source manifest."
+    "routeAuthorityPolicy": "Do not replace the certified direct-adapter route authority merely because index.js appears in the older source manifest.",
+    "canonicalManifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
+    "guardianMemoryBridgeCanonicalPath": "src/memory/guardian.memory.bridge.js"
   },
   "validation": {
     "mergedJsonValid": true,
@@ -432,7 +440,10 @@
     "sourceMetadataPreserved": true,
     "sourceIntegritySnapshotsPreserved": true,
     "freshChecksumsGeneratedForRuntimeFiles": false,
-    "note": "The merge combines manifest metadata only. Checksums from the first manifest remain labelled as source-package snapshots; the second manifest did not provide file checksums."
+    "note": "The merge combines manifest metadata only. Checksums from the first manifest remain labelled as source-package snapshots; the second manifest did not provide file checksums.",
+    "guardianMemoryBridgePathCorrected": true,
+    "operationalPathReferencesUpdated": true,
+    "embeddedSourceManifestsPreservedUnmodified": true
   },
   "originalInputChecksums": {
     "chatEngine.js": {
@@ -639,5 +650,14 @@
         "fullSuppliedFilesIncluded": true
       }
     }
-  }
+  },
+  "pathCorrections": [
+    {
+      "component": "guardian.memory.bridge.js",
+      "from": "Data/marion/runtime/guardian.memory.bridge.js",
+      "to": "src/memory/guardian.memory.bridge.js",
+      "canonicalWindowsPath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
+      "reason": "Confirmed backend file location supplied by the operator."
+    }
+  ]
 }
