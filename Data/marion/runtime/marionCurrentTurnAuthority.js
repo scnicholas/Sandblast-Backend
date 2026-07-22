@@ -1138,3 +1138,31 @@ module.exports = {
   }catch(_){}
 })();
 /* MARION_STRATEGIC_CURRENT_TURN_DIRECTIVE_V17_END */
+
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_CURRENT_TURN_V20_START */
+(function marionCompletionFlowCurrentTurnV20(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+    api.classifyCompletionCurrentTurnDirective=function(value){
+      const prompt=text(value&&typeof value==="object"?(value.prompt||value.userText||value.text||value.message):value);
+      return {
+        explicitGoal:registry.goalRealignment.extractExplicitGoal(prompt),
+        explicitConstraint:registry.goalRealignment.extractConstraint(prompt),
+        closureRequested:registry.decisionClosure.closureSignal(prompt),
+        validationReported:registry.decisionClosure.validationSignal(prompt),
+        hardStopAtLayer20:/\bhard stop at layer 20\b/i.test(prompt)
+      };
+    };
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_COMPLETION_FLOW_VERSION=registry.completionCoordinator.VERSION;
+    api.MARION_LAYER_HARD_STOP=20;
+    api.MARION_IMPLICIT_GOAL_CHANGE_ALLOWED=false;
+    api.MARION_HUMAN_FINAL_AUTHORITY=true;
+    api.__marionCompletionFlowCapabilityV20=true;
+  }catch(_){}
+})();
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_CURRENT_TURN_V20_END */
+
