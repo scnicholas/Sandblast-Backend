@@ -6013,3 +6013,21 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
 })();
 /* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_CHATENGINE_TRANSPORT_V17_END */
 
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_CHATENGINE_TRANSPORT_V20_START */
+(function marionCompletionFlowChatEngineV20(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("../Data/marion/runtime/conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_COMPLETION_FLOW_VERSION=registry.completionCoordinator.VERSION;
+    api.projectMarionCompletionFlowState=function(value){return registry.completionCoordinator.projectState(value&&value.completionFlow?value.completionFlow:value);};
+    api.MARION_COMPLETION_FLOW_COORDINATOR_ONLY=true;
+    api.MARION_COMPLETION_REPLY_INVENTION_ALLOWED=false;
+    api.MARION_LAYER_HARD_STOP=20;
+    api.MARION_ADDITIONAL_LAYER_RECOMMENDED=false;
+    api.__marionCompletionFlowCapabilityV20=true;
+  }catch(_){}
+})();
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_CHATENGINE_TRANSPORT_V20_END */
+
