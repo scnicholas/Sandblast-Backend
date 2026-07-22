@@ -1,86 +1,439 @@
 {
-  "package": "Marion Current-Turn Authority Surgical Update",
-  "version": "1.0",
-  "bridgeVersion": "marionBridge v7.6.0 CURRENT-TURN-AUTHORITY",
-  "authorityVersion": "nyx.marion.currentTurnAuthority/1.0",
-  "generatedUtc": "2026-07-21T03:21:21.469864+00:00",
+  "package": "Sandblast Backend Marion Unified Manifest",
+  "version": "11.1-merged",
+  "contract": "nyx.marion.backendManifest/1.0",
+  "generatedUtc": "2026-07-22T03:06:57.472086+00:00",
+  "target": {
+    "backend": "Sandblast backend",
+    "scope": "Marion current-turn authority and conversation-flow layers 9-11",
+    "manifestOnly": true
+  },
+  "sourceManifests": [
+    {
+      "file": "manifest(41).json",
+      "package": "Marion Current-Turn Authority Surgical Update",
+      "version": "1.0",
+      "generatedUtc": "2026-07-21T03:21:21.469864+00:00",
+      "bridgeVersion": "marionBridge v7.6.0 CURRENT-TURN-AUTHORITY",
+      "authorityVersion": "nyx.marion.currentTurnAuthority/1.0"
+    },
+    {
+      "file": "manifest(42).json",
+      "package": "Marion Conversation Flow Layers 9-11",
+      "version": "11.0",
+      "contract": "nyx.marion.conversationFlow/1.0"
+    }
+  ],
+  "summary": {
+    "sourceManifestCount": 2,
+    "sourceAFileCount": 15,
+    "sourceBFileCount": 21,
+    "duplicatePathCount": 10,
+    "uniqueFileCount": 26
+  },
+  "filePaths": [
+    "Data/marion/runtime/composeMarionResponse.js",
+    "Data/marion/runtime/conversation/marionContextPivot.js",
+    "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
+    "Data/marion/runtime/conversation/marionConversationProgression.js",
+    "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+    "Data/marion/runtime/emotion/emotionRuntime.js",
+    "Data/marion/runtime/guardian.memory.bridge.js",
+    "Data/marion/runtime/marionBridge.js",
+    "Data/marion/runtime/marionCurrentTurnAuthority.js",
+    "Data/marion/runtime/marionFinalEnvelope.js",
+    "Data/marion/runtime/marionIntentRouter.js",
+    "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+    "README.md",
+    "Utils/chatEngine.js",
+    "Utils/stateSpine.js",
+    "docs/ARCHITECTURE.md",
+    "docs/DEPLOYMENT.md",
+    "docs/SURGICAL_AUTOPSY.md",
+    "docs/TEST_MATRIX.md",
+    "index.js",
+    "tests/RUNTIME_RESULTS.json",
+    "tests/SMOKE_RESULTS.json",
+    "tests/STATIC_RESULTS.json",
+    "tests/TEST_RESULTS.txt",
+    "tests/conversation_flow_runtime_test.js",
+    "tests/current_turn_authority_smoke.js"
+  ],
   "files": [
     {
       "path": "Data/marion/runtime/composeMarionResponse.js",
-      "bytes": 1045533,
-      "sha256": "a7d63e0610674c04e1a55402f01e36b275d7be3a9660eb50fb33ec4e0acb207d"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 1045533,
+        "sha256": "a7d63e0610674c04e1a55402f01e36b275d7be3a9660eb50fb33ec4e0acb207d",
+        "status": "preserved_from_source_manifest"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionContextPivot.js",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionConversationProgression.js",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/emotion/emotionRuntime.js",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
     },
     {
       "path": "Data/marion/runtime/guardian.memory.bridge.js",
-      "bytes": 68492,
-      "sha256": "41f2cbde6958f87f0b8ad163a04b06bb21b3ffaae1d75752d8f5d01dfcb3ed78"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 68492,
+        "sha256": "41f2cbde6958f87f0b8ad163a04b06bb21b3ffaae1d75752d8f5d01dfcb3ed78",
+        "status": "preserved_from_source_manifest"
+      }
     },
     {
       "path": "Data/marion/runtime/marionBridge.js",
-      "bytes": 41077,
-      "sha256": "970baf5feeacf26929d2fe072f0855d8593e8bc2185260c2f1000aead225dd6f"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 41077,
+        "sha256": "970baf5feeacf26929d2fe072f0855d8593e8bc2185260c2f1000aead225dd6f",
+        "status": "preserved_from_source_manifest"
+      }
     },
     {
       "path": "Data/marion/runtime/marionCurrentTurnAuthority.js",
-      "bytes": 18624,
-      "sha256": "da7caeb26c39734fa3058a765c67cacd3ca9a11c00e622e5a161ea9ba18a64b2"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 18624,
+        "sha256": "da7caeb26c39734fa3058a765c67cacd3ca9a11c00e622e5a161ea9ba18a64b2",
+        "status": "preserved_from_source_manifest"
+      }
     },
     {
       "path": "Data/marion/runtime/marionFinalEnvelope.js",
-      "bytes": 569945,
-      "sha256": "e69939e3c20e08b61d4e75f911d3c6025e5d3b426e12ccc2939593801f6d9448"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 569945,
+        "sha256": "e69939e3c20e08b61d4e75f911d3c6025e5d3b426e12ccc2939593801f6d9448",
+        "status": "preserved_from_source_manifest"
+      }
     },
     {
       "path": "Data/marion/runtime/marionIntentRouter.js",
-      "bytes": 241108,
-      "sha256": "8ffa45a33a1892b2fa284c5a3818c6a0ff2dd31dd7c878a9db0ca6f8bca81ab2"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 241108,
+        "sha256": "8ffa45a33a1892b2fa284c5a3818c6a0ff2dd31dd7c878a9db0ca6f8bca81ab2",
+        "status": "preserved_from_source_manifest"
+      }
+    },
+    {
+      "path": "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
     },
     {
       "path": "README.md",
-      "bytes": 1325,
-      "sha256": "04e09d60803977876a70cc2dc5e01fd193dd45c4c8568c94c0e9aeb1201045b0"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 1325,
+        "sha256": "04e09d60803977876a70cc2dc5e01fd193dd45c4c8568c94c0e9aeb1201045b0",
+        "status": "preserved_from_source_manifest"
+      }
     },
     {
       "path": "Utils/chatEngine.js",
-      "bytes": 316280,
-      "sha256": "0e94584a6ef233429d43849693f9cf056504786883dfc1c155be4ea4e69db56f"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 316280,
+        "sha256": "0e94584a6ef233429d43849693f9cf056504786883dfc1c155be4ea4e69db56f",
+        "status": "preserved_from_source_manifest"
+      }
     },
     {
       "path": "Utils/stateSpine.js",
-      "bytes": 410323,
-      "sha256": "196114b7c1852fdc1e86d2ad972863d92a952067b7636fd791293e22db67da67"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 410323,
+        "sha256": "196114b7c1852fdc1e86d2ad972863d92a952067b7636fd791293e22db67da67",
+        "status": "preserved_from_source_manifest"
+      }
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
     },
     {
       "path": "docs/DEPLOYMENT.md",
-      "bytes": 1916,
-      "sha256": "bab6af78d774f1eb2f11623a173e3836ce49b25dc92f61c34901ef22edaac587"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0",
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 1916,
+        "sha256": "bab6af78d774f1eb2f11623a173e3836ce49b25dc92f61c34901ef22edaac587",
+        "status": "preserved_from_source_manifest"
+      }
     },
     {
       "path": "docs/SURGICAL_AUTOPSY.md",
-      "bytes": 6431,
-      "sha256": "8aba12f4db47196471a9a32720b20d1fd1c764a867a2db3d577dc295c5065e49"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 6431,
+        "sha256": "8aba12f4db47196471a9a32720b20d1fd1c764a867a2db3d577dc295c5065e49",
+        "status": "preserved_from_source_manifest"
+      }
+    },
+    {
+      "path": "docs/TEST_MATRIX.md",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
     },
     {
       "path": "index.js",
-      "bytes": 1484548,
-      "sha256": "e35e9906fe43c4ff2527ed36fdd2fcf5177df0cc20d9e05916e561bf67341081"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 1484548,
+        "sha256": "e35e9906fe43c4ff2527ed36fdd2fcf5177df0cc20d9e05916e561bf67341081",
+        "status": "preserved_from_source_manifest"
+      },
+      "deploymentNote": "Retained because it exists in the Current-Turn Authority manifest. The Layers 9-11 manifest states that index.js was not modified; preserve the currently certified direct-adapter route authority unless deploying the exact source package associated with this snapshot."
+    },
+    {
+      "path": "tests/RUNTIME_RESULTS.json",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
     },
     {
       "path": "tests/SMOKE_RESULTS.json",
-      "bytes": 1562,
-      "sha256": "2e446923b8dbd3a57d62915d8d46ae386ddf052679c709d245f6da0bd2325cd1"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 1562,
+        "sha256": "2e446923b8dbd3a57d62915d8d46ae386ddf052679c709d245f6da0bd2325cd1",
+        "status": "preserved_from_source_manifest"
+      }
+    },
+    {
+      "path": "tests/STATIC_RESULTS.json",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
     },
     {
       "path": "tests/TEST_RESULTS.txt",
-      "bytes": 1088,
-      "sha256": "ea6011443114dee5585b4536e51e937e656ba3a167722fd2bb18ca0180217856"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 1088,
+        "sha256": "ea6011443114dee5585b4536e51e937e656ba3a167722fd2bb18ca0180217856",
+        "status": "preserved_from_source_manifest"
+      }
+    },
+    {
+      "path": "tests/conversation_flow_runtime_test.js",
+      "includedBy": [
+        "Marion Conversation Flow Layers 9-11 v11.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Conversation Flow Layers 9-11",
+        "sourceVersion": "11.0",
+        "bytes": null,
+        "sha256": null,
+        "status": "not_supplied_in_source_manifest"
+      }
     },
     {
       "path": "tests/current_turn_authority_smoke.js",
-      "bytes": 5545,
-      "sha256": "5bd6d8638e33c7f3083531647d53e10f2b9648f0125cf388b6bfea522c28eda1"
+      "includedBy": [
+        "Marion Current-Turn Authority Surgical Update v1.0"
+      ],
+      "sourceIntegritySnapshot": {
+        "sourcePackage": "Marion Current-Turn Authority Surgical Update",
+        "sourceVersion": "1.0",
+        "bytes": 5545,
+        "sha256": "5bd6d8638e33c7f3083531647d53e10f2b9648f0125cf388b6bfea522c28eda1",
+        "status": "preserved_from_source_manifest"
+      }
     }
   ],
+  "architecture": {
+    "indexJsModified": false,
+    "widgetModified": false,
+    "routeAuthorityModified": false,
+    "replyAuthorityReplaced": false,
+    "metadataOnlyLayerRegistry": true,
+    "fullSuppliedFilesIncluded": true,
+    "currentTurnAuthorityIncluded": true,
+    "conversationFlowLayersIncluded": [
+      9,
+      10,
+      11
+    ],
+    "indexEntryRetainedForProvenance": true,
+    "routeAuthorityPolicy": "Do not replace the certified direct-adapter route authority merely because index.js appears in the older source manifest."
+  },
+  "validation": {
+    "mergedJsonValid": true,
+    "duplicatePathsDeduplicated": true,
+    "sourceMetadataPreserved": true,
+    "sourceIntegritySnapshotsPreserved": true,
+    "freshChecksumsGeneratedForRuntimeFiles": false,
+    "note": "The merge combines manifest metadata only. Checksums from the first manifest remain labelled as source-package snapshots; the second manifest did not provide file checksums."
+  },
   "originalInputChecksums": {
     "chatEngine.js": {
       "bytes": 315247,
@@ -115,12 +468,176 @@
       "sha256": "132f4cfdd997fdc3e554c07f2c3e146835006d6d74821108583535bd863885ae"
     }
   },
-  "validation": {
+  "sourceValidation": {
     "nodeSyntax": true,
     "smokeMatrix": true,
     "smokeTests": 8,
     "publicNyxNoOp": true,
     "fullApplicationBoot": false,
     "fullApplicationBootReason": "complete project dependencies unavailable in isolated sandbox"
+  },
+  "embeddedSourceManifests": {
+    "manifest41": {
+      "package": "Marion Current-Turn Authority Surgical Update",
+      "version": "1.0",
+      "bridgeVersion": "marionBridge v7.6.0 CURRENT-TURN-AUTHORITY",
+      "authorityVersion": "nyx.marion.currentTurnAuthority/1.0",
+      "generatedUtc": "2026-07-21T03:21:21.469864+00:00",
+      "files": [
+        {
+          "path": "Data/marion/runtime/composeMarionResponse.js",
+          "bytes": 1045533,
+          "sha256": "a7d63e0610674c04e1a55402f01e36b275d7be3a9660eb50fb33ec4e0acb207d"
+        },
+        {
+          "path": "Data/marion/runtime/guardian.memory.bridge.js",
+          "bytes": 68492,
+          "sha256": "41f2cbde6958f87f0b8ad163a04b06bb21b3ffaae1d75752d8f5d01dfcb3ed78"
+        },
+        {
+          "path": "Data/marion/runtime/marionBridge.js",
+          "bytes": 41077,
+          "sha256": "970baf5feeacf26929d2fe072f0855d8593e8bc2185260c2f1000aead225dd6f"
+        },
+        {
+          "path": "Data/marion/runtime/marionCurrentTurnAuthority.js",
+          "bytes": 18624,
+          "sha256": "da7caeb26c39734fa3058a765c67cacd3ca9a11c00e622e5a161ea9ba18a64b2"
+        },
+        {
+          "path": "Data/marion/runtime/marionFinalEnvelope.js",
+          "bytes": 569945,
+          "sha256": "e69939e3c20e08b61d4e75f911d3c6025e5d3b426e12ccc2939593801f6d9448"
+        },
+        {
+          "path": "Data/marion/runtime/marionIntentRouter.js",
+          "bytes": 241108,
+          "sha256": "8ffa45a33a1892b2fa284c5a3818c6a0ff2dd31dd7c878a9db0ca6f8bca81ab2"
+        },
+        {
+          "path": "README.md",
+          "bytes": 1325,
+          "sha256": "04e09d60803977876a70cc2dc5e01fd193dd45c4c8568c94c0e9aeb1201045b0"
+        },
+        {
+          "path": "Utils/chatEngine.js",
+          "bytes": 316280,
+          "sha256": "0e94584a6ef233429d43849693f9cf056504786883dfc1c155be4ea4e69db56f"
+        },
+        {
+          "path": "Utils/stateSpine.js",
+          "bytes": 410323,
+          "sha256": "196114b7c1852fdc1e86d2ad972863d92a952067b7636fd791293e22db67da67"
+        },
+        {
+          "path": "docs/DEPLOYMENT.md",
+          "bytes": 1916,
+          "sha256": "bab6af78d774f1eb2f11623a173e3836ce49b25dc92f61c34901ef22edaac587"
+        },
+        {
+          "path": "docs/SURGICAL_AUTOPSY.md",
+          "bytes": 6431,
+          "sha256": "8aba12f4db47196471a9a32720b20d1fd1c764a867a2db3d577dc295c5065e49"
+        },
+        {
+          "path": "index.js",
+          "bytes": 1484548,
+          "sha256": "e35e9906fe43c4ff2527ed36fdd2fcf5177df0cc20d9e05916e561bf67341081"
+        },
+        {
+          "path": "tests/SMOKE_RESULTS.json",
+          "bytes": 1562,
+          "sha256": "2e446923b8dbd3a57d62915d8d46ae386ddf052679c709d245f6da0bd2325cd1"
+        },
+        {
+          "path": "tests/TEST_RESULTS.txt",
+          "bytes": 1088,
+          "sha256": "ea6011443114dee5585b4536e51e937e656ba3a167722fd2bb18ca0180217856"
+        },
+        {
+          "path": "tests/current_turn_authority_smoke.js",
+          "bytes": 5545,
+          "sha256": "5bd6d8638e33c7f3083531647d53e10f2b9648f0125cf388b6bfea522c28eda1"
+        }
+      ],
+      "originalInputChecksums": {
+        "chatEngine.js": {
+          "bytes": 315247,
+          "sha256": "cc4146cdede954dce51103cd33e70c19bd1156bb3c398544bf24a5964d064264"
+        },
+        "composeMarionResponse.js": {
+          "bytes": 1044595,
+          "sha256": "9a7838746acd0dc54baf67eef96b00046e26b9c0a3c24391695e0a134d823c2e"
+        },
+        "guardian.memory.bridge.js": {
+          "bytes": 67901,
+          "sha256": "6f7d543ac4a331de94f9bd044bb56f1bd5a338452ff9700e44eb7c3d70b2b141"
+        },
+        "index.js": {
+          "bytes": 1482619,
+          "sha256": "dab8fd58ef440e33ffd08d5aac3c046644004b27d74afd99ac8d51db6a4c94e9"
+        },
+        "marionBridge.js": {
+          "bytes": 39709,
+          "sha256": "afee3d09d5ec7e233ba8f6e2d3ce1df685c8fdd9be8219e0953822b4bfd7b3d8"
+        },
+        "marionFinalEnvelope.js": {
+          "bytes": 568976,
+          "sha256": "78f7eb28fc46663299859686694d5e8a010567b58448b742c799c7fdfc94d629"
+        },
+        "marionIntentRouter.js": {
+          "bytes": 238907,
+          "sha256": "94d1b7a33c04582043a4cee5473b7a91fa4d4132a4a2e9a6452e0dff3f8684e3"
+        },
+        "stateSpine.js": {
+          "bytes": 409346,
+          "sha256": "132f4cfdd997fdc3e554c07f2c3e146835006d6d74821108583535bd863885ae"
+        }
+      },
+      "validation": {
+        "nodeSyntax": true,
+        "smokeMatrix": true,
+        "smokeTests": 8,
+        "publicNyxNoOp": true,
+        "fullApplicationBoot": false,
+        "fullApplicationBootReason": "complete project dependencies unavailable in isolated sandbox"
+      }
+    },
+    "manifest42": {
+      "package": "Marion Conversation Flow Layers 9-11",
+      "version": "11.0",
+      "contract": "nyx.marion.conversationFlow/1.0",
+      "files": [
+        "Data/marion/runtime/composeMarionResponse.js",
+        "Data/marion/runtime/conversation/marionContextPivot.js",
+        "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
+        "Data/marion/runtime/conversation/marionConversationProgression.js",
+        "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+        "Data/marion/runtime/emotion/emotionRuntime.js",
+        "Data/marion/runtime/guardian.memory.bridge.js",
+        "Data/marion/runtime/marionBridge.js",
+        "Data/marion/runtime/marionCurrentTurnAuthority.js",
+        "Data/marion/runtime/marionFinalEnvelope.js",
+        "Data/marion/runtime/marionIntentRouter.js",
+        "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+        "README.md",
+        "Utils/chatEngine.js",
+        "Utils/stateSpine.js",
+        "docs/ARCHITECTURE.md",
+        "docs/DEPLOYMENT.md",
+        "docs/TEST_MATRIX.md",
+        "tests/RUNTIME_RESULTS.json",
+        "tests/STATIC_RESULTS.json",
+        "tests/conversation_flow_runtime_test.js"
+      ],
+      "architecture": {
+        "indexJsModified": false,
+        "widgetModified": false,
+        "routeAuthorityModified": false,
+        "replyAuthorityReplaced": false,
+        "metadataOnlyLayerRegistry": true,
+        "fullSuppliedFilesIncluded": true
+      }
+    }
   }
 }
