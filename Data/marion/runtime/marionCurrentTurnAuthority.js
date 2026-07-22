@@ -1060,3 +1060,19 @@ module.exports = {
   technicalSubstantiveReply,
   lawSubstantiveReply
 };
+
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_CURRENT_TURN_V11_START */
+(function marionConversationFlowCurrentTurnV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionConversationFlowCurrentTurnV11)return;
+  let registry=null;try{registry=require("./conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function privateTurn(v){const s=obj(v),c=obj(s.privateRuntimeContext);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.scope==="private_admin"||c.version;}
+  function wrapInput(fn){if(typeof fn!=="function"||fn.__marionConversationFlowCurrentTurnV11)return fn;const w=function(input){const base=fn.apply(this,arguments);if(!privateTurn(base)&&!privateTurn(input))return base;return registry.applyToInput(obj(base),obj(obj(base).previousMemory));};w.__marionConversationFlowCurrentTurnV11=true;return w;}
+  function wrapResult(fn){if(typeof fn!=="function"||fn.__marionConversationFlowCurrentTurnV11)return fn;const w=function(result,input){const out=fn.apply(this,arguments);if(!privateTurn(input))return out;const prepared=registry.applyToInput(obj(input),obj(obj(input).previousMemory));return registry.attachToResult(out,obj(prepared.conversationFlow));};w.__marionConversationFlowCurrentTurnV11=true;return w;}
+  if(typeof api.prepareInput==="function")api.prepareInput=wrapInput(api.prepareInput);
+  for(const name of ["enforceRouterResult","enforceResult","scrubStateForCurrentTurn"]){if(typeof api[name]==="function")api[name]=wrapResult(api[name]);}
+  const oldArgs=api.prepareArgumentList;if(typeof oldArgs==="function")api.prepareArgumentList=function(){const out=oldArgs.apply(this,arguments);if(!out||!Array.isArray(out.args)||!privateTurn(out.input))return out;const prepared=registry.applyToInput(obj(out.input),obj(obj(out.input).previousMemory));const args=out.args.map(x=>x===out.input?prepared:x);return {...out,args,input:prepared};};
+  api.__marionConversationFlowCurrentTurnV11=true;api.MARION_CONVERSATION_FLOW_CURRENT_TURN_VERSION=registry.VERSION;api.marionConversationLayers=registry;
+})();
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_CURRENT_TURN_V11_END */
