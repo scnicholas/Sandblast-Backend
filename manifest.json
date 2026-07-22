@@ -1,44 +1,24 @@
 {
-  "package": "Marion Strategic Flow Layers 15-17",
-  "version": "17.0",
-  "contract": "nyx.marion.conversationFlow/3.0",
-  "strategicContract": "nyx.marion.strategicFlow/1.0",
-  "generatedUtc": "2026-07-22T18:34:00.899305+00:00",
+  "package": "Marion Completion Flow Layers 18-20",
+  "version": "20.0",
+  "contract": "nyx.marion.conversationFlow/4.0",
+  "generatedUtc": "2026-07-22T22:20:06.302308+00:00",
   "target": {
     "backend": "Sandblast backend",
-    "backendRoot": "C:\\Users\\User\\Desktop\\sandblast backend",
+    "scope": "Marion Layers 1-20 functional validation with cohesive completion flow and architectural hard stop at Layer 20",
+    "manifestOnly": false,
     "manifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
     "guardianMemoryBridgePath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
-    "scope": "Marion conversational layers 9-17 with strategic objective alignment, predictive risk modeling, and bounded pathway synthesis",
-    "manifestOnly": false
+    "testRootPath": "C:\\Users\\User\\Desktop\\sandblast backend\\tests\\marion"
   },
-  "sourceBaseline": {
-    "package": "Marion Outcome Flow Layers 12-14",
-    "version": "14.0",
-    "priorCertifiedLayers": [
-      9,
-      10,
-      11,
-      12,
-      13,
-      14
-    ],
-    "latestSuppliedFilesIntegrated": [
-      "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
-      "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
-      "Data/marion/runtime/composeMarionResponse.js",
-      "Data/marion/runtime/marionBridge.js",
-      "Data/marion/runtime/marionFinalEnvelope.js",
-      "Data/marion/runtime/marionIntentRouter.js",
-      "Data/marion/runtime/marionCurrentTurnAuthority.js",
-      "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
-      "src/memory/guardian.memory.bridge.js",
-      "Utils/chatEngine.js",
-      "Utils/stateSpine.js",
-      "manifest.json"
-    ]
+  "sourceRelease": {
+    "package": "Marion Strategic Flow Layers 15-17",
+    "version": "17.0",
+    "sha256": "e299ff4d5b0247b69c393eff961839d34caf93a1c027be54b4c3c075e3e8bc60",
+    "note": "Used as the full production-layer source baseline supplied in this conversation."
   },
   "summary": {
+    "baselineLayers1to8ValidatedAsExistingRuntimeInvariants": true,
     "conversationLayersIncluded": [
       9,
       10,
@@ -48,22 +28,28 @@
       14,
       15,
       16,
-      17
+      17,
+      18,
+      19,
+      20
     ],
-    "newStrategicModuleCount": 4,
-    "trackedFileCount": 38,
-    "packageFileCount": 40,
-    "javascriptFileCount": 26,
-    "canonicalPathCorrectionCount": 1,
-    "fullSuppliedFilesIncluded": true
+    "newCompletionLayers": [
+      18,
+      19,
+      20
+    ],
+    "newCompletionModuleCount": 4,
+    "hardStopLayer": 20,
+    "additionalLayerRecommended": false,
+    "trackedFileCount": 51,
+    "javascriptFileCount": 33,
+    "testRoot": "tests/marion"
   },
-  "newStrategicModules": [
-    "Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js",
-    "Data/marion/runtime/strategy/marionPredictiveRiskModel.js",
-    "Data/marion/runtime/strategy/marionStrategicPathwaySynthesizer.js",
-    "Data/marion/runtime/strategy/marionStrategicFlowCoordinator.js"
-  ],
   "filePaths": [
+    "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+    "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+    "Data/marion/runtime/completion/marionDecisionClosure.js",
+    "Data/marion/runtime/completion/marionGoalRealignment.js",
     "Data/marion/runtime/composeMarionResponse.js",
     "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
     "Data/marion/runtime/conversation/marionCommitmentTracker.js",
@@ -88,286 +74,394 @@
     "Utils/stateSpine.js",
     "docs/ARCHITECTURE.md",
     "docs/DEPLOYMENT.md",
+    "docs/FRAMEWORK_LAYERS_18_20.md",
     "docs/GAP_REFINEMENTS.md",
+    "docs/GAP_REFINEMENTS_LAYERS_18_20.md",
+    "docs/HARD_STOP_AND_FUNCTIONAL_VALIDATION.md",
     "docs/STRATEGIC_GAP_REFINEMENTS.md",
     "docs/TEST_MATRIX.md",
     "src/memory/guardian.memory.bridge.js",
-    "tests/LAYERS_12_14_RESULTS.json",
-    "tests/LAYERS_15_17_RESULTS.json",
-    "tests/LAYERS_9_11_REGRESSION_RESULTS.json",
-    "tests/LAYERS_9_17_REGRESSION_RESULTS.json",
-    "tests/RUNTIME_RESULTS.json",
-    "tests/STATIC_RESULTS.json",
-    "tests/conversation_flow_runtime_test.js",
-    "tests/layers_9_17_regression_test.js",
-    "tests/outcome_flow_runtime_test.js",
-    "tests/strategic_flow_runtime_test.js"
+    "tests/marion/LAYERS_12_14_RESULTS.json",
+    "tests/marion/LAYERS_15_17_RESULTS.json",
+    "tests/marion/LAYERS_18_20_RESULTS.json",
+    "tests/marion/LAYERS_1_20_FUNCTIONAL_VALIDATION_RESULTS.json",
+    "tests/marion/LAYERS_9_11_REGRESSION_RESULTS.json",
+    "tests/marion/LAYERS_9_17_REGRESSION_RESULTS.json",
+    "tests/marion/LAYERS_9_20_REGRESSION_RESULTS.json",
+    "tests/marion/RUNTIME_RESULTS.json",
+    "tests/marion/STATIC_RESULTS.json",
+    "tests/marion/completion_flow_runtime_test.js",
+    "tests/marion/conversation_flow_runtime_test.js",
+    "tests/marion/layers_1_20_functional_validation_test.js",
+    "tests/marion/layers_9_17_regression_test.js",
+    "tests/marion/layers_9_20_regression_test.js",
+    "tests/marion/outcome_flow_runtime_test.js",
+    "tests/marion/strategic_flow_runtime_test.js"
   ],
   "files": [
     {
+      "path": "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+      "bytes": 5787,
+      "sha256": "c39a2e589b9b3c152a834aecf3d10482ef78fe6e4619727e1928ce729c850cd5",
+      "status": "included_full_file"
+    },
+    {
+      "path": "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+      "bytes": 7091,
+      "sha256": "db12e025c55fab638b0bcc8b5a03352c0b229e55480c20fe509fabe2d5316832",
+      "status": "included_full_file"
+    },
+    {
+      "path": "Data/marion/runtime/completion/marionDecisionClosure.js",
+      "bytes": 5900,
+      "sha256": "7684ef67af9ac377ffbca0f0f850cce41af8ff398eb8d37372046d77cc22c15d",
+      "status": "included_full_file"
+    },
+    {
+      "path": "Data/marion/runtime/completion/marionGoalRealignment.js",
+      "bytes": 4391,
+      "sha256": "4907e360d81bd7e6a79cbb9a9378232ad60865e6baa6305a55a9a48ecec7e1cd",
+      "status": "included_full_file"
+    },
+    {
       "path": "Data/marion/runtime/composeMarionResponse.js",
-      "bytes": 1076551,
-      "sha256": "4768f4ea41e99b7387f97a41ccee20dcebfc77a4e18c96fbf03614f4d1c44b24"
+      "bytes": 1078005,
+      "sha256": "0c8f68faccd162983a6455ff9c31a2d70da469b50ab5960970008796f8023812",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
       "bytes": 9675,
-      "sha256": "f2feaf4eecae3cc1e9b855d85e61dbe17d9e2c1a2f6e3bb5f3779174ce7dbfd0"
+      "sha256": "f2feaf4eecae3cc1e9b855d85e61dbe17d9e2c1a2f6e3bb5f3779174ce7dbfd0",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionCommitmentTracker.js",
       "bytes": 9170,
-      "sha256": "b6144c7e3b327165c14df81e5bf73e5c6253e401387f175cf9cb87b988199e9d"
+      "sha256": "b6144c7e3b327165c14df81e5bf73e5c6253e401387f175cf9cb87b988199e9d",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionContextPivot.js",
       "bytes": 7744,
-      "sha256": "22af6bc848f6997556c72bf46730e61bd90dc4100f9cd1cb1eaf9c532222e8f2"
+      "sha256": "22af6bc848f6997556c72bf46730e61bd90dc4100f9cd1cb1eaf9c532222e8f2",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
-      "bytes": 19383,
-      "sha256": "a49f357ab61a9e4afcca0d6b2336c6237e453ad641171572ce5fca62959efa7e"
+      "bytes": 22743,
+      "sha256": "7073ff008cc8aa510d82e5f0006af50280763b2828e1062689e548e632e34c08",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionConversationProgression.js",
       "bytes": 6483,
-      "sha256": "634a569227e18c1b0e559521cbe899cc15fd18880b0ee860b686ad50ceb53336"
+      "sha256": "634a569227e18c1b0e559521cbe899cc15fd18880b0ee860b686ad50ceb53336",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionInteractionCalibration.js",
       "bytes": 5619,
-      "sha256": "1de4b4203cacffa83ddb2593654c32786a34be2192032d0f46bf21033fca0ef4"
+      "sha256": "1de4b4203cacffa83ddb2593654c32786a34be2192032d0f46bf21033fca0ef4",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
       "bytes": 7821,
-      "sha256": "474eda62e3e1d15b5e86b101ec8ebe00f200840653172253e51a49126754ca7d"
+      "sha256": "474eda62e3e1d15b5e86b101ec8ebe00f200840653172253e51a49126754ca7d",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
       "bytes": 7766,
-      "sha256": "d39d7825425b82df2e52e0df5e40dc5bdd4c0836253925d8755200811f89d1fd"
+      "sha256": "d39d7825425b82df2e52e0df5e40dc5bdd4c0836253925d8755200811f89d1fd",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/emotion/emotionRuntime.js",
       "bytes": 17628,
-      "sha256": "7d786059931452ab4f700417802c69c64a93d9134abcedfd0b3b16552048321e"
+      "sha256": "7d786059931452ab4f700417802c69c64a93d9134abcedfd0b3b16552048321e",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/marionBridge.js",
-      "bytes": 77810,
-      "sha256": "bd0bf801bdf6f39d6a537772998056def1892757fbc8f5d0836c01d52bc17a2b"
+      "bytes": 79195,
+      "sha256": "34a630fb6f275b672a0b6992d99a0f2ac156bc7d0f1afdc04a04875c166fadee",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/marionCurrentTurnAuthority.js",
-      "bytes": 70583,
-      "sha256": "9e5f878edc778080b556738366054e6a4e2a4464dd9524bb5ef178e06b08794c"
+      "bytes": 71998,
+      "sha256": "10417f0538e3c66a52c3d5b9a05c052be548e56e200dd285de805b7dcb08215a",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/marionFinalEnvelope.js",
-      "bytes": 594516,
-      "sha256": "f7bfc2b6e897f95895d0a73b672a23f21d7b1e3d96384426ce37b8cf5c368785"
+      "bytes": 595754,
+      "sha256": "cb01c97935827d8b325a28936369abfdde427883df9773fa2726db8cd222f764",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/marionIntentRouter.js",
-      "bytes": 260664,
-      "sha256": "63c5ff32736462685376c17e1a7b93f5c54c443d10dd0bba2c143bf106256d35"
+      "bytes": 262152,
+      "sha256": "28a936a236b2f7c7a2c3c09d3a308d7d5a0a48f3b36e4ac035f9acf9d12653ca",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
-      "bytes": 36037,
-      "sha256": "a158bf8a6252269cb045d75cce7302c0ae0509918199d29aac3df6ee11e817ec"
+      "bytes": 37411,
+      "sha256": "d34c7d131b97ae10886f4a31cd22bd144210147cf5649ec6c88579fd742a968d",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/strategy/marionPredictiveRiskModel.js",
       "bytes": 11549,
-      "sha256": "cb500aa5a71fb07c43253cd387a7274ec9d5f03fd6ff8f958db57a0585dbe8a4"
+      "sha256": "cb500aa5a71fb07c43253cd387a7274ec9d5f03fd6ff8f958db57a0585dbe8a4",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/strategy/marionStrategicFlowCoordinator.js",
       "bytes": 7410,
-      "sha256": "d76ffde9cfc8dfa3da3418b8429a3a188f74f6695a6af9eb86dca18cd648480b"
+      "sha256": "d76ffde9cfc8dfa3da3418b8429a3a188f74f6695a6af9eb86dca18cd648480b",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js",
       "bytes": 10226,
-      "sha256": "948703fe93b3a182a3ef8c03d3e72b895f814e4b085a5a01e266ef7b11c8584b"
+      "sha256": "948703fe93b3a182a3ef8c03d3e72b895f814e4b085a5a01e266ef7b11c8584b",
+      "status": "included_full_file"
     },
     {
       "path": "Data/marion/runtime/strategy/marionStrategicPathwaySynthesizer.js",
-      "bytes": 12504,
-      "sha256": "bb79279239070924c677b9272700f0f348711bb076fec5850428a6ea703b8eae"
+      "bytes": 12535,
+      "sha256": "c6eb055747cefcf31d7be8258edb66ab1f2c39f0d70b15cfa55da3840d6ccea0",
+      "status": "included_full_file"
     },
     {
       "path": "README.md",
-      "bytes": 1869,
-      "sha256": "5cf4147542791e54760a5732c72babb57395939ae373c9faa9f573402578573b"
+      "bytes": 1106,
+      "sha256": "64c84b26e0a433585300296867ee11a94be8809af42e8a3f3c2b50f1256b2174",
+      "status": "included_full_file"
     },
     {
       "path": "Utils/chatEngine.js",
-      "bytes": 321983,
-      "sha256": "5744b860cf3749e2dd1b1c0ae2f0b5678202ac1911862de1e4100dc05cce20ab"
+      "bytes": 322979,
+      "sha256": "4752ef6c370588acc4e51957df306f343ebb67ded6d1cbb19773b63989783d5a",
+      "status": "included_full_file"
     },
     {
       "path": "Utils/stateSpine.js",
-      "bytes": 417591,
-      "sha256": "55c70a2ce1292fcbf9ec171191f7994bfd0aa449c2c5b89ed3074166e451283d"
+      "bytes": 418550,
+      "sha256": "4b6e1ede71d86ba6d57cbc48a992c8b4f33d6051601914f164b9f0cb436d3db4",
+      "status": "included_full_file"
     },
     {
       "path": "docs/ARCHITECTURE.md",
-      "bytes": 2275,
-      "sha256": "570b33577b8410864447b39aa4d6ef2b161b32b997b8040fccfe95c11396a971"
+      "bytes": 1924,
+      "sha256": "d9e6607d073d5a4ab5e759dd8f1eee01b3cd16241e4d9c8b6dcfd6620e4c90c6",
+      "status": "included_full_file"
     },
     {
       "path": "docs/DEPLOYMENT.md",
-      "bytes": 2593,
-      "sha256": "64135d8c76b86c48a54e3da9e70a3354ff5a964f020a49a9f73558b717c171c7"
+      "bytes": 1397,
+      "sha256": "9b4daf38bb55b15bd23c25f94ebf9166098744b3a058c80267987231f88aa81e",
+      "status": "included_full_file"
+    },
+    {
+      "path": "docs/FRAMEWORK_LAYERS_18_20.md",
+      "bytes": 3632,
+      "sha256": "3274d4df655aa29082f16ac5f847bda717a78ae5dac695a72b60d52625587f37",
+      "status": "included_full_file"
     },
     {
       "path": "docs/GAP_REFINEMENTS.md",
       "bytes": 1380,
-      "sha256": "291eee46a4878374f68f3689ed9036846d968f79b71b4a178ddcf6ea0514c4ec"
+      "sha256": "291eee46a4878374f68f3689ed9036846d968f79b71b4a178ddcf6ea0514c4ec",
+      "status": "included_full_file"
+    },
+    {
+      "path": "docs/GAP_REFINEMENTS_LAYERS_18_20.md",
+      "bytes": 1672,
+      "sha256": "ea4a46e43ef0ec50f52f83126d2ce971a2d01622ae6e3a5121a623f26fc79326",
+      "status": "included_full_file"
+    },
+    {
+      "path": "docs/HARD_STOP_AND_FUNCTIONAL_VALIDATION.md",
+      "bytes": 931,
+      "sha256": "b60643bc272cf941a70cef65805842115bb653b58c83ce732d50b703dac71c27",
+      "status": "included_full_file"
     },
     {
       "path": "docs/STRATEGIC_GAP_REFINEMENTS.md",
       "bytes": 2770,
-      "sha256": "12fef8bc34440d9d6308da6e29d2b8d8f9605db8c6a564e3f64a395b907c759d"
+      "sha256": "12fef8bc34440d9d6308da6e29d2b8d8f9605db8c6a564e3f64a395b907c759d",
+      "status": "included_full_file"
     },
     {
       "path": "docs/TEST_MATRIX.md",
-      "bytes": 1366,
-      "sha256": "8785fe2193ff545a01d2a9ee4d919693edfea081237dbffb2302581128caf558"
+      "bytes": 1578,
+      "sha256": "be7cfbb3cf5a9ee6453b02a3ddb0c5f87fe42825954dd528f26a29e1453547bf",
+      "status": "included_full_file"
     },
     {
       "path": "src/memory/guardian.memory.bridge.js",
-      "bytes": 83320,
-      "sha256": "86440f9d17a7898f4aa4efe6b449c68239ba17e36b11c62a217d1a633a963800"
+      "bytes": 86776,
+      "sha256": "06f37282b63f4aac67e7bc32072ec5680d4d0fda8ffc5fcb4f3a62a2c6c02bca",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/LAYERS_12_14_RESULTS.json",
+      "path": "tests/marion/LAYERS_12_14_RESULTS.json",
       "bytes": 7811,
-      "sha256": "295d3a00780237efc781d69eb3aea0bfb535da4b24ef831bc5768ce90e95c179"
+      "sha256": "295d3a00780237efc781d69eb3aea0bfb535da4b24ef831bc5768ce90e95c179",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/LAYERS_15_17_RESULTS.json",
+      "path": "tests/marion/LAYERS_15_17_RESULTS.json",
       "bytes": 42168,
-      "sha256": "8fed1c73672115f506d31afcb5c5f317f3b18cc7d4d0406e23ff8b1782efaa17"
+      "sha256": "8fed1c73672115f506d31afcb5c5f317f3b18cc7d4d0406e23ff8b1782efaa17",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/LAYERS_9_11_REGRESSION_RESULTS.json",
+      "path": "tests/marion/LAYERS_18_20_RESULTS.json",
+      "bytes": 29646,
+      "sha256": "aa3509a8c7bcff58cfe3862964dff64a8e056da874ed5dfd4f21316fee3b2750",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/LAYERS_1_20_FUNCTIONAL_VALIDATION_RESULTS.json",
+      "bytes": 23523,
+      "sha256": "f64da08594dfd7c5be022b308259960b21152aa31df7b6081c6bd9d25aecb37f",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/LAYERS_9_11_REGRESSION_RESULTS.json",
       "bytes": 50,
-      "sha256": "93a89081018e1e3ac453c725a953eaba855a289855fde994f4ddca6f3754252f"
+      "sha256": "93a89081018e1e3ac453c725a953eaba855a289855fde994f4ddca6f3754252f",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/LAYERS_9_17_REGRESSION_RESULTS.json",
+      "path": "tests/marion/LAYERS_9_17_REGRESSION_RESULTS.json",
       "bytes": 832,
-      "sha256": "bfe0c2c7f2f2433875b84e4c2e25e4a356e4ddfc9ff7561f6e9d88e587413fbd"
+      "sha256": "bfe0c2c7f2f2433875b84e4c2e25e4a356e4ddfc9ff7561f6e9d88e587413fbd",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/RUNTIME_RESULTS.json",
-      "bytes": 19164,
-      "sha256": "cd61f0e07e78e76b16801666c6701d425df03f977afe7103524f0aea9c1e0584"
+      "path": "tests/marion/LAYERS_9_20_REGRESSION_RESULTS.json",
+      "bytes": 1164,
+      "sha256": "26cda382963b81441583347a3a5d2efeaa97ee149703ac3c1218671acc731a45",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/STATIC_RESULTS.json",
-      "bytes": 11119,
-      "sha256": "83d06cd9c0916f3c04714b1fd50e3458a51c1f83a04c4a2ec82254c0ba1c8800"
+      "path": "tests/marion/RUNTIME_RESULTS.json",
+      "bytes": 19383,
+      "sha256": "550d110341eb89e1c1eb0928be8a53fcd9c1fcaf8e4370e5e1777c6dda3eb745",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/conversation_flow_runtime_test.js",
-      "bytes": 6607,
-      "sha256": "939af7f645e22911d8cdad7b8643aa41dd6578b38fa54152d2b585e5ec3a0190"
+      "path": "tests/marion/STATIC_RESULTS.json",
+      "bytes": 8831,
+      "sha256": "24e635f687d58a9566bb55f1bc82db3391d5f75e26111d013925633e2fa73ad9",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/layers_9_17_regression_test.js",
-      "bytes": 927,
-      "sha256": "29555e876e07b28952bc33faae482c904075f6d1ad4fe08e1480db80c97be264"
+      "path": "tests/marion/completion_flow_runtime_test.js",
+      "bytes": 8256,
+      "sha256": "dd83690bfecfd54becc86d1870819956f4e419d1482b36dc78f11cb49533741d",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/outcome_flow_runtime_test.js",
-      "bytes": 6601,
-      "sha256": "9c5c39fce39dff5fda4c16efbfa855cdf73cfc3d8ad22013ff605c0baeaf9511"
+      "path": "tests/marion/conversation_flow_runtime_test.js",
+      "bytes": 6612,
+      "sha256": "2aa30c70365e1ff8f7e43fd552c2492d7ae171fbc9ab9dab4e36bb5157c5540e",
+      "status": "included_full_file"
     },
     {
-      "path": "tests/strategic_flow_runtime_test.js",
-      "bytes": 9992,
-      "sha256": "8d8e02b3d3162742227668505a388deadd31c61f8a79a22d2916e12aa499cc86"
+      "path": "tests/marion/layers_1_20_functional_validation_test.js",
+      "bytes": 6480,
+      "sha256": "cde9ecc7a2063e8976f4a025261b5ab7536e5a25dc4c0b6a0b22edf73790ee53",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/layers_9_17_regression_test.js",
+      "bytes": 932,
+      "sha256": "ca614783b6ed16c7b6f0057dec4ced7f1c9bd440f6d8333054900009f7eb9d44",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/layers_9_20_regression_test.js",
+      "bytes": 1029,
+      "sha256": "437bcdd461a02f4204a31cc368e450b695343ad39b25a1c545f4a938b7ccf8ec",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/outcome_flow_runtime_test.js",
+      "bytes": 6606,
+      "sha256": "deea33ab3e5a88f2179557d4bf2c03c5f23351ae03d68005b85f644ec8db0601",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/strategic_flow_runtime_test.js",
+      "bytes": 9983,
+      "sha256": "bc32eb8f8cf8ec95024bb2b4c3bb42e50cf8d835723661b01662ee5bc4f66fa6",
+      "status": "included_full_file"
     }
   ],
   "architecture": {
-    "indexJsIncluded": false,
     "indexJsModified": false,
+    "indexJsIncluded": false,
     "widgetModified": false,
-    "httpRouteAdded": false,
     "routeAuthorityModified": false,
     "replyAuthorityReplaced": false,
-    "certifiedRouteAuthorityPolicy": "Preserve INDEX_V10_DIRECT_PRIVATE_ADAPTER in the deployed backend.",
-    "metadataOnlyStrategicFlow": true,
-    "strategicMetadataPrivate": true,
+    "certifiedRouteAuthority": "INDEX_V10_DIRECT_PRIVATE_ADAPTER",
+    "metadataAndStateCoordinationOnly": true,
     "publicNyxStrategicNoOp": true,
+    "publicNyxCompletionNoOp": true,
+    "boundedCompletionState": true,
+    "hardStopLayer": 20,
+    "additionalLayerRecommended": false,
     "automaticExecutionAllowed": false,
-    "safeToExecute": false,
-    "approvalBoundaryPreserved": true,
-    "guardianAdvisoryOnly": true,
-    "boundedState": {
-      "maximumActiveObjectives": 8,
-      "maximumRisks": 20,
-      "maximumPathwaysPerDecision": 3,
-      "adapterSessionTtlUnchanged": true
-    }
+    "humanFinalAuthority": true,
+    "guardianMemoryCanonicalPath": "src/memory/guardian.memory.bridge.js"
   },
-  "gapRefinements": [
-    "objective ambiguity boundary",
-    "objective hierarchy and governing-ID binding",
-    "multi-objective retention",
-    "objective change precedence",
-    "strategic drift detection",
-    "risk deduplication",
-    "evidence and confidence calibration",
-    "irreversibility and human-review control",
-    "bounded scenario modeling",
-    "stale pathway invalidation",
-    "no-action pathway",
-    "recommendation-selection-approval-execution separation",
-    "explicit pathway binding",
-    "public/private strategic separation",
-    "fresh-session isolation",
-    "Layer 14 non-hijack",
-    "visible metadata hygiene"
-  ],
   "validation": {
     "jsonValid": true,
-    "javascriptSyntax": {
-      "passed": 26,
-      "total": 26
-    },
-    "moduleLoads": {
-      "passed": 18,
-      "total": 18
-    },
-    "layers9To11Regression": {
-      "passed": 13,
-      "total": 13
-    },
-    "layers12To14Regression": {
-      "passed": 26,
-      "total": 26
-    },
-    "layers15To17Runtime": {
-      "passed": 41,
-      "total": 41
-    },
-    "layers9To17Combined": {
-      "passed": 80,
-      "total": 80
-    },
-    "privateAdapterHttp200Sequence": true,
-    "freshSessionIsolation": true,
-    "publicNyxStrategicNoOp": true,
-    "unauthorizedExecutionGuard": true,
-    "metadataLeakGuard": true,
-    "fullHostedProductionBoot": false,
-    "fullHostedProductionBootReason": "Complete production dependencies and hosted Render service are unavailable in the isolated build environment."
+    "nodeSyntax": true,
+    "nodeSyntaxChecks": 33,
+    "nodeSyntaxChecksPassed": 33,
+    "selfContainedModuleLoadChecks": 25,
+    "selfContainedModuleLoadChecksPassed": 25,
+    "optionalExternalDependencyModules": [
+      {
+        "path": "Data/marion/runtime/emotion/emotionRuntime.js",
+        "reason": "Established external companion modules and emotion contract JSON files are not included in the supplied v17 source package; syntax is validated and the main runtime loads it fail-open."
+      }
+    ],
+    "layers9to11Tests": 13,
+    "layers9to11TestsPassed": 13,
+    "layers12to14Tests": 26,
+    "layers12to14TestsPassed": 26,
+    "layers15to17Tests": 41,
+    "layers15to17TestsPassed": 41,
+    "layers18to20Tests": 35,
+    "layers18to20TestsPassed": 35,
+    "layers1to20FunctionalChecks": 69,
+    "layers1to20FunctionalChecksPassed": 69,
+    "combinedRegressionPassed": true,
+    "totalReportedChecks": 184,
+    "adapterHttp200Sequence": "passed",
+    "freshSessionIsolation": "passed",
+    "publicPrivateSeparation": "passed",
+    "internalMetadataLeakageGuards": "passed",
+    "unauthorizedExecutionPrevention": "passed",
+    "hardStopLayer20": "passed",
+    "fullApplicationBoot": false,
+    "fullApplicationBootReason": "The complete hosted Render environment, environment variables, service restart behavior, and browser network path are unavailable in the isolated build environment."
+  },
+  "deploymentPolicy": {
+    "copyPackageContentsToBackendRoot": true,
+    "preserveIndexJs": true,
+    "runRegressionCommand": "node .\\tests\\marion\\layers_9_20_regression_test.js",
+    "liveCertificationRequired": true,
+    "freezeBaselineName": "MARION-COMPLETION-FLOW-PRODUCTION-BASELINE-v20.0"
   }
 }
