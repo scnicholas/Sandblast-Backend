@@ -750,3 +750,25 @@ Object.assign(module.exports,{VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT
   }catch(_){}
 })();
 /* MARION_OUTCOME_FLOW_LAYERS_12_13_14_BRIDGE_V14_END */
+
+/* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_BRIDGE_V17_START */
+(function marionStrategicFlowCapabilityV17(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_STRATEGIC_FLOW_VERSION=registry.strategicCoordinator&&registry.strategicCoordinator.VERSION||"";
+    api.MARION_STRATEGIC_OBJECTIVE_ALIGNMENT_VERSION=registry.strategicObjectiveAlignment&&registry.strategicObjectiveAlignment.VERSION||"";
+    api.MARION_PREDICTIVE_RISK_MODEL_VERSION=registry.predictiveRiskModel&&registry.predictiveRiskModel.VERSION||"";
+    api.MARION_STRATEGIC_PATHWAY_SYNTHESIS_VERSION=registry.strategicPathwaySynthesizer&&registry.strategicPathwaySynthesizer.VERSION||"";
+    api.getMarionStrategicFlowStatus=function(){return registry.getStatus();};
+    api.projectMarionStrategicFlowState=function(value){return registry.strategicCoordinator.projectState(value&&value.strategicFlow?value.strategicFlow:value);};
+    api.marionConversationLayers=registry;
+    api.MARION_STRATEGIC_FLOW_METADATA_PRIVATE=true;
+    api.MARION_STRATEGIC_AUTOMATIC_EXECUTION_ALLOWED=false;
+    api.__marionStrategicFlowCapabilityV17=true;
+  }catch(_){}
+})();
+/* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_BRIDGE_V17_END */
+
