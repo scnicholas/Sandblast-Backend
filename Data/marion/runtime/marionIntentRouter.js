@@ -3875,3 +3875,44 @@ function r18cApplyLawIntentRoute(result,packet){
   }catch(_){}
 })();
 /* MARION_OUTCOME_FLOW_LAYERS_12_13_14_ROUTER_V14_END */
+
+/* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_ROUTER_V17_START */
+(function marionStrategicFlowCapabilityV17(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_STRATEGIC_FLOW_VERSION=registry.strategicCoordinator&&registry.strategicCoordinator.VERSION||"";
+    api.MARION_STRATEGIC_OBJECTIVE_ALIGNMENT_VERSION=registry.strategicObjectiveAlignment&&registry.strategicObjectiveAlignment.VERSION||"";
+    api.MARION_PREDICTIVE_RISK_MODEL_VERSION=registry.predictiveRiskModel&&registry.predictiveRiskModel.VERSION||"";
+    api.MARION_STRATEGIC_PATHWAY_SYNTHESIS_VERSION=registry.strategicPathwaySynthesizer&&registry.strategicPathwaySynthesizer.VERSION||"";
+    api.getMarionStrategicFlowStatus=function(){return registry.getStatus();};
+    api.projectMarionStrategicFlowState=function(value){return registry.strategicCoordinator.projectState(value&&value.strategicFlow?value.strategicFlow:value);};
+    api.marionConversationLayers=registry;
+    api.MARION_STRATEGIC_FLOW_METADATA_PRIVATE=true;
+    api.MARION_STRATEGIC_AUTOMATIC_EXECUTION_ALLOWED=false;
+    api.__marionStrategicFlowCapabilityV17=true;
+  }catch(_){}
+})();
+/* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_ROUTER_V17_END */
+
+
+
+/* MARION_STRATEGIC_INTENT_CLASSIFIER_V17_START */
+(function marionStrategicIntentClassifierV17(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+    api.classifyMarionStrategicIntent=function(value){
+      const p=text(value&&typeof value==="object"?(value.prompt||value.userText||value.text||value.message):value).toLowerCase();
+      if(/\b(?:objective|goal|priority|alignment|strategic drift|larger goal)\b/.test(p))return"strategic_objective_alignment";
+      if(/\b(?:risk|consequence|what could go wrong|failure mode|reversibility|rollback)\b/.test(p))return"predictive_risk_assessment";
+      if(/\b(?:pathway|which path|which option|compare the approaches|safest route|strongest path|keep the current baseline)\b/.test(p))return"strategic_pathway_selection";
+      return"";
+    };
+    api.MARION_STRATEGIC_INTENT_CLASSIFIER_VERSION="nyx.marion.strategicIntent/1.0";
+  }catch(_){}
+})();
+/* MARION_STRATEGIC_INTENT_CLASSIFIER_V17_END */
