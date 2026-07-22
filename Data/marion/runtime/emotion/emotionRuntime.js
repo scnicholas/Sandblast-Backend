@@ -283,3 +283,15 @@ function resolveEmotionState(inputText, context = {}, options = {}) {
 }
 
 module.exports = { DEFAULT_CONTRACT_DIR, DEFAULT_FILES, loadContracts, getHealth, matchPatternCandidates, resolveEmotionState, buildResolvedState, hasContinuityCue, sanitizePlain };
+
+/* MARION_CONVERSATION_FLOW_LAYER_11_EMOTION_CALIBRATION_V11_START */
+(function marionInteractionCalibrationEmotionV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionInteractionCalibrationEmotionV11)return;
+  let calibration=null;try{calibration=require("../conversation/marionInteractionCalibration.js");}catch(_){calibration=null;}if(!calibration)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function promptOf(args){for(const v of Array.from(args)){if(typeof v==="string"&&v.trim())return v;const o=obj(v);for(const x of [o.prompt,o.userText,o.rawUserText,o.text,o.message])if(typeof x==="string"&&x.trim())return x;}return"";}
+  const original=api.resolveEmotionState;if(typeof original==="function")api.resolveEmotionState=function(){const args=arguments,prompt=promptOf(args),out=original.apply(this,args),apply=result=>{if(!result||typeof result!=="object")return result;const state=obj(result.state),profile=calibration.analyzeTurn({prompt,emotion:result});const signals={version:calibration.VERSION,urgency:profile.urgency,warmth:profile.warmth,directness:profile.directness,decisionRequired:profile.decisionRequired,acknowledgementBudget:profile.acknowledgementBudget,internalOnly:true};return {...result,interactionSignals:signals,state:{...state,interactionSignals:signals}};};return out&&typeof out.then==="function"?out.then(apply):apply(out);};
+  api.deriveMarionInteractionSignals=function(prompt,emotion){const profile=calibration.analyzeTurn({prompt,emotion});return {version:calibration.VERSION,profile,internalOnly:true};};api.__marionInteractionCalibrationEmotionV11=true;api.MARION_INTERACTION_CALIBRATION_EMOTION_VERSION=calibration.VERSION;
+})();
+/* MARION_CONVERSATION_FLOW_LAYER_11_EMOTION_CALIBRATION_V11_END */
