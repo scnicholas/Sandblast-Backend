@@ -9903,6 +9903,8 @@ try{
     const kind=followupKind(prompt),subject=activeSubject(input,prompt)||"the active routing repair";
     if(isGreeting(prompt))return"Hello, Mac. I’m here and ready to work through this with you.";
     if(domain==="technical"){
+      const profile=obj(input.interactionCalibration);
+      if(!kind&&profile.directness==="high")return"Fix current-turn domain precedence first. Lock the explicit technical request before merging historical state, then prevent every later layer from replacing that domain or subject.";
       if(kind==="deepen")return`The deeper defect to inspect in ${subject} is state mutation timing. The current-turn domain must be resolved before historical memory, legal metadata, or final-envelope shaping can modify the response. Add an assertion at each handoff so the selected domain cannot change after routing.`;
       if(kind==="first_fix")return`Fix current-turn domain precedence first. Resolve the explicit technical request, lock that decision into the turn packet, and only then merge prior session memory. That prevents stale legal state from taking control before the composer runs.`;
       if(kind==="why_first")return"That is the first priority because every later layer trusts the router’s decision. If the domain is wrong at intake, the composer, state store, and final envelope can all behave correctly and still produce the wrong answer.";
@@ -9913,6 +9915,10 @@ try{
       if(kind==="main_risk")return"The main risk is split authority: one layer selects the technical domain while a later layer silently promotes stale legal metadata. The final reply then looks valid structurally but is wrong semantically.";
       if(kind==="changed")return"The critical change is that current-turn intent becomes immutable once accepted. Older memory can enrich the answer, but it cannot replace the active domain or subject.";
       return"Start with the routing precedence chain. Confirm the explicit current prompt is classified before historical state is merged, then trace that locked domain through the composer and final envelope. Any layer that can overwrite it is a critical defect.";
+    }
+    if(domain==="business"){
+      if(kind)return"For this business branch, assess the commercial consequence, affected audience, revenue or trust exposure, operational dependency, and the smallest reversible response. Keep the primary technical thread paused rather than replacing it.";
+      return"The principal business risk is loss of trust, interrupted conversion, repeated engineering cost, and uncertainty about production reliability. Bound the affected users and revenue path, then choose the smallest reversible correction before returning to the primary technical thread.";
     }
     if(domain==="law"){
       if(kind)return"Continue by identifying the governing jurisdiction, the exact clause or obligation at issue, the parties’ duties, termination and liability language, dispute-resolution terms, and any deadlines. Those details determine which risks are material. This is general legal information, not legal advice.";
@@ -9938,3 +9944,18 @@ try{
   Object.assign(api,{VERSION:VERSION_V9,composeMarionResponse:definitive,run:definitive,default:definitive,compose:definitive,buildReply:definitive,__marionDrasticComposerRecoveryV9:true,MARION_DRASTIC_COMPOSER_RECOVERY_VERSION:VERSION_V9});
 })();
 /* MARION_DRASTIC_COMPOSER_RECOVERY_V9_END */
+
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_COMPOSER_V11_START */
+(function marionConversationFlowComposerV11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionConversationFlowComposerV11)return;
+  let registry=null;try{registry=require("./conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}if(!registry)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function privateTurn(v){const s=obj(v),c=obj(s.privateRuntimeContext);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.scope==="private_admin"||c.version;}
+  function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+  function reconcile(result,flow){let out=registry.attachToResult(result,flow);if(!out||typeof out!=="object")return out;const subject=text(flow.activeSubject),direction=text(flow.direction);let reply=text(out.directReply||out.visibleReply||out.displayReply||out.finalReply||out.reply||out.text);if(subject&&(direction==="return"||direction==="continue")&&/^The deeper defect to inspect in (?:Back to|Return to|Continue\.?|Keep going).*? is state mutation timing\./i.test(reply)){reply=reply.replace(/^The deeper defect to inspect in .*? is state mutation timing\./i,`The deeper defect to inspect in ${subject} is state mutation timing.`);}if(!reply)return out;return {...out,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply,payload:{...obj(out.payload),reply,text:reply,message:reply},finalEnvelope:{...obj(out.finalEnvelope),reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply}};}
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionConversationFlowComposerV11)return fn;const w=function(input){if(!privateTurn(input))return fn.apply(this,arguments);const prepared=registry.applyToInput(obj(input),obj(obj(input).previousMemory));const args=Array.from(arguments);args[0]=prepared;const apply=result=>reconcile(result,obj(prepared.conversationFlow));const out=fn.apply(this,args);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k]})}catch(_){}w.__marionConversationFlowComposerV11=true;return w;}
+  for(const name of ["composeMarionResponse","run","default","compose","buildReply"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.__marionConversationFlowComposerV11=true;api.MARION_CONVERSATION_FLOW_COMPOSER_VERSION=registry.VERSION;api.marionConversationLayers=registry;
+})();
+/* MARION_CONVERSATION_FLOW_LAYERS_9_10_11_COMPOSER_V11_END */
