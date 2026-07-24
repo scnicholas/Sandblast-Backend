@@ -1,102 +1,17 @@
 'use strict';
-
-/** Backend-only Ably boundary. Public room messages can be published only by MessagePublisher. */
-
-const TokenPolicy = require('./LingoSentinelTokenPolicy');
-const RoomRegistry = require('./LingoSentinelRoomRegistry');
-const MessagePolicy = require('./LingoSentinelMessagePolicy');
-const PublicProjection = require('./LingoSentinelPublicMessageProjection');
-
-const VERSION = 'nyx.lingosentinel.realtimeBridge/7.0-canonical-message-authority';
-let restClient = null;
-
-function safeString(value, fallback = '') { return TokenPolicy.safeString(value, fallback); }
-function getAblyKey() { return safeString(process.env.ABLY_ROOT_API_KEY || process.env.ABLY_API_KEY); }
-function loadAbly() {
-  try { return require('ably'); }
-  catch (error) { const err = new Error('Ably package is unavailable.'); err.code = 'ABLY_PACKAGE_MISSING'; err.cause = error; throw err; }
-}
-function packageReady() { try { require.resolve('ably'); return true; } catch (_) { return false; } }
-function getRestClient() {
-  if (restClient) return restClient;
-  const key = getAblyKey();
-  if (!key) { const err = new Error('Ably key is unavailable.'); err.code = 'ABLY_KEY_MISSING'; throw err; }
-  const Ably = loadAbly();
-  const Rest = Ably.Rest || (Ably.default && Ably.default.Rest);
-  if (typeof Rest !== 'function') { const err = new Error('Ably Rest constructor is unavailable.'); err.code = 'ABLY_PACKAGE_INCOMPATIBLE'; throw err; }
-  restClient = new Rest({ key });
-  return restClient;
-}
-function sanitizeEventName(value) {
-  const name = safeString(value || 'LINGOSENTINEL_EVENT').replace(/[^a-zA-Z0-9:_-]/g, '_').slice(0, 96);
-  return name || 'LINGOSENTINEL_EVENT';
-}
-function sanitizePayload(payload) {
-  if (payload && payload.contract === MessagePolicy.CONTRACT) return PublicProjection.project(payload);
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { value: safeString(payload).slice(0, 4000) };
-  const blocked = /token|secret|password|authorization|cookie|api[_-]?key|private|credential|session/i;
-  const clean = {};
-  Object.keys(payload).slice(0, 32).forEach((key) => {
-    if (blocked.test(key)) return;
-    const value = payload[key];
-    if (typeof value === 'string') clean[key] = value.slice(0, 4000);
-    else if (typeof value === 'number' || typeof value === 'boolean' || value === null) clean[key] = value;
-  });
-  return clean;
-}
-
-async function publish(input = {}) {
-  const roomId = TokenPolicy.sanitizeRoomId(input.roomId);
-  const clientId = TokenPolicy.sanitizeClientId(input.clientId);
-  const sessionId = TokenPolicy.sanitizeIdentifier(input.sessionId, '', 96);
-  const membershipCredential = safeString(input.membershipCredential);
-  const mode = TokenPolicy.normalizeMode(input.mode, TokenPolicy.DEFAULT_MODE);
-  const authorization = RoomRegistry.authorize(roomId, { clientId, sessionId, membershipCredential }, 'publish');
-  if (!authorization.ok) { const error = new Error('Active verified room membership is required to publish.'); error.code = authorization.code || 'ROOM_MEMBERSHIP_REQUIRED'; throw error; }
-  const channelName = TokenPolicy.channelForMode(mode, roomId);
-  const client = getRestClient();
-  const channel = client.channels.get(channelName);
-  const eventName = sanitizeEventName(input.eventName || input.name);
-  const payload = sanitizePayload(input.payload || input.data || {});
-  await channel.publish(eventName, payload);
-  return { ok: true, channel: channelName, eventName, roomId, mode, publishedAt: new Date().toISOString(), diagnosticsRedacted: true };
-}
-
-async function publishMessage(envelope = {}, context = {}) {
-  if (context.authority !== 'LingoSentinelMessagePublisher') { const error = new Error('Canonical message publisher authority is required.'); error.code = 'MESSAGE_PUBLISHER_AUTHORITY_REQUIRED'; throw error; }
-  const projection = PublicProjection.project(envelope);
-  const validation = PublicProjection.validateProjection(projection);
-  if (!validation.ok || projection.eventType !== MessagePolicy.EVENT_TYPE) { const error = new Error('Canonical public message projection is invalid.'); error.code = 'CANONICAL_MESSAGE_INVALID'; throw error; }
-  if (projection.roomId !== String(context.roomId || '')) { const error = new Error('Message room context mismatch.'); error.code = 'MESSAGE_ROOM_MISMATCH'; throw error; }
-  if (projection.sender.clientId !== String(context.clientId || '')) { const error = new Error('Message sender context mismatch.'); error.code = 'MESSAGE_SENDER_MISMATCH'; throw error; }
-  return publish({
-    roomId: context.roomId,
-    clientId: context.clientId,
-    sessionId: context.sessionId,
-    membershipCredential: context.membershipCredential,
-    mode: context.mode,
-    eventName: MessagePolicy.EVENT_TYPE,
-    payload: projection
-  });
-}
-
-function close() { try { if (restClient && typeof restClient.close === 'function') restClient.close(); } catch (_) {} restClient = null; return true; }
-function setRestClientForTests(client) { restClient = client || null; }
-function getHealth() {
-  const configured = !!getAblyKey(); const sdkReady = packageReady();
-  return {
-    ok: configured && sdkReady,
-    service: 'LingoSentinelRealtimeBridge',
-    version: VERSION,
-    status: configured && sdkReady ? 'ready' : 'degraded',
-    ablyConfigured: configured,
-    ablyPackageReady: sdkReady,
-    rootKeyExposed: false,
-    membershipCredentialRequiredForPublish: true,
-    canonicalMessageEvent: MessagePolicy.EVENT_TYPE,
-    backendMessagePublishAuthority: true,
-    directBrowserPublishAllowed: false,
-    canonicalNamespace: TokenPolicy.CHANNEL_NAMESPACE
-  };
-}
-module.exports = Object.freeze({ VERSION, getAblyKey, packageReady, sanitizeEventName, sanitizePayload, publish, publishMessage, close, setRestClientForTests, getHealth });
+const TokenPolicy=require('./LingoSentinelTokenPolicy');
+const RoomRegistry=require('./LingoSentinelRoomRegistry');
+const MessagePolicy=require('./LingoSentinelMessagePolicy');
+const PublicProjection=require('./LingoSentinelPublicMessageProjection');
+const VERSION='nyx.lingosentinel.realtimeBridge/10.0-message-and-state-authority';
+let restClient=null;
+function safeString(v,f=''){return TokenPolicy.safeString(v,f);}function getAblyKey(){return safeString(process.env.ABLY_ROOT_API_KEY||process.env.ABLY_API_KEY);}function loadAbly(){try{return require('ably');}catch(error){const e=new Error('Ably package is unavailable.');e.code='ABLY_PACKAGE_MISSING';e.cause=error;throw e;}}function packageReady(){try{require.resolve('ably');return true;}catch(_){return false;}}
+function getRestClient(){if(restClient)return restClient;const key=getAblyKey();if(!key){const e=new Error('Ably key is unavailable.');e.code='ABLY_KEY_MISSING';throw e;}const Ably=loadAbly();const Rest=Ably.Rest||(Ably.default&&Ably.default.Rest);if(typeof Rest!=='function'){const e=new Error('Ably Rest constructor is unavailable.');e.code='ABLY_PACKAGE_INCOMPATIBLE';throw e;}restClient=new Rest({key});return restClient;}
+function sanitizeEventName(v){return safeString(v||'LINGOSENTINEL_EVENT').replace(/[^a-zA-Z0-9:_-]/g,'_').slice(0,96)||'LINGOSENTINEL_EVENT';}
+async function publishChannel(channelName,eventName,payload){const client=getRestClient();const channel=client.channels.get(channelName);await channel.publish(sanitizeEventName(eventName),payload);return{ok:true,channel:channelName,eventName:sanitizeEventName(eventName),publishedAt:new Date().toISOString(),diagnosticsRedacted:true};}
+async function publish(input={}){const roomId=TokenPolicy.sanitizeRoomId(input.roomId),clientId=TokenPolicy.sanitizeClientId(input.clientId),sessionId=TokenPolicy.sanitizeIdentifier(input.sessionId,'',96),credential=safeString(input.membershipCredential),mode=TokenPolicy.normalizeMode(input.mode,TokenPolicy.DEFAULT_MODE);const auth=RoomRegistry.authorize(roomId,{clientId,sessionId,membershipCredential:credential},'publish');if(!auth.ok){const e=new Error('Active verified room membership is required to publish.');e.code=auth.code||'ROOM_MEMBERSHIP_REQUIRED';throw e;}return publishChannel(TokenPolicy.channelForMode(mode,roomId),input.eventName||input.name,input.payload||input.data||{});}
+async function publishMessage(envelope={},context={}){if(context.authority!=='LingoSentinelMessagePublisher'){const e=new Error('Canonical message publisher authority is required.');e.code='MESSAGE_PUBLISHER_AUTHORITY_REQUIRED';throw e;}const projection=PublicProjection.project(envelope);const validation=PublicProjection.validateProjection(projection);if(!validation.ok){const e=new Error('Canonical public message projection is invalid.');e.code='CANONICAL_MESSAGE_INVALID';throw e;}if(projection.roomId!==String(context.roomId||'')){const e=new Error('Message room context mismatch.');e.code='MESSAGE_ROOM_MISMATCH';throw e;}if(projection.sender.clientId!==String(context.clientId||'')){const e=new Error('Message sender context mismatch.');e.code='MESSAGE_SENDER_MISMATCH';throw e;}return publish({roomId:context.roomId,clientId:context.clientId,sessionId:context.sessionId,membershipCredential:context.membershipCredential,mode:context.mode,eventName:MessagePolicy.EVENT_TYPE,payload:projection});}
+async function publishClientState(state={},context={}){if(context.authority!=='LingoSentinelDeliveryRoute'){const e=new Error('Delivery route authority is required.');e.code='DELIVERY_STATE_AUTHORITY_REQUIRED';throw e;}if(!state||state.contract!=='lingosentinel.messageState/1.0'||state.eventType!=='LINGOSENTINEL_MESSAGE_STATE_CHANGED'){const e=new Error('Message state projection is invalid.');e.code='MESSAGE_STATE_INVALID';throw e;}const roomId=TokenPolicy.sanitizeRoomId(context.roomId);const main=TokenPolicy.channelForMode(context.mode||'group_room',roomId);const channel=TokenPolicy.clientStateChannelFor(main,context.senderClientId);return publishChannel(channel,'LINGOSENTINEL_MESSAGE_STATE_CHANGED',{contract:state.contract,eventType:state.eventType,messageId:String(state.messageId||''),clientRequestId:String(state.clientRequestId||''),roomId:String(state.roomId||''),sequence:Number(state.sequence)||0,state:String(state.state||''),publishedAt:state.publishedAt||null,deliveredAt:state.deliveredAt||null,readAt:state.readAt||null,updatedAt:String(state.updatedAt||''),deliveredCount:Number(state.deliveredCount)||0,recipientCount:Number(state.recipientCount)||0});}
+function close(){try{if(restClient&&typeof restClient.close==='function')restClient.close();}catch(_){}restClient=null;return true;}function setRestClientForTests(c){restClient=c||null;}
+function getHealth(){const configured=!!getAblyKey(),sdkReady=packageReady();return{ok:configured&&sdkReady,service:'LingoSentinelRealtimeBridge',version:VERSION,status:configured&&sdkReady?'ready':'degraded',ablyConfigured:configured,ablyPackageReady:sdkReady,rootKeyExposed:false,membershipCredentialRequiredForMessagePublish:true,canonicalMessageEvent:MessagePolicy.EVENT_TYPE,clientStateEvent:'LINGOSENTINEL_MESSAGE_STATE_CHANGED',clientSpecificStateLane:true,backendMessagePublishAuthority:true,directBrowserPublishAllowed:false};}
+module.exports=Object.freeze({VERSION,getAblyKey,packageReady,sanitizeEventName,publish,publishMessage,publishClientState,close,setRestClientForTests,getHealth});
