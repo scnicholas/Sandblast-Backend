@@ -13,9 +13,10 @@ const fs = require('fs');
 const path = require('path');
 
 const router = express.Router();
-const VERSION = 'nyx.lingosentinel.runtimeHealth/1.0-layer1-layer2';
+const VERSION = 'nyx.lingosentinel.runtimeHealth/2.0-layers1-4';
 const PUBLIC_FILES = Object.freeze([
   'lingosentinel-public-translation-client.js',
+  'lingosentinel-public-realtime-client.js',
   'lingosentinel-widget-translation-bridge.js',
   'lingosentinel-widget-integration-hook.js'
 ]);
@@ -52,6 +53,14 @@ function buildRuntimeHealth(options = {}) {
   const gateway = safeRequire('./LingoSentinelLinkGateway');
   const tokenPolicy = safeRequire('./LingoSentinelTokenPolicy');
   const tokenRoute = safeRequire('./LingoSentinelSubscribeTokenRoute');
+  const roomPolicy = safeRequire('./LingoSentinelRoomPolicy');
+  const roomMembership = safeRequire('./LingoSentinelRoomMembership');
+  const roomRegistry = safeRequire('./LingoSentinelRoomRegistry');
+  const roomRoute = safeRequire('./LingoSentinelRoomRoute');
+  const connectionState = safeRequire('./LingoSentinelConnectionState');
+  const reconnectPolicy = safeRequire('./LingoSentinelReconnectPolicy');
+  const realtimeBridge = safeRequire('./LingoSentinelRealtimeBridge');
+  const connectionRoute = safeRequire('./LingoSentinelConnectionRoute');
   const ablyPackage = safeRequire('ably');
   const publicAssets = publicAssetStatus(rootDir);
   const ablyConfigured = boolEnv(['ABLY_ROOT_API_KEY', 'ABLY_API_KEY']);
@@ -68,7 +77,15 @@ function buildRuntimeHealth(options = {}) {
     tokenRouteReady: tokenRoute.ready,
     messagingProviderConfigured: ablyConfigured,
     messagingPackageReady: ablyPackage.ready,
-    publicAssetsReady: publicAssets.ready
+    publicAssetsReady: publicAssets.ready,
+    roomPolicyReady: roomPolicy.ready,
+    roomMembershipReady: roomMembership.ready,
+    roomRegistryReady: roomRegistry.ready,
+    roomRouteReady: roomRoute.ready,
+    connectionStateReady: connectionState.ready,
+    reconnectPolicyReady: reconnectPolicy.ready,
+    realtimeBridgeReady: realtimeBridge.ready,
+    connectionRouteReady: connectionRoute.ready
   };
   const englishRelayReady = Object.values(critical).every(Boolean);
 
@@ -85,6 +102,14 @@ function buildRuntimeHealth(options = {}) {
       gateway: { ready: gateway.ready, version: gateway.version || '' },
       tokenPolicy: { ready: tokenPolicy.ready, version: tokenPolicy.version || '' },
       tokenRoute: { ready: tokenRoute.ready, version: tokenRoute.version || '' },
+      roomPolicy: { ready: roomPolicy.ready, version: roomPolicy.version || '' },
+      roomMembership: { ready: roomMembership.ready, version: roomMembership.version || '' },
+      roomRegistry: { ready: roomRegistry.ready, version: roomRegistry.version || '' },
+      roomRoute: { ready: roomRoute.ready, version: roomRoute.version || '' },
+      connectionState: { ready: connectionState.ready, version: connectionState.version || '' },
+      reconnectPolicy: { ready: reconnectPolicy.ready, version: reconnectPolicy.version || '' },
+      realtimeBridge: { ready: realtimeBridge.ready, version: realtimeBridge.version || '' },
+      connectionRoute: { ready: connectionRoute.ready, version: connectionRoute.version || '' },
       messagingProvider: { configured: ablyConfigured, packageReady: ablyPackage.ready },
       publicAssets
     },
@@ -93,7 +118,11 @@ function buildRuntimeHealth(options = {}) {
       secretValuesExposed: false,
       internalPathsExposed: false,
       marionVisibleParticipant: false,
-      publicTelemetryPublishAllowed: false
+      publicTelemetryPublishAllowed: false,
+      roomMembershipRequired: true,
+      reconnectAttemptsBounded: true,
+      registryStorage: 'in_memory_single_instance',
+      multiInstanceReady: false
     },
     timestamp: new Date().toISOString()
   };
