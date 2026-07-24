@@ -1,0 +1,2 @@
+'use strict';
+const cp=require('child_process');const path=require('path');const root=path.resolve(__dirname,'..','..');const env={...process.env,NODE_PATH:path.join(root,'tests','stubs','node_modules')};['run_all_layers_1_7.js','layers_8_10_functional_validation_test.js','layers_8_10_public_client_test.js','layers_8_10_route_contract_test.js'].forEach(file=>cp.execFileSync(process.execPath,[path.join(__dirname,file)],{stdio:'inherit',env}));
