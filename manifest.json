@@ -2,7 +2,7 @@
   "package": "Marion Completion Flow Layers 18-20",
   "version": "20.0",
   "contract": "nyx.marion.conversationFlow/4.0",
-  "generatedUtc": "2026-07-22T22:20:06.302308+00:00",
+  "generatedUtc": "2026-07-24T01:31:04.783732+00:00",
   "target": {
     "backend": "Sandblast backend",
     "scope": "Marion Layers 1-20 functional validation with cohesive completion flow and architectural hard stop at Layer 20",
@@ -96,7 +96,18 @@
     "tests/marion/layers_9_17_regression_test.js",
     "tests/marion/layers_9_20_regression_test.js",
     "tests/marion/outcome_flow_runtime_test.js",
-    "tests/marion/strategic_flow_runtime_test.js"
+    "tests/marion/strategic_flow_runtime_test.js",
+    "index.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelLinkGateway.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelRuntimeHealth.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelSubscribeTokenRoute.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelTokenPolicy.js",
+    "public/lingosentinel/lingosentinel-public-translation-client.js",
+    "public/lingosentinel/lingosentinel-widget-translation-bridge.js",
+    "public/lingosentinel/lingosentinel-widget-integration-hook.js",
+    "tests/lingosentinel/layers_1_2_runtime_test.js",
+    "README_LINGOSENTINEL_LAYERS_1_2.md",
+    "VALIDATION_REPORT.json"
   ],
   "files": [
     {
@@ -404,6 +415,72 @@
       "bytes": 9983,
       "sha256": "bc32eb8f8cf8ec95024bb2b4c3bb42e50cf8d835723661b01662ee5bc4f66fa6",
       "status": "included_full_file"
+    },
+    {
+      "path": "index.js",
+      "bytes": 1481409,
+      "sha256": "3a4f0003b817c98540c2517e0d5a0c5641310b844b9b0f4d0d50f90e5d86d25e",
+      "status": "updated"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelLinkGateway.js",
+      "bytes": 30237,
+      "sha256": "68957f1cd842498f0235215c3ca3a6802c46a5a273e21df3e9496878667eedef",
+      "status": "updated"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRuntimeHealth.js",
+      "bytes": 4282,
+      "sha256": "fa878985e92c58f8c1eaefb33f7efe79eca49d8e48544866212f0a8ed673e8de",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelSubscribeTokenRoute.js",
+      "bytes": 9182,
+      "sha256": "1b6f0b96400c9585321e6430b6989005f4b3aa324e6387e7ab4b53a9bfe75624",
+      "status": "updated"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelTokenPolicy.js",
+      "bytes": 10238,
+      "sha256": "dec0557e6a05bb49bb805d015d6e44beb18d3813dfc2cbafe472275fc6986a72",
+      "status": "new"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-public-translation-client.js",
+      "bytes": 10570,
+      "sha256": "b055ed7d27a22669c5fc6bd6007bfff2e05cc86eddd912c61ccce4faa98cb6fd",
+      "status": "updated"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-widget-translation-bridge.js",
+      "bytes": 4978,
+      "sha256": "2e28f8da8b74111eb18c5040297c45c188915b69e2eae1afb4497824e9f10895",
+      "status": "updated"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-widget-integration-hook.js",
+      "bytes": 4637,
+      "sha256": "574c474771769eabafc39a5d5786f1c7e4477ecfd6b7d2d777bec6d3b6411330",
+      "status": "updated"
+    },
+    {
+      "path": "tests/lingosentinel/layers_1_2_runtime_test.js",
+      "bytes": 8019,
+      "sha256": "11dc92b9b5a3a00cc3daa6a3eaf94252479450d090c10999bb771f6305912a25",
+      "status": "new"
+    },
+    {
+      "path": "README_LINGOSENTINEL_LAYERS_1_2.md",
+      "bytes": 2797,
+      "sha256": "bfb00cfbc01cb1b0520f6f4cd74623fbaa1fcf1cbc61fa07d1e42316278d9c0d",
+      "status": "new"
+    },
+    {
+      "path": "VALIDATION_REPORT.json",
+      "bytes": 887,
+      "sha256": "956adf488e0695ac47bcf412a5b6c108875edc7adafacd88f6cbf23ba5b76bd8",
+      "status": "new"
     }
   ],
   "architecture": {
@@ -455,13 +532,135 @@
     "unauthorizedExecutionPrevention": "passed",
     "hardStopLayer20": "passed",
     "fullApplicationBoot": false,
-    "fullApplicationBootReason": "The complete hosted Render environment, environment variables, service restart behavior, and browser network path are unavailable in the isolated build environment."
+    "fullApplicationBootReason": "The complete hosted Render environment, environment variables, service restart behavior, and browser network path are unavailable in the isolated build environment.",
+    "lingoSentinelLayers1to2": {
+      "jsonValid": true,
+      "nodeSyntaxChecks": 9,
+      "nodeSyntaxChecksPassed": 9,
+      "functionalChecks": 27,
+      "functionalChecksPassed": 27,
+      "indexStructuralIntegrity": "passed",
+      "fullHostedBoot": false,
+      "liveAblyRoundtrip": false,
+      "liveCertificationRequired": true
+    }
   },
   "deploymentPolicy": {
     "copyPackageContentsToBackendRoot": true,
     "preserveIndexJs": true,
     "runRegressionCommand": "node .\\tests\\marion\\layers_9_20_regression_test.js",
     "liveCertificationRequired": true,
-    "freezeBaselineName": "MARION-COMPLETION-FLOW-PRODUCTION-BASELINE-v20.0"
+    "freezeBaselineName": "MARION-COMPLETION-FLOW-PRODUCTION-BASELINE-v20.0",
+    "lingoSentinelLayers1to2": {
+      "copyPackageContentsToBackendRoot": true,
+      "preserveFolderStructure": true,
+      "requiredEnvironment": [
+        "ABLY_ROOT_API_KEY"
+      ],
+      "runRegressionCommand": "node .\\tests\\lingosentinel\\layers_1_2_runtime_test.js",
+      "healthCheck": "/api/lingosentinel/runtime/health",
+      "rollback": "restore the immediately previous versions of the eight runtime files"
+    }
+  },
+  "lingoSentinelLayers1to2": {
+    "package": "LingoSentinel Layers 1-2 Critical Runtime Update",
+    "version": "2.0.0",
+    "contract": "nyx.lingosentinel.layers1_2/2.0",
+    "scope": "Layer 1 runtime health and Layer 2 stable client identity/token policy",
+    "sourceFilesSupplied": 7,
+    "updatedRuntimeFiles": 6,
+    "newRuntimeFiles": 2,
+    "indexJs": {
+      "modified": true,
+      "architectureReplaced": false,
+      "existingBlocksMoved": false,
+      "existingBlocksRemoved": false,
+      "guardedInsertions": 4,
+      "mountStrategy": "optional guarded loader using existing resolveExpressRouterFromModule authority"
+    },
+    "endpoints": {
+      "runtimeHealth": "/api/lingosentinel/runtime/health",
+      "layer1HealthAlias": "/api/lingosentinel/layer1/health",
+      "token": "/api/lingosentinel/token",
+      "tokenHealth": "/api/lingosentinel/token/health"
+    },
+    "criticalRepairs": [
+      "shared default browser identity removed",
+      "stable clientId and per-tab sessionId added",
+      "canonical token policy authority added",
+      "public telemetry publishing removed",
+      "room-scoped capabilities enforced",
+      "reserved Marion/admin/system identity spoofing blocked",
+      "token health now reflects Ably readiness",
+      "translation readiness isolated from English relay readiness"
+    ],
+    "files": [
+      {
+        "path": "index.js",
+        "bytes": 1481409,
+        "sha256": "3a4f0003b817c98540c2517e0d5a0c5641310b844b9b0f4d0d50f90e5d86d25e",
+        "status": "updated"
+      },
+      {
+        "path": "Data/marion/runtime/LingoSentinel/LingoSentinelLinkGateway.js",
+        "bytes": 30237,
+        "sha256": "68957f1cd842498f0235215c3ca3a6802c46a5a273e21df3e9496878667eedef",
+        "status": "updated"
+      },
+      {
+        "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRuntimeHealth.js",
+        "bytes": 4282,
+        "sha256": "fa878985e92c58f8c1eaefb33f7efe79eca49d8e48544866212f0a8ed673e8de",
+        "status": "new"
+      },
+      {
+        "path": "Data/marion/runtime/LingoSentinel/LingoSentinelSubscribeTokenRoute.js",
+        "bytes": 9182,
+        "sha256": "1b6f0b96400c9585321e6430b6989005f4b3aa324e6387e7ab4b53a9bfe75624",
+        "status": "updated"
+      },
+      {
+        "path": "Data/marion/runtime/LingoSentinel/LingoSentinelTokenPolicy.js",
+        "bytes": 10238,
+        "sha256": "dec0557e6a05bb49bb805d015d6e44beb18d3813dfc2cbafe472275fc6986a72",
+        "status": "new"
+      },
+      {
+        "path": "public/lingosentinel/lingosentinel-public-translation-client.js",
+        "bytes": 10570,
+        "sha256": "b055ed7d27a22669c5fc6bd6007bfff2e05cc86eddd912c61ccce4faa98cb6fd",
+        "status": "updated"
+      },
+      {
+        "path": "public/lingosentinel/lingosentinel-widget-translation-bridge.js",
+        "bytes": 4978,
+        "sha256": "2e28f8da8b74111eb18c5040297c45c188915b69e2eae1afb4497824e9f10895",
+        "status": "updated"
+      },
+      {
+        "path": "public/lingosentinel/lingosentinel-widget-integration-hook.js",
+        "bytes": 4637,
+        "sha256": "574c474771769eabafc39a5d5786f1c7e4477ecfd6b7d2d777bec6d3b6411330",
+        "status": "updated"
+      },
+      {
+        "path": "tests/lingosentinel/layers_1_2_runtime_test.js",
+        "bytes": 8019,
+        "sha256": "11dc92b9b5a3a00cc3daa6a3eaf94252479450d090c10999bb771f6305912a25",
+        "status": "new"
+      },
+      {
+        "path": "README_LINGOSENTINEL_LAYERS_1_2.md",
+        "bytes": 2797,
+        "sha256": "bfb00cfbc01cb1b0520f6f4cd74623fbaa1fcf1cbc61fa07d1e42316278d9c0d",
+        "status": "new"
+      },
+      {
+        "path": "VALIDATION_REPORT.json",
+        "bytes": 887,
+        "sha256": "956adf488e0695ac47bcf412a5b6c108875edc7adafacd88f6cbf23ba5b76bd8",
+        "status": "new"
+      }
+    ]
   }
 }
