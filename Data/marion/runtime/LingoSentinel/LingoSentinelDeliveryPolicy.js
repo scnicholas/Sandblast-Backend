@@ -1,0 +1,7 @@
+'use strict';
+const VERSION='nyx.lingosentinel.deliveryPolicy/8.0-membership-verified';
+const READ_ENABLED=String(process.env.LINGOSENTINEL_READ_RECEIPTS_ENABLED||'false').toLowerCase()==='true';
+const RECEIPT_TTL=Math.max(60000,Math.min(86400000,Number(process.env.LINGOSENTINEL_RECEIPT_TTL_MS)||3600000));
+function validate(message,membership,state='delivered',now=Date.now()){const errors=[];if(!message)errors.push({code:'MESSAGE_NOT_FOUND'});if(!membership||!membership.clientId)errors.push({code:'ROOM_MEMBERSHIP_REQUIRED'});if(message&&membership&&message.roomId!==membership.roomId)errors.push({code:'RECEIPT_ROOM_MISMATCH'});if(message&&membership&&message.sender&&message.sender.clientId===membership.clientId)errors.push({code:'SELF_DELIVERY_RECEIPT_REJECTED'});if(state==='read'&&!READ_ENABLED)errors.push({code:'READ_RECEIPTS_DISABLED'});if(!['delivered','read'].includes(state))errors.push({code:'RECEIPT_STATE_INVALID'});if(message){const t=Date.parse(message.publishedAt||message.createdAt||0);if(Number.isFinite(t)&&now-t>RECEIPT_TTL)errors.push({code:'RECEIPT_EXPIRED'});}return{ok:errors.length===0,errors,state};}
+function getHealth(){return{ok:true,service:'LingoSentinelDeliveryPolicy',version:VERSION,readReceiptsEnabled:READ_ENABLED,receiptTtlMs:RECEIPT_TTL,selfReceiptBlocked:true,crossRoomBlocked:true};}
+module.exports=Object.freeze({VERSION,READ_ENABLED,RECEIPT_TTL,validate,getHealth});
