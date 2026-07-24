@@ -75,6 +75,8 @@ const LINGOSENTINEL_PHASE2E_LIVE_ROUNDTRIP_VERSION = "nyx.lingosentinel.index.ph
 const LINGOSENTINEL_CHANNEL_NAMESPACE = "lingosentinel";
 const LINGOSENTINEL_LAYERS_1_2_CRITICAL_VERSION = "nyx.lingosentinel.layers1_2Critical/1.0-runtime-health-token-policy";
 const LINGOSENTINEL_LAYERS_3_4_CRITICAL_VERSION = "nyx.lingosentinel.layers3_4Critical/1.0-room-registry-connection-lifecycle";
+const LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION = "nyx.lingosentinel.layers5_7Critical/1.0-canonical-message-english-relay";
+const LINGOSENTINEL_ENGLISH_RELAY_ONLY = String(process.env.LINGOSENTINEL_ENGLISH_RELAY_ONLY || "true").toLowerCase() !== "false";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -559,12 +561,16 @@ app.locals.nyxTtsEnvironment = NYX_TTS_ENV_STATUS;
 
 /* LINGOSENTINEL_PHASE8_PUBLIC_ASSETS_START */
 // Public browser-safe LingoSentinel asset mount.
-// Serves ONLY the four approved frontend JS files under /public/lingosentinel.
+// Serves ONLY the eight approved frontend JS files under /public/lingosentinel.
 // This must stay before fallback/not_found routes. Internal routes and tokens are not exposed.
 const LINGOSENTINEL_PUBLIC_ASSET_DIR = path.join(__dirname, "public", "lingosentinel");
 const LINGOSENTINEL_PUBLIC_ASSET_FILES = Object.freeze([
   "lingosentinel-public-translation-client.js",
   "lingosentinel-public-realtime-client.js",
+  "lingosentinel-public-message-client.js",
+  "lingosentinel-public-message-receiver.js",
+  "lingosentinel-message-render-policy.js",
+  "lingosentinel-widget-conversation-controller.js",
   "lingosentinel-widget-translation-bridge.js",
   "lingosentinel-widget-integration-hook.js"
 ]);
@@ -643,9 +649,10 @@ const LINGOSENTINEL_PUBLIC_CORS_ROUTES = Object.freeze([
   /^\/api\/lingosentinel\/languages\/?$/i,
   /^\/api\/lingosentinel\/translation\/health\/?$/i,
   /^\/api\/lingosentinel\/token(?:\/health)?\/?$/i,
-  /^\/api\/lingosentinel\/(?:runtime\/health|layer1\/health)\/?$/i,
+  /^\/api\/lingosentinel\/(?:runtime\/health|layer1\/health|layers5-7\/health)\/?$/i,
   /^\/api\/lingosentinel\/rooms(?:\/[^/?]+(?:\/(?:join|leave|participants|authorize))?)?\/?$/i,
   /^\/api\/lingosentinel\/connections(?:\/(?:register|state|disconnect|health|[^/?]+))?\/?$/i,
+  /^\/api\/lingosentinel\/messages(?:\/health)?\/?$/i,
   /^\/api\/lingosentinel\/(?:ably\/readiness|readiness)\/?$/i,
   /^\/api\/lingosentinel\/(?:publish|link)\/?$/i,
   /^\/api\/lingosentinel\/(?:phase2b|roundtrip)\/health\/?$/i
@@ -704,6 +711,7 @@ function applyLingoSentinelPublicCors(req, res) {
     "x-sb-trace-id",
     "x-sb-widget-token",
     "x-request-id",
+    "x-lingosentinel-membership",
     ...(reqHeaders ? reqHeaders.split(",").map((item) => item.trim()).filter(Boolean) : [])
   ]));
   if (origin && lingoSentinelPublicCorsOriginAllowed(origin)) {
@@ -9028,6 +9036,13 @@ const lingoSentinelConnectionRoutesMod = tryRequireMany([
   "./Data/marion/runtime/LingoSentinelConnectionRoute.js"
 ]);
 
+const lingoSentinelMessageRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelMessageRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelMessageRoute.js",
+  "./Data/marion/runtime/LingoSentinelMessageRoute",
+  "./Data/marion/runtime/LingoSentinelMessageRoute.js"
+]);
+
 const lingoSentinelEngineMod = tryRequireMany([
   "./Data/marion/runtime/LingoSentinel/LingoSentinelEngine",
   "./Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js",
@@ -9168,6 +9183,29 @@ function mountLingoSentinelRoomRoute(appRef, mod) {
     return true;
   } catch (err) {
     console.log("[Sandblast][LingoSentinel] room_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") });
+    return false;
+  }
+}
+
+function mountLingoSentinelMessageRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) {
+    appRef.use("/api/lingosentinel", router);
+    return true;
+  }
+  const register =
+    (typeof mod.registerLingoSentinelMessageRoute === "function" && mod.registerLingoSentinelMessageRoute) ||
+    (typeof mod.mountLingoSentinelMessageRoute === "function" && mod.mountLingoSentinelMessageRoute) ||
+    (typeof mod.register === "function" && mod.register) ||
+    (typeof mod.mount === "function" && mod.mount) ||
+    (typeof mod.default === "function" && mod.default);
+  if (typeof register !== "function") return false;
+  try {
+    register(appRef, { basePath: "/api/lingosentinel", version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION });
+    return true;
+  } catch (err) {
+    console.log("[Sandblast][LingoSentinel] message_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") });
     return false;
   }
 }
@@ -18589,6 +18627,27 @@ if (newsCanadaRoutes && boolEnv("SB_ENABLE_NEWSCANADA_EXTERNAL_ROUTES", false)) 
   });
 }
 
+if (LINGOSENTINEL_ENGLISH_RELAY_ONLY) {
+  app.post("/api/lingosentinel", (req, res) => {
+    return res.status(409).json({
+      ok: false,
+      error: "direct_public_publish_disabled",
+      messageRoute: "/api/lingosentinel/messages",
+      backendMessagePublishAuthority: true,
+      version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION
+    });
+  });
+  app.use(["/api/lingosentinel/publish", "/api/lingosentinel/link"], (req, res, next) => {
+    if (req.method !== "POST") return next();
+    return res.status(409).json({
+      ok: false,
+      error: "direct_public_publish_disabled",
+      messageRoute: "/api/lingosentinel/messages",
+      backendMessagePublishAuthority: true,
+      version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION
+    });
+  });
+}
 const lingoSentinelPublishMounted = mountLingoSentinelPublishRoute(app, lingoSentinelPublishRoutesMod);
 console.log("[Sandblast][LingoSentinel] publish_route_" + (lingoSentinelPublishMounted ? "mounted" : "unavailable"), {
   api: "/api/lingosentinel",
@@ -18631,6 +18690,16 @@ console.log("[Sandblast][LingoSentinel] connection_route_" + (lingoSentinelConne
   connections: "/api/lingosentinel/connections",
   version: LINGOSENTINEL_LAYERS_3_4_CRITICAL_VERSION,
   router: !!lingoSentinelConnectionRouteMounted
+});
+
+const lingoSentinelMessageRouteMounted = mountLingoSentinelMessageRoute(app, lingoSentinelMessageRoutesMod);
+console.log("[Sandblast][LingoSentinel] message_route_" + (lingoSentinelMessageRouteMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel",
+  messages: "/api/lingosentinel/messages",
+  health: "/api/lingosentinel/messages/health",
+  englishRelayOnly: LINGOSENTINEL_ENGLISH_RELAY_ONLY,
+  version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION,
+  router: !!lingoSentinelMessageRouteMounted
 });
 
 function hasLingoSentinelAblyKeyConfigured() {
