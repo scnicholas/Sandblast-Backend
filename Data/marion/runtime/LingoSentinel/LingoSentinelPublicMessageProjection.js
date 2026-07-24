@@ -1,70 +1,9 @@
 'use strict';
-
-const MessagePolicy = require('./LingoSentinelMessagePolicy');
-
-const VERSION = 'nyx.lingosentinel.publicMessageProjection/5.0-whitelist';
-const BLOCKED_KEY = /(?:token|secret|password|authorization|cookie|api[_-]?key|private|sessionId|membershipCredential|credentialHash|governance|telemetry|capability|providerDiagnostics)/i;
-
-function project(envelope = {}) {
-  return {
-    contract: MessagePolicy.CONTRACT,
-    messageId: String(envelope.messageId || ''),
-    clientRequestId: String(envelope.clientRequestId || ''),
-    roomId: String(envelope.roomId || ''),
-    mode: String(envelope.mode || 'group_room'),
-    type: MessagePolicy.MESSAGE_TYPE,
-    eventType: MessagePolicy.EVENT_TYPE,
-    sequence: Number(envelope.sequence) || 0,
-    sender: {
-      clientId: String(envelope.sender && envelope.sender.clientId || ''),
-      displayName: String(envelope.sender && envelope.sender.displayName || 'Participant'),
-      role: envelope.sender && envelope.sender.role === 'creator' ? 'creator' : 'participant'
-    },
-    sourceLanguage: 'en',
-    targetLanguage: 'en',
-    originalText: String(envelope.originalText == null ? '' : envelope.originalText),
-    displayText: String(envelope.displayText == null ? '' : envelope.displayText),
-    translation: { status: 'bypassed', required: false, source: 'en', target: 'en' },
-    createdAt: String(envelope.createdAt || ''),
-    publishedAt: envelope.publishedAt ? String(envelope.publishedAt) : null,
-    version: 1
-  };
-}
-
-function findPrivateField(value, path = '') {
-  if (!value || typeof value !== 'object') return '';
-  for (const [key, child] of Object.entries(value)) {
-    const next = path ? `${path}.${key}` : key;
-    if (BLOCKED_KEY.test(key)) return next;
-    const nested = findPrivateField(child, next);
-    if (nested) return nested;
-  }
-  return '';
-}
-
-function validateProjection(value = {}) {
-  const errors = [];
-  const privateField = findPrivateField(value);
-  if (privateField) errors.push({ code: 'PRIVATE_FIELD_IN_PUBLIC_MESSAGE', field: privateField });
-  if (value.contract !== MessagePolicy.CONTRACT) errors.push({ code: 'MESSAGE_CONTRACT_INVALID', field: 'contract' });
-  if (value.eventType !== MessagePolicy.EVENT_TYPE) errors.push({ code: 'MESSAGE_EVENT_INVALID', field: 'eventType' });
-  if (!value.messageId) errors.push({ code: 'MESSAGE_ID_REQUIRED', field: 'messageId' });
-  if (!value.roomId) errors.push({ code: 'ROOM_ID_REQUIRED', field: 'roomId' });
-  if (!value.sender || !value.sender.clientId) errors.push({ code: 'SENDER_REQUIRED', field: 'sender' });
-  if (typeof value.originalText !== 'string' || typeof value.displayText !== 'string') errors.push({ code: 'MESSAGE_TEXT_INVALID', field: 'displayText' });
-  return { ok: errors.length === 0, errors };
-}
-
-function getHealth() {
-  return {
-    ok: true,
-    service: 'LingoSentinelPublicMessageProjection',
-    version: VERSION,
-    whitelistOnly: true,
-    sessionIdsExposed: false,
-    credentialsExposed: false,
-    providerDiagnosticsExposed: false
-  };
-}
-
-module.exports = Object.freeze({ VERSION, BLOCKED_KEY, project, findPrivateField, validateProjection, getHealth });
+const MessagePolicy=require('./LingoSentinelMessagePolicy');
+const VERSION='nyx.lingosentinel.publicMessageProjection/10.0-live-recovery-whitelist';
+const BLOCKED_KEY=/(?:token|secret|password|authorization|cookie|api[_-]?key|private|sessionId|membershipCredential|credentialHash|governance|telemetry|capability|providerDiagnostics|deliveryRecipients)/i;
+function project(e={}){return{contract:MessagePolicy.CONTRACT,messageId:String(e.messageId||''),clientRequestId:String(e.clientRequestId||''),roomId:String(e.roomId||''),mode:String(e.mode||'group_room'),type:MessagePolicy.MESSAGE_TYPE,eventType:MessagePolicy.EVENT_TYPE,sequence:Number(e.sequence)||0,sender:{clientId:String(e.sender&&e.sender.clientId||''),displayName:String(e.sender&&e.sender.displayName||'Participant'),role:e.sender&&e.sender.role==='creator'?'creator':'participant'},sourceLanguage:'en',targetLanguage:'en',originalText:String(e.originalText==null?'':e.originalText),displayText:String(e.displayText==null?'':e.displayText),translation:{status:'bypassed',required:false,source:'en',target:'en'},createdAt:String(e.createdAt||''),publishedAt:e.publishedAt?String(e.publishedAt):null,version:1};}
+function findPrivateField(v,path=''){if(!v||typeof v!=='object')return'';for(const[k,c]of Object.entries(v)){const next=path?`${path}.${k}`:k;if(BLOCKED_KEY.test(k))return next;const nested=findPrivateField(c,next);if(nested)return nested;}return'';}
+function validateProjection(v={}){const errors=[];const privateField=findPrivateField(v);if(privateField)errors.push({code:'PRIVATE_FIELD_REJECTED',field:privateField});if(v.contract!==MessagePolicy.CONTRACT)errors.push({code:'MESSAGE_CONTRACT_INVALID'});if(v.eventType!==MessagePolicy.EVENT_TYPE)errors.push({code:'MESSAGE_EVENT_INVALID'});if(!v.messageId||!v.roomId||!v.sender||!v.sender.clientId)errors.push({code:'MESSAGE_IDENTITY_INVALID'});if(!Number.isSafeInteger(v.sequence)||v.sequence<1)errors.push({code:'MESSAGE_SEQUENCE_INVALID'});if(v.originalText!==v.displayText)errors.push({code:'ENGLISH_TEXT_DRIFT'});if(!v.publishedAt)errors.push({code:'MESSAGE_NOT_PUBLISHED'});return{ok:errors.length===0,errors};}
+function getHealth(){return{ok:true,service:'LingoSentinelPublicMessageProjection',version:VERSION,whitelistProjection:true,liveRecoverySameProjection:true,privateFieldsBlocked:true};}
+module.exports=Object.freeze({VERSION,BLOCKED_KEY,project,findPrivateField,validateProjection,getHealth});
