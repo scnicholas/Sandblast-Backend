@@ -1,0 +1,33 @@
+'use strict';
+const assert=require('assert');const path=require('path');const root=path.resolve(__dirname,'..','..');const runtime=path.join(root,'Data','marion','runtime','LingoSentinel');const mod=n=>require(path.join(runtime,n));
+const RoomRegistry=mod('LingoSentinelRoomRegistry');const ConnectionState=mod('LingoSentinelConnectionState');const PublisherModule=mod('LingoSentinelMessagePublisher');const MessageStore=mod('LingoSentinelMessageStore');const MessageState=mod('LingoSentinelMessageState');const DeliveryPolicy=mod('LingoSentinelDeliveryPolicy');const DeliveryRegistry=mod('LingoSentinelDeliveryRegistry');const Recovery=mod('LingoSentinelConversationRecovery');const OrderingBuffer=mod('LingoSentinelOrderingBuffer').OrderingBuffer;const TokenPolicy=mod('LingoSentinelTokenPolicy');const RuntimeHealth=mod('LingoSentinelRuntimeHealth');const Retention=mod('LingoSentinelRetentionManager');const Persistence=mod('LingoSentinelPersistenceAdapter');
+let passed=0;async function check(name,fn){try{await fn();passed++;console.log('PASS',name);}catch(e){console.error('FAIL',name,e.stack||e);throw e;}}
+function connect(identity){ConnectionState.register({...identity,roomId:'lingosentinel-main'});ConnectionState.update(identity.sessionId,'connecting');ConnectionState.update(identity.sessionId,'connected');}
+(async()=>{
+ RoomRegistry.reset();ConnectionState.reset();PublisherModule.reset();
+ const alice={clientId:'lsu_alice_8101',sessionId:'lss_alice_8101',displayName:'Alice'},bob={clientId:'lsu_bob_810002',sessionId:'lss_bob_810002',displayName:'Bob'};
+ const ja=RoomRegistry.join('lingosentinel-main',alice),jb=RoomRegistry.join('lingosentinel-main',bob);const ac={...alice,membershipCredential:ja.membershipCredential},bc={...bob,membershipCredential:jb.membershipCredential};connect(alice);connect(bob);
+ let calls=0;const accepted={async publishMessage(){calls++;return{ok:true,publishedAt:new Date().toISOString()};}};const Publisher=PublisherModule.LingoSentinelMessagePublisher;const publisher=new Publisher({realtimeBridge:accepted});
+ const r1=await publisher.publish({clientRequestId:'lsreq_810_1',roomId:'lingosentinel-main',mode:'group_room',type:'text',text:'First',sourceLanguage:'en',targetLanguage:'en'},ac);
+ await check('published message is persisted and stateful',()=>{assert.equal(r1.ok,true);const m=MessageStore.getById(r1.messageId);assert.equal(m.displayText,'First');assert.equal(MessageState.get(r1.messageId).state,'published');});
+ const replay=await publisher.publish({clientRequestId:'lsreq_810_1',roomId:'lingosentinel-main',mode:'group_room',type:'text',text:'First',sourceLanguage:'en',targetLanguage:'en'},ac);
+ await check('idempotent retry returns original publication',()=>{assert.equal(replay.idempotentReplay,true);assert.equal(replay.messageId,r1.messageId);assert.equal(calls,1);});
+ const conflict=await publisher.publish({clientRequestId:'lsreq_810_1',roomId:'lingosentinel-main',mode:'group_room',type:'text',text:'Changed',sourceLanguage:'en',targetLanguage:'en'},ac);
+ await check('idempotency key conflict is blocked',()=>{assert.equal(conflict.ok,false);assert.equal(conflict.errors[0].code,'IDEMPOTENCY_KEY_CONFLICT');});
+ const failedPublisher=new Publisher({realtimeBridge:{async publishMessage(){const e=new Error('offline');e.code='PROVIDER_OFFLINE';throw e;}}});
+ const failed=await failedPublisher.publish({clientRequestId:'lsreq_810_fail',roomId:'lingosentinel-main',mode:'group_room',type:'text',text:'Will fail',sourceLanguage:'en',targetLanguage:'en'},ac);
+ const r2=await publisher.publish({clientRequestId:'lsreq_810_2',roomId:'lingosentinel-main',mode:'group_room',type:'text',text:'Second',sourceLanguage:'en',targetLanguage:'en'},ac);
+ await check('failed provider publication does not consume room sequence',()=>{assert.equal(failed.ok,false);assert.equal(r2.sequence,2);});
+ const message=MessageStore.getById(r1.messageId);const bobAuth=RoomRegistry.authorize(message.roomId,bc,'read');
+ await check('recipient delivery receipt is policy-valid',()=>{assert.equal(bobAuth.ok,true);assert.equal(DeliveryPolicy.validate(message,bobAuth.membership,'delivered').ok,true);});
+ const receipt=DeliveryRegistry.record(message,bobAuth.membership,'delivered');
+ await check('delivery receipt advances sender state once',()=>{assert.equal(receipt.ok,true);assert.equal(receipt.state.state,'delivered');assert.equal(MessageState.get(message.messageId).state,'delivered');const dupe=DeliveryRegistry.record(message,bobAuth.membership,'delivered');assert.equal(dupe.duplicate,true);});
+ await check('sender cannot acknowledge own message',()=>{const a=RoomRegistry.authorize(message.roomId,ac,'read');const p=DeliveryPolicy.validate(message,a.membership,'delivered');assert.equal(p.ok,false);assert.ok(p.errors.some(e=>e.code==='SELF_DELIVERY_RECEIPT_REJECTED'));});
+ await check('recovery returns continuous canonical history',()=>{const out=Recovery.recover('lingosentinel-main',{afterSequence:0,limit:50});assert.equal(out.ok,true);assert.equal(out.messages.length,2);assert.deepEqual(out.messages.map(m=>m.sequence),[1,2]);assert.equal(out.complete,true);});
+ await check('recent recovery is bounded',()=>{const out=Recovery.recent('lingosentinel-main',{limit:1});assert.equal(out.messages.length,1);assert.equal(out.messages[0].sequence,2);});
+ await check('ordering buffer releases out-of-order messages in order',()=>{const b=new OrderingBuffer({startSequence:1});const two=b.push({sequence:2});assert.equal(two.released.length,0);const one=b.push({sequence:1});assert.deepEqual(one.released.map(x=>x.sequence),[1,2]);});
+ await check('token capability exposes only room and own state lane',()=>{const channel=TokenPolicy.channelForMode('group_room','lingosentinel-main');const cap=TokenPolicy.buildCapability(channel,alice.clientId);assert.deepEqual(Object.keys(cap).sort(),[channel,channel+':client:'+alice.clientId].sort());Object.values(cap).forEach(actions=>assert.equal(actions.includes('publish'),false));});
+ await check('runtime health recognizes Layers 8-10',()=>{const h=RuntimeHealth.buildRuntimeHealth({rootDir:root});assert.equal(h.layers8to10Ready,true);assert.equal(h.layersCompleted,10);});
+ await check('retention manager prunes expired messages',()=>{const old=MessageStore.getById(r1.messageId);Persistence.replaceMessage({...old,publishedAt:'2020-01-01T00:00:00.000Z'});const result=Retention.runOnce(Date.now());assert.ok(result.removed>=1);assert.equal(MessageStore.getById(r1.messageId),null);});
+ console.log(JSON.stringify({ok:true,passed,suite:'LingoSentinel Layers 8-10 functional validation'},null,2));
+})().catch(e=>{console.error(e.stack||e);process.exit(1);});
