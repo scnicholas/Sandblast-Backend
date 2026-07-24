@@ -2,8 +2,10 @@
 
 const RoomPolicy = require('./LingoSentinelRoomPolicy');
 const Membership = require('./LingoSentinelRoomMembership');
+const MessageSequence = require('./LingoSentinelMessageSequence');
+const RecoveryPolicy = require('./LingoSentinelRecoveryPolicy');
 
-const VERSION = 'nyx.lingosentinel.roomRegistry/5.0-credential-sequence';
+const VERSION = 'nyx.lingosentinel.roomRegistry/10.0-retention-sequence-cohesion';
 
 function nowIso() { return new Date().toISOString(); }
 function cloneRoom(room, membershipStore = Membership) {
@@ -21,7 +23,8 @@ function cloneRoom(room, membershipStore = Membership) {
     createdAt: room.createdAt,
     updatedAt: room.updatedAt,
     expiresAt: room.expiresAt,
-    lastSequence: room.sequence || 0
+    lastSequence: MessageSequence.current(room.roomId),
+    retentionMs: room.retentionMs || RecoveryPolicy.RETENTION_MS
   };
 }
 
@@ -49,7 +52,8 @@ class LingoSentinelRoomRegistryStore {
       expiresAt: null,
       systemSeeded: true,
       invitedClientIds: [],
-      sequence: 0
+      sequence: 0,
+      retentionMs: RecoveryPolicy.RETENTION_MS
     });
   }
 
@@ -75,7 +79,8 @@ class LingoSentinelRoomRegistryStore {
       expiresAt: new Date(Date.now() + roomInput.ttlMs).toISOString(),
       systemSeeded: false,
       invitedClientIds: roomInput.invitedClientIds.slice(),
-      sequence: 0
+      sequence: 0,
+      retentionMs: RecoveryPolicy.RETENTION_MS
     };
     this.rooms.set(room.roomId, room);
     const joined = this.memberships.join(room.roomId, identityValidation.normalized, { role: 'creator' });
@@ -131,10 +136,12 @@ class LingoSentinelRoomRegistryStore {
     const id = RoomPolicy.sanitizeIdentifier(roomId, '', 96);
     const room = this.rooms.get(id);
     if (!room || room.status !== 'active') return { ok: false, errors: [{ code: 'ROOM_NOT_ACTIVE', field: 'roomId' }] };
-    room.sequence = Number.isSafeInteger(room.sequence) ? room.sequence + 1 : 1;
+    const sequence = MessageSequence.candidate(id);
+    const committed = MessageSequence.commit(id, sequence);
+    if (!committed.ok) return { ok: false, errors: [{ code: committed.error, field: 'sequence' }] };
     room.updatedAt = nowIso();
     this.rooms.set(id, room);
-    return { ok: true, roomId: id, sequence: room.sequence };
+    return { ok: true, roomId: id, sequence, deprecatedDirectSequencePath: true };
   }
 
   listParticipants(roomId) {
@@ -183,6 +190,8 @@ class LingoSentinelRoomRegistryStore {
       crossRoomIsolation: true,
       membershipCredentialRequired: true,
       serverAssignedRoomSequence: true,
+      sequenceAuthority: MessageSequence.getHealth(),
+      recoveryRetentionMs: RecoveryPolicy.RETENTION_MS,
       serverVerifiedInvitations: true,
       multiInstanceReady: false,
       storageBoundary: 'single_process_in_memory'
