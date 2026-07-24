@@ -71,7 +71,7 @@
   function createWidgetBridge(options) {
     const baseOptions = options && typeof options === "object" ? options : {};
     return Object.freeze({
-      version: "lingosentinel.widgetTranslationBridge/9B-layers1-4",
+      version: "lingosentinel.widgetTranslationBridge/10B-layers1-7",
       translate(input, callOptions) { return translateFromWidget(input, { ...baseOptions, ...(callOptions || {}) }); },
       requestRealtimeToken(input, callOptions) { return requestRealtimeToken(input, { ...baseOptions, ...(callOptions || {}) }); },
       connectRealtime(input, callOptions) { return connectRealtime(input, { ...baseOptions, ...(callOptions || {}) }); },
@@ -82,7 +82,7 @@
     });
   }
   const bridge = Object.freeze({
-    version: "lingosentinel.widgetTranslationBridge/9B-layers1-4",
+    version: "lingosentinel.widgetTranslationBridge/10B-layers1-7",
     createWidgetBridge,
     translateFromWidget,
     requestRealtimeToken,
