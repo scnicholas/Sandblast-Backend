@@ -16,7 +16,7 @@
 
 const crypto = require('crypto');
 
-const POLICY_VERSION = 'nyx.lingosentinel.tokenPolicy/3.0-layer3-room-membership';
+const POLICY_VERSION = 'nyx.lingosentinel.tokenPolicy/6.0-subscription-only';
 const IDENTITY_CONTRACT = 'lingosentinel.clientIdentity/1.0';
 const CHANNEL_NAMESPACE = 'lingosentinel';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
@@ -27,6 +27,8 @@ const MIN_TTL_MS = 60 * 1000;
 const MAX_ROOM_ID_LENGTH = 96;
 const MAX_CLIENT_ID_LENGTH = 80;
 const MAX_DISPLAY_NAME_LENGTH = 80;
+const ENGLISH_RELAY_ONLY = String(process.env.LINGOSENTINEL_ENGLISH_RELAY_ONLY || 'true').toLowerCase() !== 'false';
+const ENGLISH_RELAY_MODES = Object.freeze(['one_to_one', 'group_room']);
 
 const VALID_MODES = Object.freeze([
   'one_to_one',
@@ -166,9 +168,9 @@ function buildCapability(channel) {
   }
 
   return {
-    [cleanChannel]: ['publish', 'subscribe', 'presence'],
-    [`${cleanChannel}:receipt`]: ['publish', 'subscribe'],
-    [`${cleanChannel}:client`]: ['publish', 'subscribe']
+    [cleanChannel]: ['subscribe', 'presence'],
+    [`${cleanChannel}:receipt`]: ['subscribe'],
+    [`${cleanChannel}:client`]: ['subscribe']
   };
 }
 
@@ -204,6 +206,7 @@ function validateTokenInput(input = {}) {
   const clientId = sanitizeClientId(input.clientId);
 
   if (!VALID_MODES.includes(mode)) errors.push(`Invalid LingoSentinel mode: ${safeString(input.mode || 'missing')}.`);
+  if (ENGLISH_RELAY_ONLY && !ENGLISH_RELAY_MODES.includes(mode)) errors.push('Only one_to_one and group_room modes are enabled during English relay certification.');
   if (!roomId) errors.push('roomId is required.');
   if (!clientId) errors.push('clientId is required.');
   if (!sanitizeIdentifier(input.sessionId, '', 96) || sanitizeIdentifier(input.sessionId, '', 96).length < 8) errors.push('sessionId must contain at least 8 characters.');
@@ -250,12 +253,15 @@ function getPolicyHealth() {
     version: POLICY_VERSION,
     identityContract: IDENTITY_CONTRACT,
     channelNamespace: CHANNEL_NAMESPACE,
-    supportedModes: VALID_MODES.slice(),
+    supportedModes: (ENGLISH_RELAY_ONLY ? ENGLISH_RELAY_MODES : VALID_MODES).slice(),
+    englishRelayOnly: ENGLISH_RELAY_ONLY,
     defaultTtlMs: DEFAULT_TTL_MS,
     maxTtlMs: MAX_TTL_MS,
     sharedDefaultClientIdDisabled: true,
     uniqueFallbackIdentityEnabled: true,
     publicTelemetryPublishAllowed: false,
+    publicRoomPublishAllowed: false,
+    backendMessagePublishAuthority: true,
     marionIdentitySpoofingBlocked: true,
     capabilityScope: 'single_room_only',
     activeRoomMembershipRequired: true,
@@ -273,6 +279,8 @@ module.exports = Object.freeze({
   MAX_TTL_MS,
   MIN_TTL_MS,
   VALID_MODES,
+  ENGLISH_RELAY_MODES,
+  ENGLISH_RELAY_ONLY,
   MODE_ALIASES,
   safeString,
   normalizeMode,
