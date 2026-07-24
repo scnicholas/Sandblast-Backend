@@ -10,9 +10,10 @@
 const express = require('express');
 const TokenPolicy = require('./LingoSentinelTokenPolicy');
 const RoomRegistry = require('./LingoSentinelRoomRegistry');
+const MembershipCredential = require('./LingoSentinelMembershipCredential');
 
 const router = express.Router();
-const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/3.0-room-membership-authority';
+const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/6.0-subscription-only-credential';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
 const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.subscribeTokenRoute.liveAblyRoundtrip/2.0';
@@ -169,11 +170,8 @@ router.post('/token', async (req, res) => {
     }
 
     const input = validation.normalized;
-    let roomAuthorization = RoomRegistry.authorize(input.roomId, input, 'subscribe');
-    if (!roomAuthorization.ok && input.autoJoin === true) {
-      const joined = RoomRegistry.join(input.roomId, input, { invited: req.body && req.body.invited === true });
-      if (joined.ok) roomAuthorization = RoomRegistry.authorize(input.roomId, input, 'subscribe');
-    }
+    const membershipCredential = MembershipCredential.readCredential(req);
+    const roomAuthorization = RoomRegistry.authorize(input.roomId, { ...input, membershipCredential }, 'subscribe');
     if (!roomAuthorization.ok) {
       return res.status(403).json({
         ok: false,
@@ -202,6 +200,8 @@ router.post('/token', async (req, res) => {
       phase2eLiveRoundtrip: { ...buildPhase2ETokenReadiness(input.mode, input.roomId), tokenCreated: true },
       clientSubscribeReady: true,
       capability: result.capability,
+      publicRoomPublishAllowed: false,
+      backendMessagePublishAuthority: true,
       channelNamespace: TokenPolicy.CHANNEL_NAMESPACE,
       phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
       phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
@@ -209,7 +209,7 @@ router.post('/token', async (req, res) => {
       roomId: input.roomId,
       clientId: input.clientId,
       identity,
-      roomAuthorization: { ok: true, action: 'subscribe', roomId: input.roomId },
+      roomAuthorization: { ok: true, action: 'subscribe', roomId: input.roomId, credentialVerified: true },
       identitySource: input.identitySource,
       ttlMs: input.ttl,
       policyVersion: TokenPolicy.POLICY_VERSION,
@@ -250,7 +250,10 @@ router.get('/token/health', (req, res) => {
     version: ROUTE_VERSION,
     policy: TokenPolicy.getPolicyHealth(),
     roomRegistry: RoomRegistry.getHealth(),
-    supportedModes: TokenPolicy.VALID_MODES,
+    supportedModes: TokenPolicy.ENGLISH_RELAY_ONLY ? TokenPolicy.ENGLISH_RELAY_MODES : TokenPolicy.VALID_MODES,
+    publicRoomPublishAllowed: false,
+    backendMessagePublishAuthority: true,
+    membershipCredentialRequired: true,
     boundary: phase2bBoundary(),
     publicUsersMayAddressMarion: false,
     marionVisibleParticipant: false,
