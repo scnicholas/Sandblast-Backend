@@ -1,0 +1,21 @@
+'use strict';
+const assert = require('assert');
+const path = require('path');
+const root = path.resolve(__dirname, '..', '..');
+const rt = path.join(root, 'Data', 'marion', 'runtime', 'LingoSentinel');
+const RoomPolicy = require(path.join(rt, 'LingoSentinelRoomPolicy'));
+const RoomRegistry = require(path.join(rt, 'LingoSentinelRoomRegistry'));
+const Reconnect = require(path.join(rt, 'LingoSentinelReconnectPolicy'));
+const TokenPolicy = require(path.join(rt, 'LingoSentinelTokenPolicy'));
+const Gateway = require(path.join(rt, 'LingoSentinelLinkGateway'));
+let passed = 0;
+function test(name, fn) { fn(); passed += 1; console.log('PASS', name); }
+RoomRegistry.reset();
+test('Layer 1-2 identity contract retained', function () { assert.equal(TokenPolicy.IDENTITY_CONTRACT, 'lingosentinel.clientIdentity/1.0'); assert.equal(TokenPolicy.getPolicyHealth().sharedDefaultClientIdDisabled, true); });
+test('Layer 3 room types remain English relay scoped', function () { assert.deepEqual(RoomPolicy.ROOM_TYPES, ['one_to_one','group_room']); });
+test('Layer 3 default room remains seeded', function () { assert.equal(RoomRegistry.get('lingosentinel-main').status, 'active'); });
+test('Layer 4 reconnect remains bounded', function () { assert.equal(Reconnect.decision(99, {}).retry, false); assert.equal(Reconnect.isRetryable({ status: 403 }), false); });
+test('Gateway preserves Marion silent boundary', function () { const c = Gateway.getGatewayContract(); assert.equal(c.boundaries.marionVisibleParticipant, false); assert.equal(c.boundaries.performsTranslation, false); });
+test('Canonical namespace remains stable', function () { assert.equal(TokenPolicy.channelForMode('group_room','abc'), 'lingosentinel:room:abc'); });
+test('Translation token mode stays disabled during English certification', function () { const v = TokenPolicy.validateTokenInput({ mode: 'live_translate', roomId: 'lingosentinel-main', clientId: 'lsu_test_0001', sessionId: 'lss_test_0001', displayName: 'Tester', ttl: TokenPolicy.DEFAULT_TTL_MS }); assert.equal(v.ok, false); });
+console.log(JSON.stringify({ ok: true, passed, suite: 'LingoSentinel Layers 1-7 regression' }, null, 2));
