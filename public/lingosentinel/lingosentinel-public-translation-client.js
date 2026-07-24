@@ -2,7 +2,7 @@
 
 /**
  * public/lingosentinel/lingosentinel-public-translation-client.js
- * Layer 1-2 critical update:
+ * Layers 1-7 public identity and token client:
  * - Preserves the existing public translation contract.
  * - Adds stable browser identity and per-tab session identity.
  * - Adds public Ably token acquisition through /api/lingosentinel/token.
@@ -200,7 +200,12 @@
 
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-request-id": requestId },
+      headers: Object.assign(
+        { "Content-Type": "application/json", "x-request-id": requestId },
+        cleanString(payload.membershipCredential || opts.membershipCredential)
+          ? { "x-lingosentinel-membership": cleanString(payload.membershipCredential || opts.membershipCredential) }
+          : {}
+      ),
       body: JSON.stringify({
         mode: cleanString(payload.mode || "group_room"),
         roomId: cleanString(payload.roomId || payload.channelId || payload.conversationId || "lingosentinel-main"),
@@ -219,7 +224,7 @@
       return {
         requestId,
         ok: false,
-        error: cleanString(data && ((data.errors && data.errors[0]) || data.error) || "LINGOSENTINEL_TOKEN_FAILED"),
+        error: cleanString(data && ((data.errors && data.errors[0] && (data.errors[0].code || data.errors[0])) || data.error) || "LINGOSENTINEL_TOKEN_FAILED"),
         status: response.status,
         identity: { ...identity, sessionId },
         publicBoundary: true,
@@ -244,7 +249,7 @@
   }
 
   const client = Object.freeze({
-    version: "lingosentinel.frontendPublicClient/9A-layers1-4",
+    version: "lingosentinel.frontendPublicClient/10A-layers1-7",
     endpoint: DEFAULT_TRANSLATION_ENDPOINT,
     translationEndpoint: DEFAULT_TRANSLATION_ENDPOINT,
     tokenEndpoint: DEFAULT_TOKEN_ENDPOINT,
