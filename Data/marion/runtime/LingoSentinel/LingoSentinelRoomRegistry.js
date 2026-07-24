@@ -1,20 +1,11 @@
 'use strict';
 
-/**
- * LingoSentinelRoomRegistry
- * ------------------------------------------------------------
- * Layer 3 authoritative room registry.
- * Stores only operational room metadata and delegates session membership to
- * LingoSentinelRoomMembership.
- */
-
 const RoomPolicy = require('./LingoSentinelRoomPolicy');
 const Membership = require('./LingoSentinelRoomMembership');
 
-const VERSION = 'nyx.lingosentinel.roomRegistry/3.0-controlled-rooms';
+const VERSION = 'nyx.lingosentinel.roomRegistry/5.0-credential-sequence';
 
 function nowIso() { return new Date().toISOString(); }
-
 function cloneRoom(room, membershipStore = Membership) {
   if (!room) return null;
   return {
@@ -29,7 +20,8 @@ function cloneRoom(room, membershipStore = Membership) {
     status: room.status,
     createdAt: room.createdAt,
     updatedAt: room.updatedAt,
-    expiresAt: room.expiresAt
+    expiresAt: room.expiresAt,
+    lastSequence: room.sequence || 0
   };
 }
 
@@ -56,7 +48,8 @@ class LingoSentinelRoomRegistryStore {
       updatedAt: timestamp,
       expiresAt: null,
       systemSeeded: true,
-      invitedClientIds: []
+      invitedClientIds: [],
+      sequence: 0
     });
   }
 
@@ -81,15 +74,13 @@ class LingoSentinelRoomRegistryStore {
       updatedAt: timestamp,
       expiresAt: new Date(Date.now() + roomInput.ttlMs).toISOString(),
       systemSeeded: false,
-      invitedClientIds: roomInput.invitedClientIds.slice()
+      invitedClientIds: roomInput.invitedClientIds.slice(),
+      sequence: 0
     };
     this.rooms.set(room.roomId, room);
     const joined = this.memberships.join(room.roomId, identityValidation.normalized, { role: 'creator' });
-    if (!joined.ok) {
-      this.rooms.delete(room.roomId);
-      return joined;
-    }
-    return { ok: true, room: cloneRoom(room, this.memberships), membership: joined.membership };
+    if (!joined.ok) { this.rooms.delete(room.roomId); return joined; }
+    return { ok: true, room: cloneRoom(room, this.memberships), ...joined };
   }
 
   get(roomId) {
@@ -100,7 +91,7 @@ class LingoSentinelRoomRegistryStore {
 
   exists(roomId) { return !!this.get(roomId); }
 
-  join(roomId, identity = {}, options = {}) {
+  join(roomId, identity = {}) {
     this.cleanup();
     const id = RoomPolicy.sanitizeIdentifier(roomId, '', 96);
     const room = this.rooms.get(id);
@@ -113,9 +104,7 @@ class LingoSentinelRoomRegistryStore {
       isCreator: room.createdBy === joiningClientId
     });
     if (!permission.ok) return { ok: false, errors: permission.errors, code: 'ROOM_JOIN_REJECTED' };
-    const result = this.memberships.join(id, permission.identity, {
-      role: room.createdBy === permission.identity.clientId ? 'creator' : 'participant'
-    });
+    const result = this.memberships.join(id, permission.identity, { role: room.createdBy === permission.identity.clientId ? 'creator' : 'participant' });
     room.updatedAt = nowIso();
     this.rooms.set(id, room);
     return { ...result, room: cloneRoom(room, this.memberships) };
@@ -134,8 +123,18 @@ class LingoSentinelRoomRegistryStore {
   authorize(roomId, identity = {}, action = 'subscribe') {
     const id = RoomPolicy.sanitizeIdentifier(roomId, '', 96);
     const room = this.get(id);
-    if (!room || room.status !== 'active') return { ok: false, error: 'room_not_active', roomId: id, action };
+    if (!room || room.status !== 'active') return { ok: false, error: 'room_not_active', code: 'ROOM_NOT_ACTIVE', roomId: id, action };
     return this.memberships.authorize(id, identity, action);
+  }
+
+  nextSequence(roomId) {
+    const id = RoomPolicy.sanitizeIdentifier(roomId, '', 96);
+    const room = this.rooms.get(id);
+    if (!room || room.status !== 'active') return { ok: false, errors: [{ code: 'ROOM_NOT_ACTIVE', field: 'roomId' }] };
+    room.sequence = Number.isSafeInteger(room.sequence) ? room.sequence + 1 : 1;
+    room.updatedAt = nowIso();
+    this.rooms.set(id, room);
+    return { ok: true, roomId: id, sequence: room.sequence };
   }
 
   listParticipants(roomId) {
@@ -148,11 +147,10 @@ class LingoSentinelRoomRegistryStore {
     const id = RoomPolicy.sanitizeIdentifier(roomId, '', 96);
     const room = this.rooms.get(id);
     if (!room) return { ok: false, errors: ['Room was not found.'] };
-    const clientId = RoomPolicy.sanitizeIdentifier(identity.clientId || identity.id, '', 80);
-    if (room.systemSeeded || room.createdBy !== clientId) return { ok: false, errors: ['Only the room creator may close this room.'] };
-    room.status = 'closed';
-    room.updatedAt = nowIso();
-    this.rooms.set(id, room);
+    const authorization = this.authorize(id, identity, 'connection');
+    if (!authorization.ok) return { ok: false, errors: [authorization.error] };
+    if (room.systemSeeded || room.createdBy !== authorization.membership.clientId) return { ok: false, errors: ['Only the room creator may close this room.'] };
+    room.status = 'closed'; room.updatedAt = nowIso(); this.rooms.set(id, room);
     return { ok: true, room: cloneRoom(room, this.memberships) };
   }
 
@@ -162,20 +160,14 @@ class LingoSentinelRoomRegistryStore {
       if (room.systemSeeded || !room.expiresAt) continue;
       const expiry = Date.parse(room.expiresAt);
       if (Number.isFinite(expiry) && expiry <= now) {
-        this.rooms.delete(roomId);
-        this.memberships.removeRoom(roomId);
-        expiredRooms += 1;
+        this.rooms.delete(roomId); this.memberships.removeRoom(roomId); expiredRooms += 1;
       }
     }
     this.memberships.prune(now);
     return expiredRooms;
   }
 
-  reset(options = {}) {
-    this.rooms.clear();
-    this.memberships.reset();
-    this.seedDefaultRoom(options.seedDefaultRoom !== false);
-  }
+  reset(options = {}) { this.rooms.clear(); this.memberships.reset(); this.seedDefaultRoom(options.seedDefaultRoom !== false); }
 
   getHealth() {
     this.cleanup();
@@ -189,7 +181,8 @@ class LingoSentinelRoomRegistryStore {
       roomPolicy: RoomPolicy.getHealth(),
       membership: this.memberships.getHealth(),
       crossRoomIsolation: true,
-      membershipRequiredForToken: true,
+      membershipCredentialRequired: true,
+      serverAssignedRoomSequence: true,
       serverVerifiedInvitations: true,
       multiInstanceReady: false,
       storageBoundary: 'single_process_in_memory'
@@ -198,7 +191,6 @@ class LingoSentinelRoomRegistryStore {
 }
 
 const singleton = new LingoSentinelRoomRegistryStore();
-
 module.exports = singleton;
 module.exports.VERSION = VERSION;
 module.exports.LingoSentinelRoomRegistryStore = LingoSentinelRoomRegistryStore;
