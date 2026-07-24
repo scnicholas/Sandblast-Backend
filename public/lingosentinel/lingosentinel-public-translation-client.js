@@ -207,7 +207,8 @@
         clientId: identity.clientId,
         displayName: identity.displayName,
         sessionId,
-        ttlMs: Number(payload.ttlMs) > 0 ? Number(payload.ttlMs) : undefined
+        ttlMs: Number(payload.ttlMs) > 0 ? Number(payload.ttlMs) : undefined,
+        autoJoin: payload.autoJoin === true
       }),
       credentials: "omit",
       cache: "no-store"
@@ -237,12 +238,13 @@
       identity: data.identity && typeof data.identity === "object" ? data.identity : { ...identity, sessionId },
       policyVersion: cleanString(data.policyVersion),
       publicBoundary: true,
-      rootKeyExposed: false
+      rootKeyExposed: false,
+      roomMembershipRequired: true
     };
   }
 
   const client = Object.freeze({
-    version: "lingosentinel.frontendPublicClient/8A-layer1-layer2",
+    version: "lingosentinel.frontendPublicClient/9A-layers1-4",
     endpoint: DEFAULT_TRANSLATION_ENDPOINT,
     translationEndpoint: DEFAULT_TRANSLATION_ENDPOINT,
     tokenEndpoint: DEFAULT_TOKEN_ENDPOINT,
