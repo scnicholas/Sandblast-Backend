@@ -20,9 +20,10 @@
  */
 
 const crypto = require('crypto');
+const RoomRegistry = require('./LingoSentinelRoomRegistry');
 
 const GATEWAY_NAME = 'LingoSentinelLinkGateway';
-const GATEWAY_VERSION = '1.6.0-layer1-layer2-client-identity';
+const GATEWAY_VERSION = '1.7.0-layer3-room-membership';
 const IDENTITY_CONTRACT = 'lingosentinel.clientIdentity/1.0';
 const PHASE2A_CONTINUITY_VERSION = 'nyx.lingosentinel.linkGateway.enFrEsContinuity/2.0';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
@@ -415,6 +416,11 @@ function validateGatewayInput(input = {}) {
   if (text.length > MAX_TEXT_LENGTH) errors.push(`Message text exceeds ${MAX_TEXT_LENGTH} characters.`);
   if (!roomId) errors.push('roomId, conversationId, channelId, or sessionId is required.');
   if (!sender.id || sender.id === 'anonymous') errors.push('sender.id is required.');
+  if (!sender.sessionId) errors.push('sender.sessionId is required for room-scoped publishing.');
+  const roomAuthorization = input.roomAuthorization && input.roomAuthorization.ok === true
+    ? input.roomAuthorization
+    : RoomRegistry.authorize(roomId, { clientId: sender.clientId || sender.id, sessionId: sender.sessionId }, 'publish');
+  if (!roomAuthorization.ok) errors.push('Active room membership is required before publishing.');
   if (hasPublicMarionSpoofAttempt(input, { sender, recipient, roomId, mode })) {
     errors.push('Marion is private authority only and cannot be used as a public sender, recipient, speaker, agent, roster member, or channel identity.');
   }
@@ -437,7 +443,8 @@ function validateGatewayInput(input = {}) {
       sender,
       recipient,
       languagePair,
-      region: normalizeRegion(input.region || input.country || input.routeRegion)
+      region: normalizeRegion(input.region || input.country || input.routeRegion),
+      roomAuthorization
     }
   };
 }
@@ -475,7 +482,8 @@ function buildGovernance(input = {}, normalized = {}) {
       marionRenderedAsSpeaker: false,
       marionCanPublishToRoom: false,
       marionCanAppearInUserRoster: false,
-      visibleToUsers: false
+      visibleToUsers: false,
+      roomRegistryAuthority: 'LingoSentinelRoomRegistry'
     },
     userBoundary,
     publicUsersMayAddressMarion: false,
@@ -784,7 +792,8 @@ function getGatewayContract() {
       contract: IDENTITY_CONTRACT,
       stableClientIdSupported: true,
       perTabSessionIdSupported: true,
-      sharedDefaultIdentityAllowed: false
+      sharedDefaultIdentityAllowed: false,
+      activeRoomMembershipRequired: true
     },
     boundaries: {
       publishesRealtime: false,
