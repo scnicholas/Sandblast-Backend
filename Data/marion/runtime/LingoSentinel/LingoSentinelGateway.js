@@ -1,590 +1,284 @@
-"use strict";
+'use strict';
 
 /**
- * LingoSentinelGateway
+ * LingoSentinelLinkGateway
+ * ------------------------------------------------------------
+ * Marion authority gateway for LingoSentinel-to-LingoLink traffic.
  *
  * Purpose:
- * Central orchestration gateway for LingoSentinel Phase 1–6.
+ * - Keep LingoSentinel traffic aligned with Marion's routing discipline.
+ * - Normalize modes: 1:1 Chat, Group Room, Live Translate, Delivered.
+ * - Prepare clean, validated publish instructions for the realtime layer.
+ * - Keep Ably publishing isolated outside this gateway.
+ * - Preserve Marion authority and Nyx/LingoSentinel public-facing boundaries.
  *
- * Flow:
- * raw input
- * → normalize input
- * → detect language
- * → create translation advisory
- * → preserve glossary terms
- * → create unknown-language alert metadata
- * → carry dormant scanner heartbeat/scan metadata
- * → return one Marion-safe advisory package
- *
- * Authority Rule:
- * LingoSentinel never overrides Marion.
- * LingoSentinel only provides advisory metadata.
+ * Architectural boundary:
+ * - This file does NOT publish to Ably.
+ * - This file does NOT perform translation.
+ * - This file does NOT expose private form data, emails, tokens, or API keys.
+ * - Publishing belongs to LingoSentinelEngine.js or LingoSentinelRealtimeBridge.js.
  */
 
-let nodeCrypto = null;
-try {
-  nodeCrypto = require("crypto");
-} catch (_) {
-  nodeCrypto = null;
+const crypto = require('crypto');
+const RoomRegistry = require('./LingoSentinelRoomRegistry');
+
+const GATEWAY_NAME = 'LingoSentinelLinkGateway';
+const GATEWAY_VERSION = '1.8.0-layers5-7-credential-message';
+const IDENTITY_CONTRACT = 'lingosentinel.clientIdentity/1.0';
+const PHASE2A_CONTINUITY_VERSION = 'nyx.lingosentinel.linkGateway.enFrEsContinuity/2.0';
+const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
+const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
+const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.linkGateway.liveAblyRoundtrip/2.0';
+const CHANNEL_NAMESPACE = 'lingosentinel';
+const DEFAULT_ROOM_ID = 'lingosentinel-main';
+const DEFAULT_LANGUAGE = 'en';
+const DEFAULT_REGION = 'global';
+const MAX_TEXT_LENGTH = 4000;
+const MAX_FIELD_LENGTH = 160;
+const MAX_ROOM_ID_LENGTH = 96;
+const MAX_METADATA_KEYS = 24;
+
+const VALID_MODES = Object.freeze([
+  'one_to_one',
+  'group_room',
+  'live_translate',
+  'delivered'
+]);
+
+const MODE_ALIASES = Object.freeze({
+  one: 'one_to_one',
+  one_to_one: 'one_to_one',
+  oneToOne: 'one_to_one',
+  one_to_1: 'one_to_one',
+  direct: 'one_to_one',
+  dm: 'one_to_one',
+  private: 'one_to_one',
+  chat: 'one_to_one',
+
+  group: 'group_room',
+  group_room: 'group_room',
+  groupRoom: 'group_room',
+  room: 'group_room',
+  community: 'group_room',
+
+  live: 'live_translate',
+  live_translate: 'live_translate',
+  liveTranslate: 'live_translate',
+  translate: 'live_translate',
+  translation: 'live_translate',
+
+  delivered: 'delivered',
+  delivery: 'delivered',
+  receipt: 'delivered',
+  async: 'delivered',
+  handoff: 'delivered'
+});
+
+const CHANNEL_LANES = Object.freeze({
+  one_to_one: 'direct',
+  group_room: 'room',
+  live_translate: 'translation',
+  delivered: 'delivered'
+});
+
+const EVENT_TYPES = Object.freeze({
+  one_to_one: 'ONE_TO_ONE_MESSAGE_READY',
+  group_room: 'ROOM_MESSAGE_READY',
+  live_translate: 'TRANSLATION_MESSAGE_READY',
+  delivered: 'DELIVERED_MESSAGE_READY'
+});
+
+const GOVERNANCE_DECISIONS = Object.freeze({
+  allow: 'allow',
+  allowWithReview: 'allow_with_review',
+  reject: 'reject'
+});
+
+const RISK_LEVELS = Object.freeze({
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  unknown: 'unknown'
+});
+
+function nowIso() {
+  return new Date().toISOString();
 }
 
-const { normalizeInput } = require("./LingoSentinelNormalizer");
-const { detectLanguage } = require("./LingoSentinelLanguageDetect");
-const { adviseTranslation } = require("./LingoSentinelTranslationAdvisor");
-const {
-  preserveGlossaryTerms,
-  inspectGlossaryIntegrity
-} = require("./LingoSentinelGlossaryGuard");
-
-const unknownLanguageAlertMod = (() => {
-  try {
-    return require("./LingoSentinelUnknownLanguageAlert");
-  } catch (_) {
-    return null;
-  }
-})();
-
-const dormantScannerMod = (() => {
-  try {
-    return require("./LingoSentinelDormantScanner");
-  } catch (_) {
-    return null;
-  }
-})();
-
-const PHASE2A_CONTINUITY_VERSION = "nyx.lingosentinel.enFrEsContinuitySmoke/2.0";
-const PHASE2B_USER_BOUNDARY_VERSION = "nyx.lingosentinel.userBoundarySilentOversight/2.0";
-
-const DEFAULT_GATEWAY_CONFIG = {
-  enabled: true,
-  gateway: {
-    name: "LingoSentinel",
-    phase: "gateway-orchestration-alert-scanner-carry",
-    mode: "advisory",
-    version: "0.3.2-phase2b-user-boundary-hardlock"
-  },
-  supportedLanguages: ["en", "fr", "es"],
-  defaultLanguage: "en",
-  unknownLanguage: "unknown",
-  authority: {
-    finalAuthority: "Marion",
-    lingoSentinelAdvisoryOnly: true,
-    neverOverrideMarion: true
-  },
-  normalization: {
-    enabled: true,
-    preserveOriginalInput: true,
-    preserveAccents: true,
-    preserveLineBreaks: true
-  },
-  translation: {
-    enabled: true,
-    advisoryOnly: true,
-    forceTranslation: false
-  },
-  glossary: {
-    enabled: true,
-    advisoryOnly: true
-  },
-  alert: {
-    enabled: true,
-    alertOnUnknown: true,
-    alertOnUnsupported: true,
-    alertOnLowConfidence: true,
-    alertOnAmbiguous: true
-  },
-  dormantScanner: {
-    enabled: true,
-    mode: "event_driven",
-    dormant: true,
-    heartbeatIntervalMs: 60000,
-    staleAfterMs: 180000
-  },
-  telemetry: {
-    enabled: true,
-    includeLanguageCandidates: true,
-    includeNormalizationOperations: true,
-    includeGlossaryTerms: true,
-    includeAlert: true,
-    includeScanner: true,
-    includeCorrelation: true
-  }
-};
-
-function safeString(value) {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-
-  try {
-    return String(value);
-  } catch (_) {
-    return "";
-  }
+function createTraceId(prefix = 'lslg') {
+  return `${prefix}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
 }
 
-function safeObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : {};
+function isObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function safeArray(value) {
-  return Array.isArray(value) ? value : [];
+function safeString(value, fallback = '', maxLength = MAX_FIELD_LENGTH) {
+  if (value === null || value === undefined) return fallback;
+  const text = typeof value === 'string' ? value : String(value);
+  const trimmed = text.trim();
+  return (trimmed || fallback).slice(0, maxLength);
 }
 
-function cleanForHash(value) {
-  return safeString(value).replace(/\s+/g, " ").trim();
+function safeText(value, fallback = '') {
+  return safeString(value, fallback, MAX_TEXT_LENGTH);
 }
 
-function fallbackStableHash(value) {
-  const text = cleanForHash(value);
-  let hash = 2166136261;
+function normalizeToken(value, fallback = '') {
+  const raw = safeString(value, fallback, MAX_ROOM_ID_LENGTH);
+  const cleaned = raw
+    .replace(/[^a-zA-Z0-9:_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return `fnv_${(hash >>> 0).toString(16)}`;
+  return cleaned || fallback;
 }
 
-function stableHash(value, prefix = "ll") {
-  const text = cleanForHash(value);
-
-  try {
-    if (nodeCrypto && typeof nodeCrypto.createHash === "function") {
-      return `${prefix}_${nodeCrypto.createHash("sha256").update(text, "utf8").digest("hex").slice(0, 24)}`;
-    }
-  } catch (_) {}
-
-  return `${prefix}_${fallbackStableHash(text).replace(/^fnv_/, "")}`;
+function normalizeMode(mode) {
+  const raw = safeString(mode || 'one_to_one', 'one_to_one');
+  return MODE_ALIASES[raw] || null;
 }
 
-function mergeGatewayConfig(config) {
-  const incoming = safeObject(config);
-
-  return {
-    ...DEFAULT_GATEWAY_CONFIG,
-    ...incoming,
-    gateway: {
-      ...DEFAULT_GATEWAY_CONFIG.gateway,
-      ...safeObject(incoming.gateway)
-    },
-    authority: {
-      ...DEFAULT_GATEWAY_CONFIG.authority,
-      ...safeObject(incoming.authority),
-      finalAuthority: "Marion",
-      lingoSentinelAdvisoryOnly: true,
-      neverOverrideMarion: true
-    },
-    normalization: {
-      ...DEFAULT_GATEWAY_CONFIG.normalization,
-      ...safeObject(incoming.normalization)
-    },
-    translation: {
-      ...DEFAULT_GATEWAY_CONFIG.translation,
-      ...safeObject(incoming.translation),
-      advisoryOnly: true,
-      forceTranslation: false
-    },
-    glossary: {
-      ...DEFAULT_GATEWAY_CONFIG.glossary,
-      ...safeObject(incoming.glossary),
-      advisoryOnly: true
-    },
-    alert: {
-      ...DEFAULT_GATEWAY_CONFIG.alert,
-      ...safeObject(incoming.alert)
-    },
-    dormantScanner: {
-      ...DEFAULT_GATEWAY_CONFIG.dormantScanner,
-      ...safeObject(incoming.dormantScanner)
-    },
-    telemetry: {
-      ...DEFAULT_GATEWAY_CONFIG.telemetry,
-      ...safeObject(incoming.telemetry)
-    }
-  };
-}
-
-function extractInput(payload) {
-  if (typeof payload === "string") return payload;
-
-  const safePayload = safeObject(payload);
-
-  return safeString(
-    safePayload.message ||
-      safePayload.input ||
-      safePayload.text ||
-      safePayload.prompt ||
-      safePayload.originalInput ||
-      ""
-  );
-}
-
-function ensureAuthority(authority = {}) {
-  return {
-    ...safeObject(authority),
-    finalAuthority: "Marion",
-    lingoSentinelAdvisoryOnly: true,
-    neverOverrideMarion: true
-  };
-}
-
-function ensureRenderSafeTranslationMeta(value = {}, fallbackText = "") {
-  const meta = safeObject(value);
-  const text = safeString(
-    meta.renderText ||
-      meta.publicText ||
-      meta.finalText ||
-      meta.text ||
-      meta.advisoryText ||
-      meta.translatedText ||
-      fallbackText
-  );
-
-  return {
-    ...meta,
-    advisoryText: safeString(meta.advisoryText || text),
-    translatedText: safeString(meta.translatedText || text),
-    text,
-    renderText: safeString(meta.renderText || text),
-    publicText: safeString(meta.publicText || text),
-    finalText: safeString(meta.finalText || text),
-    safeToRender: true,
-    renderSafe: true,
-    advisoryOnly: true,
-    forceTranslation: false,
-    authority: ensureAuthority(meta.authority)
-  };
-}
-
-function buildFallbackUnknownLanguageAlert({ rawInput = "", languageMeta = {}, config = {}, reason = "alert_dependency_missing" } = {}) {
-  const detectedLanguage = safeString(languageMeta.detectedLanguage || "unknown") || "unknown";
-  const confidence = Number(languageMeta.confidence);
-  const safeConfidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
-  const alertTriggered =
-    config.enabled !== false &&
-    (detectedLanguage === "unknown" || languageMeta.supported === false || languageMeta.fallbackTriggered === true);
-
-  return {
-    version: "nyx.lingosentinel.unknownLanguageAlert/fallback",
-    alertId: stableHash(`${detectedLanguage}:${safeConfidence}:${rawInput}`, "alert"),
-    alertType: "unknown_language_pattern",
-    alertTriggered,
-    enabled: config.enabled !== false,
-    detectedLanguage,
-    confidence: safeConfidence,
-    supported: languageMeta.supported === true,
-    fallbackTriggered: languageMeta.fallbackTriggered === true,
-    reason: alertTriggered ? safeString(languageMeta.reason || reason) : "no_alert_needed",
-    severity: alertTriggered ? "medium" : "none",
-    sample: cleanForHash(rawInput).slice(0, 240),
-    sampleHash: stableHash(rawInput, "sample"),
-    notificationReady: alertTriggered,
-    notificationChannel: "marion_dashboard",
-    userFacing: false,
-    publicText: "",
-    renderText: "",
-    text: "",
-    advisoryOnly: true,
-    forceTranslation: false,
-    authority: ensureAuthority(),
-    metadata: {
-      source: "LingoSentinelGatewayFallbackAlert",
-      gateway: "LingoSentinel"
-    },
-    source: "LingoSentinelGatewayFallbackAlert"
-  };
-}
-
-function buildUnknownLanguageAlertCarry({ rawInput, normalizedText, languageMeta, config } = {}) {
-  if (unknownLanguageAlertMod && typeof unknownLanguageAlertMod.buildUnknownLanguageAlert === "function") {
-    try {
-      return unknownLanguageAlertMod.buildUnknownLanguageAlert(
-        {
-          message: normalizedText,
-          originalInput: rawInput,
-          languageMeta,
-          gateway: "LingoSentinelGateway",
-          source: "LingoSentinelGateway"
-        },
-        {
-          rawInput,
-          languageMeta,
-          config: safeObject(config.alert)
-        }
-      );
-    } catch (_) {}
-  }
-
-  return buildFallbackUnknownLanguageAlert({ rawInput, languageMeta, config: safeObject(config.alert) });
-}
-
-function buildFallbackScannerHeartbeat(config = {}) {
-  const scannerConfig = safeObject(config.dormantScanner);
-  const now = Date.now();
-
-  return {
-    version: "nyx.lingosentinel.dormantScanner/fallbackHeartbeat",
-    scanner: "LingoSentinelDormantScanner",
-    enabled: scannerConfig.enabled !== false,
-    mode: safeString(scannerConfig.mode || "event_driven"),
-    dormant: scannerConfig.dormant !== false,
-    status: scannerConfig.enabled === false ? "disabled" : "ready",
-    heartbeatAt: now,
-    heartbeatIntervalMs: Number(scannerConfig.heartbeatIntervalMs) || 60000,
-    staleAfterMs: Number(scannerConfig.staleAfterMs) || 180000,
-    supportedLanguages: safeArray(config.supportedLanguages).length ? safeArray(config.supportedLanguages) : ["en", "fr", "es"],
-    defaultLanguage: safeString(config.defaultLanguage || "en"),
-    unknownLanguage: safeString(config.unknownLanguage || "unknown"),
-    notificationReady: false,
-    advisoryOnly: true,
-    forceTranslation: false,
-    authority: ensureAuthority(),
-    source: "LingoSentinelGatewayFallbackScanner"
-  };
-}
-
-function buildFallbackDormantScanner({ rawInput = "", normalization = {}, languageMeta = {}, alert = {}, heartbeat = {}, config = {} } = {}) {
-  return {
-    version: "nyx.lingosentinel.dormantScanner/fallbackScan",
-    scanId: stableHash(`scan:${rawInput}`, "scan"),
-    enabled: safeObject(config.dormantScanner).enabled !== false,
-    scanned: true,
-    inputHash: stableHash(rawInput, "input"),
-    lingoInput: normalization,
-    languageMeta,
-    unknownLanguageAlert: alert,
-    heartbeat,
-    notificationReady: alert.alertTriggered === true,
-    advisoryOnly: true,
-    forceTranslation: false,
-    authority: ensureAuthority(),
-    telemetry: {
-      scannerReady: safeString(heartbeat.status) === "ready",
-      dormant: heartbeat.dormant !== false,
-      detectedLanguage: languageMeta.detectedLanguage,
-      confidence: languageMeta.confidence,
-      alertTriggered: alert.alertTriggered === true,
-      severity: safeString(alert.severity || "none"),
-      source: "LingoSentinelGatewayFallbackScanner"
-    },
-    source: "LingoSentinelGatewayFallbackScanner"
-  };
-}
-
-function buildScannerCarry({ rawInput, normalization, languageMeta, alert, config } = {}) {
-  let scannerHeartbeat = null;
-  let dormantScanner = null;
-
-  if (dormantScannerMod && typeof dormantScannerMod.buildScannerHeartbeat === "function") {
-    try {
-      scannerHeartbeat = dormantScannerMod.buildScannerHeartbeat({
-        config: {
-          ...safeObject(config.dormantScanner),
-          supportedLanguages: config.supportedLanguages,
-          defaultLanguage: config.defaultLanguage,
-          unknownLanguage: config.unknownLanguage,
-          authority: config.authority
-        }
-      });
-    } catch (_) {}
-  }
-
-  if (!scannerHeartbeat) {
-    scannerHeartbeat = buildFallbackScannerHeartbeat(config);
-  }
-
-  if (dormantScannerMod && typeof dormantScannerMod.scanDormantInput === "function") {
-    try {
-      dormantScanner = dormantScannerMod.scanDormantInput(rawInput, {
-        config: {
-          ...safeObject(config.dormantScanner),
-          supportedLanguages: config.supportedLanguages,
-          defaultLanguage: config.defaultLanguage,
-          unknownLanguage: config.unknownLanguage,
-          authority: config.authority
-        }
-      });
-    } catch (_) {}
-  }
-
-  if (!dormantScanner) {
-    dormantScanner = buildFallbackDormantScanner({
-      rawInput,
-      normalization,
-      languageMeta,
-      alert,
-      heartbeat: scannerHeartbeat,
-      config
-    });
-  }
-
-  return {
-    scannerHeartbeat: {
-      ...scannerHeartbeat,
-      advisoryOnly: true,
-      forceTranslation: false,
-      authority: ensureAuthority(scannerHeartbeat.authority)
-    },
-    dormantScanner: {
-      ...dormantScanner,
-      advisoryOnly: true,
-      forceTranslation: false,
-      authority: ensureAuthority(dormantScanner.authority)
-    }
-  };
-}
-
-function buildDisabledGateway(rawInput, config) {
-  const originalText = safeString(rawInput);
-  const inputHash = stableHash(originalText, "input");
-  const gatewayHash = stableHash(`disabled:${originalText}`, "gw");
-  const correlationId = stableHash(`LingoSentinel:disabled:${originalText}`, "corr");
-  const authority = ensureAuthority(config.authority);
-
-  const languageMeta = {
-    detectedLanguage: config.defaultLanguage || "en",
-    confidence: 1,
-    supported: true,
-    requiresTranslation: false,
-    fallbackTriggered: false,
-    reason: "lingosentinel_gateway_disabled",
-    source: "LingoSentinelGateway"
-  };
-
-  const lingoInput = {
-    originalText,
-    normalizedText: originalText,
-    changed: false,
-    operations: [],
-    source: "LingoSentinelGateway"
-  };
-
-  const translationMeta = ensureRenderSafeTranslationMeta({
-    originalText,
-    normalizedText: originalText,
-    advisoryText: originalText,
-    translatedText: originalText,
-    sourceLanguage: config.defaultLanguage || "en",
-    targetLanguage: config.defaultLanguage || "en",
-    translated: false,
-    fallbackTriggered: false,
-    reason: "lingosentinel_gateway_disabled",
-    source: "LingoSentinelGateway",
-    authority
-  }, originalText);
-
-  const glossaryMeta = {
-    originalText,
-    candidateText: originalText,
-    guardedText: originalText,
-    changed: false,
-    restoredTerms: [],
-    missingTerms: [],
-    advisoryOnly: true,
-    reason: "lingosentinel_gateway_disabled",
-    source: "LingoSentinelGateway"
-  };
-
-  const unknownLanguageAlert = buildFallbackUnknownLanguageAlert({ rawInput: originalText, languageMeta, config: { enabled: false } });
-  const scannerHeartbeat = buildFallbackScannerHeartbeat({ ...config, dormantScanner: { ...safeObject(config.dormantScanner), enabled: false } });
-  const dormantScanner = buildFallbackDormantScanner({
-    rawInput: originalText,
-    normalization: lingoInput,
-    languageMeta,
-    alert: unknownLanguageAlert,
-    heartbeat: scannerHeartbeat,
-    config: { ...config, dormantScanner: { ...safeObject(config.dormantScanner), enabled: false } }
-  });
-
-  return {
-    enabled: false,
-    input: originalText,
-    message: originalText,
-    originalInput: originalText,
-    inputHash,
-    gatewayHash,
-    correlationId,
-    traceId: correlationId,
-    languageMeta,
-    lingoInput,
-    translationMeta,
-    glossaryMeta,
-    glossaryIntegrity: {
-      originalText,
-      candidateText: originalText,
-      missingTerms: [],
-      intact: true,
-      advisoryOnly: true,
-      source: "LingoSentinelGateway"
-    },
-    unknownLanguageAlert,
-    scannerHeartbeat,
-    dormantScanner,
-    gatewayMeta: {
-      gateway: "LingoSentinel",
-      phase: "gateway-orchestration-alert-scanner-carry",
-      version: "0.3.0",
-      enabled: false,
-      advisoryOnly: true,
-      fallbackTriggered: false,
-      alertTriggered: false,
-      notificationReady: false,
-      inputHash,
-      gatewayHash,
-      correlationId,
-      traceId: correlationId,
-      stableHash: gatewayHash,
-      reason: "lingosentinel_gateway_disabled",
-      source: "LingoSentinelGateway"
-    },
-    telemetry: {
-      enabled: false,
-      inputHash,
-      gatewayHash,
-      correlationId,
-      traceId: correlationId,
-      source: "LingoSentinelGateway"
-    },
-    authority,
-    marionAuthority: true,
-    finalAuthority: "Marion",
-    source: "LingoSentinelGateway"
-  };
-}
-
-
-function normalizeContinuityLanguage(value, fallback = "unknown") {
-  const raw = safeString(value || fallback).toLowerCase().replace(/_/g, "-").trim();
+function normalizeLanguage(value, fallback = DEFAULT_LANGUAGE) {
+  const raw = safeString(value || fallback, fallback, 32).toLowerCase().replace(/_/g, '-').trim();
   if (!raw) return fallback;
-  if (/^(en|eng|english|en-ca|en-us|en-gb)/.test(raw)) return "en";
-  if (/^(fr|fre|fra|french|français|francais|fr-ca|fr-fr)/.test(raw)) return "fr";
-  if (/^(es|spa|spanish|español|espanol|es-mx|es-es|es-419)/.test(raw)) return "es";
-  return raw.slice(0, 12) || fallback;
+  if (/^(en|eng|english|en-ca|en-us|en-gb)/.test(raw)) return 'en';
+  if (/^(fr|fre|fra|french|français|francais|fr-ca|fr-fr)/.test(raw)) return 'fr';
+  if (/^(es|spa|spanish|español|espanol|es-mx|es-es|es-419)/.test(raw)) return 'es';
+  return raw.slice(0, 16) || fallback;
 }
 
-function extractContinuityState(payload = {}, options = {}) {
-  const p = safeObject(payload);
-  const opts = safeObject(options);
-  const state = safeObject(opts.conversationState || opts.continuity || p.continuity || p.conversationState || p.contextCarry);
-  return state;
+function normalizeLanguagePair(input = {}) {
+  if (!isObject(input)) return null;
+
+  const source = normalizeLanguage(input.source || input.from || input.sourceLanguage, '');
+  const target = normalizeLanguage(input.target || input.to || input.targetLanguage, '');
+
+  if (!source || !target) return null;
+
+  return { source, target };
 }
 
 
-function buildPhase2BUserBoundaryCarry(extra = {}) {
+function buildPhase2ERoundtripReadiness(mode, roomId) {
+  const alignment = buildChannelAlignment(mode || 'live_translate', roomId || DEFAULT_ROOM_ID);
+  return {
+    ...buildPhase2BUserBoundary(),
+    version: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+    liveAblyRoundtrip: true,
+    tokenCreated: false,
+    canonicalChannel: alignment.canonicalChannel,
+    clientSubscribed: false,
+    publishOk: false,
+    messageReceivedByClient: false,
+    receivedEventType: alignment.mode === 'live_translate' ? 'TRANSLATION_MESSAGE_READY' : EVENT_TYPES[alignment.mode] || '',
+    channelNamespaceAligned: alignment.channelNamespaceAligned === true,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    roundtripReady: alignment.roundtripReady === true
+  };
+}
+
+function buildLanguageContinuity(input = {}, normalized = {}) {
+  const sourceLanguage = normalizeLanguage(
+    input.sourceLanguage || input.language || input.lang || normalized.sender?.preferredLanguage || DEFAULT_LANGUAGE,
+    DEFAULT_LANGUAGE
+  );
+  const targetLanguage = normalizeLanguage(
+    input.targetLanguage || input.targetLang || input.recipientLanguage || normalized.recipient?.preferredLanguage || DEFAULT_LANGUAGE,
+    DEFAULT_LANGUAGE
+  );
+  const previousLanguage = normalizeLanguage(
+    input.previousLanguage || input.lastLanguage || input.contextLanguage || input.continuity?.lastLanguage || '',
+    ''
+  );
+  const activeLanguages = Array.from(new Set([previousLanguage, sourceLanguage, targetLanguage].filter(Boolean)));
+  const languageDriftDetected = Boolean(previousLanguage && previousLanguage !== sourceLanguage);
+  const translationAmbiguityFlagged = Boolean(input.translationAmbiguity === true || input.ambiguous === true || input.lowConfidenceLanguage === true);
+  return {
+    version: PHASE2A_CONTINUITY_VERSION,
+    enFrEsContinuityActive: ['en', 'fr', 'es'].includes(sourceLanguage) || ['en', 'fr', 'es'].includes(targetLanguage),
+    supportedLanguages: ['en', 'fr', 'es'],
+    sourceLanguage,
+    targetLanguage,
+    previousLanguage,
+    activeLanguages,
+    languageContinuityPreserved: true,
+    contextCarryPreserved: true,
+    languageDriftDetected,
+    translationAmbiguityFlagged,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    finalAuthority: 'Marion',
+    advisoryOnly: true,
+    source: GATEWAY_NAME
+  };
+}
+
+
+function normalizeBoundaryText(value) {
+  return safeString(value || '', '', 180).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isReservedMarionIdentity(value) {
+  const text = normalizeBoundaryText(value);
+  if (!text) return false;
+  return /^(?:marion|marion ai|marion authority|marion admin|marion overseer|marion system|sandblast marion)$/.test(text) ||
+    /\bmarion\b/.test(text);
+}
+
+function isPublicParticipantReserved(participant = {}) {
+  if (!isObject(participant)) return false;
+  return isReservedMarionIdentity(participant.id) ||
+    isReservedMarionIdentity(participant.name) ||
+    isReservedMarionIdentity(participant.displayName) ||
+    isReservedMarionIdentity(participant.handle) ||
+    isReservedMarionIdentity(participant.role) ||
+    isReservedMarionIdentity(participant.publicAgent) ||
+    isReservedMarionIdentity(participant.visibleAgent) ||
+    isReservedMarionIdentity(participant.speaker) ||
+    isReservedMarionIdentity(participant.speakerName);
+}
+
+function hasPublicMarionSpoofAttempt(input = {}, normalized = {}) {
+  const src = isObject(input) ? input : {};
+  const n = isObject(normalized) ? normalized : {};
+  return isPublicParticipantReserved(src.sender) ||
+    isPublicParticipantReserved(src.from) ||
+    isPublicParticipantReserved(src.recipient) ||
+    isPublicParticipantReserved(src.to) ||
+    isPublicParticipantReserved(n.sender) ||
+    isPublicParticipantReserved(n.recipient) ||
+    isReservedMarionIdentity(src.senderId) ||
+    isReservedMarionIdentity(src.userId) ||
+    isReservedMarionIdentity(src.clientId) ||
+    isReservedMarionIdentity(src.senderName) ||
+    isReservedMarionIdentity(src.name) ||
+    isReservedMarionIdentity(src.recipientId) ||
+    isReservedMarionIdentity(src.toId) ||
+    isReservedMarionIdentity(src.publicAgent) ||
+    isReservedMarionIdentity(src.visibleAgent) ||
+    isReservedMarionIdentity(src.speaker) ||
+    isReservedMarionIdentity(src.speakerName);
+}
+
+function buildPhase2BUserBoundary(input = {}, normalized = {}) {
+  const spoofAttempt = hasPublicMarionSpoofAttempt(input, normalized);
   return {
     version: PHASE2B_USER_BOUNDARY_VERSION,
-    phase: "phase2b_user_to_user_boundary_silent_oversight_hardlock",
+    phase: 'phase2b_user_to_user_boundary_silent_oversight_hardlock',
     enabled: true,
     userToUserBoundary: true,
     silentOversight: true,
     advisoryOnly: true,
-    finalAuthority: "Marion",
-    publicFacingAgent: "LingoSentinel/Nyx",
+    finalAuthority: 'Marion',
+    publicFacingAgent: 'LingoSentinel/Nyx',
     publicUsersMayAddressMarion: false,
-    publicUsersSpeakThrough: "LingoSentinel/Nyx",
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
     marionVisibleParticipant: false,
     marionRenderedAsSpeaker: false,
     marionCanPublishToRoom: false,
@@ -592,306 +286,200 @@ function buildPhase2BUserBoundaryCarry(extra = {}) {
     marionCanBeSender: false,
     marionCanBeRecipient: false,
     marionPublicChannelAllowed: false,
+    marionPublicSpoofAttempt: spoofAttempt,
     visibleToUsers: false,
-    source: "LingoSentinelGateway",
-    ...safeObject(extra)
+    source: GATEWAY_NAME
   };
 }
 
-function buildEnFrEsContinuitySmokeCarry({ payload = {}, options = {}, languageMeta = {}, gatewayMeta = {}, traceId = "" } = {}) {
-  const p = safeObject(payload);
-  const state = extractContinuityState(p, options);
-  const detectedLanguage = normalizeContinuityLanguage(languageMeta.detectedLanguage || languageMeta.language || p.language || p.lang || "unknown");
-  const previousLanguage = normalizeContinuityLanguage(
-    state.activeLanguage || state.lastLanguage || state.previousLanguage || state.sourceLanguage || safeObject(options).previousLanguage || "",
-    ""
+function normalizeParticipant(input = {}, fallbackRole = 'participant') {
+  const source = isObject(input) ? input : {};
+  const id = normalizeToken(
+    source.id || source.userId || source.handle || source.clientId || source.email,
+    'anonymous'
   );
-  const targetLanguage = normalizeContinuityLanguage(
-    p.targetLanguage || p.targetLang || state.targetLanguage || safeObject(options).targetLanguage || "en",
-    "en"
-  );
-  const supported = ["en", "fr", "es"].includes(detectedLanguage);
-  const confidence = Number(languageMeta.confidence);
-  const safeConfidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0;
-  const languageDriftDetected = Boolean(previousLanguage && detectedLanguage && previousLanguage !== detectedLanguage);
-  const translationAmbiguityFlagged = detectedLanguage === "unknown" || supported === false || safeConfidence < 0.62 || languageMeta.fallbackTriggered === true || languageMeta.ambiguous === true;
-  return {
-    version: PHASE2A_CONTINUITY_VERSION,
-    phase: "phase2a_en_fr_es_continuity_smoke",
-    enabled: true,
-    supportedLanguages: ["en", "fr", "es"],
-    detectedLanguage,
-    previousLanguage,
-    targetLanguage,
-    languageSupported: supported,
-    languageContinuityPreserved: true,
-    contextCarryPreserved: true,
-    languageDriftDetected,
-    translationAmbiguityFlagged,
-    enFrEsContinuityActive: true,
-    silentOversight: true,
-    userToUserBoundary: true,
+
+  const sessionId = normalizeToken(source.sessionId || source.session || '', '');
+  const connectionId = normalizeToken(source.connectionId || source.connection || '', '');
+  const participant = {
+    contract: IDENTITY_CONTRACT,
+    id,
+    clientId: id,
+    sessionId: sessionId || null,
+    connectionId: connectionId || null,
+    name: safeString(source.name || source.displayName || source.handle || 'Guest', 'Guest'),
+    displayName: safeString(source.displayName || source.name || source.handle || 'Guest', 'Guest'),
+    role: safeString(source.role || fallbackRole, fallbackRole, 48),
+    preferredLanguage: normalizeLanguage(
+      source.preferredLanguage || source.language || source.lang,
+      DEFAULT_LANGUAGE
+    ),
+    authenticated: source.authenticated === true,
+    anonymous: id === 'anonymous' || source.anonymous === true
+  };
+
+  const reservedMarionIdentity = isPublicParticipantReserved(participant);
+  return Object.assign(participant, {
+    reservedMarionIdentity,
     marionVisibleParticipant: false,
-    visibleToUsers: false,
-    publicUsersMayAddressMarion: false,
-    publicUsersSpeakThrough: "LingoSentinel/Nyx",
-    marionRenderedAsSpeaker: false,
-    marionCanPublishToRoom: false,
-    marionCanAppearInUserRoster: false,
-    phase2bUserBoundary: buildPhase2BUserBoundaryCarry({ traceId: safeString(traceId || gatewayMeta.traceId || gatewayMeta.correlationId || "") }),
-    advisoryOnly: true,
-    finalAuthority: "Marion",
-    publicSurface: "LingoSentinel",
-    traceId: safeString(traceId || gatewayMeta.traceId || gatewayMeta.correlationId || ""),
-    source: "LingoSentinelGateway"
-  };
+    visibleToUsers: reservedMarionIdentity ? false : undefined
+  });
 }
 
-function createGatewayTelemetry({
-  config,
-  languageMeta,
-  lingoInput,
-  translationMeta,
-  glossaryMeta,
-  unknownLanguageAlert,
-  scannerHeartbeat,
-  dormantScanner,
-  correlation
-}) {
-  if (!config.telemetry || config.telemetry.enabled === false) {
-    return {
-      enabled: false,
-      source: "LingoSentinelGateway"
-    };
+function normalizeRecipient(input = null) {
+  if (!input) return null;
+  return normalizeParticipant(input, input.role || 'recipient');
+}
+
+function normalizeRoomId(input = {}) {
+  const mode = normalizeMode(input.mode || input.lane) || 'one_to_one';
+  const explicitRoomId = input.roomId || input.channelId || input.conversationId || input.sessionId;
+
+  if (explicitRoomId) return normalizeToken(explicitRoomId, DEFAULT_ROOM_ID);
+
+  if (mode === 'group_room') return DEFAULT_ROOM_ID;
+  if (mode === 'live_translate') return normalizeToken(input.sessionId || 'translation-session', 'translation-session');
+  if (mode === 'delivered') return normalizeToken(input.deliveryId || 'delivered-thread', 'delivered-thread');
+
+  return DEFAULT_ROOM_ID;
+}
+
+function normalizeRegion(value, fallback = DEFAULT_REGION) {
+  return safeString(value || fallback, fallback, 80).toLowerCase();
+}
+
+function stripSensitiveMetadata(metadata = {}) {
+  if (!isObject(metadata)) return {};
+
+  const blocked = /^(authorization|cookie|password|secret|token|apiKey|apikey|api_key|privateKey|private_key|email)$/i;
+  const clean = {};
+  let count = 0;
+
+  Object.keys(metadata).forEach(key => {
+    if (count >= MAX_METADATA_KEYS) return;
+    if (blocked.test(key)) return;
+
+    const value = metadata[key];
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      clean[safeString(key, '', 64)] = safeString(value, '', 240);
+      count += 1;
+    }
+  });
+
+  return clean;
+}
+
+function detectPrivateMaterial(text = '') {
+  const value = safeText(text);
+  return /\b(?:api[_\s-]?key|client[_\s-]?secret|password|private[_\s-]?key)\s*[:=]\s*[^\s,;]{6,}/i.test(value) ||
+    /\bbearer\s+[a-z0-9._~+/=-]{12,}/i.test(value) ||
+    /\bsk-[a-z0-9]{12,}/i.test(value) ||
+    /\bxox[baprs]-[a-z0-9-]{10,}/i.test(value);
+}
+
+function detectRiskLevel(input = {}) {
+  const text = safeText(input.text || input.message || input.body);
+
+  if (hasPublicMarionSpoofAttempt(input)) return RISK_LEVELS.high;
+  if (detectPrivateMaterial(text)) return RISK_LEVELS.high;
+
+  if (/\b(emergency|danger|critical|urgent|breach|exploit|harm|weapon|self-harm|threat|violence)\b/i.test(text)) {
+    return RISK_LEVELS.medium;
+  }
+
+  return RISK_LEVELS.low;
+}
+
+function validateGatewayInput(input = {}) {
+  const errors = [];
+  const mode = normalizeMode(input.mode || input.lane);
+  const text = safeText(input.text || input.message || input.body);
+  const roomId = normalizeRoomId(input);
+
+  const sender = normalizeParticipant(input.sender || input.from || {
+    id: input.senderId || input.userId || input.clientId,
+    name: input.senderName || input.name,
+    role: input.senderRole,
+    preferredLanguage: input.sourceLanguage || input.lang || input.language
+  });
+
+  const recipient = normalizeRecipient(input.recipient || input.to || null);
+  const languagePair = normalizeLanguagePair(input.languagePair || {
+    source: input.sourceLanguage || input.language || input.lang,
+    target: input.targetLanguage || input.targetLang || input.recipientLanguage
+  });
+
+  if (!mode || !VALID_MODES.includes(mode)) {
+    errors.push(`Invalid LingoSentinel mode: ${safeString(input.mode || input.lane || 'missing')}.`);
+  }
+
+  if (!text) errors.push('Message text is required.');
+  if (text.length > MAX_TEXT_LENGTH) errors.push(`Message text exceeds ${MAX_TEXT_LENGTH} characters.`);
+  if (!roomId) errors.push('roomId, conversationId, channelId, or sessionId is required.');
+  if (!sender.id || sender.id === 'anonymous') errors.push('sender.id is required.');
+  if (!sender.sessionId) errors.push('sender.sessionId is required for room-scoped publishing.');
+  const roomAuthorization = RoomRegistry.authorize(roomId, {
+    clientId: sender.clientId || sender.id,
+    sessionId: sender.sessionId,
+    membershipCredential: input.membershipCredential || input.credential || ''
+  }, 'publish');
+  if (!roomAuthorization.ok) errors.push('Active room membership is required before publishing.');
+  if (hasPublicMarionSpoofAttempt(input, { sender, recipient, roomId, mode })) {
+    errors.push('Marion is private authority only and cannot be used as a public sender, recipient, speaker, agent, roster member, or channel identity.');
+  }
+
+  if (mode === 'one_to_one' && (!recipient || !recipient.id || recipient.id === 'anonymous')) {
+    errors.push('one_to_one mode requires recipient.id.');
+  }
+
+  if (mode === 'live_translate' && !languagePair) {
+    errors.push('live_translate mode requires a valid languagePair or source/target language.');
   }
 
   return {
-    enabled: true,
-    detectedLanguage: languageMeta.detectedLanguage,
-    languageConfidence: languageMeta.confidence,
-    languageSupported: languageMeta.supported,
-    requiresTranslation: languageMeta.requiresTranslation,
-    normalizationChanged: lingoInput.changed,
-    normalizationOperations: Array.isArray(lingoInput.operations)
-      ? lingoInput.operations
-      : [],
-    translated: translationMeta.translated,
-    translationMethod: translationMeta.method,
-    glossaryChanged: glossaryMeta.changed,
-    restoredTerms: Array.isArray(glossaryMeta.restoredTerms)
-      ? glossaryMeta.restoredTerms
-      : [],
-    missingTerms: Array.isArray(glossaryMeta.missingTerms)
-      ? glossaryMeta.missingTerms
-      : [],
-    alertTriggered: unknownLanguageAlert.alertTriggered === true,
-    notificationReady:
-      unknownLanguageAlert.notificationReady === true ||
-      dormantScanner.notificationReady === true,
-    alertSeverity: safeString(unknownLanguageAlert.severity || "none"),
-    scannerStatus: safeString(scannerHeartbeat.status || "unknown"),
-    scannerDormant: scannerHeartbeat.dormant !== false,
-    scannerReady: safeString(scannerHeartbeat.status || "ready") === "ready",
-    inputHash: correlation.inputHash,
-    gatewayHash: correlation.gatewayHash,
-    correlationId: correlation.correlationId,
-    traceId: correlation.traceId,
-    advisoryOnly: true,
-    source: "LingoSentinelGateway"
+    ok: errors.length === 0,
+    errors,
+    normalized: {
+      mode: mode || 'one_to_one',
+      text,
+      roomId: roomId || DEFAULT_ROOM_ID,
+      sender,
+      recipient,
+      languagePair,
+      region: normalizeRegion(input.region || input.country || input.routeRegion),
+      roomAuthorization
+    }
   };
 }
 
-function runLingoSentinelGateway(payload, options = {}) {
-  const config = mergeGatewayConfig(options.config);
-  const rawInput = extractInput(payload);
+function buildGovernance(input = {}, normalized = {}) {
+  const riskLevel = detectRiskLevel(input);
+  const privateMaterial = detectPrivateMaterial(normalized.text);
+  const reviewRequested = input.requiresReview === true || input.review === true;
 
-  if (!config.enabled) {
-    return buildDisabledGateway(rawInput, config);
-  }
+  const decision =
+    riskLevel === RISK_LEVELS.high
+      ? GOVERNANCE_DECISIONS.reject
+      : riskLevel === RISK_LEVELS.medium || reviewRequested
+        ? GOVERNANCE_DECISIONS.allowWithReview
+        : GOVERNANCE_DECISIONS.allow;
 
-  const normalization = normalizeInput(rawInput, {
-    preserveLineBreaks: config.normalization.preserveLineBreaks !== false
-  });
-
-  const normalizedText = safeString(normalization.normalizedText);
-
-  const languageMeta = detectLanguage(normalizedText, {
-    config: {
-      supportedLanguages: config.supportedLanguages,
-      defaultLanguage: config.defaultLanguage,
-      unknownLanguage: config.unknownLanguage,
-      confidenceThresholds: config.confidenceThresholds
-    }
-  });
-
-  const rawTranslationMeta = adviseTranslation(normalizedText, {
-    normalization,
-    languageMeta,
-    config: {
-      enabled: config.translation.enabled !== false,
-      defaultLanguage: config.defaultLanguage,
-      supportedLanguages: config.supportedLanguages,
-      advisoryOnly: true,
-      forceTranslation: false,
-      authority: config.authority
-    }
-  });
-
-  const translationMeta = ensureRenderSafeTranslationMeta(rawTranslationMeta, normalizedText);
-
-  const glossaryMeta = preserveGlossaryTerms(
-    normalization.originalText,
-    translationMeta.advisoryText || translationMeta.translatedText || normalizedText,
-    {
-      config: {
-        enabled: config.glossary.enabled !== false,
-        advisoryOnly: true,
-        authority: {
-          finalAuthority: "Marion",
-          glossaryAdvisoryOnly: true,
-          neverOverrideMarion: true
-        }
-      },
-      protectedTerms: options.protectedTerms
-    }
-  );
-
-  const glossaryIntegrity = inspectGlossaryIntegrity(
-    normalization.originalText,
-    glossaryMeta.guardedText,
-    {
-      protectedTerms: options.protectedTerms
-    }
-  );
-
-  const unknownLanguageAlert = buildUnknownLanguageAlertCarry({
-    rawInput: normalization.originalText,
-    normalizedText,
-    languageMeta,
-    config
-  });
-
-  const scannerCarry = buildScannerCarry({
-    rawInput: normalization.originalText,
-    normalization,
-    languageMeta,
-    alert: unknownLanguageAlert,
-    config
-  });
-
-  const scannerHeartbeat = scannerCarry.scannerHeartbeat;
-  const dormantScanner = scannerCarry.dormantScanner;
-
-  const inputHash = stableHash(normalization.originalText, "input");
-  const gatewayHash = stableHash(
-    JSON.stringify({
-      input: normalization.originalText,
-      normalizedText,
-      language: languageMeta.detectedLanguage,
-      translated: translationMeta.translated,
-      alert: unknownLanguageAlert.alertTriggered === true
-    }),
-    "gw"
-  );
-  const correlationId = stableHash(`${inputHash}:${gatewayHash}:${languageMeta.detectedLanguage}`, "corr");
-  const traceId = correlationId;
-
-  const notificationReady =
-    unknownLanguageAlert.notificationReady === true ||
-    dormantScanner.notificationReady === true;
-
-  const alertTriggered =
-    unknownLanguageAlert.alertTriggered === true ||
-    safeObject(dormantScanner.unknownLanguageAlert).alertTriggered === true;
-
-  const gatewayMeta = {
-    gateway: config.gateway.name || "LingoSentinel",
-    phase: config.gateway.phase || "gateway-orchestration-alert-scanner-carry",
-    mode: config.gateway.mode || "advisory",
-    version: config.gateway.version || "0.3.0",
-    enabled: true,
-    advisoryOnly: true,
-    fallbackTriggered:
-      Boolean(languageMeta.fallbackTriggered) ||
-      Boolean(translationMeta.fallbackTriggered),
-    alertTriggered,
-    notificationReady,
-    languageDetected: languageMeta.detectedLanguage,
-    sourceLanguage: translationMeta.sourceLanguage,
-    targetLanguage: translationMeta.targetLanguage,
-    glossaryIntact: glossaryIntegrity.intact,
-    scannerStatus: safeString(scannerHeartbeat.status || "ready"),
-    scannerDormant: scannerHeartbeat.dormant !== false,
-    inputHash,
-    gatewayHash,
-    stableHash: gatewayHash,
-    correlationId,
-    traceId,
-    reason: "lingosentinel_gateway_completed",
-    phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION,
-    silentOversight: true,
-    userToUserBoundary: true,
-    marionVisibleParticipant: false,
-    marionRenderedAsSpeaker: false,
-    marionCanPublishToRoom: false,
-    marionCanAppearInUserRoster: false,
-    visibleToUsers: false,
-    source: "LingoSentinelGateway"
-  };
-
-  const authority = ensureAuthority(config.authority);
-
-  const telemetry = createGatewayTelemetry({
-    config,
-    languageMeta,
-    lingoInput: normalization,
-    translationMeta,
-    glossaryMeta,
-    unknownLanguageAlert,
-    scannerHeartbeat,
-    dormantScanner,
-    correlation: {
-      inputHash,
-      gatewayHash,
-      correlationId,
-      traceId
-    }
-  });
-
-  const enFrEsContinuity = buildEnFrEsContinuitySmokeCarry({
-    payload,
-    options,
-    languageMeta,
-    gatewayMeta,
-    traceId
-  });
-
+  const userBoundary = buildPhase2BUserBoundary(input, normalized);
   return {
-    enabled: true,
-
-    input: normalizedText,
-    message: normalizedText,
-    originalInput: normalization.originalText,
-
-    inputHash,
-    gatewayHash,
-    correlationId,
-    traceId,
-
-    languageMeta,
-    lingoInput: normalization,
-    translationMeta,
-    glossaryMeta,
-    glossaryIntegrity,
-    unknownLanguageAlert,
-    scannerHeartbeat,
-    dormantScanner,
-    gatewayMeta,
-    telemetry,
-    enFrEsContinuity,
-    languageContinuity: enFrEsContinuity,
-    phase2bUserBoundary: buildPhase2BUserBoundaryCarry({ traceId }),
-    marionSilentOversight: {
+    marionAuthority: true,
+    nyxPublicFacing: true,
+    lingoSentinelAllowed: decision !== GOVERNANCE_DECISIONS.reject && !userBoundary.marionPublicSpoofAttempt,
+    requiresReview: decision === GOVERNANCE_DECISIONS.allowWithReview,
+    riskLevel,
+    privateMaterial,
+    confidence: riskLevel === RISK_LEVELS.low ? 0.88 : riskLevel === RISK_LEVELS.medium ? 0.64 : 0.25,
+    decision,
+    boundaries: {
+      publishesRealtime: false,
+      performsTranslation: false,
+      exposesPrivateIdentity: false,
+      finalAuthority: 'Marion',
       silentOversight: true,
       userToUserBoundary: true,
       marionVisibleParticipant: false,
@@ -899,172 +487,375 @@ function runLingoSentinelGateway(payload, options = {}) {
       marionCanPublishToRoom: false,
       marionCanAppearInUserRoster: false,
       visibleToUsers: false,
-      publicUsersMayAddressMarion: false,
-      publicUsersSpeakThrough: "LingoSentinel/Nyx",
-      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION
+      roomRegistryAuthority: 'LingoSentinelRoomRegistry'
     },
-    authority,
-
-    marionAuthority: true,
-    finalAuthority: "Marion",
-    source: "LingoSentinelGateway"
+    userBoundary,
+    publicUsersMayAddressMarion: false,
+    publicUsersSpeakThrough: 'LingoSentinel/Nyx',
+    marionRenderedAsSpeaker: false,
+    marionCanPublishToRoom: false,
+    marionCanAppearInUserRoster: false
   };
 }
 
-function buildMarionBridgePayload(payload, options = {}) {
-  const gatewayPackage = runLingoSentinelGateway(payload, options);
+function channelForMode(mode, roomId, options = {}) {
+  const normalizedMode = normalizeMode(mode) || 'one_to_one';
+  const cleanRoomId = normalizeToken(roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const sessionId = normalizeToken(options.sessionId || cleanRoomId, cleanRoomId);
+
+  if (normalizedMode === 'one_to_one') return `${CHANNEL_NAMESPACE}:direct:${cleanRoomId}`;
+  if (normalizedMode === 'live_translate') return `${CHANNEL_NAMESPACE}:translation:${sessionId}`;
+  if (normalizedMode === 'delivered') return `${CHANNEL_NAMESPACE}:delivered:${cleanRoomId}`;
+  return `${CHANNEL_NAMESPACE}:room:${cleanRoomId}`;
+}
+
+function legacyChannelAliasesForMode(mode, roomId, options = {}) {
+  const normalizedMode = normalizeMode(mode) || 'one_to_one';
+  const cleanRoomId = normalizeToken(roomId || DEFAULT_ROOM_ID, DEFAULT_ROOM_ID);
+  const sessionId = normalizeToken(options.sessionId || cleanRoomId, cleanRoomId);
+  if (normalizedMode === 'one_to_one') return [`ls:direct:${cleanRoomId}`];
+  if (normalizedMode === 'live_translate') return [`ls:live:${sessionId}`, `ls:translation:${sessionId}`];
+  if (normalizedMode === 'delivered') return [`ls:receipt:${cleanRoomId}`, `ls:delivered:${cleanRoomId}`];
+  return [`ls:room:${cleanRoomId}`];
+}
+
+function buildChannelAlignment(mode, roomId, options = {}) {
+  const normalizedMode = normalizeMode(mode) || 'one_to_one';
+  const canonicalChannel = channelForMode(normalizedMode, roomId, options);
+  return {
+    version: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    channelNamespaceAligned: true,
+    canonicalNamespace: CHANNEL_NAMESPACE,
+    mode: normalizedMode,
+    canonicalChannel,
+    publishChannel: canonicalChannel,
+    tokenChannel: canonicalChannel,
+    realtimeBridgeChannel: canonicalChannel,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    legacyChannelAliases: legacyChannelAliasesForMode(normalizedMode, roomId, options),
+    canonicalOnlyForNewTraffic: true,
+    roundtripReady: true,
+    silentOversight: true,
+    userToUserBoundary: true,
+    marionVisibleParticipant: false,
+    publicUsersMayAddressMarion: false
+  };
+}
+
+function buildRoute(input = {}, normalized = {}) {
+  const mode = normalized.mode;
+  const lane = CHANNEL_LANES[mode] || 'direct';
+  const eventType = EVENT_TYPES[mode] || EVENT_TYPES.one_to_one;
+  const sessionId = normalizeToken(input.sessionId || normalized.roomId, normalized.roomId);
+  const channelAlignment = buildChannelAlignment(mode, normalized.roomId, { sessionId });
+  const ablyChannel = channelAlignment.canonicalChannel;
 
   return {
-    message: gatewayPackage.message,
-    input: gatewayPackage.input,
-    originalInput: gatewayPackage.originalInput,
-
-    inputHash: gatewayPackage.inputHash,
-    gatewayHash: gatewayPackage.gatewayHash,
-    correlationId: gatewayPackage.correlationId,
-    traceId: gatewayPackage.traceId,
-
-    languageMeta: gatewayPackage.languageMeta,
-    lingoInput: gatewayPackage.lingoInput,
-    translationMeta: gatewayPackage.translationMeta,
-    glossaryMeta: gatewayPackage.glossaryMeta,
-    glossaryIntegrity: gatewayPackage.glossaryIntegrity,
-    unknownLanguageAlert: gatewayPackage.unknownLanguageAlert,
-    scannerHeartbeat: gatewayPackage.scannerHeartbeat,
-    dormantScanner: gatewayPackage.dormantScanner,
-    gatewayMeta: gatewayPackage.gatewayMeta,
-    telemetry: gatewayPackage.telemetry,
-    enFrEsContinuity: gatewayPackage.enFrEsContinuity,
-    languageContinuity: gatewayPackage.languageContinuity,
-    phase2bUserBoundary: gatewayPackage.phase2bUserBoundary,
-    marionSilentOversight: gatewayPackage.marionSilentOversight,
-
-    authority: gatewayPackage.authority,
-    marionAuthority: true,
-    finalAuthority: "Marion",
-
-    source: "LingoSentinelGateway"
-  };
-}
-
-
-function buildMarionPrivateDeliveryPayload(payload, options = {}) {
-  const gatewayPackage = runLingoSentinelGateway(payload, {
-    ...safeObject(options),
-    telemetry: {
-      ...safeObject(safeObject(options).telemetry),
-      includeCorrelation: true
+    lane,
+    eventType,
+    roomId: normalized.roomId,
+    sessionId: mode === 'live_translate' ? sessionId : null,
+    ablyChannel,
+    channel: ablyChannel,
+    canonicalChannel: ablyChannel,
+    channelNamespace: CHANNEL_NAMESPACE,
+    channelAlignment,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    globeContext: {
+      region: normalized.region,
+      languageHint: normalizeLanguage(input.languageHint || input.lang || input.language, DEFAULT_LANGUAGE)
     }
-  });
-  const opts = safeObject(options);
-  const privateDelivery = {
-    version: "nyx.lingosentinel.marionPrivateDeliveryPayload/1.0",
-    enabled: true,
-    adminOnlyDelivery: true,
-    privateSignal: true,
-    publicSurface: "Nyx",
-    authority: ensureAuthority(),
-    noRawAudioStored: true,
-    deliveryChannel: safeString(opts.deliveryChannel || "lingosentinel_private_text"),
-    roomId: safeString(opts.roomId || ""),
-    role: safeString(opts.role || "host"),
-    traceId: safeString(opts.traceId || gatewayPackage.traceId || "")
-  };
-
-  return {
-    ...buildMarionBridgePayload(payload, options),
-    privateDelivery,
-    adminOnlyDelivery: true,
-    privateSignal: true,
-    noRawAudioStored: true,
-    marionAuthority: true,
-    finalAuthority: "Marion",
-    publicSurface: "Nyx"
   };
 }
 
-
-
-function buildMarionPrivateVoiceDeliveryPayload(payload, options = {}) {
-  const opts = safeObject(options);
-  const p = safeObject(payload);
-  const transcript = safeString(
-    p.transcript ||
-      p.text ||
-      p.message ||
-      p.query ||
-      p.input ||
-      ""
+function buildPublishInput(input = {}, normalized = {}, governance = {}) {
+  const targetLanguage = normalizeLanguage(
+    input.targetLanguage ||
+      input.targetLang ||
+      input.recipientLanguage ||
+      normalized.recipient?.preferredLanguage ||
+      DEFAULT_LANGUAGE,
+    DEFAULT_LANGUAGE
   );
 
-  const gatewayPackage = runLingoSentinelGateway({
-    ...p,
-    message: transcript,
-    input: transcript,
-    text: transcript,
-    originalInput: transcript
-  }, {
-    ...opts,
-    telemetry: {
-      ...safeObject(opts.telemetry),
-      includeCorrelation: true
-    }
-  });
+  const sourceLanguage = normalizeLanguage(
+    input.sourceLanguage ||
+      input.language ||
+      input.lang ||
+      normalized.sender.preferredLanguage ||
+      DEFAULT_LANGUAGE,
+    DEFAULT_LANGUAGE
+  );
 
-  const privateDelivery = {
-    version: "nyx.lingosentinel.marionPrivateVoiceDeliveryPayload/1.0",
-    enabled: true,
-    adminOnlyDelivery: true,
-    privateSignal: true,
-    publicSurface: "Nyx",
-    authority: ensureAuthority(),
-    noRawAudioStored: true,
-    transcriptOnly: true,
-    inputChannel: "voice",
-    deliveryChannel: safeString(opts.deliveryChannel || "lingosentinel_private_voice"),
-    roomId: safeString(opts.roomId || ""),
-    role: safeString(opts.role || "host"),
-    traceId: safeString(opts.traceId || gatewayPackage.traceId || "")
-  };
+  const route = buildRoute(input, normalized);
+  const languageContinuity = buildLanguageContinuity(input, normalized);
+  const userBoundary = buildPhase2BUserBoundary(input, normalized);
+  const phase2eRoundtrip = buildPhase2ERoundtripReadiness(normalized.mode, normalized.roomId);
 
   return {
-    ...buildMarionBridgePayload({
-      ...p,
-      message: transcript,
-      input: transcript,
-      text: transcript,
-      originalInput: transcript
-    }, opts),
-    transcript,
-    inputChannel: "voice",
-    source: "lingosentinel-private-admin-voice",
-    privateDelivery,
-    adminOnlyDelivery: true,
-    privateSignal: true,
-    privateVoiceDelivery: true,
-    transcriptOnly: true,
-    noRawAudioStored: true,
-    audioStored: false,
-    marionAuthority: true,
-    finalAuthority: "Marion",
-    publicSurface: "Nyx"
+    id: safeString(input.id || createTraceId('lsmsg'), '', 96),
+    text: normalized.text,
+    mode: normalized.mode,
+    roomId: normalized.roomId,
+
+    sender: normalized.sender,
+    recipient: normalized.recipient,
+
+    sourceLanguage,
+    targetLanguage:
+      normalized.mode === 'group_room'
+        ? safeString(input.targetLanguage || input.targetLang || 'multi', 'multi', 24)
+        : targetLanguage,
+    recipientLanguage: normalizeLanguage(
+      input.recipientLanguage || normalized.recipient?.preferredLanguage || targetLanguage,
+      targetLanguage
+    ),
+    languagePair: normalized.languagePair || { source: sourceLanguage, target: targetLanguage },
+    languageContinuity,
+    enFrEsContinuity: languageContinuity,
+    userBoundary,
+    marionSilentOversight: userBoundary,
+    phase2eLiveRoundtrip: phase2eRoundtrip,
+
+    route,
+
+    metadata: {
+      ...stripSensitiveMetadata(input.metadata),
+      gateway: GATEWAY_NAME,
+      gatewayVersion: GATEWAY_VERSION,
+      governanceDecision: governance.decision,
+      riskLevel: governance.riskLevel,
+      marionAuthority: true,
+      realtimeReady: true,
+      channelNamespaceAligned: true,
+      canonicalNamespace: CHANNEL_NAMESPACE,
+      canonicalChannel: route.canonicalChannel,
+      tokenChannelMatchesPublishChannel: true,
+      realtimeBridgeChannelMatchesToken: true,
+      phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+      phase2eLiveRoundtripVersion: PHASE2E_LIVE_ROUNDTRIP_VERSION,
+      phase2eLiveRoundtrip: true,
+      enFrEsContinuityActive: languageContinuity.enFrEsContinuityActive,
+      languageContinuityPreserved: true,
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
+      publicUsersMayAddressMarion: false,
+      canonicalPublicMessageEvent: 'LINGOSENTINEL_MESSAGE_CREATED',
+      visibleToUsers: false,
+      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION
+    },
+
+    governance
   };
 }
 
+function prepareLingoSentinelPublish(input = {}) {
+  const traceId = createTraceId();
+  const validation = validateGatewayInput(input);
+
+  if (!validation.ok) {
+    return {
+      ok: false,
+      errors: validation.errors,
+      governance: {
+        marionAuthority: true,
+        nyxPublicFacing: true,
+        lingoSentinelAllowed: false,
+        decision: GOVERNANCE_DECISIONS.reject,
+        riskLevel: RISK_LEVELS.unknown,
+        confidence: 0,
+        boundaries: {
+          publishesRealtime: false,
+          performsTranslation: false,
+          exposesPrivateIdentity: false,
+          finalAuthority: 'Marion',
+          silentOversight: true,
+          userToUserBoundary: true,
+          marionVisibleParticipant: false,
+          marionRenderedAsSpeaker: false,
+          marionCanPublishToRoom: false,
+          marionCanAppearInUserRoster: false,
+          visibleToUsers: false
+        },
+        userBoundary: buildPhase2BUserBoundary(input, validation.normalized || {})
+      },
+      telemetry: {
+        traceId,
+        gateway: GATEWAY_NAME,
+        version: GATEWAY_VERSION,
+        stage: 'gateway_validation',
+        timestamp: nowIso()
+      }
+    };
+  }
+
+  const governance = buildGovernance(input, validation.normalized);
+
+  if (!governance.lingoSentinelAllowed) {
+    return {
+      ok: false,
+      errors: ['Message rejected by Marion gateway governance.'],
+      governance,
+      telemetry: {
+        traceId,
+        gateway: GATEWAY_NAME,
+        version: GATEWAY_VERSION,
+        stage: 'gateway_governance',
+        mode: validation.normalized.mode,
+        roomId: validation.normalized.roomId,
+        timestamp: nowIso()
+      }
+    };
+  }
+
+  const publishInput = buildPublishInput(input, validation.normalized, governance);
+
+  return {
+    ok: true,
+    publishInput,
+    governance,
+    telemetry: {
+      traceId,
+      gateway: GATEWAY_NAME,
+      version: GATEWAY_VERSION,
+      stage: 'gateway_ready',
+      mode: publishInput.mode,
+      roomId: publishInput.roomId,
+      lane: publishInput.route.lane,
+      eventType: publishInput.route.eventType,
+      ablyChannel: publishInput.route.ablyChannel,
+      canonicalChannel: publishInput.route.canonicalChannel,
+      channelNamespaceAligned: true,
+      tokenChannelMatchesPublishChannel: true,
+      realtimeBridgeChannelMatchesToken: true,
+      languageContinuity: publishInput.languageContinuity,
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
+      publicUsersMayAddressMarion: false,
+      visibleToUsers: false,
+      phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION,
+      timestamp: nowIso()
+    }
+  };
+}
+
+function routePreview(input = {}) {
+  const prepared = prepareLingoSentinelPublish(input);
+  const publishInput = prepared.publishInput || {};
+
+  return {
+    ok: prepared.ok,
+    mode: publishInput.mode,
+    roomId: publishInput.roomId,
+    lane: publishInput.route?.lane,
+    eventType: publishInput.route?.eventType,
+    ablyChannel: publishInput.route?.ablyChannel,
+    canonicalChannel: publishInput.route?.canonicalChannel,
+    channelNamespaceAligned: true,
+    tokenChannelMatchesPublishChannel: true,
+    realtimeBridgeChannelMatchesToken: true,
+    sender: publishInput.sender?.id,
+    recipient: publishInput.recipient?.id || null,
+    languagePair: publishInput.languagePair || null,
+    languageContinuity: publishInput.languageContinuity || null,
+    userBoundary: publishInput.userBoundary || null,
+    silentOversight: true,
+    marionVisibleParticipant: false,
+    visibleToUsers: false,
+    governance: prepared.governance,
+    errors: prepared.errors || [],
+    telemetry: prepared.telemetry
+  };
+}
+
+function getGatewayContract() {
+  return {
+    gateway: GATEWAY_NAME,
+    version: GATEWAY_VERSION,
+    validModes: VALID_MODES.slice(),
+    lanes: { ...CHANNEL_LANES },
+    channelNamespace: CHANNEL_NAMESPACE,
+    phase2dChannelNamespaceVersion: PHASE2D_CHANNEL_NAMESPACE_VERSION,
+    canonicalChannels: {
+      one_to_one: channelForMode('one_to_one', DEFAULT_ROOM_ID),
+      group_room: channelForMode('group_room', DEFAULT_ROOM_ID),
+      live_translate: channelForMode('live_translate', DEFAULT_ROOM_ID),
+      delivered: channelForMode('delivered', DEFAULT_ROOM_ID)
+    },
+    eventTypes: { ...EVENT_TYPES },
+    identity: {
+      contract: IDENTITY_CONTRACT,
+      stableClientIdSupported: true,
+      perTabSessionIdSupported: true,
+      sharedDefaultIdentityAllowed: false,
+      activeRoomMembershipRequired: true,
+      membershipCredentialRequired: true,
+      clientSuppliedRoomAuthorizationAccepted: false
+    },
+    boundaries: {
+      publishesRealtime: false,
+      performsTranslation: false,
+      finalAuthority: 'Marion',
+      publicFace: 'Nyx/LingoSentinel',
+      silentOversight: true,
+      userToUserBoundary: true,
+      marionVisibleParticipant: false,
+      marionRenderedAsSpeaker: false,
+      marionCanPublishToRoom: false,
+      marionCanAppearInUserRoster: false,
+      publicUsersMayAddressMarion: false,
+      visibleToUsers: false
+    }
+  };
+}
 
 module.exports = {
-  runLingoSentinelGateway,
-  buildMarionBridgePayload,
-  buildMarionPrivateDeliveryPayload,
-  buildMarionPrivateVoiceDeliveryPayload,
-  extractInput,
-  mergeGatewayConfig,
-  stableHash,
-  ensureRenderSafeTranslationMeta,
-  DEFAULT_GATEWAY_CONFIG,
-  PHASE2A_CONTINUITY_VERSION,
+  prepareLingoSentinelPublish,
+  routePreview,
+  getGatewayContract,
+
+  // Exposed for tests.
+  normalizeMode,
+  normalizeLanguage,
+  normalizeLanguagePair,
+  buildLanguageContinuity,
+  buildPhase2BUserBoundary,
+  hasPublicMarionSpoofAttempt,
+  isReservedMarionIdentity,
+  normalizeParticipant,
+  normalizeRecipient,
+  normalizeRoomId,
+  validateGatewayInput,
+  buildGovernance,
+  buildRoute,
+  buildPublishInput,
+  detectRiskLevel,
+  detectPrivateMaterial,
+  stripSensitiveMetadata,
+  channelForMode,
+  legacyChannelAliasesForMode,
+  buildChannelAlignment,
+  buildPhase2ERoundtripReadiness,
+
+  VALID_MODES,
+  MODE_ALIASES,
+  CHANNEL_LANES,
+  EVENT_TYPES,
+  GOVERNANCE_DECISIONS,
+  RISK_LEVELS,
   PHASE2B_USER_BOUNDARY_VERSION,
-  buildPhase2BUserBoundaryCarry,
-  normalizeContinuityLanguage,
-  buildEnFrEsContinuitySmokeCarry
+  PHASE2D_CHANNEL_NAMESPACE_VERSION,
+  PHASE2E_LIVE_ROUNDTRIP_VERSION,
+  IDENTITY_CONTRACT,
+  CHANNEL_NAMESPACE
 };
