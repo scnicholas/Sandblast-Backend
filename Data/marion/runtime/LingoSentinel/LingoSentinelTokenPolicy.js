@@ -16,7 +16,7 @@
 
 const crypto = require('crypto');
 
-const POLICY_VERSION = 'nyx.lingosentinel.tokenPolicy/2.0-layer1-layer2-hardening';
+const POLICY_VERSION = 'nyx.lingosentinel.tokenPolicy/3.0-layer3-room-membership';
 const IDENTITY_CONTRACT = 'lingosentinel.clientIdentity/1.0';
 const CHANNEL_NAMESPACE = 'lingosentinel';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
@@ -189,6 +189,7 @@ function sanitizeTokenInput(body = {}, query = {}) {
     clientId,
     displayName: sanitizeDisplayName(body.displayName || body.name || query.displayName, clientId),
     sessionId: sanitizeIdentifier(body.sessionId || query.sessionId, '', 96),
+    autoJoin: body.autoJoin === true || query.autoJoin === 'true',
     role: 'participant',
     authenticated: body.authenticated === true,
     identitySource: cleanSuppliedClientId ? 'client_supplied' : 'server_generated',
@@ -205,6 +206,7 @@ function validateTokenInput(input = {}) {
   if (!VALID_MODES.includes(mode)) errors.push(`Invalid LingoSentinel mode: ${safeString(input.mode || 'missing')}.`);
   if (!roomId) errors.push('roomId is required.');
   if (!clientId) errors.push('clientId is required.');
+  if (!sanitizeIdentifier(input.sessionId, '', 96) || sanitizeIdentifier(input.sessionId, '', 96).length < 8) errors.push('sessionId must contain at least 8 characters.');
   if (clientId.length < 8) errors.push('clientId must contain at least 8 characters.');
   if (isReservedIdentity(clientId) || isReservedIdentity(roomId) || isReservedIdentity(input.displayName)) {
     errors.push('Reserved Marion, system, admin, or operator identities are not available to public LingoSentinel clients.');
@@ -255,7 +257,9 @@ function getPolicyHealth() {
     uniqueFallbackIdentityEnabled: true,
     publicTelemetryPublishAllowed: false,
     marionIdentitySpoofingBlocked: true,
-    capabilityScope: 'single_room_only'
+    capabilityScope: 'single_room_only',
+    activeRoomMembershipRequired: true,
+    sessionBoundCapability: true
   };
 }
 
