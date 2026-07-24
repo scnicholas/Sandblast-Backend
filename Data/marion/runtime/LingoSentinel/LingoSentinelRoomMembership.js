@@ -9,7 +9,7 @@
 const RoomPolicy = require('./LingoSentinelRoomPolicy');
 const MembershipCredential = require('./LingoSentinelMembershipCredential');
 
-const VERSION = 'nyx.lingosentinel.roomMembership/5.0-credential-bound';
+const VERSION = 'nyx.lingosentinel.roomMembership/10.0-delivery-recovery-authority';
 const DEFAULT_IDLE_TTL_MS = RoomPolicy.clampNumber(
   process.env.LINGOSENTINEL_MEMBERSHIP_IDLE_TTL_MS,
   60 * 60 * 1000,
@@ -127,7 +127,7 @@ class LingoSentinelRoomMembershipStore {
     const sessionId = RoomPolicy.sanitizeIdentifier(identity.sessionId || identity.session, '', 96);
     const clientId = RoomPolicy.sanitizeIdentifier(identity.clientId || identity.id, '', 80);
     const credential = String(identity.membershipCredential || identity.credential || '').trim();
-    const validAction = ['subscribe', 'publish', 'presence', 'leave', 'connection', 'read'].includes(action) ? action : 'subscribe';
+    const validAction = ['subscribe', 'publish', 'presence', 'leave', 'connection', 'read', 'delivery', 'recovery'].includes(action) ? action : 'subscribe';
     const item = this._record(id, sessionId);
 
     if (!item || !item.active) {
@@ -207,6 +207,8 @@ class LingoSentinelRoomMembershipStore {
       sessionBound: true,
       clientBound: true,
       credentialBound: true,
+      deliveryAuthorizationSupported: true,
+      recoveryAuthorizationSupported: true,
       plaintextCredentialStored: false,
       publicSessionIdsExposed: false,
       idleTtlMs: this.idleTtlMs,
