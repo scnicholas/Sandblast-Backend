@@ -24,10 +24,13 @@
   function normalizeInput(input) {
     const payload = input && typeof input === "object" ? input : { text: input };
     return {
-      requestId: cleanString(payload.requestId || createRequestId("phase8_widget")),
+      requestId: cleanString(payload.requestId || createRequestId("phase9_widget")),
       text: cleanString(payload.text || payload.message || payload.input || ""),
       source: cleanString(payload.source || payload.from || payload.sourceLanguage || "auto"),
       target: cleanString(payload.target || payload.to || payload.targetLanguage || "English"),
+      roomId: cleanString(payload.roomId || "lingosentinel-main"),
+      mode: cleanString(payload.mode || "group_room"),
+      displayName: cleanString(payload.displayName || ""),
       preserve: Array.isArray(payload.preserve) ? payload.preserve : ["Marion", "LingoSentinel", "Sandblast"]
     };
   }
@@ -56,17 +59,33 @@
     try { return await bridge.requestRealtimeToken(input || {}, { ...opts, tokenEndpoint: assertPublicEndpoint(opts.tokenEndpoint || DEFAULT_TOKEN_ENDPOINT, DEFAULT_TOKEN_ENDPOINT) }); }
     catch (error) { return safeFailure("", error && error.message || "LINGOSENTINEL_TOKEN_INTEGRATION_EXCEPTION"); }
   }
+  async function initializeRealtime(input, options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const payload = normalizeInput(input || {});
+    const bridge = resolveBridge(opts);
+    if (!bridge || typeof bridge.connectRealtime !== "function") return safeFailure(payload.requestId, "LINGOSENTINEL_REALTIME_BRIDGE_UNAVAILABLE");
+    try {
+      const result = await bridge.connectRealtime({ roomId: payload.roomId, mode: payload.mode, displayName: payload.displayName }, opts);
+      return result && result.ok === true ? result : safeFailure(payload.requestId, result && result.error || "LINGOSENTINEL_REALTIME_INITIALIZATION_FAILED");
+    } catch (error) { return safeFailure(payload.requestId, error && error.message || "LINGOSENTINEL_REALTIME_INITIALIZATION_EXCEPTION"); }
+  }
+  function getRealtimeClient(options) {
+    const bridge = resolveBridge(options);
+    return bridge && typeof bridge.getRealtimeClient === "function" ? bridge.getRealtimeClient(options) : null;
+  }
   function getApproxByteSize(value) {
     const text = String(value == null ? "" : value);
     return typeof TextEncoder !== "undefined" ? new TextEncoder().encode(text).length : text.length;
   }
   const hook = Object.freeze({
-    version: "lingosentinel.widgetIntegrationHook/8C-layer1-layer2",
+    version: "lingosentinel.widgetIntegrationHook/9C-layers1-4",
     endpoint: DEFAULT_TRANSLATION_ENDPOINT,
     tokenEndpoint: DEFAULT_TOKEN_ENDPOINT,
     translateWidgetText,
     initializeIdentity,
     requestRealtimeToken,
+    initializeRealtime,
+    getRealtimeClient,
     normalizeInput,
     assertPublicEndpoint,
     createRequestId,
