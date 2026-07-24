@@ -2,7 +2,7 @@
 
 const RoomPolicy = require('./LingoSentinelRoomPolicy');
 
-const VERSION = 'nyx.lingosentinel.connectionState/4.0-lifecycle';
+const VERSION = 'nyx.lingosentinel.connectionState/6.0-message-ready';
 const STATES = Object.freeze(['initialized', 'connecting', 'connected', 'reconnecting', 'suspended', 'disconnected', 'failed', 'closed']);
 const TRANSITIONS = Object.freeze({
   initialized: ['connecting', 'closed'],
@@ -87,6 +87,24 @@ class LingoSentinelConnectionStateStore {
     this.records.set(key, record);
     return { ok: true, connection: clone(record) };
   }
+
+  isSendEligible(sessionId, context = {}) {
+    const connection = this.get(sessionId);
+    const clientId = RoomPolicy.sanitizeIdentifier(context.clientId, '', 80);
+    const roomId = RoomPolicy.sanitizeIdentifier(context.roomId, '', 96);
+    const ok = !!(
+      connection &&
+      connection.state === 'connected' &&
+      connection.clientId === clientId &&
+      connection.roomId === roomId
+    );
+    return {
+      ok,
+      connection,
+      error: ok ? '' : !connection ? 'connection_registration_required' : connection.state !== 'connected' ? 'connection_not_ready' : 'connection_identity_mismatch'
+    };
+  }
+
   get(sessionId) { return clone(this.records.get(RoomPolicy.sanitizeIdentifier(sessionId, '', 96))); }
   remove(sessionId) { return this.records.delete(RoomPolicy.sanitizeIdentifier(sessionId, '', 96)); }
   list(roomId) {
@@ -108,7 +126,7 @@ class LingoSentinelConnectionStateStore {
     this.prune();
     const counts = Object.fromEntries(STATES.map((state) => [state, 0]));
     for (const item of this.records.values()) counts[item.state] += 1;
-    return { ok: true, service: 'LingoSentinelConnectionState', version: VERSION, storage: 'in_memory', states: STATES.slice(), counts, activeRecords: this.records.size, transitionValidation: true };
+    return { ok: true, service: 'LingoSentinelConnectionState', version: VERSION, storage: 'in_memory', states: STATES.slice(), counts, activeRecords: this.records.size, transitionValidation: true, sendEligibilityValidation: true };
   }
 }
 
