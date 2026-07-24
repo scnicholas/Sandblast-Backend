@@ -2,10 +2,10 @@
   "package": "Marion Completion Flow Layers 18-20",
   "version": "20.0",
   "contract": "nyx.marion.conversationFlow/4.0",
-  "generatedUtc": "2026-07-24T18:12:14.699359+00:00",
+  "generatedUtc": "2026-07-24T20:58:21.709021+00:00",
   "target": {
     "backend": "Sandblast backend",
-    "scope": "Marion Layers 1-20 baseline plus cohesive LingoSentinel Layers 1-7 English user-to-user relay certification",
+    "scope": "Marion Layers 1-20 baseline plus cohesive LingoSentinel Layers 1-10 English relay, delivery, integrity, and recovery certification",
     "manifestOnly": false,
     "manifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
     "guardianMemoryBridgePath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
@@ -41,16 +41,16 @@
     "newCompletionModuleCount": 4,
     "hardStopLayer": 20,
     "additionalLayerRecommended": false,
-    "trackedFileCount": 101,
-    "javascriptFileCount": 71,
+    "trackedFileCount": 119,
+    "javascriptFileCount": 97,
     "testRoot": "tests/marion",
-    "lingoSentinelLayersCompleted": 7,
+    "lingoSentinelLayersCompleted": 10,
     "lingoSentinelNewLayers": [
-      5,
-      6,
-      7
+      8,
+      9,
+      10
     ],
-    "lingoSentinelFunctionalChecks": 54
+    "lingoSentinelFunctionalChecks": 87
   },
   "filePaths": [
     "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
@@ -114,7 +114,6 @@
     "public/lingosentinel/lingosentinel-widget-integration-hook.js",
     "tests/lingosentinel/layers_1_2_runtime_test.js",
     "README_LINGOSENTINEL_LAYERS_1_2.md",
-    "VALIDATION_REPORT.json",
     "Data/marion/runtime/LingoSentinel/LingoSentinelRoomPolicy.js",
     "Data/marion/runtime/LingoSentinel/LingoSentinelRoomMembership.js",
     "Data/marion/runtime/LingoSentinel/LingoSentinelRoomRegistry.js",
@@ -127,7 +126,6 @@
     "tests/lingosentinel/layers_3_4_runtime_test.js",
     "README_LINGOSENTINEL_LAYERS_3_4.md",
     "GAP_REFINEMENTS_LAYERS_3_4.md",
-    "INDEX_SURGICAL_DIFF_AUDIT.json",
     "LINGOSENTINEL_LAYERS_3_4_NEW_FILES_SOURCE.txt",
     "Data/marion/runtime/LingoSentinel/LingoSentinelMembershipCredential.js",
     "Data/marion/runtime/LingoSentinel/LingoSentinelMessagePolicy.js",
@@ -148,12 +146,32 @@
     "tests/lingosentinel/layers_5_7_route_contract_test.js",
     "tests/lingosentinel/run_all_layers_1_7.js",
     "tests/stubs/node_modules/express/index.js",
-    "README_LINGOSENTINEL_LAYERS_5_7.md",
-    "GAP_REFINEMENTS_LAYERS_5_7.md",
-    "DEPLOYMENT_CHECKLIST_LAYERS_5_7.md",
-    "LINGOSENTINEL_LAYERS_5_7_NEW_FILES_SOURCE.txt",
-    "FILES_INCLUDED.txt",
-    "VALIDATE_LINGOSENTINEL_LAYERS_1_7.ps1"
+    "Data/marion/runtime/LingoSentinel/LingoSentinelMessageState.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryReceipt.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryPolicy.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRegistry.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRoute.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelMessageSequence.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelIdempotencyRegistry.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelMessageFingerprint.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelReplayGuard.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelOrderingBuffer.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelIntegrityDiagnostics.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelPersistenceAdapter.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelMessageStore.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryPolicy.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelConversationRecovery.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryRoute.js",
+    "Data/marion/runtime/LingoSentinel/LingoSentinelRetentionManager.js",
+    "public/lingosentinel/lingosentinel-public-delivery-client.js",
+    "public/lingosentinel/lingosentinel-widget-message-state-controller.js",
+    "public/lingosentinel/lingosentinel-public-message-integrity.js",
+    "public/lingosentinel/lingosentinel-public-recovery-client.js",
+    "public/lingosentinel/lingosentinel-widget-conversation-recovery.js",
+    "tests/lingosentinel/layers_8_10_functional_validation_test.js",
+    "tests/lingosentinel/layers_8_10_public_client_test.js",
+    "tests/lingosentinel/layers_8_10_route_contract_test.js",
+    "tests/lingosentinel/run_all_layers_1_10.js"
   ],
   "files": [
     {
@@ -464,8 +482,8 @@
     },
     {
       "path": "index.js",
-      "bytes": 1488535,
-      "sha256": "0e34ddd6533243a64421afb210d03202727329c89b71b4ecc656935811bf5f41",
+      "bytes": 1492084,
+      "sha256": "fa7c007b06b37427e98491d27d0f5a36e7b1083db3a944f96add51845538ab86",
       "status": "updated"
     },
     {
@@ -476,26 +494,26 @@
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRuntimeHealth.js",
-      "bytes": 5277,
-      "sha256": "60443fd2288d066a39b88c2ba963df8427db32705143d690649d19bc435cbd42",
+      "bytes": 5251,
+      "sha256": "4c30aecfa833700a2953e0bd7e0a56b9b1f58935848df1c1b4b564076430fd0b",
       "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelSubscribeTokenRoute.js",
-      "bytes": 10282,
-      "sha256": "57f26c7f0e1194202e0bb3e5ba839fc0587a5466bbea7199af47af7d85cd1de7",
+      "bytes": 10450,
+      "sha256": "2c751b6da99f4d9ad90ef0ce0c8019a88d8bbe4fe248f5e5edb3e42340466aed",
       "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelTokenPolicy.js",
-      "bytes": 11079,
-      "sha256": "9cfc7b69f7847f00433ac2f33de2ab324693df5a1f82631e356ac65cfc49fa0e",
+      "bytes": 11712,
+      "sha256": "ac5f293f51dab9f1fec63496acd47f77b59768456ae557d92db313dea2f2dbdf",
       "status": "updated"
     },
     {
       "path": "public/lingosentinel/lingosentinel-public-translation-client.js",
-      "bytes": 10952,
-      "sha256": "41666ec81e708eb1e8a42a061de19d7af1509d424bc4f0c29b59a9e927a38f69",
+      "bytes": 11023,
+      "sha256": "a87d17e6e1d8c10388f0cb14d324c62af3ab3662d2da4e6ec982cd7931c6d508",
       "status": "updated"
     },
     {
@@ -506,8 +524,8 @@
     },
     {
       "path": "public/lingosentinel/lingosentinel-widget-integration-hook.js",
-      "bytes": 6457,
-      "sha256": "4652830080fb6612ca7155f542cd986af6b4dba4d0f49cb6f1715983afd009f3",
+      "bytes": 2622,
+      "sha256": "7642e8f6a7e8371e5dccdd340f073a5b7c7038f6e04e4d41287d8e995b2a0d19",
       "status": "updated"
     },
     {
@@ -523,12 +541,6 @@
       "status": "new"
     },
     {
-      "path": "VALIDATION_REPORT.json",
-      "bytes": 10003,
-      "sha256": "b8ca2b2e2d80b1b5503421b7c8f800f7b36c63ec3a4ac9048fdff88b807a6bb7",
-      "status": "new"
-    },
-    {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRoomPolicy.js",
       "bytes": 8567,
       "sha256": "de9b2c91c017f47282c0c19177c0612ea52141203a28732ab6e99da61dde01ba",
@@ -536,14 +548,14 @@
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRoomMembership.js",
-      "bytes": 8410,
-      "sha256": "8a5b352a26f427e7220744954d4a850f7b7d533f55391c67b5f84501cb757313",
+      "bytes": 8534,
+      "sha256": "58d1a51a90601f96b24e132f53655f14f313299a8942f0ab67824182d6fcdddd",
       "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRoomRegistry.js",
-      "bytes": 7969,
-      "sha256": "15d03c60de54c9bdc22a7ffb8d215a6083041c0805ed5e31c75b4fa87b895d41",
+      "bytes": 8553,
+      "sha256": "6cad1e9c8427329c0e8e0af17e37a700caaa9687c4f71a82ffa4042a18b97445",
       "status": "updated"
     },
     {
@@ -566,8 +578,8 @@
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRealtimeBridge.js",
-      "bytes": 5778,
-      "sha256": "8a366578c0a26612da71014d75d39f9065fb5dbd35369e8402d9d69e7f49f49a",
+      "bytes": 5459,
+      "sha256": "1615fcdd31c389d51e7f8aac2dd95fefdcf74c8eb0fbed1029010e80f0ce5f0f",
       "status": "updated"
     },
     {
@@ -578,8 +590,8 @@
     },
     {
       "path": "public/lingosentinel/lingosentinel-public-realtime-client.js",
-      "bytes": 12094,
-      "sha256": "42d78f6f6402e70df2b149d3c49c4206e9f772d490d8f277e49de800eb3454fe",
+      "bytes": 9087,
+      "sha256": "28a29b7b85b2f9ef52694891897d1253c90321bea2c46166492d0d90c67a9ef2",
       "status": "updated"
     },
     {
@@ -601,12 +613,6 @@
       "status": "new"
     },
     {
-      "path": "INDEX_SURGICAL_DIFF_AUDIT.json",
-      "bytes": 1469,
-      "sha256": "4ed91345614b3a58c1d0343bf558f542b1d265d5190363ddd84b48e4e576968f",
-      "status": "new"
-    },
-    {
       "path": "LINGOSENTINEL_LAYERS_3_4_NEW_FILES_SOURCE.txt",
       "bytes": 56174,
       "sha256": "93672fcf827987d915c219f9620ac34fbacf631962f482d0a6d9089a07db7bcd",
@@ -616,150 +622,270 @@
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMembershipCredential.js",
       "bytes": 3665,
       "sha256": "3a49bb756d3b670325b7d457b086c5d82a877a9bb2027a1ee1b16b615be3eda9",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessagePolicy.js",
       "bytes": 4201,
       "sha256": "821eb231406129eefd40191f0cf304a610c973b96b2608fbf55740920549be3e",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessageEnvelope.js",
-      "bytes": 2508,
-      "sha256": "b213266b0cc7d5716816af71c41c6bef09a24ca679af450faeeea969426575bd",
-      "status": "new"
+      "bytes": 2268,
+      "sha256": "5d038274bf8b763334fad0fc6b0b7868e907a2ac0b7b28d5f2a2aba427a6d39a",
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessageValidator.js",
-      "bytes": 3436,
-      "sha256": "4e29b8b4f018d637240d2d6946d0f64cb741162e20defcb266c62257a63ca34d",
-      "status": "new"
+      "bytes": 2572,
+      "sha256": "c11083bfafe1db8354be893840045a4a00b1bc9e9e8648b4cb0a30805512f129",
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelPublicMessageProjection.js",
-      "bytes": 3141,
-      "sha256": "f8edda130fa4aa692b64bed4d6d424886a58c765d8a781d9ded51000390aabed",
-      "status": "new"
+      "bytes": 2450,
+      "sha256": "ad2637e84adebe11ba841d63b62b4748a3af4591b5c1fd843fbda398e7734349",
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelEnglishRelayPolicy.js",
       "bytes": 2147,
       "sha256": "d29d76d3ef2a09aea0992e5b0bb8dd094c28866e86a46209cad36a3c75c1889f",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessagePublisher.js",
-      "bytes": 7179,
-      "sha256": "85feb02971b28a183338ec5c7b6b3dd95206a464cdbd9f446491f61821cdc576",
-      "status": "new"
+      "bytes": 7350,
+      "sha256": "3eeb00eb5bc7852f4bdcdd3ecb7a7bebb4b9f3c6479d5eacfcd8bb2f18f75499",
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessageRoute.js",
-      "bytes": 3110,
-      "sha256": "bd46da2318fcc05b59c0e114e819b5350ceaacea23dd4e63c688077cffea3e28",
-      "status": "new"
+      "bytes": 3132,
+      "sha256": "2b9edfda2d52bd53d1ceaca84e60445adfefa17edc0bdcaf46ea78e9fdc45a4b",
+      "status": "updated"
     },
     {
       "path": "Data/marion/runtime/LingoSentinel/LingoSentinelReceiveDiagnostics.js",
       "bytes": 1100,
       "sha256": "6b5105a34416ed877e9e95aa2fb01ce89d103aa58344834d84134a039319e9b6",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "public/lingosentinel/lingosentinel-public-message-client.js",
-      "bytes": 4091,
-      "sha256": "a1febca756e93bdddb347b73024026c7dba624d8c1758a566fba754d72b70d3b",
-      "status": "new"
+      "bytes": 3121,
+      "sha256": "77b75030e68b67dd808006381a2cc45e5d6218f8c6526117367cab1b1677e618",
+      "status": "updated"
     },
     {
       "path": "public/lingosentinel/lingosentinel-public-message-receiver.js",
-      "bytes": 5958,
-      "sha256": "08b2a3b0371c2c47d85261d59e7e3c208a565b1ac48b3ad5db7c09f8d51f27f0",
-      "status": "new"
+      "bytes": 5468,
+      "sha256": "b5d3166ea8cc214047c8070575d7f4036e8125ec0adf49fd6d089d72ed953cd6",
+      "status": "updated"
     },
     {
       "path": "public/lingosentinel/lingosentinel-message-render-policy.js",
       "bytes": 2814,
       "sha256": "a33316baa4a67700d3a038a8ece1aec665db732d3b16c54c3de3df94558cd0b7",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "public/lingosentinel/lingosentinel-widget-conversation-controller.js",
-      "bytes": 4356,
-      "sha256": "f8fa9c57737fafbf5d20d22ac028e36c6c8b92b39a1d440132bc522749a854b5",
-      "status": "new"
+      "bytes": 3764,
+      "sha256": "43906cd4bb04d4e971d2acde8c88783d9982351e764c30420d90293d8011491a",
+      "status": "updated"
     },
     {
       "path": "tests/lingosentinel/layers_1_7_regression_test.js",
       "bytes": 2157,
       "sha256": "5a7c67d39d3d3f255307dd7c903eda4d5d2e589c66d94380d9b4c878b8bbf650",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "tests/lingosentinel/layers_5_7_functional_validation_test.js",
       "bytes": 12752,
       "sha256": "fcf372e0f7ce6d73cd46358d4e57fbb1c80e210458a7855cc47e090b893d320c",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "tests/lingosentinel/layers_5_7_public_client_test.js",
       "bytes": 3222,
       "sha256": "5c058a7079b10392ae24ecf725f0ff6fc981628fbdbe089ba8b969a2135d332f",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "tests/lingosentinel/layers_5_7_route_contract_test.js",
       "bytes": 2030,
       "sha256": "423e266d59d1649f2b0b8063e8b984c0fbb7e90e26f30c78fe5b432ec5cd3479",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "tests/lingosentinel/run_all_layers_1_7.js",
       "bytes": 484,
       "sha256": "1c5a22255ef4f7377f874cd012f13ef37f21ef780b79547e4718b1fff5d36f32",
-      "status": "new"
+      "status": "updated"
     },
     {
       "path": "tests/stubs/node_modules/express/index.js",
       "bytes": 785,
       "sha256": "3e9e4110ebf127d7cd97cc97351168bc60c0d43e1833706353691f8b72003fc1",
+      "status": "updated"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessageState.js",
+      "bytes": 2465,
+      "sha256": "2235c2015373c01d7e685b98079d32c878be2d89fcb20548a8316cdc326c3680",
       "status": "new"
     },
     {
-      "path": "README_LINGOSENTINEL_LAYERS_5_7.md",
-      "bytes": 4630,
-      "sha256": "73f5b21fdcb3c5ea42923545e63ab57ee38cf664dd19d1bf17a2d65b3067969d",
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryReceipt.js",
+      "bytes": 1023,
+      "sha256": "3a0fc014572c5154d31e310d883a5a65ba005cfa63be6486b9ff931a0f811437",
       "status": "new"
     },
     {
-      "path": "GAP_REFINEMENTS_LAYERS_5_7.md",
-      "bytes": 4077,
-      "sha256": "3f32667e12fff56103739e0b7e7fc2fb18646d9272c1c772d46dfd7b75b691a7",
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryPolicy.js",
+      "bytes": 1416,
+      "sha256": "ca235f797b80030f99a24eafdc3f0a634deb73e8b93787419af5b66fb25397b1",
       "status": "new"
     },
     {
-      "path": "DEPLOYMENT_CHECKLIST_LAYERS_5_7.md",
-      "bytes": 905,
-      "sha256": "fb21246e7610819e4f188ae2751618b8037ab082517430999db161e57086fd86",
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRegistry.js",
+      "bytes": 3040,
+      "sha256": "b16f038be6ad13f12ef170644fa0721b4e3dfc5a899f17fda11dd60fae545272",
       "status": "new"
     },
     {
-      "path": "LINGOSENTINEL_LAYERS_5_7_NEW_FILES_SOURCE.txt",
-      "bytes": 50959,
-      "sha256": "644ff074b2ada78af2f23a2a592674ea41e5535191aaec4484fc173ab6e32575",
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRoute.js",
+      "bytes": 4195,
+      "sha256": "0f9f177bd4fd077de7e0a89a18ac3faa17bcf1eafb628f8eb5a22956d6728229",
       "status": "new"
     },
     {
-      "path": "FILES_INCLUDED.txt",
-      "bytes": 2445,
-      "sha256": "4000736af9a1122149cf6c48dc52b828dd4573a6a0918b54051db977393d6c7c",
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessageSequence.js",
+      "bytes": 1357,
+      "sha256": "9d17b9e7f918ceb57dde4f826f173e98e7bdfd8e576b3aa84e4657d16a61863a",
       "status": "new"
     },
     {
-      "path": "VALIDATE_LINGOSENTINEL_LAYERS_1_7.ps1",
-      "bytes": 839,
-      "sha256": "6f94b504669601fd42e13cadce7d9b7fcff43604c3c5306108c16ecb522385fa",
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelIdempotencyRegistry.js",
+      "bytes": 1795,
+      "sha256": "73bec9ddd4300d3d9bfc9e0ea85f23165983a6d663754e8ea74323afde6a0d0f",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessageFingerprint.js",
+      "bytes": 765,
+      "sha256": "585744873b1e78a668ab6fa19df5f461e9f9f4fe9b49f6a405beaf991b5653d3",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelReplayGuard.js",
+      "bytes": 1306,
+      "sha256": "6a0656173fe607733479a701ab8ff1e31d2f584d15df2356ccb33adc6769ea25",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelOrderingBuffer.js",
+      "bytes": 1068,
+      "sha256": "74726fc18dafca19f401d9a0709d533d9508691f0509e5133d1d09ffa4b57f1f",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelIntegrityDiagnostics.js",
+      "bytes": 629,
+      "sha256": "a0cdd69bc983d5b362830c70598736deae87ee00af8b933077781d4e1be6c3c6",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelPersistenceAdapter.js",
+      "bytes": 3714,
+      "sha256": "67cae5400ad3c1f3eaf43b552023980c4e6eba663b182564ddb6f7200e8b0161",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelMessageStore.js",
+      "bytes": 2004,
+      "sha256": "a1298fdcec4d8cf29c146c1d7a1e20d4d69c0433e8a56734b2bfb7145a1b38aa",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryPolicy.js",
+      "bytes": 943,
+      "sha256": "c7fcfb9d321a44bc27f8822b7209950999345f7c9d93edf7d4a5a23820dd170b",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelConversationRecovery.js",
+      "bytes": 1509,
+      "sha256": "187d8ef80d819fa533f4c54994ebeca7a42864858d755219e5e917d64d3bf3b9",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryRoute.js",
+      "bytes": 2387,
+      "sha256": "4e80250536dab0d1b80378003f8440a7ceb395363bde5fcb665907a5183e7913",
+      "status": "new"
+    },
+    {
+      "path": "Data/marion/runtime/LingoSentinel/LingoSentinelRetentionManager.js",
+      "bytes": 995,
+      "sha256": "7789ccc126029d482c2da61e0ac3ae89242d9bdcc45204d8151631f6a058c2ac",
+      "status": "new"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-public-delivery-client.js",
+      "bytes": 1547,
+      "sha256": "71d7ef27e868b74e8bc4804a926a0c3455c3adc9f5dd71e149b4f40b9467cead",
+      "status": "new"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-widget-message-state-controller.js",
+      "bytes": 1412,
+      "sha256": "63fb308bead37726667d0489f30d8fee4a94e86ac8783b1c7fcb27f5000746d0",
+      "status": "new"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-public-message-integrity.js",
+      "bytes": 2471,
+      "sha256": "7253c55704184066d99b584abde7d82e99170f51d22fd753cb2fc2f868f547e7",
+      "status": "new"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-public-recovery-client.js",
+      "bytes": 1696,
+      "sha256": "c59e4fd64dda8bbdf238667b4e7bfb0b4974f1204ed8455e8ac6d2eacff99599",
+      "status": "new"
+    },
+    {
+      "path": "public/lingosentinel/lingosentinel-widget-conversation-recovery.js",
+      "bytes": 1078,
+      "sha256": "1cb8fd59ff6e97d10a3395bc6c3112720f7290c0bc0d6dc237c0fe5d5a169a17",
+      "status": "new"
+    },
+    {
+      "path": "tests/lingosentinel/layers_8_10_functional_validation_test.js",
+      "bytes": 6672,
+      "sha256": "bfda8da01522d3fde69caf025d8daf0bd4aa25afc42183fb5f1385f98bda1153",
+      "status": "new"
+    },
+    {
+      "path": "tests/lingosentinel/layers_8_10_public_client_test.js",
+      "bytes": 2955,
+      "sha256": "09cd378299fe633e6ee9102d9e1534e7752aaf31c46ba3430e85dc5f068f3cc4",
+      "status": "new"
+    },
+    {
+      "path": "tests/lingosentinel/layers_8_10_route_contract_test.js",
+      "bytes": 1188,
+      "sha256": "f59c37ad83313dcdf1cec3c96961c55103975907533d7e0d56d67c758299c3b8",
+      "status": "new"
+    },
+    {
+      "path": "tests/lingosentinel/run_all_layers_1_10.js",
+      "bytes": 447,
+      "sha256": "50d715d4d18534d977a52fc51f65350be2fc31a12f7cd730fad28dc63013c724",
       "status": "new"
     }
   ],
@@ -846,11 +972,16 @@
     "lingoSentinelLayers5to7RouteContractChecks": 12,
     "lingoSentinelLayers1to7TotalChecks": 54,
     "lingoSentinelLayers1to7Passed": true,
-    "lingoSentinelPackageSyntaxChecks": 36,
-    "lingoSentinelPackageSyntaxChecksPassed": 36,
+    "lingoSentinelPackageSyntaxChecks": 53,
+    "lingoSentinelPackageSyntaxChecksPassed": 53,
     "lingoSentinelLiveAblyRoundtripPending": true,
+    "lingoSentinelLayers8to10FunctionalChecks": 13,
+    "lingoSentinelLayers8to10PublicClientChecks": 8,
+    "lingoSentinelLayers8to10RouteContractChecks": 12,
+    "lingoSentinelLayers1to10TotalChecks": 87,
+    "lingoSentinelLayers1to10Passed": true,
     "lingoSentinelCleanExtractionRetestPassed": true,
-    "lingoSentinelCleanExtractionFileCount": 45
+    "lingoSentinelCleanExtractionFileCount": 72
   },
   "deploymentPolicy": {
     "copyPackageContentsToBackendRoot": true,
@@ -874,6 +1005,15 @@
       "englishRelayOnlyDefault": true,
       "legacyDirectPostPublishBlocked": true,
       "publicScriptOrderDocumentedIn": "README_LINGOSENTINEL_LAYERS_5_7.md",
+      "liveTwoBrowserCertificationRequired": true
+    },
+    "lingoSentinelLayers8to10": {
+      "mergeAtBackendRoot": true,
+      "preserveGuardedIndexMountArchitecture": true,
+      "englishRelayOnlyDefault": true,
+      "singleProcessCertificationRequired": true,
+      "durableStoreRequiredBeforeHorizontalScaling": true,
+      "runValidationCommand": "node .\\tests\\lingosentinel\\run_all_layers_1_10.js",
       "liveTwoBrowserCertificationRequired": true
     }
   },
@@ -1494,5 +1634,76 @@
         "sha256": "6f94b504669601fd42e13cadce7d9b7fcff43604c3c5306108c16ecb522385fa"
       }
     ]
+  },
+  "lingoSentinelLayers8to10": {
+    "package": "LingoSentinel Layers 8-10 Critical Update",
+    "version": "10.0",
+    "scope": "Delivery acknowledgement, idempotency, replay protection, strict room ordering, bounded persistence, retention, and recovery",
+    "updatedExistingFiles": [
+      "index.js",
+      "manifest.json",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelRuntimeHealth.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelSubscribeTokenRoute.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelTokenPolicy.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelRoomMembership.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelRoomRegistry.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelRealtimeBridge.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessageEnvelope.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessageValidator.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelPublicMessageProjection.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessagePublisher.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessageRoute.js",
+      "public/lingosentinel/lingosentinel-public-realtime-client.js",
+      "public/lingosentinel/lingosentinel-public-message-client.js",
+      "public/lingosentinel/lingosentinel-public-message-receiver.js",
+      "public/lingosentinel/lingosentinel-widget-conversation-controller.js",
+      "public/lingosentinel/lingosentinel-widget-integration-hook.js",
+      "public/lingosentinel/lingosentinel-public-translation-client.js"
+    ],
+    "newFiles": [
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessageState.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryReceipt.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryPolicy.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRegistry.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRoute.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessageSequence.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelIdempotencyRegistry.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessageFingerprint.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelReplayGuard.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelOrderingBuffer.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelIntegrityDiagnostics.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelPersistenceAdapter.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelMessageStore.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryPolicy.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelConversationRecovery.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryRoute.js",
+      "Data/marion/runtime/LingoSentinel/LingoSentinelRetentionManager.js",
+      "public/lingosentinel/lingosentinel-public-delivery-client.js",
+      "public/lingosentinel/lingosentinel-widget-message-state-controller.js",
+      "public/lingosentinel/lingosentinel-public-message-integrity.js",
+      "public/lingosentinel/lingosentinel-public-recovery-client.js",
+      "public/lingosentinel/lingosentinel-widget-conversation-recovery.js",
+      "tests/lingosentinel/layers_8_10_functional_validation_test.js",
+      "tests/lingosentinel/layers_8_10_public_client_test.js",
+      "tests/lingosentinel/layers_8_10_route_contract_test.js",
+      "tests/lingosentinel/run_all_layers_1_10.js"
+    ],
+    "criticalBoundaries": [
+      "recipient-verified delivery receipts",
+      "client-specific state subscription lane",
+      "per-room serialized publishing",
+      "sequence commit after provider acceptance",
+      "idempotency conflict detection",
+      "canonical live and recovery receiver path",
+      "bounded room-authorized recovery",
+      "translation remains isolated"
+    ],
+    "knownBoundary": "The included memory persistence adapter is single-process, restart-volatile, and not horizontally scalable.",
+    "validation": {
+      "existingLayers1to7": "54/54",
+      "layers8to10": "33/33",
+      "total": "87/87",
+      "liveAblyRoundtrip": "required_after_deployment"
+    }
   }
 }
