@@ -16,7 +16,7 @@
 
 const crypto = require('crypto');
 
-const POLICY_VERSION = 'nyx.lingosentinel.tokenPolicy/6.0-subscription-only';
+const POLICY_VERSION = 'nyx.lingosentinel.tokenPolicy/10.0-room-and-client-state-subscription';
 const IDENTITY_CONTRACT = 'lingosentinel.clientIdentity/1.0';
 const CHANNEL_NAMESPACE = 'lingosentinel';
 const DEFAULT_ROOM_ID = 'lingosentinel-main';
@@ -159,18 +159,28 @@ function buildChannelAlignment(mode, roomId) {
   };
 }
 
-function buildCapability(channel) {
+function clientStateChannelFor(channel, clientId) {
+  const cleanChannel = safeString(channel);
+  const cleanClientId = sanitizeClientId(clientId) || 'lsu_compat_client';
+  if (!cleanChannel || !cleanChannel.startsWith(`${CHANNEL_NAMESPACE}:`) || !cleanClientId) {
+    const error = new Error('Invalid LingoSentinel client-state channel target.');
+    error.code = 'LINGOSENTINEL_CLIENT_STATE_CHANNEL_INVALID';
+    throw error;
+  }
+  return `${cleanChannel}:client:${cleanClientId}`;
+}
+
+function buildCapability(channel, clientId) {
   const cleanChannel = safeString(channel);
   if (!cleanChannel || !cleanChannel.startsWith(`${CHANNEL_NAMESPACE}:`)) {
     const error = new Error('Invalid LingoSentinel channel capability target.');
     error.code = 'LINGOSENTINEL_CAPABILITY_CHANNEL_INVALID';
     throw error;
   }
-
+  const clientStateChannel = clientStateChannelFor(cleanChannel, clientId);
   return {
     [cleanChannel]: ['subscribe', 'presence'],
-    [`${cleanChannel}:receipt`]: ['subscribe'],
-    [`${cleanChannel}:client`]: ['subscribe']
+    [clientStateChannel]: ['subscribe']
   };
 }
 
@@ -265,7 +275,9 @@ function getPolicyHealth() {
     marionIdentitySpoofingBlocked: true,
     capabilityScope: 'single_room_only',
     activeRoomMembershipRequired: true,
-    sessionBoundCapability: true
+    sessionBoundCapability: true,
+    clientSpecificStateLane: true,
+    sharedReceiptLaneDisabled: true
   };
 }
 
@@ -293,6 +305,7 @@ module.exports = Object.freeze({
   channelForMode,
   legacyChannelAliasesForMode,
   buildChannelAlignment,
+  clientStateChannelFor,
   buildCapability,
   sanitizeTokenInput,
   validateTokenInput,
