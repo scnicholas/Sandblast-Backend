@@ -23,7 +23,7 @@ const crypto = require('crypto');
 const RoomRegistry = require('./LingoSentinelRoomRegistry');
 
 const GATEWAY_NAME = 'LingoSentinelLinkGateway';
-const GATEWAY_VERSION = '1.7.0-layer3-room-membership';
+const GATEWAY_VERSION = '1.8.0-layers5-7-credential-message';
 const IDENTITY_CONTRACT = 'lingosentinel.clientIdentity/1.0';
 const PHASE2A_CONTINUITY_VERSION = 'nyx.lingosentinel.linkGateway.enFrEsContinuity/2.0';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
@@ -372,8 +372,10 @@ function stripSensitiveMetadata(metadata = {}) {
 
 function detectPrivateMaterial(text = '') {
   const value = safeText(text);
-
-  return /\b(api[_\s-]?key|client[_\s-]?secret|password|private[_\s-]?key|bearer\s+[a-z0-9._~+/=-]{12,}|sk-[a-z0-9]{12,}|xox[baprs]-[a-z0-9-]{10,})\b/i.test(value);
+  return /\b(?:api[_\s-]?key|client[_\s-]?secret|password|private[_\s-]?key)\s*[:=]\s*[^\s,;]{6,}/i.test(value) ||
+    /\bbearer\s+[a-z0-9._~+/=-]{12,}/i.test(value) ||
+    /\bsk-[a-z0-9]{12,}/i.test(value) ||
+    /\bxox[baprs]-[a-z0-9-]{10,}/i.test(value);
 }
 
 function detectRiskLevel(input = {}) {
@@ -417,9 +419,11 @@ function validateGatewayInput(input = {}) {
   if (!roomId) errors.push('roomId, conversationId, channelId, or sessionId is required.');
   if (!sender.id || sender.id === 'anonymous') errors.push('sender.id is required.');
   if (!sender.sessionId) errors.push('sender.sessionId is required for room-scoped publishing.');
-  const roomAuthorization = input.roomAuthorization && input.roomAuthorization.ok === true
-    ? input.roomAuthorization
-    : RoomRegistry.authorize(roomId, { clientId: sender.clientId || sender.id, sessionId: sender.sessionId }, 'publish');
+  const roomAuthorization = RoomRegistry.authorize(roomId, {
+    clientId: sender.clientId || sender.id,
+    sessionId: sender.sessionId,
+    membershipCredential: input.membershipCredential || input.credential || ''
+  }, 'publish');
   if (!roomAuthorization.ok) errors.push('Active room membership is required before publishing.');
   if (hasPublicMarionSpoofAttempt(input, { sender, recipient, roomId, mode })) {
     errors.push('Marion is private authority only and cannot be used as a public sender, recipient, speaker, agent, roster member, or channel identity.');
@@ -642,6 +646,7 @@ function buildPublishInput(input = {}, normalized = {}, governance = {}) {
       marionCanPublishToRoom: false,
       marionCanAppearInUserRoster: false,
       publicUsersMayAddressMarion: false,
+      canonicalPublicMessageEvent: 'LINGOSENTINEL_MESSAGE_CREATED',
       visibleToUsers: false,
       phase2bUserBoundaryVersion: PHASE2B_USER_BOUNDARY_VERSION
     },
@@ -793,7 +798,9 @@ function getGatewayContract() {
       stableClientIdSupported: true,
       perTabSessionIdSupported: true,
       sharedDefaultIdentityAllowed: false,
-      activeRoomMembershipRequired: true
+      activeRoomMembershipRequired: true,
+      membershipCredentialRequired: true,
+      clientSuppliedRoomAuthorizationAccepted: false
     },
     boundaries: {
       publishesRealtime: false,
