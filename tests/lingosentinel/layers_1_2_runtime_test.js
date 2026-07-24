@@ -53,15 +53,15 @@ async function run() {
   assert.notStrictEqual(first.clientId, second.clientId, 'fallback client identities must be unique');
   assert.strictEqual(first.identitySource, 'server_generated');
 
-  const stable = policy.sanitizeTokenInput({ clientId: 'lsu_browser_123456', displayName: 'Sean' }, {});
+  const stable = policy.sanitizeTokenInput({ clientId: 'lsu_browser_123456', sessionId: 'lss_tab_123456', displayName: 'Sean' }, {});
   assert.strictEqual(stable.clientId, 'lsu_browser_123456');
   assert.strictEqual(stable.identitySource, 'client_supplied');
   assert.strictEqual(policy.validateTokenInput(stable).ok, true);
 
-  const reserved = policy.sanitizeTokenInput({ clientId: 'marion-admin-user', displayName: 'Marion' }, {});
+  const reserved = policy.sanitizeTokenInput({ clientId: 'marion-admin-user', sessionId: 'lss_tab_reserved', displayName: 'Marion' }, {});
   assert.strictEqual(policy.validateTokenInput(reserved).ok, false, 'reserved identity must be rejected');
 
-  const invalidMode = policy.sanitizeTokenInput({ mode: 'unknown_lane', clientId: 'lsu_valid_123456' }, {});
+  const invalidMode = policy.sanitizeTokenInput({ mode: 'unknown_lane', clientId: 'lsu_valid_123456', sessionId: 'lss_tab_valid_123' }, {});
   assert.strictEqual(policy.validateTokenInput(invalidMode).ok, false, 'unknown modes must not silently downgrade');
 
   const channel = policy.channelForMode('group_room', 'room-1');
