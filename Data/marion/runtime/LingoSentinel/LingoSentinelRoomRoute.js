@@ -3,9 +3,10 @@
 const express = require('express');
 const RoomPolicy = require('./LingoSentinelRoomPolicy');
 const RoomRegistry = require('./LingoSentinelRoomRegistry');
+const MembershipCredential = require('./LingoSentinelMembershipCredential');
 
 const router = express.Router();
-const VERSION = 'nyx.lingosentinel.roomRoute/3.0-controlled-rooms';
+const VERSION = 'nyx.lingosentinel.roomRoute/5.0-membership-credential';
 
 function harden(res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -21,7 +22,8 @@ function identityFrom(req) {
     clientId: body.clientId || body.userId || query.clientId || query.userId,
     sessionId: body.sessionId || query.sessionId,
     displayName: body.displayName || body.name || query.displayName,
-    authenticated: body.authenticated === true
+    authenticated: body.authenticated === true,
+    membershipCredential: MembershipCredential.readCredential(req)
   };
 }
 
@@ -35,10 +37,10 @@ function failure(res, status, result, stage) {
   });
 }
 
-router.options(['/rooms', '/rooms/:roomId', '/rooms/:roomId/join', '/rooms/:roomId/leave', '/rooms/:roomId/participants', '/rooms/:roomId/authorize'], (req, res) => {
-  harden(res);
-  return res.status(204).end();
-});
+router.options([
+  '/rooms', '/rooms/:roomId', '/rooms/:roomId/join', '/rooms/:roomId/leave',
+  '/rooms/:roomId/participants', '/rooms/:roomId/authorize'
+], (req, res) => { harden(res); return res.status(204).end(); });
 
 router.post('/rooms', (req, res) => {
   harden(res);
@@ -55,7 +57,7 @@ router.post('/rooms/:roomId/join', (req, res) => {
 router.post('/rooms/:roomId/leave', (req, res) => {
   harden(res);
   const result = RoomRegistry.leave(req.params.roomId, identityFrom(req));
-  return result.ok ? res.status(200).json({ ...result, version: VERSION }) : failure(res, result.code === 'ROOM_NOT_FOUND' ? 404 : 400, result, 'room_leave');
+  return result.ok ? res.status(200).json({ ...result, version: VERSION }) : failure(res, result.code === 'ROOM_NOT_FOUND' ? 404 : 403, result, 'room_leave');
 });
 
 router.post('/rooms/:roomId/authorize', (req, res) => {
@@ -67,7 +69,7 @@ router.post('/rooms/:roomId/authorize', (req, res) => {
 
 router.get('/rooms/health', (req, res) => {
   harden(res);
-  return res.status(200).json({ ok: true, service: 'LingoSentinelRoomRoute', version: VERSION, registry: RoomRegistry.getHealth() });
+  return res.status(200).json({ ok: true, service: 'LingoSentinelRoomRoute', version: VERSION, registry: RoomRegistry.getHealth(), membershipCredential: MembershipCredential.getHealth() });
 });
 
 router.get('/rooms/:roomId/participants', (req, res) => {
@@ -82,12 +84,12 @@ router.get('/rooms/:roomId/participants', (req, res) => {
     joinedAt: item.joinedAt,
     active: item.active === true
   }));
-  return result.ok ? res.status(200).json({ ok: true, room: result.room, participants, sessionIdsExposed: false, version: VERSION }) : failure(res, 404, result, 'room_participants');
+  return result.ok ? res.status(200).json({ ok: true, room: result.room, participants, sessionIdsExposed: false, credentialsExposed: false, version: VERSION }) : failure(res, 404, result, 'room_participants');
 });
 
 router.get('/rooms/:roomId', (req, res) => {
   harden(res);
-  const auth = RoomRegistry.authorize(req.params.roomId, identityFrom(req), 'subscribe');
+  const auth = RoomRegistry.authorize(req.params.roomId, identityFrom(req), 'read');
   if (!auth.ok) return failure(res, 403, auth, 'room_get_authorize');
   const room = RoomRegistry.get(req.params.roomId);
   return room ? res.status(200).json({ ok: true, room, version: VERSION }) : failure(res, 404, { errors: ['Room was not found.'] }, 'room_get');
