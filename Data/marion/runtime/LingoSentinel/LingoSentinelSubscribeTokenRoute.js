@@ -13,7 +13,7 @@ const RoomRegistry = require('./LingoSentinelRoomRegistry');
 const MembershipCredential = require('./LingoSentinelMembershipCredential');
 
 const router = express.Router();
-const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/6.0-subscription-only-credential';
+const ROUTE_VERSION = 'nyx.lingosentinel.subscribeTokenRoute/10.0-client-state-lane';
 const PHASE2B_USER_BOUNDARY_VERSION = 'nyx.lingosentinel.userBoundarySilentOversight/2.0';
 const PHASE2D_CHANNEL_NAMESPACE_VERSION = 'nyx.lingosentinel.channelNamespaceRoundtrip/2.0';
 const PHASE2E_LIVE_ROUNDTRIP_VERSION = 'nyx.lingosentinel.subscribeTokenRoute.liveAblyRoundtrip/2.0';
@@ -107,7 +107,8 @@ async function createTokenRequest(input = {}) {
 
   const Ably = loadAblyPackage();
   const channel = TokenPolicy.channelForMode(input.mode, input.roomId);
-  const capability = TokenPolicy.buildCapability(channel);
+  const capability = TokenPolicy.buildCapability(channel, input.clientId);
+  const clientStateChannel = TokenPolicy.clientStateChannelFor(channel, input.clientId);
   const channelAlignment = TokenPolicy.buildChannelAlignment(input.mode, input.roomId);
   const RestCtor = Ably.Rest || (Ably.default && Ably.default.Rest);
   if (typeof RestCtor !== 'function') {
@@ -123,7 +124,7 @@ async function createTokenRequest(input = {}) {
     capability: JSON.stringify(capability)
   });
 
-  return { tokenRequest, channel, capability, channelAlignment };
+  return { tokenRequest, channel, clientStateChannel, capability, channelAlignment };
 }
 
 function safeErrorResponse(error, stage = 'token_failed') {
@@ -192,6 +193,7 @@ router.post('/token', async (req, res) => {
       tokenRequest: result.tokenRequest,
       channel: result.channel,
       canonicalChannel: result.channel,
+      clientStateChannel: result.clientStateChannel,
       channelAlignment: result.channelAlignment,
       channelNamespaceAligned: true,
       tokenChannelMatchesPublishChannel: true,
