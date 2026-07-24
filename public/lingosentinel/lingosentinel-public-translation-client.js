@@ -237,6 +237,7 @@
       ok: true,
       tokenRequest: data.tokenRequest,
       channel: cleanString(data.canonicalChannel || data.channel),
+      clientStateChannel: cleanString(data.clientStateChannel || ""),
       mode: cleanString(data.mode || payload.mode),
       roomId: cleanString(data.roomId || payload.roomId),
       ttlMs: Number(data.ttlMs) || null,
@@ -249,7 +250,7 @@
   }
 
   const client = Object.freeze({
-    version: "lingosentinel.frontendPublicClient/10A-layers1-7",
+    version: "lingosentinel.frontendPublicClient/10B-layers1-10",
     endpoint: DEFAULT_TRANSLATION_ENDPOINT,
     translationEndpoint: DEFAULT_TRANSLATION_ENDPOINT,
     tokenEndpoint: DEFAULT_TOKEN_ENDPOINT,
