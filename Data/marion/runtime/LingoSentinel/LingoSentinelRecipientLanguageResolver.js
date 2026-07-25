@@ -1,0 +1,9 @@
+'use strict';
+const VERSION='nyx.lingosentinel.recipientLanguageResolver/11.0-explicit-preferences';
+const SUPPORTED=Object.freeze(['en','fr','es','zh','pt']);
+function clean(v){return String(v==null?'':v).trim();}
+function language(v,f=''){const raw=clean(v).toLowerCase().replace(/_/g,'-').split('-')[0];const a={english:'en',french:'fr',spanish:'es',chinese:'zh',mandarin:'zh',portuguese:'pt'};const x=a[raw]||raw;return SUPPORTED.includes(x)?x:f;}
+function resolve(participant={},sourceLanguage='en'){const source=language(sourceLanguage,'en');const target=language(participant.preferredLanguage||participant.targetLanguage||participant.language,'');return {clientId:clean(participant.clientId||participant.id),sourceLanguage:source,targetLanguage:target||source,locale:clean(participant.locale).slice(0,16),formality:['neutral','formal','informal'].includes(clean(participant.formality).toLowerCase())?clean(participant.formality).toLowerCase():'neutral',translationRequired:!!target&&target!==source,preferenceSource:target?'explicit_membership':'original_fallback',inferredFromLocation:false};}
+function groupByTargetLanguage(participants=[],sourceLanguage='en'){const groups={};for(const p of participants){const r=resolve(p,sourceLanguage);if(!r.clientId||!r.translationRequired)continue;const key=[r.targetLanguage,r.locale,r.formality].join('|');if(!groups[key])groups[key]={targetLanguage:r.targetLanguage,locale:r.locale,formality:r.formality,clientIds:[]};groups[key].clientIds.push(r.clientId);}return Object.values(groups);}
+function getHealth(){return {ok:true,service:'LingoSentinelRecipientLanguageResolver',version:VERSION,supportedLanguages:SUPPORTED.slice(),explicitOnly:true,locationInference:false,groupsByUniquePreference:true};}
+module.exports=Object.freeze({VERSION,SUPPORTED,language,resolve,groupByTargetLanguage,getHealth});
