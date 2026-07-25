@@ -48,10 +48,9 @@
     const header = globalScope.document.createElement("div"); header.setAttribute("data-message-header", "true");
     const sender = globalScope.document.createElement("span"); sender.textContent = message.senderName;
     const time = globalScope.document.createElement("time"); if (message.createdAt) time.setAttribute("datetime", message.createdAt); time.textContent = message.createdAt && opts.formatTime !== false ? new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-    const content = globalScope.document.createElement("div"); content.setAttribute("data-message-content", "true");
     const original = globalScope.document.createElement("p"); original.setAttribute("data-message-original", "true"); original.textContent = message.text;
     const translation = globalScope.document.createElement("div"); translation.setAttribute("data-message-translation", "true"); translation.setAttribute("data-has-translation", "false"); translation.hidden = true;
-    header.appendChild(sender); header.appendChild(time); content.appendChild(original); content.appendChild(translation); article.appendChild(header); article.appendChild(content); container.appendChild(article);
+    header.appendChild(sender); header.appendChild(time); article.appendChild(header); article.appendChild(original); article.appendChild(translation); container.appendChild(article);
     setDisplayMode(article, opts.displayMode || "both"); return article;
   }
   const policy = Object.freeze({ version: VERSION, normalizeMessage, normalizeText, safeTimestamp, render, applyTranslation, setDisplayMode, htmlExecutionAllowed: false, originalTextAlwaysPreserved: true });
