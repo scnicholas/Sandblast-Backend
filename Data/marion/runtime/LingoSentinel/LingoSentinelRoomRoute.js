@@ -1,102 +1,20 @@
 'use strict';
-
-const express = require('express');
-const RoomPolicy = require('./LingoSentinelRoomPolicy');
-const RoomRegistry = require('./LingoSentinelRoomRegistry');
-const MembershipCredential = require('./LingoSentinelMembershipCredential');
-
-const router = express.Router();
-const VERSION = 'nyx.lingosentinel.roomRoute/5.0-membership-credential';
-
-function harden(res) {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-}
-
-function identityFrom(req) {
-  const body = req.body || {};
-  const query = req.query || {};
-  return {
-    clientId: body.clientId || body.userId || query.clientId || query.userId,
-    sessionId: body.sessionId || query.sessionId,
-    displayName: body.displayName || body.name || query.displayName,
-    authenticated: body.authenticated === true,
-    membershipCredential: MembershipCredential.readCredential(req)
-  };
-}
-
-function failure(res, status, result, stage) {
-  return res.status(status).json({
-    ok: false,
-    stage,
-    errors: result && result.errors || [result && result.error || 'room_operation_failed'],
-    diagnosticsRedacted: true,
-    version: VERSION
-  });
-}
-
-router.options([
-  '/rooms', '/rooms/:roomId', '/rooms/:roomId/join', '/rooms/:roomId/leave',
-  '/rooms/:roomId/participants', '/rooms/:roomId/authorize'
-], (req, res) => { harden(res); return res.status(204).end(); });
-
-router.post('/rooms', (req, res) => {
-  harden(res);
-  const result = RoomRegistry.create(req.body || {}, identityFrom(req));
-  return result.ok ? res.status(201).json({ ...result, version: VERSION }) : failure(res, result.code === 'ROOM_ALREADY_EXISTS' ? 409 : 400, result, 'room_create');
-});
-
-router.post('/rooms/:roomId/join', (req, res) => {
-  harden(res);
-  const result = RoomRegistry.join(req.params.roomId, identityFrom(req));
-  return result.ok ? res.status(200).json({ ...result, version: VERSION }) : failure(res, result.code === 'ROOM_NOT_FOUND' ? 404 : 403, result, 'room_join');
-});
-
-router.post('/rooms/:roomId/leave', (req, res) => {
-  harden(res);
-  const result = RoomRegistry.leave(req.params.roomId, identityFrom(req));
-  return result.ok ? res.status(200).json({ ...result, version: VERSION }) : failure(res, result.code === 'ROOM_NOT_FOUND' ? 404 : 403, result, 'room_leave');
-});
-
-router.post('/rooms/:roomId/authorize', (req, res) => {
-  harden(res);
-  const action = RoomPolicy.safeString(req.body && req.body.action || 'subscribe');
-  const result = RoomRegistry.authorize(req.params.roomId, identityFrom(req), action);
-  return result.ok ? res.status(200).json({ ok: true, authorization: result, version: VERSION }) : failure(res, 403, result, 'room_authorize');
-});
-
-router.get('/rooms/health', (req, res) => {
-  harden(res);
-  return res.status(200).json({ ok: true, service: 'LingoSentinelRoomRoute', version: VERSION, registry: RoomRegistry.getHealth(), membershipCredential: MembershipCredential.getHealth() });
-});
-
-router.get('/rooms/:roomId/participants', (req, res) => {
-  harden(res);
-  const auth = RoomRegistry.authorize(req.params.roomId, identityFrom(req), 'presence');
-  if (!auth.ok) return failure(res, 403, auth, 'room_participants_authorize');
-  const result = RoomRegistry.listParticipants(req.params.roomId);
-  const participants = result.participants.map((item) => ({
-    clientId: item.clientId,
-    displayName: item.displayName,
-    role: item.role,
-    joinedAt: item.joinedAt,
-    active: item.active === true
-  }));
-  return result.ok ? res.status(200).json({ ok: true, room: result.room, participants, sessionIdsExposed: false, credentialsExposed: false, version: VERSION }) : failure(res, 404, result, 'room_participants');
-});
-
-router.get('/rooms/:roomId', (req, res) => {
-  harden(res);
-  const auth = RoomRegistry.authorize(req.params.roomId, identityFrom(req), 'read');
-  if (!auth.ok) return failure(res, 403, auth, 'room_get_authorize');
-  const room = RoomRegistry.get(req.params.roomId);
-  return room ? res.status(200).json({ ok: true, room, version: VERSION }) : failure(res, 404, { errors: ['Room was not found.'] }, 'room_get');
-});
-
-router.VERSION = VERSION;
-router.RoomRegistry = RoomRegistry;
-module.exports = router;
-module.exports.VERSION = VERSION;
-module.exports.RoomRegistry = RoomRegistry;
+const express=require('express');
+const RoomPolicy=require('./LingoSentinelRoomPolicy');
+const RoomRegistry=require('./LingoSentinelRoomRegistry');
+const MembershipCredential=require('./LingoSentinelMembershipCredential');
+const router=express.Router();
+const VERSION='nyx.lingosentinel.roomRoute/12.0-language-membership';
+function harden(res){res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');res.setHeader('Pragma','no-cache');res.setHeader('Expires','0');res.setHeader('X-Content-Type-Options','nosniff');}
+function identityFrom(req){const b=req.body||{},q=req.query||{};return{clientId:b.clientId||b.userId||q.clientId||q.userId,sessionId:b.sessionId||q.sessionId,displayName:b.displayName||b.name||q.displayName,authenticated:b.authenticated===true,membershipCredential:MembershipCredential.readCredential(req),sourceLanguage:b.sourceLanguage||q.sourceLanguage,preferredLanguage:b.preferredLanguage||b.targetLanguage||q.preferredLanguage||q.targetLanguage,locale:b.locale||q.locale,formality:b.formality||q.formality};}
+function failure(res,status,result,stage){return res.status(status).json({ok:false,stage,errors:result&&result.errors||[result&&result.error||'room_operation_failed'],diagnosticsRedacted:true,version:VERSION});}
+router.options(['/rooms','/rooms/:roomId','/rooms/:roomId/join','/rooms/:roomId/leave','/rooms/:roomId/participants','/rooms/:roomId/authorize','/rooms/:roomId/language-preferences'],(req,res)=>{harden(res);return res.status(204).end();});
+router.post('/rooms',(req,res)=>{harden(res);const r=RoomRegistry.create(req.body||{},identityFrom(req));return r.ok?res.status(201).json({...r,version:VERSION}):failure(res,r.code==='ROOM_ALREADY_EXISTS'?409:400,r,'room_create');});
+router.post('/rooms/:roomId/join',(req,res)=>{harden(res);const r=RoomRegistry.join(req.params.roomId,identityFrom(req));return r.ok?res.status(200).json({...r,version:VERSION}):failure(res,r.code==='ROOM_NOT_FOUND'?404:403,r,'room_join');});
+router.post('/rooms/:roomId/leave',(req,res)=>{harden(res);const r=RoomRegistry.leave(req.params.roomId,identityFrom(req));return r.ok?res.status(200).json({...r,version:VERSION}):failure(res,r.code==='ROOM_NOT_FOUND'?404:403,r,'room_leave');});
+router.post('/rooms/:roomId/authorize',(req,res)=>{harden(res);const r=RoomRegistry.authorize(req.params.roomId,identityFrom(req),RoomPolicy.safeString(req.body&&req.body.action||'subscribe'));return r.ok?res.status(200).json({ok:true,authorization:r,version:VERSION}):failure(res,403,r,'room_authorize');});
+router.post('/rooms/:roomId/language-preferences',(req,res)=>{harden(res);const identity=identityFrom(req);const auth=RoomRegistry.authorize(req.params.roomId,identity,'language_preferences');if(!auth.ok)return failure(res,403,auth,'language_preferences_authorize');const result=RoomRegistry.memberships.updateLanguagePreferences(req.params.roomId,identity,{sourceLanguage:req.body&&req.body.sourceLanguage,preferredLanguage:req.body&&(req.body.preferredLanguage||req.body.targetLanguage),locale:req.body&&req.body.locale,formality:req.body&&req.body.formality});return result.ok?res.status(200).json({ok:true,membership:result.membership,version:VERSION}):failure(res,400,result,'language_preferences_update');});
+router.get('/rooms/health',(req,res)=>{harden(res);return res.status(200).json({ok:true,service:'LingoSentinelRoomRoute',version:VERSION,registry:RoomRegistry.getHealth(),membershipCredential:MembershipCredential.getHealth()});});
+router.get('/rooms/:roomId/participants',(req,res)=>{harden(res);const auth=RoomRegistry.authorize(req.params.roomId,identityFrom(req),'presence');if(!auth.ok)return failure(res,403,auth,'room_participants_authorize');const r=RoomRegistry.listParticipants(req.params.roomId);const participants=r.participants.map(i=>({clientId:i.clientId,displayName:i.displayName,role:i.role,preferredLanguage:i.preferredLanguage||'',locale:i.locale||'',formality:i.formality||'neutral',joinedAt:i.joinedAt,active:i.active===true}));return r.ok?res.status(200).json({ok:true,room:r.room,participants,sessionIdsExposed:false,credentialsExposed:false,version:VERSION}):failure(res,404,r,'room_participants');});
+router.get('/rooms/:roomId',(req,res)=>{harden(res);const auth=RoomRegistry.authorize(req.params.roomId,identityFrom(req),'read');if(!auth.ok)return failure(res,403,auth,'room_get_authorize');const room=RoomRegistry.get(req.params.roomId);return room?res.status(200).json({ok:true,room,version:VERSION}):failure(res,404,{errors:['Room was not found.']},'room_get');});
+router.VERSION=VERSION;router.RoomRegistry=RoomRegistry;module.exports=router;module.exports.VERSION=VERSION;module.exports.RoomRegistry=RoomRegistry;
