@@ -9,8 +9,15 @@
  * It does not translate and it does not expose secrets.
  */
 
-const VERSION = "2.2.0-spontaneity-50plus-language-registry";
+const VERSION = "2.2.1-provider-code-cohesion-hardened";
 const DEFAULT_TARGET_LANGUAGE = "en";
+
+const PROVIDER_FAMILIES = Object.freeze({
+  LIBRE: "libre",
+  ARGOS: "argos",
+  NLLB: "nllb",
+  GENERIC: "generic"
+});
 
 const LANGUAGE_ROWS = Object.freeze([
   ["en", "English", "English", "Latn", false, 1, "eng_Latn"],
@@ -98,11 +105,11 @@ const SUPPORTED_LANGUAGES = Object.freeze(Object.fromEntries(
   })])
 ));
 
-const LANGUAGE_ALIASES = Object.freeze({
+const BASE_LANGUAGE_ALIASES = {
   automatic: "auto", autodetect: "auto", "auto-detect": "auto", auto: "auto", mixed: "mixed", unknown: "unknown",
-  english: "en", eng: "en", "en-us": "en", "en-gb": "en", "eng_latn": "en",
-  french: "fr", francais: "fr", français: "fr", fra: "fr", "fra_latn": "fr",
-  spanish: "es", espanol: "es", español: "es", castilian: "es", spa: "es", "spa_latn": "es",
+  english: "en", eng: "en", "en-us": "en", "en-gb": "en",
+  french: "fr", francais: "fr", français: "fr", fra: "fr",
+  spanish: "es", espanol: "es", español: "es", castilian: "es", spa: "es",
   portuguese: "pt", portugues: "pt", português: "pt", por: "pt", "pt-br": "pt", "pt-pt": "pt",
   german: "de", deutsch: "de", deu: "de", dutch: "nl", nederlands: "nl",
   italian: "it", italiano: "it", chinese: "zh", mandarin: "zh", "mandarin chinese": "zh", "zh-cn": "zh", "zh-hans": "zh", "zh_hans": "zh", cn: "zh", zho: "zh",
@@ -112,7 +119,22 @@ const LANGUAGE_ALIASES = Object.freeze({
   vietnamese: "vi", indonesian: "id", bahasa: "id", malay: "ms", filipino: "tl", tagalog: "tl", thai: "th", swahili: "sw",
   afrikaans: "af", albanian: "sq", estonian: "et", latvian: "lv", lithuanian: "lt", macedonian: "mk", armenian: "hy", georgian: "ka", azerbaijani: "az", kazakh: "kk", uzbek: "uz", mongolian: "mn", burmese: "my", myanmar: "my", khmer: "km", lao: "lo",
   tamil: "ta", telugu: "te", malayalam: "ml", marathi: "mr", gujarati: "gu", kannada: "kn", nepali: "ne", sinhala: "si", amharic: "am", hausa: "ha", yoruba: "yo", igbo: "ig", zulu: "zu", xhosa: "xh"
-});
+};
+
+for (const [code, language] of Object.entries(SUPPORTED_LANGUAGES)) {
+  BASE_LANGUAGE_ALIASES[code] = code;
+  BASE_LANGUAGE_ALIASES[language.isoCode.toLowerCase()] = code;
+  BASE_LANGUAGE_ALIASES[language.argosCode.toLowerCase()] = code;
+  BASE_LANGUAGE_ALIASES[language.libreCode.toLowerCase()] = code;
+
+  if (language.nllbCode) {
+    const nllb = language.nllbCode.toLowerCase();
+    BASE_LANGUAGE_ALIASES[nllb] = code;
+    BASE_LANGUAGE_ALIASES[nllb.replace(/_/g, "-")] = code;
+  }
+}
+
+const LANGUAGE_ALIASES = Object.freeze({ ...BASE_LANGUAGE_ALIASES });
 
 function safeString(value, fallback = "") {
   if (typeof value === "string") return value.trim();
@@ -120,17 +142,62 @@ function safeString(value, fallback = "") {
   return String(value).trim();
 }
 
+function normalizeAliasKey(value) {
+  return safeString(value)
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[.]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeLanguageCode(value, fallback = "") {
-  const raw = safeString(value);
-  if (!raw) return fallback;
-  const compact = raw.toLowerCase().replace(/[.]/g, "").replace(/\s+/g, " ").replace(/-/g, "-");
-  const aliasKey = compact.replace(/\s+/g, " ");
-  if (LANGUAGE_ALIASES[aliasKey]) return LANGUAGE_ALIASES[aliasKey];
-  const nllbKey = compact.replace(/-/g, "_");
-  if (LANGUAGE_ALIASES[nllbKey]) return LANGUAGE_ALIASES[nllbKey];
+  const compact = normalizeAliasKey(value);
+  if (!compact) return fallback;
+
+  if (LANGUAGE_ALIASES[compact]) return LANGUAGE_ALIASES[compact];
+
+  const underscoreKey = compact.replace(/-/g, "_");
+  if (LANGUAGE_ALIASES[underscoreKey]) return LANGUAGE_ALIASES[underscoreKey];
+
+  const hyphenKey = compact.replace(/_/g, "-");
+  if (LANGUAGE_ALIASES[hyphenKey]) return LANGUAGE_ALIASES[hyphenKey];
+
   const primary = compact.split(/[-_]/)[0];
   if (SUPPORTED_LANGUAGES[primary]) return primary;
+
   return fallback || primary || compact;
+}
+
+function resolveProviderFamily(provider = "libre") {
+  const key = normalizeAliasKey(provider).replace(/[\s_]+/g, "-");
+
+  if (
+    key.includes("libretranslate") ||
+    key === "libre" ||
+    key === "libre-compatible" ||
+    key === "libretranslate-compatible"
+  ) {
+    return PROVIDER_FAMILIES.LIBRE;
+  }
+
+  if (
+    key.includes("argos") ||
+    key === "argostranslate" ||
+    key === "argos-translate"
+  ) {
+    return PROVIDER_FAMILIES.ARGOS;
+  }
+
+  if (
+    key.includes("nllb") ||
+    key.includes("facebook-nllb") ||
+    key.includes("meta-nllb")
+  ) {
+    return PROVIDER_FAMILIES.NLLB;
+  }
+
+  return PROVIDER_FAMILIES.GENERIC;
 }
 
 function isSpecialLanguage(value) {
@@ -159,20 +226,31 @@ function getSupportedLanguages() {
 }
 
 function getDefaultTargetLanguage() {
-  const envTarget = normalizeLanguageCode(process.env.TRANSLATION_DEFAULT_TARGET || process.env.LINGOSENTINEL_DEFAULT_TARGET_LANGUAGE || DEFAULT_TARGET_LANGUAGE, DEFAULT_TARGET_LANGUAGE);
+  const requested = process.env.TRANSLATION_DEFAULT_TARGET ||
+    process.env.LINGOSENTINEL_DEFAULT_TARGET_LANGUAGE ||
+    DEFAULT_TARGET_LANGUAGE;
+
+  const envTarget = normalizeLanguageCode(requested, DEFAULT_TARGET_LANGUAGE);
   return isSupportedLanguage(envTarget) ? envTarget : DEFAULT_TARGET_LANGUAGE;
 }
 
 function getProviderLanguageCode(value, provider = "libre") {
   const code = normalizeLanguageCode(value);
   if (code === "auto" || code === "mixed" || code === "unknown") return "auto";
+
   const language = getLanguage(code);
   if (!language) return code;
-  const key = safeString(provider).toLowerCase();
-  if (key.includes("nllb")) return language.nllbCode || language.providerCode || code;
-  if (key.includes("argos")) return language.argosCode || code;
-  if (key.includes("libre")) return language.libreCode || code;
-  return language.providerCode || code;
+
+  switch (resolveProviderFamily(provider)) {
+    case PROVIDER_FAMILIES.NLLB:
+      return language.nllbCode || language.providerCode || code;
+    case PROVIDER_FAMILIES.ARGOS:
+      return language.argosCode || code;
+    case PROVIDER_FAMILIES.LIBRE:
+      return language.libreCode || code;
+    default:
+      return language.providerCode || code;
+  }
 }
 
 function isRightToLeft(value) {
@@ -181,33 +259,56 @@ function isRightToLeft(value) {
 }
 
 function coerceTargetLanguage(value, fallback = getDefaultTargetLanguage()) {
-  const target = normalizeLanguageCode(value, fallback);
-  return isSupportedLanguage(target) ? target : fallback;
+  const safeFallback = isSupportedLanguage(fallback)
+    ? normalizeLanguageCode(fallback)
+    : DEFAULT_TARGET_LANGUAGE;
+
+  const target = normalizeLanguageCode(value, safeFallback);
+  return isSupportedLanguage(target) ? target : safeFallback;
 }
 
 function validateLanguagePair(source, target, options = {}) {
   const allowAutoSource = options.allowAutoSource !== false;
   const provider = options.provider || process.env.LINGOSENTINEL_TRANSLATE_PROVIDER || "libre";
+  const providerFamily = resolveProviderFamily(provider);
   const normalizedSource = normalizeLanguageCode(source || "auto", "auto");
   const normalizedTarget = coerceTargetLanguage(target || getDefaultTargetLanguage());
   const warnings = [];
 
   if (!normalizedTarget) warnings.push("MISSING_TARGET_LANGUAGE");
-  if (!allowAutoSource && (!normalizedSource || isSpecialLanguage(normalizedSource))) warnings.push("MISSING_SOURCE_LANGUAGE");
-  if (normalizedSource && !isSpecialLanguage(normalizedSource) && !isSupportedLanguage(normalizedSource)) warnings.push(`UNSUPPORTED_SOURCE_LANGUAGE:${normalizedSource}`);
-  if (normalizedTarget && !isSupportedLanguage(normalizedTarget)) warnings.push(`UNSUPPORTED_TARGET_LANGUAGE:${normalizedTarget}`);
-  if (normalizedSource && normalizedTarget && normalizedSource === normalizedTarget) warnings.push("SOURCE_TARGET_IDENTICAL");
+  if (!allowAutoSource && (!normalizedSource || isSpecialLanguage(normalizedSource))) {
+    warnings.push("MISSING_SOURCE_LANGUAGE");
+  }
+  if (normalizedSource && !isSpecialLanguage(normalizedSource) && !isSupportedLanguage(normalizedSource)) {
+    warnings.push(`UNSUPPORTED_SOURCE_LANGUAGE:${normalizedSource}`);
+  }
+  if (normalizedTarget && !isSupportedLanguage(normalizedTarget)) {
+    warnings.push(`UNSUPPORTED_TARGET_LANGUAGE:${normalizedTarget}`);
+  }
+  if (normalizedSource && normalizedTarget && normalizedSource === normalizedTarget) {
+    warnings.push("SOURCE_TARGET_IDENTICAL");
+  }
+
+  const providerSource = getProviderLanguageCode(normalizedSource, providerFamily);
+  const providerTarget = getProviderLanguageCode(normalizedTarget, providerFamily);
+
+  if (!providerSource) warnings.push("MISSING_PROVIDER_SOURCE_LANGUAGE");
+  if (!providerTarget || providerTarget === "auto") warnings.push("INVALID_PROVIDER_TARGET_LANGUAGE");
 
   return {
-    ok: warnings.every(w => w === "SOURCE_TARGET_IDENTICAL"),
+    ok: warnings.every(warning => warning === "SOURCE_TARGET_IDENTICAL"),
+    provider: safeString(provider) || "libre",
+    providerFamily,
     source: normalizedSource,
     target: normalizedTarget,
-    providerSource: getProviderLanguageCode(normalizedSource, provider),
-    providerTarget: getProviderLanguageCode(normalizedTarget, provider),
-    argosSource: getProviderLanguageCode(normalizedSource, "argos"),
-    argosTarget: getProviderLanguageCode(normalizedTarget, "argos"),
-    nllbSource: getProviderLanguageCode(normalizedSource, "nllb"),
-    nllbTarget: getProviderLanguageCode(normalizedTarget, "nllb"),
+    providerSource,
+    providerTarget,
+    argosSource: getProviderLanguageCode(normalizedSource, PROVIDER_FAMILIES.ARGOS),
+    argosTarget: getProviderLanguageCode(normalizedTarget, PROVIDER_FAMILIES.ARGOS),
+    libreSource: getProviderLanguageCode(normalizedSource, PROVIDER_FAMILIES.LIBRE),
+    libreTarget: getProviderLanguageCode(normalizedTarget, PROVIDER_FAMILIES.LIBRE),
+    nllbSource: getProviderLanguageCode(normalizedSource, PROVIDER_FAMILIES.NLLB),
+    nllbTarget: getProviderLanguageCode(normalizedTarget, PROVIDER_FAMILIES.NLLB),
     sourceRtl: isRightToLeft(normalizedSource),
     targetRtl: isRightToLeft(normalizedTarget),
     warnings
@@ -215,15 +316,60 @@ function validateLanguagePair(source, target, options = {}) {
 }
 
 function publicLanguageList() {
-  return getSupportedLanguages().map(({ code, name, nativeName, script, rtl, tier, enabled }) => ({ code, name, nativeName, script, rtl, tier, enabled }));
+  return getSupportedLanguages().map(({ code, name, nativeName, script, rtl, tier, enabled }) => ({
+    code,
+    name,
+    nativeName,
+    script,
+    rtl,
+    tier,
+    enabled
+  }));
 }
 
-module.exports = {
+function getHealth() {
+  const librePair = validateLanguagePair("eng_Latn", "spa_Latn", {
+    provider: "libretranslate-compatible",
+    allowAutoSource: false
+  });
+
+  const nllbPair = validateLanguagePair("en", "es", {
+    provider: "nllb",
+    allowAutoSource: false
+  });
+
+  const ok = librePair.ok &&
+    librePair.providerSource === "en" &&
+    librePair.providerTarget === "es" &&
+    nllbPair.providerSource === "eng_Latn" &&
+    nllbPair.providerTarget === "spa_Latn";
+
+  return {
+    ok,
+    service: "LingoSentinelLanguageRegistry",
+    version: VERSION,
+    supportedLanguageCount: getSupportedLanguageCodes().length,
+    providerCodeIsolation: ok,
+    libreTranslateMapping: {
+      source: librePair.providerSource,
+      target: librePair.providerTarget
+    },
+    nllbMapping: {
+      source: nllbPair.providerSource,
+      target: nllbPair.providerTarget
+    },
+    defaultTargetLanguage: getDefaultTargetLanguage()
+  };
+}
+
+module.exports = Object.freeze({
   VERSION,
+  PROVIDER_FAMILIES,
   SUPPORTED_LANGUAGES,
   LANGUAGE_ALIASES,
   DEFAULT_TARGET_LANGUAGE,
   normalizeLanguageCode,
+  resolveProviderFamily,
   isSpecialLanguage,
   isSupportedLanguage,
   getLanguage,
@@ -234,5 +380,7 @@ module.exports = {
   isRightToLeft,
   coerceTargetLanguage,
   validateLanguagePair,
-  publicLanguageList
-};
+  publicLanguageList,
+  getHealth,
+  health: getHealth
+});
