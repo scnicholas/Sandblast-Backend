@@ -110,7 +110,7 @@
     handler = typeof opts.onResult === "function" ? opts.onResult : null;
     if (!roomId) throw new Error("LINGOSENTINEL_TRANSLATION_ROOM_REQUIRED");
     if (!realtimeClient || typeof realtimeClient.subscribe !== "function") throw new Error("LINGOSENTINEL_REALTIME_CLIENT_UNAVAILABLE");
-    await realtimeClient.subscribe(receive, EVENT, { lane: "message" });
+    await realtimeClient.subscribe(receive, EVENT, { lane: "state" });
     return { ok: true, roomId, eventType: EVENT, version: VERSION };
   }
   function stop() { roomId = ""; handler = null; realtimeClient = null; pendingByMessage.clear(); return { ok: true }; }
