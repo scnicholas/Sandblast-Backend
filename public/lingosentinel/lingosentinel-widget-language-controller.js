@@ -32,6 +32,12 @@
         displayMode: controls.displayMode && controls.displayMode.value
       }, { roomId });
       if (opts.dualTextController && typeof opts.dualTextController.setMode === "function") opts.dualTextController.setMode(result.displayMode);
+      const rt = opts.realtimeClient || globalScope.LingoSentinelPublicRealtimeClient;
+      const state = rt && rt.getState ? rt.getState() : null;
+      const active = state && state.active;
+      if (active && active.roomId === roomId && rt.authorizedRequest) {
+        rt.authorizedRequest("/api/lingosentinel/rooms/" + encodeURIComponent(roomId) + "/language-preferences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: active.clientId, sessionId: active.sessionId, sourceLanguage: result.sourceLanguage, preferredLanguage: result.targetLanguage, targetLanguage: result.targetLanguage, locale: result.locale, formality: result.formality }) }, roomId).catch(function () {});
+      }
       if (typeof opts.onChange === "function") opts.onChange(result);
       return result;
     }
