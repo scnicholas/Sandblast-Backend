@@ -109,7 +109,7 @@ class LingoSentinelRoomRegistryStore {
       isCreator: room.createdBy === joiningClientId
     });
     if (!permission.ok) return { ok: false, errors: permission.errors, code: 'ROOM_JOIN_REJECTED' };
-    const result = this.memberships.join(id, permission.identity, { role: room.createdBy === permission.identity.clientId ? 'creator' : 'participant' });
+    const result = this.memberships.join(id, { ...permission.identity, sourceLanguage: identity.sourceLanguage, preferredLanguage: identity.preferredLanguage || identity.targetLanguage, targetLanguage: identity.targetLanguage, locale: identity.locale, formality: identity.formality }, { role: room.createdBy === permission.identity.clientId ? 'creator' : 'participant' });
     room.updatedAt = nowIso();
     this.rooms.set(id, room);
     return { ...result, room: cloneRoom(room, this.memberships) };
