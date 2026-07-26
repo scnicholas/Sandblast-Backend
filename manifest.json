@@ -1,8 +1,8 @@
 {
   "package": "Marion Layers 1-28 Certification \u2014 Round Three",
-  "version": "28.3-round3",
+  "version": "1.0.9-marion-layers-1-28-round4",
   "contract": "nyx.marion.conversationFlow/4.0",
-  "generatedUtc": "2026-07-26T23:00:00.000Z",
+  "generatedUtc": "2026-07-26T19:33:57.674898Z",
   "target": {
     "backend": "Sandblast backend",
     "scope": "Marion Layers 1-28 cohesive runtime; Layer 27 strategy, Layer 28 internal metacognition, and shared cognitive supervision; composeMarionResponse intentionally untouched",
@@ -117,7 +117,9 @@
       "pragmatic intent",
       "cross-layer authority"
     ],
-    "layer29Present": false
+    "layer29Present": false,
+    "round4CertificationPrepared": true,
+    "layers27to28StrategicMetacognitionCertified": true
   },
   "filePaths": [
     "DEPLOYMENT_CHECKLIST_LAYERS_11_12.md",
@@ -2671,5 +2673,6 @@
     },
     "validationCommand": "npm run verify:marion-phase-b-part2-batch2",
     "liveRenderCertificationPending": true
-  }
+  },
+  "hardStopLayer": 28
 }
