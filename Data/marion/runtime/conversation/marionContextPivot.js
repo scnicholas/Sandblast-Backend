@@ -65,3 +65,31 @@ function commitTurn(flow={},stage=""){
 }
 function projectState(flow={}){const src=isObj(flow)?flow:{};return {version:VERSION,contract:CONTRACT,direction:text(src.direction,80),activeThread:src.activeThread?thread(src.activeThread):null,pausedThreads:pausedList(src.pausedThreads),returnPoint:text(src.returnPoint,320),activeDomain:text(src.activeDomain,80),activeSubject:text(src.activeSubject,320)};}
 module.exports={VERSION,CONTRACT,isGreeting,isReturn,isBranch,isExplicitPivot,isContinuation,inferDirection,analyzeTurn,commitTurn,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER10_COHESION_V1_START */
+(function marionNuancePhaseALayer10CohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer10CohesionV1)return;
+  const PHASE_A_VERSION="marion.contextPivot/11.1-layer10-nuance-phase-a";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(flow={},nuanceContext={}){
+    const base=obj(flow),l24=obj(obj(nuanceContext).layer24),state=clean(l24.currentState,60),flags=obj(l24.controlFlags);if(!state)return {...base,version:PHASE_A_VERSION};
+    let direction=base.direction,changed=base.changedDirection===true,active=base.activeThread;
+    if((state==="correction"||state==="disagreement")&&active){direction="continue";changed=false;}
+    else if(state==="clarification"&&active){direction="clarify";changed=false;}
+    else if(state==="continuation"&&active){direction="continue";changed=false;}
+    else if(state==="topic_pivot"&&direction!=="return"){direction="pivot";changed=true;}
+    return {...base,version:PHASE_A_VERSION,direction,changedDirection:changed,phaseAInteractionState:state,phaseACorrectionOverride:flags.correctionOverride===true,currentTurnIntentPrimary:true,staleEmotionMustYield:flags.staleEmotionMustYield===true,nuanceMetadataPrivate:true};
+  }
+  const originalAnalyze=api.analyzeTurn;
+  api.analyzeTurn=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(obj(value).phaseAInteractionState,60),phaseACorrectionOverride:obj(value).phaseACorrectionOverride===true};};
+  api.applyNuance=applyNuance;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseALayer10CohesionV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER10_COHESION_V1_END */
