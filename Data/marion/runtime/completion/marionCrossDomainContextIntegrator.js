@@ -59,3 +59,20 @@ function analyze({prompt="",previous={},conversationFlow={},outcomeFlow={},strat
 function projectState(v={}){const x=isObj(v)?v:{};return {version:VERSION,contract:CONTRACT,synthesisStatus:text(x.synthesisStatus,80),domains:uniq(x.domains),contextItems:(Array.isArray(x.contextItems)?x.contextItems:[]).slice(0,MAX_CONTEXT_ITEMS).map(i=>({domain:text(i&&i.domain,80),subject:text(i&&i.subject,420),sourceLayer:text(i&&i.sourceLayer,80),status:text(i&&i.status,80),relevance:Number(i&&i.relevance||0)})),conflicts:(Array.isArray(x.conflicts)?x.conflicts:[]).slice(0,4),sourceBound:true,sessionBound:true};}
 function getStatus(){return {ok:true,version:VERSION,contract:CONTRACT,layer:18,maxContextItems:MAX_CONTEXT_ITEMS,maxDomains:MAX_DOMAINS,routeAuthority:false,replyAuthority:false,executionAuthority:false};}
 module.exports={VERSION,CONTRACT,MAX_CONTEXT_ITEMS,MAX_DOMAINS,isCrossDomainQuery,domainSignals,collect,conflicts,analyze,projectState,getStatus};
+
+/* MARION_NUANCE_PHASE_A_CROSS_DOMAIN_INTEGRATION_V2_START */
+(function marionNuancePhaseACrossDomainIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseACrossDomainIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.crossDomainIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  const original=api.analyze;
+  if(typeof original==="function")api.analyze=function(input={}){const out=obj(original.call(this,input)),n=obj(obj(input).nuanceContext||obj(input).phaseANuance),l24=obj(n.layer24),culture=obj(n.culturalCompatibility);return{...out,phaseAContext:{version:PATCH_VERSION,contract:PHASE_A_CONTRACT,interactionState:clean(l24.currentState,60),explicitLanguage:clean(culture.explicitLanguage,32),explicitLocale:clean(culture.explicitLocale,32),codeSwitchDetected:culture.codeSwitchDetected===true,explicitCulturalContext:Array.isArray(culture.explicitCulturalContext)?culture.explicitCulturalContext.slice(0,12):[],culturalInferenceAllowed:false,identityInferenceAllowed:false,emotionCandidateMayCreateDomain:false,currentTurnIntentPrimary:true,internalOnly:true},culturalIdentityInferenceAllowed:false,emotionCandidateMayCreateDomain:false};};
+  api.MARION_NUANCE_PHASE_A_CROSS_DOMAIN_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.__marionNuancePhaseACrossDomainIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_CROSS_DOMAIN_INTEGRATION_V2_END */
