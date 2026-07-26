@@ -89,3 +89,24 @@ function analyze({prompt="",previous={},outcomeFlow={},conversationFlow={},turnI
 }
 function projectState(v={}){const x=isObj(v)?v:{};return {version:VERSION,contract:CONTRACT,assessmentId:text(x.assessmentId,140),objectiveId:text(x.objectiveId,120),governingObjective:text(x.governingObjective,700),objectives:projectObjectives(x.objectives),proposedAction:text(x.proposedAction,900),alignmentStatus:text(x.alignmentStatus,80),alignmentScore:x.alignmentScore==null?null:clamp01(x.alignmentScore),confidence:clamp01(x.confidence),supports:unique(x.supports),conflicts:unique(x.conflicts),dimensions:Array.isArray(x.dimensions)?x.dimensions.slice(0,8).map(d=>({name:text(d&&d.name,80),status:text(d&&d.status,40)})):[],strategicDrift:x.strategicDrift===true,requiresClarification:x.requiresClarification===true,requiresReframing:x.requiresReframing===true,safeToProceed:x.safeToProceed===true,objectiveChanged:x.objectiveChanged===true,objectiveCancelled:x.objectiveCancelled===true,sourceTurnId:text(x.sourceTurnId,120)};}
 module.exports={VERSION,CONTRACT,MAX_OBJECTIVES,explicitObjective,objectiveChange,objectiveCancellation,alignmentSignals,analyze,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER15_BOUNDARY_V1_START */
+(function marionNuancePhaseALayer15BoundaryV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer15BoundaryV1)return;
+  const PHASE_A_VERSION="marion.strategicObjectiveAlignment/17.1-layer15-nuance-boundary";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(result={},nuanceContext={},prompt=""){
+    const base=obj(result),l24=obj(obj(nuanceContext).layer24),state=clean(l24.currentState,60),explicitChange=api.objectiveChange(prompt)||api.objectiveCancellation(prompt);if(!state)return {...base,version:PHASE_A_VERSION};
+    if((state==="correction"||state==="clarification")&&!explicitChange)return {...base,version:PHASE_A_VERSION,objectiveChanged:false,objectiveCancelled:false,phaseAInteractionState:state,nuanceMayNotReplaceObjective:true,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+    return {...base,version:PHASE_A_VERSION,phaseAInteractionState:state,nuanceMayNotReplaceObjective:true,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+  }
+  const originalAnalyze=api.analyze;
+  api.analyze=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext,source.prompt);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(v.phaseAInteractionState,60),nuanceMayNotReplaceObjective:true};};
+  api.applyNuance=applyNuance;api.VERSION=PHASE_A_VERSION;api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";api.__marionNuancePhaseALayer15BoundaryV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER15_BOUNDARY_V1_END */
