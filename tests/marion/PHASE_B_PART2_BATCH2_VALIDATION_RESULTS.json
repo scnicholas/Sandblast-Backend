@@ -1,0 +1,107 @@
+{
+  "package": "Marion Phase B Part 2 Batch 2 State, Transport, and Control Integration",
+  "version": "1.0.0",
+  "generatedUtc": "2026-07-26T15:45:47.603027+00:00",
+  "contract": "nyx.marion.nuance.phaseB/1.0",
+  "stateContract": "nyx.marion.nuanceState.phaseB/1.0",
+  "hardStopLayer": 26,
+  "completionDecisionLayer": 20,
+  "phaseAHardStopLayer": 24,
+  "updatedFiles": [
+    "index.js",
+    "manifest.json",
+    "package.json",
+    "Utils/chatEngine.js",
+    "Utils/stateSpine.js"
+  ],
+  "syntaxChecks": {
+    "total": 7,
+    "passed": 7,
+    "results": [
+      {
+        "file": "Utils/chatEngine.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Utils/stateSpine.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "index.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/phase_b_chat_engine_transport_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/phase_b_index_manifest_package_contract_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/phase_b_state_spine_integration_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/verify_phase_b_part2_batch2.js",
+        "ok": true,
+        "error": ""
+      }
+    ]
+  },
+  "focusedRuntimeTests": {
+    "total": 3,
+    "passed": 3,
+    "output": "{\n  \"ok\": true,\n  \"hardStopLayer\": 26,\n  \"partitionBoundary\": true,\n  \"correctionPrecedence\": true\n}\nPASS: phase_b_state_spine_integration_test.js\n{\n  \"ok\": true,\n  \"hardStopLayer\": 26,\n  \"transportOnly\": true,\n  \"publicProjectionBlocked\": true\n}\nPASS: phase_b_chat_engine_transport_test.js\n{\n  \"ok\": true,\n  \"manifestHardStop\": 26,\n  \"packageVersion\": \"1.0.5-marion-nuance-phase-b-26\",\n  \"commonjsPreserved\": true\n}\nPASS: phase_b_index_manifest_package_contract_test.js\n{\n  \"ok\": true,\n  \"suite\": \"Marion Phase B Part 2 Batch 2\",\n  \"testsPassed\": 3,\n  \"hardStopLayer\": 26\n}"
+  },
+  "sourceIntegrity": [
+    {
+      "path": "index.js",
+      "completeOriginalPreserved": true,
+      "structurallyMerged": false
+    },
+    {
+      "path": "manifest.json",
+      "completeOriginalPreserved": false,
+      "structurallyMerged": true
+    },
+    {
+      "path": "package.json",
+      "completeOriginalPreserved": false,
+      "structurallyMerged": true
+    },
+    {
+      "path": "Utils/chatEngine.js",
+      "completeOriginalPreserved": true,
+      "structurallyMerged": false
+    },
+    {
+      "path": "Utils/stateSpine.js",
+      "completeOriginalPreserved": true,
+      "structurallyMerged": false
+    }
+  ],
+  "criticalControls": {
+    "phaseACalledOnce": true,
+    "singlePhaseBAnalysisAuthority": true,
+    "chatEngineTransportOnly": true,
+    "indexDiagnosticOnly": true,
+    "stateSpineApprovedPatchOnly": true,
+    "literalIntentPreserved": true,
+    "currentTurnCorrectionPrecedence": true,
+    "rawMarkerEvidenceExposed": false,
+    "rawMarkerEvidenceCarryAllowed": false,
+    "publicNuanceProjectionAllowed": false,
+    "crossPartitionCarryAllowed": false,
+    "unconfirmedApprovalCarryAllowed": false,
+    "unconfirmedGoalCarryAllowed": false,
+    "automaticExecutionAllowed": false
+  },
+  "liveRenderCertificationPending": true
+}
