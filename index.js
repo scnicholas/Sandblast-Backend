@@ -28636,3 +28636,106 @@ try {
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_HARDLOCK_R5_1_END */
+
+/* MARION_NUANCE_PHASE_B_INDEX_DIAGNOSTIC_BOUNDARY_V1_START */
+(function marionNuancePhaseBIndexDiagnosticBoundaryV1(){
+  "use strict";
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_B_STATE_CONTRACT="nyx.marion.nuanceState.phaseB/1.0";
+  const HARD_STOP_LAYER=26;
+  const VERSION="nyx.marion.nuance.phaseB.indexDiagnosticBoundary/1.0";
+
+  function obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+  function clean(value,max=180){
+    try{return String(value==null?"":value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}
+    catch(_){return"";}
+  }
+  function load(pathname){try{return require(pathname);}catch(_){return null;}}
+
+  const coordinator=load("./Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js");
+  const envelope=load("./Data/marion/runtime/nuance/marionNuancePhaseBEnvelope.js");
+  const chatEngine=load("./Utils/chatEngine.js");
+  const stateSpine=load("./Utils/stateSpine.js");
+
+  function moduleStatus(moduleValue){
+    const moduleObject=obj(moduleValue);
+    return {
+      available:!!moduleValue,
+      version:clean(moduleObject.VERSION||moduleObject.SPINE_VERSION||""),
+      contract:clean(moduleObject.CONTRACT||moduleObject.MARION_NUANCE_PHASE_B_CONTRACT||""),
+      hardStopLayer:Number(moduleObject.HARD_STOP_LAYER||moduleObject.MARION_LAYER_HARD_STOP||0)||0
+    };
+  }
+
+  function getMarionNuancePhaseBHealth(){
+    let coordinatorHealth={};
+    try{
+      coordinatorHealth=coordinator&&typeof coordinator.moduleHealth==="function"
+        ?obj(coordinator.moduleHealth())
+        :{};
+    }catch(_){coordinatorHealth={};}
+
+    const modules={
+      coordinator:moduleStatus(coordinator),
+      envelope:moduleStatus(envelope),
+      chatEngine:moduleStatus(chatEngine),
+      stateSpine:moduleStatus(stateSpine)
+    };
+
+    const requiredReady=modules.coordinator.available&&modules.envelope.available&&
+      modules.chatEngine.available&&modules.stateSpine.available;
+
+    return {
+      ok:requiredReady,
+      version:VERSION,
+      contract:PHASE_B_CONTRACT,
+      stateContract:PHASE_B_STATE_CONTRACT,
+      hardStopLayer:HARD_STOP_LAYER,
+      completionDecisionLayer:20,
+      phaseAHardStopLayer:24,
+      diagnosticOnly:true,
+      semanticAnalysisPerformed:false,
+      routeAuthorityChanged:false,
+      replyAuthorityChanged:false,
+      singlePhaseBAnalysisAuthority:true,
+      phaseACalledOnce:true,
+      literalIntentPreserved:true,
+      rawMarkerEvidenceExposed:false,
+      publicNuanceProjectionAllowed:false,
+      automaticExecutionAllowed:false,
+      modules,
+      coordinatorHealth:{
+        ok:coordinatorHealth.ok===true,
+        phase:clean(coordinatorHealth.phase||"B"),
+        hardStopLayer:Number(coordinatorHealth.hardStopLayer||HARD_STOP_LAYER),
+        failOpenToPhaseA:coordinatorHealth.failOpenToPhaseA!==false
+      }
+    };
+  }
+
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      api.MARION_NUANCE_PHASE_B_INDEX_VERSION=VERSION;
+      api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+      api.MARION_NUANCE_PHASE_B_STATE_CONTRACT=PHASE_B_STATE_CONTRACT;
+      api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+      api.MARION_NUANCE_PHASE_B_DIAGNOSTIC_ONLY=true;
+      api.getMarionNuancePhaseBHealth=getMarionNuancePhaseBHealth;
+    }
+  }catch(_){}
+
+  try{
+    if(typeof app!=="undefined"&&app&&typeof app.get==="function"){
+      app.locals=app.locals||{};
+      if(!app.locals.__marionNuancePhaseBHealthRouteV1){
+        app.locals.__marionNuancePhaseBHealthRouteV1=true;
+        app.get("/api/marion/nuance/phase-b/health",function(_req,res){
+          const health=getMarionNuancePhaseBHealth();
+          return res.status(health.ok?200:503).json(health);
+        });
+      }
+    }
+  }catch(_){}
+})();
+/* MARION_NUANCE_PHASE_B_INDEX_DIAGNOSTIC_BOUNDARY_V1_END */
