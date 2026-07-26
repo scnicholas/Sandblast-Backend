@@ -75,3 +75,32 @@ function projectState(flow={}){
   return {version:VERSION,contract:CONTRACT,stage:text(src.stage,80),progressionDepth:clamp(src.progressionDepth,0,50,0),activeDomain:text(src.activeDomain,80),activeSubject:text(src.activeSubject,320),lastAcceptedResult:text(src.lastAcceptedResult,700),resolvedQuestions:unique(src.resolvedQuestions),unresolvedQuestions:unique(src.unresolvedQuestions),nextLogicalAction:text(src.nextLogicalAction,120)};
 }
 module.exports={VERSION,CONTRACT,isGreeting,isShortFollowup,stageFor,nextActionFor,analyzeTurn,commitTurn,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER9_COHESION_V1_START */
+(function marionNuancePhaseALayer9CohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer9CohesionV1)return;
+  const PHASE_A_VERSION="marion.conversationProgression/11.1-layer9-nuance-phase-a";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){if(typeof v!=="string")return"";return v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}
+  function phaseA(n){const x=obj(n),l24=obj(x.layer24);return {state:clean(l24.currentState,60),previous:clean(l24.previousState,60),confidence:Number.isFinite(Number(l24.confidence))?Math.max(0,Math.min(1,Number(l24.confidence))):0,flags:obj(l24.controlFlags),expected:Array.isArray(l24.expectedBehaviour)?l24.expectedBehaviour.filter(v=>typeof v==="string").slice(0,8):[]};}
+  function applyNuance(flow={},nuanceContext={}){
+    const base=obj(flow),n=phaseA(nuanceContext);if(!n.state)return {...base,version:PHASE_A_VERSION};
+    let nextAction=base.nextLogicalAction;
+    if(n.state==="correction"||n.state==="disagreement")nextAction="repair_current_work_without_restarting_topic";
+    else if(n.state==="clarification")nextAction="resolve_current_ambiguity_before_progression";
+    else if(n.state==="validation")nextAction="confirm_result_then_identify_next_gate";
+    else if(n.state==="continuation")nextAction="advance_active_task_from_last_accepted_result";
+    return {...base,version:PHASE_A_VERSION,phaseAInteractionState:n.state,phaseAInteractionConfidence:n.confidence,phaseAExpectedBehaviour:n.expected,nextLogicalAction:nextAction,continuation:base.continuation===true||n.state==="continuation"||n.state==="correction",currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+  }
+  const originalAnalyze=api.analyzeTurn;
+  api.analyzeTurn=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(obj(value).phaseAInteractionState,60),phaseAInteractionConfidence:Number(obj(value).phaseAInteractionConfidence||0),nextLogicalAction:clean(obj(value).nextLogicalAction,160)};};
+  api.applyNuance=applyNuance;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseALayer9CohesionV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER9_COHESION_V1_END */
