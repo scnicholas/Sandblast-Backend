@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "command": "node tests/marion/verify_phase_a_part1.js",
+  "syntaxChecks": 22,
+  "testSuites": 4,
+  "stdout": "PASS layers_21_24_core_integration_test\nPASS layers_9_24_partial_cohesion_test\nPASS layers_21_24_gap_refinement_test\nPASS layers_15_17_nuance_boundary_test\nPASS verify_phase_a_part1 (22 syntax checks, 4 suites)\n",
+  "stderr": "",
+  "executedUtc": "2026-07-25T22:57:06.254713+00:00",
+  "certificationScope": "Partial integration tranche only; remaining active-path and Layers 18-20 files pending merge."
+}
