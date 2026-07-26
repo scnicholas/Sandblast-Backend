@@ -6166,3 +6166,65 @@ try{
 })();
 /* MARION_COMPLETION_FLOW_LAYERS_18_19_20_FINAL_ENVELOPE_V20_END */
 
+/* MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_INTEGRATION_V2_START */
+(function marionNuancePhaseAFinalEnvelopeIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAFinalEnvelopeIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.finalEnvelopeIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=24;
+  let envelope=null;try{envelope=require("./nuance/marionNuanceEnvelope.js");}catch(_){envelope=null;}
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=180){if(typeof v==="string")return v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);return"";}
+  function privateTurn(v){const s=obj(v),b=obj(s.body),p=obj(s.payload),m=obj(s.meta),nodes=[s,b,p,m];return nodes.some(x=>x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||x.adminVerified===true||x.authenticatedOperator===true||x.passwordFreeTestChat===true||x.adminInterfaceScope==="marion_admin_conversation")||clean(s.scope,80).toLowerCase()==="private_admin";}
+  function nuanceOf(input,output){const s=obj(input),o=obj(output),p=obj(o.payload),f=obj(o.finalEnvelope);return obj(s.nuanceContext||s.phaseANuance||o.nuanceContext||o.phaseANuance||p.nuanceContext||f.nuanceContext);}
+  function project(n){try{return envelope&&typeof envelope.projectInternalNuanceSummary==="function"?obj(envelope.projectInternalNuanceSummary(n)):{};}catch(_){return{};}}
+  function scrubRawNuance(value,depth=0,stack=new WeakSet()){
+    if(value==null||typeof value!=="object")return value;
+    if(obj(value).contract===PHASE_A_CONTRACT&&(obj(value).layer21||obj(value).layer22||obj(value).layer23||obj(value).layer24))return project(value);
+    if(depth>8)return"[truncated_depth]";
+    try{if(stack.has(value))return"[circular]";stack.add(value);}catch(_){}
+    if(Array.isArray(value)){
+      const list=value.slice(0,100).map(item=>scrubRawNuance(item,depth+1,stack));
+      try{stack.delete(value);}catch(_){}
+      return list;
+    }
+    const out={};
+    for(const key of Object.keys(value)){
+      if(key==="nuanceContext"||key==="phaseANuance"||key==="rawNuanceEvidence"||key==="emotionalEvidence")continue;
+      if(key==="evidence"&&obj(value).interpretation==="candidate_conversational_state")continue;
+      out[key]=scrubRawNuance(value[key],depth+1,stack);
+    }
+    try{stack.delete(value);}catch(_){}
+    return out;
+  }
+  function redact(raw,input){
+    if(!raw||typeof raw!=="object")return raw;
+    const out={...raw},nuance=nuanceOf(input,out);
+    if(!privateTurn(input)||!Object.keys(nuance).length){
+      delete out.nuanceContext;delete out.phaseANuance;delete out.internalNuance;delete out.nuanceStatePatch;
+      if(obj(out.finalEnvelope).nuanceContext){out.finalEnvelope={...obj(out.finalEnvelope)};delete out.finalEnvelope.nuanceContext;delete out.finalEnvelope.phaseANuance;}
+      return out;
+    }
+    const internal=project(nuance),statePatch=obj(obj(nuance.carryPolicy).approvedStatePatch||obj(input).nuanceStatePatch);
+    out.internalNuance=internal;
+    out.nuanceStatePatch=statePatch;
+    out.memoryPatch={...obj(out.memoryPatch),nuanceState:statePatch,internalNuance:internal};
+    out.sessionPatch={...obj(out.sessionPatch),nuanceState:statePatch,internalNuance:internal};
+    out.finalEnvelope={...obj(out.finalEnvelope),internalNuance:internal,nuanceStatePatch:statePatch,nuanceContract:PHASE_A_CONTRACT,nuanceInternalOnly:true,rawNuanceEvidenceExposed:false};
+    out.meta={...obj(out.meta),nuanceFinalEnvelopeIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceHardStopLayer:HARD_STOP_LAYER,rawNuanceEvidenceExposed:false,noUserFacingNuanceDiagnostics:true,culturalIdentityInferenceAllowed:false};
+    delete out.nuanceContext;delete out.phaseANuance;
+    if(obj(out.payload).nuanceContext){out.payload={...obj(out.payload)};delete out.payload.nuanceContext;delete out.payload.phaseANuance;}
+    return scrubRawNuance(out);
+  }
+  const cache=new WeakMap();
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionNuancePhaseAFinalEnvelopeIntegrationV2)return fn;if(cache.has(fn))return cache.get(fn);const w=function(input){const out=fn.apply(this,arguments),apply=v=>redact(v,input);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionNuancePhaseAFinalEnvelopeIntegrationV2=true;cache.set(fn,w);return w;}
+  for(const name of["createMarionFinalEnvelope","createMarionErrorEnvelope","attachVisibleReplyAliases","buildResponse","createResponse","finalizeTurn","safeResponse"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.projectMarionNuanceForFinalEnvelope=project;
+  api.MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseAFinalEnvelopeIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_INTEGRATION_V2_END */
