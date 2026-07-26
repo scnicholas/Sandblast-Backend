@@ -43,3 +43,29 @@ function update({prompt="",outcome={},previous={},threadId="",subject="",turnId=
 }
 function projectState(value={}){const v=isObj(value)?value:{};const ledger=boundedLedger(previousLedger(v));return {version:VERSION,contract:CONTRACT,ledger,openCommitments:ledger.filter(active),completedCommitments:ledger.filter(c=>c.status==="completed"),cancelledCommitments:ledger.filter(c=>c.status==="cancelled"||c.status==="rejected"),blockedCommitments:ledger.filter(c=>c.status==="blocked"),deferredCommitments:ledger.filter(c=>c.status==="deferred"),changedCommitmentId:text(v.changedCommitmentId,140),ledgerAction:text(v.ledgerAction,80),lastUpdatedTurnId:text(v.lastUpdatedTurnId,120),hasOpenCommitments:ledger.some(active)};}
 module.exports={VERSION,CONTRACT,MAX_LEDGER,MAX_CLOSED,normalizeCommitment,previousLedger,active,closed,overlap,findMatch,update,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER13_COHESION_V1_START */
+(function marionNuancePhaseALayer13CohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer13CohesionV1)return;
+  const PHASE_A_VERSION="marion.commitmentTracker/14.1-layer13-nuance-phase-a";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(result={},previous={},nuanceContext={},prompt=""){
+    const base=obj(result),prior=obj(previous),l24=obj(obj(nuanceContext).layer24),state=clean(l24.currentState,60),p=clean(prompt,6000).toLowerCase(),explicitCommitment=/\b(?:i will|we will|we'll|go ahead|proceed|approved|commit|schedule|defer|cancel|complete|done|passed|failed|blocked)\b/i.test(p);
+    if((state==="correction"||state==="clarification"||state==="disagreement")&&!explicitCommitment){
+      const projected=api.projectState(prior);return {...projected,version:PHASE_A_VERSION,ledgerAction:"none_due_to_interaction_state",changedCommitmentId:"",lastUpdatedTurnId:clean(base.lastUpdatedTurnId,120),phaseAInteractionState:state,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+    }
+    return {...base,version:PHASE_A_VERSION,phaseAInteractionState:state,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+  }
+  const originalUpdate=api.update;
+  api.update=function(args={}){const source=obj(args),out=originalUpdate(source);return applyNuance(out,source.previous,source.nuanceContext,source.prompt);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(v.phaseAInteractionState,60)};};
+  api.applyNuance=applyNuance;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseALayer13CohesionV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER13_COHESION_V1_END */
