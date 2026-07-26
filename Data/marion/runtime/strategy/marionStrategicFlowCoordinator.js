@@ -32,3 +32,29 @@ function reconcileVisibleReply(reply="",v={}){const x=isObj(v)?v:{};return pathw
 function reconcileResult(result={},v={}){if(!isObj(result))return result;const state=projectState(v),memory=isObj(result.memoryPatch)?result.memoryPatch:{},session=isObj(result.sessionPatch)?result.sessionPatch:{},meta=isObj(result.meta)?result.meta:{},routing=isObj(result.routing)?result.routing:{},payload=isObj(result.payload)?result.payload:{},envelope=isObj(result.finalEnvelope)?result.finalEnvelope:{};let reply="";for(const candidate of [result.directReply,result.visibleReply,result.displayReply,result.finalReply,result.reply,result.text,result.message,envelope.reply,payload.reply]){reply=text(candidate,12000);if(reply)break;}reply=reconcileVisibleReply(reply,v);const base={...result,strategicFlow:v,strategicFlowState:state,objectiveAlignment:v.objectiveAlignment,predictiveRisk:v.predictiveRisk,pathwaySynthesis:v.pathwaySynthesis,memoryPatch:{...memory,strategicFlowState:state},sessionPatch:{...session,strategicFlowState:state},routing:{...routing,strategicFlowVersion:VERSION},meta:{...meta,strategicFlowVersion:VERSION,conversationLayers:[9,10,11,12,13,14,15,16,17],strategicMetadataPrivate:true,automaticExecutionAllowed:false}};if(!reply)return base;return {...base,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply,payload:{...payload,reply,text:reply,message:reply},finalEnvelope:{...envelope,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply,strategicFlowState:state}};}
 function getStatus(){return {ok:true,version:VERSION,contract:CONTRACT,layers:{15:alignment.VERSION,16:risk.VERSION,17:pathways.VERSION},routeAuthority:false,replyAuthority:false,metadataOnly:true,maxPathways:pathways.MAX_PATHWAYS,maxRisks:risk.MAX_RISKS,maxObjectives:alignment.MAX_OBJECTIVES,automaticExecutionAllowed:false,approvalBoundaryPreserved:true};}
 module.exports={VERSION,CONTRACT,previousFrom,shouldReset,blockerFingerprint,strategicFingerprint,analyzeTurn,commitTurn,projectState,reconcileVisibleReply,reconcileResult,getStatus,alignment,risk,pathways};
+
+/* MARION_NUANCE_PHASE_A_STRATEGIC_COORDINATOR_V1_START */
+(function marionNuancePhaseAStrategicCoordinatorV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAStrategicCoordinatorV1)return;
+  const PHASE_A_VERSION="marion.strategicFlowCoordinator/17.1-cohesive-15-17-nuance-boundary";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(value={},nuanceContext={},prompt=""){
+    const base=obj(value),n=obj(nuanceContext);if(!Object.keys(n).length)return {...base,version:PHASE_A_VERSION};
+    const objective=typeof api.alignment.applyNuance==="function"?api.alignment.applyNuance(base.objectiveAlignment,n,prompt):base.objectiveAlignment;
+    const predictive=typeof api.risk.applyNuance==="function"?api.risk.applyNuance(base.predictiveRisk,n):base.predictiveRisk;
+    const pathways=typeof api.pathways.applyNuance==="function"?api.pathways.applyNuance(base.pathwaySynthesis,n,prompt):base.pathwaySynthesis;
+    const l23=obj(n.layer23),l24=obj(n.layer24);
+    return {...base,version:PHASE_A_VERSION,objectiveAlignment:objective,predictiveRisk:predictive,pathwaySynthesis:pathways,nuanceSummary:{interactionState:clean(l24.currentState,60),confidenceBand:clean(l23.confidenceBand,40),internalOnly:true},nuanceCannotAuthorizeAction:true,nuanceMetadataPrivate:true};
+  }
+  const originalAnalyze=api.analyzeTurn;
+  api.analyzeTurn=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext,source.prompt);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,nuanceSummary:obj(v.nuanceSummary),nuanceCannotAuthorizeAction:true};};
+  const originalStatus=api.getStatus;
+  api.getStatus=function(){return {...originalStatus(),version:PHASE_A_VERSION,nuancePhaseACompatible:true,nuanceCannotAuthorizeAction:true};};
+  api.applyNuance=applyNuance;api.VERSION=PHASE_A_VERSION;api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";api.__marionNuancePhaseAStrategicCoordinatorV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_STRATEGIC_COORDINATOR_V1_END */
