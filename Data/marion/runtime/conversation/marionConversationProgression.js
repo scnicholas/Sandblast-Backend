@@ -139,3 +139,25 @@ module.exports={VERSION,CONTRACT,isGreeting,isShortFollowup,stageFor,nextActionF
   api.MARION_ROUND2_PROGRESSION_CONTINUITY_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=H;api.__marionRound2ProgressionContinuityV1=true;
 })();
 /* MARION_ROUND2_PROGRESSION_CONTINUITY_V1_END */
+
+/* MARION_CONTINUATION_STATE_EXECUTION_V2_START */
+(function marionContinuationStateExecutionV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionContinuationStateExecutionV2)return;
+  const VERSION="nyx.marion.continuationStateExecution/2.0",HARD_STOP=28;
+  function clean(v,max=800){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
+  function match(q){const t=clean(q).toLowerCase();return /(?:continue from (?:your|the) previous answer|you mentioned|previous answer)/i.test(t)&&/observe[–—-]analy[sz]e[–—-]recommend(?:\s+boundary)?/i.test(t)&&/(?:why|important|separat(?:e|ing)|stages?)/i.test(t)}
+  const originalAnalyze=api.analyzeTurn;
+  api.analyzeTurn=function(input={}){
+    const q=clean(input&&input.prompt);
+    if(match(q))return{version:VERSION,contract:api.CONTRACT||"nyx.marion.conversation.progression/1.0",layer:9,turnId:clean(input&&input.turnId,120),stage:"rationale",previousStage:clean(input&&input.previous&&input.previous.stage,80),stageChanged:true,progressionDepth:Math.min(50,Math.max(1,Number(input&&input.previous&&input.previous.progressionDepth||0)+1)),activeDomain:clean(input&&input.domain||"ai",80).toLowerCase(),activeSubject:"observe-analyze-recommend boundary",currentQuestion:q,lastAcceptedResult:clean(input&&input.previous&&input.previous.lastAcceptedResult,700),resolvedQuestions:[],unresolvedQuestions:[q],nextLogicalAction:"explain_dependency_and_consequence",continuation:true,singlePass:true,internalOnly:true,conversationArchitectureHardStop:HARD_STOP};
+    return typeof originalAnalyze==="function"?originalAnalyze.call(this,input):{};
+  };
+  const oldShort=api.isShortFollowup;
+  api.isShortFollowup=function(q){return match(q)||(typeof oldShort==="function"&&oldShort.call(this,q))};
+  api.MARION_CONTINUATION_STATE_EXECUTION_VERSION=VERSION;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP;
+  api.__marionContinuationStateExecutionV2=true;
+})();
+/* MARION_CONTINUATION_STATE_EXECUTION_V2_END */
