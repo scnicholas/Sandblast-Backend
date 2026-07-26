@@ -1,0 +1,126 @@
+{
+  "package": "Marion Phase B Layers 25-26 New Files and Tests",
+  "version": "1.0.0",
+  "generatedUtc": "2026-07-26T02:31:27.117298+00:00",
+  "contract": "nyx.marion.nuance.phaseB/1.0",
+  "hardStopLayer": 26,
+  "phaseAHardStopLayer": 24,
+  "taxonomy": {
+    "canonicalStances": 24,
+    "stanceModifiers": 15,
+    "pragmaticCategories": 56,
+    "pragmaticFamilies": 7
+  },
+  "syntaxChecks": {
+    "total": 16,
+    "passed": 16,
+    "results": [
+      {
+        "file": "Data/marion/runtime/nuance/marionConversationalStanceResolver.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionNuancePhaseBEnvelope.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionPragmaticIntentResolver.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionPragmaticMarkerRegistry.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionResponsePosturePolicy.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionSubtextConfidenceGate.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layer_25_stance_resolution_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layer_26_pragmatic_intent_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layer_26_subtext_confidence_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layers_18_26_completion_boundary_contract_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layers_21_26_integration_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layers_25_26_private_runtime_contract_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layers_25_26_unit_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/layers_25_26_voice_text_parity_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/run_layers_25_26.js",
+        "ok": true,
+        "error": ""
+      }
+    ]
+  },
+  "runtimeTests": {
+    "total": 8,
+    "passed": 8,
+    "output": "{\n  \"ok\": true,\n  \"stances\": 24,\n  \"modifiers\": 15,\n  \"pragmaticCategories\": 56,\n  \"families\": 7\n}\nPASS: layers_25_26_unit_test.js\n{\n  \"ok\": true,\n  \"last\": \"reassuring\"\n}\nPASS: layer_25_stance_resolution_test.js\n{\n  \"ok\": true,\n  \"primary\": \"format_control\",\n  \"control\": {\n    \"category\": \"format_control\",\n    \"confidence\": 0.86\n  }\n}\nPASS: layer_26_pragmatic_intent_test.js\n{\n  \"ok\": true,\n  \"policy\": \"pragmatic_refinement_allowed\"\n}\nPASS: layer_26_subtext_confidence_test.js\n{\n  \"ok\": true,\n  \"stance\": \"corrective\",\n  \"pragmatic\": \"direct_correction\",\n  \"hardStop\": 26\n}\nPASS: layers_21_26_integration_test.js\n{\n  \"ok\": true,\n  \"scope\": \"private_admin\",\n  \"control\": {\n    \"category\": \"temporary_branch\",\n    \"confidence\": 0.78\n  }\n}\nPASS: layers_25_26_private_runtime_contract_test.js\n{\n  \"ok\": true,\n  \"stance\": \"corrective\",\n  \"pragmatic\": \"direct_correction\"\n}\nPASS: layers_25_26_voice_text_parity_test.js\n{\n  \"ok\": true,\n  \"hardStop\": 26,\n  \"primary\": \"closure_request\"\n}\nPASS: layers_18_26_completion_boundary_contract_test.js\n{\n  \"ok\": true,\n  \"suite\": \"Marion Phase B new files and tests\",\n  \"testsPassed\": 8\n}"
+  },
+  "criticalControlsVerified": {
+    "phaseACalledOnce": true,
+    "literalIntentPreserved": true,
+    "correctionPrecedence": true,
+    "voiceTextParity": true,
+    "privatePartitionPreserved": true,
+    "figurativeThresholdAtLeastPointEight": true,
+    "emotionCannotReplaceIntent": true,
+    "subtextCannotChangeDomain": true,
+    "subtextCannotCreateApproval": true,
+    "subtextCannotCreateCommitment": true,
+    "subtextCannotChangeGoal": true,
+    "subtextCannotAuthorizeExecution": true,
+    "stanceCannotChangeFacts": true,
+    "rawMarkerEvidenceCarryBlocked": true
+  },
+  "integrationBoundary": {
+    "newFilesAndTestsOnly": true,
+    "existingRuntimeFileUpdatesDeferredToPart2": true,
+    "requiresPhaseAFiles": true
+  }
+}
