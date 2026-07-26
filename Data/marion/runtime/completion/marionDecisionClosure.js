@@ -30,3 +30,22 @@ function analyze({prompt="",previous={},conversationFlow={},outcomeFlow={},strat
 function projectState(v={}){const x=isObj(v)?v:{};return {version:VERSION,contract:CONTRACT,closureStatus:text(x.closureStatus,80),hardStopLayer:HARD_STOP_LAYER,hardStopAtLayer20:x.hardStopAtLayer20===true,criteria:isObj(x.criteria)?{...x.criteria}:{},missingCriteria:Array.isArray(x.missingCriteria)?x.missingCriteria.slice(0,10):[],openCommitmentCount:Number(x.openCommitmentCount||0),blockedCommitmentCount:Number(x.blockedCommitmentCount||0),validationPassed:x.validationPassed===true,finalDecision:text(x.finalDecision,500),closureCertificate:isObj(x.closureCertificate)?{...x.closureCertificate}:null,additionalLayerRecommended:false,automaticExecutionAllowed:false,humanFinalAuthority:true};}
 function getStatus(){return {ok:true,version:VERSION,contract:CONTRACT,layer:20,hardStopLayer:HARD_STOP_LAYER,additionalLayerRecommended:false,automaticExecutionAllowed:false,humanFinalAuthority:true,routeAuthority:false,replyAuthority:false};}
 module.exports={VERSION,CONTRACT,HARD_STOP_LAYER,closureSignal,validationSignal,querySignal,analyze,projectState,getStatus};
+
+/* MARION_NUANCE_PHASE_A_DECISION_CLOSURE_INTEGRATION_V2_START */
+(function marionNuancePhaseADecisionClosureIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseADecisionClosureIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.decisionClosureIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=24;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=200){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  const original=api.analyze;
+  if(typeof original==="function")api.analyze=function(input={}){let out=obj(original.call(this,input));const n=obj(obj(input).nuanceContext||obj(input).phaseANuance),l24=obj(n.layer24),state=clean(l24.currentState,60),correction=["correction","clarification","disagreement"].includes(state)||obj(l24.controlFlags).correctionOverride===true,prompt=clean(input.prompt,3000),explicitClosure=typeof api.closureSignal==="function"&&api.closureSignal(prompt),explicitValidation=typeof api.validationSignal==="function"&&api.validationSignal(prompt);if(correction&&!explicitClosure&&!explicitValidation&&["closed","ready_to_close"].includes(clean(out.closureStatus,80))){out={...out,closureStatus:"open",finalDecision:"",closureAuthorized:false,phaseAClosureBlocked:true,missingCriteria:Array.from(new Set([...(Array.isArray(out.missingCriteria)?out.missingCriteria:[]),"current_turn_correction_unresolved"]))};}return{...out,phaseAControls:{version:PATCH_VERSION,contract:PHASE_A_CONTRACT,interactionState:state,correctionOverride:correction,currentTurnIntentPrimary:true,emotionMayAuthorizeClosure:false,culturalMarkersMayAuthorizeClosure:false,explicitClosureRequiredDuringCorrection:true,internalOnly:true},conversationArchitectureHardStop:HARD_STOP_LAYER,completionDecisionLayer:20,emotionMayAuthorizeClosure:false,culturalMarkersMayAuthorizeClosure:false};};
+  api.MARION_NUANCE_PHASE_A_DECISION_CLOSURE_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseADecisionClosureIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_DECISION_CLOSURE_INTEGRATION_V2_END */
