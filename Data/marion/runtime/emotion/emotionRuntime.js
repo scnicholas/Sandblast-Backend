@@ -295,3 +295,32 @@ module.exports = { DEFAULT_CONTRACT_DIR, DEFAULT_FILES, loadContracts, getHealth
   api.deriveMarionInteractionSignals=function(prompt,emotion){const profile=calibration.analyzeTurn({prompt,emotion});return {version:calibration.VERSION,profile,internalOnly:true};};api.__marionInteractionCalibrationEmotionV11=true;api.MARION_INTERACTION_CALIBRATION_EMOTION_VERSION=calibration.VERSION;
 })();
 /* MARION_CONVERSATION_FLOW_LAYER_11_EMOTION_CALIBRATION_V11_END */
+
+/* MARION_NUANCE_PHASE_A_EMOTION_COMPATIBILITY_V1_START */
+(function marionNuancePhaseAEmotionCompatibilityV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAEmotionCompatibilityV1)return;
+  const PHASE_A_VERSION="marion-emotion-runtime/1.1-phase-a-compatibility-adapter";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=180){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function uniq(values,max=16){const out=[];for(const value of Array.isArray(values)?values:[]){const v=clean(value,140);if(v&&!out.includes(v))out.push(v);if(out.length>=max)break;}return out;}
+  function nuanceOf(context={},options={}){const c=obj(context),o=obj(options);return obj(c.nuanceContext||c.phaseANuance||o.nuanceContext||o.phaseANuance);}
+  function adaptResolvedStateWithPhaseA(packet={},nuanceContext={}){
+    const result=obj(packet),state=obj(result.state),n=obj(nuanceContext);if(!Object.keys(n).length)return result;
+    const l22=obj(n.layer22),l23=obj(n.layer23),l24=obj(n.layer24),candidate=obj(l22.primaryCandidate),support=obj(state.support),guard=obj(state.guard),handoff=obj(state.marion_handoff),nuance=obj(state.nuance),constraints=uniq(handoff.response_constraints);
+    if(l23.explicitEmotionReferenceAllowed!==true)constraints.push("do not state an inferred emotion as fact");
+    if(clean(l23.confidenceBand,40)==="low")constraints.push("use neutral supportive delivery without naming an emotion");
+    const nextState={...state,nuance:{...nuance,phase_a_candidate:clean(candidate.state,60),phase_a_confidence:Number(candidate.confidence||0),phase_a_confidence_band:clean(l23.confidenceBand,40),phase_a_response_policy:clean(l23.responsePolicy,80),phase_a_interaction_state:clean(l24.currentState,60),raw_phase_a_evidence_exposed:false},support:{...support,phase_a_tone_adjustment_allowed:l23.toneAdjustmentAllowed===true},guard:{...guard,phase_a_confidence_gate_active:true,explicit_emotion_reference_allowed:l23.explicitEmotionReferenceAllowed===true,diagnosis_block:true},marion_handoff:{...handoff,response_constraints:uniq(constraints),phase_a_contract:"nyx.marion.nuance.phaseA/1.0",phase_a_internal_only:true},runtime_meta:{...obj(state.runtime_meta),phase_a_adapter_version:PHASE_A_VERSION,phase_a_turn_id:clean(n.turnId,120),raw_phase_a_evidence_redacted:true}};
+    return {...result,version:PHASE_A_VERSION,state:nextState,phaseANuanceApplied:true,phaseANuanceContract:"nyx.marion.nuance.phaseA/1.0"};
+  }
+  const originalResolve=api.resolveEmotionState;
+  api.resolveEmotionState=function(inputText,context={},options={}){const out=originalResolve(inputText,context,options);return adaptResolvedStateWithPhaseA(out,nuanceOf(context,options));};
+  const originalHealth=api.getHealth;
+  api.getHealth=function(options={}){const out=originalHealth(options);return {...out,version:PHASE_A_VERSION,phaseANuanceAdapter:true,phaseAContract:"nyx.marion.nuance.phaseA/1.0",duplicateEmotionAuthority:false,rawPhaseAEvidenceExposed:false};};
+  api.adaptResolvedStateWithPhaseA=adaptResolvedStateWithPhaseA;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseAEmotionCompatibilityV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_EMOTION_COMPATIBILITY_V1_END */
