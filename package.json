@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.6-marion-cognitive-layers-27-29",
-  "description": "Sandblast backend with cohesive Marion Layers 1-29, including strategic planning, internal metacognition, cognitive supervision, bounded state transport, and preserved reply authority",
+  "version": "1.0.8-marion-layers-1-28-round3",
+  "description": "Sandblast backend Marion Layers 1-28 certification package through Round Three: nuanced emotional signal, confidence, stance, and pragmatic-intent cohesion.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -34,8 +34,13 @@
     "verify:marion-phase-b": "npm run test:marion-phase-b-core && npm run test:marion-phase-b-batch1 && npm run verify:marion-phase-b-part2-batch2",
     "test:marion-layer27": "node tests/marion/layer27/marionStrategicPlanner.test.js && node tests/marion/layer27/marionPriorityArbitrator.test.js && node tests/marion/layer27/marionLayer27Integration.test.js",
     "test:marion-layer28": "node tests/marion/layer28/marionReasoningAuditor.test.js && node tests/marion/layer28/marionQualityCalibrator.test.js && node tests/marion/layer28/marionLayer28Integration.test.js",
-    "test:marion-layer29": "node tests/marion/layer29/marionCognitiveSupervisionIntegration.test.js && node tests/marion/marionLayers27_28Regression.test.js",
-    "verify:marion-layers-27-29": "node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/supervision/marionCognitiveSupervisor.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && npm run test:marion-layer27 && npm run test:marion-layer28 && npm run test:marion-layer29"
+    "test:marion-cognitive-supervision": "node tests/marion/marionLayers27_28Regression.test.js",
+    "test:marion-round1": "node tests/marion/layers_1_28/round1/run_round1_certification.js",
+    "verify:marion-layers-27-28": "node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/supervision/marionCognitiveSupervisor.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && npm run test:marion-layer27 && npm run test:marion-layer28 && npm run test:marion-cognitive-supervision",
+    "test:marion-round2": "node tests/marion/layers_1_28/round2/run_round2_certification.js",
+    "verify:marion-round2": "npm run test:marion-round1 && npm run test:marion-round2",
+    "test:marion-round3": "node tests/marion/layers_1_28/round3/run_round3_certification.js",
+    "verify:marion-round3": "npm run test:marion-round1 && npm run test:marion-round2 && npm run test:marion-round3"
   },
   "dependencies": {
     "ably": "^2.22.0",
