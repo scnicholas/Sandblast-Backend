@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.8-marion-layers-1-28-round3",
-  "description": "Sandblast backend Marion Layers 1-28 certification package through Round Three: nuanced emotional signal, confidence, stance, and pragmatic-intent cohesion.",
+  "version": "1.0.9-marion-layers-1-28-round4",
+  "description": "Sandblast backend Marion Layers 1-28 certification package through Round Four: strategic planning, metacognition, cognitive supervision, and reply-authority cohesion.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -40,7 +40,9 @@
     "test:marion-round2": "node tests/marion/layers_1_28/round2/run_round2_certification.js",
     "verify:marion-round2": "npm run test:marion-round1 && npm run test:marion-round2",
     "test:marion-round3": "node tests/marion/layers_1_28/round3/run_round3_certification.js",
-    "verify:marion-round3": "npm run test:marion-round1 && npm run test:marion-round2 && npm run test:marion-round3"
+    "verify:marion-round3": "npm run test:marion-round1 && npm run test:marion-round2 && npm run test:marion-round3",
+    "test:marion-round4": "node tests/marion/layers_1_28/round4/run_round4_certification.js",
+    "verify:marion-round4": "npm run test:marion-round1 && npm run test:marion-round2 && npm run test:marion-round3 && npm run test:marion-layer27 && npm run test:marion-layer28 && npm run test:marion-cognitive-supervision && npm run test:marion-round4"
   },
   "dependencies": {
     "ably": "^2.22.0",
