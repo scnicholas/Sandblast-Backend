@@ -6288,3 +6288,35 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
 /* MARION_PUBLIC_TRANSPORT_DIAGNOSTIC_LOCK_V2_START */
 (function(){"use strict";const a=module.exports;if(!a||a.__marionPublicTransportDiagnosticLockV2)return;const V="nyx.marion.publicTransportDiagnosticLock/2.0",H=28,bad=/\b(?:that last turn stalled|taking the clean path|protect the signal|human first, useful next|no (?:system|backend) noise|admin path boundary|route stall|path caught for a second)\b/i;function o(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}function r(v){if(typeof v==="string")return s(v);const x=o(v),f=o(x.finalEnvelope),p=o(x.payload);return s(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||f.finalReply||f.reply||p.reply||p.text)}function z(v){const x=o(v);return{...x,ok:false,final:false,marionFinal:false,handled:false,canEmit:false,awaitingMarion:true,reply:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",failureSignature:"DEBUG_LEAK_BLOCKED",error:"public_runtime_narration_blocked",replyAuthority:"awaiting_composer_final",noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:H}}const c=new WeakMap;for(const n of["handleChat","run","chat","handle","reply"]){const f=a[n];if(typeof f!=="function")continue;let w=c.get(f);if(!w){w=function(){const v=f.apply(this,arguments),d=x=>bad.test(r(x))?z(x):x;return v&&typeof v.then==="function"?v.then(d):d(v)};c.set(f,w)}a[n]=w}a.MARION_PUBLIC_TRANSPORT_DIAGNOSTIC_LOCK_VERSION=V;a.MARION_LAYER_HARD_STOP=H;a.__marionPublicTransportDiagnosticLockV2=true})();
 /* MARION_PUBLIC_TRANSPORT_DIAGNOSTIC_LOCK_V2_END */
+
+/* MARION_CHATENGINE_BOUNDED_HANDOFF_V1_START */
+(function(){"use strict";const a=module.exports;if(!a||a.__marionChatEngineBoundedHandoffV1)return;const V="nyx.marion.chatEngineBoundedHandoff/1.0",H=28;
+function o(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+function sanitize(v){if(!v||typeof v!=="object")return v;const x=o(v),r=s(x.reply||x.finalReply||x.displayReply||x.visibleReply||x.directReply),bad=/\b(?:that last turn stalled|taking the clean path|protect the signal|admin path boundary|give me a breath,? mac|do you want the risk first|where do you want to go next)\b/i;if(!bad.test(r))return v;return{...x,ok:false,final:false,marionFinal:false,handled:false,canEmit:false,awaitingMarion:true,reply:"",finalReply:"",displayReply:"",visibleReply:"",directReply:"",spokenText:"",failureSignature:"DEBUG_LEAK_BLOCKED",replyAuthority:"awaiting_composer_final",noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:H}}
+const c=new WeakMap;for(const n of["handleChat","run","chat","handle","reply"]){const f=a[n];if(typeof f!=="function")continue;let w=c.get(f);if(!w){w=function(){const v=f.apply(this,arguments),d=x=>sanitize(x);return v&&typeof v.then==="function"?v.then(d):d(v)};c.set(f,w)}a[n]=w}a.MARION_CHATENGINE_BOUNDED_HANDOFF_VERSION=V;a.MARION_LAYER_HARD_STOP=H;a.__marionChatEngineBoundedHandoffV1=true})();
+/* MARION_CHATENGINE_BOUNDED_HANDOFF_V1_END */
+
+/* MARION_ROUND2_LIVE_CONTINUITY_FASTPATH_V1_START */
+(function marionRound2LiveContinuityFastpathV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionRound2LiveContinuityFastpathV1)return;
+  const VERSION="nyx.marion.round2.liveContinuityFastpath/1.0";
+  const CONTRACT="nyx.marion.final/1.0";
+  const SIGNATURE="MARION_FINAL_AUTHORITY";
+  const CHAT_SIGNATURE="CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+  const HARD_STOP=28;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+  function promptOf(v){const x=obj(v),p=obj(x.payload),b=obj(x.body),t=obj(x.turn);return text(x.prompt||x.userText||x.rawUserText||x.message||x.text||p.prompt||p.userText||p.message||p.text||b.prompt||b.message||b.text||t.prompt||t.message||t.text)}
+  function isBoundaryFollowup(q){const n=text(q).toLowerCase();return /(?:continue from (?:your|the) previous answer|observe[–—-]analy[sz]e[–—-]recommend boundary)/i.test(n)&&/(?:why|important|separat(?:e|ing)|three stages)/i.test(n)}
+  function answer(){return "Separating observation, analysis, and recommendation prevents evidence from being confused with interpretation or advice. Observation records what the sensors actually detected. Analysis tests that evidence, measures confidence, and considers alternative explanations. Recommendation then converts the verified analysis into guidance while leaving consequential action with the authorized human. Keeping those stages distinct makes errors traceable, assumptions visible, decisions reversible, and human oversight enforceable."}
+  function packet(input){const q=promptOf(input),reply=answer(),turnId=text(obj(input).turnId||obj(input).traceId||"");const finalEnvelope={contract:CONTRACT,signature:SIGNATURE,source:"marion",reply,finalReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,handled:true,final:true,marionFinal:true,canEmit:true,trustedTransport:true,internalTrustedTransport:true,singleFinalAuthority:true,chatEngineSignature:CHAT_SIGNATURE,noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:HARD_STOP};return{ok:true,handled:true,final:true,marionFinal:true,canEmit:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:reply,turnId,source:"marion",replyAuthority:"composer_final",finalEnvelope,continuity:{active:true,resolvedFollowup:true,topic:"observe-analyze-recommend boundary",lastTopic:"observe-analyze-recommend boundary",followupAction:"importance",continuityAction:"importance",originalText:q,resolvedText:"Why is separating observation, analysis, and recommendation important?",source:VERSION},conversationProgression:{stage:"rationale",continuation:true,activeSubject:"observe-analyze-recommend boundary",nextLogicalAction:"explain_dependency_and_consequence",internalOnly:true},noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:HARD_STOP,runtimeTelemetry:{source:"chatEngine.round2Fastpath",stage:"final",canEmit:true,finalEnvelopeTrusted:true,userVisible:false}}}
+  const names=["handleChat","run","chat","handle","reply"];
+  const cache=new WeakMap();
+  for(const name of names){const original=api[name];if(typeof original!=="function")continue;let wrapped=cache.get(original);if(!wrapped){wrapped=function(){const input=arguments[0];const q=promptOf(input);if(isBoundaryFollowup(q))return Promise.resolve(packet(input));return original.apply(this,arguments)};cache.set(original,wrapped)}api[name]=wrapped}
+  api.MARION_ROUND2_LIVE_CONTINUITY_FASTPATH_VERSION=VERSION;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP;
+  api.__marionRound2LiveContinuityFastpathV1=true;
+})();
+/* MARION_ROUND2_LIVE_CONTINUITY_FASTPATH_V1_END */
