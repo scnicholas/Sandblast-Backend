@@ -1,104 +1,144 @@
 "use strict";
 
 /**
- * Layer 10 — Contextual Pivot and Thread Control
- * Distinguishes continuation, branching, explicit pivots, returns, social pauses,
- * and fresh-session resets. It never mounts routes or composes final replies.
+ * Cohesive orchestration registry for Marion conversational Layers 9–20.
+ * Metadata/state coordinator only. It introduces no routes, reply authority,
+ * approval authority, or autonomous execution authority.
  */
-const VERSION="marion.contextPivot/11.0-layer10";
-const CONTRACT="nyx.marion.conversation.contextPivot/1.0";
-const MAX_PAUSED=4;
-
+const progression=require("./marionConversationProgression.js");
+const pivot=require("./marionContextPivot.js");
+const calibration=require("./marionInteractionCalibration.js");
+const outcomeCoordinator=require("./marionOutcomeFlowCoordinator.js");
+const strategicCoordinator=require("../strategy/marionStrategicFlowCoordinator.js");
+const completionCoordinator=require("../completion/marionCompletionFlowCoordinator.js");
+const VERSION="marion.conversationLayers/20.0-cohesive-9-20";
+const CONTRACT="nyx.marion.conversationFlow/4.0";
+const CONTRACT_COMPAT="nyx.marion.conversationFlow/3.0";
+const CONTRACT_COMPAT_2="nyx.marion.conversationFlow/2.0";
 function isObj(v){return !!v&&typeof v==="object"&&!Array.isArray(v);}
-function text(v,max=1000){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
-function norm(v){return text(v).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function text(v,max=4000){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
 function first(){for(const v of arguments){const t=text(v);if(t)return t;}return"";}
-function idFor(subject,domain,turnId){const seed=norm(subject||domain||turnId||"thread").slice(0,42).replace(/\s+/g,"-");return `thread-${seed||"general"}-${text(turnId,24)||Date.now().toString(36)}`;}
-function isGreeting(p){return /^(?:hello|hi|hey|hiya|good\s+(?:morning|afternoon|evening))(?:\s*,?\s*marion)?[.!?]*$/i.test(text(p));}
-function isReturn(p){return /\b(?:back to|return to|resume|go back to|as we were saying|pick up where we left off)\b/i.test(text(p));}
-function isBranch(p){return /^(?:before that|one thing first|quick side question|side question|while we(?:'re| are) here|temporarily|briefly before that)\b/i.test(text(p));}
-function isExplicitPivot(p){return /^(?:switch(?:ing)? to|new topic|change(?:ing)? direction|moving on to|now let(?:'s| us)|let(?:'s| us) talk about|instead,? let(?:'s| us))\b/i.test(text(p));}
-function isContinuation(p){const value=text(p);if(/^(?:go deeper|continue|keep going|why|why first|what next|next|then what|what happens after that|what should (?:we|be|i) (?:fix|examine)|what could (?:break|go wrong)|how (?:do|should) we (?:validate|test)|what is the safest implementation order|what is the main risk|what changed|give me (?:the )?direct answer|be direct|briefly|keep it short|explain simply|say that in plain english|what do you think|what do you recommend)[.!?]*$/i.test(value))return true;return /\b(?:this|it|that|same (?:issue|problem))\b.{0,80}\b(?:again|still|keeps? happening|not working|failed|root cause)\b/i.test(value)||/\b(?:why does this keep happening|give me the root cause)\b/i.test(value);}
-function keywords(value){return norm(value).split(" ").filter(w=>w.length>3&&!/^(?:back|return|resume|topic|about|that|this|with|from|what|where|when|should)$/.test(w)).slice(0,8);}
-function similarity(a,b){const A=new Set(keywords(a)),B=new Set(keywords(b));if(!A.size||!B.size)return 0;let hit=0;for(const k of A)if(B.has(k))hit+=1;return hit/Math.max(A.size,B.size);}
-function thread(value){const v=isObj(value)?value:{};return {id:text(v.id,100),subject:text(v.subject||v.activeSubject,320),domain:text(v.domain||v.activeDomain,80).toLowerCase(),stage:text(v.stage,80),createdAt:Number(v.createdAt||Date.now()),updatedAt:Number(v.updatedAt||Date.now()),turnCount:Number(v.turnCount||0),returnPoint:text(v.returnPoint,320)};}
-function pausedList(value){return (Array.isArray(value)?value:[]).map(thread).filter(t=>t.subject||t.domain).slice(-MAX_PAUSED);}
-function selectReturnThread(prompt,paused){const keys=keywords(prompt);if(keys.length){let best=null,score=0;for(const item of paused){const s=similarity(keys.join(" "),item.subject);if(s>score){score=s;best=item;}}if(best)return best;}return paused.length?paused[paused.length-1]:null;}
-function inferDirection(prompt,previous={},options={}){
-  if(options.reset===true)return"reset";
-  if(isGreeting(prompt))return"social_pause";
-  if(isReturn(prompt))return"return";
-  if(isBranch(prompt))return"branch";
-  if(isExplicitPivot(prompt))return"pivot";
-  if(isContinuation(prompt))return previous.activeThread?"continue":(Array.isArray(previous.pausedThreads)&&previous.pausedThreads.length?"return":"clarify");
-  if(!previous.activeThread)return"start";
-  const sameDomain=!!options.domain&&text(options.domain).toLowerCase()===text(previous.activeThread.domain).toLowerCase();
-  const sameSubject=similarity(options.subject,previous.activeThread.subject)>=0.34;
-  if(sameDomain&&sameSubject)return"continue";
-  if(options.explicitDomain===true||options.explicitSubject===true)return"pivot";
-  return sameDomain?"continue":"pivot";
-}
-function analyzeTurn({prompt="",previous={},domain="",subject="",stage="",turnId="",reset=false,explicitDomain=false,explicitSubject=false}={}){
-  const prev=isObj(previous)?previous:{};let active=prev.activeThread?thread(prev.activeThread):null;let paused=pausedList(prev.pausedThreads);
-  const direction=inferDirection(prompt,{activeThread:active,pausedThreads:paused},{reset,domain,subject,explicitDomain,explicitSubject});
-  let changedDirection=["reset","return","branch","pivot","social_pause","start"].includes(direction);
-  let returnPoint="";
-  if(direction==="reset"){active=null;paused=[];}
-  else if(direction==="social_pause"){
-    if(active){returnPoint=first(active.subject,active.returnPoint);paused=[...paused,thread({...active,returnPoint:first(active.returnPoint,active.subject),updatedAt:Date.now()})].slice(-MAX_PAUSED);}active=null;
-  }else if(direction==="return"){
-    const selected=selectReturnThread(prompt,paused);if(selected){active=thread({...selected,stage:selected.stage||stage,updatedAt:Date.now(),turnCount:selected.turnCount+1});paused=paused.filter(x=>x.id!==selected.id);returnPoint=selected.returnPoint||selected.subject;}else changedDirection=false;
-  }else if(direction==="branch"||direction==="pivot"){
-    if(active)paused=[...paused,thread({...active,returnPoint:first(active.returnPoint,active.subject),updatedAt:Date.now()})].slice(-MAX_PAUSED);
-    active=thread({id:idFor(subject,domain,turnId),subject:first(subject,prompt),domain,stage,createdAt:Date.now(),updatedAt:Date.now(),turnCount:1});
-  }else if(direction==="start"){
-    active=thread({id:idFor(subject,domain,turnId),subject:first(subject,prompt),domain,stage,createdAt:Date.now(),updatedAt:Date.now(),turnCount:1});
-  }else if(direction==="continue"||direction==="clarify"){
-    if(active)active=thread({...active,subject:first(subject,active.subject),domain:first(domain,active.domain),stage:first(stage,active.stage),updatedAt:Date.now(),turnCount:active.turnCount+1});
-  }
-  const socialPause=direction==="social_pause";
-  return {version:VERSION,contract:CONTRACT,layer:10,turnId:text(turnId,120),direction,changedDirection,activeThread:active,pausedThreads:paused,returnPoint,activeDomain:socialPause?"general":first(active&&active.domain,domain).toLowerCase(),activeSubject:socialPause?"":first(active&&active.subject,subject),threadPriority:direction==="branch"?"temporary":direction==="return"?"resumed":"primary",internalOnly:true};
-}
-function commitTurn(flow={},stage=""){
-  const src=isObj(flow)?flow:{};const active=src.activeThread?thread({...src.activeThread,stage:first(stage,src.activeThread.stage),updatedAt:Date.now()}):null;
-  return {...src,activeThread:active,activeDomain:first(active&&active.domain,src.activeDomain).toLowerCase(),activeSubject:first(active&&active.subject,src.activeSubject),committed:true,committedAt:Date.now()};
-}
-function projectState(flow={}){const src=isObj(flow)?flow:{};return {version:VERSION,contract:CONTRACT,direction:text(src.direction,80),activeThread:src.activeThread?thread(src.activeThread):null,pausedThreads:pausedList(src.pausedThreads),returnPoint:text(src.returnPoint,320),activeDomain:text(src.activeDomain,80),activeSubject:text(src.activeSubject,320)};}
-module.exports={VERSION,CONTRACT,isGreeting,isReturn,isBranch,isExplicitPivot,isContinuation,inferDirection,analyzeTurn,commitTurn,projectState};
+function promptOf(input={}){const s=isObj(input)?input:{},b=isObj(s.body)?s.body:{},p=isObj(s.payload)?s.payload:{},t=isObj(s.turn)?s.turn:{},c=isObj(s.command)?s.command:{};return first(s.prompt,s.rawUserText,s.userText,s.originalUserText,s.userQuery,s.inputText,s.text,s.query,s.message,s.commandText,b.prompt,b.rawUserText,b.userText,b.text,b.query,b.message,p.prompt,p.rawUserText,p.userText,p.text,p.query,p.message,t.prompt,t.userText,t.text,t.message,c.prompt,c.userText,c.text,c.message).slice(0,6000);}
+function fingerprint(prompt,turnId){let h=2166136261;const value=`${text(turnId,120)}|${text(prompt,6000)}`;for(let i=0;i<value.length;i++){h^=value.charCodeAt(i);h=Math.imul(h,16777619);}return `cf-${(h>>>0).toString(16)}`;}
+function previousFlowFrom(value={}){const v=isObj(value)?value:{};return isObj(v.conversationFlowState)?v.conversationFlowState:isObj(v.conversationFlow)?v.conversationFlow:isObj(v.privateRuntimeContinuity)&&isObj(v.privateRuntimeContinuity.conversationFlowState)?v.privateRuntimeContinuity.conversationFlowState:isObj(v.previousMemory)&&isObj(v.previousMemory.conversationFlowState)?v.previousMemory.conversationFlowState:([CONTRACT,CONTRACT_COMPAT,CONTRACT_COMPAT_2].includes(v.contract)||isObj(v.outcomeFlow)||isObj(v.strategicFlow)||isObj(v.completionFlow)||isObj(v.progression)||isObj(v.contextPivot)?v:{});}
 
-/* MARION_NUANCE_PHASE_A_LAYER10_COHESION_V1_START */
-(function marionNuancePhaseALayer10CohesionV1(){
+function isPublicNyxContext(input={}){
+  const s=isObj(input)?input:{},b=isObj(s.body)?s.body:{},p=isObj(s.payload)?s.payload:{},m=isObj(s.meta)?s.meta:{};
+  const nodes=[s,b,p,m];
+  const privateFlag=nodes.some(x=>x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||x.adminVerified===true||x.authenticatedOperator===true||x.privateTextDelivery===true||x.adminOnlyTextDelivery===true);
+  if(privateFlag)return false;
+  const agent=first(s.surfaceAgent,b.surfaceAgent,p.surfaceAgent,m.surfaceAgent).toLowerCase();
+  const audience=first(s.audience,b.audience,p.audience,m.audience).toLowerCase();
+  return nodes.some(x=>x.publicSurface===true||x.publicOnly===true)||agent==="nyx"||audience==="public";
+}
+function stripStrategicFlow(flow={}){
+  const f=isObj(flow)?flow:{};
+  const {strategicFlow,objectiveAlignment,predictiveRisk,pathwaySynthesis,completionFlow,crossDomainContext,goalRealignment,decisionClosure,...rest}=f;
+  return {...rest,layers:Object.freeze({progression:9,contextPivot:10,interactionCalibration:11,outcomeAwareness:12,commitmentTracking:13,anticipatoryGuidance:14}),publicStrategicNoOp:true,publicCompletionNoOp:true};
+}
+function inferPromptDomain(prompt=""){const p=text(prompt);if(/\b(?:javascript|typescript|node(?:\.js)?|runtime|router|routing|bridge|composer|adapter|module|backend|frontend|api|http\s*502|code|index\.js|state spine|final envelope|manifest)\b/i.test(p))return"technical";if(/\b(?:contract|legal risk|liability|jurisdiction|lawsuit|statute|regulation|compliance|lawyer|attorney|court)\b/i.test(p))return"law";if(/\b(?:business risk|business strategy|advertising|advertiser|revenue|marketing|conversion|market position|commercial|sales)\b/i.test(p))return"business";if(/\b(?:finance|financial|cash flow|budget|investment|loan|tax credit)\b/i.test(p))return"finance";if(/\b(?:cyber|security|breach|malware|authentication|encryption)\b/i.test(p))return"cyber";if(/\b(?:psychology|behaviour|behavior|cognitive|emotion)\b/i.test(p))return"psychology";if(/\b(?:grammar|wording|english|idiom|language meaning)\b/i.test(p))return"english";if(/\b(?:radio|music|playlist|song)\b/i.test(p))return"music";if(/\b(?:news|headline|current events)\b/i.test(p))return"news";if(/\b(?:roku|television|sandblast tv)\b/i.test(p))return"roku";return"";}
+function outcomeContinuityTurn(prompt=""){const p=text(prompt);return outcomeCoordinator.outcome.classify(p,{}).outcomeType!=="none"||outcomeCoordinator.guidance.isOutcomeQuery(p);}
+function strategicContinuityTurn(prompt=""){return strategicCoordinator.pathways.directStrategicQuery(prompt)||/\b(?:objective|goal|priority|alignment|strategic drift|risk|consequence|pathway|option|keep the current baseline|proceed with path|approve path)\b/i.test(text(prompt));}
+function completionContinuityTurn(prompt=""){return completionCoordinator.directQuery(prompt)||/\b(?:cross[- ]domain|realign|change direction|hard stop at layer 20|finalize|closure|are we done|functional validation|freeze the baseline)\b/i.test(text(prompt));}
+function inferDomain(input={},previous={}){const i=isObj(input)?input:{},r=isObj(i.routing)?i.routing:{},c=isObj(i.currentTurnAuthority)?i.currentTurnAuthority:{},p=isObj(i.privateRuntimeContext)?i.privateRuntimeContext:{},prompt=promptOf(i),explicit=inferPromptDomain(prompt),ctx=isObj(previous.contextPivot)?previous.contextPivot:{},paused=Array.isArray(ctx.pausedThreads)?ctx.pausedThreads:[],pausedDomain=paused.length?paused[paused.length-1].domain:"",continuation=pivot.isContinuation(prompt)||pivot.isReturn(prompt)||outcomeContinuityTurn(prompt)||strategicContinuityTurn(prompt)||completionContinuityTurn(prompt);if(explicit)return explicit;if(continuation)return first(previous.activeDomain,ctx.activeDomain,pausedDomain,c.activeDomain,p.activeDomain,"general").toLowerCase();return first(c.expectedDomain,p.expectedDomain,i.requestedDomain,i.domain,r.domain,previous.activeDomain,"general").toLowerCase();}
+function inferSubject(input={},previous={},prompt=""){const i=isObj(input)?input:{},a=isObj(i.continuityAnchor)?i.continuityAnchor:{},c=isObj(i.currentTurnAuthority)?i.currentTurnAuthority:{},p=isObj(i.privateRuntimeContext)?i.privateRuntimeContext:{};return first(c.activeSubject,p.activeSubject,a.activeSubject,a.activeTask,a.subject,i.activeSubject,i.activeTask,previous.activeSubject,prompt).slice(0,320);}
+function isExplicitDomain(prompt){return /\b(?:javascript|node|runtime|router|bridge|composer|contract|legal risk|finance|psychology|cyber|english|business|radio|television|roku)\b/i.test(text(prompt));}
+function resetRequested(source={},options={}){return source.newSession===true||source.firstTurn===true||source.resetSession===true||source.clearSession===true||source.freshSession===true||options.reset===true;}
+function analyzeTurn(input={},previousState={},options={}){
+  const source=isObj(input)?input:{},previous=previousFlowFrom(previousState),prompt=promptOf(source),turnId=first(source.turnId,options.turnId),fp=fingerprint(prompt,turnId);
+  const existing=isObj(source.conversationFlow)?source.conversationFlow:{};
+  if([CONTRACT,CONTRACT_COMPAT,CONTRACT_COMPAT_2].includes(existing.contract)&&existing.fingerprint===fp&&isObj(existing.strategicFlow)&&isObj(existing.completionFlow))return existing;
+  const reset=resetRequested(source,options),prior=reset?{}:previous,domain=inferDomain(source,prior),inferredSubject=inferSubject(source,prior,prompt);
+  const subject=(pivot.isBranch(prompt)||pivot.isExplicitPivot(prompt))?prompt:inferredSubject;
+  const previousPivot=isObj(prior.contextPivot)?prior.contextPivot:{};
+  const provisionalPivot=pivot.analyzeTurn({prompt,previous:previousPivot,domain,subject,stage:first(isObj(prior.progression)?prior.progression.stage:"",prior.stage),turnId,reset,explicitDomain:isExplicitDomain(prompt),explicitSubject:!!subject&&subject!==prior.activeSubject});
+  const progressionState={...(isObj(prior.progression)?prior.progression:prior)};
+  if((provisionalPivot.direction==="return"||provisionalPivot.direction==="continue")&&provisionalPivot.activeThread&&provisionalPivot.activeThread.stage)progressionState.stage=provisionalPivot.activeThread.stage;
+  const progress=progression.analyzeTurn({prompt,previous:progressionState,domain:first(provisionalPivot.activeDomain,domain),subject:first(provisionalPivot.activeSubject,subject),direction:provisionalPivot.direction,turnId,reset});
+  const contextPivot={...provisionalPivot,activeThread:provisionalPivot.activeThread?{...provisionalPivot.activeThread,stage:progress.stage}:null};
+  const emotion=source.resolvedEmotion||source.emotionState||source.emotion||options.emotion||{};
+  const previousCalibration=isObj(prior.interactionCalibration)?prior.interactionCalibration:{};
+  const interactionCalibration=calibration.analyzeTurn({prompt,previous:previousCalibration,stage:progress.stage,direction:contextPivot.direction,domain:first(contextPivot.activeDomain,domain),emotion});
+  const socialPause=contextPivot.direction==="social_pause";
+  const base={version:VERSION,contract:CONTRACT,contractCompat:CONTRACT_COMPAT,layers:Object.freeze({progression:9,contextPivot:10,interactionCalibration:11,outcomeAwareness:12,commitmentTracking:13,anticipatoryGuidance:14,strategicObjectiveAlignment:15,predictiveRiskModel:16,strategicPathwaySynthesis:17,crossDomainContextIntegration:18,dynamicGoalRealignment:19,rationalDecisionClosure:20}),fingerprint:fp,turnId:text(turnId,120),prompt:text(prompt,6000),stage:progress.stage,direction:contextPivot.direction,changedDirection:contextPivot.changedDirection===true,activeDomain:socialPause?"general":first(contextPivot.activeDomain,progress.activeDomain,domain).toLowerCase(),activeSubject:socialPause?"":first(contextPivot.activeSubject,progress.activeSubject,subject),progression:progress,contextPivot,interactionCalibration,composerDirective:calibration.composerDirective(interactionCalibration),internalOnly:true};
+  const outcomeFlow=outcomeCoordinator.analyzeTurn({prompt,previous:isObj(prior.outcomeFlow)?prior.outcomeFlow:prior,conversationFlow:base,turnId});
+  const strategicBase={...base,outcomeFlow,outcomeAwareness:outcomeFlow.outcomeAwareness,commitmentTracking:outcomeFlow.commitmentTracking,anticipatoryGuidance:outcomeFlow.anticipatoryGuidance};
+  const strategicFlow=strategicCoordinator.analyzeTurn({prompt,previous:isObj(prior.strategicFlow)?prior.strategicFlow:prior,outcomeFlow,conversationFlow:strategicBase,turnId,reset});
+  const completionBase={...strategicBase,strategicFlow,objectiveAlignment:strategicFlow.objectiveAlignment,predictiveRisk:strategicFlow.predictiveRisk,pathwaySynthesis:strategicFlow.pathwaySynthesis};
+  const completionFlow=completionCoordinator.analyzeTurn({prompt,previous:isObj(prior.completionFlow)?prior.completionFlow:prior,conversationFlow:completionBase,outcomeFlow,strategicFlow,turnId,reset});
+  return {...completionBase,completionFlow,crossDomainContext:completionFlow.crossDomainContext,goalRealignment:completionFlow.goalRealignment,decisionClosure:completionFlow.decisionClosure};
+}
+function applyToInput(input={},previousState={},options={}){
+  const source=isObj(input)?input:{};
+  if(isPublicNyxContext(source)){
+    const legacyFlow=stripStrategicFlow(analyzeTurn(source,previousState,options));
+    return {...source,conversationFlow:legacyFlow,conversationStage:legacyFlow.stage,contextPivot:legacyFlow.contextPivot,interactionCalibration:legacyFlow.interactionCalibration,outcomeFlow:legacyFlow.outcomeFlow,outcomeAwareness:legacyFlow.outcomeAwareness,commitmentTracking:legacyFlow.commitmentTracking,anticipatoryGuidance:legacyFlow.anticipatoryGuidance,publicStrategicNoOp:true,publicCompletionNoOp:true};
+  }
+  const flow=analyzeTurn(source,previousState,options),shape=isObj(source.responseShaping)?source.responseShaping:{},composer=isObj(source.composerContext)?source.composerContext:{},privateCtx=isObj(source.privateRuntimeContext)?source.privateRuntimeContext:{},memory=isObj(source.previousMemory)?source.previousMemory:{},outcomeState=outcomeCoordinator.projectState(flow.outcomeFlow),strategicState=strategicCoordinator.projectState(flow.strategicFlow),completionState=completionCoordinator.projectState(flow.completionFlow),state=projectState(flow);
+  return {...source,conversationFlow:flow,conversationStage:flow.stage,contextPivot:flow.contextPivot,interactionCalibration:flow.interactionCalibration,outcomeFlow:flow.outcomeFlow,outcomeAwareness:flow.outcomeAwareness,commitmentTracking:flow.commitmentTracking,anticipatoryGuidance:flow.anticipatoryGuidance,strategicFlow:flow.strategicFlow,objectiveAlignment:flow.objectiveAlignment,predictiveRisk:flow.predictiveRisk,pathwaySynthesis:flow.pathwaySynthesis,completionFlow:flow.completionFlow,crossDomainContext:flow.crossDomainContext,goalRealignment:flow.goalRealignment,decisionClosure:flow.decisionClosure,activeThread:flow.contextPivot.activeThread,responseShaping:{...shape,...calibration.projectState(flow.interactionCalibration),conversationFlowVersion:VERSION,outcomeGuidanceMode:first(flow.anticipatoryGuidance&&flow.anticipatoryGuidance.guidanceMode),strategicRecommendationMode:first(flow.pathwaySynthesis&&flow.pathwaySynthesis.status),strategicApprovalRequired:!!(flow.pathwaySynthesis&&flow.pathwaySynthesis.decisionRequired),completionClosureStatus:first(flow.decisionClosure&&flow.decisionClosure.closureStatus),hardStopAtLayer20:!!(flow.decisionClosure&&flow.decisionClosure.hardStopAtLayer20)},composerContext:{...composer,conversationStage:flow.stage,conversationDirection:flow.direction,activeThread:flow.contextPivot.activeThread,interactionCalibration:calibration.projectState(flow.interactionCalibration),conversationDirective:flow.composerDirective,conversationFlowVersion:VERSION,outcomeFlowState:outcomeState,anticipatoryGuidance:flow.anticipatoryGuidance,strategicFlowState:strategicState,objectiveAlignment:flow.objectiveAlignment,predictiveRisk:flow.predictiveRisk,pathwaySynthesis:flow.pathwaySynthesis,completionFlowState:completionState,crossDomainContext:flow.crossDomainContext,goalRealignment:flow.goalRealignment,decisionClosure:flow.decisionClosure},previousMemory:{...memory,conversationFlowState:state,outcomeFlowState:outcomeState,strategicFlowState:strategicState,completionFlowState:completionState},privateRuntimeContext:{...privateCtx,conversationFlowVersion:VERSION,conversationStage:flow.stage,conversationDirection:flow.direction,activeDomain:first(flow.activeDomain,privateCtx.activeDomain),activeSubject:first(flow.activeSubject,privateCtx.activeSubject),followUpDepth:Number(flow.progression.progressionDepth||privateCtx.followUpDepth||0),outcomeFlowVersion:outcomeCoordinator.VERSION,outcomeFlowState:outcomeState,strategicFlowVersion:strategicCoordinator.VERSION,strategicFlowState:strategicState,completionFlowVersion:completionCoordinator.VERSION,completionFlowState:completionState,hardStopLayer:20}};
+}
+function commitTurn(flow={},reply="",result={}){const src=isObj(flow)?flow:{},progress=progression.commitTurn(src.progression,reply),context=pivot.commitTurn(src.contextPivot,progress.stage),interaction=isObj(src.interactionCalibration)?src.interactionCalibration:{},outcomeFlow=outcomeCoordinator.commitTurn(src.outcomeFlow,reply,result),strategicFlow=strategicCoordinator.commitTurn(src.strategicFlow,reply,result),completionFlow=completionCoordinator.commitTurn(src.completionFlow,reply,result);return {...src,stage:progress.stage,direction:context.direction,activeDomain:first(context.activeDomain,src.activeDomain),activeSubject:first(context.activeSubject,src.activeSubject),progression:progress,contextPivot:context,interactionCalibration:interaction,outcomeFlow,outcomeAwareness:outcomeFlow.outcomeAwareness,commitmentTracking:outcomeFlow.commitmentTracking,anticipatoryGuidance:outcomeFlow.anticipatoryGuidance,strategicFlow,objectiveAlignment:strategicFlow.objectiveAlignment,predictiveRisk:strategicFlow.predictiveRisk,pathwaySynthesis:strategicFlow.pathwaySynthesis,completionFlow,crossDomainContext:completionFlow.crossDomainContext,goalRealignment:completionFlow.goalRealignment,decisionClosure:completionFlow.decisionClosure,lastReply:text(reply,1200),resultDomain:first(isObj(result)?result.domain:"",isObj(result)?result.primaryDomain:""),committed:true,committedAt:Date.now()};}
+function projectState(flow={}){const src=isObj(flow)?flow:{};return {version:VERSION,contract:CONTRACT,contractCompat:CONTRACT_COMPAT,stage:text(src.stage,80),direction:text(src.direction,80),changedDirection:src.changedDirection===true,activeDomain:text(src.activeDomain,80),activeSubject:text(src.activeSubject,320),progression:progression.projectState(src.progression),contextPivot:pivot.projectState(src.contextPivot),interactionCalibration:calibration.projectState(src.interactionCalibration),outcomeFlow:outcomeCoordinator.projectState(src.outcomeFlow),strategicFlow:strategicCoordinator.projectState(src.strategicFlow),completionFlow:completionCoordinator.projectState(src.completionFlow),lastReply:text(src.lastReply,1200),committed:src.committed===true,committedAt:Number(src.committedAt||0)};}
+function attachToResultNoReconcile(result={},flow={}){if(!isObj(result))return result;const state=projectState(flow),outcomeState=outcomeCoordinator.projectState(flow.outcomeFlow),strategicState=strategicCoordinator.projectState(flow.strategicFlow),completionState=completionCoordinator.projectState(flow.completionFlow),memory=isObj(result.memoryPatch)?result.memoryPatch:{},session=isObj(result.sessionPatch)?result.sessionPatch:{},meta=isObj(result.meta)?result.meta:{},routing=isObj(result.routing)?result.routing:{};return {...result,conversationFlow:flow,conversationFlowState:state,conversationStage:flow.stage,contextPivot:flow.contextPivot,interactionCalibration:flow.interactionCalibration,outcomeFlow:flow.outcomeFlow,outcomeFlowState:outcomeState,outcomeAwareness:flow.outcomeAwareness,commitmentTracking:flow.commitmentTracking,anticipatoryGuidance:flow.anticipatoryGuidance,strategicFlow:flow.strategicFlow,strategicFlowState:strategicState,objectiveAlignment:flow.objectiveAlignment,predictiveRisk:flow.predictiveRisk,pathwaySynthesis:flow.pathwaySynthesis,completionFlow:flow.completionFlow,completionFlowState:completionState,crossDomainContext:flow.crossDomainContext,goalRealignment:flow.goalRealignment,decisionClosure:flow.decisionClosure,routing:{...routing,conversationStage:flow.stage,conversationDirection:flow.direction,activeThreadId:first(flow.contextPivot&&flow.contextPivot.activeThread&&flow.contextPivot.activeThread.id),conversationFlowVersion:VERSION,outcomeFlowVersion:outcomeCoordinator.VERSION,strategicFlowVersion:strategicCoordinator.VERSION,completionFlowVersion:completionCoordinator.VERSION},memoryPatch:{...memory,conversationFlowState:state,outcomeFlowState:outcomeState,strategicFlowState:strategicState,completionFlowState:completionState},sessionPatch:{...session,conversationFlowState:state,outcomeFlowState:outcomeState,strategicFlowState:strategicState,completionFlowState:completionState},meta:{...meta,conversationFlowVersion:VERSION,outcomeFlowVersion:outcomeCoordinator.VERSION,strategicFlowVersion:strategicCoordinator.VERSION,completionFlowVersion:completionCoordinator.VERSION,conversationLayers:[9,10,11,12,13,14,15,16,17,18,19,20],conversationStage:flow.stage,conversationDirection:flow.direction,strategicMetadataPrivate:true,completionMetadataPrivate:true,hardStopLayer:20,additionalLayerRecommended:false,automaticExecutionAllowed:false}};}
+function attachToResult(result={},flow={}){if(!isObj(result))return result;const base=attachToResultNoReconcile(result,flow),outcomeReconciled=outcomeCoordinator.reconcileResult(base,isObj(flow)?flow.outcomeFlow:{}),strategicReconciled=strategicCoordinator.reconcileResult(outcomeReconciled,isObj(flow)?flow.strategicFlow:{});return completionCoordinator.reconcileResult(strategicReconciled,isObj(flow)?flow.completionFlow:{});}
+function reconcileVisibleReply(reply="",flow={}){const f=isObj(flow)?flow:{},outcomeReply=outcomeCoordinator.reconcileVisibleReply(reply,isObj(f.outcomeFlow)?f.outcomeFlow:{}),strategicReply=strategicCoordinator.reconcileVisibleReply(outcomeReply,isObj(f.strategicFlow)?f.strategicFlow:{});return completionCoordinator.reconcileVisibleReply(strategicReply,isObj(f.completionFlow)?f.completionFlow:{});}
+function reconcileResult(result={},flow={}){return attachToResult(result,flow);}
+function getStatus(){return {ok:true,version:VERSION,contract:CONTRACT,contractCompat:CONTRACT_COMPAT,layers:{9:progression.VERSION,10:pivot.VERSION,11:calibration.VERSION,12:outcomeCoordinator.outcome.VERSION,13:outcomeCoordinator.commitments.VERSION,14:outcomeCoordinator.guidance.VERSION,15:strategicCoordinator.alignment.VERSION,16:strategicCoordinator.risk.VERSION,17:strategicCoordinator.pathways.VERSION,18:completionCoordinator.context.VERSION,19:completionCoordinator.realignment.VERSION,20:completionCoordinator.closure.VERSION},routeAuthority:false,replyAuthority:false,metadataOnly:true,boundedCommitmentLedger:true,boundedStrategicState:true,boundedCompletionState:true,hardStopLayer:20,additionalLayerRecommended:false,automaticExecutionAllowed:false,approvalBoundaryPreserved:true,humanFinalAuthority:true};}
+module.exports={VERSION,CONTRACT,CONTRACT_COMPAT,CONTRACT_COMPAT_2,promptOf,isPublicNyxContext,stripStrategicFlow,fingerprint,previousFlowFrom,inferPromptDomain,outcomeContinuityTurn,strategicContinuityTurn,completionContinuityTurn,analyzeTurn,applyToInput,commitTurn,projectState,attachToResult,attachToResultNoReconcile,reconcileVisibleReply,reconcileResult,getStatus,progression,pivot,calibration,outcomeCoordinator,outcomeAwareness:outcomeCoordinator.outcome,commitmentTracker:outcomeCoordinator.commitments,anticipatoryGuidance:outcomeCoordinator.guidance,strategicCoordinator,strategicObjectiveAlignment:strategicCoordinator.alignment,predictiveRiskModel:strategicCoordinator.risk,strategicPathwaySynthesizer:strategicCoordinator.pathways,completionCoordinator,crossDomainContextIntegrator:completionCoordinator.context,goalRealignment:completionCoordinator.realignment,decisionClosure:completionCoordinator.closure};
+
+/* MARION_NUANCE_PHASE_A_REGISTRY_COHESION_V1_START */
+(function marionNuancePhaseARegistryCohesionV1(){
   "use strict";
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(!api||api.__marionNuancePhaseALayer10CohesionV1)return;
-  const PHASE_A_VERSION="marion.contextPivot/11.1-layer10-nuance-phase-a";
+  if(!api||api.__marionNuancePhaseARegistryCohesionV1)return;
+  const PHASE_A_VERSION="marion.conversationLayers/24.0-cohesive-9-24-part1";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  let coordinator=null;try{coordinator=require("../nuance/marionNuancePhaseACoordinator.js");}catch(_){coordinator=null;}
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
-  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
-  function applyNuance(flow={},nuanceContext={}){
-    const base=obj(flow),l24=obj(obj(nuanceContext).layer24),state=clean(l24.currentState,60),flags=obj(l24.controlFlags);if(!state)return {...base,version:PHASE_A_VERSION};
-    let direction=base.direction,changed=base.changedDirection===true,active=base.activeThread;
-    if((state==="correction"||state==="disagreement")&&active){direction="continue";changed=false;}
-    else if(state==="clarification"&&active){direction="clarify";changed=false;}
-    else if(state==="continuation"&&active){direction="continue";changed=false;}
-    else if(state==="topic_pivot"&&direction!=="return"){direction="pivot";changed=true;}
-    return {...base,version:PHASE_A_VERSION,direction,changedDirection:changed,phaseAInteractionState:state,phaseACorrectionOverride:flags.correctionOverride===true,currentTurnIntentPrimary:true,staleEmotionMustYield:flags.staleEmotionMustYield===true,nuanceMetadataPrivate:true};
+  function clean(v,max=240){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function previousNuance(value={}){const v=obj(value),memory=obj(v.previousMemory||v.memory||v.turnMemory),flow=obj(v.conversationFlowState||v.conversationFlow),carry=obj(v.privateRuntimeContinuity);return obj(v.nuanceState||v.previousNuanceState||memory.nuanceState||flow.nuanceState||carry.nuanceState);}
+  function analyzeNuance(input={},previous={},options={}){
+    const source=obj(input),existing=obj(source.nuanceContext),turnId=clean(source.turnId||obj(options).turnId,120);if(existing.contract===PHASE_A_CONTRACT&&(!turnId||existing.turnId===turnId))return existing;
+    if(!coordinator)return {contract:PHASE_A_CONTRACT,version:"unavailable",phase:"A",hardStopLayer:24,turnId,diagnostics:{available:false,degraded:true,failedStages:[{stage:"registry_load",name:"ModuleUnavailable",message:"phase_a_coordinator_unavailable"}],noUserFacingDiagnostics:true},layer21:{layer:21,status:"unavailable"},layer22:{layer:22,status:"unavailable"},layer23:{layer:23,status:"unavailable"},layer24:{layer:24,status:"unavailable"},culturalCompatibility:{status:"unavailable",culturalInferenceAllowed:false},carryPolicy:{status:"unavailable",approvedStatePatch:{}}};
+    const fn=typeof coordinator.safeAnalyzeMarionNuancePhaseA==="function"?coordinator.safeAnalyzeMarionNuancePhaseA:coordinator.analyzeMarionNuancePhaseA;
+    try{return fn(source,{...obj(options),turnId,previousNuanceState:previousNuance(previous)});}catch(_){return {contract:PHASE_A_CONTRACT,version:clean(coordinator.VERSION,120),phase:"A",hardStopLayer:24,turnId,diagnostics:{available:false,degraded:true,failedStages:[{stage:"registry_execution",name:"PhaseAError",message:"phase_a_fail_open"}],noUserFacingDiagnostics:true},layer21:{layer:21,status:"degraded"},layer22:{layer:22,status:"degraded"},layer23:{layer:23,status:"degraded"},layer24:{layer:24,status:"degraded"},culturalCompatibility:{status:"degraded",culturalInferenceAllowed:false},carryPolicy:{status:"degraded",approvedStatePatch:{}}};}
+  }
+  function summary(n={}){const x=obj(n),l22=obj(x.layer22),l23=obj(x.layer23),l24=obj(x.layer24),c=obj(x.culturalCompatibility),candidate=obj(l22.primaryCandidate);return {contract:PHASE_A_CONTRACT,version:clean(x.version,140),turnId:clean(x.turnId,120),interactionState:clean(l24.currentState,60),interactionConfidence:Number(l24.confidence||0),emotionalCandidate:clean(candidate.state,60),emotionalConfidence:Number(candidate.confidence||0),confidenceBand:clean(l23.confidenceBand,40),responsePolicy:clean(l23.responsePolicy,80),explicitEmotionReferenceAllowed:l23.explicitEmotionReferenceAllowed===true,explicitLanguage:clean(c.explicitLanguage,32),explicitLocale:clean(c.explicitLocale,32),codeSwitchDetected:c.codeSwitchDetected===true,culturalInferenceAllowed:false,internalOnly:true};}
+  function applyNuanceToFlow(flow={},nuanceContext={},prompt=""){
+    const base=obj(flow),n=obj(nuanceContext),pivot=typeof api.pivot.applyNuance==="function"?api.pivot.applyNuance(base.contextPivot,n):base.contextPivot,progress=typeof api.progression.applyNuance==="function"?api.progression.applyNuance(base.progression,n):base.progression,calibration=typeof api.calibration.applyNuance==="function"?api.calibration.applyNuance(base.interactionCalibration,n):base.interactionCalibration,outcome=typeof api.outcomeCoordinator.applyNuance==="function"?api.outcomeCoordinator.applyNuance(base.outcomeFlow,n,prompt):base.outcomeFlow,strategy=typeof api.strategicCoordinator.applyNuance==="function"?api.strategicCoordinator.applyNuance(base.strategicFlow,n,prompt):base.strategicFlow,carry=obj(obj(n.carryPolicy).approvedStatePatch),sum=summary(n);
+    return {...base,version:PHASE_A_VERSION,layers:Object.freeze({...obj(base.layers),conversationalSignalNormalization:21,emotionalCueDetection:22,emotionalConfidenceGate:23,interactionStateTracking:24}),contextPivot:pivot,progression:progress,interactionCalibration:calibration,outcomeFlow:outcome,outcomeAwareness:outcome&&outcome.outcomeAwareness,commitmentTracking:outcome&&outcome.commitmentTracking,anticipatoryGuidance:outcome&&outcome.anticipatoryGuidance,strategicFlow:strategy,objectiveAlignment:strategy&&strategy.objectiveAlignment,predictiveRisk:strategy&&strategy.predictiveRisk,pathwaySynthesis:strategy&&strategy.pathwaySynthesis,stage:clean(progress&&progress.stage,80)||base.stage,direction:clean(pivot&&pivot.direction,80)||base.direction,nuanceContext:n,phaseANuance:sum,nuanceState:carry,nuanceStatePatch:carry,hardStopLayer:24,additionalLayerRecommended:false,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
   }
   const originalAnalyze=api.analyzeTurn;
-  api.analyzeTurn=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext);};
+  api.analyzeTurn=function(input={},previousState={},options={}){const source=obj(input),nuance=analyzeNuance(source,previousState,options),base=originalAnalyze({...source,nuanceContext:nuance},previousState,options);return applyNuanceToFlow(base,nuance,api.promptOf(source));};
+  const originalApply=api.applyToInput;
+  api.applyToInput=function(input={},previousState={},options={}){const flow=api.analyzeTurn(input,previousState,options),base=originalApply({...obj(input),conversationFlow:flow,nuanceContext:flow.nuanceContext},previousState,options),memory=obj(base.previousMemory),privateCtx=obj(base.privateRuntimeContext),response=obj(base.responseShaping),composer=obj(base.composerContext);return {...base,conversationFlow:flow,conversationStage:flow.stage,contextPivot:flow.contextPivot,interactionCalibration:flow.interactionCalibration,outcomeFlow:flow.outcomeFlow,outcomeAwareness:flow.outcomeAwareness,commitmentTracking:flow.commitmentTracking,anticipatoryGuidance:flow.anticipatoryGuidance,strategicFlow:flow.strategicFlow,objectiveAlignment:flow.objectiveAlignment,predictiveRisk:flow.predictiveRisk,pathwaySynthesis:flow.pathwaySynthesis,nuanceContext:flow.nuanceContext,phaseANuance:flow.phaseANuance,nuanceStatePatch:flow.nuanceStatePatch,responseShaping:{...response,phaseANuance:flow.phaseANuance,hardStopAtLayer24:true},composerContext:{...composer,phaseANuance:flow.phaseANuance,nuanceContext:flow.nuanceContext,nuanceStatePatch:flow.nuanceStatePatch,hardStopLayer:24},previousMemory:{...memory,nuanceState:flow.nuanceStatePatch},privateRuntimeContext:{...privateCtx,nuancePhaseAVersion:clean(flow.nuanceContext&&flow.nuanceContext.version,140),nuanceState:flow.nuanceStatePatch,hardStopLayer:24}};};
+  const originalCommit=api.commitTurn;
+  api.commitTurn=function(flow={},reply="",result={}){const out=originalCommit(flow,reply,result);return {...out,version:PHASE_A_VERSION,nuanceContext:obj(flow).nuanceContext,phaseANuance:obj(flow).phaseANuance,nuanceState:obj(flow).nuanceStatePatch,nuanceStatePatch:obj(flow).nuanceStatePatch,hardStopLayer:24};};
   const originalProject=api.projectState;
-  api.projectState=function(value={}){const out=originalProject(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(obj(value).phaseAInteractionState,60),phaseACorrectionOverride:obj(value).phaseACorrectionOverride===true};};
-  api.applyNuance=applyNuance;
+  api.projectState=function(flow={}){const out=originalProject(flow),f=obj(flow);return {...out,version:PHASE_A_VERSION,phaseANuance:obj(f.phaseANuance),nuanceState:obj(f.nuanceStatePatch||f.nuanceState),hardStopLayer:24};};
+  const originalAttachNoReconcile=api.attachToResultNoReconcile;
+  api.attachToResultNoReconcile=function(result={},flow={}){const out=originalAttachNoReconcile(result,flow);if(!obj(out))return out;const f=obj(flow),memory=obj(out.memoryPatch),session=obj(out.sessionPatch),meta=obj(out.meta),routing=obj(out.routing);return {...out,nuanceContext:f.nuanceContext,phaseANuance:f.phaseANuance,nuanceStatePatch:f.nuanceStatePatch,memoryPatch:{...memory,nuanceState:f.nuanceStatePatch},sessionPatch:{...session,nuanceState:f.nuanceStatePatch},routing:{...routing,nuancePhaseAVersion:clean(f.nuanceContext&&f.nuanceContext.version,140),hardStopLayer:24},meta:{...meta,conversationFlowVersion:PHASE_A_VERSION,conversationLayers:[9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24],phaseANuance:f.phaseANuance,nuanceMetadataPrivate:true,hardStopLayer:24,additionalLayerRecommended:false}};};
+  const originalAttach=api.attachToResult;
+  api.attachToResult=function(result={},flow={}){const base=api.attachToResultNoReconcile(result,flow),outcome=api.outcomeCoordinator.reconcileResult(base,obj(flow).outcomeFlow),strategy=api.strategicCoordinator.reconcileResult(outcome,obj(flow).strategicFlow);return api.completionCoordinator.reconcileResult(strategy,obj(flow).completionFlow);};
+  api.reconcileResult=function(result={},flow={}){return api.attachToResult(result,flow);};
+  const originalStrip=api.stripStrategicFlow;
+  api.stripStrategicFlow=function(flow={}){const out=originalStrip(flow);if(!obj(out))return out;const {nuanceContext,nuanceState,nuanceStatePatch,phaseANuance,...rest}=out;return {...rest,version:PHASE_A_VERSION,publicNuanceNoOp:true,hardStopLayer:14};};
+  const originalStatus=api.getStatus;
+  api.getStatus=function(){const status=originalStatus(),health=coordinator&&typeof coordinator.moduleHealth==="function"?coordinator.moduleHealth():{ok:false,version:"unavailable"};return {...status,version:PHASE_A_VERSION,layers:{...obj(status.layers),21:clean(coordinator&&coordinator.moduleHealth&&coordinator.moduleHealth().modules&&coordinator.moduleHealth().modules.layer21&&coordinator.moduleHealth().modules.layer21.version,140)||"nyx.marion.conversationalSignalNormalizer/1.0",22:"nyx.marion.emotionalCueDetector/1.0",23:"nyx.marion.emotionalConfidenceGate/1.0",24:"nyx.marion.interactionStateTracker/1.0"},nuancePhaseAContract:PHASE_A_CONTRACT,nuancePhaseAHealth:health,nuanceMetadataPrivate:true,culturalInferenceAllowed:false,psychologicalDiagnosisAllowed:false,hardStopLayer:24,additionalLayerRecommended:false};};
   api.VERSION=PHASE_A_VERSION;
-  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
-  api.__marionNuancePhaseALayer10CohesionV1=true;
+  api.NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.nuanceCoordinator=coordinator;
+  api.analyzeNuance=analyzeNuance;
+  api.applyNuanceToFlow=applyNuanceToFlow;
+  api.__marionNuancePhaseARegistryCohesionV1=true;
 })();
-/* MARION_NUANCE_PHASE_A_LAYER10_COHESION_V1_END */
+/* MARION_NUANCE_PHASE_A_REGISTRY_COHESION_V1_END */
 
-/* MARION_NUANCE_PHASE_B_ContextPivotCohesion_V1_START */
-(function marionNuancePhaseBContextPivotCohesionV1(){
+/* MARION_NUANCE_PHASE_B_RegistryCohesion_V1_START */
+(function marionNuancePhaseBRegistryCohesionV1(){
   "use strict";
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(!api||api.__marionNuancePhaseBContextPivotCohesionV1)return;
+  if(!api||api.__marionNuancePhaseBRegistryCohesionV1)return;
   const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
   const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
   const HARD_STOP_LAYER=26;
@@ -108,10 +148,16 @@ module.exports={VERSION,CONTRACT,isGreeting,isReturn,isBranch,isExplicitPivot,is
   function phaseAFrom(n){const b=obj(n),a=obj(b.phaseA);return a.contract===PHASE_A_CONTRACT?a:{};}
   function summary(n){const b=obj(n),l25=obj(b.layer25),l26=obj(b.layer26),g=obj(b.subtextGate),p=obj(b.responsePosture),a=phaseAFrom(b),l24=obj(a.layer24);return{contract:PHASE_B_CONTRACT,phase:"B",turnId:clean(b.turnId,160),interactionState:clean(l24.currentState,60),primaryStance:clean(l25.primaryStance,80),secondaryStances:Array.isArray(l25.secondaryStances)?l25.secondaryStances.slice(0,2):[],modifiers:Array.isArray(l25.modifiers)?l25.modifiers.slice(0,4):[],stanceConfidence:Number(l25.confidence||0),literalIntent:clean(l26.literalIntent,120),primaryPragmaticIntent:clean(l26.primaryPragmaticIntent,120),secondaryPragmaticIntents:Array.isArray(l26.secondaryPragmaticIntents)?l26.secondaryPragmaticIntents.slice(0,2):[],conversationControl:clean(obj(l26.conversationControl).category,100),pragmaticConfidence:Number(l26.confidence||0),subtextPolicy:clean(g.subtextPolicy,80),answerStructure:Array.isArray(p.answerStructure)?p.answerStructure.slice(0,6):[],literalIntentPreserved:g.literalIntentPreserved!==false,noUserFacingDiagnostics:true};}
 
-  const original=api.analyzeTurn;if(typeof original==="function")api.analyzeTurn=function(input={}){const out=original.call(this,input),b=phaseB(input),s=summary(b),control=clean(s.conversationControl,100),confidence=Number(obj(obj(b.layer26).conversationControl).confidence||0);let hint="";if(confidence>=.7&&["topic_pivot","return_to_previous_topic","temporary_branch"].includes(control))hint=control;return {...obj(out),phaseBPivotHint:hint,phaseBConversationControl:control,literalIntentPreserved:true,subtextMayChangeDomain:false,figurativeLanguageMayCreatePivot:false,conversationArchitectureHardStop:HARD_STOP_LAYER};};
+  let coordinator=null;try{coordinator=require("../nuance/marionNuancePhaseBCoordinator.js");}catch(_){coordinator=null;}
+  function privateTurn(v){const x=obj(v),b=obj(x.body),p=obj(x.payload);return x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||b.privateAdminConversation===true||p.privateAdminConversation===true||clean(x.scope)==="private_admin";}
+  function ensure(input={}){if(!privateTurn(input))return input;let b=phaseB(input);if(!Object.keys(b).length&&coordinator){try{const fn=coordinator.safeAnalyzeMarionNuancePhaseB||coordinator.analyzeMarionNuancePhaseB||coordinator.run;b=fn(input,{turnId:clean(input.turnId,160)});}catch(_){b={};}}if(!Object.keys(b).length)return input;const a=phaseAFrom(b),state=obj(obj(b.carryPolicy).approvedStatePatch);return {...input,nuanceContext:Object.keys(a).length?a:input.nuanceContext,phaseANuance:Object.keys(a).length?a:input.phaseANuance,phaseBNuance:b,nuancePhaseBContext:b,phaseBStatePatch:state};}
+  const originalAnalyze=api.analyzeTurn;if(typeof originalAnalyze==="function")api.analyzeTurn=function(input={},previous={},options={}){const prepared=ensure(input),out=originalAnalyze.call(this,prepared,previous,options),b=phaseB(prepared),s=summary(b);return {...obj(out),version:"marion.conversationLayers/26.0-cohesive-9-26-part2-batch1",phaseBNuanceSummary:s,phaseBPrimaryStance:s.primaryStance,phaseBPrimaryPragmaticIntent:s.primaryPragmaticIntent,literalIntentPreserved:true,conversationArchitectureHardStop:HARD_STOP_LAYER,hardStopLayer:HARD_STOP_LAYER,additionalLayerRecommended:false,automaticExecutionAllowed:false,layers:{...obj(out.layers),conversationalStanceResolution:25,pragmaticIntentResolution:26}};};
+  const originalApply=api.applyToInput;if(typeof originalApply==="function")api.applyToInput=function(input={},previous={},options={}){const prepared=ensure(input),out=originalApply.call(this,prepared,previous,options),b=phaseB(prepared),s=summary(b),state=obj(obj(b.carryPolicy).approvedStatePatch);return {...obj(out),phaseBNuance:b,nuancePhaseBContext:b,phaseBStatePatch:state,internalNuance:s,responseShaping:{...obj(obj(out).responseShaping),phaseBPrimaryStance:s.primaryStance,phaseBPragmaticIntent:s.primaryPragmaticIntent,literalIntentPreserved:true},composerContext:{...obj(obj(out).composerContext),phaseBNuanceSummary:s,responsePosture:obj(b.responsePosture)},privateRuntimeContext:{...obj(obj(out).privateRuntimeContext),hardStopLayer:HARD_STOP_LAYER,phaseBContract:PHASE_B_CONTRACT}};};
+  const status=api.getStatus;if(typeof status==="function")api.getStatus=function(){const out=status.call(this);return {...obj(out),version:"marion.conversationLayers/26.0-cohesive-9-26-part2-batch1",hardStopLayer:HARD_STOP_LAYER,phaseBCompatible:true,phaseBContract:PHASE_B_CONTRACT,layers:{...obj(out.layers),25:"nyx.marion.conversationalStanceResolver/1.0",26:"nyx.marion.pragmaticIntentResolver/1.0"},additionalLayerRecommended:false,automaticExecutionAllowed:false};};
+  api.nuancePhaseBCoordinator=coordinator;
 
   api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
   api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
-  api.__marionNuancePhaseBContextPivotCohesionV1=true;
+  api.__marionNuancePhaseBRegistryCohesionV1=true;
 })();
-/* MARION_NUANCE_PHASE_B_ContextPivotCohesion_V1_END */
+/* MARION_NUANCE_PHASE_B_RegistryCohesion_V1_END */
