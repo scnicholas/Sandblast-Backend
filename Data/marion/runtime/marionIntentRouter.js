@@ -3942,3 +3942,34 @@ function r18cApplyLawIntentRoute(result,packet){
 })();
 /* MARION_COMPLETION_FLOW_LAYERS_18_19_20_ROUTER_V20_END */
 
+/* MARION_NUANCE_PHASE_A_INTENT_ROUTER_INTEGRATION_V2_START */
+(function marionNuancePhaseAIntentRouterIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAIntentRouterIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.intentRouterIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=24;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=180){if(typeof v==="string")return v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);return"";}
+  function nuanceOf(args){for(const value of Array.from(args||[])){const x=obj(value),n=obj(x.nuanceContext||x.phaseANuance);if(n.contract===PHASE_A_CONTRACT)return n;}return{};}
+  function explicitEmotionalText(args){for(const value of Array.from(args||[])){const x=obj(value),text=clean(typeof value==="string"?value:(x.prompt||x.rawUserText||x.userText||x.text||x.message),4000).toLowerCase();if(/\b(?:i am|i'm|feeling|feel|frustrated|angry|sad|afraid|anxious|overwhelmed|hurt|grief|panic|emotion|psychology)\b/.test(text))return true;}return false;}
+  function attach(raw,nuance,args){
+    if(!raw||typeof raw!=="object"||!Object.keys(nuance).length)return raw;
+    const out={...raw},l22=obj(nuance.layer22),l23=obj(nuance.layer23),l24=obj(nuance.layer24),candidate=obj(l22.primaryCandidate),interaction=clean(l24.currentState,60),routing=obj(out.routing);
+    const emotionMayRoute=explicitEmotionalText(args);
+    const nuanceRouting={version:PATCH_VERSION,contract:PHASE_A_CONTRACT,interactionState:interaction,interactionConfidence:Number(l24.confidence||0),emotionalCandidate:clean(candidate.state,60),emotionalConfidence:Number(candidate.confidence||0),confidenceBand:clean(l23.confidenceBand,40),emotionMayAffectRouting:emotionMayRoute,emotionInferenceAloneMayChangeIntent:false,culturalMarkersMayChangeIntent:false,currentTurnIntentPrimary:true,internalOnly:true};
+    out.nuanceRouting=nuanceRouting;
+    out.routing={...routing,nuanceRouting,interactionState:interaction,currentTurnIntentPrimary:true,emotionInferenceAloneMayChangeIntent:false,culturalMarkersMayChangeIntent:false};
+    out.meta={...obj(out.meta),nuanceIntentRouterIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceHardStopLayer:HARD_STOP_LAYER,emotionInferenceAloneMayChangeIntent:false,culturalIdentityInferenceAllowed:false};
+    return out;
+  }
+  const cache=new WeakMap();
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionNuancePhaseAIntentRouterIntegrationV2)return fn;if(cache.has(fn))return cache.get(fn);const w=function(){const args=arguments,nuance=nuanceOf(args),out=fn.apply(this,args),apply=v=>attach(v,nuance,args);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionNuancePhaseAIntentRouterIntegrationV2=true;cache.set(fn,w);return w;}
+  for(const name of["routeMarionIntent","route","run","handle","default","classifyIntent","detectKnowledgeDomain"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.MARION_NUANCE_PHASE_A_INTENT_ROUTER_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseAIntentRouterIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_INTENT_ROUTER_INTEGRATION_V2_END */
