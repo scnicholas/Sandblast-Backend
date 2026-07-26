@@ -1,11 +1,11 @@
 {
-  "package": "Marion Nuance Phase A Layers 21-24 \u2014 Critical Integration Part 1",
-  "version": "24.1-part1",
+  "package": "Marion Nuance Phase B Layers 25-26 \u2014 State, Transport, and Control Integration",
+  "version": "26.2-part2-batch2",
   "contract": "nyx.marion.conversationFlow/4.0",
-  "generatedUtc": "2026-07-25T22:56:00.361718+00:00",
+  "generatedUtc": "2026-07-26T15:44:12.679288+00:00",
   "target": {
     "backend": "Sandblast backend",
-    "scope": "Marion Layers 1-20 baseline plus cohesive LingoSentinel Layers 1-10 English relay, delivery, integrity, and recovery certification",
+    "scope": "Marion Layers 1-26 cohesive runtime with Phase A signal, emotion, confidence, and interaction state; Phase B stance and pragmatic-intent resolution; bounded private state and transport integration",
     "manifestOnly": false,
     "manifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
     "guardianMemoryBridgePath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
@@ -35,7 +35,9 @@
       21,
       22,
       23,
-      24
+      24,
+      25,
+      26
     ],
     "newCompletionLayers": [
       18,
@@ -43,10 +45,10 @@
       20
     ],
     "newCompletionModuleCount": 4,
-    "hardStopLayer": 24,
+    "hardStopLayer": 26,
     "additionalLayerRecommended": false,
-    "trackedFileCount": 196,
-    "javascriptFileCount": 159,
+    "trackedFileCount": 212,
+    "javascriptFileCount": 170,
     "testRoot": "tests/marion",
     "lingoSentinelLayersCompleted": 12,
     "lingoSentinelNewLayers": [
@@ -67,12 +69,29 @@
       21,
       22,
       23,
-      24
+      24,
+      25,
+      26
     ],
-    "newNuanceModuleCount": 8,
+    "newNuanceModuleCount": 15,
     "phaseAPart1IntegrationFilesUpdated": 16,
     "phaseAPart1TestsAdded": 5,
-    "phaseAPart1MergePending": true
+    "phaseAPart1MergePending": true,
+    "phaseANuanceLayers": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "phaseBNuanceLayers": [
+      25,
+      26
+    ],
+    "phaseBNewRuntimeModuleCount": 7,
+    "phaseBPart2Batch1FilesUpdated": 20,
+    "phaseBPart2Batch2FilesUpdated": 5,
+    "phaseBStateTransportTestsAdded": 4,
+    "phaseBMergePending": false
   },
   "filePaths": [
     "DEPLOYMENT_CHECKLIST_LAYERS_11_12.md",
@@ -153,11 +172,27 @@
     "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
     "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
     "Data/marion/runtime/emotion/emotionRuntime.js",
+    "Data/marion/runtime/marionAdminRuntimeSafety.js",
     "Data/marion/runtime/marionBridge.js",
     "Data/marion/runtime/marionCurrentTurnAuthority.js",
     "Data/marion/runtime/marionFinalEnvelope.js",
     "Data/marion/runtime/marionIntentRouter.js",
     "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+    "Data/marion/runtime/nuance/marionConversationalSignalNormalizer.js",
+    "Data/marion/runtime/nuance/marionConversationalStanceResolver.js",
+    "Data/marion/runtime/nuance/marionCulturalCompatibilityBoundary.js",
+    "Data/marion/runtime/nuance/marionEmotionalConfidenceGate.js",
+    "Data/marion/runtime/nuance/marionEmotionalCueDetector.js",
+    "Data/marion/runtime/nuance/marionInteractionStateTracker.js",
+    "Data/marion/runtime/nuance/marionNuanceCarryPolicy.js",
+    "Data/marion/runtime/nuance/marionNuanceEnvelope.js",
+    "Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js",
+    "Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js",
+    "Data/marion/runtime/nuance/marionNuancePhaseBEnvelope.js",
+    "Data/marion/runtime/nuance/marionPragmaticIntentResolver.js",
+    "Data/marion/runtime/nuance/marionPragmaticMarkerRegistry.js",
+    "Data/marion/runtime/nuance/marionResponsePosturePolicy.js",
+    "Data/marion/runtime/nuance/marionSubtextConfidenceGate.js",
     "Data/marion/runtime/strategy/marionPredictiveRiskModel.js",
     "Data/marion/runtime/strategy/marionStrategicFlowCoordinator.js",
     "Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js",
@@ -169,6 +204,7 @@
     "LINGOSENTINEL_LAYERS_11_12_NEW_DATA_FILES_SOURCE.txt",
     "LINGOSENTINEL_LAYERS_11_12_NEW_PUBLIC_FILES_SOURCE.txt",
     "LINGOSENTINEL_LAYERS_3_4_NEW_FILES_SOURCE.txt",
+    "PACKAGE_INTEGRITY.json",
     "README.md",
     "README_LINGOSENTINEL_LAYERS_11_12_DATA_STAGE.md",
     "README_LINGOSENTINEL_LAYERS_11_12_PUBLIC_STAGE.md",
@@ -180,14 +216,20 @@
     "VALIDATION_REPORT.json",
     "docs/ARCHITECTURE.md",
     "docs/DEPLOYMENT.md",
+    "docs/DEPLOYMENT_CHECKLIST_LAYERS_21_24_PART1.md",
     "docs/FRAMEWORK_LAYERS_18_20.md",
+    "docs/FRAMEWORK_LAYERS_21_24_PART1.md",
     "docs/GAP_REFINEMENTS.md",
     "docs/GAP_REFINEMENTS_LAYERS_18_20.md",
+    "docs/GAP_REFINEMENTS_LAYERS_21_24_PART1.md",
     "docs/HARD_STOP_AND_FUNCTIONAL_VALIDATION.md",
+    "docs/MARION_ADMIN_RUNTIME_CRITICAL_REPAIR_V2.md",
+    "docs/PHASE_B_PART2_BATCH2_STATE_TRANSPORT_CONTROL.md",
     "docs/STRATEGIC_GAP_REFINEMENTS.md",
     "docs/TEST_MATRIX.md",
     "index.js",
     "manifest.json",
+    "package.json",
     "public/lingosentinel/lingosentinel-message-render-policy.js",
     "public/lingosentinel/lingosentinel-public-delivery-client.js",
     "public/lingosentinel/lingosentinel-public-language-preferences.js",
@@ -240,40 +282,30 @@
     "tests/marion/LAYERS_15_17_RESULTS.json",
     "tests/marion/LAYERS_18_20_RESULTS.json",
     "tests/marion/LAYERS_1_20_FUNCTIONAL_VALIDATION_RESULTS.json",
+    "tests/marion/LAYERS_21_24_PART1_VALIDATION_RESULTS.json",
     "tests/marion/LAYERS_9_11_REGRESSION_RESULTS.json",
     "tests/marion/LAYERS_9_17_REGRESSION_RESULTS.json",
     "tests/marion/LAYERS_9_20_REGRESSION_RESULTS.json",
     "tests/marion/RUNTIME_RESULTS.json",
     "tests/marion/STATIC_RESULTS.json",
+    "tests/marion/admin_runtime_primitive_guard_regression_test.js",
     "tests/marion/completion_flow_runtime_test.js",
     "tests/marion/conversation_flow_runtime_test.js",
+    "tests/marion/layers_15_17_nuance_boundary_test.js",
     "tests/marion/layers_1_20_functional_validation_test.js",
+    "tests/marion/layers_21_24_core_integration_test.js",
+    "tests/marion/layers_21_24_gap_refinement_test.js",
     "tests/marion/layers_9_17_regression_test.js",
     "tests/marion/layers_9_20_regression_test.js",
-    "tests/marion/outcome_flow_runtime_test.js",
-    "tests/marion/strategic_flow_runtime_test.js",
-    "tests/stubs/node_modules/express/index.js",
-    "Data/marion/runtime/marionAdminRuntimeSafety.js",
-    "tests/marion/admin_runtime_primitive_guard_regression_test.js",
-    "docs/MARION_ADMIN_RUNTIME_CRITICAL_REPAIR_V2.md",
-    "Data/marion/runtime/nuance/marionConversationalSignalNormalizer.js",
-    "Data/marion/runtime/nuance/marionCulturalCompatibilityBoundary.js",
-    "Data/marion/runtime/nuance/marionEmotionalConfidenceGate.js",
-    "Data/marion/runtime/nuance/marionEmotionalCueDetector.js",
-    "Data/marion/runtime/nuance/marionInteractionStateTracker.js",
-    "Data/marion/runtime/nuance/marionNuanceCarryPolicy.js",
-    "Data/marion/runtime/nuance/marionNuanceEnvelope.js",
-    "Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js",
-    "tests/marion/layers_21_24_core_integration_test.js",
     "tests/marion/layers_9_24_partial_cohesion_test.js",
-    "tests/marion/layers_21_24_gap_refinement_test.js",
-    "tests/marion/layers_15_17_nuance_boundary_test.js",
+    "tests/marion/outcome_flow_runtime_test.js",
+    "tests/marion/phase_b_chat_engine_transport_test.js",
+    "tests/marion/phase_b_index_manifest_package_contract_test.js",
+    "tests/marion/phase_b_state_spine_integration_test.js",
+    "tests/marion/strategic_flow_runtime_test.js",
     "tests/marion/verify_phase_a_part1.js",
-    "docs/FRAMEWORK_LAYERS_21_24_PART1.md",
-    "docs/GAP_REFINEMENTS_LAYERS_21_24_PART1.md",
-    "docs/DEPLOYMENT_CHECKLIST_LAYERS_21_24_PART1.md",
-    "tests/marion/LAYERS_21_24_PART1_VALIDATION_RESULTS.json",
-    "PACKAGE_INTEGRITY.json"
+    "tests/marion/verify_phase_b_part2_batch2.js",
+    "tests/stubs/node_modules/express/index.js"
   ],
   "files": [
     {
@@ -746,6 +778,13 @@
       "status": "included_full_file"
     },
     {
+      "path": "Data/marion/runtime/marionAdminRuntimeSafety.js",
+      "bytes": 6497,
+      "sha256": "37ca01af4b554f5248e2f13c47ac025b3fb6c3997ce8f18cfd8525ab1ec11b96",
+      "scope": "Shared primitive text, safe diagnostics, redaction, and private identity safety module",
+      "status": "included_full_file"
+    },
+    {
       "path": "Data/marion/runtime/marionBridge.js",
       "bytes": 79195,
       "sha256": "34a630fb6f275b672a0b6992d99a0f2ac156bc7d0f1afdc04a04875c166fadee",
@@ -873,14 +912,16 @@
     },
     {
       "path": "Utils/chatEngine.js",
-      "bytes": 322979,
-      "sha256": "4752ef6c370588acc4e51957df306f343ebb67ded6d1cbb19773b63989783d5a",
+      "bytes": 332125,
+      "sha256": "9690f6f7b286a3b7c009ace38e1910a3e492ca8f7e54ab2861cbe0471c583dfe",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
       "status": "included_full_file"
     },
     {
       "path": "Utils/stateSpine.js",
-      "bytes": 418550,
-      "sha256": "4b6e1ede71d86ba6d57cbc48a992c8b4f33d6051601914f164b9f0cb436d3db4",
+      "bytes": 431967,
+      "sha256": "5147bdfbc7411cfbc0a7e5c5fe1d835bbd5fa4b5f68cee5910367b2ce95e2344",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
       "status": "included_full_file"
     },
     {
@@ -926,6 +967,20 @@
       "status": "included_full_file"
     },
     {
+      "path": "docs/MARION_ADMIN_RUNTIME_CRITICAL_REPAIR_V2.md",
+      "bytes": 3722,
+      "sha256": "c8103d2a81238710fee494cbbe0881cbb85a2358d98d320322ab1a020f849d06",
+      "scope": "Deployment, validation, expected behavior, and rollback instructions",
+      "status": "included_full_file"
+    },
+    {
+      "path": "docs/PHASE_B_PART2_BATCH2_STATE_TRANSPORT_CONTROL.md",
+      "bytes": 1231,
+      "sha256": "89151fddb5627d581cc5e5b0bac5affd1dfa7edeb881ed0e61815c3fc9fe3423",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
+      "status": "included_full_file"
+    },
+    {
       "path": "docs/STRATEGIC_GAP_REFINEMENTS.md",
       "bytes": 2770,
       "sha256": "12fef8bc34440d9d6308da6e29d2b8d8f9605db8c6a564e3f64a395b907c759d",
@@ -939,9 +994,9 @@
     },
     {
       "path": "index.js",
-      "bytes": 1501830,
-      "sha256": "dc4df301c0ddbffc600ec4bea8e8ed8db89984fb2c7ba766dac060a66d4072c8",
-      "scope": "Marion admin runtime critical repair 2.1; private route, primitive projection, error boundary, and late-wrapper hardening",
+      "bytes": 1480198,
+      "sha256": "b51149d1431f3b8703d5e21c181dbebd117e49e2be557423cc9c8f9038b745d5",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
       "status": "included_full_file"
     },
     {
@@ -949,6 +1004,13 @@
       "bytes": 70237,
       "scope": "LingoSentinel Layers 11-12 public stage",
       "hashPolicy": "self-referential manifest hash omitted"
+    },
+    {
+      "path": "package.json",
+      "bytes": 3855,
+      "sha256": "544990821959757fca3ec5c0e322735e786fe46bbab324959ac6224cc458bc49",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
+      "status": "included_full_file"
     },
     {
       "path": "public/lingosentinel/lingosentinel-message-render-policy.js",
@@ -1281,6 +1343,13 @@
       "status": "included_full_file"
     },
     {
+      "path": "tests/marion/PHASE_B_PART2_BATCH2_VALIDATION_RESULTS.json",
+      "bytes": 3336,
+      "sha256": "1340b57d3fcb8b28e405bbb6641960634b2caace3be657a9e596ad7eb3272417",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
+      "status": "included_full_file"
+    },
+    {
       "path": "tests/marion/RUNTIME_RESULTS.json",
       "bytes": 19383,
       "sha256": "550d110341eb89e1c1eb0928be8a53fcd9c1fcaf8e4370e5e1777c6dda3eb745",
@@ -1290,6 +1359,13 @@
       "path": "tests/marion/STATIC_RESULTS.json",
       "bytes": 8831,
       "sha256": "24e635f687d58a9566bb55f1bc82db3391d5f75e26111d013925633e2fa73ad9",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/admin_runtime_primitive_guard_regression_test.js",
+      "bytes": 4849,
+      "sha256": "9dead4ee5721e52967ddd93225a0a2c74904bd686e96177568561a285154fa4b",
+      "scope": "Regression coverage for throwing primitive objects, proxies, getters, cycles, private identity, and route source guards",
       "status": "included_full_file"
     },
     {
@@ -1329,9 +1405,37 @@
       "status": "included_full_file"
     },
     {
+      "path": "tests/marion/phase_b_chat_engine_transport_test.js",
+      "bytes": 2404,
+      "sha256": "eb939d85019697541f91ffd5e4d0290161d9c7347f16b511acdd5f2a66676a96",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/phase_b_index_manifest_package_contract_test.js",
+      "bytes": 1934,
+      "sha256": "668d83dbe95e04d9049a9e5f59abd202dc31903426628370a615cac3631cc3ad",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/phase_b_state_spine_integration_test.js",
+      "bytes": 2992,
+      "sha256": "0d539118a4ffd4bf0d7b41e1138257cbcc5e4d7b7c2c24bdb30e9200e6557c8c",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
+      "status": "included_full_file"
+    },
+    {
       "path": "tests/marion/strategic_flow_runtime_test.js",
       "bytes": 9983,
       "sha256": "bc32eb8f8cf8ec95024bb2b4c3bb42e50cf8d835723661b01662ee5bc4f66fa6",
+      "status": "included_full_file"
+    },
+    {
+      "path": "tests/marion/verify_phase_b_part2_batch2.js",
+      "bytes": 777,
+      "sha256": "dde3c419fb41ab973a17d2d06e88b3c3b3acbbae5f3e2a56501d0e8bc5169c49",
+      "scope": "Marion Phase B Layers 25-26 state, transport, control, or validation integration",
       "status": "included_full_file"
     },
     {
@@ -1339,27 +1443,6 @@
       "bytes": 785,
       "sha256": "3e9e4110ebf127d7cd97cc97351168bc60c0d43e1833706353691f8b72003fc1",
       "scope": "LingoSentinel Layers 11-12 complete data stage"
-    },
-    {
-      "path": "Data/marion/runtime/marionAdminRuntimeSafety.js",
-      "bytes": 6497,
-      "sha256": "37ca01af4b554f5248e2f13c47ac025b3fb6c3997ce8f18cfd8525ab1ec11b96",
-      "scope": "Shared primitive text, safe diagnostics, redaction, and private identity safety module",
-      "status": "included_full_file"
-    },
-    {
-      "path": "tests/marion/admin_runtime_primitive_guard_regression_test.js",
-      "bytes": 4849,
-      "sha256": "9dead4ee5721e52967ddd93225a0a2c74904bd686e96177568561a285154fa4b",
-      "scope": "Regression coverage for throwing primitive objects, proxies, getters, cycles, private identity, and route source guards",
-      "status": "included_full_file"
-    },
-    {
-      "path": "docs/MARION_ADMIN_RUNTIME_CRITICAL_REPAIR_V2.md",
-      "bytes": 3722,
-      "sha256": "c8103d2a81238710fee494cbbe0881cbb85a2358d98d320322ab1a020f849d06",
-      "scope": "Deployment, validation, expected behavior, and rollback instructions",
-      "status": "included_full_file"
     }
   ],
   "architecture": {
@@ -1369,11 +1452,11 @@
     "routeAuthorityModified": true,
     "replyAuthorityReplaced": false,
     "certifiedRouteAuthority": "INDEX_PRIVATE_ADMIN_RUNTIME_V2_1",
-    "metadataAndStateCoordinationOnly": false,
+    "metadataAndStateCoordinationOnly": true,
     "publicNyxStrategicNoOp": true,
     "publicNyxCompletionNoOp": true,
     "boundedCompletionState": true,
-    "hardStopLayer": 20,
+    "hardStopLayer": 26,
     "additionalLayerRecommended": false,
     "automaticExecutionAllowed": false,
     "humanFinalAuthority": true,
@@ -1387,7 +1470,17 @@
     "privateAdminRuntimePrimitiveGuard": true,
     "privateAdminRuntimeIdentityHardlock": true,
     "privateAdminRuntimePublicFallbackBlocked": true,
-    "publicNyxExecutionLaneChanged": false
+    "publicNyxExecutionLaneChanged": false,
+    "phaseAHardStopLayer": 24,
+    "completionDecisionLayer": 20,
+    "chatEngineTransportOnly": true,
+    "chatEngineSemanticAnalysisAllowed": false,
+    "stateSpineApprovedNuancePatchOnly": true,
+    "phaseBSingleAnalysisAuthority": "Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js",
+    "literalIntentPreserved": true,
+    "publicNyxNuanceProjectionAllowed": false,
+    "rawMarkerEvidenceCarryAllowed": false,
+    "crossPartitionNuanceCarryAllowed": false
   },
   "validation": {
     "jsonValid": true,
@@ -1421,7 +1514,7 @@
     "unauthorizedExecutionPrevention": "passed",
     "hardStopLayer20": "passed",
     "fullApplicationBoot": false,
-    "fullApplicationBootReason": "The supplied package does not contain the complete 180-file backend runtime or the hosted Render environment. Syntax and focused regression validation passed; live route certification remains required after overlay deployment.",
+    "fullApplicationBootReason": "Live Render deployment certification remains pending.",
     "lingoSentinelLayers1to2": {
       "jsonValid": true,
       "nodeSyntaxChecks": 9,
@@ -1471,7 +1564,18 @@
     "revokedProxyProjection": "passed",
     "privateIdentityProjection": "passed",
     "secondArgumentPrivateContextProjection": "passed",
-    "privateRouteSourceGuards": "passed"
+    "privateRouteSourceGuards": "passed",
+    "phaseBPart2Batch2JsonValid": true,
+    "phaseBPart2Batch2NodeSyntaxChecks": 7,
+    "phaseBPart2Batch2NodeSyntaxChecksPassed": 7,
+    "phaseBPart2Batch2FocusedTests": 3,
+    "phaseBPart2Batch2FocusedTestsPassed": 3,
+    "phaseBStateTtlValidated": true,
+    "phaseBPrivatePublicPartitionValidated": true,
+    "phaseBRawEvidenceRedactionValidated": true,
+    "phaseBChatEngineTransportOnlyValidated": true,
+    "phaseBIndexDiagnosticOnlyValidated": true,
+    "hardStopLayer26": true
   },
   "deploymentPolicy": {
     "copyPackageContentsToBackendRoot": true,
@@ -1510,7 +1614,10 @@
     "preserveEnvironmentAndCredentials": true,
     "runMarionCriticalValidationCommand": "npm run verify:marion-critical",
     "liveMarionRuntimeEndpoint": "/api/private/marion/admin/runtime",
-    "rollbackDocument": "docs/MARION_ADMIN_RUNTIME_CRITICAL_REPAIR_V2.md"
+    "rollbackDocument": "docs/PHASE_B_PART2_BATCH2_STATE_TRANSPORT_CONTROL.md",
+    "runPhaseBPart2Batch2ValidationCommand": "npm run verify:marion-phase-b-part2-batch2",
+    "runCompletePhaseBValidationCommand": "npm run verify:marion-phase-b",
+    "overlayAfterPhaseBPart2Batch1": true
   },
   "lingoSentinelLayers1to2": {
     "package": "LingoSentinel Layers 1-2 Critical Runtime Update",
@@ -2450,5 +2557,47 @@
     "validationCommand": "npm run verify:marion-phase-a-part1",
     "validationStatus": "passed_in_partial_package_fixture",
     "validationLimit": "Full production certification remains pending until the remaining active-path and Layers 18-20 files are merged."
+  },
+  "phaseBNuanceIntegration": {
+    "version": "26.2-part2-batch2",
+    "contract": "nyx.marion.nuance.phaseB/1.0",
+    "stateContract": "nyx.marion.nuanceState.phaseB/1.0",
+    "scope": "Layers 25-26 stance and pragmatic-intent integration with Layers 1-24",
+    "layers": [
+      25,
+      26
+    ],
+    "phaseAEmbeddedLayers": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "canonicalStances": 24,
+    "stanceModifiers": 15,
+    "pragmaticCategories": 56,
+    "pragmaticFamilies": 7,
+    "hardStopLayer": 26,
+    "completionDecisionLayer": 20,
+    "phaseAHardStopLayer": 24,
+    "singleAnalysisAuthority": "marionNuancePhaseBCoordinator.js",
+    "chatEngineTransportOnly": true,
+    "stateSpineApprovedPatchOnly": true,
+    "indexDiagnosticOnly": true,
+    "literalIntentPreserved": true,
+    "rawMarkerEvidenceExposed": false,
+    "rawMarkerEvidenceCarryAllowed": false,
+    "unconfirmedApprovalCarryAllowed": false,
+    "unconfirmedGoalCarryAllowed": false,
+    "crossPartitionCarryAllowed": false,
+    "automaticExecutionAllowed": false,
+    "stateTtlTurns": {
+      "interactionState": 3,
+      "emotionalCue": 1,
+      "stance": 2,
+      "pragmaticIntent": 1
+    },
+    "validationCommand": "npm run verify:marion-phase-b-part2-batch2",
+    "liveRenderCertificationPending": true
   }
 }
