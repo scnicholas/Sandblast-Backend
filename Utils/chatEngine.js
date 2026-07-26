@@ -6251,18 +6251,36 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
 /* MARION_NUANCE_PHASE_B_CHATENGINE_TRANSPORT_V1_END */
 
 
-/* MARION_LAYERS_27_29_CHAT_TRANSPORT_COHESION_V1_START */
-(function marionLayers2729ChatTransportCohesionV1(){
+/* MARION_LAYERS_27_28_CHAT_TRANSPORT_COHESION_V1_START */
+(function marionLayers2728ChatTransportCohesionV1(){
   "use strict";
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(!api||api.__marionLayers2729ChatTransportCohesionV1)return;
-  const VERSION="nyx.marion.layers27_29.chatTransport/1.0",HARD_STOP_LAYER=29;
+  if(!api||api.__marionLayers2728ChatTransportCohesionV1)return;
+  const VERSION="nyx.marion.layers27_28.chatTransport/1.0",HARD_STOP_LAYER=28;
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
-  function compact(v){const x=obj(v),c=obj(x.cognitiveSupervisor),s=obj(x.strategic),m=obj(x.metacognition);return{version:VERSION,layer27Applied:c.layer27Applied===true,layer28Applied:c.layer28Applied===true,layer29Integrated:c.layer29Integrated===true||c.hardStopLayer===29,replyAuthorityPreserved:c.replyAuthorityPreserved!==false,executionAuthorized:false,internalOnly:true,strategyStatus:String(s.status||""),metaStatus:String(m.status||"")};}
+  function compact(v){const x=obj(v),c=obj(x.cognitiveSupervisor),s=obj(x.strategic),m=obj(x.metacognition);return{version:VERSION,layer27Applied:c.layer27Applied===true,layer28Applied:c.layer28Applied===true,supervisorIntegrated:c.supervisorIntegrated===true||c.hardStopLayer===28,replyAuthorityPreserved:c.replyAuthorityPreserved!==false,executionAuthorized:false,internalOnly:true,strategyStatus:String(s.status||""),metaStatus:String(m.status||"")};}
   function project(result){if(!result||typeof result!=="object")return result;const x=obj(result);if(!x.cognitiveSupervisor&&!x.strategic&&!x.metacognition)return result;return{...x,internalCognition:compact(x),cognitiveInternalOnly:true,executionAuthorized:false,noUserFacingDiagnostics:true};}
   const cache=new WeakMap();
   for(const name of["handleChat","run","chat","handle","reply"]){const original=api[name];if(typeof original!=="function")continue;let w=cache.get(original);if(!w){w=function(){const r=original.apply(this,arguments);return r&&typeof r.then==="function"?r.then(project):project(r);};cache.set(original,w);}api[name]=w;}
-  api.getMarionLayers2729TransportStatus=function(){return{ok:true,version:VERSION,hardStopLayer:HARD_STOP_LAYER,transportOnly:true,semanticAnalysisPerformed:false,publicCognitionProjectionAllowed:false,replyAuthorityPreserved:true};};
-  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionLayers2729ChatTransportCohesionV1=true;
+  api.getMarionLayers2728TransportStatus=function(){return{ok:true,version:VERSION,hardStopLayer:HARD_STOP_LAYER,transportOnly:true,semanticAnalysisPerformed:false,publicCognitionProjectionAllowed:false,replyAuthorityPreserved:true};};
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionLayers2728ChatTransportCohesionV1=true;
 })();
-/* MARION_LAYERS_27_29_CHAT_TRANSPORT_COHESION_V1_END */
+/* MARION_LAYERS_27_28_CHAT_TRANSPORT_COHESION_V1_END */
+
+
+/* MARION_REPLY_AUTHORITY_TRANSPORT_QUARANTINE_V1_START */
+(function marionReplyAuthorityTransportQuarantineV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionReplyAuthorityTransportQuarantineV1)return;
+  const VERSION="nyx.marion.replyAuthority.chatTransport/1.0",HARD_STOP_LAYER=28;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();}catch(_){return"";}}
+  function promptOf(v){const x=obj(v),b=obj(x.body),p=obj(x.payload),t=obj(x.turn);return clean(x.prompt||x.rawUserText||x.userText||x.userQuery||x.inputText||x.query||x.message||b.prompt||b.userText||b.text||p.prompt||p.userText||p.text||t.prompt||t.userText||t.text);}
+  function replyOf(v){if(typeof v==="string")return clean(v);const x=obj(v),f=obj(x.finalEnvelope),p=obj(x.payload);return clean(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||f.finalReply||f.reply||p.reply||p.text);}
+  function substantive(v){const t=promptOf(v);return t.length>24&&!/^(?:hi|hey|hello|good (?:morning|afternoon|evening)|marion|are you there|still there)[?.! ]*$/i.test(t);}
+  function intermediate(v){return /\b(?:give me a breath,? mac|i[’']?ll check it carefully|keep the answer practical|do you want the risk first|do you want the quick read first|do you want the safest next move first|where do you want to go next|keep the reply natural and grounded)\b/i.test(replyOf(v));}
+  function quarantine(value,input){if(!substantive(input)||!intermediate(value))return value;const x=obj(value);return {...x,ok:false,final:false,marionFinal:false,handled:false,canEmit:false,awaitingMarion:true,reply:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",error:"intermediate_reply_quarantined",reason:"intermediate_reply_quarantined",failureSignature:"WEAK_FINAL_REJECTED",noUserFacingDiagnostics:true,executionAuthorized:false,replyAuthority:"awaiting_composer_final",hardStopLayer:HARD_STOP_LAYER};}
+  const cache=new WeakMap();for(const name of["handleChat","run","chat","handle","reply"]){const fn=api[name];if(typeof fn!=="function")continue;let w=cache.get(fn);if(!w){w=function(){const args=Array.from(arguments),input=args[0],r=fn.apply(this,args),done=v=>quarantine(v,input);return r&&typeof r.then==="function"?r.then(done):done(r);};cache.set(fn,w);}api[name]=w;}
+  api.MARION_REPLY_AUTHORITY_TRANSPORT_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionReplyAuthorityTransportQuarantineV1=true;
+})();
+/* MARION_REPLY_AUTHORITY_TRANSPORT_QUARANTINE_V1_END */
