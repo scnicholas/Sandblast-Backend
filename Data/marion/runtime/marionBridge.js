@@ -943,3 +943,22 @@ Object.assign(module.exports,{VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT
   api.__marionLayers2728BridgeCohesionV1=true;
 })();
 /* MARION_LAYERS_27_28_BRIDGE_COHESION_V1_END */
+
+
+/* MARION_INITIAL_LOOP_CONTAINMENT_V1_START */
+(function marionInitialLoopContainmentV1(){
+  "use strict";
+  const VERSION="nyx.marion.initialLoopContainment/1.0";
+  function clean(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim();}catch(_){return"";}}
+  function promptOf(v){const o=v&&typeof v==="object"?v:{};return clean(o.prompt||o.message||o.text||o.userText||o.query||(o.body&&o.body.prompt));}
+  function replyOf(v){if(typeof v==="string")return clean(v);const o=v&&typeof v==="object"?v:{},fe=o.finalEnvelope&&typeof o.finalEnvelope==="object"?o.finalEnvelope:{};return clean(o.directReply||o.visibleReply||o.displayReply||o.finalReply||o.reply||fe.finalReply||fe.reply);}
+  function substantive(p){const t=clean(p);return t.length>24&&!/^(?:hi|hey|hello|good (?:morning|afternoon|evening)|marion|are you there|still there)[?.! ]*$/i.test(t);}
+  function generic(r){return /^(?:i[’']?m here,? mac\.?\s*)?(?:i[’']?m with you\.?\s*)?(?:i[’']?ll keep the reply natural and grounded while we deepen the conversation\.?\s*)?(?:where do you want to go next\??)$/i.test(clean(r))||/i[’']?ll keep the reply natural and grounded while we deepen the conversation/i.test(clean(r));}
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api)return;
+  const names=["processWithMarion","route","maybeResolve","ask","handle","handleMarionAdminConversation","handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime","default"];
+  for(const name of names){const fn=api[name];if(typeof fn!=="function"||fn.__marionInitialLoopContainmentV1)continue;const wrapped=async function(input){const p=promptOf(input);let out=await fn.apply(this,arguments);if(substantive(p)&&generic(replyOf(out))){const retryInput={...(input&&typeof input==="object"?input:{}),forceSubstantiveAnswer:true,genericFallbackRejected:true,recoveryRequired:false};const retry=await fn.call(this,retryInput);if(!generic(replyOf(retry))&&replyOf(retry))out=retry;else out={...(out&&typeof out==="object"?out:{}),ok:false,final:false,marionFinal:false,awaitingMarion:true,reply:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",error:"generic_fallback_rejected",reason:"generic_fallback_rejected",noUserFacingDiagnostics:true,executionAuthorized:false};}
+    return out;};Object.defineProperty(wrapped,"__marionInitialLoopContainmentV1",{value:true});api[name]=wrapped;}
+  api.MARION_INITIAL_LOOP_CONTAINMENT_VERSION=VERSION;
+})();
+/* MARION_INITIAL_LOOP_CONTAINMENT_V1_END */
