@@ -348,3 +348,14 @@ module.exports = { DEFAULT_CONTRACT_DIR, DEFAULT_FILES, loadContracts, getHealth
   api.__marionNuancePhaseBEmotionCompatibilityV1=true;
 })();
 /* MARION_NUANCE_PHASE_B_EmotionCompatibility_V1_END */
+
+
+/* MARION_LAYERS_27_29_EMOTION_COHESION_V1_START */
+(function marionLayers2729EmotionCohesionV1(){
+  "use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionLayers2729EmotionCohesionV1)return;
+  const VERSION="nyx.marion.layers27_29.emotionAdapter/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}function clamp(v){const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):0;}
+  const original=api.resolveEmotionState;if(typeof original==="function")api.resolveEmotionState=function(inputText,context={},options={}){const out=original.call(this,inputText,context,options),c=obj(obj(context).cognitiveSupervisor),m=obj(obj(context).metacognition);return{...obj(out),cognitive_calibration:{version:VERSION,confidence:clamp(m.confidence),knowledge_gap:m.knowledgeGap===true,layer27Applied:c.layer27Applied===true,layer28Applied:c.layer28Applied===true,layer29Integrated:c.layer29Integrated===true,emotionAuthorityChanged:false,internalOnly:true}};};
+  api.getMarionCognitiveEmotionStatus=function(){return{ok:true,version:VERSION,emotionAuthorityChanged:false,confidenceIsAdvisory:true,rawReflectionExposed:false};};api.MARION_LAYER_HARD_STOP=29;api.__marionLayers2729EmotionCohesionV1=true;
+})();
+/* MARION_LAYERS_27_29_EMOTION_COHESION_V1_END */
