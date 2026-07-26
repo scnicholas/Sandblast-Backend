@@ -6348,3 +6348,22 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
   api.default=api;
 })();
 /* MARION_NUANCE_PHASE_B_STATE_SPINE_V1_END */
+
+
+/* MARION_LAYERS_27_29_STATE_SPINE_COHESION_V1_START */
+(function marionLayers2729StateSpineCohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionLayers2729StateSpineCohesionV1)return;
+  const VERSION="nyx.marion.layers27_29.stateSpine/1.0",CONTRACT="nyx.marion.cognitiveState/1.0",HARD_STOP_LAYER=29;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v,max=240){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
+  function clamp(v){const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):0;}
+  function normalize(v={}){const x=obj(v);return{contract:CONTRACT,missionId:text(x.missionId,120),objectiveId:text(x.objectiveId,120),priority:text(x.priority,40),confidence:clamp(x.confidence),knowledgeGap:x.knowledgeGap===true,turnsRemaining:Math.max(0,Math.min(3,Number(x.turnsRemaining)||0)),executionAuthorized:false,internalOnly:true};}
+  function extract(result={}){const x=obj(result),c=obj(x.cognitiveSupervisor),s=obj(x.strategic),m=obj(x.metacognition);if(!c.layer27Applied&&!c.layer28Applied&&!c.layer29Integrated)return{};return normalize({missionId:s.missionId,objectiveId:s.objectiveId,priority:s.priority,confidence:m.confidence,knowledgeGap:m.knowledgeGap===true,turnsRemaining:2});}
+  function merge(current={},patch={}){const a=normalize(current),b=normalize(patch);return normalize({...a,...b,turnsRemaining:Math.max(a.turnsRemaining,b.turnsRemaining)});}
+  api.normalizeMarionCognitiveState=normalize;api.extractMarionCognitiveStatePatch=extract;api.mergeMarionCognitiveState=merge;
+  api.getMarionLayers2729StateStatus=function(){return{ok:true,version:VERSION,contract:CONTRACT,hardStopLayer:HARD_STOP_LAYER,maxTtlTurns:3,rawPlanCarryAllowed:false,rawReflectionCarryAllowed:false,automaticExecutionAllowed:false,crossPartitionCarryAllowed:false};};
+  api.MARION_COGNITIVE_STATE_CONTRACT=CONTRACT;api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionLayers2729StateSpineCohesionV1=true;api.default=api;
+})();
+/* MARION_LAYERS_27_29_STATE_SPINE_COHESION_V1_END */
