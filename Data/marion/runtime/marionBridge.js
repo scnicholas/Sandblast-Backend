@@ -962,3 +962,22 @@ Object.assign(module.exports,{VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT
   api.MARION_INITIAL_LOOP_CONTAINMENT_VERSION=VERSION;
 })();
 /* MARION_INITIAL_LOOP_CONTAINMENT_V1_END */
+
+
+/* MARION_REPLY_AUTHORITY_BRIDGE_FINALIZER_V2_START */
+(function marionReplyAuthorityBridgeFinalizerV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionReplyAuthorityBridgeFinalizerV2)return;
+  const VERSION="nyx.marion.replyAuthority.bridgeFinalizer/2.0",HARD_STOP_LAYER=28;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();}catch(_){return"";}}
+  function promptOf(v){const x=obj(v),b=obj(x.body),p=obj(x.payload),t=obj(x.turn),c=obj(x.command);return clean(x.prompt||x.rawUserText||x.userText||x.userQuery||x.inputText||x.query||x.message||x.effectivePrompt||b.prompt||b.userText||b.text||p.prompt||p.userText||p.text||t.prompt||t.userText||t.text||c.prompt||c.userText||c.text);}
+  function replyOf(v){if(typeof v==="string")return clean(v);const x=obj(v),f=obj(x.finalEnvelope),p=obj(x.payload);return clean(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||f.finalReply||f.reply||p.reply||p.text);}
+  function substantive(p){return clean(p).length>24&&!/^(?:hi|hey|hello|good (?:morning|afternoon|evening)|marion|are you there|still there)[?.! ]*$/i.test(clean(p));}
+  function interim(r){return /\b(?:give me a breath,? mac|i[’']?ll check it carefully|keep the answer practical|do you want the risk first|do you want the quick read first|do you want the safest next move first|where do you want to go next|keep the reply natural and grounded|tell me what you want to work through)\b/i.test(clean(r));}
+  function reject(base){const x=obj(base);return {...x,ok:false,final:false,marionFinal:false,handled:false,canEmit:false,awaitingMarion:true,reply:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",error:"intermediate_reply_rejected",reason:"intermediate_reply_rejected",failureSignature:"WEAK_FINAL_REJECTED",noUserFacingDiagnostics:true,executionAuthorized:false,replyAuthority:"awaiting_composer_final",hardStopLayer:HARD_STOP_LAYER};}
+  const names=["processWithMarion","route","maybeResolve","ask","handle","default","handleMarionAdminConversation","handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"],cache=new WeakMap();
+  for(const name of names){const fn=api[name];if(typeof fn!=="function")continue;let w=cache.get(fn);if(!w){w=async function(){const args=Array.from(arguments),input=args[0],p=promptOf(input);let out=await fn.apply(this,args);if(substantive(p)&&interim(replyOf(out))){const retryInput={...obj(input),forceSubstantiveAnswer:true,intermediateReplyRejected:true,replyAuthorityRequired:"composer_final"};out=await fn.call(this,retryInput);if(interim(replyOf(out))||!replyOf(out))out=reject(out);}return out;};cache.set(fn,w);}api[name]=w;}
+  api.MARION_REPLY_AUTHORITY_BRIDGE_FINALIZER_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionReplyAuthorityBridgeFinalizerV2=true;
+})();
+/* MARION_REPLY_AUTHORITY_BRIDGE_FINALIZER_V2_END */
