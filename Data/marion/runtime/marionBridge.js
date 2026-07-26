@@ -909,3 +909,37 @@ Object.assign(module.exports,{VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT
   api.__marionNuancePhaseBBridgeIntegrationV1=true;
 })();
 /* MARION_NUANCE_PHASE_B_BridgeIntegration_V1_END */
+
+
+/* MARION_LAYERS_27_28_BRIDGE_COHESION_V1_START */
+(function marionLayers2728BridgeCohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionLayers2728BridgeCohesionV1)return;
+  const VERSION="nyx.marion.layers27_28.bridgeCohesion/1.0";
+  const CONTRACT="nyx.marion.cognitiveSupervision/1.0";
+  const HARD_STOP_LAYER=28;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=1200){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
+  function replyOf(v){const x=obj(v),f=obj(x.finalEnvelope);return clean(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||f.finalReply||f.reply,16000);}
+  function preserve(base,next){const b=obj(base),n=obj(next),reply=replyOf(b);const out={...b,...n};if(reply){out.reply=reply;out.displayReply=clean(b.displayReply||reply,16000);if("visibleReply" in b)out.visibleReply=clean(b.visibleReply||reply,16000);if("directReply" in b)out.directReply=clean(b.directReply||reply,16000);if("finalReply" in b)out.finalReply=clean(b.finalReply||reply,16000);}out.executionAuthorized=false;out.noUserFacingDiagnostics=true;out.cognitiveInternalOnly=true;return out;}
+  let supervisor=null;
+  try{supervisor=require("./supervision/marionCognitiveSupervisor.js");}catch(_){supervisor=null;}
+  async function enhance(result,input){
+    if(!result||typeof result!=="object"||!supervisor||typeof supervisor.supervise!=="function")return result;
+    try{
+      const work=Promise.resolve(supervisor.supervise({baseEnvelope:result,prompt:clean(obj(input).prompt||obj(input).message||obj(obj(input).body).prompt,12000),input:obj(input),supervision:{integrationOnly:true,replyAuthority:"existing_marion",executionAuthorized:false}}));
+      const timeout=new Promise(resolve=>setTimeout(()=>resolve(null),250));
+      const enhanced=await Promise.race([work,timeout]);
+      return enhanced&&typeof enhanced==="object"?preserve(result,enhanced):result;
+    }catch(_){return result;}
+  }
+  const names=["processWithMarion","route","maybeResolve","ask","handle","default","handleMarionAdminConversation","handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"];
+  const cache=new WeakMap();
+  for(const name of names){const original=api[name];if(typeof original!=="function"||original.__marionLayers2728BridgeCohesionV1)continue;let wrapped=cache.get(original);if(!wrapped){wrapped=function(){const args=Array.from(arguments),input=args[0],value=original.apply(this,args);return Promise.resolve(value).then(v=>enhance(v,input));};wrapped.__marionLayers2728BridgeCohesionV1=true;cache.set(original,wrapped);}api[name]=wrapped;}
+  api.getMarionCognitiveCohesionStatus=function(){return{ok:!!supervisor,version:VERSION,contract:CONTRACT,hardStopLayer:HARD_STOP_LAYER,layers:[27,28],composerModified:false,bridgeIntegration:true,replyAuthorityPreserved:true,executionAuthorized:false,failOpen:true,timeoutMs:250};};
+  api.MARION_COGNITIVE_SUPERVISION_CONTRACT=CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionLayers2728BridgeCohesionV1=true;
+})();
+/* MARION_LAYERS_27_28_BRIDGE_COHESION_V1_END */
