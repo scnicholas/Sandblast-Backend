@@ -89,3 +89,24 @@ function reconcileVisibleReply(reply="",flow={}){const f=isObj(flow)?flow:{},cur
 function projectPathway(p={}){const x=isObj(p)?p:{};return {pathwayId:text(x.pathwayId,140),label:text(x.label,160),description:text(x.description,700),mode:text(x.mode,80),alignmentScore:clamp01(x.alignmentScore),riskScore:clamp01(x.riskScore),effortScore:clamp01(x.effortScore),rankScore:clamp01(x.rankScore),reversibility:text(x.reversibility,40),dependenciesSatisfied:x.dependenciesSatisfied!==false,requiresApproval:true,safeToExecute:false,status:text(x.status,60),invalidated:x.invalidated===true,previousRankingsInvalidated:x.previousRankingsInvalidated===true};}
 function projectState(v={}){const x=isObj(v)?v:{};return {version:VERSION,contract:CONTRACT,assessmentId:text(x.assessmentId,140),decisionContext:text(x.decisionContext,900),governingObjective:text(x.governingObjective,700),pathways:(Array.isArray(x.pathways)?x.pathways:[]).slice(0,MAX_PATHWAYS).map(projectPathway),rankedPathwayIds:(Array.isArray(x.rankedPathwayIds)?x.rankedPathwayIds:[]).slice(0,MAX_PATHWAYS).map(v=>text(v,140)),recommendedPathwayId:text(x.recommendedPathwayId,140),selectedPathwayId:text(x.selectedPathwayId,140),approvedPathwayId:text(x.approvedPathwayId,140),invalidatedPathwayIds:(Array.isArray(x.invalidatedPathwayIds)?x.invalidatedPathwayIds:[]).slice(0,12).map(v=>text(v,140)),recommendationReason:text(x.recommendationReason,900),confidence:clamp01(x.confidence),decisionRequired:x.decisionRequired===true,automaticExecutionAllowed:false,safeToExecute:false,status:text(x.status,60),noActionRequired:x.noActionRequired===true,staleRankingsInvalidated:x.staleRankingsInvalidated===true};}
 module.exports={VERSION,CONTRACT,MAX_PATHWAYS,stateSignals,directStrategicQuery,analyze,reconcileVisibleReply,projectPathway,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER17_BOUNDARY_V1_START */
+(function marionNuancePhaseALayer17BoundaryV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer17BoundaryV1)return;
+  const PHASE_A_VERSION="marion.strategicPathwaySynthesizer/17.1-layer17-nuance-boundary";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(result={},nuanceContext={},prompt=""){
+    const base=obj(result),l24=obj(obj(nuanceContext).layer24),state=clean(l24.currentState,60),explicitDecision=/\b(?:choose|select|approve|go with|make the call|decide|recommend)\b/i.test(clean(prompt,6000));
+    if((state==="correction"||state==="clarification"||state==="disagreement")&&!explicitDecision)return {...base,version:PHASE_A_VERSION,decisionRequired:false,shouldAnswerDirectly:false,phaseAInteractionState:state,nuanceCannotSelectPathway:true,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+    return {...base,version:PHASE_A_VERSION,phaseAInteractionState:state,nuanceCannotSelectPathway:true,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+  }
+  const originalAnalyze=api.analyze;
+  api.analyze=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext,source.prompt);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(v.phaseAInteractionState,60),nuanceCannotSelectPathway:true};};
+  api.applyNuance=applyNuance;api.VERSION=PHASE_A_VERSION;api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";api.__marionNuancePhaseALayer17BoundaryV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER17_BOUNDARY_V1_END */
