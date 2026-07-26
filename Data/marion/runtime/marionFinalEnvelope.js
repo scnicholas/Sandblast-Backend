@@ -6228,3 +6228,7 @@ try{
   api.__marionNuancePhaseAFinalEnvelopeIntegrationV2=true;
 })();
 /* MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_INTEGRATION_V2_END */
+
+/* MARION_FINAL_ENVELOPE_PUBLIC_TEXT_LOCK_V2_START */
+(function(){"use strict";const a=module.exports;if(!a||a.__marionFinalEnvelopePublicTextLockV2)return;const V="nyx.marion.finalEnvelopePublicTextLock/2.0",bad=/\b(?:that last turn stalled|taking the clean path|protect the signal|human first, useful next|no (?:system|backend) noise|admin path boundary|route stall|path caught for a second)\b/i;function o(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}function r(v){const x=o(v);return s(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||x.text)}function wrap(f){return function(){const x=f.apply(this,arguments),d=v=>{if(!bad.test(r(v)))return v;const y=o(v);return{...y,ok:false,final:false,marionFinal:false,canEmit:false,reply:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",failureSignature:"DEBUG_LEAK_BLOCKED",error:"public_runtime_narration_blocked",noUserFacingDiagnostics:true,executionAuthorized:false}};return x&&typeof x.then==="function"?x.then(d):d(x)}}for(const n of["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse"]){if(typeof a[n]==="function")a[n]=wrap(a[n])}a.MARION_FINAL_ENVELOPE_PUBLIC_TEXT_LOCK_VERSION=V;a.__marionFinalEnvelopePublicTextLockV2=true})();
+/* MARION_FINAL_ENVELOPE_PUBLIC_TEXT_LOCK_V2_END */
