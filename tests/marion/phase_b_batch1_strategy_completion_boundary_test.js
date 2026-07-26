@@ -1,0 +1,21 @@
+"use strict";
+const path=require("path"),ROOT=path.resolve(__dirname,"../..");
+const B=require(path.join(ROOT,"Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js"));
+const align=require(path.join(ROOT,"Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js"));
+const risk=require(path.join(ROOT,"Data/marion/runtime/strategy/marionPredictiveRiskModel.js"));
+const pathSynth=require(path.join(ROOT,"Data/marion/runtime/strategy/marionStrategicPathwaySynthesizer.js"));
+const close=require(path.join(ROOT,"Data/marion/runtime/completion/marionDecisionClosure.js"));
+function a(x,m){if(!x)throw new Error(m);}
+const input={turnId:"b1-strat",privateAdminConversation:true,message:"Do you really think this is ready?"};
+const b=B.run(input);
+const base={...input,phaseBNuance:b,nuanceContext:b.phaseA};
+const al=align.analyze({...base,previous:{governingObjective:"Preserve runtime integrity"}});
+const r=risk.analyze({...base,alignment:al});
+const p=pathSynth.analyze({...base,alignment:al,risk:r});
+const c=close.analyze({...base,goalRealignment:{activeGoal:"Preserve runtime integrity"},strategicFlow:{objectiveAlignment:al,predictiveRisk:r,pathwaySynthesis:p},outcomeFlow:{commitmentTracking:{openCommitments:[]}}});
+a(al.subtextMayChangeGoverningObjective===false,"objective boundary");
+a(r.subtextCannotReduceRisk===true,"risk boundary");
+a(p.subtextMaySelectPathway===false,"pathway boundary");
+a(c.pragmaticIntentMayAuthorizeClosure===false,"closure boundary");
+a(c.conversationArchitectureHardStop===26,"closure hard stop");
+console.log(JSON.stringify({ok:true,hardStop:c.conversationArchitectureHardStop}));
