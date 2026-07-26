@@ -21,6 +21,8 @@ const finalRenderTelemetryMod = (() => { try { return require("./finalRenderTele
 const DEFAULT_BLOCKED_PHRASES = Object.freeze([
   "i'm here with you",
   "i am here with you",
+  "i'll keep the reply natural and grounded while we deepen the conversation",
+  "where do you want to go next",
   "i blocked a repeated fallback from the bridge",
   "i blocked a repeated fallback",
   "i stopped a repeated fallback",
@@ -78,7 +80,8 @@ const KNOWN_FAILURE_SIGNATURES = Object.freeze([
 ]);
 
 function safeStr(value) {
-  return value == null ? "" : String(value).trim();
+  if (value == null) return "";
+  try { return String(value).trim(); } catch (_) { return ""; }
 }
 
 function safeObj(value) {
@@ -103,7 +106,8 @@ function normalizeText(value) {
 }
 
 function telemetryAuditText(value) {
-  return value == null ? "" : String(value).replace(/\s+/g, " ").trim();
+  if (value == null) return "";
+  try { return String(value).replace(/\s+/g, " ").trim(); } catch (_) { return ""; }
 }
 
 function telemetryAuditObj(value) {
@@ -866,3 +870,15 @@ module.exports.PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_LOOP_GUARD_VERSION=PRI
   }catch(_err){}
 })();
 /* MARION_LAYERS_6_7_8_PART1_END */
+
+
+/* MARION_LAYERS_7_8_PART2_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers78.part2/1.0";
+  let arb=null; try{arb=require("./MarionContextIntentArbiter78.js");}catch(_err){arb=null;}
+  if(!arb||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayers78Part2)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{};const r=fn.apply(this,a);const p=v=>arb.attach(v,i);return r&&typeof r.then==="function"?r.then(p):p(r)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_e){}w.__marionLayers78Part2=true;w.__marionWrappedName=name;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["processWithMarion","composeMarionResponse","compose","buildReply","run","handle","route","default","finalize","normalize","detectLoop","buildFinalEnvelope"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
+})();
+/* MARION_LAYERS_7_8_PART2_END */
