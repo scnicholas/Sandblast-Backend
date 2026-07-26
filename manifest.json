@@ -1,8 +1,8 @@
 {
-  "package": "Marion Completion Flow Layers 18-20 + Admin Runtime Critical Repair",
-  "version": "20.1",
+  "package": "Marion Nuance Phase A Layers 21-24 \u2014 Critical Integration Part 1",
+  "version": "24.1-part1",
   "contract": "nyx.marion.conversationFlow/4.0",
-  "generatedUtc": "2026-07-25T20:39:31.392333+00:00",
+  "generatedUtc": "2026-07-25T22:56:00.361718+00:00",
   "target": {
     "backend": "Sandblast backend",
     "scope": "Marion Layers 1-20 baseline plus cohesive LingoSentinel Layers 1-10 English relay, delivery, integrity, and recovery certification",
@@ -31,7 +31,11 @@
       17,
       18,
       19,
-      20
+      20,
+      21,
+      22,
+      23,
+      24
     ],
     "newCompletionLayers": [
       18,
@@ -39,10 +43,10 @@
       20
     ],
     "newCompletionModuleCount": 4,
-    "hardStopLayer": 20,
+    "hardStopLayer": 24,
     "additionalLayerRecommended": false,
-    "trackedFileCount": 180,
-    "javascriptFileCount": 146,
+    "trackedFileCount": 196,
+    "javascriptFileCount": 159,
     "testRoot": "tests/marion",
     "lingoSentinelLayersCompleted": 12,
     "lingoSentinelNewLayers": [
@@ -58,7 +62,17 @@
     "marionAdminRuntimeCriticalRepairVersion": "2.1",
     "marionAdminRuntimeRegressionChecks": 23,
     "marionAdminRuntimeRegressionChecksPassed": 23,
-    "liveRenderCertificationPending": true
+    "liveRenderCertificationPending": true,
+    "newNuanceLayers": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "newNuanceModuleCount": 8,
+    "phaseAPart1IntegrationFilesUpdated": 16,
+    "phaseAPart1TestsAdded": 5,
+    "phaseAPart1MergePending": true
   },
   "filePaths": [
     "DEPLOYMENT_CHECKLIST_LAYERS_11_12.md",
@@ -241,7 +255,25 @@
     "tests/stubs/node_modules/express/index.js",
     "Data/marion/runtime/marionAdminRuntimeSafety.js",
     "tests/marion/admin_runtime_primitive_guard_regression_test.js",
-    "docs/MARION_ADMIN_RUNTIME_CRITICAL_REPAIR_V2.md"
+    "docs/MARION_ADMIN_RUNTIME_CRITICAL_REPAIR_V2.md",
+    "Data/marion/runtime/nuance/marionConversationalSignalNormalizer.js",
+    "Data/marion/runtime/nuance/marionCulturalCompatibilityBoundary.js",
+    "Data/marion/runtime/nuance/marionEmotionalConfidenceGate.js",
+    "Data/marion/runtime/nuance/marionEmotionalCueDetector.js",
+    "Data/marion/runtime/nuance/marionInteractionStateTracker.js",
+    "Data/marion/runtime/nuance/marionNuanceCarryPolicy.js",
+    "Data/marion/runtime/nuance/marionNuanceEnvelope.js",
+    "Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js",
+    "tests/marion/layers_21_24_core_integration_test.js",
+    "tests/marion/layers_9_24_partial_cohesion_test.js",
+    "tests/marion/layers_21_24_gap_refinement_test.js",
+    "tests/marion/layers_15_17_nuance_boundary_test.js",
+    "tests/marion/verify_phase_a_part1.js",
+    "docs/FRAMEWORK_LAYERS_21_24_PART1.md",
+    "docs/GAP_REFINEMENTS_LAYERS_21_24_PART1.md",
+    "docs/DEPLOYMENT_CHECKLIST_LAYERS_21_24_PART1.md",
+    "tests/marion/LAYERS_21_24_PART1_VALIDATION_RESULTS.json",
+    "PACKAGE_INTEGRITY.json"
   ],
   "files": [
     {
@@ -2353,11 +2385,12 @@
       "rawRuntimePacketExposureRemoved": true
     },
     "preserved": {
-      "marionLayerHardStop": 20,
+      "marionLayerHardStop": 24,
       "replyAuthorityReplaced": false,
       "publicNyxExecutionLaneChanged": false,
       "environmentMigrationRequired": false,
-      "dataSchemaMigrationRequired": false
+      "dataSchemaMigrationRequired": false,
+      "adminRuntimeRepairOriginallyCertifiedAtLayer20": true
     },
     "validationCommand": "npm run verify:marion-critical",
     "liveRenderCertificationRequired": true,
@@ -2366,5 +2399,56 @@
       "sha256": "64fe3f77fb4022ef750713f84c5f36e57522866444d7d848681c16932f36608c",
       "version": "1.0.3-marion-admin-runtime-hardlock-v2.1"
     }
+  },
+  "phaseANuanceIntegrationPart1": {
+    "version": "nyx.marion.nuance.phaseA.integrationPart1/1.0",
+    "contract": "nyx.marion.nuance.phaseA/1.0",
+    "scope": "New Nuance runtime folder plus supplied conversation Layers 9-17, emotion runtime compatibility adapter, index diagnostic boundary, package scripts, manifest, and focused tests.",
+    "layers": {
+      "21": "Conversational signal normalization",
+      "22": "Probabilistic emotional cue detection",
+      "23": "Emotional ambiguity and confidence gate",
+      "24": "Interaction-state tracking"
+    },
+    "criticalRepairs": {
+      "singlePhaseACoordinatorAuthority": true,
+      "currentTurnCorrectionOverride": true,
+      "lowConfidenceEmotionExplicitReferenceBlocked": true,
+      "rawEmotionalEvidenceDurableCarryBlocked": true,
+      "culturalIdentityInferenceBlocked": true,
+      "publicNyxNuanceProjectionBlocked": true,
+      "nuanceCannotAuthorizeStrategicAction": true,
+      "nuanceCannotIncreaseRiskScore": true,
+      "privatePublicPartitionContractPreserved": true,
+      "indexTransportInterpretationBlocked": true,
+      "failOpenToLayers1to20": true
+    },
+    "gapRefinements": [
+      "duplicate emotional authority containment",
+      "interaction-state versus progression conflict reconciliation",
+      "correction turns cannot create commitments or approvals without explicit status language",
+      "clarification turns suppress premature anticipatory guidance",
+      "cultural signals are preserved without cultural interpretation",
+      "Nuance metadata is internal-only and omitted from public Nyx projection",
+      "Phase A state uses bounded TTL and strips raw evidence",
+      "Layers 15-17 treat nuance as response context, never decision or execution authority",
+      "health diagnostics are redacted and index remains diagnostic-only"
+    ],
+    "mergePendingFiles": [
+      "Data/marion/runtime/marionBridge.js",
+      "Data/marion/runtime/composeMarionResponse.js",
+      "Data/marion/runtime/marionCurrentTurnAuthority.js",
+      "Data/marion/runtime/marionFinalEnvelope.js",
+      "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+      "Data/marion/runtime/marionIntentRouter.js",
+      "Utils/chatEngine.js",
+      "Utils/stateSpine.js",
+      "Data/marion/runtime/completion/*",
+      "full Layers 1-24 backend regression suite"
+    ],
+    "deploymentBoundary": "Do not treat Part 1 as final live Phase A certification until the remaining integration files are merged and full backend regression passes.",
+    "validationCommand": "npm run verify:marion-phase-a-part1",
+    "validationStatus": "passed_in_partial_package_fixture",
+    "validationLimit": "Full production certification remains pending until the remaining active-path and Layers 18-20 files are merged."
   }
 }
