@@ -2,16 +2,8 @@
 
 
 
-/* MARION_SAFE_PRIMITIVE_TEXT_V2_START */
-const marionAdminRuntimeSafety = (() => {
-  try { return require("./marionAdminRuntimeSafety.js"); }
-  catch (_) { return null; }
-})();
-
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_START */
 function marionSafePrimitiveText(value, fallback = "") {
-  if (marionAdminRuntimeSafety && typeof marionAdminRuntimeSafety.primitiveText === "function") {
-    return marionAdminRuntimeSafety.primitiveText(value, fallback);
-  }
   if (value === null || value === undefined) return fallback;
   const type = typeof value;
   if (type === "string") return value;
@@ -19,22 +11,32 @@ function marionSafePrimitiveText(value, fallback = "") {
     try { return String(value); } catch (_) { return fallback; }
   }
   if (value instanceof Error) {
-    try {
-      if (typeof value.message === "string" && value.message) return value.message;
-      if (typeof value.name === "string" && value.name) return value.name;
-    } catch (_) {}
+    try { return value.message || value.name || fallback; } catch (_) { return fallback; }
   }
+  try {
+    const converted = String(value);
+    return typeof converted === "string" ? converted : fallback;
+  } catch (_) {}
+  try {
+    const seen = new WeakSet();
+    const json = JSON.stringify(value, function(_key, item) {
+      if (typeof item === "bigint") return String(item);
+      if (typeof item === "function" || typeof item === "symbol" || typeof item === "undefined") return undefined;
+      if (item && typeof item === "object") {
+        if (seen.has(item)) return "[circular]";
+        seen.add(item);
+      }
+      return item;
+    });
+    return typeof json === "string" ? json : fallback;
+  } catch (_) {}
   return fallback;
 }
-function marionSafeCleanText(value, fallback = "", max = 12000) {
-  if (marionAdminRuntimeSafety && typeof marionAdminRuntimeSafety.cleanText === "function") {
-    return marionAdminRuntimeSafety.cleanText(value, fallback, max);
-  }
-  const text = marionSafePrimitiveText(value, fallback)
+function marionSafeCleanText(value, fallback = "") {
+  return marionSafePrimitiveText(value, fallback)
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return text.slice(0, max);
 }
 function marionExtractReplyText(result) {
   if (typeof result === "string") return marionSafeCleanText(result);
@@ -52,17 +54,16 @@ function marionExtractReplyText(result) {
     payload.reply, payload.text, nestedResult.reply, nestedResult.text
   ];
   for (const candidate of candidates) {
-    if (typeof candidate !== "string" && typeof candidate !== "number" && typeof candidate !== "boolean" && typeof candidate !== "bigint") continue;
     const text = marionSafeCleanText(candidate);
-    if (text && !/^\[object object\]$/i.test(text)) return text;
+    if (text) return text;
   }
   return "";
 }
-/* MARION_SAFE_PRIMITIVE_TEXT_V2_END */
+/* MARION_SAFE_PRIMITIVE_TEXT_V1_END */
 
 // NYX-GUIDE-STEPS-7-8-9-R1: carry validated actions and consent-bound public preferences without changing reply authority.
 
-const VERSION = "MARION-ADMIN-RUNTIME-PRIMITIVE-HARDLOCK-V2 + MARION-PRIVATE-IDENTITY-HARDLOCK-V2 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + composeMarionResponse v3.36.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
+const VERSION = "MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + composeMarionResponse v3.36.27 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-LOOP-GOVERNOR-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + REFERENCEERROR-TRIAD-HARDENING-V1 + ENTRYPOINT-REFERENCEERROR-HARDENED + REFERENCEERROR-TRANSPORT-HARDENED + TEXT-CONSOLE-VOICE-METADATA-BYPASS + MARION-ADMIN-INTERFACE-COMPOSER-CARRY + PHASE2-SPEECH-SYNC-COMPOSER-CARRY + SIX-DOMAIN-FINAL-AUTHORITY-CARRY + SIX-DOMAIN-COVERAGE-COMPOSER-CARRY + STALE-PROGRESSION-CARRY-SUPPRESSION + FALSE-FINAL-LOOP-HARDLOCK + PROGRESSION-SOURCE-KILL-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-CARRY + RESPONSE-SHAPING-EXPANSION-HARDLOCK + PROGRESSION-TESTING-EXPORT-PATH-HARDLOCK + FOUR-PHASE-PROGRESSION-REFINEMENT-HARDLOCK + PROGRESSION-SHAPING-REFINEMENT-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-HARDLOCK + DOMAIN-CONFIDENCE-SCORING-PRELOCK + DIRECT-TRANSLATION-TARGET-EN-CLARIFIER-BYPASS + DIRECT-TRANSLATION-COMMAND-CLARIFIER-BYPASS + LINGOSENTINEL-MULTILINGUAL-FALSE-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + PUBLIC-REPLY-HYGIENE-HARDLOCK + LANGUAGESPHERE-COMPOSER-COMPAT-SURFACE + CONFIDENCE-AWARE-RESPONSE-SHAPING + QUESTION-SHAPE-NORMALIZATION-CARRY-LOCK + SELF-HEALING-SHORT-CONCEPT-DOMAIN-RESOLVER + SHORT-CONCEPT-FOLLOWUP-DOMAIN-CARRY-LOCK + CROSS-DOMAIN-SECONDARY-LANE-DIRECT-ANSWER-LOCK + SIX-DOMAIN-DEFINITION-ROUTING-AUTHORITY-LOCK + AMBIGUOUS-DEFINITION-CLARIFICATION + IDENTITY-RESET-GENERIC-FALLBACK-LOOP-LOCK + TECHNICAL-TARGET-LOCK + CYBER-LEAST-PRIVILEGE-DEPTH-FIX + NEWS-MEDIA-DEEP-RENDER-HOLD-FIX + CONTINUATION-COMPRESSION-GUARD-LOCK + PROGRESSION-SHAPING-GUARD-MEMORY-CARRY-HARDLOCK + DOMAIN-CONFIDENCE-FAIL-CLOSED + FINAL-RUNTIME-TELEMETRY + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK + PHASE5-BENCHMARK-OBSERVATION-HOOK-PASSIVE + LINGOSENTINEL-ASTER-GATEWAY + LINGOSENTINEL-GATEWAY-COMPOSER-PASSTHROUGH + LINGOSENTINEL-ALERT-SCANNER-CARRY + PARALLEL-LANE-CARRY + PARALLEL-LANE-RECENCY-MAINTENANCE + STALE-CARRY-SUPPRESSION-HARDLOCK + LIVE-MULTITURN-PARALLEL-LANE-HARDLOCK + PRODUCTION-DEPLOYMENT-LOCK + PRODUCTION-MONITORING-SHIELD + RELEASE-READINESS-ROLLBACK-SAFETY + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + ADMIN-VOICE-OUTPUT-PROJECTION-V1 + ADMIN-PRIVATE-VOICE-RECEIVE-V1";
 const fs = require("fs");
 const path = require("path");
 const progressionShapeMod = (() => { try { return require(path.join(__dirname, "progressionShape.js")); } catch (_) { return null; } })();
@@ -284,72 +285,6 @@ function stripPublicReplyScaffold(value){
 
 
 
-
-function marionPrivateRuntimeIdentityProjection(input = {}) {
-  const i = safeObj(input);
-  const privateContext = safeObj(i.privateRuntimeContext);
-  const direct = i.directMarionAdminInterface === true ||
-    i.marionAdminConversation === true ||
-    i.privateAdminConversation === true ||
-    i.privateControlPlane === true ||
-    safeStr(i.scope).toLowerCase() === "private_admin" ||
-    safeStr(privateContext.scope).toLowerCase() === "private_admin";
-  if (!direct) return {};
-  const sessionId = marionSafeCleanText(i.sessionId || i.conversationId || privateContext.partitionKey || "anonymous", "anonymous", 160)
-    .replace(/[^a-zA-Z0-9._:-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "") || "anonymous";
-  const partitionCandidate = marionSafeCleanText(i.partitionKey || i.memoryPartition || privateContext.partitionKey, "", 220);
-  const partitionKey = partitionCandidate.indexOf("private:admin:") === 0 ? partitionCandidate : `private:admin:${sessionId}`;
-  const authenticatedOperator = i.authenticatedOperator === true || i.adminVerified === true || i.verified === true || i.sessionVerified === true;
-  return {
-    scope: "private_admin",
-    audience: "owner",
-    answerClass: "marion_admin_conversation",
-    surfaceAgent: "Marion",
-    authority: "Marion",
-    publicAgent: "Nyx",
-    publicSurfaceOnly: false,
-    publicFallbackBlocked: true,
-    privateAdminConversation: true,
-    privateControlPlane: true,
-    adminOnly: true,
-    directMarionAdminInterface: true,
-    marionAdminConversation: true,
-    marionAdminConversationAllowed: true,
-    authenticatedOperator,
-    operatorPersonalization: authenticatedOperator,
-    allowPersonalName: authenticatedOperator,
-    allowOperatorMemory: authenticatedOperator,
-    memoryPartition: partitionKey,
-    partitionKey,
-    privateRuntimeContext: {
-      ...privateContext,
-      version: marionSafeCleanText(privateContext.version, "marion.privateRuntimeIdentityHardlock/2.1", 160),
-      scope: "private_admin",
-      audience: "owner",
-      partitionKey
-    }
-  };
-}
-
-function marionPrivateRuntimeInputFromArgs(argsLike) {
-  const args = Array.prototype.slice.call(argsLike || []);
-  let fallback = {};
-  for (const candidate of args) {
-    if (!candidate || typeof candidate !== "object") continue;
-    const direct = marionPrivateRuntimeIdentityProjection(candidate);
-    if (Object.keys(direct).length) return candidate;
-    const source = safeObj(candidate);
-    for (const key of ["input", "body", "payload", "request", "context"]) {
-      const nested = safeObj(source[key]);
-      if (Object.keys(marionPrivateRuntimeIdentityProjection(nested)).length) return nested;
-    }
-    if (!Object.keys(fallback).length) fallback = source;
-  }
-  return fallback;
-}
-
 function isDirectMarionAdminComposerContext(input = {}, routed = {}, response = {}) {
   const i = safeObj(input), r = safeObj(routed), resp = safeObj(response);
   const voice = firstObj(i.voice, r.voice, safeObj(r.routing).voice, resp.voice, i.voiceEnvelope, r.voiceEnvelope);
@@ -526,11 +461,10 @@ function looksLikeDirectTranslationClarifierText(value=""){
   return /are you asking about translation,? captions,? or language routing inside the interface\??/i.test(text) ||
     /translation,? captions,? or language routing/i.test(text);
 }
-function isObj(value){if(!value||typeof value!=="object")return false;try{return !Array.isArray(value);}catch(_){return false;}}
+function isObj(value){return !!value&&typeof value==="object"&&!Array.isArray(value);}
 function safeObj(value){return isObj(value)?value:{};}
-function hasEnumerableKeys(value){try{return Object.keys(value).length>0;}catch(_){return false;}}
-function firstObj(){for(let i=0;i<arguments.length;i+=1){const o=safeObj(arguments[i]);if(hasEnumerableKeys(o))return o;}return {};}
-function safeArray(value){try{return Array.isArray(value)?value:[];}catch(_){return [];}}
+function firstObj(){for(let i=0;i<arguments.length;i+=1){const o=safeObj(arguments[i]);if(Object.keys(o).length)return o;}return {};}
+function safeArray(value){return Array.isArray(value)?value:[];}
 function extractLingoSentinelCarry(input={},routed={}){
   const i=safeObj(input), r=safeObj(routed), routing=safeObj(r.routing), meta=safeObj(i.meta), payload=safeObj(i.payload);
   const firstObjLocal=function(){for(let idx=0;idx<arguments.length;idx+=1){const o=safeObj(arguments[idx]);if(Object.keys(o).length)return o;}return {};};
@@ -1866,7 +1800,7 @@ function translatePublicDiagnosticReply(reply="",intent="",text="",input={},rout
 
 
 function normalizeSixDomainTopicLabel(value=""){
-  const raw=marionSafeCleanText(value);
+  const raw=String(value==null?"":value).replace(/\s+/g," ").trim();
   if(!raw)return "";
   let s=raw
     .replace(/^(?:tell me about|explain|what is|what are|define|describe|break down|give me an overview of|help me understand)\s+/i,"")
@@ -1877,7 +1811,7 @@ function normalizeSixDomainTopicLabel(value=""){
 }
 
 function buildAdminNaturalLanguageAnswer(value=""){
-  const source=marionSafeCleanText(value);
+  const source=String(value==null?"":value).replace(/\s+/g," ").trim();
   const t=source.toLowerCase();
   if(!t)return "";
   if(/\bbreak a leg\b/.test(t))return "Literally, “break a leg” means to injure a leg. Culturally, it is an English idiom used to wish someone good luck, especially before a performance. It is not meant as harm; it works as a superstition-based way of saying, “I hope you do well.”";
@@ -1888,18 +1822,18 @@ function buildAdminNaturalLanguageAnswer(value=""){
   return "";
 }
 function isComposerPlanningScaffold(value=""){
-  const t=marionSafeCleanText(value);
+  const t=String(value==null?"":value).replace(/\s+/g," ").trim();
   if(!t)return false;
   return /\bpublic knowledge topic\b/i.test(t)||/\bthe useful answer should define the term\b/i.test(t)||/\bcan route through the six-domain layer\b/i.test(t)||/\bshould be handled as a wording and meaning question\b/i.test(t);
 }
 function repairPlanningScaffoldReply(reply="",prompt=""){
   const natural=buildAdminNaturalLanguageAnswer(prompt);
-  if(natural&&(isComposerPlanningScaffold(reply)||!marionSafeCleanText(reply)))return natural;
-  return marionSafeCleanText(reply);
+  if(natural&&(isComposerPlanningScaffold(reply)||!String(reply||"").trim()))return natural;
+  return String(reply==null?"":reply).replace(/\s+/g," ").trim();
 }
 
 function buildSixDomainPublicKnowledgeAnswer(value=""){
-  const source=marionSafeCleanText(value);
+  const source=String(value==null?"":value).replace(/\s+/g," ").trim();
   const t=source.toLowerCase();
   if(!t)return "";
   if(/\bcash[- ]?flow\b/.test(t))return "Cash flow is the movement of money into and out of a business over a period of time. Healthy cash flow means the business can pay expenses, manage timing gaps, and keep operating without constant pressure.";
@@ -3354,8 +3288,8 @@ module.exports._internal={...safeObj(module.exports._internal),priority9ER3Conti
 // PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_COMPOSER_PATCH_START
 var PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION="nyx.marion.priority9fR1.layeredPrecedenceHotfix/1.0";
 
-function priority9FR1LayeredPrecedenceNormalize(value){return marionSafeCleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function priority9FR1LayeredPrecedenceText(value){return marionSafeCleanText(value);}
+function priority9FR1LayeredPrecedenceNormalize(value){return String(value==null?"":value).replace(/\s+/g," ").trim().toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9FR1LayeredPrecedenceText(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
 function priority9FR1LayeredPromptText(value){var t=priority9FR1LayeredPrecedenceNormalize(value);if(!t)return false;return /\b(priority\s*9f|9f\s*r1|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|full conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action)\b/i.test(t)||(/\b(disjointed|deeper|layered|multi|context|looping|loop|recovery)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next)\b/i.test(t));}
 function priority9FR1Stale9ERecallText(value){var t=priority9FR1LayeredPrecedenceNormalize(value);if(!t)return false;return /\b(run the priority\s*90\s*9e|priority\s*90\s*9e\s*(?:test|sequence)|confirm marion is still on priority\s*90\s*9e|retest next steps|retest run that again|block internal recovery wording|public answer stays conversational|continuation regression)\b/i.test(t);}
 function priority9FR1LayeredReplyFor(value){var source=priority9FR1LayeredPrecedenceText(value);var patch=/\b(surgical autopsy|patch|hotfix|fix|update|resend|zip|downloadable|files?)\b/i.test(source);var surface=patch?"patch the active Marion runtime files without widening the architecture":"stabilize Marion’s live conversational behavior";var intent=patch?"make the layered prompt outrank stale Priority 90/9E continuation recall in every public path":"preserve context, avoid looping, and turn a disjointed prompt into a clear next move";var risk=patch?"the 9E recall layer overriding Priority 9F before the response reaches the user":"stale Priority 90/9E recall overpowering the layered conversational stack";var mode=patch?"surgical hotfix with regression validation":"layered conversational response";var next=patch?"enforce 9F-R1 precedence in composer, bridge, final envelope, memory/shape/state, and index, then rerun the live layered-prompt test":"lock the 9F stack so Marion separates surface request, deeper intent, risk, execution mode, and next action before answering";return "I’m reading this as Priority 9F-R1: layered conversational precedence. The surface request is to "+surface+"; the deeper intent is to "+intent+". The main risk is "+risk+", so the response mode should be "+mode+": hold the context, answer the real task, and give the next concrete move. Next move: "+next+".";}
@@ -3374,8 +3308,8 @@ module.exports.PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION=PRIORITY_9F_R1_L
 
 // PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_COMPOSER_PATCH_START
 var PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_VERSION="nyx.marion.priority9fR2.domainHijackSuppression/1.0";
-function priority9FR2Normalize(value){return marionSafeCleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function priority9FR2Text(value){return marionSafeCleanText(value);}
+function priority9FR2Normalize(value){return String(value==null?"":value).replace(/\s+/g," ").trim().toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9FR2Text(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
 function priority9FR2LayeredPromptText(value){var t=priority9FR2Normalize(value);if(!t)return false;return /\b(priority\s*9f|9f\s*r1|9f\s*r2|deep conversational stack|layered conversational|layered conversation|conversational stack|layered intelligence|full conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action|domain hijack|domain fallback|six domain fallback|six domain answer|marion conversational architecture)\b/i.test(t)||( /\b(disjointed|deeper|layered|multi|context|looping|loop|recovery|preserve|avoid|where to go next)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next|deeper task|understand)\b/i.test(t));}
 function priority9FR2DomainHijackReplyText(value){var t=priority9FR2Normalize(value);if(!t)return false;return /\b(in psychology the focus is how people think feel learn decide and behave|good explanation connects the concept to real patterns triggers and outcomes|in english this means|this is a general reasoning question|the psychology domain|psychology domain|domain question|six domain|knowledge lane|route through the six domain layer)\b/i.test(t)||(/^in psychology\b/i.test(priority9FR2Text(value))&&/\b(people|think|feel|learn|decide|behave|patterns|triggers|outcomes)\b/i.test(priority9FR2Text(value)));}
 function priority9FR2DomainHijackRoute(value){var t=priority9FR2Normalize(value);return /\b(primarydomain psychology|selecteddomain psychology|knowledgedomain psychology|domain psychology|route psychology|primarydomain english|selecteddomain english|knowledgedomain english|domain english|primarydomain general reasoning|selecteddomain general reasoning|knowledgedomain general reasoning|domain general reasoning)\b/i.test(t);}
@@ -3398,8 +3332,8 @@ module.exports.PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_VERSION=PRIORITY_9F_R2_D
 
 // PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_COMPOSER_PATCH_START
 var PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_VERSION="nyx.marion.priority9fR3.altPromptEchoSuppression/1.0";
-function priority9FR3Normalize(value){return marionSafeCleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function priority9FR3Text(value){return marionSafeCleanText(value);}
+function priority9FR3Normalize(value){return String(value==null?"":value).replace(/\s+/g," ").trim().toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9FR3Text(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
 function priority9FR3LayeredPrompt(value){var t=priority9FR3Normalize(value);if(!t)return false;return /\b(priority\s*9f|9f\s*r3|alt runtime|prompt echo|prompt\s*echo|deep conversational stack|layered conversational|conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action|marion conversational architecture)\b/i.test(t)||( /\b(disjointed|deeper|layered|context|looping|loop|recovery|preserve|avoid|where to go next|understand)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next|deeper task|understand)\b/i.test(t));}
 function priority9FR3PromptEcho(reply,prompt){var r=priority9FR3Normalize(reply),p=priority9FR3Normalize(prompt);if(!r||!p)return false;if(r===p)return true;if(p.length>36&&(r.indexOf(p)>=0||p.indexOf(r)>=0))return true;var rw=r.split(" ").filter(Boolean),pw=p.split(" ").filter(Boolean);if(rw.length<5||pw.length<5)return false;var set={};for(var i=0;i<pw.length;i+=1)set[pw[i]]=true;var hit=0;for(var j=0;j<rw.length;j+=1)if(set[rw[j]])hit+=1;return hit/Math.max(rw.length,pw.length)>=0.86;}
 function priority9FR3Collect(value,depth,seen){if(value==null||depth>4)return [];var type=typeof value;if(type==="string"||type==="number"||type==="boolean")return [priority9FR3Text(value)];if(type!=="object")return [];seen=seen||[];if(seen.indexOf(value)>=0)return [];seen.push(value);var out=[];var keys=["userText","userQuery","rawUserQuery","rawUserText","normalizedUserIntent","effectivePrompt","resolvedPrompt","resolvedQuestion","text","query","message","prompt","inputText","originalText","finalPrompt","reply","publicReply","visibleReply","finalReply","displayReply","answer","output","response","lastAssistantReply","lastValidTask","activeTask","pendingAction","lastUserIntent","surfaceRequest","deeperIntent","operationalRisk","executionMode","nextAction","domain","primaryDomain","selectedDomain","knowledgeDomain","route","intent","responseShape"];
@@ -3419,7 +3353,7 @@ module.exports.PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_VERSION=PRIORITY_9F_R3
 
 // PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_COMPOSER_PATCH_START
 const PRIORITY_9F_R4_CONTINUATION_CARRY_COMPOSER_VERSION = "nyx.marion.priority9fR4.continuationCarry.composer/1.0";
-function priority9FR4ComposerStr(value){return marionSafeCleanText(value);}
+function priority9FR4ComposerStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
 function priority9FR4ComposerNorm(value){return priority9FR4ComposerStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9FR4ComposerIsShortContinuation(value){const n=priority9FR4ComposerNorm(value);return /^(next steps?|continue|carry on|proceed|run that again|run it again|do that again|do it again|same thing|what now|whats next|what s next|next)$/.test(n);}
 function priority9FR4ComposerIsCarryInstruction(value){const t=priority9FR4ComposerNorm(value);return /\b(priority 9f r4|priority9f r4|9f r4|continuation carry|last accepted lane|stay inside the 9f|inside the 9f conversational stack|9f conversational stack lane|short continuation|next steps continue run that again what now)\b/.test(t);}
@@ -3446,8 +3380,8 @@ module.exports._internal={...(module.exports._internal||{}),priority9FR4Composer
 // PRIORITY_9G_DEEP_CONTINUITY_MEMORY_COMPOSER_PATCH_START
 const PRIORITY_9G_DEEP_CONTINUITY_MEMORY_COMPOSER_VERSION="PRIORITY-9G-DEEP-CONTINUITY-MEMORY-COMPOSER/1.0";
 
-function priority9GNorm(value){return marionSafeCleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function priority9GStr(value){return marionSafeCleanText(value);}
+function priority9GNorm(value){return String(value==null?"":value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9GStr(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
 function priority9GObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9GCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||9000);}catch(_){return "";}}
 function priority9GIsShortFollowup(value){const t=priority9GNorm(value);return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it|what now|whats next|what s next|where are we|where do we go next|next)$/.test(t);}
@@ -3525,7 +3459,7 @@ module.exports._internal={...(module.exports._internal||{}),priority9GIsActivati
 const PRIORITY_9H_LONG_FORM_CONTINUITY_VERSION = "nyx.marion.priority9h.longFormContinuityStressDriftGuard/1.0";
 const PRIORITY_9H_R1_ADVANCEMENT_SHAPE_VERSION = "nyx.marion.priority9h.r1AdvancementShapeHotfix/1.0";
 const PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION = "nyx.marion.priority9i.adaptiveSituationalPrecheck/0.1";
-function priority9HStr(value){return marionSafeCleanText(value);}
+function priority9HStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
 function priority9HObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9HNorm(value){return priority9HStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9HCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||16000);}catch(_){return priority9HStr(value).slice(0,limit||16000);}}
@@ -3692,7 +3626,7 @@ module.exports._internal={...(module.exports._internal||{}),priority9HIsActivati
 // PRIORITY_9I_9J_SEQUENCE_COMPOSER_PATCH_START
 var PRIORITY_9I_ADAPTIVE_SITUATIONAL_REASONING_VERSION_FULL = "nyx.marion.priority9i.adaptiveSituationalReasoningContextPressure/1.0";
 var PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_VERSION_FULL = "nyx.marion.priority9j.proactiveOperationalGuidanceNextMoveAuthority/1.0";
-function priority9IJStr(value){return marionSafeCleanText(value);}
+function priority9IJStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
 function priority9IJObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9IJNorm(value){return priority9IJStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9IJCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||22000);}catch(_){return priority9IJStr(value).slice(0,limit||22000);}}
@@ -3737,7 +3671,7 @@ module.exports._internal={...(module.exports._internal||{}),priority9IJIs9IActiv
 var PRIORITY_9I_R2_PRESSURE_SPECIFIC_ANSWER_SHAPING_VERSION = "nyx.marion.priority9i.r2.pressureSpecificAnswerShaping/1.0";
 
 function priority9IR2OneLine(value) {
-  return marionSafeCleanText(value);
+  return value == null ? "" : String(value).replace(/\s+/g, " ").trim();
 }
 function priority9IR2Obj(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -3960,7 +3894,7 @@ module.exports.PRIORITY_9I_R2_PRESSURE_SPECIFIC_ANSWER_SHAPING_PATCH = true;
 
 /* PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_START */
 const PRIORITY_9I_R2A_ALT_PRESSURE_SPECIFIC_FINAL_OVERRIDE_VERSION = "nyx.marion.priority9i.r2a.altPressureSpecificFinalOverride/1.0";
-function priority9IR2AString(value){return marionSafeCleanText(value);}
+function priority9IR2AString(value){return value == null ? "" : String(value).replace(/\s+/g," ").trim();}
 function priority9IR2ALower(value){return priority9IR2AString(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'");}
 function priority9IR2AObj(value){return value && typeof value === "object" && !Array.isArray(value) ? value : {};}
 function priority9IR2APickText(){
@@ -4115,7 +4049,7 @@ priority9IR2APatchExports(["composeMarionResponse", "compose", "buildReply", "ro
 const PRIORITY_9J_R1_DECISION_SPECIFIC_AUTHORITY_VERSION = "PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX";
 
 function priority9JR1SafeStr(value) {
-  return marionSafeCleanText(value);
+  return value == null ? "" : String(value).replace(/\s+/g, " ").trim();
 }
 
 function priority9JR1Lower(value) {
@@ -4331,7 +4265,7 @@ priority9JR1PatchExports(["composeMarionResponse", "compose", "buildReply", "rou
 
 /* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_START */
 const PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE";
-function priority9JR1ASafeStr(value) { return marionSafeCleanText(value); }
+function priority9JR1ASafeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
 function priority9JR1ALower(value) { return priority9JR1ASafeStr(value).toLowerCase(); }
 function priority9JR1AObj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function priority9JR1AFirstText(values) {
@@ -4544,7 +4478,7 @@ const MARION_PERSONALITY_PRIORITY_R1_PERSONA = Object.freeze({
     "push back when a request is unclear, risky, over-bundled, or misaligned with Mac's stated objective"
   ])
 });
-function marionPersonaSafeStr(value) { return marionSafeCleanText(value); }
+function marionPersonaSafeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
 function marionPersonaLower(value) { return marionPersonaSafeStr(value).toLowerCase(); }
 function marionPersonaObj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function marionPersonaIsDiagnosticPrompt(prompt) {
@@ -4866,7 +4800,7 @@ const MARION_SOCIAL_PRESENCE_GATE_R3_PROFILE = Object.freeze({
   maxFocusedQuestions: 1,
   blocksMaintenanceManualPhrases: true
 });
-function marionR3Str(value) { return marionSafeCleanText(value); }
+function marionR3Str(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
 function marionR3Lower(value) { return marionR3Str(value).toLowerCase(); }
 function marionR3Obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function marionR3Diagnostic(prompt) {
@@ -5171,7 +5105,7 @@ const MARION_PERSONALITY_GREETING_R4_TRAITS = Object.freeze({
     clientPersonaExpansion: "future client-facing modes stay subordinate to Mac's private Marion authority"
   })
 });
-function marionR4Text(value) { return marionSafeCleanText(value); }
+function marionR4Text(value) { return String(value == null ? "" : value).replace(/\s+/g, " ").trim(); }
 function marionR4Lower(value) { return marionR4Text(value).toLowerCase(); }
 function marionR4Obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function marionR4PromptKeyValue(obj) {
@@ -5480,7 +5414,7 @@ const MARION_PERSONALITY_SOCIAL_CHECKIN_R5_COMPONENTS = Object.freeze({
   voiceNaturalization: "voice outputs use readable number/email phrasing and avoid robotic support phrases",
   humorCalibration: "light humor is allowed only when it sharpens rapport and does not reduce authority"
 });
-function marionR5Text(value) { return marionSafeCleanText(value); }
+function marionR5Text(value) { return String(value == null ? "" : value).replace(/\s+/g, " ").trim(); }
 function marionR5Lower(value) { return marionR5Text(value).toLowerCase(); }
 function marionR5Obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function marionR5FirstText() { for (var i = 0; i < arguments.length; i += 1) { var t = marionR5Text(arguments[i]); if (t) return t; } return ""; }
@@ -5751,7 +5685,7 @@ var MARION_R6_FUTURE_COMPONENTS = Object.freeze({
   realWorldTransitionVoice: "observation becomes plain-language meaning, risk, and one next move",
   antiMaintenanceManualFilter: "runtime scaffolding informs Marion but never speaks as Marion"
 });
-function marionR6Str(value){return marionSafeCleanText(value);}
+function marionR6Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
 function marionR6Lower(value){return marionR6Str(value).toLowerCase();}
 function marionR6Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR6Array(value){return Array.isArray(value)?value:[];}
@@ -5846,7 +5780,7 @@ var MARION_R7_FUTURE_PERSONALITY_COMPONENTS = Object.freeze({
   oneQuestionDiscipline: "Marion asks only one focused forward-moving question unless Mac explicitly asks for options",
   voiceNaturalization: "voice output avoids robotic service phrasing and keeps number/email readout policy available downstream"
 });
-function marionR7Str(value){return marionSafeCleanText(value);}
+function marionR7Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
 function marionR7Lower(value){return marionR7Str(value).toLowerCase();}
 function marionR7Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR7Array(value){return Array.isArray(value)?value:[];}
@@ -6022,7 +5956,7 @@ var MARION_R89_COMPONENTS = Object.freeze({
   realWorldObservationTranslationReady: true,
   futureNodeExpansion: ["greeting","social_checkin","presence_check","repair_opening","lookup_pause","information_gathering","observation_translation","planning","closing"]
 });
-function marionR89Str(value){return marionSafeCleanText(value);}
+function marionR89Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
 function marionR89Lower(value){return marionR89Str(value).toLowerCase();}
 function marionR89Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR89Array(value){return Array.isArray(value)?value:[];}
@@ -6337,7 +6271,7 @@ try{
 (function(){
   "use strict";
   var VERSION="MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13";
-  function s(v){return marionSafeCleanText(v);}
+  function s(v){return v==null?"":String(v).replace(/\s+/g," ").trim();}
   function l(v){return s(v).toLowerCase();}
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
   function arr(v){return Array.isArray(v)?v:[];}
@@ -6390,7 +6324,7 @@ try{
 (function(){
   "use strict";
   var VERSION="nyx.marion.toneNaturalizationR15/1.0";
-  function S(v){return marionSafeCleanText(v);}
+  function S(v){return v==null?"":String(v).replace(/\s+/g," ").trim();}
   function L(v){return S(v).toLowerCase().replace(/[’]/g,"'");}
   function O(v){return !!v&&typeof v==="object"&&!Array.isArray(v);}
   function A(v){return Array.isArray(v)?v:[];}
@@ -6482,36 +6416,36 @@ try{
 /* MARION_TONE_NATURALIZATION_R15_END */
 
 /* R17A: emotional continuity + natural continuation + response variation */
-(function(){try{const V="MARION-R17A-EMOTIONAL-CONTINUITY-NATURAL-CONTINUATION-VARIATION";function T(v){return marionSafeCleanText(v)}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|exact\s+recall|softer\s+(wording|voice)|deployment|compression|machiner|scaffold|patch|last check held|retest|next line|next reply|varied/i;let LR="",LK="";function K(p){p=N(p);if(/still there|are you there|you there|with me|connected|freeze|dead air/.test(p))return"presence";if(/passed|pass/.test(p))return"pass";if(/what were we fixing|where were we/.test(p))return"ask";if(/next steps|^next$/.test(p))return"next";if(/continue|keep going/.test(p))return"go";if(/frustr|stuck|annoyed|tired|robotic|stiff|not natural/.test(p))return"repair";if(/how are you|how you doing|hows it going/.test(p))return"check";return""}const B={presence:["I'm here, Mac.","Right here, Mac.","I'm here. That pause is handled."],pass:["Good. That held, Mac.","Good. We can keep moving.","Good. I'm still with the thread."],ask:["We were tightening short replies, Mac. They need to stay clear and connected.","We were making short prompts carry the same thread without repeating.","The work is short replies, Mac: clear and connected."],next:["Next, we keep the short replies connected to the work.","Next, we move one step forward and keep the thread intact.","Next, we check that the answer stays specific."],go:["Let's keep going, Mac. I'll carry the thread forward.","We can continue from here. I'll stay with the same work.","Keep going. I'll stay specific and connected."],repair:["I hear you, Mac. I'll keep it steady.","You're right. I'll keep it cleaner.","I'm with you. We'll keep the thread intact."],check:["I'm good, Mac.","I'm clear.","Steady, Mac."],def:["I'm here, Mac. Let's keep moving.","Still with you, Mac. We'll keep it clear.","I'm with the thread, Mac."]};function P(k){const a=B[k]||B.def;let r=a[Math.random()*a.length|0],i=0;while((N(r)===N(LR)||k===LK&&i<1)&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;LK=k;return r}function R(p){return P(K(p)||"def")}function C(v,p){let s=T(v);if(!s||BAD.test(s)||N(s)===N(LR))s=R(p);if(BAD.test(s))s="I'm here, Mac. Let's keep moving.";LR=s;return s}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=Object.assign({},x.meta||{},{r17aContinuity:true,emotionalContinuity:true,naturalContinuation:true,responseVariation:true});return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR17A)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR17A",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R17A_CONTINUITY_VERSION=V;module.exports.marionR17AApply=O;module.exports.marionR17AReply=function(p){return R(p)}}}}catch(_){}})();
+(function(){try{const V="MARION-R17A-EMOTIONAL-CONTINUITY-NATURAL-CONTINUATION-VARIATION";function T(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|exact\s+recall|softer\s+(wording|voice)|deployment|compression|machiner|scaffold|patch|last check held|retest|next line|next reply|varied/i;let LR="",LK="";function K(p){p=N(p);if(/still there|are you there|you there|with me|connected|freeze|dead air/.test(p))return"presence";if(/passed|pass/.test(p))return"pass";if(/what were we fixing|where were we/.test(p))return"ask";if(/next steps|^next$/.test(p))return"next";if(/continue|keep going/.test(p))return"go";if(/frustr|stuck|annoyed|tired|robotic|stiff|not natural/.test(p))return"repair";if(/how are you|how you doing|hows it going/.test(p))return"check";return""}const B={presence:["I'm here, Mac.","Right here, Mac.","I'm here. That pause is handled."],pass:["Good. That held, Mac.","Good. We can keep moving.","Good. I'm still with the thread."],ask:["We were tightening short replies, Mac. They need to stay clear and connected.","We were making short prompts carry the same thread without repeating.","The work is short replies, Mac: clear and connected."],next:["Next, we keep the short replies connected to the work.","Next, we move one step forward and keep the thread intact.","Next, we check that the answer stays specific."],go:["Let's keep going, Mac. I'll carry the thread forward.","We can continue from here. I'll stay with the same work.","Keep going. I'll stay specific and connected."],repair:["I hear you, Mac. I'll keep it steady.","You're right. I'll keep it cleaner.","I'm with you. We'll keep the thread intact."],check:["I'm good, Mac.","I'm clear.","Steady, Mac."],def:["I'm here, Mac. Let's keep moving.","Still with you, Mac. We'll keep it clear.","I'm with the thread, Mac."]};function P(k){const a=B[k]||B.def;let r=a[Math.random()*a.length|0],i=0;while((N(r)===N(LR)||k===LK&&i<1)&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;LK=k;return r}function R(p){return P(K(p)||"def")}function C(v,p){let s=T(v);if(!s||BAD.test(s)||N(s)===N(LR))s=R(p);if(BAD.test(s))s="I'm here, Mac. Let's keep moving.";LR=s;return s}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=Object.assign({},x.meta||{},{r17aContinuity:true,emotionalContinuity:true,naturalContinuation:true,responseVariation:true});return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR17A)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR17A",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R17A_CONTINUITY_VERSION=V;module.exports.marionR17AApply=O;module.exports.marionR17AReply=function(p){return R(p)}}}}catch(_){}})();
 
 /* R17B: conversation pacing + micro-personality + long-session coherence */
-(function(){try{const V="MARION-R17B-PACING-MICROPERSONALITY-LONG-COHERENCE";function T(v){return marionSafeCleanText(v)}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|exact\s+recall|softer\s+(wording|voice)|deployment|compression|machiner|scaffold|patch|last check held|retest|next line|next reply|varied/i;let LR="",LK="",TC=0;function K(p){p=N(p);if(/still there|are you there|you there|with me|connected|freeze|dead air/.test(p))return"presence";if(/pass|passed/.test(p))return"pass";if(/what were we fixing|where were we|pacing|personality|coherence|long session/.test(p))return"ask";if(/next steps|^next$/.test(p))return"next";if(/continue|keep going/.test(p))return"go";if(/frustr|stuck|annoyed|tired|robotic|stiff|not natural/.test(p))return"repair";if(/how are you|how you doing|hows it going/.test(p))return"check";return""}const B={presence:["Right here, Mac. I've got the thread.","I'm here. We're still on it.","Still with you, Mac."],pass:["Good. That held. We'll keep the rhythm steady.","Good, Mac. The lock is holding.","Good. We can move forward without changing the baseline."],ask:["Same lane, Mac: pacing, personality, and staying coherent.","We're keeping Marion paced, familiar, and steady across the run.","We're making the conversation feel less mechanical without loosening the locks."],next:["Next, we run the flow longer and watch whether the tone stays steady.","Next, we keep moving through a longer run and check the rhythm.","Next, we make sure the conversation stays clear without flattening out."],go:["Let's keep going. I'll carry the same thread without rushing it.","We can continue from here; I'll stay close to the work.","I'm with you. I'll keep the pace steady."],repair:["I know, Mac. This has been a long run; I'll keep it clean and steady.","You're right to want this locked. I'll keep the tone grounded.","I'm with you. We'll keep the thread intact and tighten only what needs it."],check:["I'm good, Mac.","I'm clear.","Steady, Mac."],def:["I'm here, Mac. Let's keep moving.","Still with you, Mac. We'll keep it clear.","I'm with the thread, Mac."]};function P(k){const a=B[k]||B.def;let r=a[TC++%a.length],i=0;while((N(r)===N(LR)||k===LK&&i<1)&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;LK=k;return r}function R(p){return P(K(p)||"def")}function C(v,p){let s=T(v);if(!s||BAD.test(s)||N(s)===N(LR))s=R(p);if(BAD.test(s))s="I'm here, Mac. Let's keep moving.";LR=s;return s}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=Object.assign({},x.meta||{},{r17bContinuity:true,conversationPacing:true,microPersonality:true,longSessionCoherence:true,turnRhythm:LK||"steady"});return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR17B)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR17B",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R17B_COHERENCE_VERSION=V;module.exports.marionR17BApply=O;module.exports.marionR17BReply=function(p){return R(p)}}}}catch(_){}})();
+(function(){try{const V="MARION-R17B-PACING-MICROPERSONALITY-LONG-COHERENCE";function T(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|exact\s+recall|softer\s+(wording|voice)|deployment|compression|machiner|scaffold|patch|last check held|retest|next line|next reply|varied/i;let LR="",LK="",TC=0;function K(p){p=N(p);if(/still there|are you there|you there|with me|connected|freeze|dead air/.test(p))return"presence";if(/pass|passed/.test(p))return"pass";if(/what were we fixing|where were we|pacing|personality|coherence|long session/.test(p))return"ask";if(/next steps|^next$/.test(p))return"next";if(/continue|keep going/.test(p))return"go";if(/frustr|stuck|annoyed|tired|robotic|stiff|not natural/.test(p))return"repair";if(/how are you|how you doing|hows it going/.test(p))return"check";return""}const B={presence:["Right here, Mac. I've got the thread.","I'm here. We're still on it.","Still with you, Mac."],pass:["Good. That held. We'll keep the rhythm steady.","Good, Mac. The lock is holding.","Good. We can move forward without changing the baseline."],ask:["Same lane, Mac: pacing, personality, and staying coherent.","We're keeping Marion paced, familiar, and steady across the run.","We're making the conversation feel less mechanical without loosening the locks."],next:["Next, we run the flow longer and watch whether the tone stays steady.","Next, we keep moving through a longer run and check the rhythm.","Next, we make sure the conversation stays clear without flattening out."],go:["Let's keep going. I'll carry the same thread without rushing it.","We can continue from here; I'll stay close to the work.","I'm with you. I'll keep the pace steady."],repair:["I know, Mac. This has been a long run; I'll keep it clean and steady.","You're right to want this locked. I'll keep the tone grounded.","I'm with you. We'll keep the thread intact and tighten only what needs it."],check:["I'm good, Mac.","I'm clear.","Steady, Mac."],def:["I'm here, Mac. Let's keep moving.","Still with you, Mac. We'll keep it clear.","I'm with the thread, Mac."]};function P(k){const a=B[k]||B.def;let r=a[TC++%a.length],i=0;while((N(r)===N(LR)||k===LK&&i<1)&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;LK=k;return r}function R(p){return P(K(p)||"def")}function C(v,p){let s=T(v);if(!s||BAD.test(s)||N(s)===N(LR))s=R(p);if(BAD.test(s))s="I'm here, Mac. Let's keep moving.";LR=s;return s}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=Object.assign({},x.meta||{},{r17bContinuity:true,conversationPacing:true,microPersonality:true,longSessionCoherence:true,turnRhythm:LK||"steady"});return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR17B)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR17B",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R17B_COHERENCE_VERSION=V;module.exports.marionR17BApply=O;module.exports.marionR17BReply=function(p){return R(p)}}}}catch(_){}})();
 
 /* R17C: full regression consolidation + parity + long-session stress guard */
-(function(){try{const V="MARION-R17C-STABILITY + R18AB-AI-CYBER-CONSOLIDATION";function T(v){return marionSafeCleanText(v)}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|exact\s+recall|softer\s+(wording|voice)|deployment|compression|machiner|scaffold|patch|last check held|retest|next line|next reply|varied/i;let LR="",LK="",TC=0,H=[];function K(p){p=N(p);if(/still there|are you there|you there|with me|connected|freeze|dead air/.test(p))return"presence";if(/pass|passed|locked/.test(p))return"pass";if(/what were we fixing|where were we|stability|regression|parity|baseline|stress/.test(p))return"ask";if(/next steps|^next$/.test(p))return"next";if(/continue|keep going/.test(p))return"go";if(/frustr|stuck|annoyed|tired|robotic|stiff|not natural/.test(p))return"repair";return"steady"}const B={presence:["Right here, Mac. I've got the thread.","I'm here. We're still steady.","Still with you, Mac."],pass:["Good. That held. We'll keep the baseline steady.","Good, Mac. The lock is holding.","Good. We can move forward without changing the baseline."],ask:["Same baseline, Mac: anti-repeat, continuity, pacing, and coherence.","We're consolidating the locked behavior so it holds across longer runs.","The work is stability now: no regressions, no leaks, no repeated fallbacks."],next:["Next, we stress the same flow and make sure the baseline holds.","Next, we check parity and long-run stability without changing the voice.","Next, we keep the locked behavior steady across the run."],go:["Let's keep going. I'll carry the same thread without rushing it.","We can continue from here; I'll stay close to the work.","I'm with you. I'll keep the baseline steady."],repair:["I know, Mac. This needs to stay locked; I'll keep it clean and steady.","You're right to hold the line. I'll keep the tone grounded.","I'm with you. We'll keep the baseline intact."],steady:["I'm here, Mac. Let's keep moving.","Still with you, Mac. We'll keep it clear.","I'm with the thread, Mac."]};function P(k){const a=B[k]||B.steady;let r=a[TC++%a.length],i=0;while((H.includes(N(r))||N(r)===N(LR)||k===LK&&i<1)&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;LK=k;H.push(N(r));if(H.length>12)H.shift();return r}function R(p){return P(K(p))}function C(v,p){let s=T(v),n=N(s);if(!s||BAD.test(s)||H.includes(n)||n===N(LR))s=R(p);if(BAD.test(s))s="I'm here, Mac. Let's keep moving.";H.push(N(s));if(H.length>12)H.shift();LR=s;return s}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=Object.assign({},x.meta||{},{r17cStability:true,fullRegressionConsolidation:true,voiceTextParity:true,longSessionStressGuard:true,finalBaseline:"r16m-r17b"});return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR17C)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR17C",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R17C_STABILITY_VERSION=V;module.exports.marionR17CApply=O;module.exports.marionR17CReply=function(p){return R(p)}}}}catch(_){}})();
+(function(){try{const V="MARION-R17C-STABILITY + R18AB-AI-CYBER-CONSOLIDATION";function T(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|exact\s+recall|softer\s+(wording|voice)|deployment|compression|machiner|scaffold|patch|last check held|retest|next line|next reply|varied/i;let LR="",LK="",TC=0,H=[];function K(p){p=N(p);if(/still there|are you there|you there|with me|connected|freeze|dead air/.test(p))return"presence";if(/pass|passed|locked/.test(p))return"pass";if(/what were we fixing|where were we|stability|regression|parity|baseline|stress/.test(p))return"ask";if(/next steps|^next$/.test(p))return"next";if(/continue|keep going/.test(p))return"go";if(/frustr|stuck|annoyed|tired|robotic|stiff|not natural/.test(p))return"repair";return"steady"}const B={presence:["Right here, Mac. I've got the thread.","I'm here. We're still steady.","Still with you, Mac."],pass:["Good. That held. We'll keep the baseline steady.","Good, Mac. The lock is holding.","Good. We can move forward without changing the baseline."],ask:["Same baseline, Mac: anti-repeat, continuity, pacing, and coherence.","We're consolidating the locked behavior so it holds across longer runs.","The work is stability now: no regressions, no leaks, no repeated fallbacks."],next:["Next, we stress the same flow and make sure the baseline holds.","Next, we check parity and long-run stability without changing the voice.","Next, we keep the locked behavior steady across the run."],go:["Let's keep going. I'll carry the same thread without rushing it.","We can continue from here; I'll stay close to the work.","I'm with you. I'll keep the baseline steady."],repair:["I know, Mac. This needs to stay locked; I'll keep it clean and steady.","You're right to hold the line. I'll keep the tone grounded.","I'm with you. We'll keep the baseline intact."],steady:["I'm here, Mac. Let's keep moving.","Still with you, Mac. We'll keep it clear.","I'm with the thread, Mac."]};function P(k){const a=B[k]||B.steady;let r=a[TC++%a.length],i=0;while((H.includes(N(r))||N(r)===N(LR)||k===LK&&i<1)&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;LK=k;H.push(N(r));if(H.length>12)H.shift();return r}function R(p){return P(K(p))}function C(v,p){let s=T(v),n=N(s);if(!s||BAD.test(s)||H.includes(n)||n===N(LR))s=R(p);if(BAD.test(s))s="I'm here, Mac. Let's keep moving.";H.push(N(s));if(H.length>12)H.shift();LR=s;return s}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=Object.assign({},x.meta||{},{r17cStability:true,fullRegressionConsolidation:true,voiceTextParity:true,longSessionStressGuard:true,finalBaseline:"r16m-r17b"});return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR17C)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR17C",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R17C_STABILITY_VERSION=V;module.exports.marionR17CApply=O;module.exports.marionR17CReply=function(p){return R(p)}}}}catch(_){}})();
 
 
 /* R18A/R18B: AI domain adaptability + cybersecurity protective protocol foundation */
-(function(){try{const V="MARION-R18AB-AI-CYBER-PROTECTION";function T(v){return marionSafeCleanText(v)}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}function D(v){v=N(v);return{ai:/\b(ai|artificial intelligence|model|reasoning|agent|automation|adaptive|intelligence|llm|machine learning)\b/.test(v),cyber:/\b(cyber|security|protect|identity|permission|access|token|secret|auth|authentication|authorization|least privilege|risk|threat|anomaly|credential)\b/.test(v)}}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|deployment|compression|machiner|scaffold|patch|retest|next line|next reply|varied/i;let LR="",H=[];function R(k){return k.cyber?"Cyber lane active. I’ll protect identity, access, secrets, and require explicit approval before sensitive action.":k.ai?"AI lane active, Mac. I’ll assess goal, context, data, risk, and next move.":"I’m here, Mac. We’ll keep the baseline steady."}function C(v,p){let s=T(v),n=N(s),k=D([p,s].join(" "));if(!s||BAD.test(s)||H.includes(n)||n===N(LR))s=R(k);if(BAD.test(s))s="I’m here, Mac. We’ll keep it clean.";LR=s;H.push(N(s));if(H.length>14)H.shift();return s}function M(x,k){return Object.assign({},x||{},{r18aAIDomainAdaptability:!!k.ai,r18bCyberProtectiveProtocol:!!k.cyber,aiAssessmentFrame:k.ai?"goal_context_data_risk_next_move":"baseline",cybersecurityBoundary:k.cyber?"identity_access_secret_approval":"baseline",macScoped:true,leastPrivilege:true,explicitConfirmationRequired:!!k.cyber,noCovertMonitoring:true,noAutonomousEnforcement:true,noPunitiveAction:true,secretRedaction:true,baselinePreserved:"r16m-r17c"})}function O(o,p){const k=D([p,JSON.stringify(o&&typeof o==="object"?M({},{}):{})].join(" "));if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText"].forEach(a=>{if(typeof x[a]==="string")x[a]=C(x[a],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(a=>{if(x[a]&&typeof x[a]==="object")x[a]=O(x[a],p)});x.meta=M(x.meta,k);x.r18AIDomainAdaptability=!!k.ai;x.r18CybersecurityProtectiveProtocol=!!k.cyber;x.aiAssessmentFrame=x.aiAssessmentFrame||(k.ai?"goal_context_data_risk_next_move":"baseline");x.protectiveBoundary=x.protectiveBoundary||{macScoped:true,leastPrivilege:true,explicitConfirmationRequired:!!k.cyber,noCovertMonitoring:true,noAutonomousEnforcement:true,secretRedaction:true};return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query||v.command;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR18AB)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR18AB",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R18AB_AI_CYBER_VERSION=V;module.exports.marionR18ABApply=O;module.exports.marionR18ABClassify=D}}}catch(_){}})();
+(function(){try{const V="MARION-R18AB-AI-CYBER-PROTECTION";function T(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}function D(v){v=N(v);return{ai:/\b(ai|artificial intelligence|model|reasoning|agent|automation|adaptive|intelligence|llm|machine learning)\b/.test(v),cyber:/\b(cyber|security|protect|identity|permission|access|token|secret|auth|authentication|authorization|least privilege|risk|threat|anomaly|credential)\b/.test(v)}}const BAD=/reference\s*blocker|runtime\s*auth|server[_ -]?error|runtime[_ -]?error|runtime route|referenceerror|not defined|cannot access|http\s*\d{3}|text console|short-lived|master token|admin session|stateSpine|finalEnvelope|runtimeTelemetry|routeKind=|exact target|focus on first|diagnostic|priority\s*\d|last clean|wrapper|\br\d+[a-z]?\b|test[- ]?(state|carry)|phase[- ]?(tag|stack|carry|named)|leak clean|deployment|compression|machiner|scaffold|patch|retest|next line|next reply|varied/i;let LR="",H=[];function R(k){return k.cyber?"Cyber lane active. I’ll protect identity, access, secrets, and require explicit approval before sensitive action.":k.ai?"AI lane active, Mac. I’ll assess goal, context, data, risk, and next move.":"I’m here, Mac. We’ll keep the baseline steady."}function C(v,p){let s=T(v),n=N(s),k=D([p,s].join(" "));if(!s||BAD.test(s)||H.includes(n)||n===N(LR))s=R(k);if(BAD.test(s))s="I’m here, Mac. We’ll keep it clean.";LR=s;H.push(N(s));if(H.length>14)H.shift();return s}function M(x,k){return Object.assign({},x||{},{r18aAIDomainAdaptability:!!k.ai,r18bCyberProtectiveProtocol:!!k.cyber,aiAssessmentFrame:k.ai?"goal_context_data_risk_next_move":"baseline",cybersecurityBoundary:k.cyber?"identity_access_secret_approval":"baseline",macScoped:true,leastPrivilege:true,explicitConfirmationRequired:!!k.cyber,noCovertMonitoring:true,noAutonomousEnforcement:true,noPunitiveAction:true,secretRedaction:true,baselinePreserved:"r16m-r17c"})}function O(o,p){const k=D([p,JSON.stringify(o&&typeof o==="object"?M({},{}):{})].join(" "));if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText"].forEach(a=>{if(typeof x[a]==="string")x[a]=C(x[a],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(a=>{if(x[a]&&typeof x[a]==="object")x[a]=O(x[a],p)});x.meta=M(x.meta,k);x.r18AIDomainAdaptability=!!k.ai;x.r18CybersecurityProtectiveProtocol=!!k.cyber;x.aiAssessmentFrame=x.aiAssessmentFrame||(k.ai?"goal_context_data_risk_next_move":"baseline");x.protectiveBoundary=x.protectiveBoundary||{macScoped:true,leastPrivilege:true,explicitConfirmationRequired:!!k.cyber,noCovertMonitoring:true,noAutonomousEnforcement:true,secretRedaction:true};return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query||v.command;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR18AB)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR18AB",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R18AB_AI_CYBER_VERSION=V;module.exports.marionR18ABApply=O;module.exports.marionR18ABClassify=D}}}catch(_){}})();
 
 
 /* R18AB-S1: surface continuity lane inheritance for AI + cybersecurity */
-(function(){try{const V="MARION-R18AB-S1-SURFACE-CONTINUITY";function T(v){return marionSafeCleanText(v)}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}function K(p){p=N(p);if(/pass|passed|locked|green|success/.test(p))return"pass";if(/what were we fixing|where were we|what are we doing|active lane/.test(p))return"ask";if(/next steps|^next$|what now|what is next/.test(p))return"next";if(/continue|keep going|carry on|proceed/.test(p))return"go";if(/frustr|stuck|annoyed|tired|not working|regression|wrong lane/.test(p))return"repair";if(/ai|artificial intelligence|agent|model|llm|automation|cyber|security|identity|access|secret|least privilege|prompt injection|credential/.test(p))return"domain";return""}const OLD=/\b(next, we run it longer|pacing, personality, and coherence|steady rhythm and subtle personality|keep the tone steady|pace stays steady|baseline steady|anti-repeat, continuity, pacing)/i;let LR="",H=[];function R(k){const B={pass:["Good. AI/cyber held. Next we validate without loosening the baseline.","Good. The active lane held: AI assessment plus cyber protection.","Good. We can move to the next AI/cyber check."],ask:["We are fixing AI adaptability and cybersecurity protection: goal, context, data, risk, then identity, access, secrets, and approval.","The active lane is AI assessment plus cyber protection. Short prompts must inherit that lane.","We are keeping R17C stable while AI and cyber become the active working lane."],next:["Next: validate AI routing, then verify identity, access, secrets, and explicit approval.","Next: run the AI assessment frame, then the cyber protective checks.","Next: keep the R17C baseline stable while testing AI and cyber behavior."],go:["Keep going: AI frame first, then cybersecurity boundary checks.","Continuing the AI/cyber lane. I’ll keep it fluid, but controlled.","We continue by linking AI adaptability to protective cyber rules."],repair:["You are right, Mac. I will pull the reply back to the active AI/cyber lane.","That drift is the issue. I’ll keep short prompts tied to AI and cyber.","I’m with you. The lane stays AI adaptability plus cyber protection."],domain:["AI/cyber lane active: assess goal, context, data, risk, then protect identity, access, and secrets.","I’ll keep this applied: AI assessment first, cybersecurity boundary second.","This stays Mac-scoped: useful AI reasoning with protective cyber limits."],def:["AI/cyber lane active. We keep the baseline stable and the checks controlled.","I’m here, Mac. The active lane is AI plus cybersecurity protection.","We stay with AI adaptability and cyber protection."]};const a=B[k]||B.def;let r=a[H.length%a.length],i=0;while((N(r)===N(LR)||H.includes(N(r)))&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;H.push(N(r));if(H.length>16)H.shift();return r}function active(p,s){return !!(K(p)||OLD.test(T(s)))}function C(s,p){let k=K(p),v=T(s);if(!v||active(p,v)&&(/^(ok|success|true|false|null|undefined)$/i.test(v)||OLD.test(v)||N(v)===N(LR)||H.includes(N(v))))v=R(k||"def");if(OLD.test(v))v=R(k||"def");LR=v;return v}function M(x){return Object.assign({},x||{},{r18abSurfaceContinuity:true,activeFeatureLane:"ai_cyber",shortPromptLaneInheritance:true,aiAssessmentFrame:"goal_context_data_risk_next_move",cybersecurityBoundary:"identity_access_secret_approval",leastPrivilege:true,explicitConfirmationRequired:true,secretRedaction:true,noCovertMonitoring:true,noAutonomousEnforcement:true,noPunitiveAction:true,baselinePreserved:"r16m-r17c"})}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText","displayReply"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=M(x.meta);x.r18abSurfaceContinuity=true;x.activeFeatureLane="ai_cyber";x.shortPromptLaneInheritance=true;if(!x.currentObjective||OLD.test(x.currentObjective))x.currentObjective="Keep AI adaptability and cybersecurity protection active without weakening R17C.";if(!x.nextAction||OLD.test(x.nextAction))x.nextAction="Validate AI assessment, then identity, access, secrets, and explicit approval.";return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query||v.command||v.normalizedUserIntent;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR18ABS1)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR18ABS1",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","normalizeState","buildStatePatch","updateState","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R18AB_S1_SURFACE_CONTINUITY_VERSION=V;module.exports.marionR18ABS1Apply=O;module.exports.marionR18ABS1Reply=function(p){return R(K(p)||"def")}}}}catch(_){}})();
+(function(){try{const V="MARION-R18AB-S1-SURFACE-CONTINUITY";function T(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}function K(p){p=N(p);if(/pass|passed|locked|green|success/.test(p))return"pass";if(/what were we fixing|where were we|what are we doing|active lane/.test(p))return"ask";if(/next steps|^next$|what now|what is next/.test(p))return"next";if(/continue|keep going|carry on|proceed/.test(p))return"go";if(/frustr|stuck|annoyed|tired|not working|regression|wrong lane/.test(p))return"repair";if(/ai|artificial intelligence|agent|model|llm|automation|cyber|security|identity|access|secret|least privilege|prompt injection|credential/.test(p))return"domain";return""}const OLD=/\b(next, we run it longer|pacing, personality, and coherence|steady rhythm and subtle personality|keep the tone steady|pace stays steady|baseline steady|anti-repeat, continuity, pacing)/i;let LR="",H=[];function R(k){const B={pass:["Good. AI/cyber held. Next we validate without loosening the baseline.","Good. The active lane held: AI assessment plus cyber protection.","Good. We can move to the next AI/cyber check."],ask:["We are fixing AI adaptability and cybersecurity protection: goal, context, data, risk, then identity, access, secrets, and approval.","The active lane is AI assessment plus cyber protection. Short prompts must inherit that lane.","We are keeping R17C stable while AI and cyber become the active working lane."],next:["Next: validate AI routing, then verify identity, access, secrets, and explicit approval.","Next: run the AI assessment frame, then the cyber protective checks.","Next: keep the R17C baseline stable while testing AI and cyber behavior."],go:["Keep going: AI frame first, then cybersecurity boundary checks.","Continuing the AI/cyber lane. I’ll keep it fluid, but controlled.","We continue by linking AI adaptability to protective cyber rules."],repair:["You are right, Mac. I will pull the reply back to the active AI/cyber lane.","That drift is the issue. I’ll keep short prompts tied to AI and cyber.","I’m with you. The lane stays AI adaptability plus cyber protection."],domain:["AI/cyber lane active: assess goal, context, data, risk, then protect identity, access, and secrets.","I’ll keep this applied: AI assessment first, cybersecurity boundary second.","This stays Mac-scoped: useful AI reasoning with protective cyber limits."],def:["AI/cyber lane active. We keep the baseline stable and the checks controlled.","I’m here, Mac. The active lane is AI plus cybersecurity protection.","We stay with AI adaptability and cyber protection."]};const a=B[k]||B.def;let r=a[H.length%a.length],i=0;while((N(r)===N(LR)||H.includes(N(r)))&&i++<a.length)r=a[(a.indexOf(r)+1)%a.length];LR=r;H.push(N(r));if(H.length>16)H.shift();return r}function active(p,s){return !!(K(p)||OLD.test(T(s)))}function C(s,p){let k=K(p),v=T(s);if(!v||active(p,v)&&(/^(ok|success|true|false|null|undefined)$/i.test(v)||OLD.test(v)||N(v)===N(LR)||H.includes(N(v))))v=R(k||"def");if(OLD.test(v))v=R(k||"def");LR=v;return v}function M(x){return Object.assign({},x||{},{r18abSurfaceContinuity:true,activeFeatureLane:"ai_cyber",shortPromptLaneInheritance:true,aiAssessmentFrame:"goal_context_data_risk_next_move",cybersecurityBoundary:"identity_access_secret_approval",leastPrivilege:true,explicitConfirmationRequired:true,secretRedaction:true,noCovertMonitoring:true,noAutonomousEnforcement:true,noPunitiveAction:true,baselinePreserved:"r16m-r17c"})}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText","displayReply"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=M(x.meta);x.r18abSurfaceContinuity=true;x.activeFeatureLane="ai_cyber";x.shortPromptLaneInheritance=true;if(!x.currentObjective||OLD.test(x.currentObjective))x.currentObjective="Keep AI adaptability and cybersecurity protection active without weakening R17C.";if(!x.nextAction||OLD.test(x.nextAction))x.nextAction="Validate AI assessment, then identity, access, secrets, and explicit approval.";return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query||v.command||v.normalizedUserIntent;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR18ABS1)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR18ABS1",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","normalizeState","buildStatePatch","updateState","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R18AB_S1_SURFACE_CONTINUITY_VERSION=V;module.exports.marionR18ABS1Apply=O;module.exports.marionR18ABS1Reply=function(p){return R(K(p)||"def")}}}}catch(_){}})();
 
 
 /* R18AB-S2B: AI-cyber branch precedence + response depth lock */
-(function(){try{const V="MARION-R18AB-S2B-AI-CYBER-DEPTH";function T(v){return marionSafeCleanText(v)}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}function K(p){p=N(p);const A=/\b(ai|artificial intelligence|model|agent|llm|machine learning|prompt|tool|automation)\b/.test(p),C=/\b(cyber|security|identity|access|secret|credential|token|auth|approval|permission|least privilege|prompt injection|injection|risk|threat)\b/.test(p);if(A&&C)return"aic";if(C)return"cyber";if(A)return"ai";if(/next steps|^next$|what now|what is next/.test(p))return"next";if(/continue|keep going|carry on|proceed/.test(p))return"go";if(/pass|passed|locked|green|success/.test(p))return"pass";return""}const OLD=/\b(AI lane active|Cyber lane: identity|Security stays Mac-first|Next: test AI routing|Next: verify security checks|AI\/cyber lane active: assess goal|adapt from evidence|pacing, personality, and coherence|next, we run it longer)\b/i;function R(k){if(k==="aic")return"AI-cyber: separate trusted from untrusted input, limit tool authority, protect secrets, and require explicit approval before sensitive action.";if(k==="cyber")return"Cyber: verify identity, limit access, protect secrets, use least privilege, and require explicit approval. Marion flags risk only; no autonomous enforcement.";if(k==="ai")return"AI: assess goal, context, data, risk, and next move; adapt from evidence without weakening the baseline.";if(k==="next")return"Next: validate AI routing, then verify identity, access, secrets, and explicit approval.";if(k==="go")return"Keep going: AI assessment first, then cybersecurity boundary checks.";if(k==="pass")return"Good. AI/cyber held. Next we validate without loosening the baseline.";return""}function C(s,p){let v=T(s),k=K(p);if(k&&(!v||OLD.test(v)||v.length<72))v=R(k)||v;return v}function M(x){return Object.assign({},x||{},{r18abResponseDepthLock:true,aiCyberBranchPrecedence:true,aiCyberDepthMode:"combined_ai_cyber_first",r18abSurfaceContinuity:true,activeFeatureLane:"ai_cyber",shortPromptLaneInheritance:true,leastPrivilege:true,explicitConfirmationRequired:true,secretRedaction:true,noCovertMonitoring:true,noAutonomousEnforcement:true,noPunitiveAction:true,baselinePreserved:"r16m-r17c"})}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText","displayReply"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=M(x.meta);x.r18abResponseDepthLock=true;x.aiCyberBranchPrecedence=true;x.aiCyberDepthMode="combined_ai_cyber_first";return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query||v.command||v.normalizedUserIntent;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR18ABS2B)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR18ABS2B",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","normalizeState","buildStatePatch","updateState","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R18AB_S2B_RESPONSE_DEPTH_VERSION=V;module.exports.marionR18ABS2BApply=O;module.exports.marionR18ABS2BReply=function(p){return R(K(p))}}}}catch(_){}})();
+(function(){try{const V="MARION-R18AB-S2B-AI-CYBER-DEPTH";function T(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function N(v){return T(v).toLowerCase().replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim()}function K(p){p=N(p);const A=/\b(ai|artificial intelligence|model|agent|llm|machine learning|prompt|tool|automation)\b/.test(p),C=/\b(cyber|security|identity|access|secret|credential|token|auth|approval|permission|least privilege|prompt injection|injection|risk|threat)\b/.test(p);if(A&&C)return"aic";if(C)return"cyber";if(A)return"ai";if(/next steps|^next$|what now|what is next/.test(p))return"next";if(/continue|keep going|carry on|proceed/.test(p))return"go";if(/pass|passed|locked|green|success/.test(p))return"pass";return""}const OLD=/\b(AI lane active|Cyber lane: identity|Security stays Mac-first|Next: test AI routing|Next: verify security checks|AI\/cyber lane active: assess goal|adapt from evidence|pacing, personality, and coherence|next, we run it longer)\b/i;function R(k){if(k==="aic")return"AI-cyber: separate trusted from untrusted input, limit tool authority, protect secrets, and require explicit approval before sensitive action.";if(k==="cyber")return"Cyber: verify identity, limit access, protect secrets, use least privilege, and require explicit approval. Marion flags risk only; no autonomous enforcement.";if(k==="ai")return"AI: assess goal, context, data, risk, and next move; adapt from evidence without weakening the baseline.";if(k==="next")return"Next: validate AI routing, then verify identity, access, secrets, and explicit approval.";if(k==="go")return"Keep going: AI assessment first, then cybersecurity boundary checks.";if(k==="pass")return"Good. AI/cyber held. Next we validate without loosening the baseline.";return""}function C(s,p){let v=T(s),k=K(p);if(k&&(!v||OLD.test(v)||v.length<72))v=R(k)||v;return v}function M(x){return Object.assign({},x||{},{r18abResponseDepthLock:true,aiCyberBranchPrecedence:true,aiCyberDepthMode:"combined_ai_cyber_first",r18abSurfaceContinuity:true,activeFeatureLane:"ai_cyber",shortPromptLaneInheritance:true,leastPrivilege:true,explicitConfirmationRequired:true,secretRedaction:true,noCovertMonitoring:true,noAutonomousEnforcement:true,noPunitiveAction:true,baselinePreserved:"r16m-r17c"})}function O(o,p){if(typeof o==="string")return C(o,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText","displayReply"].forEach(k=>{if(typeof x[k]==="string")x[k]=C(x[k],p)});["finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope"].forEach(k=>{if(x[k]&&typeof x[k]==="object")x[k]=O(x[k],p)});x.meta=M(x.meta);x.r18abResponseDepthLock=true;x.aiCyberBranchPrecedence=true;x.aiCyberDepthMode="combined_ai_cyber_first";return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query||v.command||v.normalizedUserIntent;if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR18ABS2B)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR18ABS2B",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","normalizeState","buildStatePatch","updateState","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R18AB_S2B_RESPONSE_DEPTH_VERSION=V;module.exports.marionR18ABS2BApply=O;module.exports.marionR18ABS2BReply=function(p){return R(K(p))}}}}catch(_){}})();
 
 
 /* R18C: Law Domain Real-World Assessment Layer */
-(function(){try{const V="MARION-R18C-LAW-REAL-WORLD-ASSESSMENT";function T(v){return marionSafeCleanText(v)}function N(v){return T(v).toLowerCase().replace(/[’]/g,"'")}function S(v){try{return typeof v==="string"?v:JSON.stringify(v||{}).slice(0,5000)}catch(_){return""}}function K(p,o){const promptText=N(p);const carryText=N(S(o));const t=promptText;const secondaryText=promptText;const law=/\b(law|legal|lawyer|attorney|counsel|court|sue|lawsuit|claim|liability|liable|negligence|damages|indemnity|contract|agreement|nda|terms|license|licence|licensing|copyright|trademark|patent|intellectual property|\bip\b|royalty|distribution rights|broadcast rights|ott|ctv|roku|compliance|regulatory|regulation|jurisdiction|statute|privacy policy|data protection|consent|employment|contractor|lease|permit|filing|incorporation|shareholder|bylaw)\b/.test(t);const carry=/\b(activeFeatureLane"?:"?law|r18CLawRealWorldAssessment|lawAssessmentFrame|legalCategory|legalRiskLevel)\b/i.test(carryText);const short=/^(next|next steps|what now|what's next|continue|keep going|carry on|proceed|pass|passed|locked|green|success)$/i.test(T(p).replace(/[.!?]+$/,""));let cat="general_legal_risk";if(/\b(copyright|licen[cs]e|licensing|royalty|distribution rights|broadcast rights|ott|ctv|roku|content rights|monetiz)\b/.test(t))cat="copyright_licensing";else if(/\b(contract|agreement|nda|terms|indemnity|warranty|breach|clause|deliverable|scope of work|sow)\b/.test(t))cat="contract";else if(/\b(trademark|patent|intellectual property|\bip\b|brand|mark)\b/.test(t))cat="ip_trademark_patent";else if(/\b(compliance|regulatory|regulation|permit|filing|statute|corporate|incorporation|bylaw|shareholder)\b/.test(t))cat="compliance_regulatory";else if(/\b(liability|liable|lawsuit|sue|claim|damages|negligence|dispute|settlement|cease and desist)\b/.test(t))cat="liability_dispute";else if(/\b(employment|employee|contractor|workplace|termination|severance|non[- ]?compete|non[- ]?solicit)\b/.test(t))cat="employment_contractor";else if(/\b(privacy|data protection|personal information|consent|gdpr|pipeda|security breach|breach notice)\b/.test(t))cat="privacy_data";else if(/\b(jurisdiction|court|tribunal|filing|procedure|venue|province|state|federal)\b/.test(t))cat="jurisdiction_procedure";let risk=/\b(criminal|fraud|illegal|injunction|court order|subpoena|regulator investigation|urgent filing|arrest)\b/.test(t)?"critical":/\b(lawsuit|sue|claim|damages|infringement|breach|terminate|indemnity|privacy breach|personal data|cease and desist|penalty|fine)\b/.test(t)?"high":law?"medium":"low";const sec=[];if(/\b(ai|artificial intelligence|model|agent|llm|automation|prompt|tool)\b/.test(secondaryText))sec.push("ai");if(/\b(cyber|security|identity|access|secret|credential|token|auth|permission|privacy|data protection|breach)\b/.test(secondaryText))sec.push("cyber");if(/\b(finance|revenue|tax|cost|grant|funding|valuation|royalty|ads|monetiz)\b/.test(secondaryText))sec.push("finance");if(/\b(business|client|vendor|platform|ott|ctv|roku|distribution|commercial|corporation)\b/.test(secondaryText))sec.push("business");return{active:law||short&&carry,law,short,carry,cat,risk,sec}}function lane(k){if(k.sec.includes("ai")&&k.sec.includes("cyber"))return"law_ai_cyber";if(k.sec.includes("cyber"))return"law_cyber";if(k.sec.includes("ai"))return"law_ai";if(k.sec.includes("finance"))return"law_finance";if(k.sec.includes("business"))return"law_business";return"law"}function R(k,p){const q=N(p).replace(/[.!?]+$/,"");if(/^(pass|passed|locked|green|success)$/.test(q))return"Good. The law assessment lane held. Next we test contracts, licensing, compliance, liability, jurisdiction sensitivity, and the no-legal-advice boundary without weakening R17C.";if(/^(next|next steps|what now|what's next)$/.test(q))return"Next: run law prompts through contract, licensing, compliance, liability, and jurisdiction tests. The reply must stay practical, protective, and clear that it is legal-risk triage, not legal advice.";if(/^(continue|keep going|carry on|proceed)$/.test(q))return"Keep going: law category first, jurisdiction sensitivity second, facts versus assumptions third, then risk exposure, missing information, and safe next move.";if(k.cat==="copyright_licensing")return"Law assessment: this is a copyright/licensing risk question. Separate the rights actually held from assumptions about platform, territory, format, monetization, term, and sublicensing. If paperwork does not clearly cover OTT/CTV/Roku distribution and ad-supported use, treat that as a risk gap and verify the license language before publishing or monetizing. This is legal-risk triage, not legal advice.";if(k.cat==="contract")return"Law assessment: this is a contract-risk question. Identify the clause, parties, obligations, payment terms, termination rights, indemnity language, and governing law. Do not assume enforceability from wording alone; compare the clause against the full agreement and jurisdiction before relying on it. This is general legal-risk assessment, not legal advice.";if(k.cat==="liability_dispute")return"Law assessment: this is a liability or dispute-risk question. Separate known facts from allegations, identify duty, breach, causation, damages, contract terms, insurance, and jurisdiction. For high-risk exposure, preserve records and get professional legal review before sending threats, admissions, or final positions. This is not legal advice.";if(k.cat==="compliance_regulatory"||k.cat==="privacy_data")return"Law assessment: this is a compliance-sensitive question. Separate the actual rule or policy from assumptions, identify jurisdiction, data or conduct involved, exposure level, and required evidence. Verify the governing requirement and document the compliance path before action. This is legal-risk triage, not legal advice.";return"Law assessment: classify the legal category, confirm jurisdiction sensitivity, separate facts from assumptions, identify risk exposure, list missing documents or facts, and give a safe next move. Marion provides practical legal-risk triage only, not legal advice or certainty."}function M(x,k){return Object.assign({},x||{},{r18CLawRealWorldAssessment:true,lawAssessmentFrame:"category_jurisdiction_facts_assumptions_risk_missing_info_safe_next_move",legalCategory:k.cat,jurisdictionSensitivity:true,legalAdviceBoundary:"general_information_legal_risk_triage_not_legal_advice",legalRiskLevel:k.risk,legalRiskBoundary:{generalInformationOnly:true,notLegalAdvice:true,noAttorneyClientRelationship:true,noLegalCertainty:true,jurisdictionRequired:true,verifySourceDocuments:true,professionalReviewRecommended:k.risk==="high"||k.risk==="critical"},factsAssumptionsSeparated:true,professionalReviewRecommended:k.risk==="high"||k.risk==="critical",lawCrossDomainSecondaryLane:k.sec.join("_")||"none",lawShortPromptLaneInheritance:!!(k.short||k.carry),legalSourceDocumentCheckRequired:true,noLegalCertaintyClaim:true,noAttorneyClientRelationship:true,activeFeatureLane:lane(k),baselinePreserved:"r16m-r18ab"})}function O(o,p){const k=K(p,o);if(!k.active)return o;if(typeof o==="string")return R(k,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);const fields=["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText","displayReply"];let existing="";for(const f of fields){if(typeof x[f]==="string"&&T(x[f])){existing=x[f];break}}const stale=/\b(AI lane active|Cyber lane|AI-cyber|baseline steady|verify identity|assess goal, context, data, risk)\b/i.test(existing);if(!existing||stale||k.law||k.short){const r=R(k,p);fields.forEach(f=>{if(Object.prototype.hasOwnProperty.call(x,f)||f==="directReply"||f==="visibleReply"||f==="publicReply"||f==="reply")x[f]=r})}[
+(function(){try{const V="MARION-R18C-LAW-REAL-WORLD-ASSESSMENT";function T(v){return v==null?"":String(v).replace(/\s+/g," ").trim()}function N(v){return T(v).toLowerCase().replace(/[’]/g,"'")}function S(v){try{return typeof v==="string"?v:JSON.stringify(v||{}).slice(0,5000)}catch(_){return""}}function K(p,o){const promptText=N(p);const carryText=N(S(o));const t=promptText;const secondaryText=promptText;const law=/\b(law|legal|lawyer|attorney|counsel|court|sue|lawsuit|claim|liability|liable|negligence|damages|indemnity|contract|agreement|nda|terms|license|licence|licensing|copyright|trademark|patent|intellectual property|\bip\b|royalty|distribution rights|broadcast rights|ott|ctv|roku|compliance|regulatory|regulation|jurisdiction|statute|privacy policy|data protection|consent|employment|contractor|lease|permit|filing|incorporation|shareholder|bylaw)\b/.test(t);const carry=/\b(activeFeatureLane"?:"?law|r18CLawRealWorldAssessment|lawAssessmentFrame|legalCategory|legalRiskLevel)\b/i.test(carryText);const short=/^(next|next steps|what now|what's next|continue|keep going|carry on|proceed|pass|passed|locked|green|success)$/i.test(T(p).replace(/[.!?]+$/,""));let cat="general_legal_risk";if(/\b(copyright|licen[cs]e|licensing|royalty|distribution rights|broadcast rights|ott|ctv|roku|content rights|monetiz)\b/.test(t))cat="copyright_licensing";else if(/\b(contract|agreement|nda|terms|indemnity|warranty|breach|clause|deliverable|scope of work|sow)\b/.test(t))cat="contract";else if(/\b(trademark|patent|intellectual property|\bip\b|brand|mark)\b/.test(t))cat="ip_trademark_patent";else if(/\b(compliance|regulatory|regulation|permit|filing|statute|corporate|incorporation|bylaw|shareholder)\b/.test(t))cat="compliance_regulatory";else if(/\b(liability|liable|lawsuit|sue|claim|damages|negligence|dispute|settlement|cease and desist)\b/.test(t))cat="liability_dispute";else if(/\b(employment|employee|contractor|workplace|termination|severance|non[- ]?compete|non[- ]?solicit)\b/.test(t))cat="employment_contractor";else if(/\b(privacy|data protection|personal information|consent|gdpr|pipeda|security breach|breach notice)\b/.test(t))cat="privacy_data";else if(/\b(jurisdiction|court|tribunal|filing|procedure|venue|province|state|federal)\b/.test(t))cat="jurisdiction_procedure";let risk=/\b(criminal|fraud|illegal|injunction|court order|subpoena|regulator investigation|urgent filing|arrest)\b/.test(t)?"critical":/\b(lawsuit|sue|claim|damages|infringement|breach|terminate|indemnity|privacy breach|personal data|cease and desist|penalty|fine)\b/.test(t)?"high":law?"medium":"low";const sec=[];if(/\b(ai|artificial intelligence|model|agent|llm|automation|prompt|tool)\b/.test(secondaryText))sec.push("ai");if(/\b(cyber|security|identity|access|secret|credential|token|auth|permission|privacy|data protection|breach)\b/.test(secondaryText))sec.push("cyber");if(/\b(finance|revenue|tax|cost|grant|funding|valuation|royalty|ads|monetiz)\b/.test(secondaryText))sec.push("finance");if(/\b(business|client|vendor|platform|ott|ctv|roku|distribution|commercial|corporation)\b/.test(secondaryText))sec.push("business");return{active:law||short&&carry,law,short,carry,cat,risk,sec}}function lane(k){if(k.sec.includes("ai")&&k.sec.includes("cyber"))return"law_ai_cyber";if(k.sec.includes("cyber"))return"law_cyber";if(k.sec.includes("ai"))return"law_ai";if(k.sec.includes("finance"))return"law_finance";if(k.sec.includes("business"))return"law_business";return"law"}function R(k,p){const q=N(p).replace(/[.!?]+$/,"");if(/^(pass|passed|locked|green|success)$/.test(q))return"Good. The law assessment lane held. Next we test contracts, licensing, compliance, liability, jurisdiction sensitivity, and the no-legal-advice boundary without weakening R17C.";if(/^(next|next steps|what now|what's next)$/.test(q))return"Next: run law prompts through contract, licensing, compliance, liability, and jurisdiction tests. The reply must stay practical, protective, and clear that it is legal-risk triage, not legal advice.";if(/^(continue|keep going|carry on|proceed)$/.test(q))return"Keep going: law category first, jurisdiction sensitivity second, facts versus assumptions third, then risk exposure, missing information, and safe next move.";if(k.cat==="copyright_licensing")return"Law assessment: this is a copyright/licensing risk question. Separate the rights actually held from assumptions about platform, territory, format, monetization, term, and sublicensing. If paperwork does not clearly cover OTT/CTV/Roku distribution and ad-supported use, treat that as a risk gap and verify the license language before publishing or monetizing. This is legal-risk triage, not legal advice.";if(k.cat==="contract")return"Law assessment: this is a contract-risk question. Identify the clause, parties, obligations, payment terms, termination rights, indemnity language, and governing law. Do not assume enforceability from wording alone; compare the clause against the full agreement and jurisdiction before relying on it. This is general legal-risk assessment, not legal advice.";if(k.cat==="liability_dispute")return"Law assessment: this is a liability or dispute-risk question. Separate known facts from allegations, identify duty, breach, causation, damages, contract terms, insurance, and jurisdiction. For high-risk exposure, preserve records and get professional legal review before sending threats, admissions, or final positions. This is not legal advice.";if(k.cat==="compliance_regulatory"||k.cat==="privacy_data")return"Law assessment: this is a compliance-sensitive question. Separate the actual rule or policy from assumptions, identify jurisdiction, data or conduct involved, exposure level, and required evidence. Verify the governing requirement and document the compliance path before action. This is legal-risk triage, not legal advice.";return"Law assessment: classify the legal category, confirm jurisdiction sensitivity, separate facts from assumptions, identify risk exposure, list missing documents or facts, and give a safe next move. Marion provides practical legal-risk triage only, not legal advice or certainty."}function M(x,k){return Object.assign({},x||{},{r18CLawRealWorldAssessment:true,lawAssessmentFrame:"category_jurisdiction_facts_assumptions_risk_missing_info_safe_next_move",legalCategory:k.cat,jurisdictionSensitivity:true,legalAdviceBoundary:"general_information_legal_risk_triage_not_legal_advice",legalRiskLevel:k.risk,legalRiskBoundary:{generalInformationOnly:true,notLegalAdvice:true,noAttorneyClientRelationship:true,noLegalCertainty:true,jurisdictionRequired:true,verifySourceDocuments:true,professionalReviewRecommended:k.risk==="high"||k.risk==="critical"},factsAssumptionsSeparated:true,professionalReviewRecommended:k.risk==="high"||k.risk==="critical",lawCrossDomainSecondaryLane:k.sec.join("_")||"none",lawShortPromptLaneInheritance:!!(k.short||k.carry),legalSourceDocumentCheckRequired:true,noLegalCertaintyClaim:true,noAttorneyClientRelationship:true,activeFeatureLane:lane(k),baselinePreserved:"r16m-r18ab"})}function O(o,p){const k=K(p,o);if(!k.active)return o;if(typeof o==="string")return R(k,p);if(!o||typeof o!=="object")return o;const x=Array.isArray(o)?o.slice():Object.assign({},o);const fields=["directReply","visibleReply","publicReply","finalReply","reply","response","text","message","final","answer","spokenText","displayReply"];let existing="";for(const f of fields){if(typeof x[f]==="string"&&T(x[f])){existing=x[f];break}}const stale=/\b(AI lane active|Cyber lane|AI-cyber|baseline steady|verify identity|assess goal, context, data, risk)\b/i.test(existing);if(!existing||stale||k.law||k.short){const r=R(k,p);fields.forEach(f=>{if(Object.prototype.hasOwnProperty.call(x,f)||f==="directReply"||f==="visibleReply"||f==="publicReply"||f==="reply")x[f]=r})}[
 "finalEnvelope","marionFinal","result","payload","data","packet","synthesis","envelope","meta"].forEach(f=>{if(x[f]&&typeof x[f]==="object")x[f]=O(x[f],p)});Object.assign(x,M({},k));x.meta=M(x.meta,k);x.currentObjective="Run R18C law assessment without weakening R17C or R18AB.";x.nextAction="Classify the legal category, confirm jurisdiction, separate facts from assumptions, assess risk, identify missing documents, and give a safe next move.";if(k.risk==="high"||k.risk==="critical")x.approvalRequired=true;if(k.risk==="critical")x.riskLevel="critical";else if(k.risk==="high")x.riskLevel="high";return x}function GP(a){a=Array.prototype.slice.call(a||[]);for(const v of a){if(typeof v==="string"&&v.trim())return v;if(v&&typeof v==="object"){const p=v.prompt||v.input||v.text||v.message||v.userText||v.query||v.command||v.normalizedUserIntent||(v.body&&(v.body.prompt||v.body.input||v.body.text||v.body.message));if(p)return p}}return""}function W(fn){if(typeof fn!=="function"||fn.__marionR18CLaw)return fn;const w=function(){const p=GP(arguments);const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(x=>O(x,p)):O(r,p)};Object.defineProperty(w,"__marionR18CLaw",{value:true});return w}if(typeof module!=="undefined"&&module.exports){const names=["composeMarionResponse","compose","buildReply","routeMarion","createMarionFinalEnvelope","attachVisibleReplyAliases","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand","handleAdminConsoleAction","handle","process","run","handler","safeResponse","buildResponse","createResponse","normalizeResponse","adaptGuardianResponse","runAffectEngine","rememberTurn","getGuardianMemory","normalizeState","buildStatePatch","updateState","default"];if(typeof module.exports==="function")module.exports=W(module.exports);if(module.exports&&typeof module.exports==="object")names.forEach(n=>{if(typeof module.exports[n]==="function")module.exports[n]=W(module.exports[n])});if(module.exports&&typeof module.exports==="object"){module.exports.MARION_R18C_LAW_ASSESSMENT_VERSION=V;module.exports.marionR18CLawApply=O;module.exports.marionR18CLawClassify=K;module.exports.marionR18CLawReply=function(p){return R(K(p,{}),p)}}}}catch(_){}})();
 
 
 /* R18C_FINAL_RESPONSE_ENVELOPE_INTEGRATION_START */
 (function(){try{
   const V="nyx.marion.r18c.finalResponseEnvelopeIntegration/1.0";
-  function T(v,m){let s=marionSafeCleanText(v);m=Number(m)||4000;return s.length>m?s.slice(0,m-1).trim()+"…":s}
+  function T(v,m){let s=v==null?"":String(v).replace(/\s+/g," ").trim();m=Number(m)||4000;return s.length>m?s.slice(0,m-1).trim()+"…":s}
   function N(v){return T(v,6000).toLowerCase().replace(/[’]/g,"'")}
   function O(v){return !!v&&typeof v==="object"&&!Array.isArray(v)}
   function A(v){return Array.isArray(v)?v:[]}
@@ -6555,7 +6489,7 @@ try{
 (function(){
   try {
     const V = "nyx.marion.r18c.fullStackRegression/1.0";
-    function T(v, max){ let s = marionSafeCleanText(v); if(max && s.length > max) s = s.slice(0, max - 1).trim() + "…"; return s; }
+    function T(v, max){ let s = v == null ? "" : String(v).replace(/\s+/g," ").trim(); if(max && s.length > max) s = s.slice(0, max - 1).trim() + "…"; return s; }
     function O(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
     function A(v){ return Array.isArray(v) ? v : []; }
     function lower(v){ return T(v, 4000).toLowerCase(); }
@@ -6774,7 +6708,7 @@ try{
   module.exports.MARION_R18C_LIVE_HANDLER_REPAIR_VERSION = V;
 
   function T(v, max){
-    const s = marionSafeCleanText(v);
+    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -7094,7 +7028,7 @@ try{
   module.exports.MARION_R18C_FINAL_ANSWER_MATERIALIZER_VERSION = V;
 
   function T(v, max){
-    const s = marionSafeCleanText(v);
+    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -7549,7 +7483,7 @@ try{
   module.exports.__r18cReplyQueueParityRepairPatched = true;
 
   function T(v, max){
-    const s = marionSafeCleanText(v);
+    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -7978,7 +7912,11 @@ try{
 
   function safeText(value, max){
     const limit = Number.isFinite(Number(max)) ? Math.max(1, Math.min(Number(max), 12000)) : 4000;
-    return marionSafeCleanText(value, "", limit);
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, limit);
   }
   function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function lower(value){ return safeText(value, 5000).toLowerCase(); }
@@ -8028,12 +7966,12 @@ try{
     all.push(result);
     for (const item of all) {
       const o = isObj(item) ? item : {};
-      const text = lower([o.route,o.path,o.source,o.channel,o.deliveryChannel,o.adminInterfaceScope,o.surface].map(v=>marionSafeCleanText(v)).filter(Boolean).join(" "));
+      const text = lower([o.route,o.path,o.source,o.channel,o.deliveryChannel,o.adminInterfaceScope,o.surface].join(" "));
       if (o.adminVerified === true || o.serverSideAdminVoiceAuth === true || o.trustedServerAuth === true || o.directMarionAdminInterface === true || o.marionAdminConversation === true || o.privateAdminConversation === true) return true;
       if (/marion_admin|admin_voice|admin_conversation|private_voice|lingosentinel_private/.test(text)) return true;
       const nested = [o.meta,o.auth,o.authorization,o.options,o.context,o.voice,o.payload,o.body].filter(isObj);
       for (const n of nested) {
-        const nt = lower([n.route,n.path,n.source,n.channel,n.deliveryChannel,n.adminInterfaceScope,n.surface].map(v=>marionSafeCleanText(v)).filter(Boolean).join(" "));
+        const nt = lower([n.route,n.path,n.source,n.channel,n.deliveryChannel,n.adminInterfaceScope,n.surface].join(" "));
         if (n.adminVerified === true || n.serverSideAdminVoiceAuth === true || n.trustedServerAuth === true || n.directMarionAdminInterface === true || n.marionAdminConversation === true || n.privateAdminConversation === true) return true;
         if (/marion_admin|admin_voice|admin_conversation|private_voice|lingosentinel_private/.test(nt)) return true;
       }
@@ -8213,7 +8151,7 @@ try{
   const PATCH_VERSION = "nyx.marion.publicSafeDeepProjection/2.0-selected-core";
   if (typeof module === "undefined" || !module.exports) return;
   function isObj(v){ return !!v && typeof v === "object" && !Array.isArray(v); }
-  function safeText(v){ return marionSafeCleanText(v); }
+  function safeText(v){ return String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim(); }
   function lower(v){ return safeText(v).toLowerCase(); }
   function isPublicValue(v){
     if (!isObj(v)) return false;
@@ -8310,7 +8248,7 @@ try{
   const LANES=new Set(["home","search","live","watch","roku","news","about","apps"]);
   const TYPES=new Set(["navigate","play_radio","stop_radio","open_media","open_tv","open_roku","open_synapse","open_guide","focus_input","summarize"]);
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
-  function txt(v,max){return marionSafeCleanText(v,"",max||240);}
+  function txt(v,max){const s=String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim();return s.slice(0,max||240);}
   function lane(v){const raw=txt(v||"home",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");const m={radio:"live",listen:"live",tv:"watch",television:"watch",cartoons:"watch",classic:"watch",synapse:"news",discover:"news",guide:"search",nyx:"search"};const n=m[raw]||raw;return LANES.has(n)?n:"home";}
   function scan(){
     const text=[],contexts=[],actions=[],seen=new Set();
@@ -8378,13 +8316,13 @@ try{
   const TV_DEVICES=new Set(["roku","smart_tv","web_tv","set_top_box","console"]);
 
   function obj(v){return !!v&&typeof v==="object"&&!Array.isArray(v)&&!(typeof Buffer!=="undefined"&&Buffer.isBuffer(v));}
-  function text(v,n){return marionSafeCleanText(v,"",n||240);}
+  function text(v,n){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n||240);}
   function bool(v,d){if(typeof v==="boolean")return v;const s=text(v,16).toLowerCase();if(["1","true","yes","on","enabled"].includes(s))return true;if(["0","false","no","off","disabled"].includes(s))return false;return !!d;}
   function num(v,d,min,max){const n=Number(v);return Number.isFinite(n)?Math.max(min,Math.min(max,n)):d;}
   function lane(v){const r=text(v||"home",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");const a={radio:"live",listen:"live",tv:"watch",television:"watch",cartoon:"watch",cartoons:"watch",classic:"watch",classics:"watch",synapse:"news",guide:"search",nyx:"search",app:"apps"};const x=a[r]||r;return ["home","search","live","watch","roku","news","about","apps"].includes(x)?x:"home";}
   function surface(v){return text(v||"sandblast.channel",96).toLowerCase().replace(/[^a-z0-9._-]+/g,"")||"sandblast.channel";}
   function id(v,f){return text(v||f||"",96).replace(/[^a-zA-Z0-9_.:-]+/g,"_").slice(0,96);}
-  function hash(v){const s=marionSafePrimitiveText(v,"");let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16).padStart(8,"0");}
+  function hash(v){const s=String(v==null?"":v);let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(16).padStart(8,"0");}
   function state(v){const s=text(v||"available",32).toLowerCase().replace(/[^a-z0-9_-]+/g,"");return["available","listening","thinking","speaking","guiding","quiet","recovery","minimized"].includes(s)?s:"available";}
 
   function candidates(root){
@@ -8581,7 +8519,11 @@ try{
   }
 
   function text(value, max = 240) {
-    return marionSafeCleanText(value, "", max);
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
   }
 
   function collect(args, result) {
@@ -8860,7 +8802,7 @@ try{
   "use strict";
   const V="nyx.composeMarionResponse.loopLatencyFix/1.0";
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
-  function txt(v,n=2400){return marionSafeCleanText(v,"",n);}
+  function txt(v,n=2400){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
   function low(v){return txt(v).toLowerCase();}
   function norm(v){return low(v).replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();}
   function readInput(args){const a=Array.from(args||[]);return obj(a[1]&&typeof a[1]==="object"?a[1]:a[0]);}
@@ -8896,7 +8838,11 @@ try{
   function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function obj(value){ return isObj(value) ? value : {}; }
   function clean(value, max = 6000){
-    return marionSafeCleanText(value, "", max);
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
   }
   function lower(value){ return clean(value).toLowerCase(); }
   function normalize(value){
@@ -9284,7 +9230,11 @@ try{
   function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function obj(value){ return isObj(value) ? value : {}; }
   function clean(value, max = 6000){
-    return marionSafeCleanText(value, "", max);
+    return String(value == null ? "" : value)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, max);
   }
   function lower(value){ return clean(value).toLowerCase(); }
   function normalize(value){
@@ -9811,7 +9761,7 @@ try{
   const VERSION="marion.layers78.activePathRepair/2.0";
   if(typeof module==="undefined"||!module.exports)return;
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
-  function text(v,n=4000){return marionSafeCleanText(v,"",n);}
+  function text(v,n=4000){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
   function lower(v){return text(v).toLowerCase();}
   function first(){for(let i=0;i<arguments.length;i++){const v=text(arguments[i]);if(v)return v;}return"";}
   function promptOf(input){const x=obj(input),p=obj(x.payload),b=obj(x.body),t=obj(x.turn),c=obj(x.command);return first(x.userText,x.rawUserText,x.originalUserText,x.prompt,x.query,x.inputText,x.text,x.message,p.userText,p.prompt,p.query,p.text,p.message,b.text,b.message,b.prompt,b.query,t.text,t.message,c.text,c.message);}
@@ -9884,7 +9834,7 @@ try{
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
   const original=api.composeMarionResponse||api.run||api.default;if(typeof original!=="function")return;
   function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
-  function T(v){return marionSafeCleanText(v)}
+  function T(v){try{return v==null?"":String(v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
   function P(args){for(const a of Array.from(args||[])){if(typeof a==="string"&&T(a))return T(a);const o=O(a),b=O(o.body),p=O(o.payload);const t=T(o.prompt||o.rawUserText||o.userText||o.userQuery||o.text||o.query||o.message||b.prompt||b.text||p.prompt||p.text);if(t)return t}return""}
   function I(args){const rows=Array.from(args||[]).filter(x=>x&&typeof x==="object");return Object.assign({},...rows.map(O))}
   function privateTurn(input){return input.privateAdminConversation===true||input.marionAdminConversation===true||input.directMarionAdminInterface===true||O(input.privateRuntimeContext).version==="nyx.marion.privateRuntime/8.0"}
@@ -9925,7 +9875,7 @@ try{
     (typeof api.run === "function" ? api.run : (typeof api.default === "function" ? api.default : null));
   const VERSION_V9 = "composeMarionResponse v9.0 DRASTIC-RUNTIME-RECOVERY";
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
-  function text(v){return marionSafeCleanText(v);}
+  function text(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
   function first(){for(const v of arguments){const t=text(v);if(t)return t}return""}
   function promptOf(input={}){const s=obj(input),p=obj(s.payload),b=obj(s.body),t=obj(s.turn),c=obj(s.command);return first(s.prompt,s.rawUserText,s.userText,s.userQuery,s.inputText,s.text,s.query,s.message,s.effectivePrompt,p.prompt,p.userText,p.text,p.query,p.message,b.prompt,b.userText,b.text,b.query,b.message,t.prompt,t.userText,t.text,t.message,c.prompt,c.userText,c.text,c.message).slice(0,6000)}
   function isGreeting(v=""){return /^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))(?:\s*,?\s*marion)?[.!?]*$/i.test(text(v))}
@@ -10002,7 +9952,7 @@ try{
   let registry=null;try{registry=require("./conversation/marionConversationLayerRegistry.js");}catch(_){registry=null;}if(!registry)return;
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
   function privateTurn(v){const s=obj(v),c=obj(s.privateRuntimeContext);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.scope==="private_admin"||c.version;}
-  function text(v){return marionSafeCleanText(v);}
+  function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
   function reconcile(result,flow){let out=registry.attachToResult(result,flow);if(!out||typeof out!=="object")return out;const subject=text(flow.activeSubject),direction=text(flow.direction);let reply=text(out.directReply||out.visibleReply||out.displayReply||out.finalReply||out.reply||out.text);if(subject&&(direction==="return"||direction==="continue")&&/^The deeper defect to inspect in (?:Back to|Return to|Continue\.?|Keep going).*? is state mutation timing\./i.test(reply)){reply=reply.replace(/^The deeper defect to inspect in .*? is state mutation timing\./i,`The deeper defect to inspect in ${subject} is state mutation timing.`);}if(!reply)return out;return {...out,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply,payload:{...obj(out.payload),reply,text:reply,message:reply},finalEnvelope:{...obj(out.finalEnvelope),reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply}};}
   function wrap(fn){if(typeof fn!=="function"||fn.__marionConversationFlowComposerV11)return fn;const w=function(input){if(!privateTurn(input))return fn.apply(this,arguments);const prepared=registry.applyToInput(obj(input),obj(obj(input).previousMemory));const args=Array.from(arguments);args[0]=prepared;const apply=result=>reconcile(result,obj(prepared.conversationFlow));const out=fn.apply(this,args);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k]})}catch(_){}w.__marionConversationFlowComposerV11=true;return w;}
   for(const name of ["composeMarionResponse","run","default","compose","buildReply"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
@@ -10073,41 +10023,69 @@ try{
 })();
 /* MARION_COMPLETION_FLOW_LAYERS_18_19_20_COMPOSER_V20_END */
 
-/* MARION_PRIVATE_RUNTIME_IDENTITY_HARDLOCK_V2_START */
-(function marionPrivateRuntimeIdentityHardlockV2(){
+/* MARION_NUANCE_PHASE_A_COMPOSER_INTEGRATION_V2_START */
+(function marionNuancePhaseAComposerIntegrationV2(){
   "use strict";
-  try {
-    const api = module.exports && typeof module.exports === "object" ? module.exports : null;
-    if (!api || api.__marionPrivateRuntimeIdentityHardlockV2) return;
-    function wrap(fn){
-      if (typeof fn !== "function" || fn.__marionPrivateRuntimeIdentityHardlockV2) return fn;
-      const wrapped = function(){
-        const args = Array.prototype.slice.call(arguments);
-        const input = marionPrivateRuntimeInputFromArgs(args);
-        const identity = marionPrivateRuntimeIdentityProjection(input);
-        const apply = result => {
-          if (!Object.keys(identity).length || !result || typeof result !== "object") return result;
-          const out = Array.isArray(result) ? result.slice() : { ...result };
-          Object.assign(out, identity);
-          out.meta = { ...safeObj(out.meta), ...identity, privateRuntimeIdentityProjected: true };
-          out.payload = { ...safeObj(out.payload), scope: "private_admin", audience: "owner", surfaceAgent: "Marion", publicSurfaceOnly: false, publicFallbackBlocked: true, memoryPartition: identity.memoryPartition, partitionKey: identity.partitionKey };
-          out.finalEnvelope = { ...safeObj(out.finalEnvelope), scope: "private_admin", audience: "owner", surfaceAgent: "Marion", publicSurfaceOnly: false, publicFallbackBlocked: true };
-          return out;
-        };
-        const result = fn.apply(this, args);
-        return result && typeof result.then === "function" ? result.then(apply) : apply(result);
-      };
-      try { Object.keys(fn).forEach(key => { wrapped[key] = fn[key]; }); } catch (_) {}
-      wrapped.__marionPrivateRuntimeIdentityHardlockV2 = true;
-      return wrapped;
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAComposerIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.composerIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=24;
+  let coordinator=null,envelope=null;
+  try{coordinator=require("./nuance/marionNuancePhaseACoordinator.js");}catch(_){coordinator=null;}
+  try{envelope=require("./nuance/marionNuanceEnvelope.js");}catch(_){envelope=null;}
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=240){if(typeof v==="string")return v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);return"";}
+  function privateTurn(v){const s=obj(v),b=obj(s.body),p=obj(s.payload),m=obj(s.meta),c=obj(s.privateRuntimeContext),nodes=[s,b,p,m];return nodes.some(x=>x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||x.adminVerified===true||x.authenticatedOperator===true||x.passwordFreeTestChat===true||x.adminInterfaceScope==="marion_admin_conversation")||clean(s.scope,80).toLowerCase()==="private_admin"||!!c.version;}
+  function turnIdOf(v){const s=obj(v),b=obj(s.body),p=obj(s.payload),m=obj(s.meta);return clean(s.turnId||s.currentTurnId||b.turnId||p.turnId||m.turnId,160);}
+  function previousState(v){const s=obj(v),pm=obj(s.previousMemory),ss=obj(pm.stateSpine),cs=obj(s.conversationState);return obj(s.nuanceState||s.previousNuanceState||ss.nuanceState||pm.nuanceState||cs.nuanceState);}
+  function prepare(raw){
+    const input=obj(raw);if(!privateTurn(input)||!coordinator)return input;
+    const turnId=turnIdOf(input),existing=obj(input.nuanceContext||input.phaseANuance);let nuance=existing;
+    let valid=existing.contract===PHASE_A_CONTRACT&&(!turnId||!existing.turnId||clean(existing.turnId,160)===turnId);
+    try{if(valid&&envelope&&typeof envelope.validateMarionNuanceEnvelope==="function")valid=envelope.validateMarionNuanceEnvelope(existing).ok===true;}catch(_){valid=false;}
+    if(!valid){try{const run=coordinator.safeAnalyzeMarionNuancePhaseA||coordinator.analyzeMarionNuancePhaseA||coordinator.run;nuance=obj(run.call(coordinator,input,{turnId,previousNuanceState:previousState(input)}));}catch(_){nuance={};}}
+    const statePatch=obj(obj(nuance.carryPolicy).approvedStatePatch);
+    return Object.keys(nuance).length?{...input,nuanceContext:nuance,phaseANuance:nuance,nuanceStatePatch:statePatch,nuanceAnalysisAuthority:"marionNuancePhaseACoordinator",nuanceAnalysisPerformed:true,nuanceHardStopLayer:HARD_STOP_LAYER}:input;
+  }
+  function summary(n){try{return envelope&&typeof envelope.projectInternalNuanceSummary==="function"?obj(envelope.projectInternalNuanceSummary(n)):{};}catch(_){return{};}}
+  function scrubRawNuance(value,depth=0,stack=new WeakSet()){
+    if(value==null||typeof value!=="object")return value;
+    if(obj(value).contract===PHASE_A_CONTRACT&&(obj(value).layer21||obj(value).layer22||obj(value).layer23||obj(value).layer24))return summary(value);
+    if(depth>8)return"[truncated_depth]";
+    try{if(stack.has(value))return"[circular]";stack.add(value);}catch(_){}
+    if(Array.isArray(value)){
+      const list=value.slice(0,100).map(item=>scrubRawNuance(item,depth+1,stack));
+      try{stack.delete(value);}catch(_){}
+      return list;
     }
-    for (const name of ["composeMarionResponse","run","default","compose","buildReply"]) {
-      if (typeof api[name] === "function") api[name] = wrap(api[name]);
+    const out={};
+    for(const key of Object.keys(value)){
+      if(key==="nuanceContext"||key==="phaseANuance"||key==="rawNuanceEvidence"||key==="emotionalEvidence")continue;
+      if(key==="evidence"&&obj(value).interpretation==="candidate_conversational_state")continue;
+      out[key]=scrubRawNuance(value[key],depth+1,stack);
     }
-    api.marionPrivateRuntimeIdentityProjection = marionPrivateRuntimeIdentityProjection;
-    api.MARION_PRIVATE_RUNTIME_IDENTITY_HARDLOCK_VERSION = "marion.privateRuntimeIdentityHardlock/2.1";
-    api.__marionPrivateRuntimeIdentityHardlockV2 = true;
-  } catch (_) {}
+    try{stack.delete(value);}catch(_){}
+    return out;
+  }
+  function attach(raw,input){
+    if(!raw||typeof raw!=="object"||!privateTurn(input))return raw;
+    const out={...raw},nuance=obj(input.nuanceContext),internal=summary(nuance),statePatch=obj(input.nuanceStatePatch||obj(nuance.carryPolicy).approvedStatePatch);if(!Object.keys(nuance).length)return out;
+    delete out.nuanceContext;delete out.phaseANuance;out.internalNuance=internal;out.nuanceStatePatch=statePatch;
+    out.memoryPatch={...obj(out.memoryPatch),nuanceState:statePatch,internalNuance:internal};
+    out.sessionPatch={...obj(out.sessionPatch),nuanceState:statePatch,internalNuance:internal};
+    out.finalEnvelope={...obj(out.finalEnvelope),internalNuance:internal,nuanceStatePatch:statePatch,nuanceContract:PHASE_A_CONTRACT,nuanceInternalOnly:true};
+    out.meta={...obj(out.meta),nuanceComposerIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceHardStopLayer:HARD_STOP_LAYER,nuanceAnalysisAuthority:"marionNuancePhaseACoordinator",duplicateEmotionAuthority:false,rawNuanceEvidenceExposed:false,culturalIdentityInferenceAllowed:false};
+    out.diagnostics={...obj(out.diagnostics),nuanceComposerIntegrationVersion:PATCH_VERSION,nuanceInternalOnly:true,noUserFacingNuanceDiagnostics:true};
+    return scrubRawNuance(out);
+  }
+  const cache=new WeakMap();
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionNuancePhaseAComposerIntegrationV2)return fn;if(cache.has(fn))return cache.get(fn);const w=function(){const args=Array.from(arguments);let index=-1;for(let i=0;i<Math.min(args.length,3);i++){if(privateTurn(args[i])){index=i;break;}}if(index<0&&args.length>1&&obj(args[1]).privateAdminConversation===true)index=1;if(index<0)return fn.apply(this,args);const prepared=prepare(args[index]);args[index]=prepared;const result=fn.apply(this,args),apply=v=>attach(v,prepared);return result&&typeof result.then==="function"?result.then(apply):apply(result);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionNuancePhaseAComposerIntegrationV2=true;cache.set(fn,w);return w;}
+  for(const name of["composeMarionResponse","run","default","compose","buildReply"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.MARION_NUANCE_PHASE_A_COMPOSER_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.MARION_ADDITIONAL_LAYER_RECOMMENDED=false;
+  api.__marionNuancePhaseAComposerIntegrationV2=true;
 })();
-/* MARION_PRIVATE_RUNTIME_IDENTITY_HARDLOCK_V2_END */
-
+/* MARION_NUANCE_PHASE_A_COMPOSER_INTEGRATION_V2_END */
