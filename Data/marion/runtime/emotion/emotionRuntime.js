@@ -324,3 +324,27 @@ module.exports = { DEFAULT_CONTRACT_DIR, DEFAULT_FILES, loadContracts, getHealth
   api.__marionNuancePhaseAEmotionCompatibilityV1=true;
 })();
 /* MARION_NUANCE_PHASE_A_EMOTION_COMPATIBILITY_V1_END */
+
+/* MARION_NUANCE_PHASE_B_EmotionCompatibility_V1_START */
+(function marionNuancePhaseBEmotionCompatibilityV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseBEmotionCompatibilityV1)return;
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=26;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=240){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
+  function phaseB(v){const x=obj(v),candidates=[x.phaseBNuance,x.nuancePhaseBContext,x.phaseBContext,x.nuanceContext,obj(x.payload).phaseBNuance,obj(x.payload).nuancePhaseBContext];for(const n of candidates){const q=obj(n);if(q.contract===PHASE_B_CONTRACT&&q.phase==="B")return q;}return{};}
+  function phaseAFrom(n){const b=obj(n),a=obj(b.phaseA);return a.contract===PHASE_A_CONTRACT?a:{};}
+  function summary(n){const b=obj(n),l25=obj(b.layer25),l26=obj(b.layer26),g=obj(b.subtextGate),p=obj(b.responsePosture),a=phaseAFrom(b),l24=obj(a.layer24);return{contract:PHASE_B_CONTRACT,phase:"B",turnId:clean(b.turnId,160),interactionState:clean(l24.currentState,60),primaryStance:clean(l25.primaryStance,80),secondaryStances:Array.isArray(l25.secondaryStances)?l25.secondaryStances.slice(0,2):[],modifiers:Array.isArray(l25.modifiers)?l25.modifiers.slice(0,4):[],stanceConfidence:Number(l25.confidence||0),literalIntent:clean(l26.literalIntent,120),primaryPragmaticIntent:clean(l26.primaryPragmaticIntent,120),secondaryPragmaticIntents:Array.isArray(l26.secondaryPragmaticIntents)?l26.secondaryPragmaticIntents.slice(0,2):[],conversationControl:clean(obj(l26.conversationControl).category,100),pragmaticConfidence:Number(l26.confidence||0),subtextPolicy:clean(g.subtextPolicy,80),answerStructure:Array.isArray(p.answerStructure)?p.answerStructure.slice(0,6):[],literalIntentPreserved:g.literalIntentPreserved!==false,noUserFacingDiagnostics:true};}
+
+  function adapt(resolved={},context={}){const b=phaseB(context);if(!Object.keys(b).length)return resolved;const s=summary(b),base=obj(resolved);return {...base,phase_b:{contract:PHASE_B_CONTRACT,primary_stance:s.primaryStance,stance_confidence:s.stanceConfidence,primary_pragmatic_intent:s.primaryPragmaticIntent,pragmatic_confidence:s.pragmaticConfidence,subtext_policy:s.subtextPolicy,literal_intent_preserved:true,raw_marker_evidence_exposed:false},runtime_meta:{...obj(base.runtime_meta),phase_b_adapter:true,duplicate_emotion_authority:false,stance_authority:"marionConversationalStanceResolver",pragmatic_intent_authority:"marionPragmaticIntentResolver"}};}
+  api.adaptResolvedStateWithPhaseB=adapt;
+  const health=api.getHealth;if(typeof health==="function")api.getHealth=function(o={}){return{...health.call(this,o),phaseBNuanceAdapter:true,phaseBContract:PHASE_B_CONTRACT,hardStopLayer:HARD_STOP_LAYER,duplicateStanceAuthority:false,duplicatePragmaticAuthority:false,rawMarkerEvidenceExposed:false};};
+
+  api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseBEmotionCompatibilityV1=true;
+})();
+/* MARION_NUANCE_PHASE_B_EmotionCompatibility_V1_END */
