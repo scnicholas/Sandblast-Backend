@@ -46,3 +46,20 @@ function analyze({prompt="",previous={},alignment={},outcomeFlow={},conversation
 function projectRisk(r={}){const x=isObj(r)?r:{};return {riskId:text(x.riskId,140),category:text(x.category,80),rootCause:text(x.rootCause,160),description:text(x.description,700),probability:x.probability==null?null:clamp01(x.probability),severity:clamp01(x.severity),detectability:clamp01(x.detectability),reversibility:text(x.reversibility,40),timeHorizon:text(x.timeHorizon,80),mitigation:text(x.mitigation,700),residualRisk:text(x.residualRisk,40),evidenceQuality:text(x.evidenceQuality,40),confidence:clamp01(x.confidence),riskLevel:text(x.riskLevel,40)};}
 function projectState(v={}){const x=isObj(v)?v:{};return {version:VERSION,contract:CONTRACT,assessmentId:text(x.assessmentId,140),subject:text(x.subject,900),overallRisk:text(x.overallRisk,40),principalRisk:text(x.principalRisk,700),confidence:clamp01(x.confidence),evidenceQuality:text(x.evidenceQuality,40),risks:(Array.isArray(x.risks)?x.risks:[]).slice(0,MAX_RISKS).map(projectRisk),scenarios:(Array.isArray(x.scenarios)?x.scenarios:[]).slice(0,4).map(s=>({band:text(s&&s.band,40),description:text(s&&s.description,700)})),unknowns:(Array.isArray(x.unknowns)?x.unknowns:[]).slice(0,8).map(v=>text(v,500)),assumptions:(Array.isArray(x.assumptions)?x.assumptions:[]).slice(0,8).map(v=>text(v,500)),rollbackRequired:x.rollbackRequired===true,humanReviewRequired:x.humanReviewRequired===true,safeToProceedWithControls:x.safeToProceedWithControls===true};}
 module.exports={VERSION,CONTRACT,MAX_RISKS,levelFrom,dedupe,analyze,projectRisk,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER16_BOUNDARY_V1_START */
+(function marionNuancePhaseALayer16BoundaryV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer16BoundaryV1)return;
+  const PHASE_A_VERSION="marion.predictiveRiskModel/17.1-layer16-nuance-boundary";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(result={},nuanceContext={}){const base=obj(result),l23=obj(obj(nuanceContext).layer23),l24=obj(obj(nuanceContext).layer24);return {...base,version:PHASE_A_VERSION,phaseAInteractionState:clean(l24.currentState,60),phaseAConfidenceBand:clean(l23.confidenceBand,40),nuanceCannotIncreaseRiskScore:true,nuanceCannotAuthorizeAction:true,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};}
+  const originalAnalyze=api.analyze;
+  api.analyze=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(v.phaseAInteractionState,60),nuanceCannotIncreaseRiskScore:true,nuanceCannotAuthorizeAction:true};};
+  api.applyNuance=applyNuance;api.VERSION=PHASE_A_VERSION;api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";api.__marionNuancePhaseALayer16BoundaryV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER16_BOUNDARY_V1_END */
