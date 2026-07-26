@@ -10089,3 +10089,31 @@ try{
   api.__marionNuancePhaseAComposerIntegrationV2=true;
 })();
 /* MARION_NUANCE_PHASE_A_COMPOSER_INTEGRATION_V2_END */
+
+/* MARION_NUANCE_PHASE_B_ComposerIntegration_V1_START */
+(function marionNuancePhaseBComposerIntegrationV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseBComposerIntegrationV1)return;
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=26;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=240){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
+  function phaseB(v){const x=obj(v),candidates=[x.phaseBNuance,x.nuancePhaseBContext,x.phaseBContext,x.nuanceContext,obj(x.payload).phaseBNuance,obj(x.payload).nuancePhaseBContext];for(const n of candidates){const q=obj(n);if(q.contract===PHASE_B_CONTRACT&&q.phase==="B")return q;}return{};}
+  function phaseAFrom(n){const b=obj(n),a=obj(b.phaseA);return a.contract===PHASE_A_CONTRACT?a:{};}
+  function summary(n){const b=obj(n),l25=obj(b.layer25),l26=obj(b.layer26),g=obj(b.subtextGate),p=obj(b.responsePosture),a=phaseAFrom(b),l24=obj(a.layer24);return{contract:PHASE_B_CONTRACT,phase:"B",turnId:clean(b.turnId,160),interactionState:clean(l24.currentState,60),primaryStance:clean(l25.primaryStance,80),secondaryStances:Array.isArray(l25.secondaryStances)?l25.secondaryStances.slice(0,2):[],modifiers:Array.isArray(l25.modifiers)?l25.modifiers.slice(0,4):[],stanceConfidence:Number(l25.confidence||0),literalIntent:clean(l26.literalIntent,120),primaryPragmaticIntent:clean(l26.primaryPragmaticIntent,120),secondaryPragmaticIntents:Array.isArray(l26.secondaryPragmaticIntents)?l26.secondaryPragmaticIntents.slice(0,2):[],conversationControl:clean(obj(l26.conversationControl).category,100),pragmaticConfidence:Number(l26.confidence||0),subtextPolicy:clean(g.subtextPolicy,80),answerStructure:Array.isArray(p.answerStructure)?p.answerStructure.slice(0,6):[],literalIntentPreserved:g.literalIntentPreserved!==false,noUserFacingDiagnostics:true};}
+
+  let envelope=null;try{envelope=require("./nuance/marionNuancePhaseBEnvelope.js");}catch(_){envelope=null;}
+  function privateTurn(v){const x=obj(v),b=obj(x.body),p=obj(x.payload);return x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||b.privateAdminConversation===true||p.privateAdminConversation===true||clean(x.scope)==="private_admin";}
+  function attach(raw,input){if(!raw||typeof raw!=="object"||!privateTurn(input))return raw;const b=phaseB(input);if(!Object.keys(b).length)return raw;const s=summary(b),state=obj(obj(b.carryPolicy).approvedStatePatch),posture=obj(b.responsePosture),out={...raw};delete out.phaseBNuance;delete out.nuancePhaseBContext;out.internalNuance=s;out.phaseBStatePatch=state;out.responsePostureInternal={stance:clean(s.primaryStance,80),pragmaticIntent:clean(s.primaryPragmaticIntent,120),answerStructure:Array.isArray(posture.answerStructure)?posture.answerStructure.slice(0,6):[],directness:Number(posture.directness||0),warmth:Number(posture.warmth||0),humourAllowed:posture.humourAllowed===true};out.memoryPatch={...obj(out.memoryPatch),nuanceState:state,internalNuance:s};out.sessionPatch={...obj(out.sessionPatch),nuanceState:state,internalNuance:s};out.finalEnvelope={...obj(out.finalEnvelope),internalNuance:s,nuanceContract:PHASE_B_CONTRACT,nuanceInternalOnly:true,rawMarkerEvidenceExposed:false};out.meta={...obj(out.meta),nuanceComposerPhaseBVersion:"nyx.marion.nuance.composerIntegration/3.0",nuanceHardStopLayer:HARD_STOP_LAYER,literalIntentPreserved:true,stanceMayChangeFacts:false,pragmaticIntentMayAuthorizeExecution:false};return out;}
+  const cache=new WeakMap();
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionNuancePhaseBComposerIntegrationV1)return fn;if(cache.has(fn))return cache.get(fn);const w=function(){const args=Array.from(arguments);let input=null;for(const a of args){if(privateTurn(a)){input=a;break;}}const result=fn.apply(this,args),done=v=>attach(v,input||{});return result&&typeof result.then==="function"?result.then(done):done(result);};w.__marionNuancePhaseBComposerIntegrationV1=true;cache.set(fn,w);return w;}
+  for(const name of["composeMarionResponse","run","default","compose","buildReply"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.MARION_NUANCE_PHASE_B_COMPOSER_VERSION="nyx.marion.nuance.composerIntegration/3.0";
+
+  api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseBComposerIntegrationV1=true;
+})();
+/* MARION_NUANCE_PHASE_B_ComposerIntegration_V1_END */
