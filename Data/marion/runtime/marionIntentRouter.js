@@ -3973,3 +3973,7 @@ function r18cApplyLawIntentRoute(result,packet){
   api.__marionNuancePhaseAIntentRouterIntegrationV2=true;
 })();
 /* MARION_NUANCE_PHASE_A_INTENT_ROUTER_INTEGRATION_V2_END */
+
+/* MARION_SUBSTANTIVE_QUESTION_DIRECT_ANSWER_HINT_V1_START */
+(function(){"use strict";const a=module.exports;if(!a||a.__marionSubstantiveQuestionDirectAnswerHintV1)return;const V="nyx.marion.substantiveQuestionDirectAnswerHint/1.0";function o(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}function p(v){const x=o(v),b=o(x.body),q=o(x.payload);return s(x.prompt||x.userText||x.message||x.text||b.prompt||b.text||q.prompt||q.text)}for(const n of["routeMarionIntent","route","run","classify"]){const f=a[n];if(typeof f!=="function")continue;a[n]=function(){const i=arguments[0],v=f.apply(this,arguments),d=x=>{const t=p(i);if(t.length<25)return x;const y=o(x);return{...y,answerMode:"direct",clarifierRequired:false,needsClarifier:false,substantiveAnswerRequired:true,noUserFacingDiagnostics:true}};return v&&typeof v.then==="function"?v.then(d):d(v)}}a.MARION_SUBSTANTIVE_QUESTION_DIRECT_ANSWER_HINT_VERSION=V;a.__marionSubstantiveQuestionDirectAnswerHintV1=true})();
+/* MARION_SUBSTANTIVE_QUESTION_DIRECT_ANSWER_HINT_V1_END */
