@@ -1,14 +1,14 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.3-marion-admin-runtime-hardlock-v2.1",
-  "description": "Sandblast backend with Marion private admin runtime primitive serialization, identity-boundary hardening, Nyx voice playback, Marion layering, and TV scheduling",
+  "version": "1.0.4-marion-nuance-phase-a-part1",
+  "description": "Sandblast backend with Marion Nuance Phase A Layers 21-24 partial critical integration, private admin runtime hardening, Nyx voice playback, Marion layering, and TV scheduling",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
     "lint:syntax": "node scripts/check-syntax.js",
     "test:marion-layering": "node tests/marion_layering_smoke_test.js",
-    "verify": "npm run verify:marion-critical && npm run lint:syntax && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv",
+    "verify": "npm run verify:marion-critical && npm run verify:marion-phase-a-part1 && npm run lint:syntax && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv",
     "dev": "node --check index.js && npm run lint:sandblast-tv && node index.js",
     "lint:sandblast-tv": "node --check SandblastTV/index.js && node --check SandblastTV/routes.js && node --check SandblastTV/manifestStore.js && node --check SandblastTV/schedulerService.js && node --check SandblastTV/mediaValidator.js && node --check SandblastTV/widgetBridge.js",
     "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js",
@@ -19,7 +19,12 @@
     "test:nyx-widget-playback": "node scripts/widget-playback-certification.js",
     "test:nyx-route-mount": "node scripts/route-mount-certification.js",
     "test:marion-admin-runtime": "node tests/marion/admin_runtime_primitive_guard_regression_test.js",
-    "verify:marion-critical": "node --check index.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionAdminRuntimeSafety.js && node --check tests/marion/admin_runtime_primitive_guard_regression_test.js && npm run test:marion-admin-runtime"
+    "verify:marion-critical": "node --check index.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionAdminRuntimeSafety.js && node --check tests/marion/admin_runtime_primitive_guard_regression_test.js && npm run test:marion-admin-runtime",
+    "test:marion-phase-a-core": "node tests/marion/layers_21_24_core_integration_test.js",
+    "test:marion-phase-a-cohesion": "node tests/marion/layers_9_24_partial_cohesion_test.js",
+    "test:marion-phase-a-gaps": "node tests/marion/layers_21_24_gap_refinement_test.js",
+    "test:marion-phase-a-strategy": "node tests/marion/layers_15_17_nuance_boundary_test.js",
+    "verify:marion-phase-a-part1": "node tests/marion/verify_phase_a_part1.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
