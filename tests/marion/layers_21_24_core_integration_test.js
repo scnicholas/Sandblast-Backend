@@ -1,0 +1,17 @@
+"use strict";
+const assert=require("assert");
+const coordinator=require("../../Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js");
+const first=coordinator.run({turnId:"a-1",conversationId:"c-1",directMarionAdminInterface:true,adminInterfaceScope:"marion_admin_conversation",locale:"en-CA",message:"No, no. That is not what I meant. Let's slow this down and repair the current section."});
+assert.equal(first.contract,"nyx.marion.nuance.phaseA/1.0");
+assert.equal(first.layer21.layer,21);assert.equal(first.layer22.layer,22);assert.equal(first.layer23.layer,23);assert.equal(first.layer24.layer,24);
+assert.equal(first.layer24.currentState,"correction");
+assert.equal(first.scope,"private_admin");
+assert.equal(first.culturalCompatibility.culturalInferenceAllowed,false);
+assert.equal(first.culturalCompatibility.identityInferenceAllowed,false);
+assert.equal(first.carryPolicy.approvedStatePatch.policies.rawEvidenceCarryAllowed,false);
+assert.equal(first.carryPolicy.approvedStatePatch.policies.crossPartitionCarryAllowed,false);
+const second=coordinator.run({turnId:"a-2",conversationId:"c-1",directMarionAdminInterface:true,message:"That passed. What is next?",nuanceState:first.carryPolicy.approvedStatePatch},{previousNuanceState:first.carryPolicy.approvedStatePatch});
+assert.equal(second.layer24.currentState,"validation");
+const publicTurn=coordinator.run({turnId:"a-3",surfaceAgent:"Nyx",audience:"public",message:"Hello"});
+assert.equal(publicTurn.scope,"public");
+console.log("PASS layers_21_24_core_integration_test");
