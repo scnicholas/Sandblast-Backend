@@ -1,0 +1,180 @@
+{
+  "package": "Marion Phase A Layers 21-24 Critical Runtime Integration Part 2",
+  "version": "1.0.0",
+  "generatedUtc": "2026-07-26T01:39:20.556195+00:00",
+  "contract": "nyx.marion.nuance.phaseA/1.0",
+  "architectureHardStopLayer": 24,
+  "completionDecisionLayer": 20,
+  "javascriptSyntaxChecks": {
+    "total": 18,
+    "passed": 18,
+    "results": [
+      {
+        "file": "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/completion/marionDecisionClosure.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/completion/marionGoalRealignment.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/composeMarionResponse.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/marionBridge.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/marionCurrentTurnAuthority.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/marionFinalEnvelope.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/marionIntentRouter.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionConversationalSignalNormalizer.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionCulturalCompatibilityBoundary.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionEmotionalConfidenceGate.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionEmotionalCueDetector.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionInteractionStateTracker.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionNuanceCarryPolicy.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionNuanceEnvelope.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js",
+        "ok": true,
+        "error": ""
+      }
+    ]
+  },
+  "completeSourceFilesPreserved": [
+    {
+      "source": "marionBridge(265).js",
+      "target": "Data/marion/runtime/marionBridge.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "composeMarionResponse(325).js",
+      "target": "Data/marion/runtime/composeMarionResponse.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionCurrentTurnAuthority(6).js",
+      "target": "Data/marion/runtime/marionCurrentTurnAuthority.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionFinalEnvelope(92).js",
+      "target": "Data/marion/runtime/marionFinalEnvelope.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionIntentRouter(82).js",
+      "target": "Data/marion/runtime/marionIntentRouter.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionPrivateRuntimeAdapter(4).js",
+      "target": "Data/marion/runtime/marionPrivateRuntimeAdapter.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionCompletionFlowCoordinator.js",
+      "target": "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionCrossDomainContextIntegrator.js",
+      "target": "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionGoalRealignment.js",
+      "target": "Data/marion/runtime/completion/marionGoalRealignment.js",
+      "completeSourcePrefixPreserved": true
+    },
+    {
+      "source": "marionDecisionClosure.js",
+      "target": "Data/marion/runtime/completion/marionDecisionClosure.js",
+      "completeSourcePrefixPreserved": true
+    }
+  ],
+  "focusedRuntimeSuites": {
+    "total": 4,
+    "passed": 4,
+    "output": "{\n  \"ok\": true,\n  \"interactionState\": \"correction\",\n  \"completionHardStop\": 24,\n  \"adapterHardStop\": 24\n}\nPASS: layers_21_24_remaining_runtime_integration_test.js\n{\n  \"ok\": true,\n  \"interactionState\": \"opening\",\n  \"hardStopLayer\": 24\n}\nPASS: private_runtime_nuance_integration_test.js\n{\n  \"ok\": true,\n  \"interactionState\": \"correction\",\n  \"architectureHardStop\": 24,\n  \"completionDecisionLayer\": 20\n}\nPASS: completion_layers_18_24_cohesion_test.js\n{\n  \"ok\": true,\n  \"interactionState\": \"validation\",\n  \"confidenceBand\": \"high\",\n  \"rawEvidenceExposed\": false\n}\nPASS: final_envelope_nuance_redaction_test.js\n{\n  \"ok\": true,\n  \"suite\": \"Marion Phase A Layers 21-24 Critical Integration Part 2\",\n  \"testsPassed\": 4\n}"
+  },
+  "criticalFixesVerified": {
+    "singlePhaseAAnalysisAuthority": true,
+    "currentTurnCorrectionPrecedence": true,
+    "staleNuanceRejected": true,
+    "emotionInferenceCannotReplaceLiteralIntent": true,
+    "culturalMarkersCannotReplaceLiteralIntent": true,
+    "emotionCannotAuthorizeGoalChangeOrClosure": true,
+    "culturalMarkersCannotAuthorizeGoalChangeOrClosure": true,
+    "rawNuanceEvidenceRedacted": true,
+    "privatePublicPartitionPreserved": true,
+    "layers18To20RemainMetadataOnly": true,
+    "automaticExecutionAllowed": false,
+    "additionalLayerRecommended": false
+  },
+  "mergeBoundary": {
+    "requiresPart1Overlay": true,
+    "stateSpineAndChatEngineTranchePending": true,
+    "fullLayers1To24ProductionCertificationPending": true
+  }
+}
