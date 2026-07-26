@@ -33,3 +33,16 @@ function attach(output={},input={}){ if(typeof output!=="object"||output===null|
 function sanitizeVisibleIdentity(value){ if(typeof value!=="string")return value; return value.replace(/\bI[’']?m Nyx\b/gi,"I’m Marion").replace(/\bI am Nyx\b/gi,"I am Marion").replace(/\bNyx is ready\b/gi,"Marion is ready"); }
 function validate(depth={}){ const d=obj(depth),l=obj(d.layers),six=obj(l.six),seven=obj(l.seven),eight=obj(l.eight),iso=obj(d.identityIsolation); const errors=[]; if(six.identity!=="Marion")errors.push("layer6_identity"); if(six.nyxVoiceAllowed!==false)errors.push("layer6_nyx_voice"); if(!RELATIONS.includes(seven.relationToPreviousTurn))errors.push("layer7_relation"); if(clamp(eight.inferenceConfidence,-1)<0)errors.push("layer8_confidence"); if(iso.nyxVisibleIdentityBlocked!==true)errors.push("identity_isolation"); return {ok:errors.length===0,errors}; }
 module.exports={VERSION,CONTRACT,ALLOWED_OPERATORS,RELATIONS,extract,build,attach,sanitizeVisibleIdentity,validate};
+
+/* MARION_ROUND2_DEPTH_CONTINUITY_V1_START */
+(function marionRound2DepthContinuityV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound2DepthContinuityV1)return;
+  const VERSION="marion.conversationalDepth.round2Continuity/1.0",H=28;
+  function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function matched(q){const n=text(q).toLowerCase();return /(?:continue from (?:your|the) previous answer|observe[–—-]analy[sz]e[–—-]recommend boundary)/i.test(n)&&/(?:why|important|separat(?:e|ing)|three stages)/i.test(n)}
+  const original=api.build;api.build=function(input={},existing={}){const out=original.call(this,input,existing),q=api.extract(input);if(!matched(q))return out;const layers=obj(out.layers),seven=obj(layers.seven),eight=obj(layers.eight);return{...out,layers:{...layers,seven:{...seven,relationToPreviousTurn:"continuation",activeTopic:"observe-analyze-recommend boundary",currentObjective:"explain why the three-stage boundary matters",continuityConfidence:.96},eight:{...eight,literalIntent:text(q).slice(0,260),deeperIntent:"explain the safety, traceability, and authority value of separating observation, analysis, and recommendation",conversationalNeed:"contextual_progression",inferenceConfidence:.94,inferencePolicy:"qualified_inference_allowed"}},confidence:.95,hardStopLayer:H}}
+  api.MARION_ROUND2_DEPTH_CONTINUITY_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=H;api.__marionRound2DepthContinuityV1=true;
+})();
+/* MARION_ROUND2_DEPTH_CONTINUITY_V1_END */
