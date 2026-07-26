@@ -875,3 +875,37 @@ Object.assign(module.exports,{VERSION,BRIDGE_CONTRACT_VERSION,CANONICAL_ENDPOINT
   api.__marionNuancePhaseABridgeIntegrationV2=true;
 })();
 /* MARION_NUANCE_PHASE_A_BRIDGE_INTEGRATION_V2_END */
+
+/* MARION_NUANCE_PHASE_B_BridgeIntegration_V1_START */
+(function marionNuancePhaseBBridgeIntegrationV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseBBridgeIntegrationV1)return;
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=26;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=240){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
+  function phaseB(v){const x=obj(v),candidates=[x.phaseBNuance,x.nuancePhaseBContext,x.phaseBContext,x.nuanceContext,obj(x.payload).phaseBNuance,obj(x.payload).nuancePhaseBContext];for(const n of candidates){const q=obj(n);if(q.contract===PHASE_B_CONTRACT&&q.phase==="B")return q;}return{};}
+  function phaseAFrom(n){const b=obj(n),a=obj(b.phaseA);return a.contract===PHASE_A_CONTRACT?a:{};}
+  function summary(n){const b=obj(n),l25=obj(b.layer25),l26=obj(b.layer26),g=obj(b.subtextGate),p=obj(b.responsePosture),a=phaseAFrom(b),l24=obj(a.layer24);return{contract:PHASE_B_CONTRACT,phase:"B",turnId:clean(b.turnId,160),interactionState:clean(l24.currentState,60),primaryStance:clean(l25.primaryStance,80),secondaryStances:Array.isArray(l25.secondaryStances)?l25.secondaryStances.slice(0,2):[],modifiers:Array.isArray(l25.modifiers)?l25.modifiers.slice(0,4):[],stanceConfidence:Number(l25.confidence||0),literalIntent:clean(l26.literalIntent,120),primaryPragmaticIntent:clean(l26.primaryPragmaticIntent,120),secondaryPragmaticIntents:Array.isArray(l26.secondaryPragmaticIntents)?l26.secondaryPragmaticIntents.slice(0,2):[],conversationControl:clean(obj(l26.conversationControl).category,100),pragmaticConfidence:Number(l26.confidence||0),subtextPolicy:clean(g.subtextPolicy,80),answerStructure:Array.isArray(p.answerStructure)?p.answerStructure.slice(0,6):[],literalIntentPreserved:g.literalIntentPreserved!==false,noUserFacingDiagnostics:true};}
+
+  let coordinator=null,envelope=null;
+  try{coordinator=require("./nuance/marionNuancePhaseBCoordinator.js");}catch(_){coordinator=null;}
+  try{envelope=require("./nuance/marionNuancePhaseBEnvelope.js");}catch(_){envelope=null;}
+  function privateTurn(v){const x=obj(v),b=obj(x.body),p=obj(x.payload);return x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||b.privateAdminConversation===true||p.privateAdminConversation===true||clean(x.scope)==="private_admin";}
+  function turnId(v){const x=obj(v),b=obj(x.body),p=obj(x.payload),m=obj(x.meta);return clean(x.turnId||x.currentTurnId||b.turnId||p.turnId||m.turnId,160);}
+  function valid(n,id){const b=obj(n);if(b.contract!==PHASE_B_CONTRACT||b.phase!=="B")return false;if(id&&b.turnId&&clean(b.turnId,160)!==id)return false;try{return !envelope||typeof envelope.validatePhaseBEnvelope!=="function"||envelope.validatePhaseBEnvelope(b).ok===true;}catch(_){return false;}}
+  function prepare(raw){const input=obj(raw);if(!privateTurn(input))return input;const id=turnId(input);let b=phaseB(input);if(!valid(b,id)&&coordinator){try{const fn=coordinator.safeAnalyzeMarionNuancePhaseB||coordinator.analyzeMarionNuancePhaseB||coordinator.run;b=fn(input,{turnId:id,previousNuanceState:obj(input.previousMemory).nuanceState});}catch(_){b={};}}if(!valid(b,id))return input;const a=phaseAFrom(b),state=obj(obj(b.carryPolicy).approvedStatePatch);return {...input,nuanceContext:Object.keys(a).length?a:input.nuanceContext,phaseANuance:Object.keys(a).length?a:input.phaseANuance,phaseBNuance:b,nuancePhaseBContext:b,phaseBStatePatch:state,nuanceHardStopLayer:HARD_STOP_LAYER,phaseBAnalysisAuthority:"marionNuancePhaseBCoordinator",phaseBAnalysisPerformed:true};}
+  function scrub(value,depth=0,seen=new WeakSet()){if(value==null||typeof value!=="object")return value;const x=obj(value);if(x.contract===PHASE_B_CONTRACT&&x.phase==="B")return summary(x);if(depth>8)return"[truncated_depth]";try{if(seen.has(value))return"[circular]";seen.add(value);}catch(_){}if(Array.isArray(value))return value.slice(0,100).map(v=>scrub(v,depth+1,seen));const out={};for(const k of Object.keys(value)){if(["phaseBNuance","nuancePhaseBContext","phaseBContext","rawPragmaticEvidence","markerMatches","allCandidateDetails"].includes(k))continue;if(k==="evidence"&&depth>1)continue;out[k]=scrub(value[k],depth+1,seen);}return out;}
+  function attach(raw,input){if(!raw||typeof raw!=="object"||!privateTurn(input))return raw;const b=phaseB(input);if(!Object.keys(b).length)return raw;const s=summary(b),state=obj(obj(b.carryPolicy).approvedStatePatch),out={...raw,internalNuance:s,phaseBStatePatch:state};delete out.phaseBNuance;delete out.nuancePhaseBContext;out.memoryPatch={...obj(out.memoryPatch),nuanceState:state,internalNuance:s};out.sessionPatch={...obj(out.sessionPatch),nuanceState:state,internalNuance:s};out.finalEnvelope={...obj(out.finalEnvelope),internalNuance:s,nuanceContract:PHASE_B_CONTRACT,nuanceInternalOnly:true,rawMarkerEvidenceExposed:false};out.meta={...obj(out.meta),nuanceContract:PHASE_B_CONTRACT,nuanceHardStopLayer:HARD_STOP_LAYER,phaseBAnalysisAuthority:"marionNuancePhaseBCoordinator",phaseACalledOnce:true,literalIntentPreserved:true,rawMarkerEvidenceExposed:false};return scrub(out);}
+  const cache=new WeakMap();
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionNuancePhaseBBridgeIntegrationV1)return fn;if(cache.has(fn))return cache.get(fn);const w=function(){const args=Array.from(arguments),prepared=prepare(args[0]);args[0]=prepared;const result=fn.apply(this,args),done=v=>attach(v,prepared);return result&&typeof result.then==="function"?result.then(done):done(result);};w.__marionNuancePhaseBBridgeIntegrationV1=true;cache.set(fn,w);return w;}
+  for(const name of["processWithMarion","route","maybeResolve","ask","handle","default","handleMarionAdminConversation","handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.getMarionNuancePhaseBStatus=function(){let health={ok:false};try{health=coordinator&&typeof coordinator.moduleHealth==="function"?coordinator.moduleHealth():health;}catch(_){}return{...obj(health),contract:PHASE_B_CONTRACT,hardStopLayer:HARD_STOP_LAYER,phaseAHardStopLayer:24,singleAnalysisAuthority:true,phaseACalledOnce:true,failOpenToPhaseA:true,literalIntentPreserved:true,rawMarkerEvidenceExposed:false};};
+
+  api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseBBridgeIntegrationV1=true;
+})();
+/* MARION_NUANCE_PHASE_B_BridgeIntegration_V1_END */
