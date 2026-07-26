@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.5-marion-nuance-phase-b-26",
-  "description": "Sandblast backend with cohesive Marion Layers 1-26, Phase A conversational nuance, Phase B stance and pragmatic-intent resolution, private state transport, and runtime hardening",
+  "version": "1.0.6-marion-cognitive-layers-27-29",
+  "description": "Sandblast backend with cohesive Marion Layers 1-29, including strategic planning, internal metacognition, cognitive supervision, bounded state transport, and preserved reply authority",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -31,7 +31,11 @@
     "test:marion-phase-b-transport": "node tests/marion/phase_b_chat_engine_transport_test.js",
     "test:marion-phase-b-control": "node tests/marion/phase_b_index_manifest_package_contract_test.js",
     "verify:marion-phase-b-part2-batch2": "node tests/marion/verify_phase_b_part2_batch2.js",
-    "verify:marion-phase-b": "npm run test:marion-phase-b-core && npm run test:marion-phase-b-batch1 && npm run verify:marion-phase-b-part2-batch2"
+    "verify:marion-phase-b": "npm run test:marion-phase-b-core && npm run test:marion-phase-b-batch1 && npm run verify:marion-phase-b-part2-batch2",
+    "test:marion-layer27": "node tests/marion/layer27/marionStrategicPlanner.test.js && node tests/marion/layer27/marionPriorityArbitrator.test.js && node tests/marion/layer27/marionLayer27Integration.test.js",
+    "test:marion-layer28": "node tests/marion/layer28/marionReasoningAuditor.test.js && node tests/marion/layer28/marionQualityCalibrator.test.js && node tests/marion/layer28/marionLayer28Integration.test.js",
+    "test:marion-layer29": "node tests/marion/layer29/marionCognitiveSupervisionIntegration.test.js && node tests/marion/marionLayers27_28Regression.test.js",
+    "verify:marion-layers-27-29": "node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/supervision/marionCognitiveSupervisor.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && npm run test:marion-layer27 && npm run test:marion-layer28 && npm run test:marion-layer29"
   },
   "dependencies": {
     "ably": "^2.22.0",
