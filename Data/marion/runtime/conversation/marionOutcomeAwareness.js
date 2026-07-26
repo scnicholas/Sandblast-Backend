@@ -112,7 +112,7 @@ module.exports={VERSION,CONTRACT,isGreeting,isQuestion,isBrainstorm,timingHint,c
   function phaseAFrom(n){const b=obj(n),a=obj(b.phaseA);return a.contract===PHASE_A_CONTRACT?a:{};}
   function summary(n){const b=obj(n),l25=obj(b.layer25),l26=obj(b.layer26),g=obj(b.subtextGate),p=obj(b.responsePosture),a=phaseAFrom(b),l24=obj(a.layer24);return{contract:PHASE_B_CONTRACT,phase:"B",turnId:clean(b.turnId,160),interactionState:clean(l24.currentState,60),primaryStance:clean(l25.primaryStance,80),secondaryStances:Array.isArray(l25.secondaryStances)?l25.secondaryStances.slice(0,2):[],modifiers:Array.isArray(l25.modifiers)?l25.modifiers.slice(0,4):[],stanceConfidence:Number(l25.confidence||0),literalIntent:clean(l26.literalIntent,120),primaryPragmaticIntent:clean(l26.primaryPragmaticIntent,120),secondaryPragmaticIntents:Array.isArray(l26.secondaryPragmaticIntents)?l26.secondaryPragmaticIntents.slice(0,2):[],conversationControl:clean(obj(l26.conversationControl).category,100),pragmaticConfidence:Number(l26.confidence||0),subtextPolicy:clean(g.subtextPolicy,80),answerStructure:Array.isArray(p.answerStructure)?p.answerStructure.slice(0,6):[],literalIntentPreserved:g.literalIntentPreserved!==false,noUserFacingDiagnostics:true};}
 
-  const original=api.classify;if(typeof original==="function")api.classify=function(input={}){const out=original.call(this,input),b=phaseB(input),s=summary(b),p=s.primaryPragmaticIntent,blocked=["request_for_reassurance","request_for_acknowledgement","rapport_building","rhetorical_question_possible","sarcasm_possible","reluctant_acceptance_possible","polite_disagreement","skepticism"].includes(p);let result={...obj(out),phaseBPrimaryPragmaticIntent:p,literalIntentPreserved:true,subtextMayCreateApproval:false,subtextMayCreateCompletion:false,stanceMayCreateOutcome:false};if(blocked&&["action_approved","completed","test_passed"].includes(clean(result.outcomeType,80)))result={...result,outcomeType:"none",outcomeStatus:"none",approved:false,completed:false,phaseBFalseOutcomeBlocked:true};return result;};
+  const original=api.classify;if(typeof original==="function")api.classify=function(prompt="",context={}){const ctx=obj(context),out=original.call(this,prompt,ctx),b=phaseB(ctx),s=summary(b),p=s.primaryPragmaticIntent,blocked=["request_for_reassurance","request_for_acknowledgement","rapport_building","rhetorical_question_possible","sarcasm_possible","reluctant_acceptance_possible","polite_disagreement","skepticism"].includes(p);let result={...obj(out),phaseBPrimaryPragmaticIntent:p,literalIntentPreserved:true,subtextMayCreateApproval:false,subtextMayCreateCompletion:false,stanceMayCreateOutcome:false};if(blocked&&["action_approved","completed","test_passed"].includes(clean(result.outcomeType,80)))result={...result,outcomeType:"none",outcomeStatus:"none",explicit:false,approved:false,completed:false,phaseBFalseOutcomeBlocked:true};return result;};
 
   api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
   api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
@@ -121,6 +121,20 @@ module.exports={VERSION,CONTRACT,isGreeting,isQuestion,isBrainstorm,timingHint,c
 /* MARION_NUANCE_PHASE_B_OutcomeAwarenessCohesion_V1_END */
 
 
-/* MARION_LAYERS_27_29_OUTCOME_COHESION_V1_START */
-(function marionLayers2729OutcomeCohesionV1(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionLayers2729OutcomeCohesionV1)return;const original=api.classify;function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}if(typeof original==="function")api.classify=function(input={}){const out=obj(original.call(this,input)),c=obj(obj(input).cognitiveSupervisor),hasPlan=c.layer27Applied===true||!!obj(input).strategic;const falsePositive=hasPlan&&["action_approved","completed","test_passed"].includes(String(out.outcomeType||""))&&obj(input).explicitApproval!==true&&obj(input).executionReceipt!==true;return falsePositive?{...out,outcomeType:"none",outcomeStatus:"none",approved:false,completed:false,cognitivePlanOutcomeBlocked:true,planningDoesNotEqualApproval:true}:{...out,planningDoesNotEqualApproval:true,reflectionDoesNotEqualCompletion:true,layer29Integrated:true};};api.MARION_LAYER_HARD_STOP=29;api.__marionLayers2729OutcomeCohesionV1=true;})();
-/* MARION_LAYERS_27_29_OUTCOME_COHESION_V1_END */
+/* MARION_LAYERS_27_28_OUTCOME_COHESION_V1_START */
+(function marionLayers2728OutcomeCohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionLayers2728OutcomeCohesionV1)return;
+  const original=api.classify;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function cognitiveFrom(context){const c=obj(context);return obj(c.cognitiveSupervisor||c.cognitive||obj(c.payload).cognitiveSupervisor);}
+  if(typeof original==="function")api.classify=function(prompt="",context={}){
+    const ctx=obj(context),out=obj(original.call(this,prompt,ctx)),c=cognitiveFrom(ctx),hasPlan=c.layer27Applied===true||!!obj(ctx.strategic).missionId;
+    const falsePositive=hasPlan&&["action_approved","completed","test_passed"].includes(String(out.outcomeType||""))&&ctx.explicitApproval!==true&&ctx.executionReceipt!==true;
+    return falsePositive?{...out,outcomeType:"none",outcomeStatus:"none",explicit:false,approved:false,completed:false,cognitivePlanOutcomeBlocked:true,planningDoesNotEqualApproval:true,reflectionDoesNotEqualCompletion:true,supervisorIntegrated:true}:{...out,planningDoesNotEqualApproval:true,reflectionDoesNotEqualCompletion:true,supervisorIntegrated:true};
+  };
+  api.MARION_LAYER_HARD_STOP=28;
+  api.__marionLayers2728OutcomeCohesionV1=true;
+})();
+/* MARION_LAYERS_27_28_OUTCOME_COHESION_V1_END */
