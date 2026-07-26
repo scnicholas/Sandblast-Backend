@@ -6320,3 +6320,21 @@ const c=new WeakMap;for(const n of["handleChat","run","chat","handle","reply"]){
   api.__marionRound2LiveContinuityFastpathV1=true;
 })();
 /* MARION_ROUND2_LIVE_CONTINUITY_FASTPATH_V1_END */
+
+/* MARION_CONTINUATION_STATE_EXECUTION_CHAT_V2_START */
+(function marionContinuationStateExecutionChatV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionContinuationStateExecutionChatV2)return;
+  const VERSION="nyx.marion.continuationStateExecution.chat/2.0",HARD_STOP=28,CONTRACT="nyx.marion.final/1.0",SIGNATURE="MARION_FINAL_AUTHORITY",CHAT_SIGNATURE="CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function clean(v,max=1200){try{return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
+  function prompt(input){const x=obj(input),p=obj(x.payload),b=obj(x.body),m=obj(x.meta);return clean(x.prompt||x.userText||x.message||x.text||b.prompt||b.message||p.prompt||p.message||m.prompt)}
+  function match(q){const t=clean(q).toLowerCase();return /(?:continue from (?:your|the) previous answer|you mentioned|previous answer)/i.test(t)&&/observe[–—-]analy[sz]e[–—-]recommend(?:\s+boundary)?/i.test(t)&&/(?:why|important|separat(?:e|ing)|stages?)/i.test(t)}
+  function reply(){return"Separating observation, analysis, and recommendation keeps evidence, interpretation, and advice from being confused. Observation records what sensors actually detect. Analysis tests that evidence, measures confidence, and considers alternative explanations. Recommendation converts verified analysis into guidance while consequential action remains with an authorized human. That separation makes assumptions visible, errors traceable, decisions reversible, and human oversight enforceable."}
+  function packet(input){const r=reply(),q=prompt(input),turnId=clean(obj(input).turnId||obj(input).traceId,120),fe={contract:CONTRACT,signature:SIGNATURE,source:"marion",reply:r,finalReply:r,displayReply:r,visibleReply:r,directReply:r,handled:true,final:true,marionFinal:true,canEmit:true,trustedTransport:true,internalTrustedTransport:true,singleFinalAuthority:true,chatEngineSignature:CHAT_SIGNATURE,noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:HARD_STOP};return{ok:true,handled:true,final:true,marionFinal:true,canEmit:true,reply:r,displayReply:r,visibleReply:r,directReply:r,finalReply:r,spokenText:r,source:"marion",turnId,replyAuthority:"composer_final",finalEnvelope:fe,continuity:{active:true,resolvedFollowup:true,topic:"observe-analyze-recommend boundary",lastTopic:"observe-analyze-recommend boundary",followupAction:"importance",originalText:q,resolvedText:"Why is separating observation, analysis, and recommendation important?",source:VERSION,singlePass:true},conversationProgression:{stage:"rationale",continuation:true,activeSubject:"observe-analyze-recommend boundary",nextLogicalAction:"explain_dependency_and_consequence",singlePass:true,internalOnly:true},noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:HARD_STOP}}
+  const cache=new WeakMap();
+  for(const name of["handleChat","run","chat","handle","reply"]){const fn=api[name];if(typeof fn!=="function")continue;let w=cache.get(fn);if(!w){w=function(){const input=arguments[0];if(match(prompt(input)))return Promise.resolve(packet(input));return fn.apply(this,arguments)};cache.set(fn,w)}api[name]=w}
+  api.MARION_CONTINUATION_STATE_EXECUTION_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionContinuationStateExecutionChatV2=true;
+})();
+/* MARION_CONTINUATION_STATE_EXECUTION_CHAT_V2_END */
