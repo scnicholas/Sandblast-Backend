@@ -6249,3 +6249,20 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
   api.__marionNuancePhaseBChatEngineTransportV1=true;
 })();
 /* MARION_NUANCE_PHASE_B_CHATENGINE_TRANSPORT_V1_END */
+
+
+/* MARION_LAYERS_27_29_CHAT_TRANSPORT_COHESION_V1_START */
+(function marionLayers2729ChatTransportCohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionLayers2729ChatTransportCohesionV1)return;
+  const VERSION="nyx.marion.layers27_29.chatTransport/1.0",HARD_STOP_LAYER=29;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function compact(v){const x=obj(v),c=obj(x.cognitiveSupervisor),s=obj(x.strategic),m=obj(x.metacognition);return{version:VERSION,layer27Applied:c.layer27Applied===true,layer28Applied:c.layer28Applied===true,layer29Integrated:c.layer29Integrated===true||c.hardStopLayer===29,replyAuthorityPreserved:c.replyAuthorityPreserved!==false,executionAuthorized:false,internalOnly:true,strategyStatus:String(s.status||""),metaStatus:String(m.status||"")};}
+  function project(result){if(!result||typeof result!=="object")return result;const x=obj(result);if(!x.cognitiveSupervisor&&!x.strategic&&!x.metacognition)return result;return{...x,internalCognition:compact(x),cognitiveInternalOnly:true,executionAuthorized:false,noUserFacingDiagnostics:true};}
+  const cache=new WeakMap();
+  for(const name of["handleChat","run","chat","handle","reply"]){const original=api[name];if(typeof original!=="function")continue;let w=cache.get(original);if(!w){w=function(){const r=original.apply(this,arguments);return r&&typeof r.then==="function"?r.then(project):project(r);};cache.set(original,w);}api[name]=w;}
+  api.getMarionLayers2729TransportStatus=function(){return{ok:true,version:VERSION,hardStopLayer:HARD_STOP_LAYER,transportOnly:true,semanticAnalysisPerformed:false,publicCognitionProjectionAllowed:false,replyAuthorityPreserved:true};};
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionLayers2729ChatTransportCohesionV1=true;
+})();
+/* MARION_LAYERS_27_29_CHAT_TRANSPORT_COHESION_V1_END */
