@@ -119,3 +119,8 @@ module.exports={VERSION,CONTRACT,isGreeting,isQuestion,isBrainstorm,timingHint,c
   api.__marionNuancePhaseBOutcomeAwarenessCohesionV1=true;
 })();
 /* MARION_NUANCE_PHASE_B_OutcomeAwarenessCohesion_V1_END */
+
+
+/* MARION_LAYERS_27_29_OUTCOME_COHESION_V1_START */
+(function marionLayers2729OutcomeCohesionV1(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionLayers2729OutcomeCohesionV1)return;const original=api.classify;function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}if(typeof original==="function")api.classify=function(input={}){const out=obj(original.call(this,input)),c=obj(obj(input).cognitiveSupervisor),hasPlan=c.layer27Applied===true||!!obj(input).strategic;const falsePositive=hasPlan&&["action_approved","completed","test_passed"].includes(String(out.outcomeType||""))&&obj(input).explicitApproval!==true&&obj(input).executionReceipt!==true;return falsePositive?{...out,outcomeType:"none",outcomeStatus:"none",approved:false,completed:false,cognitivePlanOutcomeBlocked:true,planningDoesNotEqualApproval:true}:{...out,planningDoesNotEqualApproval:true,reflectionDoesNotEqualCompletion:true,layer29Integrated:true};};api.MARION_LAYER_HARD_STOP=29;api.__marionLayers2729OutcomeCohesionV1=true;})();
+/* MARION_LAYERS_27_29_OUTCOME_COHESION_V1_END */
