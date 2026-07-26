@@ -6031,3 +6031,221 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
 })();
 /* MARION_COMPLETION_FLOW_LAYERS_18_19_20_CHATENGINE_TRANSPORT_V20_END */
 
+/* MARION_NUANCE_PHASE_B_CHATENGINE_TRANSPORT_V1_START */
+(function marionNuancePhaseBChatEngineTransportV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseBChatEngineTransportV1)return;
+
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_B_STATE_CONTRACT="nyx.marion.nuanceState.phaseB/1.0";
+  const HARD_STOP_LAYER=26;
+  const VERSION="nyx.marion.nuance.phaseB.chatEngineTransport/1.0";
+
+  function obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+  function clean(value,max=260){
+    try{return String(value==null?"":value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}
+    catch(_){return"";}
+  }
+  function number01(value){
+    const number=Number(value);
+    return Number.isFinite(number)?Math.max(0,Math.min(1,number)):0;
+  }
+  function privateTurn(value){
+    const source=obj(value),body=obj(source.body),payload=obj(source.payload),meta=obj(source.meta);
+    return source.privateAdminConversation===true||
+      source.marionAdminConversation===true||
+      source.directMarionAdminInterface===true||
+      source.authenticatedOperator===true||
+      body.privateAdminConversation===true||
+      payload.privateAdminConversation===true||
+      meta.privateAdminConversation===true||
+      clean(source.scope||body.scope||payload.scope)==="private_admin";
+  }
+  function phaseB(value){
+    const source=obj(value),payload=obj(source.payload),meta=obj(source.meta),finalEnvelope=obj(source.finalEnvelope);
+    const candidates=[
+      source.phaseBNuance,source.nuancePhaseBContext,source.phaseBContext,
+      payload.phaseBNuance,payload.nuancePhaseBContext,
+      meta.phaseBNuance,finalEnvelope.phaseBNuance
+    ];
+    for(const candidate of candidates){
+      const context=obj(candidate);
+      if(context.contract===PHASE_B_CONTRACT&&context.phase==="B")return context;
+    }
+    return {};
+  }
+  function approvedPatch(context){
+    const patch=obj(obj(context.carryPolicy).approvedStatePatch);
+    return patch.contract===PHASE_B_STATE_CONTRACT?patch:{};
+  }
+  function summary(context){
+    const source=obj(context),phaseA=obj(source.phaseA),layer24=obj(phaseA.layer24);
+    const stance=obj(source.layer25),pragmatic=obj(source.layer26);
+    const gate=obj(source.subtextGate),posture=obj(source.responsePosture);
+    return {
+      contract:PHASE_B_CONTRACT,
+      phase:"B",
+      turnId:clean(source.turnId,160),
+      interactionState:clean(layer24.currentState,80),
+      primaryStance:clean(stance.primaryStance,100),
+      secondaryStances:Array.isArray(stance.secondaryStances)?stance.secondaryStances.slice(0,2).map(v=>clean(v,100)).filter(Boolean):[],
+      modifiers:Array.isArray(stance.modifiers)?stance.modifiers.slice(0,4).map(v=>clean(v,100)).filter(Boolean):[],
+      stanceConfidence:number01(stance.confidence),
+      literalIntent:clean(pragmatic.literalIntent,140),
+      primaryPragmaticIntent:clean(pragmatic.primaryPragmaticIntent,140),
+      secondaryPragmaticIntents:Array.isArray(pragmatic.secondaryPragmaticIntents)
+        ?pragmatic.secondaryPragmaticIntents.slice(0,2).map(v=>clean(v,140)).filter(Boolean):[],
+      conversationControl:clean(obj(pragmatic.conversationControl).category,120),
+      pragmaticConfidence:number01(pragmatic.confidence),
+      subtextPolicy:clean(gate.subtextPolicy,100),
+      answerStructure:Array.isArray(posture.answerStructure)
+        ?posture.answerStructure.slice(0,6).map(v=>clean(v,120)).filter(Boolean):[],
+      literalIntentPreserved:gate.literalIntentPreserved!==false,
+      noUserFacingDiagnostics:true
+    };
+  }
+  function sanitize(value,depth=0,stack=[]){
+    if(value===null||value===undefined)return value;
+    if(typeof value!=="object")return value;
+    if(depth>9)return"[truncated_depth]";
+    if(stack.includes(value))return"[circular]";
+    const nextStack=stack.concat([value]);
+    const source=obj(value);
+    const rawPhaseBEnvelope=source.contract===PHASE_B_CONTRACT&&source.phase==="B"&&(
+      Object.prototype.hasOwnProperty.call(source,"phaseA")||
+      Object.prototype.hasOwnProperty.call(source,"layer25")||
+      Object.prototype.hasOwnProperty.call(source,"layer26")||
+      Object.prototype.hasOwnProperty.call(source,"subtextGate")||
+      Object.prototype.hasOwnProperty.call(source,"responsePosture")
+    );
+    if(rawPhaseBEnvelope)return sanitize(summary(source),depth+1,nextStack);
+    if(Array.isArray(value))return value.slice(0,100).map(item=>sanitize(item,depth+1,nextStack));
+    const output={};
+    for(const key of Object.keys(source)){
+      if([
+        "phaseBNuance","nuancePhaseBContext","phaseBContext",
+        "rawPragmaticEvidence","rawMarkerEvidence","markerMatches",
+        "allCandidateDetails","figurativeEvidence"
+      ].includes(key))continue;
+      output[key]=sanitize(source[key],depth+1,nextStack);
+    }
+    return output;
+  }
+  function carryInput(result,original){
+    if(!result||typeof result!=="object")return result;
+    if(!privateTurn(original))return result;
+    const context=phaseB(original);
+    if(!Object.keys(context).length)return result;
+    const patch=approvedPatch(context);
+    return {
+      ...result,
+      phaseBNuance:context,
+      nuancePhaseBContext:context,
+      phaseBStatePatch:patch,
+      nuanceHardStopLayer:HARD_STOP_LAYER,
+      phaseBTransportAuthority:"chatEngine_transport_only",
+      phaseBSemanticAnalysisPerformed:false
+    };
+  }
+  function projectResult(result,input){
+    if(!result||typeof result!=="object")return result;
+    const isPrivate=privateTurn(input);
+    const context=phaseB(input)||phaseB(result);
+    const output={...result};
+
+    if(!isPrivate){
+      delete output.phaseBNuance;
+      delete output.nuancePhaseBContext;
+      delete output.phaseBContext;
+      delete output.phaseBStatePatch;
+      delete output.internalNuance;
+      return sanitize(output);
+    }
+
+    if(!Object.keys(context).length)return sanitize(output);
+    const compact=summary(context);
+    const patch=approvedPatch(context);
+
+    delete output.phaseBNuance;
+    delete output.nuancePhaseBContext;
+    delete output.phaseBContext;
+
+    output.internalNuance=compact;
+    output.phaseBStatePatch=patch;
+    output.memoryPatch={...obj(output.memoryPatch),nuanceState:patch,internalNuance:compact};
+    output.sessionPatch={...obj(output.sessionPatch),nuanceState:patch,internalNuance:compact};
+    output.stateBridge={...obj(output.stateBridge),nuanceState:patch,nuanceHardStopLayer:HARD_STOP_LAYER};
+    output.finalEnvelope={
+      ...obj(output.finalEnvelope),
+      internalNuance:compact,
+      nuanceContract:PHASE_B_CONTRACT,
+      nuanceInternalOnly:true,
+      rawMarkerEvidenceExposed:false
+    };
+    output.meta={
+      ...obj(output.meta),
+      phaseBTransportVersion:VERSION,
+      nuanceHardStopLayer:HARD_STOP_LAYER,
+      semanticAnalysisPerformed:false,
+      literalIntentPreserved:true,
+      rawMarkerEvidenceExposed:false,
+      publicNuanceProjectionAllowed:false
+    };
+    return sanitize(output);
+  }
+
+  const originalNormalize=api.normalizeInputForMarion;
+  if(typeof originalNormalize==="function"){
+    api.normalizeInputForMarion=function(input={},options={}){
+      return carryInput(originalNormalize.call(this,input,options),input);
+    };
+  }
+
+  const cache=new WeakMap();
+  function wrap(name){
+    const original=api[name];
+    if(typeof original!=="function"||original.__marionNuancePhaseBChatTransportV1)return;
+    if(cache.has(original)){api[name]=cache.get(original);return;}
+    const wrapped=function(){
+      const args=Array.from(arguments);
+      const input=args[0]||{};
+      const result=original.apply(this,args);
+      const done=value=>projectResult(value,input);
+      return result&&typeof result.then==="function"?result.then(done):done(result);
+    };
+    wrapped.__marionNuancePhaseBChatTransportV1=true;
+    cache.set(original,wrapped);
+    api[name]=wrapped;
+  }
+
+  for(const name of["handleChat","run","chat","handle","reply"])wrap(name);
+
+  api.MARION_NUANCE_PHASE_B_CHATENGINE_VERSION=VERSION;
+  api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+  api.MARION_NUANCE_PHASE_B_STATE_CONTRACT=PHASE_B_STATE_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.MARION_NUANCE_PHASE_B_TRANSPORT_ONLY=true;
+  api.MARION_NUANCE_PHASE_B_SEMANTIC_ANALYSIS_ALLOWED=false;
+  api.compactMarionPhaseBTransportSummary=summary;
+  api.sanitizeMarionPhaseBTransport=sanitize;
+  api.projectMarionPhaseBTransportResult=projectResult;
+  api.getMarionPhaseBTransportStatus=function(){
+    return {
+      ok:true,
+      version:VERSION,
+      contract:PHASE_B_CONTRACT,
+      stateContract:PHASE_B_STATE_CONTRACT,
+      hardStopLayer:HARD_STOP_LAYER,
+      phaseAHardStopLayer:24,
+      transportOnly:true,
+      semanticAnalysisPerformed:false,
+      phaseACalledOnce:true,
+      literalIntentPreserved:true,
+      rawMarkerEvidenceExposed:false,
+      publicNuanceProjectionAllowed:false
+    };
+  };
+  api.__marionNuancePhaseBChatEngineTransportV1=true;
+})();
+/* MARION_NUANCE_PHASE_B_CHATENGINE_TRANSPORT_V1_END */
