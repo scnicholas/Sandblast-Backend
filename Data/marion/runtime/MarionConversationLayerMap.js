@@ -1,5 +1,5 @@
 {
-  "package_version": "marion_conversational_flow_package_v1",
+  "package_version": "marion_conversational_flow_package_v2_round2_continuity",
   "six_domains": [
     "ai",
     "cyber",
@@ -111,5 +111,18 @@
     "NyxSpeechSyncEnvelope.js",
     "production tts.js provider adapter",
     "production MarionBridge integration with existing hosted runtime"
-  ]
+  ],
+  "canonical_hard_stop_layer": 28,
+  "round2_live_validation": {
+    "status": "repaired",
+    "scope": [
+      "continuation recognition",
+      "bounded state carry",
+      "rationale progression",
+      "reply authority",
+      "latency containment"
+    ],
+    "execution_authorized": false,
+    "reply_authority": "composer_final"
+  }
 }
