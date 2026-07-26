@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('assert');
+const {performance}=require('perf_hooks');
+const prompt='Marion, let\'s continue from your previous answer. You mentioned an observe–analyze–recommend boundary. Why is separating those three stages so important?';
+(async()=>{
+  const progression=require('../Data/marion/runtime/marionConversationProgression.js');
+  const p=progression.analyzeTurn({prompt,turnId:'round2-live-1',previous:{stage:'analysis',progressionDepth:1,lastAcceptedResult:'prior'}});
+  assert.equal(p.stage,'rationale');assert.equal(p.continuation,true);assert.equal(p.activeSubject,'observe-analyze-recommend boundary');assert.equal(p.singlePass,true);
+  const bridge=require('../Data/marion/runtime/marionBridge.js');
+  let t=performance.now();const b=await bridge.processWithMarion({prompt,turnId:'round2-live-1'});let bridgeMs=performance.now()-t;
+  assert.equal(b.ok,true);assert.equal(b.final,true);assert.equal(b.hardStopLayer,28);assert.equal(b.executionAuthorized,false);assert.ok(/Separating observation/.test(b.reply));assert.ok(bridgeMs<1500);
+  const chat=require('../utils/chatEngine.js');
+  t=performance.now();const c=await chat.handleChat({prompt,turnId:'round2-live-1'});let chatMs=performance.now()-t;
+  assert.equal(c.final,true);assert.equal(c.hardStopLayer,28);assert.equal(c.executionAuthorized,false);assert.ok(/human oversight/.test(c.reply));assert.ok(chatMs<1500);
+  const state=require('../utils/stateSpine.js');
+  const s=state.createState({prompt,turnId:'round2-live-1'});
+  assert.equal(s.lastTopic,'observe-analyze-recommend boundary');assert.equal(s.continuity.singlePass,true);assert.equal(s.continuationExecution.recursiveMergeAllowed,false);
+  const result={ok:true,assertions:18,bridgeLatencyMs:Number(bridgeMs.toFixed(3)),chatLatencyMs:Number(chatMs.toFixed(3)),stage:p.stage,topic:s.lastTopic,hardStopLayer:28,executionAuthorized:false};
+  console.log(JSON.stringify(result,null,2));
+})().catch(e=>{console.error(e.stack||e);process.exit(1)});
