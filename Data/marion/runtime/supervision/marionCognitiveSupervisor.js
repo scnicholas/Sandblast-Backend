@@ -13,7 +13,7 @@ function bounded(value, limit = 48000) { try { const s = JSON.stringify(value); 
 
 function preserveReplyAuthority(base, next) {
   const b=safeObject(base), n=safeObject(next), out={...b,...n};
-  const reply=safeString(safeRead(b,"reply",safeRead(b,"displayReply","")));
+  const reply=safeString(safeRead(b,"directReply",safeRead(b,"visibleReply",safeRead(b,"displayReply",safeRead(b,"finalReply",safeRead(b,"reply",""))))));
   if(reply){
     out.reply=reply; out.displayReply=safeString(safeRead(b,"displayReply",reply));
     for(const key of ["visibleReply","directReply","finalReply","final","answer","response","text","message","spokenText"]){
@@ -22,7 +22,7 @@ function preserveReplyAuthority(base, next) {
     const bfe=safeObject(safeRead(b,"finalEnvelope",{}));
     if(Object.keys(bfe).length) out.finalEnvelope={...safeObject(safeRead(out,"finalEnvelope",{})),...bfe,reply:safeString(safeRead(bfe,"reply",reply)),finalReply:safeString(safeRead(bfe,"finalReply",safeRead(bfe,"reply",reply)))};
   }
-  out.executionAuthorized=false; out.noUserFacingDiagnostics=true; out.cognitiveInternalOnly=true;
+  if(reply){for(const key of ["reply","displayReply","visibleReply","directReply","finalReply","final","answer","response","text","message","spokenText"]){if(Object.prototype.hasOwnProperty.call(b,key)||["reply","displayReply","visibleReply","directReply","finalReply"].includes(key))out[key]=safeString(safeRead(b,key,reply))||reply;}out.finalEnvelope={...safeObject(safeRead(out,"finalEnvelope",{})),...safeObject(safeRead(b,"finalEnvelope",{})),reply,finalReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,replyAuthority:"composer_final"};} out.executionAuthorized=false; out.noUserFacingDiagnostics=true; out.cognitiveInternalOnly=true; out.replyAuthority="composer_final";
   return out;
 }
 const planner=require("../strategy/marionStrategicPlanner.js");const arbitrator=require("../strategy/marionPriorityArbitrator.js");const planningEnvelope=require("../strategy/marionPlanningEnvelope.js");const reasoner=require("../metacognition/marionMetaReasoner.js");const evaluator=require("../metacognition/marionResponseEvaluator.js");const reflectionEnvelope=require("../metacognition/marionReflectionEnvelope.js");
