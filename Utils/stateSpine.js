@@ -6002,3 +6002,349 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
 })();
 /* MARION_COMPLETION_FLOW_LAYERS_18_19_20_STATE_SPINE_V20_END */
 
+/* MARION_NUANCE_PHASE_B_STATE_SPINE_V1_START */
+(function marionNuancePhaseBStateSpineV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseBStateSpineV1)return;
+
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_B_STATE_CONTRACT="nyx.marion.nuanceState.phaseB/1.0";
+  const HARD_STOP_LAYER=26;
+  const VERSION="nyx.marion.nuance.phaseB.stateSpine/1.0";
+
+  function obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+  function clean(value,max=260){
+    try{return String(value==null?"":value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}
+    catch(_){return"";}
+  }
+  function number01(value){
+    const number=Number(value);
+    return Number.isFinite(number)?Math.max(0,Math.min(1,number)):0;
+  }
+  function integer(value,min=0,max=1000000){
+    const number=Number(value);
+    return Number.isFinite(number)?Math.max(min,Math.min(max,Math.trunc(number))):min;
+  }
+  function partition(value){
+    const source=obj(value),body=obj(source.body),payload=obj(source.payload),meta=obj(source.meta);
+    const scope=clean(source.scope||body.scope||payload.scope||meta.scope,80).toLowerCase();
+    const privateAdmin=source.privateAdminConversation===true||
+      source.marionAdminConversation===true||
+      source.directMarionAdminInterface===true||
+      source.authenticatedOperator===true||
+      body.privateAdminConversation===true||
+      payload.privateAdminConversation===true||
+      scope==="private_admin";
+    return privateAdmin?"private_admin":"public";
+  }
+  function emptyNuanceState(partitionClass="public"){
+    return {
+      contract:PHASE_B_STATE_CONTRACT,
+      version:VERSION,
+      revision:0,
+      lastUpdatedTurnId:"",
+      lastInteractionState:"",
+      previousInteractionState:"",
+      interactionStateTtlTurns:0,
+      emotionalCandidate:"",
+      emotionalConfidence:0,
+      emotionalCueTtlTurns:0,
+      lastStance:"",
+      stanceConfidence:0,
+      stanceTtlTurns:0,
+      pragmaticIntent:"",
+      pragmaticIntentConfidence:0,
+      pragmaticIntentTtlTurns:0,
+      explicitLanguage:"",
+      explicitLocale:"",
+      explicitCulturalContext:[],
+      scope:partitionClass,
+      partitionClass,
+      policies:{
+        literalIntentPreserved:true,
+        rawEvidenceCarryAllowed:false,
+        rawMarkerEvidenceCarryAllowed:false,
+        sarcasmEvidenceCarryAllowed:false,
+        unconfirmedApprovalCarryAllowed:false,
+        unconfirmedGoalCarryAllowed:false,
+        stanceMayChangeFacts:false,
+        pragmaticIntentMayAuthorizeExecution:false,
+        crossPartitionCarryAllowed:false,
+        currentTurnAuthorityRequired:true
+      }
+    };
+  }
+  function normalize(value,partitionClass=""){
+    const source=obj(value);
+    const effectivePartition=clean(
+      partitionClass||source.partitionClass||source.scope||"public",
+      80
+    ).toLowerCase()==="private_admin"?"private_admin":"public";
+    const base=emptyNuanceState(effectivePartition);
+    const context=Array.isArray(source.explicitCulturalContext)
+      ?source.explicitCulturalContext.slice(0,12).map(v=>clean(v,160)).filter(Boolean)
+      :[];
+    return {
+      ...base,
+      revision:integer(source.revision,0,1000000),
+      lastUpdatedTurnId:clean(source.lastUpdatedTurnId,160),
+      lastInteractionState:clean(source.lastInteractionState||source.interactionState,80),
+      previousInteractionState:clean(source.previousInteractionState,80),
+      interactionStateTtlTurns:integer(source.interactionStateTtlTurns,0,3),
+      emotionalCandidate:clean(source.emotionalCandidate,80),
+      emotionalConfidence:number01(source.emotionalConfidence),
+      emotionalCueTtlTurns:integer(source.emotionalCueTtlTurns,0,1),
+      lastStance:clean(source.lastStance,100),
+      stanceConfidence:number01(source.stanceConfidence),
+      stanceTtlTurns:integer(source.stanceTtlTurns,0,2),
+      pragmaticIntent:clean(source.pragmaticIntent,140),
+      pragmaticIntentConfidence:number01(source.pragmaticIntentConfidence),
+      pragmaticIntentTtlTurns:integer(source.pragmaticIntentTtlTurns,0,1),
+      explicitLanguage:clean(source.explicitLanguage,32),
+      explicitLocale:clean(source.explicitLocale,32),
+      explicitCulturalContext:context,
+      scope:effectivePartition,
+      partitionClass:effectivePartition,
+      policies:{
+        ...base.policies,
+        ...obj(source.policies),
+        literalIntentPreserved:true,
+        rawEvidenceCarryAllowed:false,
+        rawMarkerEvidenceCarryAllowed:false,
+        sarcasmEvidenceCarryAllowed:false,
+        unconfirmedApprovalCarryAllowed:false,
+        unconfirmedGoalCarryAllowed:false,
+        stanceMayChangeFacts:false,
+        pragmaticIntentMayAuthorizeExecution:false,
+        crossPartitionCarryAllowed:false,
+        currentTurnAuthorityRequired:true
+      }
+    };
+  }
+  function decay(value){
+    const state=normalize(value);
+    const next={...state};
+
+    next.interactionStateTtlTurns=Math.max(0,state.interactionStateTtlTurns-1);
+    if(next.interactionStateTtlTurns===0){
+      next.previousInteractionState=state.lastInteractionState;
+      next.lastInteractionState="";
+    }
+
+    next.emotionalCueTtlTurns=Math.max(0,state.emotionalCueTtlTurns-1);
+    if(next.emotionalCueTtlTurns===0){
+      next.emotionalCandidate="";
+      next.emotionalConfidence=0;
+    }
+
+    next.stanceTtlTurns=Math.max(0,state.stanceTtlTurns-1);
+    if(next.stanceTtlTurns===0){
+      next.lastStance="";
+      next.stanceConfidence=0;
+    }
+
+    next.pragmaticIntentTtlTurns=Math.max(0,state.pragmaticIntentTtlTurns-1);
+    if(next.pragmaticIntentTtlTurns===0){
+      next.pragmaticIntent="";
+      next.pragmaticIntentConfidence=0;
+    }
+
+    return next;
+  }
+  function approvedPatch(value){
+    const source=obj(value),payload=obj(source.payload),meta=obj(source.meta);
+    const memoryPatch=obj(source.memoryPatch||payload.memoryPatch||meta.memoryPatch);
+    const sessionPatch=obj(source.sessionPatch||payload.sessionPatch||meta.sessionPatch);
+    const stateBridge=obj(source.stateBridge||payload.stateBridge||meta.stateBridge);
+    const phaseB=obj(source.phaseBNuance||source.nuancePhaseBContext||payload.phaseBNuance);
+    const candidates=[
+      source.phaseBStatePatch,
+      source.nuanceStatePatch,
+      source.nuanceState,
+      memoryPatch.nuanceState,
+      sessionPatch.nuanceState,
+      stateBridge.nuanceState,
+      obj(phaseB.carryPolicy).approvedStatePatch
+    ];
+    for(const candidate of candidates){
+      const patch=obj(candidate);
+      if(patch.contract===PHASE_B_STATE_CONTRACT)return patch;
+    }
+    return {};
+  }
+  function correctionOverride(value){
+    const source=obj(value),internal=obj(source.internalNuance),phaseB=obj(source.phaseBNuance||source.nuancePhaseBContext);
+    const summary=Object.keys(internal).length?internal:obj(phaseB.internalSummary);
+    const interaction=clean(summary.interactionState,80);
+    const pragmatic=clean(summary.primaryPragmaticIntent,140);
+    return interaction==="correction"||
+      interaction==="disagreement"||
+      interaction==="clarification"||
+      ["direct_correction","indirect_correction","explicit_disagreement","polite_disagreement"].includes(pragmatic);
+  }
+  function merge(previous,incoming,partitionClass,turnId=""){
+    const effectivePartition=partitionClass==="private_admin"?"private_admin":"public";
+    const prior=decay(normalize(previous,effectivePartition));
+    const patch=obj(incoming);
+
+    if(effectivePartition!=="private_admin"){
+      return emptyNuanceState("public");
+    }
+    if(!Object.keys(patch).length){
+      return normalize(prior,effectivePartition);
+    }
+
+    const incomingPartition=clean(patch.partitionClass||patch.scope,80).toLowerCase();
+    if(incomingPartition&&incomingPartition!==effectivePartition){
+      return normalize(prior,effectivePartition);
+    }
+
+    const normalizedPatch=normalize(patch,effectivePartition);
+    if(turnId&&normalizedPatch.lastUpdatedTurnId&&normalizedPatch.lastUpdatedTurnId!==turnId){
+      return normalize(prior,effectivePartition);
+    }
+
+    return normalize({
+      ...prior,
+      ...normalizedPatch,
+      revision:Math.max(prior.revision,normalizedPatch.revision)+1,
+      lastUpdatedTurnId:clean(turnId||normalizedPatch.lastUpdatedTurnId,160),
+      scope:effectivePartition,
+      partitionClass:effectivePartition,
+      policies:{...prior.policies,...normalizedPatch.policies}
+    },effectivePartition);
+  }
+  function applyResultState(result,input){
+    if(!result||typeof result!=="object")return result;
+    const effectivePartition=partition(input);
+    const prior=obj(result.nuanceState||obj(input).nuanceState||obj(obj(input).prevState).nuanceState);
+    const patch=approvedPatch(input);
+    const turnId=clean(
+      obj(input).turnId||
+      obj(obj(input).inbound).turnId||
+      obj(obj(input).meta).turnId,
+      160
+    );
+    let next=merge(prior,patch,effectivePartition,turnId);
+
+    if(correctionOverride(input)){
+      next=normalize({
+        ...next,
+        emotionalCandidate:"",
+        emotionalConfidence:0,
+        emotionalCueTtlTurns:0,
+        pragmaticIntent:"",
+        pragmaticIntentConfidence:0,
+        pragmaticIntentTtlTurns:0,
+        lastInteractionState:"correction",
+        interactionStateTtlTurns:3
+      },effectivePartition);
+    }
+
+    return {
+      ...result,
+      nuanceState:next,
+      marionCohesion:{
+        ...obj(result.marionCohesion),
+        nuanceStateContract:PHASE_B_STATE_CONTRACT,
+        nuanceHardStopLayer:HARD_STOP_LAYER,
+        nuancePartition:effectivePartition,
+        literalIntentPreserved:true,
+        rawMarkerEvidenceCarryAllowed:false,
+        crossPartitionCarryAllowed:false,
+        phaseBSemanticAnalysisPerformed:false
+      }
+    };
+  }
+
+  const originalCreate=api.createState;
+  if(typeof originalCreate==="function"){
+    api.createState=function(seed={}){
+      const output=originalCreate.call(this,seed);
+      const effectivePartition=partition(seed);
+      return {...output,nuanceState:normalize(obj(seed).nuanceState,effectivePartition)};
+    };
+  }
+
+  const originalCoerce=api.coerceState;
+  if(typeof originalCoerce==="function"){
+    api.coerceState=function(input){
+      const output=originalCoerce.call(this,input);
+      const effectivePartition=clean(obj(input).partitionClass||obj(obj(input).nuanceState).partitionClass,80)==="private_admin"
+        ?"private_admin":"public";
+      return {...output,nuanceState:normalize(obj(input).nuanceState,effectivePartition)};
+    };
+  }
+
+  const originalFinalize=api.finalizeTurn;
+  if(typeof originalFinalize==="function"){
+    api.finalizeTurn=function(params={}){
+      const output=originalFinalize.call(this,params);
+      const inbound=obj(params.inbound);
+      const effectiveInput={
+        ...params,
+        ...inbound,
+        prevState:params.prevState,
+        phaseBStatePatch:params.phaseBStatePatch||inbound.phaseBStatePatch,
+        nuanceStatePatch:params.nuanceStatePatch||inbound.nuanceStatePatch,
+        phaseBNuance:params.phaseBNuance||inbound.phaseBNuance,
+        nuancePhaseBContext:params.nuancePhaseBContext||inbound.nuancePhaseBContext,
+        internalNuance:params.internalNuance||inbound.internalNuance,
+        turnId:params.turnId||inbound.turnId
+      };
+      const previous=obj(obj(params.prevState).nuanceState);
+      const patch=approvedPatch(effectiveInput);
+      let next=merge(previous,patch,partition(effectiveInput),clean(effectiveInput.turnId,160));
+      if(correctionOverride(effectiveInput)){
+        next=normalize({
+          ...next,
+          emotionalCandidate:"",
+          emotionalConfidence:0,
+          emotionalCueTtlTurns:0,
+          pragmaticIntent:"",
+          pragmaticIntentConfidence:0,
+          pragmaticIntentTtlTurns:0,
+          lastInteractionState:"correction",
+          interactionStateTtlTurns:3
+        },"private_admin");
+      }
+      return applyResultState({...output,nuanceState:next},{...effectiveInput,nuanceState:next});
+    };
+  }
+
+  api.MARION_NUANCE_PHASE_B_STATE_SPINE_VERSION=VERSION;
+  api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+  api.MARION_NUANCE_PHASE_B_STATE_CONTRACT=PHASE_B_STATE_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.MARION_NUANCE_STATE_BOUNDED=true;
+  api.MARION_NUANCE_STATE_PRIVATE_PARTITION_ONLY=true;
+  api.normalizeMarionNuancePhaseBState=normalize;
+  api.decayMarionNuancePhaseBState=decay;
+  api.extractApprovedMarionNuancePhaseBStatePatch=approvedPatch;
+  api.mergeMarionNuancePhaseBState=merge;
+  api.applyMarionNuancePhaseBState=applyResultState;
+  api.getMarionNuancePhaseBStateStatus=function(){
+    return {
+      ok:true,
+      version:VERSION,
+      contract:PHASE_B_CONTRACT,
+      stateContract:PHASE_B_STATE_CONTRACT,
+      hardStopLayer:HARD_STOP_LAYER,
+      phaseAHardStopLayer:24,
+      interactionStateTtlTurns:3,
+      emotionalCueTtlTurns:1,
+      stanceTtlTurns:2,
+      pragmaticIntentTtlTurns:1,
+      rawEvidenceCarryAllowed:false,
+      rawMarkerEvidenceCarryAllowed:false,
+      unconfirmedApprovalCarryAllowed:false,
+      unconfirmedGoalCarryAllowed:false,
+      crossPartitionCarryAllowed:false,
+      automaticExecutionAllowed:false
+    };
+  };
+  api.__marionNuancePhaseBStateSpineV1=true;
+  api.default=api;
+})();
+/* MARION_NUANCE_PHASE_B_STATE_SPINE_V1_END */
