@@ -1,11 +1,11 @@
 {
-  "package": "Marion Cognitive Strategy, Metacognition, and Supervision Layers 27-29",
-  "version": "29.0-cohesion-update",
+  "package": "Marion Layers 1-28 Certification \u2014 Round Three",
+  "version": "28.3-round3",
   "contract": "nyx.marion.conversationFlow/4.0",
-  "generatedUtc": "2026-07-26T18:01:50.983956+00:00",
+  "generatedUtc": "2026-07-26T23:00:00.000Z",
   "target": {
     "backend": "Sandblast backend",
-    "scope": "Marion Layers 1-29 cohesive runtime; Layers 27 strategy, 28 metacognition, and 29 cognitive supervision/integration; composeMarionResponse intentionally untouched",
+    "scope": "Marion Layers 1-28 cohesive runtime; Layer 27 strategy, Layer 28 internal metacognition, and shared cognitive supervision; composeMarionResponse intentionally untouched",
     "manifestOnly": false,
     "manifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
     "guardianMemoryBridgePath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
@@ -45,7 +45,7 @@
       20
     ],
     "newCompletionModuleCount": 4,
-    "hardStopLayer": 29,
+    "hardStopLayer": 28,
     "additionalLayerRecommended": false,
     "trackedFileCount": 212,
     "javascriptFileCount": 170,
@@ -94,15 +94,30 @@
     "phaseBMergePending": false,
     "cognitiveLayers": [
       27,
-      28,
-      29
+      28
     ],
     "cognitiveRuntimeModuleCount": 27,
     "cognitiveExistingFilesUpdated": 10,
     "cognitiveTestsIncluded": 8,
     "composeMarionResponseModified": false,
-    "layers1to29CohesionPrepared": true,
-    "automaticExecutionAllowed": false
+    "automaticExecutionAllowed": false,
+    "layers1to28CohesionPrepared": true,
+    "cognitiveSupervisorClassification": "shared_integration_component_not_a_layer",
+    "round2BehavioralCertification": true,
+    "round2CriticalRepairs": [
+      "marionOutcomeAwareness classify signature compatibility",
+      "marionContextPivot analyzeTurn strategic wrapper binding"
+    ],
+    "round2Scope": "Layers 1-20 behavioral seams and cross-layer cohesion; no composeMarionResponse modification",
+    "roundThreeCertificationIncluded": true,
+    "roundThreeScope": [
+      "nuanced emotional signal",
+      "confidence calibration",
+      "conversational stance",
+      "pragmatic intent",
+      "cross-layer authority"
+    ],
+    "layer29Present": false
   },
   "filePaths": [
     "DEPLOYMENT_CHECKLIST_LAYERS_11_12.md",
@@ -340,7 +355,6 @@
     "tests/marion/layer28/marionLayer28Integration.test.js",
     "tests/marion/layer28/marionQualityCalibrator.test.js",
     "tests/marion/layer28/marionReasoningAuditor.test.js",
-    "tests/marion/layer29/marionCognitiveSupervisionIntegration.test.js",
     "tests/marion/layers_15_17_nuance_boundary_test.js",
     "tests/marion/layers_1_20_functional_validation_test.js",
     "tests/marion/layers_21_24_core_integration_test.js",
@@ -358,7 +372,12 @@
     "tests/marion/verify_phase_b_part2_batch2.js",
     "tests/stubs/node_modules/express/index.js",
     "utils/chatEngine.js",
-    "utils/stateSpine.js"
+    "utils/stateSpine.js",
+    "tests/marion/layers_1_28/round3/round3_contract.json",
+    "tests/marion/layers_1_28/round3/run_round3_certification.js",
+    "certification/round3/ROUND3_RESULTS.json",
+    "certification/round3/ROUND3_GAPS.json",
+    "ROUND3_CERTIFICATION_README.md"
   ],
   "files": [
     {
