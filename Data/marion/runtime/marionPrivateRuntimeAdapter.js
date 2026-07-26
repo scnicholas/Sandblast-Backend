@@ -447,3 +447,71 @@ Object.assign(module.exports, {
   conversationLayers,
   _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, reconcileReplyToConversationFlow, sessionContinuity }
 });
+
+/* MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_INTEGRATION_V2_START */
+(function marionNuancePhaseAPrivateRuntimeIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAPrivateRuntimeIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.privateRuntimeIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=24;
+  let coordinator=null,envelope=null,currentTurn=null;
+  try{coordinator=require("./nuance/marionNuancePhaseACoordinator.js");}catch(_){coordinator=null;}
+  try{envelope=require("./nuance/marionNuanceEnvelope.js");}catch(_){envelope=null;}
+  try{currentTurn=require("./marionCurrentTurnAuthority.js");}catch(_){currentTurn=null;}
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=180){if(typeof v==="string")return v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);return"";}
+  function previousState(v){const s=obj(v),pm=obj(s.previousMemory),ss=obj(pm.stateSpine),session=obj(s.sessionState);return obj(s.nuanceState||s.previousNuanceState||ss.nuanceState||pm.nuanceState||session.nuanceState);}
+  function prepare(raw){
+    let input=obj(raw);if(currentTurn&&typeof currentTurn.prepareInput==="function"){try{input=obj(currentTurn.prepareInput(input));}catch(_){}}
+    if(!coordinator)return input;
+    const existing=obj(input.nuanceContext||input.phaseANuance),turnId=clean(input.turnId||input.currentTurnId,160);let valid=existing.contract===PHASE_A_CONTRACT&&(!turnId||!existing.turnId||clean(existing.turnId,160)===turnId);
+    try{if(valid&&envelope&&typeof envelope.validateMarionNuanceEnvelope==="function")valid=envelope.validateMarionNuanceEnvelope(existing).ok===true;}catch(_){valid=false;}
+    let nuance=existing;if(!valid){try{const run=coordinator.safeAnalyzeMarionNuancePhaseA||coordinator.analyzeMarionNuancePhaseA||coordinator.run;nuance=obj(run.call(coordinator,input,{turnId,previousNuanceState:previousState(input)}));}catch(_){nuance={};}}
+    const statePatch=obj(obj(nuance.carryPolicy).approvedStatePatch);
+    return Object.keys(nuance).length?{...input,nuanceContext:nuance,phaseANuance:nuance,nuanceStatePatch:statePatch,nuanceAnalysisAuthority:"marionNuancePhaseACoordinator",nuanceAnalysisPerformed:true,nuanceHardStopLayer:HARD_STOP_LAYER}:input;
+  }
+  function summary(n){try{return envelope&&typeof envelope.projectInternalNuanceSummary==="function"?obj(envelope.projectInternalNuanceSummary(n)):{};}catch(_){return{};}}
+  function scrubRawNuance(value,depth=0,stack=new WeakSet()){
+    if(value==null||typeof value!=="object")return value;
+    if(obj(value).contract===PHASE_A_CONTRACT&&(obj(value).layer21||obj(value).layer22||obj(value).layer23||obj(value).layer24))return summary(value);
+    if(depth>8)return"[truncated_depth]";
+    try{if(stack.has(value))return"[circular]";stack.add(value);}catch(_){}
+    if(Array.isArray(value)){
+      const list=value.slice(0,100).map(item=>scrubRawNuance(item,depth+1,stack));
+      try{stack.delete(value);}catch(_){}
+      return list;
+    }
+    const out={};
+    for(const key of Object.keys(value)){
+      if(key==="nuanceContext"||key==="phaseANuance"||key==="rawNuanceEvidence"||key==="emotionalEvidence")continue;
+      if(key==="evidence"&&obj(value).interpretation==="candidate_conversational_state")continue;
+      out[key]=scrubRawNuance(value[key],depth+1,stack);
+    }
+    try{stack.delete(value);}catch(_){}
+    return out;
+  }
+  function attach(raw,input){
+    if(!raw||typeof raw!=="object")return raw;
+    const out={...raw},nuance=obj(input.nuanceContext),internal=summary(nuance),statePatch=obj(input.nuanceStatePatch||obj(nuance.carryPolicy).approvedStatePatch);if(!Object.keys(nuance).length)return out;
+    out.internalNuance=internal;out.nuanceStatePatch=statePatch;out.nuanceContract=PHASE_A_CONTRACT;
+    const result=obj(out.result);
+    out.result={...result,internalNuance:internal,nuanceStatePatch:statePatch,memoryPatch:{...obj(result.memoryPatch),nuanceState:statePatch,internalNuance:internal},sessionPatch:{...obj(result.sessionPatch),nuanceState:statePatch,internalNuance:internal},finalEnvelope:{...obj(result.finalEnvelope),internalNuance:internal,nuanceStatePatch:statePatch,nuanceContract:PHASE_A_CONTRACT,nuanceInternalOnly:true},meta:{...obj(result.meta),nuancePrivateRuntimeIntegrationVersion:PATCH_VERSION,nuanceHardStopLayer:HARD_STOP_LAYER,conversationLayers:[9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24],rawNuanceEvidenceExposed:false}};
+    out.meta={...obj(out.meta),nuancePrivateRuntimeIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceHardStopLayer:HARD_STOP_LAYER,rawNuanceEvidenceExposed:false};
+    return scrubRawNuance(out);
+  }
+  const original=api.invokePrivateRuntime||api.handleMarionAdminTextRuntime;
+  if(typeof original==="function"){
+    const wrapped=async function(input={},context={}){const prepared=prepare({...obj(input),privateAdminConversation:true,marionAdminConversation:true,directMarionAdminInterface:true,scope:"private_admin"});const out=await Promise.resolve(original.call(this,prepared,context));return attach(out,prepared);};
+    wrapped.__marionNuancePhaseAPrivateRuntimeIntegrationV2=true;
+    for(const name of["invokePrivateRuntime","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation"]){api[name]=wrapped;}
+  }
+  const oldStatus=api.getStatus;
+  api.getStatus=function(){const status=typeof oldStatus==="function"?obj(oldStatus.call(this)):{};let health={ok:false};try{health=coordinator&&typeof coordinator.moduleHealth==="function"?coordinator.moduleHealth():health;}catch(_){}return{...status,version:clean(status.version,200)||api.VERSION,nuancePrivateRuntimeIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceReady:health.ok===true,nuanceHealth:health,conversationLayers:[9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24],hardStopLayer:HARD_STOP_LAYER,additionalLayerRecommended:false,automaticExecutionAllowed:false,rawNuanceEvidenceExposed:false,culturalIdentityInferenceAllowed:false};};
+  api.MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseAPrivateRuntimeIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_INTEGRATION_V2_END */
