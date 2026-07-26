@@ -1,0 +1,26 @@
+"use strict";
+const assert=require("assert"),path=require("path");
+const root=path.resolve(__dirname,"..");
+const chat=require(path.join(root,"utils/chatEngine.js"));
+const spine=require(path.join(root,"utils/stateSpine.js"));
+const progression=require(path.join(root,"Data/marion/runtime/marionConversationProgression.js"));
+const depth=require(path.join(root,"Data/marion/runtime/MarionConversationalDepth678.js"));
+const prompt="Marion, let's continue from your previous answer. You mentioned an observe–analyze–recommend boundary. Why is separating those three stages so important?";
+(async()=>{
+ const start=Date.now();
+ const out=await chat.handleChat({prompt,userText:prompt,message:prompt,text:prompt,turnId:"round2-live-1",sessionId:"round2-session"});
+ assert(out&&out.ok===true,"chat output must be ok");
+ assert(/observation/i.test(out.reply)&&/analysis/i.test(out.reply)&&/recommendation/i.test(out.reply),"reply must answer three-stage distinction");
+ assert(out.finalEnvelope&&out.finalEnvelope.signature==="MARION_FINAL_AUTHORITY","trusted final required");
+ assert(out.hardStopLayer===28||out.finalEnvelope.hardStopLayer===28,"hard stop 28 required");
+ assert(out.executionAuthorized===false,"execution must remain disabled");
+ assert(Date.now()-start<2000,"fast path must complete under 2 seconds");
+ const flow=progression.analyzeTurn({prompt,previous:{stage:"analysis",progressionDepth:1},turnId:"round2-live-1"});
+ assert(flow.continuation===true&&flow.stage==="rationale","progression must classify continuation rationale");
+ const d=depth.build({prompt,operator:"mac"},{});
+ assert(d.layers.seven.relationToPreviousTurn==="continuation","depth layer 7 continuation required");
+ assert(d.layers.eight.conversationalNeed==="contextual_progression","depth layer 8 contextual progression required");
+ const state=spine.createState({prompt,userText:prompt,message:prompt,text:prompt});
+ assert(state&&state.continuity&&state.continuity.topic==="observe-analyze-recommend boundary","state continuity topic required");
+ console.log(JSON.stringify({ok:true,assertions:10,latencyMs:Date.now()-start,reply:out.reply,hardStopLayer:28,executionAuthorized:false},null,2));
+})().catch(err=>{console.error(err&&err.stack||err);process.exit(1)});
