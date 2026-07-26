@@ -70,3 +70,30 @@ function classify(prompt="",context={}){
 }
 function projectState(value={}){const v=isObj(value)?value:{};return {version:VERSION,contract:CONTRACT,outcomeId:text(v.outcomeId,120),outcomeType:text(v.outcomeType,60),outcomeStatus:text(v.outcomeStatus,60),outcomeText:text(v.outcomeText,700),explicit:v.explicit===true,confidence:clamp(v.confidence),completed:v.completed===true,unresolved:v.unresolved===true,blocked:v.blocked===true,deferred:v.deferred===true,evidenceRequired:v.evidenceRequired===true,cancelled:v.cancelled===true,rejected:v.rejected===true,failed:v.failed===true,timingHint:text(v.timingHint,120),sourceTurnId:text(v.sourceTurnId,120),relatedThreadId:text(v.relatedThreadId,160),relatedSubject:text(v.relatedSubject,320)};}
 module.exports={VERSION,CONTRACT,isGreeting,isQuestion,isBrainstorm,timingHint,classify,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER12_COHESION_V1_START */
+(function marionNuancePhaseALayer12CohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer12CohesionV1)return;
+  const PHASE_A_VERSION="marion.outcomeAwareness/14.1-layer12-nuance-phase-a";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(result={},nuanceContext={},prompt=""){
+    const base=obj(result),l24=obj(obj(nuanceContext).layer24),state=clean(l24.currentState,60),flags=obj(l24.controlFlags),p=clean(prompt,6000).toLowerCase();if(!state)return {...base,version:PHASE_A_VERSION};
+    const statusClaim=/\b(?:passed|completed|done|approved|confirmed|cancelled|rejected|failed|blocked|deferred)\b/i.test(p);
+    if((state==="correction"||state==="clarification"||state==="disagreement")&&!statusClaim&&base.outcomeType!=="none"){
+      return {...base,version:PHASE_A_VERSION,outcomeId:"",outcomeType:"none",outcomeStatus:"unresolved",outcomeText:"",explicit:false,confidence:Math.min(Number(base.confidence||0),0.2),completed:false,blocked:false,deferred:false,cancelled:false,rejected:false,failed:false,unresolved:true,phaseAInteractionState:state,phaseACorrectionOverride:flags.correctionOverride===true,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+    }
+    return {...base,version:PHASE_A_VERSION,phaseAInteractionState:state,phaseACorrectionOverride:flags.correctionOverride===true,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+  }
+  const originalClassify=api.classify;
+  api.classify=function(prompt="",context={}){const ctx=obj(context),out=originalClassify(prompt,ctx);return applyNuance(out,ctx.nuanceContext,prompt);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(v.phaseAInteractionState,60),phaseACorrectionOverride:v.phaseACorrectionOverride===true};};
+  api.applyNuance=applyNuance;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseALayer12CohesionV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER12_COHESION_V1_END */
