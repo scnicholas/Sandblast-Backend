@@ -1,0 +1,13 @@
+"use strict";
+const assert=require("assert");
+const alignment=require("../../Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js");
+const risk=require("../../Data/marion/runtime/strategy/marionPredictiveRiskModel.js");
+const pathways=require("../../Data/marion/runtime/strategy/marionStrategicPathwaySynthesizer.js");
+const nuance={layer23:{confidenceBand:"high"},layer24:{currentState:"correction"}};
+const aligned=alignment.applyNuance({objectiveChanged:true,objectiveCancelled:false,governingObjective:"Preserve runtime stability"},nuance,"No, correct the current file.");
+assert.equal(aligned.objectiveChanged,false);assert.equal(aligned.nuanceMayNotReplaceObjective,true);
+const risked=risk.applyNuance({overallRisk:"medium",riskScore:.4},nuance);
+assert.equal(risked.riskScore,.4);assert.equal(risked.nuanceCannotIncreaseRiskScore,true);assert.equal(risked.nuanceCannotAuthorizeAction,true);
+const pathed=pathways.applyNuance({decisionRequired:true,shouldAnswerDirectly:true,recommendedPathwayId:"path-a"},nuance,"Correct the current file.");
+assert.equal(pathed.decisionRequired,false);assert.equal(pathed.nuanceCannotSelectPathway,true);
+console.log("PASS layers_15_17_nuance_boundary_test");
