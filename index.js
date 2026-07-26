@@ -28741,13 +28741,13 @@ try {
 /* MARION_NUANCE_PHASE_B_INDEX_DIAGNOSTIC_BOUNDARY_V1_END */
 
 
-/* MARION_LAYERS_27_29_INDEX_REGISTRY_V1_START */
-(function marionLayers2729IndexRegistryV1(){
+/* MARION_LAYERS_27_28_INDEX_REGISTRY_V1_START */
+(function marionLayers2728IndexRegistryV1(){
   "use strict";
-  const VERSION="nyx.marion.layers27_29.indexRegistry/1.0";let cognition=null;
+  const VERSION="nyx.marion.layers27_28.indexRegistry/1.0";let cognition=null;
   try{cognition=require("./Data/marion/runtime/index.js");}catch(_){cognition=null;}
-  const status={ok:!!cognition,version:VERSION,hardStopLayer:29,layers:[27,28,29],composerModified:false,bridgeOwnedInvocation:true,replyAuthorityPreserved:true,executionAuthorized:false};
+  const status={ok:!!cognition,version:VERSION,hardStopLayer:28,layers:[27,28],composerModified:false,bridgeOwnedInvocation:true,replyAuthorityPreserved:true,executionAuthorized:false};
   try{if(typeof app!=="undefined"&&app&&app.locals)app.locals.marionCognition={module:cognition,status};}catch(_){}
-  try{if(module&&module.exports&&typeof module.exports==="object"){module.exports.marionCognition=cognition;module.exports.getMarionLayers2729Status=()=>status;}}catch(_){}
+  try{if(module&&module.exports&&typeof module.exports==="object"){module.exports.marionCognition=cognition;module.exports.getMarionLayers2728Status=()=>status;}}catch(_){}
 })();
-/* MARION_LAYERS_27_29_INDEX_REGISTRY_V1_END */
+/* MARION_LAYERS_27_28_INDEX_REGISTRY_V1_END */
