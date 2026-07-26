@@ -6350,20 +6350,35 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
 /* MARION_NUANCE_PHASE_B_STATE_SPINE_V1_END */
 
 
-/* MARION_LAYERS_27_29_STATE_SPINE_COHESION_V1_START */
-(function marionLayers2729StateSpineCohesionV1(){
+/* MARION_LAYERS_27_28_STATE_SPINE_COHESION_V1_START */
+(function marionLayers2728StateSpineCohesionV1(){
   "use strict";
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(!api||api.__marionLayers2729StateSpineCohesionV1)return;
-  const VERSION="nyx.marion.layers27_29.stateSpine/1.0",CONTRACT="nyx.marion.cognitiveState/1.0",HARD_STOP_LAYER=29;
+  if(!api||api.__marionLayers2728StateSpineCohesionV1)return;
+  const VERSION="nyx.marion.layers27_28.stateSpine/1.0",CONTRACT="nyx.marion.cognitiveState/1.0",HARD_STOP_LAYER=28;
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
   function text(v,max=240){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
   function clamp(v){const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n)):0;}
   function normalize(v={}){const x=obj(v);return{contract:CONTRACT,missionId:text(x.missionId,120),objectiveId:text(x.objectiveId,120),priority:text(x.priority,40),confidence:clamp(x.confidence),knowledgeGap:x.knowledgeGap===true,turnsRemaining:Math.max(0,Math.min(3,Number(x.turnsRemaining)||0)),executionAuthorized:false,internalOnly:true};}
-  function extract(result={}){const x=obj(result),c=obj(x.cognitiveSupervisor),s=obj(x.strategic),m=obj(x.metacognition);if(!c.layer27Applied&&!c.layer28Applied&&!c.layer29Integrated)return{};return normalize({missionId:s.missionId,objectiveId:s.objectiveId,priority:s.priority,confidence:m.confidence,knowledgeGap:m.knowledgeGap===true,turnsRemaining:2});}
+  function extract(result={}){const x=obj(result),c=obj(x.cognitiveSupervisor),s=obj(x.strategic),m=obj(x.metacognition);if(!c.layer27Applied&&!c.layer28Applied&&!c.supervisorIntegrated)return{};return normalize({missionId:s.missionId,objectiveId:s.objectiveId,priority:s.priority,confidence:m.confidence,knowledgeGap:m.knowledgeGap===true,turnsRemaining:2});}
   function merge(current={},patch={}){const a=normalize(current),b=normalize(patch);return normalize({...a,...b,turnsRemaining:Math.max(a.turnsRemaining,b.turnsRemaining)});}
   api.normalizeMarionCognitiveState=normalize;api.extractMarionCognitiveStatePatch=extract;api.mergeMarionCognitiveState=merge;
-  api.getMarionLayers2729StateStatus=function(){return{ok:true,version:VERSION,contract:CONTRACT,hardStopLayer:HARD_STOP_LAYER,maxTtlTurns:3,rawPlanCarryAllowed:false,rawReflectionCarryAllowed:false,automaticExecutionAllowed:false,crossPartitionCarryAllowed:false};};
-  api.MARION_COGNITIVE_STATE_CONTRACT=CONTRACT;api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionLayers2729StateSpineCohesionV1=true;api.default=api;
+  api.getMarionLayers2728StateStatus=function(){return{ok:true,version:VERSION,contract:CONTRACT,hardStopLayer:HARD_STOP_LAYER,maxTtlTurns:3,rawPlanCarryAllowed:false,rawReflectionCarryAllowed:false,automaticExecutionAllowed:false,crossPartitionCarryAllowed:false};};
+  api.MARION_COGNITIVE_STATE_CONTRACT=CONTRACT;api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;api.__marionLayers2728StateSpineCohesionV1=true;api.default=api;
 })();
-/* MARION_LAYERS_27_29_STATE_SPINE_COHESION_V1_END */
+/* MARION_LAYERS_27_28_STATE_SPINE_COHESION_V1_END */
+
+/* MARION_ROUND2_CONTINUITY_STATE_BOUNDARY_V1_START */
+(function marionRound2ContinuityStateBoundaryV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionRound2ContinuityStateBoundaryV1)return;
+  const VERSION="nyx.marion.round2.continuityStateBoundary/1.0",HARD_STOP=28;
+  function text(v,max=320){try{const s=String(v==null?"":v).replace(/\s+/g," ").trim();return s.slice(0,max)}catch(_){return""}}
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function explicitTopic(q){const n=text(q,800).toLowerCase();if(/observe[–—-]analy[sz]e[–—-]recommend boundary/.test(n))return"observe-analyze-recommend boundary";return""}
+  function project(input,state){const q=text(obj(input).prompt||obj(input).userText||obj(input).message||obj(input).text,800),topic=explicitTopic(q);if(!topic)return state;const out={...obj(state)};out.lastTopic=topic;out.continuity={...obj(out.continuity),active:true,resolvedFollowup:true,topic,lastTopic:topic,followupAction:"importance",continuityAction:"importance",originalText:text(q,220),resolvedText:"Why is separating observation, analysis, and recommendation important?",source:VERSION};out.cognitiveState={...obj(out.cognitiveState),executionAuthorized:false,hardStopLayer:HARD_STOP};return out}
+  for(const name of["createState","coerceState","finalizeTurn"]){const fn=api[name];if(typeof fn!=="function")continue;api[name]=function(){const out=fn.apply(this,arguments),input=arguments[0];return project(input,out)}}
+  api.MARION_ROUND2_CONTINUITY_STATE_BOUNDARY_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound2ContinuityStateBoundaryV1=true;
+})();
+/* MARION_ROUND2_CONTINUITY_STATE_BOUNDARY_V1_END */
