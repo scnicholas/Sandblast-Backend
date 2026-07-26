@@ -31,3 +31,20 @@ function analyze({prompt="",previous={},strategicFlow={},crossDomainContext={}}=
 function projectState(v={}){const x=isObj(v)?v:{};return {version:VERSION,contract:CONTRACT,status:text(x.status,80),previousGoal:text(x.previousGoal,700),activeGoal:text(x.activeGoal,700),goalChanged:x.goalChanged===true,constraint:text(x.constraint,500),hardStopAtLayer20:x.hardStopAtLayer20===true,invalidatedAssessments:Array.isArray(x.invalidatedAssessments)?x.invalidatedAssessments.slice(0,8):[],requiresStrategicReassessment:x.requiresStrategicReassessment===true,currentTurnAuthorityPreserved:true};}
 function getStatus(){return {ok:true,version:VERSION,contract:CONTRACT,layer:19,routeAuthority:false,replyAuthority:false,executionAuthority:false,implicitGoalChangeAllowed:false};}
 module.exports={VERSION,CONTRACT,extractExplicitGoal,extractConstraint,isRealignmentQuery,analyze,projectState,getStatus};
+
+/* MARION_NUANCE_PHASE_A_GOAL_REALIGNMENT_INTEGRATION_V2_START */
+(function marionNuancePhaseAGoalRealignmentIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAGoalRealignmentIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.goalRealignmentIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  const original=api.analyze;
+  if(typeof original==="function")api.analyze=function(input={}){const out=obj(original.call(this,input)),n=obj(obj(input).nuanceContext||obj(input).phaseANuance),l24=obj(n.layer24),state=clean(l24.currentState,60),explicit=clean(out.explicitGoal,700),correction=["correction","clarification","disagreement"].includes(state);let result={...out,phaseAControls:{version:PATCH_VERSION,contract:PHASE_A_CONTRACT,interactionState:state,currentTurnIntentPrimary:true,emotionMayRealignGoal:false,culturalMarkersMayRealignGoal:false,correctionAloneMayRealignGoal:false,internalOnly:true},emotionMayRealignGoal:false,culturalMarkersMayRealignGoal:false};if(correction&&!explicit&&result.goalChanged===true){result={...result,goalChanged:false,status:"unchanged",activeGoal:result.previousGoal,requiresStrategicReassessment:false,invalidatedAssessments:[],phaseAGoalChangeBlocked:true};}return result;};
+  api.MARION_NUANCE_PHASE_A_GOAL_REALIGNMENT_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.__marionNuancePhaseAGoalRealignmentIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_GOAL_REALIGNMENT_INTEGRATION_V2_END */
