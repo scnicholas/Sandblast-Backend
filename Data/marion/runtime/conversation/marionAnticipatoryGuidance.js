@@ -45,3 +45,29 @@ function analyze({prompt="",outcome={},commitments={},conversationFlow={}}={}){
 }
 function projectState(value={}){const v=isObj(value)?value:{};return {version:VERSION,contract:CONTRACT,guidanceMode:text(v.guidanceMode,80),nextBestAction:text(v.nextBestAction,900),reason:text(v.reason,900),priority:text(v.priority,40),confidence:Number(v.confidence||0),dependenciesSatisfied:v.dependenciesSatisfied!==false,requiresApproval:v.requiresApproval===true,safeToSuggest:v.safeToSuggest!==false,safeToExecute:false,alternatives:Array.isArray(v.alternatives)?v.alternatives.map(x=>text(x,500)).filter(Boolean).slice(0,4):[],relatedCommitmentIds:Array.isArray(v.relatedCommitmentIds)?v.relatedCommitmentIds.map(x=>text(x,140)).filter(Boolean).slice(0,8):[],queryKind:text(v.queryKind,40),shouldAnswerDirectly:v.shouldAnswerDirectly===true,suggestedReply:text(v.suggestedReply,1400)};}
 module.exports={VERSION,CONTRACT,isOutcomeQuery,queryKind,summarizeCommitment,analyze,projectState};
+
+/* MARION_NUANCE_PHASE_A_LAYER14_COHESION_V1_START */
+(function marionNuancePhaseALayer14CohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseALayer14CohesionV1)return;
+  const PHASE_A_VERSION="marion.anticipatoryGuidance/14.1-layer14-nuance-phase-a";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function applyNuance(result={},nuanceContext={},prompt=""){
+    const base=obj(result),n=obj(nuanceContext),l22=obj(n.layer22),l23=obj(n.layer23),l24=obj(n.layer24),candidate=obj(l22.primaryCandidate),state=clean(l24.currentState,60),emotion=clean(candidate.state,60),band=clean(l23.confidenceBand,40),explicitQuery=api.isOutcomeQuery(prompt);if(!state)return {...base,version:PHASE_A_VERSION};
+    if((state==="correction"||state==="disagreement")&&!explicitQuery)return {...base,version:PHASE_A_VERSION,guidanceMode:"repair_current_work",nextBestAction:"Repair the current work from the user's correction before opening another branch.",reason:"The current turn corrects the active task and current-turn authority outranks stale progression.",requiresApproval:false,safeToSuggest:true,safeToExecute:false,shouldAnswerDirectly:false,suggestedReply:"",phaseAInteractionState:state,phaseAConfidenceBand:band,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+    if(state==="clarification"&&!explicitQuery)return {...base,version:PHASE_A_VERSION,guidanceMode:"clarify",nextBestAction:"Resolve the current ambiguity before advancing the task.",reason:"The interaction state is clarification, so premature next-step guidance is suppressed.",requiresApproval:false,safeToSuggest:true,safeToExecute:false,shouldAnswerDirectly:false,suggestedReply:"",phaseAInteractionState:state,phaseAConfidenceBand:band,currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+    const paced=emotion==="overwhelmed"&&band!=="low";
+    return {...base,version:PHASE_A_VERSION,phaseAInteractionState:state,phaseAEmotionalCandidate:emotion,phaseAConfidenceBand:band,pacingConstraint:paced?"one_step_only":"normal",currentTurnIntentPrimary:true,nuanceMetadataPrivate:true};
+  }
+  const originalAnalyze=api.analyze;
+  api.analyze=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext,source.prompt);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,phaseAInteractionState:clean(v.phaseAInteractionState,60),phaseAConfidenceBand:clean(v.phaseAConfidenceBand,40),pacingConstraint:clean(v.pacingConstraint,40)};};
+  api.applyNuance=applyNuance;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseALayer14CohesionV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_LAYER14_COHESION_V1_END */
