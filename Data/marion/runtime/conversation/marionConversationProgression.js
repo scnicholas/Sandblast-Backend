@@ -126,3 +126,16 @@ module.exports={VERSION,CONTRACT,isGreeting,isShortFollowup,stageFor,nextActionF
   api.__marionNuancePhaseBProgressionCohesionV1=true;
 })();
 /* MARION_NUANCE_PHASE_B_ProgressionCohesion_V1_END */
+
+/* MARION_ROUND2_PROGRESSION_CONTINUITY_V1_START */
+(function marionRound2ProgressionContinuityV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound2ProgressionContinuityV1)return;
+  const VERSION="nyx.marion.round2.progressionContinuity/1.0",H=28;
+  function text(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+  function matched(q){const n=text(q).toLowerCase();return /(?:continue from (?:your|the) previous answer|observe[–—-]analy[sz]e[–—-]recommend boundary)/i.test(n)&&/(?:why|important|separat(?:e|ing)|three stages)/i.test(n)}
+  const oldShort=api.isShortFollowup;api.isShortFollowup=function(q){return matched(q)||(typeof oldShort==="function"&&oldShort.call(this,q))};
+  const oldAnalyze=api.analyzeTurn;api.analyzeTurn=function(input={}){const out=oldAnalyze.call(this,input);if(!matched(input.prompt))return out;return{...out,stage:"rationale",stageChanged:out.stage!=="rationale",continuation:true,activeSubject:"observe-analyze-recommend boundary",currentQuestion:text(input.prompt).slice(0,600),nextLogicalAction:"explain_dependency_and_consequence",conversationArchitectureHardStop:H,internalOnly:true}}
+  api.MARION_ROUND2_PROGRESSION_CONTINUITY_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=H;api.__marionRound2ProgressionContinuityV1=true;
+})();
+/* MARION_ROUND2_PROGRESSION_CONTINUITY_V1_END */
