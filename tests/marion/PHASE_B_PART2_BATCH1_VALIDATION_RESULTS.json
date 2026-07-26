@@ -1,0 +1,244 @@
+{
+  "package": "Marion Phase B Part 2 Batch 1 Existing Runtime Integration",
+  "version": "1.0.0",
+  "generatedUtc": "2026-07-26T03:22:34.997293+00:00",
+  "phaseBContract": "nyx.marion.nuance.phaseB/1.0",
+  "hardStopLayer": 26,
+  "completionDecisionLayer": 20,
+  "updatedFileCount": 20,
+  "unchangedFilesOmitted": true,
+  "syntaxChecks": {
+    "total": 25,
+    "passed": 25,
+    "results": [
+      {
+        "file": "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/completion/marionDecisionClosure.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/completion/marionGoalRealignment.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/composeMarionResponse.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionCommitmentTracker.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionContextPivot.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionConversationProgression.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/emotion/emotionRuntime.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/marionBridge.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/marionCurrentTurnAuthority.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/strategy/marionPredictiveRiskModel.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/strategy/marionStrategicFlowCoordinator.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "Data/marion/runtime/strategy/marionStrategicPathwaySynthesizer.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/phase_b_batch1_bridge_current_turn_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/phase_b_batch1_commitment_outcome_boundary_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/phase_b_batch1_conversation_cohesion_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/phase_b_batch1_strategy_completion_boundary_test.js",
+        "ok": true,
+        "error": ""
+      },
+      {
+        "file": "tests/marion/run_phase_b_batch1.js",
+        "ok": true,
+        "error": ""
+      }
+    ]
+  },
+  "focusedRuntimeTests": {
+    "total": 4,
+    "passed": 4,
+    "output": "{\"ok\":true,\"hardStop\":26,\"pragmatic\":\"direct_correction\"}\nPASS: phase_b_batch1_conversation_cohesion_test.js\n{\"ok\":true,\"blocked\":true}\nPASS: phase_b_batch1_commitment_outcome_boundary_test.js\n{\"ok\":true,\"hardStop\":26}\nPASS: phase_b_batch1_strategy_completion_boundary_test.js\n{\"ok\":true,\"hardStop\":26}\nPASS: phase_b_batch1_bridge_current_turn_test.js\n{\"ok\":true,\"testsPassed\":4}"
+  },
+  "sourceIntegrity": [
+    {
+      "path": "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/completion/marionDecisionClosure.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/completion/marionGoalRealignment.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/strategy/marionPredictiveRiskModel.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/strategy/marionStrategicFlowCoordinator.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/strategy/marionStrategicPathwaySynthesizer.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionCommitmentTracker.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionContextPivot.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionConversationLayerRegistry.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionConversationProgression.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/emotion/emotionRuntime.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/composeMarionResponse.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/marionBridge.js",
+      "completeOriginalPreserved": true
+    },
+    {
+      "path": "Data/marion/runtime/marionCurrentTurnAuthority.js",
+      "completeOriginalPreserved": true
+    }
+  ],
+  "criticalControls": {
+    "phaseACalledOnce": true,
+    "literalIntentPreserved": true,
+    "currentTurnCorrectionPrecedence": true,
+    "singleStanceAuthority": true,
+    "singlePragmaticIntentAuthority": true,
+    "subtextCannotCreateApproval": true,
+    "subtextCannotCreateCommitment": true,
+    "subtextCannotChangeGoal": true,
+    "subtextCannotReduceRisk": true,
+    "subtextCannotSelectPathway": true,
+    "subtextCannotAuthorizeClosure": true,
+    "figurativeLanguageCannotAuthorizeClosure": true,
+    "automaticExecutionAllowed": false
+  },
+  "remainingPhaseBPart2FilesPending": true
+}
