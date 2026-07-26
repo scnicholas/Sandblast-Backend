@@ -1,14 +1,14 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.4-marion-nuance-phase-a-part1",
-  "description": "Sandblast backend with Marion Nuance Phase A Layers 21-24 partial critical integration, private admin runtime hardening, Nyx voice playback, Marion layering, and TV scheduling",
+  "version": "1.0.5-marion-nuance-phase-b-26",
+  "description": "Sandblast backend with cohesive Marion Layers 1-26, Phase A conversational nuance, Phase B stance and pragmatic-intent resolution, private state transport, and runtime hardening",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
     "lint:syntax": "node scripts/check-syntax.js",
     "test:marion-layering": "node tests/marion_layering_smoke_test.js",
-    "verify": "npm run verify:marion-critical && npm run verify:marion-phase-a-part1 && npm run lint:syntax && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv",
+    "verify": "npm run verify:marion-critical && npm run verify:marion-phase-a-part1 && npm run lint:syntax && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv && npm run verify:marion-phase-b",
     "dev": "node --check index.js && npm run lint:sandblast-tv && node index.js",
     "lint:sandblast-tv": "node --check SandblastTV/index.js && node --check SandblastTV/routes.js && node --check SandblastTV/manifestStore.js && node --check SandblastTV/schedulerService.js && node --check SandblastTV/mediaValidator.js && node --check SandblastTV/widgetBridge.js",
     "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js",
@@ -24,7 +24,14 @@
     "test:marion-phase-a-cohesion": "node tests/marion/layers_9_24_partial_cohesion_test.js",
     "test:marion-phase-a-gaps": "node tests/marion/layers_21_24_gap_refinement_test.js",
     "test:marion-phase-a-strategy": "node tests/marion/layers_15_17_nuance_boundary_test.js",
-    "verify:marion-phase-a-part1": "node tests/marion/verify_phase_a_part1.js"
+    "verify:marion-phase-a-part1": "node tests/marion/verify_phase_a_part1.js",
+    "test:marion-phase-b-core": "node tests/marion/run_layers_25_26.js",
+    "test:marion-phase-b-batch1": "node tests/marion/run_phase_b_batch1.js",
+    "test:marion-phase-b-state": "node tests/marion/phase_b_state_spine_integration_test.js",
+    "test:marion-phase-b-transport": "node tests/marion/phase_b_chat_engine_transport_test.js",
+    "test:marion-phase-b-control": "node tests/marion/phase_b_index_manifest_package_contract_test.js",
+    "verify:marion-phase-b-part2-batch2": "node tests/marion/verify_phase_b_part2_batch2.js",
+    "verify:marion-phase-b": "npm run test:marion-phase-b-core && npm run test:marion-phase-b-batch1 && npm run verify:marion-phase-b-part2-batch2"
   },
   "dependencies": {
     "ably": "^2.22.0",
