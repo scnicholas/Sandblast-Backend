@@ -22,3 +22,33 @@ function reconcileVisibleReply(reply="",value={}){const v=isObj(value)?value:{},
 function reconcileResult(result={},value={}){if(!isObj(result))return result;const replyCandidates=[result.directReply,result.visibleReply,result.displayReply,result.finalReply,result.reply,result.text,result.message,isObj(result.finalEnvelope)?result.finalEnvelope.reply:"",isObj(result.payload)?result.payload.reply:""];let reply="";for(const x of replyCandidates){reply=text(x,12000);if(reply)break;}reply=reconcileVisibleReply(reply,value);const state=projectState(value),memory=isObj(result.memoryPatch)?result.memoryPatch:{},session=isObj(result.sessionPatch)?result.sessionPatch:{},meta=isObj(result.meta)?result.meta:{},finalEnvelope=isObj(result.finalEnvelope)?result.finalEnvelope:{},payload=isObj(result.payload)?result.payload:{};const base={...result,outcomeFlow:value,outcomeFlowState:state,outcomeAwareness:value.outcomeAwareness,commitmentTracking:value.commitmentTracking,anticipatoryGuidance:value.anticipatoryGuidance,strategicHandoff:buildStrategicContext(value),memoryPatch:{...memory,outcomeFlowState:state},sessionPatch:{...session,outcomeFlowState:state},meta:{...meta,outcomeFlowVersion:VERSION}};if(!reply)return base;return {...base,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply,payload:{...payload,reply,text:reply,message:reply},finalEnvelope:{...finalEnvelope,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,directReply:reply,visibleReply:reply,displayReply:reply,finalReply:reply,outcomeFlowState:state}};}
 function getStatus(){return {ok:true,version:VERSION,contract:CONTRACT,contractCompat:CONTRACT_COMPAT,layers:{12:outcome.VERSION,13:commitments.VERSION,14:guidance.VERSION},routeAuthority:false,replyAuthority:false,metadataOnly:true,boundedCommitmentLedger:true,strategicHandoffReady:true,unauthorizedExecution:false};}
 module.exports={VERSION,CONTRACT,CONTRACT_COMPAT,previousFrom,threadId,buildStrategicContext,analyzeTurn,commitTurn,projectState,reconcileVisibleReply,reconcileResult,getStatus,outcome,commitments,guidance};
+
+/* MARION_NUANCE_PHASE_A_OUTCOME_COORDINATOR_V1_START */
+(function marionNuancePhaseAOutcomeCoordinatorV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAOutcomeCoordinatorV1)return;
+  const PHASE_A_VERSION="marion.outcomeFlowCoordinator/14.2-nuance-phase-a";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=160){return typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max):"";}
+  function summary(nuance={}){const n=obj(nuance),l23=obj(n.layer23),l24=obj(n.layer24);return {contract:"nyx.marion.nuance.phaseA/1.0",turnId:clean(n.turnId,120),interactionState:clean(l24.currentState,60),confidenceBand:clean(l23.confidenceBand,40),responsePolicy:clean(l23.responsePolicy,80),internalOnly:true};}
+  function applyNuance(value={},nuanceContext={},prompt=""){
+    const base=obj(value),n=obj(nuanceContext);if(!Object.keys(n).length)return {...base,version:PHASE_A_VERSION};
+    const awareness=typeof api.outcome.applyNuance==="function"?api.outcome.applyNuance(base.outcomeAwareness,n,prompt):base.outcomeAwareness;
+    const tracking=typeof api.commitments.applyNuance==="function"?api.commitments.applyNuance(base.commitmentTracking,base.commitmentTracking,n,prompt):base.commitmentTracking;
+    const guidance=typeof api.guidance.applyNuance==="function"?api.guidance.applyNuance(base.anticipatoryGuidance,n,prompt):base.anticipatoryGuidance;
+    const next={...base,version:PHASE_A_VERSION,outcomeAwareness:awareness,commitmentTracking:tracking,anticipatoryGuidance:guidance,nuanceSummary:summary(n),nuanceMetadataPrivate:true};
+    return {...next,strategicHandoff:{...obj(api.buildStrategicContext(next)),nuanceInteractionState:next.nuanceSummary.interactionState,nuanceConfidenceBand:next.nuanceSummary.confidenceBand}};
+  }
+  const originalAnalyze=api.analyzeTurn;
+  api.analyzeTurn=function(args={}){const source=obj(args),out=originalAnalyze(source);return applyNuance(out,source.nuanceContext,source.prompt);};
+  const originalProject=api.projectState;
+  api.projectState=function(value={}){const out=originalProject(value),v=obj(value);return {...out,version:PHASE_A_VERSION,nuanceSummary:obj(v.nuanceSummary)};};
+  const originalReconcile=api.reconcileResult;
+  api.reconcileResult=function(result={},value={}){const out=originalReconcile(result,value),v=obj(value),meta=obj(obj(out).meta);return obj(out)?{...out,meta:{...meta,outcomeFlowVersion:PHASE_A_VERSION,phaseANuance:obj(v.nuanceSummary)}}:out;};
+  api.applyNuance=applyNuance;
+  api.VERSION=PHASE_A_VERSION;
+  api.NUANCE_PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  api.__marionNuancePhaseAOutcomeCoordinatorV1=true;
+})();
+/* MARION_NUANCE_PHASE_A_OUTCOME_COORDINATOR_V1_END */
