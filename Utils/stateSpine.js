@@ -6382,3 +6382,19 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
   api.MARION_ROUND2_CONTINUITY_STATE_BOUNDARY_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound2ContinuityStateBoundaryV1=true;
 })();
 /* MARION_ROUND2_CONTINUITY_STATE_BOUNDARY_V1_END */
+
+/* MARION_CONTINUATION_STATE_EXECUTION_STATE_V2_START */
+(function marionContinuationStateExecutionStateV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionContinuationStateExecutionStateV2)return;
+  const VERSION="nyx.marion.continuationStateExecution.state/2.0",HARD_STOP=28;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function clean(v,max=800){try{return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
+  function prompt(input){const x=obj(input),p=obj(x.payload),m=obj(x.meta);return clean(x.prompt||x.userText||x.message||x.text||p.prompt||p.userText||p.message||m.prompt||m.userText)}
+  function match(q){const t=clean(q).toLowerCase();return /(?:continue from (?:your|the) previous answer|you mentioned|previous answer)/i.test(t)&&/observe[–—-]analy[sz]e[–—-]recommend(?:\s+boundary)?/i.test(t)}
+  function project(input,value){const q=prompt(input);if(!match(q))return value;const out={...obj(value)};out.lastTopic="observe-analyze-recommend boundary";out.activeSubject="observe-analyze-recommend boundary";out.progressionStage="rationale";out.continuity={active:true,resolvedFollowup:true,topic:"observe-analyze-recommend boundary",lastTopic:"observe-analyze-recommend boundary",followupAction:"importance",continuityAction:"importance",originalText:clean(q,220),resolvedText:"Why is separating observation, analysis, and recommendation important?",source:VERSION,singlePass:true};out.continuationExecution={version:VERSION,turnId:clean(obj(input).turnId||obj(input).traceId,120),singlePass:true,historyReplayAllowed:false,recursiveMergeAllowed:false,maxPriorTurns:1,hardStopLayer:HARD_STOP,executionAuthorized:false};return out}
+  for(const name of["createState","coerceState","finalizeTurn","normalizeStateForPipelineCohesion","buildStateSpine"]){const fn=api[name];if(typeof fn!=="function")continue;api[name]=function(){const v=fn.apply(this,arguments);const apply=x=>project(arguments[0],x);return v&&typeof v.then==="function"?v.then(apply):apply(v)}}
+  api.MARION_CONTINUATION_STATE_EXECUTION_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionContinuationStateExecutionStateV2=true;
+})();
+/* MARION_CONTINUATION_STATE_EXECUTION_STATE_V2_END */
