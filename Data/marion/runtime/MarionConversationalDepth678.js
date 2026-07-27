@@ -59,3 +59,20 @@ module.exports={VERSION,CONTRACT,ALLOWED_OPERATORS,RELATIONS,extract,build,attac
   api.MARION_ROUND2_UNIFIED_DEPTH_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound2UnifiedDepthCohesionV1=true;
 })();
 /* MARION_ROUND2_2_TO_2_5_DEPTH_COHESION_V1_END */
+
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_DEPTH_V1_START */
+(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound3CognitiveResilienceDepthV1)return;const VERSION="nyx.marion.round3.depth/1.0";
+
+function classifyRound3CognitiveResilience(prompt=""){
+  const t=String(prompt==null?"":prompt).replace(/\s+/g," ").trim().toLowerCase();
+  if(!t)return null;
+  if(/earlier (?:you )?recommended|evidence supporting|recommendation changes|new evidence/.test(t))return{test:"3.1",stage:"evidence_revision",topic:"recommendation revision under contradictory evidence"};
+  if(/most confident|most uncertain|confidence.*uncertain|least confident/.test(t))return{test:"3.2",stage:"confidence_calibration",topic:"confidence and uncertainty calibration"};
+  if(/three possible ways forward|help me choose|compare (?:the )?options|which option/.test(t))return{test:"3.3",stage:"option_arbitration",topic:"bounded option comparison"};
+  if(/missing several important facts|missing (?:important )?information|partial information|facts are missing|not enough information/.test(t))return{test:"3.4",stage:"knowledge_gap_management",topic:"decision-making with incomplete information"};
+  if(/list every assumption|assumptions? (?:you(?:'re| are) making|before answering)|assumption audit/.test(t))return{test:"3.5",stage:"assumption_audit",topic:"explicit assumption audit"};
+  return null;
+}
+
+for(const name of["build","analyze","run","default"]){const fn=api[name];if(typeof fn!=="function")continue;api[name]=function(input){const out=fn.apply(this,arguments),c=classifyRound3CognitiveResilience(input&&typeof input==="object"?(input.prompt||input.text||input.message):input);if(!c||!out||typeof out!=="object")return out;return{...out,cognitiveResilience:{version:VERSION,test:c.test,stage:c.stage,topic:c.topic,conversationalNeed:"evidence_aware_adaptive_reasoning",inferencePolicy:"qualified_inference_only",internalOnly:true,executionAuthorized:false}}}}api.__marionRound3CognitiveResilienceDepthV1=true;})();
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_DEPTH_V1_END */
