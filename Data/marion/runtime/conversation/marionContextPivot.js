@@ -117,19 +117,10 @@ module.exports={VERSION,CONTRACT,isGreeting,isReturn,isBranch,isExplicitPivot,is
 /* MARION_NUANCE_PHASE_B_ContextPivotCohesion_V1_END */
 
 
-/* MARION_LAYERS_27_28_CONTEXT_PIVOT_COHESION_V1_START */
-(function marionLayers2728ContextPivotCohesionV1(){
-  "use strict";
-  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(!api||api.__marionLayers2728ContextPivotCohesionV1)return;
-  const original=api.analyzeTurn;
-  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
-  function text(v,max=160){try{return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}
-  if(typeof original==="function")api.analyzeTurn=function(input={}){
-    const source=obj(input),out=obj(original.call(this,source)),s=obj(source.strategic),trajectory=obj(s.trajectory);
-    return{...out,strategicThread:{missionId:text(s.missionId,120),objectiveId:text(s.objectiveId,120),trajectoryDirection:text(trajectory.direction||s.direction,80),advisoryOnly:true,mayOverrideExplicitPivot:false},supervisorIntegrated:true};
-  };
-  api.MARION_LAYER_HARD_STOP=28;
-  api.__marionLayers2728ContextPivotCohesionV1=true;
-})();
-/* MARION_LAYERS_27_28_CONTEXT_PIVOT_COHESION_V1_END */
+/* MARION_LAYERS_27_29_CONTEXT_PIVOT_COHESION_V1_START */
+(function marionLayers2729ContextPivotCohesionV1(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionLayers2729ContextPivotCohesionV1)return;const original=api.classify||api.resolve||api.analyze;function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}function text(v,max=160){try{return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,max);}catch(_){return"";}}if(typeof original==="function"){const name=api.classify===original?"classify":api.resolve===original?"resolve":"analyze";api[name]=function(input={}){const out=original.call(this,input),s=obj(obj(input).strategic),trajectory=obj(s.trajectory);return{...obj(out),strategicThread:{missionId:text(s.missionId,120),objectiveId:text(s.objectiveId,120),trajectoryDirection:text(trajectory.direction||s.direction,80),advisoryOnly:true,mayOverrideExplicitPivot:false},layer29Integrated:true};};}api.MARION_LAYER_HARD_STOP=29;api.__marionLayers2729ContextPivotCohesionV1=true;})();
+/* MARION_LAYERS_27_29_CONTEXT_PIVOT_COHESION_V1_END */
+
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_START */
+(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound3CognitiveResilienceCohesionV1)return;const VERSION="nyx.marion.round3.contextPivot/1.0";api.MARION_ROUND3_COGNITIVE_RESILIENCE_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=28;api.MARION_CURRENT_EVIDENCE_WINS=true;api.MARION_ASSUMPTION_DISCLOSURE_REQUIRED=true;api.MARION_EXECUTION_AUTHORIZED=false;api.__marionRound3CognitiveResilienceCohesionV1=true;})();
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_END */
