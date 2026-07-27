@@ -6247,3 +6247,51 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
 /* MARION_ROUND4_PAIR_FINAL_ENVELOPE_V1_START */
 (function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairFinalEnvelopeV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}for(const n of["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse"]){const fn=api[n];if(typeof fn!=="function"||fn.__r4pair)continue;api[n]=function(input){const v=fn.apply(this,arguments);const done=x=>{if(!x||typeof x!=="object")return x;const q=input&&typeof input==="object"?(input.prompt||input.rawUserText||input.userText||input.message||input.text||""):"";const plan=pc.build(q,input);if(plan.domains.length<2)return x;return Object.assign({},x,{final:true,marionFinal:true,canEmit:true,executionAuthorized:false,noUserFacingDiagnostics:true,hardStopLayer:28,multiDomainIntegration:plan,round4PairValidationComplete:true})};return v&&typeof v.then==="function"?v.then(done):done(v)};api[n].__r4pair=true}api.MARION_ROUND4_PAIR_FINAL_ENVELOPE_VERSION=pc.VERSION;api.__marionRound4PairFinalEnvelopeV1=true;}());
 /* MARION_ROUND4_PAIR_FINAL_ENVELOPE_V1_END */
+
+/* MARION_ROUND43_FINAL_ENVELOPE_TIMEOUT_GUARD_V1_START */
+(function() {
+  "use strict";
+  const api = module.exports;
+  if (!api || api.__marionRound43FinalEnvelopeTimeoutGuardV1) return;
+
+  let guard = null;
+  try { guard = require("./marionRound43FinalTimeoutGuard.js"); } catch (_) { return; }
+
+  const exportNames = [
+    "createMarionFinalEnvelope",
+    "buildResponse",
+    "createResponse",
+    "finalizeTurn",
+    "safeResponse",
+    "attachVisibleReplyAliases"
+  ];
+
+  for (const name of exportNames) {
+    const original = api[name];
+    if (typeof original !== "function" || original.__round43TimeoutGuard) continue;
+
+    const wrapped = function(input) {
+      if (guard.isLawFinancePrompt(input)) {
+        return guard.buildFinalPacket(input);
+      }
+
+      const result = original.apply(this, arguments);
+      const repair = (value) => {
+        if (guard.isLawFinancePrompt(input)) return guard.buildFinalPacket(input);
+        return value;
+      };
+
+      return result && typeof result.then === "function"
+        ? result.then(repair)
+        : repair(result);
+    };
+
+    wrapped.__round43TimeoutGuard = true;
+    api[name] = wrapped;
+  }
+
+  api.round43FinalTimeoutGuard = guard;
+  api.MARION_ROUND43_FINAL_ENVELOPE_TIMEOUT_GUARD_VERSION = guard.VERSION;
+  api.__marionRound43FinalEnvelopeTimeoutGuardV1 = true;
+}());
+/* MARION_ROUND43_FINAL_ENVELOPE_TIMEOUT_GUARD_V1_END */
