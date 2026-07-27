@@ -1,0 +1,8 @@
+"use strict";
+const assert=require("assert");const path=require("path");const root=path.resolve(__dirname,"..");
+const md=require(path.join(root,"Data/marion/runtime/marionRound4DomainIntegration.js"));
+const conf=require(path.join(root,"Data/marion/runtime/domainConfidence.js"));
+const ret=require(path.join(root,"Data/marion/runtime/domainRetriever.js"));
+const comp=require(path.join(root,"Data/marion/runtime/composeMarionResponse.js"));
+const prompt="Sandblast has increased user engagement, but revenue is still limited. Explain the psychological factors that could affect advertiser confidence, then connect those factors to pricing, cash flow, and a practical revenue strategy.";
+(async()=>{let n=0;const ok=x=>{assert.ok(x);n++};const plan=md.build(prompt);ok(plan.domains.includes("psychology"));ok(plan.domains.includes("finance"));ok(plan.domains.length<=3);ok(plan.singlePass===true);ok(plan.totalBudgetMs<=1200);const c=conf.scoreRound4Domains(prompt);ok(c.needsClarifier===false);ok(c.recomputeProhibited===true);const start=Date.now();const rr=await ret.retrieveDomains(prompt,{totalBudgetMs:400,perDomainBudgetMs:150});ok(Date.now()-start<1500);ok(rr.domainIsolationRequired===true);ok(rr.noCrossDomainBleed===true);const fn=comp.composeMarionResponse||comp.run||comp.default||comp.compose||comp.buildReply;ok(typeof fn==="function");const out=await Promise.resolve(fn({prompt,privateAdminConversation:true}));ok(out&&out.final===true);ok(/Advertiser confidence/.test(out.reply));ok(out.executionAuthorized===false);ok(out.hardStopLayer===28);console.log(JSON.stringify({passed:n,failed:0,elapsedMs:Date.now()-start},null,2));})().catch(e=>{console.error(e);process.exit(1)});
