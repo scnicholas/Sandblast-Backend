@@ -391,3 +391,8 @@ module.exports = {
 };
 
 module.exports.default = module.exports;
+
+
+/* MARION_ROUND4_MULTIDOMAIN_QUESTION_SHAPE_V1_START */
+(function(){"use strict";try{const md=require("./marionRound4DomainIntegration.js");const api=module.exports;if(!api||api.__marionRound4MultiDomainQuestionShapeV1)return;const old=api.normalizeQuestionShape;if(typeof old==="function")api.normalizeQuestionShape=function(input){const base=old.apply(this,arguments);const plan=md.build(input);return Object.assign({},base,{domainHints:plan.domains,primaryDomainHint:plan.primaryDomain,secondaryDomainHints:plan.secondaryDomains,multiDomainRequested:plan.domains.length>1,multiDomainIntegration:plan});};api.detectRound4DomainHints=function(input){return md.build(input);};api.__marionRound4MultiDomainQuestionShapeV1=true;}catch(_){}})();
+/* MARION_ROUND4_MULTIDOMAIN_QUESTION_SHAPE_V1_END */
