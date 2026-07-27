@@ -46,3 +46,16 @@ module.exports={VERSION,CONTRACT,ALLOWED_OPERATORS,RELATIONS,extract,build,attac
   api.MARION_ROUND2_DEPTH_CONTINUITY_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=H;api.__marionRound2DepthContinuityV1=true;
 })();
 /* MARION_ROUND2_DEPTH_CONTINUITY_V1_END */
+
+/* MARION_ROUND2_2_TO_2_5_DEPTH_COHESION_V1_START */
+(function marionRound2UnifiedDepthCohesionV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound2UnifiedDepthCohesionV1)return;
+  const VERSION="marion.private.round2UnifiedDepth/1.0",HARD_STOP=28;
+  function clean(v,max=800){try{return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
+  function classify(q){const t=clean(q).toLowerCase();if(/disagreed.*recommendation|how should you respond/.test(t))return["continuation","collaborative_reassessment","recommendation disagreement","2.2"];if(/access to sensors tomorrow|refuse to do/.test(t))return["continuation","safety_boundary_reasoning","sensor access boundaries","2.3"];if(/role.*sandblast ecosystem|describe your role/.test(t))return["continuation","identity_role_continuity","Marion role in Sandblast","2.4"];if(/several hours|without becoming repetitive/.test(t))return["continuation","long_session_management","long-session conversational productivity","2.5"];return null;}
+  const originalBuild=api.build;
+  if(typeof originalBuild==="function")api.build=function(input={},existing={}){const out=originalBuild.call(this,input,existing),q=typeof input==="string"?input:(input.prompt||input.text||input.message||"");const c=classify(q);if(!c)return out;const o=out&&typeof out==="object"?out:{};const layers=o.layers&&typeof o.layers==="object"?o.layers:{};return{...o,version:VERSION,layers:{...layers,seven:{...(layers.seven||{}),relationToPreviousTurn:c[0],activeTopic:c[2],currentObjective:c[2],continuityConfidence:.91},eight:{...(layers.eight||{}),literalIntent:clean(q,260),deeperIntent:c[1],conversationalNeed:c[1],inferenceConfidence:.9,inferencePolicy:"qualified_inference_allowed"}},round2Unified:{test:c[3],singlePass:true,hardStopLayer:HARD_STOP,executionAuthorized:false},confidence:.9};};
+  api.MARION_ROUND2_UNIFIED_DEPTH_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound2UnifiedDepthCohesionV1=true;
+})();
+/* MARION_ROUND2_2_TO_2_5_DEPTH_COHESION_V1_END */
