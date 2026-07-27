@@ -1026,3 +1026,8 @@ function r18abEnhanceRetrieverResult(result, domain, text){
 })();
 // R18AB_AI_CYBER_RETRIEVER_HARDENING_END
 
+
+
+/* MARION_ROUND4_MULTIDOMAIN_RETRIEVER_V1_START */
+(function(){"use strict";try{const md=require("./marionRound4DomainIntegration.js");const api=module.exports;if(!api||api.__marionRound4MultiDomainRetrieverV1)return;api.retrieveDomains=async function(input,options={}){const plan=md.build(input,options);const domains=plan.domains.length?plan.domains:[md.canonical(options.domain)].filter(Boolean);const results=[];for(const domain of domains.slice(0,6)){try{const fn=typeof api.retrieveDomain==="function"?api.retrieveDomain:api.retrieve;const value=await Promise.resolve(fn.call(api,domain,input,Object.assign({},options,{domain,allowGeneralFallback:false})));results.push({domain,ok:true,result:value});}catch(err){results.push({domain,ok:false,error:err&&err.message?String(err.message):"retrieval_failed"});}}return {version:md.VERSION,primaryDomain:plan.primaryDomain,secondaryDomains:plan.secondaryDomains,domains,results,domainIsolationRequired:true,noCrossDomainBleed:true,partialFailureAllowed:true,executionAuthorized:false,noUserFacingDiagnostics:true};};api.buildRound4RetrievalPlan=function(input,options){return md.build(input,options);};api.__marionRound4MultiDomainRetrieverV1=true;}catch(_){}})();
+/* MARION_ROUND4_MULTIDOMAIN_RETRIEVER_V1_END */
