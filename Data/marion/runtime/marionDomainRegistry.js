@@ -1550,3 +1550,8 @@ function r18cEnhanceLawDomainConfig(config,key){
 })();
 /* R18C_FULL_STACK_REGISTRY_PRIORITY_EXPORT_END */
 
+
+
+/* MARION_ROUND4_MULTIDOMAIN_REGISTRY_V1_START */
+(function(){"use strict";try{const md=require("./marionRound4DomainIntegration.js");const api=module.exports;if(!api||api.__marionRound4MultiDomainRegistryV1)return;api.MARION_ROUND4_MULTIDOMAIN_VERSION=md.VERSION;api.getRound4MultiDomainPlan=function(input,context){return md.build(input,context);};api.listRound4KnowledgeDomains=function(){return md.SIX_DOMAINS.slice();};api.validateRound4DomainSet=function(domains){const list=Array.isArray(domains)?domains:[];const canonical=list.map(md.canonical).filter(Boolean);return {version:md.VERSION,valid:canonical.length===list.length&&new Set(canonical).size===canonical.length,domains:canonical,required:md.SIX_DOMAINS.slice(),executionAuthorized:false};};api.__marionRound4MultiDomainRegistryV1=true;}catch(_){}})();
+/* MARION_ROUND4_MULTIDOMAIN_REGISTRY_V1_END */
