@@ -1486,3 +1486,8 @@ function r18cEnhanceLawConfidenceProfile(profile={},text="",context={}){
 })();
 /* R18C_FULL_STACK_DOMAIN_CONFIDENCE_WRAP_END */
 
+
+
+/* MARION_ROUND4_MULTIDOMAIN_CONFIDENCE_V1_START */
+(function(){"use strict";try{const md=require("./marionRound4DomainIntegration.js");const api=module.exports;if(!api||api.__marionRound4MultiDomainConfidenceV1)return;const old=api.buildDomainConfidenceProfile;api.buildRound4MultiDomainConfidence=function(input,context){const plan=md.build(input,context);return {version:md.VERSION,primaryDomain:plan.primaryDomain,selectedDomain:plan.primaryDomain,domain:plan.primaryDomain,confidence:plan.primaryDomain?plan.scores[plan.primaryDomain]:0,candidates:plan.domains.map(d=>({domain:d,confidence:plan.scores[d],reasons:["round4_multi_domain_signal"],knowledgeDomain:d})),multiDomainIntegration:plan,ambiguous:false,routeLocked:plan.domains.length>0,failClosed:false,executionAuthorized:false};};if(typeof old==="function")api.buildDomainConfidenceProfile=function(input,context){const base=old.apply(this,arguments);const plan=md.build(input,context);if(plan.domains.length<2)return base;return Object.assign({},base,{primaryDomain:plan.primaryDomain,selectedDomain:plan.primaryDomain,domain:plan.primaryDomain,knowledgeDomain:plan.primaryDomain,secondaryDomains:plan.secondaryDomains,candidates:plan.domains.map(d=>({domain:d,confidence:plan.scores[d],reasons:["round4_multi_domain_signal"],knowledgeDomain:d})),multiDomainIntegration:plan,ambiguous:false,routeLocked:true,failClosed:false});};api.__marionRound4MultiDomainConfidenceV1=true;}catch(_){}})();
+/* MARION_ROUND4_MULTIDOMAIN_CONFIDENCE_V1_END */
