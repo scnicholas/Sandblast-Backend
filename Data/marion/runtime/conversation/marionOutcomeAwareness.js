@@ -138,3 +138,7 @@ module.exports={VERSION,CONTRACT,isGreeting,isQuestion,isBrainstorm,timingHint,c
   api.__marionLayers2728OutcomeCohesionV1=true;
 })();
 /* MARION_LAYERS_27_28_OUTCOME_COHESION_V1_END */
+
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_START */
+(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound3CognitiveResilienceCohesionV1)return;const VERSION="nyx.marion.round3.outcomeAwareness/1.0";api.MARION_ROUND3_COGNITIVE_RESILIENCE_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=28;api.MARION_CURRENT_EVIDENCE_WINS=true;api.MARION_ASSUMPTION_DISCLOSURE_REQUIRED=true;api.MARION_EXECUTION_AUTHORIZED=false;api.__marionRound3CognitiveResilienceCohesionV1=true;})();
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_END */
