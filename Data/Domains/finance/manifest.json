@@ -203,5 +203,23 @@
   "notes": [
     "Manifest file references corrected from *_normalized.json to actual inventory filenames.",
     "Conflicted duplicate manifest source was not used for finance output; clean finance manifest retained and hardened."
-  ]
+  ],
+  "round4MultiDomainIntegration": {
+    "version": "nyx.marion.round4.multiDomainIntegration/1.0",
+    "enabled": true,
+    "primaryDomain": "finance",
+    "supportedPeerDomains": [
+      "psychology",
+      "english",
+      "ai",
+      "cyber",
+      "law"
+    ],
+    "domainIsolationRequired": true,
+    "noCrossDomainBleed": true,
+    "preserveDomainSafetyPosture": true,
+    "synthesisRole": "primary",
+    "executionAuthorized": false,
+    "noUserFacingDiagnostics": true
+  }
 }
