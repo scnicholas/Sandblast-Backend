@@ -188,5 +188,23 @@
   },
   "notes": [
     "Clinical safety kept first in load order; support lane remains educational and non-clinical."
-  ]
+  ],
+  "round4MultiDomainIntegration": {
+    "version": "nyx.marion.round4.multiDomainIntegration/1.0",
+    "enabled": true,
+    "primaryDomain": "psychology",
+    "supportedPeerDomains": [
+      "english",
+      "ai",
+      "cyber",
+      "law",
+      "finance"
+    ],
+    "domainIsolationRequired": true,
+    "noCrossDomainBleed": true,
+    "preserveDomainSafetyPosture": true,
+    "synthesisRole": "primary",
+    "executionAuthorized": false,
+    "noUserFacingDiagnostics": true
+  }
 }
