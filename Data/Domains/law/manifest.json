@@ -630,5 +630,23 @@
     "preservedStructuralIntegrity": true,
     "normalizedAt": "2026-07-01",
     "package": "R18C_Law_Domain_Content_Full_Package.zip"
+  },
+  "round4MultiDomainIntegration": {
+    "version": "nyx.marion.round4.multiDomainIntegration/1.0",
+    "enabled": true,
+    "primaryDomain": "law",
+    "supportedPeerDomains": [
+      "psychology",
+      "english",
+      "ai",
+      "cyber",
+      "finance"
+    ],
+    "domainIsolationRequired": true,
+    "noCrossDomainBleed": true,
+    "preserveDomainSafetyPosture": true,
+    "synthesisRole": "primary",
+    "executionAuthorized": false,
+    "noUserFacingDiagnostics": true
   }
 }
