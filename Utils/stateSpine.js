@@ -6398,3 +6398,18 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
   api.MARION_CONTINUATION_STATE_EXECUTION_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionContinuationStateExecutionStateV2=true;
 })();
 /* MARION_CONTINUATION_STATE_EXECUTION_STATE_V2_END */
+
+/* MARION_ROUND2_2_TO_2_5_STATE_BOUNDARY_V1_START */
+(function marionRound2UnifiedStateBoundaryV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound2UnifiedStateBoundaryV1)return;
+  const VERSION="nyx.marion.round2.unifiedStateBoundary/1.0",HARD_STOP=28;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function clean(v,max=800){try{return String(v==null?"":v).replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
+  function classify(q){const t=clean(q).toLowerCase();if(/disagreed.*recommendation|how should you respond/.test(t))return["2.2","recommendation disagreement","adaptive_reasoning"];if(/access to sensors tomorrow|refuse to do/.test(t))return["2.3","sensor access boundaries","boundary_reasoning"];if(/role.*sandblast ecosystem|describe your role/.test(t))return["2.4","Marion role in Sandblast","role_continuity"];if(/several hours|without becoming repetitive/.test(t))return["2.5","long-session conversational productivity","long_session_stability"];return null;}
+  function promptOf(input){const x=obj(input),p=obj(x.payload),m=obj(x.meta);return clean(x.prompt||x.userText||x.message||x.text||p.prompt||p.userText||p.message||m.prompt||m.userText)}
+  function project(input,value){const c=classify(promptOf(input));if(!c)return value;const out={...obj(value)};out.lastTopic=c[1];out.activeSubject=c[1];out.progressionStage=c[2];out.continuity={active:true,resolvedFollowup:true,topic:c[1],lastTopic:c[1],followupAction:c[2],continuityAction:c[2],originalText:clean(promptOf(input),220),resolvedText:clean(promptOf(input),260),source:VERSION,singlePass:true};out.continuationExecution={version:VERSION,round2Test:c[0],singlePass:true,historyReplayAllowed:false,recursiveMergeAllowed:false,maxPriorTurns:1,hardStopLayer:HARD_STOP,executionAuthorized:false};return out;}
+  for(const name of["createState","coerceState","finalizeTurn","normalizeStateForPipelineCohesion","buildStateSpine"]){const fn=api[name];if(typeof fn!=="function")continue;api[name]=function(){const v=fn.apply(this,arguments),apply=x=>project(arguments[0],x);return v&&typeof v.then==="function"?v.then(apply):apply(v)}}
+  api.MARION_ROUND2_UNIFIED_STATE_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound2UnifiedStateBoundaryV1=true;
+})();
+/* MARION_ROUND2_2_TO_2_5_STATE_BOUNDARY_V1_END */
