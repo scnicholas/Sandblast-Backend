@@ -10174,3 +10174,55 @@ function classifyRound3CognitiveResilience(prompt=""){
 /* MARION_ROUND4_3_TO_4_5_DIRECT_COMPLETION_V1_START */
 (function(){"use strict";const api=module.exports;if(!api||api.__marionRound4DirectCompletionV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}function promptOf(args){for(const a of args){if(typeof a==="string"&&a.trim())return a.trim();if(a&&typeof a==="object"){const q=a.prompt||a.rawUserText||a.userText||a.message||a.text||a.query||(a.body&&a.body.prompt)||(a.payload&&a.payload.prompt);if(typeof q==="string"&&q.trim())return q.trim()}}return""}function envelope(q,reply){const plan=pc.build(q);return{ok:true,final:true,marionFinal:true,handled:true,canEmit:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:reply,replyAuthority:"composer_final",source:"marion",executionAuthorized:false,noUserFacingDiagnostics:true,hardStopLayer:28,multiDomainIntegration:plan,payload:{reply,text:reply,message:reply},finalEnvelope:{contractVersion:"nyx.marion.final/1.0",signature:"MARION_FINAL_AUTHORITY",source:"marion",final:true,marionFinal:true,canEmit:true,reply,finalReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,text:reply,answer:reply,replyAuthority:"composer_final",executionAuthorized:false,noUserFacingDiagnostics:true,hardStopLayer:28,multiDomainIntegration:plan}}}for(const n of["composeMarionResponse","run","default","compose","buildReply"]){const fn=api[n];if(typeof fn!=="function"||fn.__r4direct)continue;api[n]=function(){const args=Array.from(arguments),q=promptOf(args),r=pc.directReply(q);if(r)return envelope(q,r);return fn.apply(this,args)};api[n].__r4direct=true}api.MARION_ROUND4_DIRECT_COMPLETION_VERSION=pc.VERSION;api.__marionRound4DirectCompletionV1=true;}());
 /* MARION_ROUND4_3_TO_4_5_DIRECT_COMPLETION_V1_END */
+
+/* MARION_ROUND43_FINAL_TIMEOUT_GUARD_V1_START */
+(function() {
+  "use strict";
+  const api = module.exports;
+  if (!api || api.__marionRound43FinalTimeoutGuardV1) return;
+
+  let guard = null;
+  try { guard = require("./marionRound43FinalTimeoutGuard.js"); } catch (_) { return; }
+
+  function promptFromArgs(args) {
+    for (const arg of args) {
+      const prompt = guard.promptFrom(arg);
+      if (prompt) return prompt;
+    }
+    return "";
+  }
+
+  const exportNames = [
+    "composeMarionResponse",
+    "compose",
+    "run",
+    "handle",
+    "buildReply",
+    "createResponse",
+    "default"
+  ];
+
+  for (const name of exportNames) {
+    const original = api[name];
+    if (typeof original !== "function" || original.__round43TimeoutGuard) continue;
+
+    const wrapped = function() {
+      const args = Array.from(arguments);
+      const prompt = promptFromArgs(args);
+
+      if (guard.isLawFinancePrompt(prompt)) {
+        return guard.buildFinalPacket(prompt);
+      }
+
+      return original.apply(this, args);
+    };
+
+    wrapped.__round43TimeoutGuard = true;
+    api[name] = wrapped;
+  }
+
+  api.round43FinalTimeoutGuard = guard;
+  api.MARION_ROUND43_FINAL_TIMEOUT_GUARD_VERSION = guard.VERSION;
+  api.__marionRound43FinalTimeoutGuardV1 = true;
+}());
+/* MARION_ROUND43_FINAL_TIMEOUT_GUARD_V1_END */
