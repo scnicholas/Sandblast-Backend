@@ -1498,3 +1498,7 @@ function r18cEnhanceLawConfidenceProfile(profile={},text="",context={}){
 })();
 /* MARION_ROUND4_CONFIDENCE_STABILITY_V2_END */
 
+
+/* MARION_ROUND4_PAIR_CONFIDENCE_V1_START */
+(function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairConfidenceV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}const names=["score","analyze","evaluate","calculate","scoreDomainConfidence","buildDomainConfidence"];for(const n of names){const fn=api[n];if(typeof fn!=="function"||fn.__r4pair)continue;api[n]=function(){const args=Array.from(arguments),input=args[0],prompt=typeof input==="string"?input:(input&&typeof input==="object"?(input.prompt||input.text||input.message||input.userText||""):""),plan=pc.build(prompt);const done=v=>{if(!v||typeof v!=="object"||plan.domains.length<2)return v;return Object.assign({},v,{domain:plan.primaryDomain,primaryDomain:plan.primaryDomain,secondaryDomains:plan.secondaryDomains,confidence:Math.max(Number(v.confidence)||0,0.88),ambiguous:false,needsClarifier:false,answerMode:"grounded",multiDomainIntegration:plan,recomputeProhibited:true,executionAuthorized:false});};const r=fn.apply(this,args);return r&&typeof r.then==="function"?r.then(done):done(r)};api[n].__r4pair=true}api.MARION_ROUND4_PAIR_CONFIDENCE_VERSION=pc.VERSION;api.__marionRound4PairConfidenceV1=true;}());
+/* MARION_ROUND4_PAIR_CONFIDENCE_V1_END */
