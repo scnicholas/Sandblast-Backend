@@ -3926,3 +3926,7 @@ function r18cApplyLawConciergeProtocol(result,packet){
 })();
 /* MARION_ROUND4_SINGLE_PASS_CONCIERGE_V2_END */
 
+
+/* MARION_ROUND4_PAIR_COHESION_V1_START */
+(function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairCohesionV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}const names=["route","run","process","decide","handle","orchestrate","concierge"];for(const n of names){const fn=api[n];if(typeof fn!=="function"||fn.__r4pair)continue;api[n]=function(){const args=Array.from(arguments),input=args[0],prompt=typeof input==="string"?input:(input&&typeof input==="object"?(input.prompt||input.text||input.message||input.userText||""):""),plan=pc.build(prompt);const done=v=>{if(!v||typeof v!=="object"||plan.domains.length<2)return v;return Object.assign({},v,{action:"route",needsClarifier:false,clarify:false,answerOnly:true,domain:plan.primaryDomain,knowledgeDomain:plan.primaryDomain,secondaryDomains:plan.secondaryDomains,multiDomainIntegration:plan,round4PairCohesion:plan,routingReentryAllowed:false,recomputeProhibited:true,executionAuthorized:false,noUserFacingDiagnostics:true});};const r=fn.apply(this,args);return r&&typeof r.then==="function"?r.then(done):done(r)};api[n].__r4pair=true}api.buildRound4PairPlan=(input)=>pc.build(typeof input==="string"?input:(input&&input.prompt)||"",input);api.MARION_ROUND4_PAIR_COHESION_VERSION=pc.VERSION;api.__marionRound4PairCohesionV1=true;}());
+/* MARION_ROUND4_PAIR_COHESION_V1_END */
