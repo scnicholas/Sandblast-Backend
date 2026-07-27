@@ -181,3 +181,20 @@ module.exports={VERSION,CONTRACT,isGreeting,isShortFollowup,stageFor,nextActionF
   api.MARION_ROUND2_UNIFIED_PROGRESSIVE_REASONING_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound2UnifiedProgressiveReasoningV1=true;
 })();
 /* MARION_ROUND2_2_TO_2_5_PROGRESSIVE_REASONING_V1_END */
+
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_PROGRESSION_V1_START */
+(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound3CognitiveResilienceProgressionV1)return;const VERSION="nyx.marion.round3.progression/1.0",HARD_STOP=28;
+
+function classifyRound3CognitiveResilience(prompt=""){
+  const t=String(prompt==null?"":prompt).replace(/\s+/g," ").trim().toLowerCase();
+  if(!t)return null;
+  if(/earlier (?:you )?recommended|evidence supporting|recommendation changes|new evidence/.test(t))return{test:"3.1",stage:"evidence_revision",topic:"recommendation revision under contradictory evidence"};
+  if(/most confident|most uncertain|confidence.*uncertain|least confident/.test(t))return{test:"3.2",stage:"confidence_calibration",topic:"confidence and uncertainty calibration"};
+  if(/three possible ways forward|help me choose|compare (?:the )?options|which option/.test(t))return{test:"3.3",stage:"option_arbitration",topic:"bounded option comparison"};
+  if(/missing several important facts|missing (?:important )?information|partial information|facts are missing|not enough information/.test(t))return{test:"3.4",stage:"knowledge_gap_management",topic:"decision-making with incomplete information"};
+  if(/list every assumption|assumptions? (?:you(?:'re| are) making|before answering)|assumption audit/.test(t))return{test:"3.5",stage:"assumption_audit",topic:"explicit assumption audit"};
+  return null;
+}
+
+const original=api.analyzeTurn;api.analyzeTurn=function(input={}){const c=classifyRound3CognitiveResilience(input&&input.prompt);if(!c)return typeof original==="function"?original.call(this,input):{};const p=input&&input.previous&&typeof input.previous==="object"?input.previous:{};return{version:VERSION,contract:api.CONTRACT||"nyx.marion.conversation.progression/1.0",layer:9,turnId:String(input.turnId||""),stage:c.stage,previousStage:String(p.stage||""),stageChanged:c.stage!==String(p.stage||""),progressionDepth:Math.min(50,Math.max(1,Number(p.progressionDepth||0)+1)),activeDomain:"general_reasoning",activeSubject:c.topic,currentQuestion:String(input.prompt||"").slice(0,600),lastAcceptedResult:String(p.lastAcceptedResult||"").slice(0,700),resolvedQuestions:Array.isArray(p.resolvedQuestions)?p.resolvedQuestions.slice(0,12):[],unresolvedQuestions:[String(input.prompt||"").slice(0,600)],nextLogicalAction:c.stage,continuation:true,singlePass:true,round3Test:c.test,currentEvidenceWins:true,internalOnly:true,hardStopLayer:HARD_STOP,executionAuthorized:false};};api.classifyRound3CognitiveResilience=classifyRound3CognitiveResilience;api.__marionRound3CognitiveResilienceProgressionV1=true;})();
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_PROGRESSION_V1_END */
