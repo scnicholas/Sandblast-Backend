@@ -205,5 +205,23 @@
   },
   "notes": [
     "Manifest pack filenames corrected from _normalized/v2 references to actual v1 inventory files."
-  ]
+  ],
+  "round4MultiDomainIntegration": {
+    "version": "nyx.marion.round4.multiDomainIntegration/1.0",
+    "enabled": true,
+    "primaryDomain": "english",
+    "supportedPeerDomains": [
+      "psychology",
+      "ai",
+      "cyber",
+      "law",
+      "finance"
+    ],
+    "domainIsolationRequired": true,
+    "noCrossDomainBleed": true,
+    "preserveDomainSafetyPosture": true,
+    "synthesisRole": "supporting_or_primary",
+    "executionAuthorized": false,
+    "noUserFacingDiagnostics": true
+  }
 }
