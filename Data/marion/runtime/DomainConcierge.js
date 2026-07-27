@@ -3902,3 +3902,20 @@ function r18cApplyLawConciergeProtocol(result,packet){
   }catch(_err){}
 })();
 /* MARION_LAYERS_6_7_8_PART1_END */
+
+
+/* MARION_LAYERS_7_8_PART2_START */
+(function(){
+  "use strict";
+  const PATCH_VERSION="marion.layers78.part2/1.0";
+  let arb=null; try{arb=require("./MarionContextIntentArbiter78.js");}catch(_err){arb=null;}
+  if(!arb||typeof module==="undefined"||!module.exports)return;
+  function wrap(fn,name){if(typeof fn!=="function"||fn.__marionLayers78Part2)return fn;const w=function(){const a=arguments,i=a&&a.length?a[0]:{};const r=fn.apply(this,a);const p=v=>arb.attach(v,i);return r&&typeof r.then==="function"?r.then(p):p(r)};try{Object.keys(fn).forEach(k=>w[k]=fn[k])}catch(_e){}w.__marionLayers78Part2=true;w.__marionWrappedName=name;return w}
+  try{if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(api){for(const n of ["processWithMarion","composeMarionResponse","compose","buildReply","run","handle","route","default","finalize","normalize","detectLoop","buildFinalEnvelope"])if(typeof api[n]==="function")api[n]=wrap(api[n],n);api.MARION_LAYERS_7_8_PART2_VERSION=PATCH_VERSION;api.MARION_CONTEXT_INTENT_ARBITER_CONTRACT=arb.CONTRACT;api.buildMarionContextIntentPart2=arb.build;api.validateMarionContextIntentPart2=arb.validate}}catch(_err){}
+})();
+/* MARION_LAYERS_7_8_PART2_END */
+
+
+/* MARION_ROUND4_MULTIDOMAIN_CONCIERGE_V1_START */
+(function(){"use strict";try{const md=require("./marionRound4DomainIntegration.js");const api=module.exports;if(!api||api.__marionRound4MultiDomainConciergeV1)return;function wrap(fn){if(typeof fn!=="function"||fn.__round4md)return fn;const w=function(input){const args=arguments;const plan=md.build(input);const project=v=>{if(!v||typeof v!=="object")return v;if(plan.domains.length<2)return v;return Object.assign({},v,{action:"route",route:plan.primaryDomain,domain:plan.primaryDomain,knowledgeDomain:plan.primaryDomain,secondaryDomains:plan.secondaryDomains,needsClarifier:false,clarifier:"",answerOnly:true,multiDomainIntegration:plan,noUserFacingDiagnostics:true,finalEnvelopeRequired:true});};const r=fn.apply(this,args);return r&&typeof r.then==="function"?r.then(project):project(r);};w.__round4md=true;return w;}for(const n of ["runDomainConcierge","routeOrClarify","run","route","default"])if(typeof api[n]==="function")api[n]=wrap(api[n]);api.buildRound4MultiDomainConcierge=function(input){const plan=md.build(input);return {version:md.VERSION,action:plan.domains.length?"route":"fallback",route:plan.primaryDomain||"general_reasoning",domain:plan.primaryDomain||"general_reasoning",secondaryDomains:plan.secondaryDomains,needsClarifier:false,multiDomainIntegration:plan,answerOnly:true,noUserFacingDiagnostics:true,executionAuthorized:false};};api.__marionRound4MultiDomainConciergeV1=true;}catch(_){}})();
+/* MARION_ROUND4_MULTIDOMAIN_CONCIERGE_V1_END */
