@@ -1041,3 +1041,7 @@ api.MARION_ROUND4_BOUNDED_RETRIEVAL_VERSION=V;api.__marionRound4BoundedRetrieval
 })();
 /* MARION_ROUND4_BOUNDED_RETRIEVAL_V2_END */
 
+
+/* MARION_ROUND4_PAIR_RETRIEVAL_V1_START */
+(function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairRetrievalV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}const original=typeof api.retrieveDomains==="function"?api.retrieveDomains:null;api.retrieveRound4Pair=async function(input,options){const prompt=typeof input==="string"?input:(input&&typeof input==="object"?(input.prompt||input.text||input.message||input.userText||""):""),plan=pc.build(prompt,options),opts=Object.assign({allowGeneralFallback:false,domainIsolationRequired:true,noCrossDomainBleed:true,partialFailureAllowed:true,perDomainBudgetMs:225,totalBudgetMs:600},options||{});if(!original)return{ok:true,partial:true,results:[],plan,executionAuthorized:false};let timer;try{return await Promise.race([Promise.resolve(original.call(api,plan.domains,Object.assign({},opts,{prompt}))).then(results=>({ok:true,results,plan,partial:false,executionAuthorized:false})),new Promise(resolve=>{timer=setTimeout(()=>resolve({ok:true,partial:true,timedOut:true,results:[],plan,executionAuthorized:false}),opts.totalBudgetMs)})])}finally{if(timer)clearTimeout(timer)}};api.MARION_ROUND4_PAIR_RETRIEVAL_VERSION=pc.VERSION;api.__marionRound4PairRetrievalV1=true;}());
+/* MARION_ROUND4_PAIR_RETRIEVAL_V1_END */
