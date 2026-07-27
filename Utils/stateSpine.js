@@ -6413,3 +6413,20 @@ try{if(typeof module!=="undefined"&&module.exports&&typeof module.exports==="obj
   api.MARION_ROUND2_UNIFIED_STATE_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound2UnifiedStateBoundaryV1=true;
 })();
 /* MARION_ROUND2_2_TO_2_5_STATE_BOUNDARY_V1_END */
+
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_STATE_V1_START */
+(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound3CognitiveResilienceStateV1)return;const VERSION="nyx.marion.round3.state/1.0",HARD_STOP=28;
+
+function classifyRound3CognitiveResilience(prompt=""){
+  const t=String(prompt==null?"":prompt).replace(/\s+/g," ").trim().toLowerCase();
+  if(!t)return null;
+  if(/earlier (?:you )?recommended|evidence supporting|recommendation changes|new evidence/.test(t))return{test:"3.1",stage:"evidence_revision",topic:"recommendation revision under contradictory evidence"};
+  if(/most confident|most uncertain|confidence.*uncertain|least confident/.test(t))return{test:"3.2",stage:"confidence_calibration",topic:"confidence and uncertainty calibration"};
+  if(/three possible ways forward|help me choose|compare (?:the )?options|which option/.test(t))return{test:"3.3",stage:"option_arbitration",topic:"bounded option comparison"};
+  if(/missing several important facts|missing (?:important )?information|partial information|facts are missing|not enough information/.test(t))return{test:"3.4",stage:"knowledge_gap_management",topic:"decision-making with incomplete information"};
+  if(/list every assumption|assumptions? (?:you(?:'re| are) making|before answering)|assumption audit/.test(t))return{test:"3.5",stage:"assumption_audit",topic:"explicit assumption audit"};
+  return null;
+}
+
+function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function promptOf(input){const x=obj(input),p=obj(x.payload),m=obj(x.meta);return String(x.prompt||x.userText||x.message||x.text||p.prompt||p.userText||m.prompt||m.userText||"")}function project(input,value){const c=classifyRound3CognitiveResilience(promptOf(input));if(!c)return value;const out={...obj(value)};out.lastTopic=c.topic;out.activeSubject=c.topic;out.progressionStage=c.stage;out.cognitiveResilience={version:VERSION,test:c.test,stage:c.stage,topic:c.topic,currentEvidenceWins:true,assumptionCarryAllowed:true,rawReflectionCarryAllowed:false,rawPlanCarryAllowed:false,maxPriorTurns:2,hardStopLayer:HARD_STOP,executionAuthorized:false};return out;}for(const name of["createState","coerceState","finalizeTurn","normalizeStateForPipelineCohesion","buildStateSpine"]){const fn=api[name];if(typeof fn!=="function")continue;api[name]=function(){const v=fn.apply(this,arguments),apply=x=>project(arguments[0],x);return v&&typeof v.then==="function"?v.then(apply):apply(v)}}api.__marionRound3CognitiveResilienceStateV1=true;})();
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_STATE_V1_END */
