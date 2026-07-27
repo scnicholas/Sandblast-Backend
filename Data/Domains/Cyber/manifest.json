@@ -373,5 +373,23 @@
     "Security culture now includes behavior anticipation without profiling, covert surveillance, or punitive interpretation.",
     "Source ladder now includes a high-stakes source-use protocol to avoid stale/current guidance drift.",
     "All files now carry deployPath, retrieval, baseline preservation, and R18B protocol metadata."
-  ]
+  ],
+  "round4MultiDomainIntegration": {
+    "version": "nyx.marion.round4.multiDomainIntegration/1.0",
+    "enabled": true,
+    "primaryDomain": "cyber",
+    "supportedPeerDomains": [
+      "psychology",
+      "english",
+      "ai",
+      "law",
+      "finance"
+    ],
+    "domainIsolationRequired": true,
+    "noCrossDomainBleed": true,
+    "preserveDomainSafetyPosture": true,
+    "synthesisRole": "primary",
+    "executionAuthorized": false,
+    "noUserFacingDiagnostics": true
+  }
 }
