@@ -1831,16 +1831,20 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.0-phase1b-admin-interface-gate";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.1-e2e-private-route-hardening";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
-  "/marion/admin/conversation"
+  "/marion/admin/conversation",
+  "/api/private/marion/admin/conversation",
+  "/private/marion/admin/conversation"
 ]);
 
 const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
   "/api/marion/admin/conversation/health",
-  "/marion/admin/conversation/health"
+  "/marion/admin/conversation/health",
+  "/api/private/marion/admin/conversation/health",
+  "/private/marion/admin/conversation/health"
 ]);
 
 const MARION_ADMIN_CONVERSATION_REQUIRED_RUNTIME_FILES = Object.freeze([
@@ -1994,14 +1998,13 @@ function marionAdminVoiceRequestAuth(req, body) {
 }
 
 function marionAdminConversationEnvTokens() {
+  // Text administration accepts only conversation/admin credentials.
+  // Voice credentials remain capability-scoped and cannot unlock text access.
   return [
     process.env.SB_MARION_ADMIN_CONVERSATION_TOKEN,
     process.env.SB_MARION_ADMIN_TOKEN,
     process.env.MARION_ADMIN_CONVERSATION_TOKEN,
-    process.env.MARION_ADMIN_TOKEN,
-    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
-    process.env.SB_ADMIN_VOICE_TOKEN,
-    process.env.MARION_ADMIN_VOICE_TOKEN
+    process.env.MARION_ADMIN_TOKEN
   ].map((item) => String(item || "").trim()).filter(Boolean);
 }
 
@@ -2015,7 +2018,7 @@ function marionAdminConversationRequestAuth(req) {
           : cleanText(session.role || "");
         return {
           verified: true,
-          configured: marionAdminConversationEnvTokens().length > 0,
+          configured: true,
           provided: true,
           source: "x-sb-marion-admin-session-token",
           sessionVerified: true,
@@ -2034,8 +2037,7 @@ function marionAdminConversationRequestAuth(req) {
   const candidates = [
     { source: "x-sb-marion-admin-conversation-token", value: headers["x-sb-marion-admin-conversation-token"] },
     { source: "x-sb-marion-admin-token", value: headers["x-sb-marion-admin-token"] },
-    { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
-    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] }
+    { source: "x-marion-admin-token", value: headers["x-marion-admin-token"] }
   ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
 
   for (const candidate of candidates) {
@@ -2920,6 +2922,18 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
     routeOrder: "early",
     canonicalPostRoute: "/api/marion/admin/conversation",
     canonicalHealthRoute: "/api/marion/admin/conversation/health",
+    routeAliases: {
+      post: [...MARION_ADMIN_CONVERSATION_ROUTES],
+      health: [...MARION_ADMIN_CONVERSATION_HEALTH_ROUTES]
+    },
+    authContract: {
+      sessionHeader: "x-sb-marion-admin-session-token",
+      compatibilitySessionHeader: "x-marion-admin-session-token",
+      conversationHeaders: ["x-sb-marion-admin-conversation-token", "x-sb-marion-admin-token", "x-marion-admin-token"],
+      voiceCredentialsAcceptedForText: false,
+      bodyOrQueryCredentialsAccepted: false,
+      secretsExposed: false
+    },
     acceptsAdminConversation: true,
     publicUsersMayAddressMarion: false,
     publicUsersSpeakThrough: "Nyx",
@@ -2959,14 +2973,15 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   const auth = marionAdminConversationRequestAuth(req);
 
   if (!auth.verified) {
-    return res.status(403).json({
+    return res.status(auth.configured === true ? 403 : 503).json({
       ok: false,
       final: true,
       handled: true,
       reply: "Marion admin conversation is locked.",
       text: "Marion admin conversation is locked.",
       message: "Marion admin conversation is locked.",
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -3005,7 +3020,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       reply: "Marion admin conversation requires a usable message.",
       text: "Marion admin conversation requires a usable message.",
       message: "Marion admin conversation requires a usable message.",
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -3020,11 +3036,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
     });
   }
 
+  const runtimeHandlerHint = cleanText(req.headers["x-sb-marion-runtime-handler"] || body.runtimeHandler || "").toLowerCase();
   const wantsTextRuntime =
-    cleanText(req.headers["x-sb-marion-runtime-handler"] || "").toLowerCase().includes("admin") ||
-    body.directMarionAdminInterface === true ||
-    body.marionAdminConversation === true ||
-    cleanText(body.inputChannel || "").toLowerCase() === "text";
+    runtimeHandlerHint !== "voice_gateway" &&
+    runtimeHandlerHint !== "legacy_voice_gateway" &&
+    body.useVoiceGateway !== true;
 
   if (wantsTextRuntime && typeof invokeMarionAdminTextRuntime === "function") {
     try {
@@ -3067,7 +3083,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
           text: runtimeReply,
           message: runtimeReply,
           displayReply: runtimeReply,
-          publicAgent: "Marion",
+          publicAgent: "Nyx",
+          surfaceAgent: "Marion",
           authority: "Marion",
           inputChannel: "admin_text",
           source: "marion_admin_conversation",
@@ -3118,7 +3135,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       reply: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
       text: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
       message: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -3208,7 +3226,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         requestId: traceId,
         inputChannel: "admin",
         source: "marion_admin_conversation",
-        publicAgent: "Marion",
+        publicAgent: "Nyx",
+        surfaceAgent: "Marion",
         authority: "Marion",
         userFacingAgent: "Marion",
         audience: "operator",
@@ -3250,7 +3269,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       text: reply,
       message: reply,
       displayReply: reply,
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -3322,7 +3342,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       text: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       message: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       displayReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -22615,12 +22636,14 @@ function marionAdminBridgeStatusProjection(status) {
 // Private admin-only text conversation bridge for the Marion console.
 // This keeps the existing admin control plane intact while routing conversational
 // text to MarionBridge/ChatEngine through Marion's final-authority pipeline.
-const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/2.0-private-primitive-serialization-hardlock";
+const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/2.1-route-alias-private-identity-hardlock";
 const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
   "/api/private/marion/admin/runtime",
   "/private/marion/admin/runtime",
   "/api/private/marion/runtime",
-  "/private/marion/runtime"
+  "/private/marion/runtime",
+  "/api/marion/admin/runtime",
+  "/marion/admin/runtime"
 ]);
 
 function marionAdminTextRuntimeBridgeStatus() {
@@ -23193,6 +23216,14 @@ app.get(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
     error: "method_not_allowed",
     detail: "Marion admin runtime accepts POST requests only.",
     allowedMethods: ["POST", "OPTIONS"],
+    routeAliases: [...MARION_ADMIN_TEXT_RUNTIME_ROUTES],
+    authContract: {
+      requiredSessionHeader: MARION_ADMIN_CONSOLE_SESSION_HEADER,
+      compatibilitySessionHeader: "x-marion-admin-session-token",
+      sessionRequiredForRuntime: true,
+      publicFallbackBlocked: true,
+      secretsExposed: false
+    },
     routeMounted: true,
     privateControlPlane: true,
     scope: "private_admin",
