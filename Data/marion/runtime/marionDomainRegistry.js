@@ -1559,3 +1559,34 @@ function r18cEnhanceLawDomainConfig(config,key){
 /* MARION_ROUND4_PAIR_REGISTRY_V1_START */
 (function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairRegistryV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}api.getRound4PairPlan=(input)=>pc.build(typeof input==="string"?input:(input&&input.prompt)||"",input);api.getRound4CertificationDomains=()=>pc.SIX.slice();api.validateRound4Pair=function(domains){const d=Array.isArray(domains)?domains.map(x=>String(x).toLowerCase()):[];return{ok:d.every(x=>pc.SIX.includes(x)),domains:d,executionAuthorized:false,hardStopLayer:28}};api.MARION_ROUND4_PAIR_REGISTRY_VERSION=pc.VERSION;api.__marionRound4PairRegistryV1=true;}());
 /* MARION_ROUND4_PAIR_REGISTRY_V1_END */
+
+
+/* MARION_ROUND43_REGISTRY_COHESION_V1_START */
+(function(){
+"use strict";
+const api=module.exports;
+if(!api||api.__round43RegistryCohesion)return;
+const VERSION="nyx.marion.round4.3.registryCohesion/1.0";
+const SIX=Object.freeze(["psychology","english","ai","cyber","law","finance"]);
+function t(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+function prompt(v){if(typeof v==="string")return t(v);if(!v||typeof v!=="object")return"";return t(v.prompt||v.text||v.userText||v.message||v.query||"")}
+function plan(q){
+ const s=t(q).toLowerCase();
+ const law=/\b(licens|rights|contract|jurisdiction|legal|law|privacy|compliance|regulat|copyright)\b/.test(s);
+ const fin=/\b(advertis|revenue|financial|finance|tax|currency|cash flow|forecast|recognition|payment)\b/.test(s);
+ const intl=/\b(international|internationally|territor|country|cross[- ]border|expand)\b/.test(s);
+ const eng=/\b(rewrite|wording|clear|clarity|persuasive|tone|message|english)\b/.test(s);
+ const psy=/\b(psycholog|pressure|manipulat|coerc|persuasion|emotion|behavior)\b/.test(s);
+ const six=/\b(all six|six[- ]domain|launch[- ]readiness|psychology.*english.*ai.*cyber.*law.*finance)\b/.test(s);
+ if(law&&fin&&intl)return{version:VERSION,mode:"law_finance_pair",primaryDomain:"law",secondaryDomains:["finance"],domains:["law","finance"],routingFinalized:true,recursiveHandoffProhibited:true,mergedDisclosureSinglePass:true,domainIsolationRequired:true,noCrossDomainBleed:true,executionAuthorized:false,hardStopLayer:28};
+ if(eng&&psy)return{version:VERSION,mode:"english_psychology_pair",primaryDomain:"english",secondaryDomains:["psychology"],domains:["english","psychology"],routingFinalized:true,recursiveHandoffProhibited:true,domainIsolationRequired:true,noCrossDomainBleed:true,executionAuthorized:false,hardStopLayer:28};
+ if(six)return{version:VERSION,mode:"six_domain_certification",primaryDomain:"ai",secondaryDomains:["cyber","law","finance","psychology","english"],domains:["ai","cyber","law","finance","psychology","english"],routingFinalized:true,recursiveHandoffProhibited:true,domainIsolationRequired:true,noCrossDomainBleed:true,executionAuthorized:false,hardStopLayer:28};
+ return null;
+}
+api.getRound43CohesionPlan=function(input){return plan(prompt(input))};
+api.getRound4CertificationDomains=function(){return SIX.slice()};
+api.validateRound4Domains=function(domains){const d=Array.isArray(domains)?domains.map(x=>t(x).toLowerCase()):[];return{ok:d.every(x=>SIX.includes(x)),domains:d,executionAuthorized:false,hardStopLayer:28}};
+api.MARION_ROUND43_REGISTRY_COHESION_VERSION=VERSION;
+api.__round43RegistryCohesion=true;
+}());
+/* MARION_ROUND43_REGISTRY_COHESION_V1_END */
