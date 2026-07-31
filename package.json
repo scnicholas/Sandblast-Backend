@@ -1,14 +1,14 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.10-marion-layers-1-28-round5",
-  "description": "Sandblast backend Marion Layers 1-28 certification package through Round Five: full cohesion, endurance, state drift, loop resistance, hostile-input safety, and recovery.",
+  "version": "1.0.12-marion-e2e-route-hardening",
+  "description": "Sandblast backend with Marion Layers 1-28 Round Six certification, private-admin route hardening, Nyx/Marion identity separation, and end-to-end contract validation.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
     "lint:syntax": "node scripts/check-syntax.js",
     "test:marion-layering": "node tests/marion_layering_smoke_test.js",
-    "verify": "npm run verify:marion-critical && npm run verify:marion-phase-a-part1 && npm run lint:syntax && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv && npm run verify:marion-phase-b",
+    "verify": "npm run verify:marion-critical && npm run verify:marion-phase-a-part1 && npm run lint:syntax && npm run test:marion-layering && npm run verify:nyx-voice && npm run verify:sandblast-tv && npm run verify:marion-phase-b && npm run verify:marion-round6",
     "dev": "node --check index.js && npm run lint:sandblast-tv && node index.js",
     "lint:sandblast-tv": "node --check SandblastTV/index.js && node --check SandblastTV/routes.js && node --check SandblastTV/manifestStore.js && node --check SandblastTV/schedulerService.js && node --check SandblastTV/mediaValidator.js && node --check SandblastTV/widgetBridge.js",
     "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js",
@@ -19,7 +19,7 @@
     "test:nyx-widget-playback": "node scripts/widget-playback-certification.js",
     "test:nyx-route-mount": "node scripts/route-mount-certification.js",
     "test:marion-admin-runtime": "node tests/marion/admin_runtime_primitive_guard_regression_test.js",
-    "verify:marion-critical": "node --check index.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionAdminRuntimeSafety.js && node --check tests/marion/admin_runtime_primitive_guard_regression_test.js && npm run test:marion-admin-runtime",
+    "verify:marion-critical": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionAdminRuntimeSafety.js && node --check tests/marion/admin_runtime_primitive_guard_regression_test.js && npm run test:marion-admin-runtime && npm run test:marion-admin-e2e-contract",
     "test:marion-phase-a-core": "node tests/marion/layers_21_24_core_integration_test.js",
     "test:marion-phase-a-cohesion": "node tests/marion/layers_9_24_partial_cohesion_test.js",
     "test:marion-phase-a-gaps": "node tests/marion/layers_21_24_gap_refinement_test.js",
@@ -44,7 +44,11 @@
     "test:marion-round4": "node tests/marion/layers_1_28/round4/run_round4_certification.js",
     "verify:marion-round4": "npm run test:marion-round1 && npm run test:marion-round2 && npm run test:marion-round3 && npm run test:marion-layer27 && npm run test:marion-layer28 && npm run test:marion-cognitive-supervision && npm run test:marion-round4",
     "test:marion-round5": "node tests/marion/layers_1_28/round5/run_round5_certification.js",
-    "verify:marion-round5": "npm run verify:marion-round4 && npm run test:marion-round5"
+    "verify:marion-round5": "npm run verify:marion-round4 && npm run test:marion-round5",
+    "test:marion-round6": "node tests/marion/layers_1_28/round6/run_round6_certification.js",
+    "verify:marion-round6": "npm run verify:marion-round5 && npm run test:marion-round6",
+    "test:marion-admin-e2e-contract": "node tests/marion/marion_admin_e2e_contract_test.js",
+    "verify:marion-admin-e2e": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && npm run test:marion-admin-e2e-contract"
   },
   "dependencies": {
     "ably": "^2.22.0",
