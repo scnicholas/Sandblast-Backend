@@ -348,6 +348,8 @@ function buildNyxSpeechContract(source = {}, spokenText = "", options = {}) {
     responseMode,
     autoPlay,
     stateHint,
+    visualState: enabled ? "speaking" : "idle",
+    visualPresence: { version:"nyx.marion.visualPresence/1.0", authority:"widget", prestart:"thinking", playback:"speaking", completed:"complete", error:"error", audioDriven:true, textFallbackAllowed:true, noUserFacingDiagnostics:true },
     lifecycle: {
       prestart: "nyx:voice:prestart",
       start: "nyx:voice:start",
@@ -6386,3 +6388,7 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.classifyRound3CognitiveResilience=classifyRound3CognitiveResilience;api.MARION_ROUND3_COGNITIVE_RESILIENCE_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=HARD_STOP;api.__marionRound3CognitiveResilienceFinalV1=true;
 })();
 /* MARION_ROUND3_COGNITIVE_RESILIENCE_FINAL_V1_END */
+
+/* MARION_LEAN_UI_PRESENCE_CONTRACT_V1_START */
+(function(){"use strict";const a=module.exports;if(!a||a.__leanPresenceV1)return;const V="nyx.marion.leanUiPresence/1.0",H=28;function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}a.buildMarionVisualPresenceContract=function(x={}){const q=x&&typeof x==="object"?x:{},p=q.speech&&typeof q.speech==="object"?q.speech:{},on=p.enabled===true||p.shouldSpeak===true||!!s(q.spokenText||p.spokenText);return{version:V,state:on?"speaking":"idle",authority:"widget",prestart:"thinking",playback:"speaking",completed:"complete",error:"error",audioDriven:true,textFallbackAllowed:true,noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:H}};a.MARION_LEAN_UI_PRESENCE_CONTRACT_VERSION=V;a.__leanPresenceV1=true})();
+ /* MARION_LEAN_UI_PRESENCE_CONTRACT_V1_END */
