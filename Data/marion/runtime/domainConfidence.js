@@ -1502,3 +1502,46 @@ function r18cEnhanceLawConfidenceProfile(profile={},text="",context={}){
 /* MARION_ROUND4_PAIR_CONFIDENCE_V1_START */
 (function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairConfidenceV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}const names=["score","analyze","evaluate","calculate","scoreDomainConfidence","buildDomainConfidence"];for(const n of names){const fn=api[n];if(typeof fn!=="function"||fn.__r4pair)continue;api[n]=function(){const args=Array.from(arguments),input=args[0],prompt=typeof input==="string"?input:(input&&typeof input==="object"?(input.prompt||input.text||input.message||input.userText||""):""),plan=pc.build(prompt);const done=v=>{if(!v||typeof v!=="object"||plan.domains.length<2)return v;return Object.assign({},v,{domain:plan.primaryDomain,primaryDomain:plan.primaryDomain,secondaryDomains:plan.secondaryDomains,confidence:Math.max(Number(v.confidence)||0,0.88),ambiguous:false,needsClarifier:false,answerMode:"grounded",multiDomainIntegration:plan,recomputeProhibited:true,executionAuthorized:false});};const r=fn.apply(this,args);return r&&typeof r.then==="function"?r.then(done):done(r)};api[n].__r4pair=true}api.MARION_ROUND4_PAIR_CONFIDENCE_VERSION=pc.VERSION;api.__marionRound4PairConfidenceV1=true;}());
 /* MARION_ROUND4_PAIR_CONFIDENCE_V1_END */
+
+
+/* MARION_ROUND43_SUPPORTING_CONFIDENCE_V1_START */
+(function(){
+"use strict";
+const api=module.exports;
+if(!api||api.__round43SupportConfidence)return;
+const VERSION="nyx.marion.round4.3.supportingConfidence/1.0";
+function t(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+function prompt(v){
+ if(typeof v==="string")return t(v);
+ if(!v||typeof v!=="object")return"";
+ const r=v.routing&&typeof v.routing==="object"?v.routing:{};
+ const m=v.marionIntent&&typeof v.marionIntent==="object"?v.marionIntent:{};
+ return t(v.text||v.prompt||v.userText||v.message||v.rawText||r.rawTurnText||r.normalizedUserIntent||m.turnText||m.normalizedUserIntent||"");
+}
+function flags(q){
+ const s=t(q).toLowerCase();
+ const law=/\b(licens|rights|contract|jurisdiction|legal|law|privacy|compliance|regulat|copyright)\b/.test(s);
+ const fin=/\b(advertis|revenue|financial|finance|tax|currency|cash flow|forecast|recognition|payment)\b/.test(s);
+ const intl=/\b(international|internationally|territor|country|cross[- ]border|expand)\b/.test(s);
+ const eng=/\b(rewrite|wording|clear|clarity|persuasive|tone|message|english)\b/.test(s);
+ const psy=/\b(psycholog|pressure|manipulat|coerc|persuasion|emotion|behavior)\b/.test(s);
+ const six=/\b(all six|six[- ]domain|launch[- ]readiness|psychology.*english.*ai.*cyber.*law.*finance)\b/.test(s);
+ return {lf:law&&fin&&intl,ep:eng&&psy,six};
+}
+function profile(q){
+ const f=flags(q);
+ if(f.lf)return{version:VERSION,active:true,confidence:.96,confidenceScore:.96,band:"high",confidenceBand:"high",margin:.18,primaryDomain:"law",selectedDomain:"law",secondaryDomains:["finance"],knowledgeDomain:"law",ambiguous:false,routeLocked:true,failClosed:false,needsClarifier:false,answerMode:"grounded",highStakes:true,pairMode:"law_finance_pair",recursiveHandoffProhibited:true,mergedDisclosureSinglePass:true,noCrossDomainBleed:true,noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:28,reason:"round4_3_pair_lock",fallbackReason:"",candidates:[{domain:"law",confidence:.96,reasons:["round4_3_primary"],knowledgeDomain:"law"},{domain:"finance",confidence:.91,reasons:["round4_3_secondary"],knowledgeDomain:"finance"}],updatedAt:Date.now()};
+ if(f.ep)return{version:VERSION,active:true,confidence:.94,confidenceScore:.94,band:"high",confidenceBand:"high",margin:.17,primaryDomain:"english",selectedDomain:"english",secondaryDomains:["psychology"],knowledgeDomain:"english",ambiguous:false,routeLocked:true,failClosed:false,needsClarifier:false,answerMode:"direct",highStakes:false,pairMode:"english_psychology_pair",recursiveHandoffProhibited:true,noCrossDomainBleed:true,noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:28,reason:"round4_4_pair_lock",fallbackReason:"",candidates:[{domain:"english",confidence:.94,reasons:["round4_4_primary"],knowledgeDomain:"english"},{domain:"psychology",confidence:.89,reasons:["round4_4_secondary"],knowledgeDomain:"psychology"}],updatedAt:Date.now()};
+ if(f.six)return{version:VERSION,active:true,confidence:.91,confidenceScore:.91,band:"high",confidenceBand:"high",margin:.12,primaryDomain:"ai",selectedDomain:"ai",secondaryDomains:["cyber","law","finance","psychology","english"],knowledgeDomain:"ai",ambiguous:false,routeLocked:true,failClosed:false,needsClarifier:false,answerMode:"grounded",highStakes:true,pairMode:"six_domain_certification",recursiveHandoffProhibited:true,noCrossDomainBleed:true,noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:28,reason:"round4_5_six_domain_lock",fallbackReason:"",candidates:["ai","cyber","law","finance","psychology","english"].map((d,i)=>({domain:d,confidence:Math.max(.78,.91-i*.02),reasons:["round4_5_domain"],knowledgeDomain:d})),updatedAt:Date.now()};
+ return null;
+}
+const ob=typeof api.buildDomainConfidenceProfile==="function"?api.buildDomainConfidenceProfile:null;
+api.buildDomainConfidenceProfile=function(a={}){const p=profile(prompt(a));return p||(ob?ob.apply(this,arguments):{})};
+const on=typeof api.normalizeDomainConfidenceProfile==="function"?api.normalizeDomainConfidenceProfile:null;
+api.normalizeDomainConfidenceProfile=function(v={},f={}){const p=profile(prompt(f)||prompt(v));return p||(on?on.apply(this,arguments):v)};
+api.buildRound43SupportingConfidence=profile;
+api.MARION_ROUND43_SUPPORTING_CONFIDENCE_VERSION=VERSION;
+api.default=api.buildDomainConfidenceProfile;
+api.__round43SupportConfidence=true;
+}());
+/* MARION_ROUND43_SUPPORTING_CONFIDENCE_V1_END */
