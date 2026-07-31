@@ -1045,3 +1045,45 @@ api.MARION_ROUND4_BOUNDED_RETRIEVAL_VERSION=V;api.__marionRound4BoundedRetrieval
 /* MARION_ROUND4_PAIR_RETRIEVAL_V1_START */
 (function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairRetrievalV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}const original=typeof api.retrieveDomains==="function"?api.retrieveDomains:null;api.retrieveRound4Pair=async function(input,options){const prompt=typeof input==="string"?input:(input&&typeof input==="object"?(input.prompt||input.text||input.message||input.userText||""):""),plan=pc.build(prompt,options),opts=Object.assign({allowGeneralFallback:false,domainIsolationRequired:true,noCrossDomainBleed:true,partialFailureAllowed:true,perDomainBudgetMs:225,totalBudgetMs:600},options||{});if(!original)return{ok:true,partial:true,results:[],plan,executionAuthorized:false};let timer;try{return await Promise.race([Promise.resolve(original.call(api,plan.domains,Object.assign({},opts,{prompt}))).then(results=>({ok:true,results,plan,partial:false,executionAuthorized:false})),new Promise(resolve=>{timer=setTimeout(()=>resolve({ok:true,partial:true,timedOut:true,results:[],plan,executionAuthorized:false}),opts.totalBudgetMs)})])}finally{if(timer)clearTimeout(timer)}};api.MARION_ROUND4_PAIR_RETRIEVAL_VERSION=pc.VERSION;api.__marionRound4PairRetrievalV1=true;}());
 /* MARION_ROUND4_PAIR_RETRIEVAL_V1_END */
+
+
+/* MARION_ROUND43_BOUNDED_RETRIEVAL_V1_START */
+(function(){
+"use strict";
+const api=module.exports;
+if(!api||api.__round43BoundedRetrieval)return;
+const VERSION="nyx.marion.round4.3.boundedRetrieval/1.0";
+function t(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+function prompt(v){if(typeof v==="string")return t(v);if(!v||typeof v!=="object")return"";return t(v.prompt||v.text||v.userText||v.message||v.query||"")}
+function plan(q){
+ const s=t(q).toLowerCase();
+ const law=/\b(licens|rights|contract|jurisdiction|legal|law|privacy|compliance|regulat|copyright)\b/.test(s);
+ const fin=/\b(advertis|revenue|financial|finance|tax|currency|cash flow|forecast|recognition|payment)\b/.test(s);
+ const intl=/\b(international|internationally|territor|country|cross[- ]border|expand)\b/.test(s);
+ const eng=/\b(rewrite|wording|clear|clarity|persuasive|tone|message|english)\b/.test(s);
+ const psy=/\b(psycholog|pressure|manipulat|coerc|persuasion|emotion|behavior)\b/.test(s);
+ const six=/\b(all six|six[- ]domain|launch[- ]readiness|psychology.*english.*ai.*cyber.*law.*finance)\b/.test(s);
+ if(law&&fin&&intl)return{mode:"law_finance_pair",domains:["law","finance"],budgetMs:500};
+ if(eng&&psy)return{mode:"english_psychology_pair",domains:["english","psychology"],budgetMs:450};
+ if(six)return{mode:"six_domain_certification",domains:["ai","cyber","law","finance","psychology","english"],budgetMs:700};
+ return null;
+}
+const original=typeof api.retrieveDomains==="function"?api.retrieveDomains:null;
+api.retrieveRound43Domains=async function(input,options={}){
+ const p=plan(prompt(input));
+ if(!p)return original?original.call(api,input,options):{ok:false,unsupported:true,results:[]};
+ const opts=Object.assign({allowGeneralFallback:false,domainIsolationRequired:true,noCrossDomainBleed:true,partialFailureAllowed:true,totalBudgetMs:p.budgetMs,perDomainBudgetMs:Math.max(100,Math.floor(p.budgetMs/p.domains.length))},options||{});
+ if(!original)return{ok:true,partial:true,results:[],plan:p,executionAuthorized:false};
+ let timer;
+ try{
+  return await Promise.race([
+   Promise.resolve(original.call(api,p.domains,Object.assign({},opts,{prompt:prompt(input)}))).then(results=>({ok:true,partial:false,results,plan:p,executionAuthorized:false})),
+   new Promise(resolve=>{timer=setTimeout(()=>resolve({ok:true,partial:true,timedOut:true,results:[],plan:p,executionAuthorized:false}),opts.totalBudgetMs)})
+  ]);
+ }finally{if(timer)clearTimeout(timer)}
+};
+api.buildRound43RetrievalPlan=plan;
+api.MARION_ROUND43_BOUNDED_RETRIEVAL_VERSION=VERSION;
+api.__round43BoundedRetrieval=true;
+}());
+/* MARION_ROUND43_BOUNDED_RETRIEVAL_V1_END */
