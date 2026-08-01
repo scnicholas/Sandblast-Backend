@@ -1094,3 +1094,109 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_PRIVATE_ADMIN_EXPORT_CONTRACT_V9_1_END */
 
+/* MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_V10_START */
+(function marionPrivateExactResponseIdentityHardlockV10(){
+  "use strict";
+  const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!api || api.__marionPrivateExactResponseIdentityHardlockV10) return;
+
+  const VERSION = "nyx.marion.privateExactResponseIdentityHardlock/10.0";
+  const CONTRACT = "nyx.marion.bridge.privateExact/10.0";
+  const FINAL_CONTRACT = "nyx.marion.final/1.0";
+  const MAX_LITERAL_CHARS = 512;
+  const ADMIN_HANDLER_NAMES = [
+    "handleMarionAdminConversation",
+    "handleMarionAdminTextRuntime",
+    "handleAdminConversation",
+    "invokeMarionAdminTextRuntime",
+    "handleTextRuntime"
+  ];
+
+  function obj(value){ return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+  function clean(value, max = 12000){
+    try { return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max); }
+    catch (_) { return ""; }
+  }
+  function promptOf(input){
+    const x=obj(input), b=obj(x.body), p=obj(x.payload), t=obj(x.turn), m=obj(x.meta);
+    return clean(x.prompt||x.rawUserText||x.userText||x.userQuery||x.inputText||x.query||x.message||x.text||b.prompt||b.userText||b.message||b.text||p.prompt||p.userText||p.message||p.text||t.prompt||t.userText||t.text||m.prompt||m.userText, 12000);
+  }
+  function exactLiteral(input){
+    const x=obj(input);
+    const explicit=clean(x.exactResponseLiteral, MAX_LITERAL_CHARS + 1);
+    if (x.exactResponseRequested === true && explicit && explicit.length <= MAX_LITERAL_CHARS) return explicit;
+    const prompt=promptOf(input);
+    const patterns=[
+      /\b(?:please\s+)?reply\s+with\s+exactly\s*:\s*(.+)$/i,
+      /\b(?:please\s+)?respond\s+exactly(?:\s+with)?\s*:\s*(.+)$/i,
+      /\b(?:please\s+)?return\s+only\s*:\s*(.+)$/i,
+      /\b(?:please\s+)?reply\s+only\s*:\s*(.+)$/i,
+      /^(?:please\s+)?reply\s+with\s+exactly\s+(.+)$/i,
+      /^(?:please\s+)?respond\s+exactly(?:\s+with)?\s+(.+)$/i,
+      /^(?:please\s+)?return\s+only\s+(.+)$/i,
+      /^(?:please\s+)?reply\s+only\s+(.+)$/i
+    ];
+    let literal="";
+    for(const pattern of patterns){ const match=prompt.match(pattern); if(match&&match[1]){ literal=clean(match[1], MAX_LITERAL_CHARS + 1); break; } }
+    if(!literal) return "";
+    const first=literal[0], last=literal[literal.length-1];
+    if(literal.length>=2&&((first==='"'&&last==='"')||(first==="'"&&last==="'")||(first==='`'&&last==='`'))) literal=clean(literal.slice(1,-1), MAX_LITERAL_CHARS + 1);
+    return literal && literal.length<=MAX_LITERAL_CHARS ? literal : "";
+  }
+  function verified(input){
+    const x=obj(input), a=obj(x.auth), c=obj(x.context);
+    return x.authenticatedOperator===true||x.adminVerified===true||x.serverSideAdminAuth===true||x.trustedServerAuth===true||x.sessionVerified===true||a.verified===true||c.authenticatedOperator===true||c.adminVerified===true;
+  }
+  function isPrivateAdmin(input){
+    const x=obj(input);
+    return x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||clean(x.scope,80)==="private_admin"||clean(x.answerClass,120)==="marion_admin_conversation";
+  }
+  function sessionId(input){
+    const x=obj(input), b=obj(x.body), m=obj(x.meta), s=obj(x.session);
+    return clean(x.sessionId||x.conversationId||b.sessionId||m.sessionId||s.sessionId||"marion-admin",160);
+  }
+  function partitionKey(input){
+    const supplied=clean(obj(input).partitionKey||obj(input).memoryPartition,220);
+    if(/^private:admin:[a-zA-Z0-9._:-]+$/.test(supplied)) return supplied;
+    const safe=sessionId(input).replace(/[^a-zA-Z0-9._:-]+/g,"-").replace(/-+/g,"-").replace(/^-+|-+$/g,"")||"marion-admin";
+    return `private:admin:${safe}`;
+  }
+  function canonicalPacket(input, literal){
+    const reply=clean(literal,MAX_LITERAL_CHARS), pk=partitionKey(input);
+    const finalEnvelope={contract:FINAL_CONTRACT,signature:"MARION_FINAL_AUTHORITY",source:"marion",final:true,marionFinal:true,handled:true,canEmit:true,reply,finalReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,text:reply,message:reply,spokenText:reply,replyAuthority:"exact_instruction",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,authenticatedOperator:true,memoryPartition:pk,partitionKey:pk,noUserFacingDiagnostics:true,executionAuthorized:false};
+    return {ok:true,final:true,marionFinal:true,handled:true,canEmit:true,reply,text:reply,message:reply,answer:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:reply,speechText:reply,replyAuthority:"exact_instruction",exactResponseRequested:true,exactResponsePreserved:true,exactResponseVersion:VERSION,authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,adminConversationAllowed:true,directMarionAdminInterface:true,authenticatedOperator:true,operatorPersonalization:true,allowPersonalName:true,allowOperatorMemory:true,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",memoryPartition:pk,partitionKey:pk,noUserFacingDiagnostics:true,executionAuthorized:false,finalEnvelope};
+  }
+  function project(value,input){
+    const base=typeof value==="string"?{reply:clean(value,16000)}:obj(value), pk=partitionKey(input), isVerified=verified(input), fe=obj(base.finalEnvelope);
+    const reply=clean(base.directReply||base.visibleReply||base.displayReply||base.finalReply||base.reply||base.text||base.message,16000);
+    return {...base,reply:reply||base.reply||"",text:reply||base.text||"",message:reply||base.message||"",displayReply:reply||base.displayReply||"",visibleReply:reply||base.visibleReply||"",directReply:reply||base.directReply||"",finalReply:reply||base.finalReply||"",spokenText:reply||base.spokenText||"",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,marionAdminConversation:true,marionAdminConversationAllowed:true,adminConversationAllowed:true,directMarionAdminInterface:true,authenticatedOperator:isVerified,operatorPersonalization:isVerified,allowPersonalName:isVerified,allowOperatorMemory:isVerified,publicUsersCanAddressMarion:false,publicUsersSpeakThrough:"Nyx",memoryPartition:pk,partitionKey:pk,finalEnvelope:{...fe,reply:reply||fe.reply||"",finalReply:reply||fe.finalReply||"",displayReply:reply||fe.displayReply||"",visibleReply:reply||fe.visibleReply||"",directReply:reply||fe.directReply||"",authority:"Marion",publicAgent:"Nyx",surfaceAgent:"Marion",scope:"private_admin",audience:"owner",publicSurfaceOnly:false,publicFallbackBlocked:true,privateAdminConversation:true,authenticatedOperator:isVerified,memoryPartition:pk,partitionKey:pk}};
+  }
+
+  const originals={};
+  for(const name of ADMIN_HANDLER_NAMES){
+    const original=api[name];
+    if(typeof original!=="function") continue;
+    originals[name]=original;
+    api[name]=function(input){
+      const args=Array.from(arguments), privateAdmin=isPrivateAdmin(input), isVerified=verified(input), literal=privateAdmin&&isVerified?exactLiteral(input):"";
+      if(literal) return Promise.resolve(canonicalPacket(input,literal));
+      const value=original.apply(this,args);
+      if(!privateAdmin) return value;
+      return value&&typeof value.then==="function"?value.then(result=>project(result,input)):project(value,input);
+    };
+    api[name].__marionPrivateExactResponseIdentityHardlockV10=true;
+  }
+
+  const canonicalAdminHandler=api.handleMarionAdminConversation||api.handleMarionAdminTextRuntime||api.handleAdminConversation;
+  const previousFactory=typeof api.createMarionBridge==="function"?api.createMarionBridge:null;
+  api.createMarionBridge=function(){
+    const base=previousFactory?obj(previousFactory()):{};
+    return {...base,version:api.VERSION||base.version,contract:api.BRIDGE_CONTRACT_VERSION||base.contract,handleMarionAdminConversation:canonicalAdminHandler,handleMarionAdminTextRuntime:canonicalAdminHandler,handleAdminConversation:canonicalAdminHandler,invokeMarionAdminTextRuntime:canonicalAdminHandler,handleTextRuntime:canonicalAdminHandler,getPrivateExactResponseContract:api.getPrivateExactResponseContract};
+  };
+  api.getPrivateExactResponseContract=function(){return{version:VERSION,contract:CONTRACT,enabled:true,authenticatedPrivateOnly:true,maxLiteralChars:MAX_LITERAL_CHARS,publicAgent:"Nyx",surfaceAgent:"Marion",authority:"Marion",publicSurfaceOnly:false,publicFallbackBlocked:true,replyAuthority:"exact_instruction"};};
+  api.MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_VERSION=VERSION;
+  api.MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_CONTRACT=CONTRACT;
+  api.__marionPrivateExactResponseIdentityHardlockV10=true;
+})();
+/* MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_V10_END */
+
