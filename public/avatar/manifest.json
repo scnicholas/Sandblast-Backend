@@ -1,0 +1,47 @@
+{
+  "package": "nyx-avatar-surgical-repair",
+  "version": "1.0.0",
+  "inline_scripts_checked": 1,
+  "checks": {
+    "host_duplicate_mount_removed": true,
+    "public_marion_label_removed": true,
+    "audio_lock_helper_present": true,
+    "audio_lifecycle_helper_present": true,
+    "bridge_speak_api_present": true,
+    "bridge_stop_api_present": true,
+    "thinking_contract_preserved": true,
+    "embed_no_wildcard_target": true,
+    "embed_parent_source_check": true
+  },
+  "javascript_validation": {
+    "avatar-bridge.js": {
+      "ok": true,
+      "error": ""
+    },
+    "avatar-contract.js": {
+      "ok": true,
+      "error": ""
+    },
+    "avatar-controller.js": {
+      "ok": true,
+      "error": ""
+    },
+    "avatar-embed-bridge.js": {
+      "ok": true,
+      "error": ""
+    },
+    "nyx-avatar-shell.js": {
+      "ok": true,
+      "error": ""
+    }
+  },
+  "files": {
+    "SURGICAL_REPAIR_NOTES.md": 1743,
+    "avatar-bridge.js": 38753,
+    "avatar-contract.js": 1676,
+    "avatar-controller.js": 18854,
+    "avatar-embed-bridge.js": 3544,
+    "avatar.html": 35993,
+    "nyx-avatar-shell.js": 5721
+  }
+}
