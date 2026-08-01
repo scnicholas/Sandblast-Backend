@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.13-marion-exact-response-identity-hardlock",
-  "description": "Sandblast backend with Marion Layers 1-28 Round Six certification, authenticated private-admin exact-response preservation, Nyx/Marion identity hardlock, and end-to-end contract validation.",
+  "version": "1.0.14-marion-substantive-response-hardlock",
+  "description": "Sandblast backend with Marion Layers 1-28 Round Six certification, authenticated private-admin exact-response preservation, Nyx/Marion identity hardlock, substantive-response enforcement, holding-reply quarantine, and end-to-end contract validation.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -19,7 +19,7 @@
     "test:nyx-widget-playback": "node scripts/widget-playback-certification.js",
     "test:nyx-route-mount": "node scripts/route-mount-certification.js",
     "test:marion-admin-runtime": "node tests/marion/admin_runtime_primitive_guard_regression_test.js",
-    "verify:marion-critical": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionAdminRuntimeSafety.js && node --check tests/marion/admin_runtime_primitive_guard_regression_test.js && npm run test:marion-admin-runtime && npm run test:marion-admin-e2e-contract",
+    "verify:marion-critical": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionAdminRuntimeSafety.js && node --check tests/marion/admin_runtime_primitive_guard_regression_test.js && npm run test:marion-admin-runtime && npm run test:marion-admin-e2e-contract && npm run test:marion-substantive-response-contract",
     "test:marion-phase-a-core": "node tests/marion/layers_21_24_core_integration_test.js",
     "test:marion-phase-a-cohesion": "node tests/marion/layers_9_24_partial_cohesion_test.js",
     "test:marion-phase-a-gaps": "node tests/marion/layers_21_24_gap_refinement_test.js",
@@ -48,7 +48,8 @@
     "test:marion-round6": "node tests/marion/layers_1_28/round6/run_round6_certification.js",
     "verify:marion-round6": "npm run verify:marion-round5 && npm run test:marion-round6",
     "test:marion-admin-e2e-contract": "node tests/marion/marion_admin_e2e_contract_test.js",
-    "verify:marion-admin-e2e": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node -e \"const fs=require('fs');const i=fs.readFileSync('index.js','utf8');const b=fs.readFileSync('Data/marion/runtime/marionBridge.js','utf8');if(!i.includes('MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_START')||!b.includes('MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_V10_START'))process.exit(1);\" && npm run test:marion-admin-e2e-contract"
+    "verify:marion-admin-e2e": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node -e \"const fs=require('fs');const i=fs.readFileSync('index.js','utf8');const b=fs.readFileSync('Data/marion/runtime/marionBridge.js','utf8');if(!i.includes('MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_START')||!b.includes('MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_V10_START')||!i.includes('MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_V3_START')||!b.includes('MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_V12_START'))process.exit(1);\" && npm run test:marion-substantive-response-contract && npm run test:marion-admin-e2e-contract",
+    "test:marion-substantive-response-contract": "node -e \"const b=require('./Data/marion/runtime/marionBridge.js');const input={prompt:'In two sentences, explain what you can help me accomplish as my private administrative assistant.',sessionId:'contract-test',privateAdminConversation:true,marionAdminConversation:true,directMarionAdminInterface:true,authenticatedOperator:true,adminVerified:true,serverSideAdminAuth:true,scope:'private_admin'};Promise.resolve(b.handleMarionAdminConversation(input)).then(o=>{const r=String(o&&o.reply||'');if(!o||o.ok!==true||o.publicAgent!=='Nyx'||o.surfaceAgent!=='Marion'||o.authority!=='Marion'||!/analyze information/i.test(r)||/hang tight|hold on a moment|signal from the noise|safest next move/i.test(r))process.exit(1);console.log('Marion substantive response contract: PASS')}).catch(()=>process.exit(1));\""
   },
   "dependencies": {
     "ably": "^2.22.0",
