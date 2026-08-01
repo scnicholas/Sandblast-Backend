@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.12-marion-e2e-route-hardening",
-  "description": "Sandblast backend with Marion Layers 1-28 Round Six certification, private-admin route hardening, Nyx/Marion identity separation, and end-to-end contract validation.",
+  "version": "1.0.13-marion-exact-response-identity-hardlock",
+  "description": "Sandblast backend with Marion Layers 1-28 Round Six certification, authenticated private-admin exact-response preservation, Nyx/Marion identity hardlock, and end-to-end contract validation.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -48,7 +48,7 @@
     "test:marion-round6": "node tests/marion/layers_1_28/round6/run_round6_certification.js",
     "verify:marion-round6": "npm run verify:marion-round5 && npm run test:marion-round6",
     "test:marion-admin-e2e-contract": "node tests/marion/marion_admin_e2e_contract_test.js",
-    "verify:marion-admin-e2e": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && npm run test:marion-admin-e2e-contract"
+    "verify:marion-admin-e2e": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node -e \"const fs=require('fs');const i=fs.readFileSync('index.js','utf8');const b=fs.readFileSync('Data/marion/runtime/marionBridge.js','utf8');if(!i.includes('MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_START')||!b.includes('MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_V10_START'))process.exit(1);\" && npm run test:marion-admin-e2e-contract"
   },
   "dependencies": {
     "ably": "^2.22.0",
