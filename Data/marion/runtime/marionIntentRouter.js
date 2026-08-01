@@ -965,6 +965,12 @@ function detectSubIntent(text, intent) {
   }
 
   if (intent === "identity_query") {
+    if (has(/\b(who is marion|what is marion|what does marion do|explain marion|tell me about marion)\b/i, t)) {
+      return "public_marion_identity";
+    }
+    if (has(/\b(are you marion|is this marion)\b/i, t)) {
+      return "public_private_identity_boundary";
+    }
     return "identity_baseline";
   }
 
@@ -1456,11 +1462,12 @@ function inferIntentFromText(text) {
   }
 
   /* Identity baseline must outrank generic question and broad technical terms. */
-  if (has(/\b(who are you|what are you|what is marion|who is marion|what is nyx|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity|identity anchor)\b/i, t)) {
+  if (has(/\b(who are you|what are you|what is marion|who is marion|what does marion do|explain marion|tell me about marion|what is nyx|tell me who you are|how (do|does) (you|marion) (think|help)|marion helps you think|nyx.*marion|marion.*nyx|your brain|your consciousness|your identity|identity anchor)\b/i, t)) {
+    const publicMarionIdentity = has(/\b(who is marion|what is marion|what does marion do|explain marion|tell me about marion)\b/i, t);
     return {
       intent: "identity_query",
-      confidence: 0.93,
-      reason: "identity_baseline_terms",
+      confidence: publicMarionIdentity ? 0.97 : 0.93,
+      reason: publicMarionIdentity ? "public_marion_identity_terms" : "identity_baseline_terms",
       stateStageHint: "continuity",
       safetyLevel,
       recoveryRequired: false,
