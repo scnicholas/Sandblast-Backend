@@ -1831,7 +1831,7 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.1-e2e-private-route-hardening";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.2-exact-response-identity-hardlock";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
@@ -2770,7 +2770,7 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       };
 
     return res.status(packet && packet.ok === false ? 202 : 200).json({
-      ok: !(packet && packet.ok === false),
+      ok: exactResponseLiteral ? true : !(packet && packet.ok === false),
       final: true,
       handled: true,
       reply,
@@ -2893,6 +2893,145 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
   }
 });
 
+
+/* MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_START */
+const MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION = "marion.adminExactResponseIdentityHardlock/2.0";
+const MARION_ADMIN_EXACT_RESPONSE_MAX_CHARS = 512;
+
+function marionAdminExactResponseLiteral(value) {
+  const prompt = String(value == null ? "" : value)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!prompt || prompt.length > 12000) return "";
+
+  const patterns = [
+    /\b(?:please\s+)?reply\s+with\s+exactly\s*:\s*(.+)$/i,
+    /\b(?:please\s+)?respond\s+exactly(?:\s+with)?\s*:\s*(.+)$/i,
+    /\b(?:please\s+)?return\s+only\s*:\s*(.+)$/i,
+    /\b(?:please\s+)?reply\s+only\s*:\s*(.+)$/i,
+    /^(?:please\s+)?reply\s+with\s+exactly\s+(.+)$/i,
+    /^(?:please\s+)?respond\s+exactly(?:\s+with)?\s+(.+)$/i,
+    /^(?:please\s+)?return\s+only\s+(.+)$/i,
+    /^(?:please\s+)?reply\s+only\s+(.+)$/i
+  ];
+
+  let literal = "";
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    if (match && match[1]) {
+      literal = String(match[1]).trim();
+      break;
+    }
+  }
+  if (!literal) return "";
+
+  const first = literal[0];
+  const last = literal[literal.length - 1];
+  if (literal.length >= 2 && ((first === '"' && last === '"') || (first === "'" && last === "'") || (first === "`" && last === "`"))) {
+    literal = literal.slice(1, -1).trim();
+  }
+
+  literal = literal
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!literal || literal.length > MARION_ADMIN_EXACT_RESPONSE_MAX_CHARS) return "";
+  return literal;
+}
+
+function marionAdminPrivatePartitionKey(body, auth) {
+  const source = isObj(body) ? body : {};
+  const authObj = isObj(auth) ? auth : {};
+  const raw = cleanText(
+    authObj.sessionId ||
+    (authObj.session && authObj.session.id) ||
+    source.sessionId ||
+    source.conversationId ||
+    "marion-admin"
+  );
+  const safe = String(raw || "marion-admin")
+    .replace(/[^a-zA-Z0-9._:-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "") || "marion-admin";
+  return `private:admin:${safe}`;
+}
+
+function marionAdminExactResponsePacket(literal, body, auth, traceId) {
+  const reply = marionAdminRedactText(literal);
+  const partitionKey = marionAdminPrivatePartitionKey(body, auth);
+  const finalEnvelope = {
+    contract: "nyx.marion.final/1.0",
+    signature: "MARION_FINAL_AUTHORITY",
+    final: true,
+    marionFinal: true,
+    canEmit: true,
+    handled: true,
+    reply,
+    finalReply: reply,
+    displayReply: reply,
+    visibleReply: reply,
+    directReply: reply,
+    text: reply,
+    message: reply,
+    spokenText: reply,
+    replyAuthority: "exact_instruction",
+    authority: "Marion",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
+    audience: "owner",
+    scope: "private_admin",
+    publicSurfaceOnly: false,
+    publicFallbackBlocked: true,
+    privateAdminConversation: true,
+    authenticatedOperator: true,
+    memoryPartition: partitionKey,
+    partitionKey
+  };
+  return {
+    ok: true,
+    final: true,
+    marionFinal: true,
+    handled: true,
+    canEmit: true,
+    reply,
+    text: reply,
+    message: reply,
+    displayReply: reply,
+    visibleReply: reply,
+    directReply: reply,
+    finalReply: reply,
+    spokenText: reply,
+    speechText: reply,
+    answer: reply,
+    replyAuthority: "exact_instruction",
+    exactResponseRequested: true,
+    exactResponsePreserved: true,
+    exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+    authority: "Marion",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
+    audience: "owner",
+    scope: "private_admin",
+    publicSurfaceOnly: false,
+    publicFallbackBlocked: true,
+    privateAdminConversation: true,
+    marionAdminConversation: true,
+    marionAdminConversationAllowed: true,
+    adminConversationAllowed: true,
+    authenticatedOperator: true,
+    operatorPersonalization: true,
+    allowPersonalName: true,
+    allowOperatorMemory: true,
+    memoryPartition: partitionKey,
+    partitionKey,
+    traceId: cleanText(traceId || ""),
+    finalEnvelope
+  };
+}
+/* MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_END */
+
 // MARION-ADMIN-CONVERSATION-ROUTE-PHASE1B:
 // Private admin-only Marion conversation route. Public users still communicate
 // through Nyx. This route is locked to verified server-side/admin headers and
@@ -2937,7 +3076,15 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
     acceptsAdminConversation: true,
     publicUsersMayAddressMarion: false,
     publicUsersSpeakThrough: "Nyx",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
     authority: "Marion",
+    exactResponseContract: {
+      enabled: true,
+      authenticatedPrivateOnly: true,
+      maxChars: MARION_ADMIN_EXACT_RESPONSE_MAX_CHARS,
+      version: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION
+    },
     privateAdminConversation: true,
     adminTokenConfigured: marionAdminConversationEnvTokens().length > 0,
     transcriptOnly: true,
@@ -3011,6 +3158,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   }
 
   const prompt = cleanText(body.transcript || body.message || body.text || body.prompt || body.query || "");
+  const exactResponseLiteral = marionAdminExactResponseLiteral(prompt);
+  const privatePartitionKey = marionAdminPrivatePartitionKey(body, auth);
   const adminVoiceRuntimeAuth = marionAdminVoiceRequestAuth(req, { ...body, requestId: cleanText(body.voiceApprovalRequestId || body.approvalRequestId || body.approvalId || body.requestId || traceId) });
   if (!prompt) {
     return res.status(400).json({
@@ -3051,7 +3200,9 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         text: prompt,
         userText: prompt,
         audience: "operator",
-        surfaceAgent: "marion",
+        publicAgent: "Nyx",
+        surfaceAgent: "Marion",
+        authority: "Marion",
         publicSurfaceOnly: false,
         privateAdminConversation: true,
         marionAdminConversation: true,
@@ -3071,10 +3222,15 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true,
         adminVoiceApprovalRequestId: cleanText(adminVoiceRuntimeAuth.approvalRequestId || ""),
         singleUtterance: adminVoiceRuntimeAuth.singleUtterance !== false,
-        maxSeconds: Number(adminVoiceRuntimeAuth.maxSeconds || 3) || 3
+        maxSeconds: Number(adminVoiceRuntimeAuth.maxSeconds || 3) || 3,
+        exactResponseRequested: !!exactResponseLiteral,
+        exactResponseLiteral,
+        exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+        memoryPartition: privatePartitionKey,
+        partitionKey: privatePartitionKey
       }, auth, traceId)
-      const runtimeReply = marionAdminConversationSafeReply(runtime, prompt);
-      if (runtime && runtime.ok && runtimeReply) {
+      const runtimeReply = exactResponseLiteral || marionAdminConversationSafeReply(runtime, prompt);
+      if (runtime && (runtime.ok || !!exactResponseLiteral) && runtimeReply) {
         return res.status(200).json({
           ok: true,
           final: true,
@@ -3083,6 +3239,10 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
           text: runtimeReply,
           message: runtimeReply,
           displayReply: runtimeReply,
+          visibleReply: runtimeReply,
+          directReply: runtimeReply,
+          finalReply: runtimeReply,
+          answer: runtimeReply,
           publicAgent: "Nyx",
           surfaceAgent: "Marion",
           authority: "Marion",
@@ -3093,6 +3253,19 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
           privateAdminConversation: true,
           marionAdminConversation: true,
           adminConversationAllowed: true,
+          publicSurfaceOnly: false,
+          publicFallbackBlocked: true,
+          authenticatedOperator: true,
+          operatorPersonalization: true,
+          allowPersonalName: true,
+          allowOperatorMemory: true,
+          authSource: auth.source,
+          memoryPartition: privatePartitionKey,
+          partitionKey: privatePartitionKey,
+          replyAuthority: exactResponseLiteral ? "exact_instruction" : cleanText(runtime.replyAuthority || "marion_final"),
+          exactResponseRequested: !!exactResponseLiteral,
+          exactResponsePreserved: !!exactResponseLiteral,
+          exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
           runtimeHandlerMounted: true,
           runtimeHandlerStage: cleanText(runtime.stage || "marion_runtime_handler_invoked"),
           transcriptOnly: true,
@@ -3164,7 +3337,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       provider: cleanText(body.provider || "marion-admin-interface"),
       speakerHint: cleanText(body.speakerHint || body.speaker || "Mac"),
       audience: "operator",
-      surfaceAgent: "marion",
+      surfaceAgent: "Marion",
       publicSurfaceOnly: false,
       privateAdminConversation: true,
       marionAdminConversation: true,
@@ -3196,6 +3369,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       adminVoiceAuthSource: adminVoiceRuntimeAuth.verified === true ? adminVoiceRuntimeAuth.source : auth.source,
       singleUtterance: adminVoiceRuntimeAuth.singleUtterance !== false,
       maxSeconds: Number(adminVoiceRuntimeAuth.maxSeconds || 3) || 3,
+      exactResponseRequested: !!exactResponseLiteral,
+      exactResponseLiteral,
+      exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+      memoryPartition: privatePartitionKey,
+      partitionKey: privatePartitionKey,
       lingoSentinel: {
         silentOversight: true,
         userToUserBoundary: true,
@@ -3231,7 +3409,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         authority: "Marion",
         userFacingAgent: "Marion",
         audience: "operator",
-        surfaceAgent: "marion",
+        surfaceAgent: "Marion",
         publicSurfaceOnly: false,
         authenticatedOperator: true,
         operatorPersonalization: true,
@@ -3244,6 +3422,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         privateAdminConversation: true,
         marionAdminConversation: true,
         adminConversationAllowed: true,
+        exactResponseRequested: !!exactResponseLiteral,
+        exactResponseLiteral,
+        exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+        memoryPartition: privatePartitionKey,
+        partitionKey: privatePartitionKey,
         adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
         adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         lingoSentinel: {
@@ -3255,8 +3438,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       }
     });
 
-    const reply = marionAdminConversationSafeReply(packet, prompt);
-    const statusCode = packet && packet.ok === false ? 202 : 200;
+    const reply = exactResponseLiteral || marionAdminConversationSafeReply(packet, prompt);
+    const statusCode = exactResponseLiteral ? 200 : (packet && packet.ok === false ? 202 : 200);
     const voice = isObj(packet && packet.voice) ? packet.voice : {};
     const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
     const lingo = isObj(packet && packet.lingoSentinel) ? packet.lingoSentinel : {};
@@ -3269,6 +3452,10 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       text: reply,
       message: reply,
       displayReply: reply,
+      visibleReply: reply,
+      directReply: reply,
+      finalReply: reply,
+      answer: reply,
       publicAgent: "Nyx",
       surfaceAgent: "Marion",
       authority: "Marion",
@@ -3279,6 +3466,19 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       privateAdminConversation: true,
       marionAdminConversation: true,
       adminConversationAllowed: true,
+      publicSurfaceOnly: false,
+      publicFallbackBlocked: true,
+      authenticatedOperator: true,
+      operatorPersonalization: true,
+      allowPersonalName: true,
+      allowOperatorMemory: true,
+      authSource: auth.source,
+      memoryPartition: privatePartitionKey,
+      partitionKey: privatePartitionKey,
+      replyAuthority: exactResponseLiteral ? "exact_instruction" : cleanText(packet && packet.replyAuthority || "marion_final"),
+      exactResponseRequested: !!exactResponseLiteral,
+      exactResponsePreserved: !!exactResponseLiteral,
+      exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
       transcriptOnly: true,
       audioStored: false,
       noRawAudioStored: true,
@@ -3332,7 +3532,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
     });
   } catch (err) {
     const signature = marionAdminRuntimeErrorSignature(err);
-    const fallbackReply = marionAdminRuntimeSafeFallbackReply(prompt, err);
+    const fallbackReply = exactResponseLiteral || marionAdminRuntimeSafeFallbackReply(prompt, err);
     const recovered = !!fallbackReply;
     return res.status(recovered ? 200 : 500).json({
       ok: recovered,
@@ -3342,6 +3542,9 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       text: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       message: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       displayReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      visibleReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      directReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      finalReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       publicAgent: "Nyx",
       surfaceAgent: "Marion",
       authority: "Marion",
@@ -3354,6 +3557,16 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       detail: recovered ? "diagnostics_redacted" : marionAdminRedactText(err && (err.message || err) || "route_failed").slice(0, 160),
       privateAdminConversation: true,
       adminConversationAllowed: true,
+      publicSurfaceOnly: false,
+      publicFallbackBlocked: true,
+      authenticatedOperator: true,
+      authSource: auth.source,
+      memoryPartition: privatePartitionKey,
+      partitionKey: privatePartitionKey,
+      replyAuthority: exactResponseLiteral ? "exact_instruction" : "recovery_final",
+      exactResponseRequested: !!exactResponseLiteral,
+      exactResponsePreserved: !!exactResponseLiteral,
+      exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
       transcriptOnly: true,
       audioStored: false,
       noRawAudioStored: true,
