@@ -1831,7 +1831,7 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.2-exact-response-identity-hardlock";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.3-substantive-response-hardlock";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
@@ -2265,15 +2265,21 @@ function marionAdminDeepVisibleReplyCandidate(value, prompt, source, depth, seen
 /* PRIORITY_9J_R1B_ADMIN_VISIBLE_EXTRACTION_HELPER_START */
 function priority9JR1BAdminVisibleReply(value, prompt) {
   const promptText = cleanText(prompt || "");
-  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
-  if (forced && !/^\s*\[object object\]\s*$/i.test(forced)) return forced;
   const deep = marionAdminDeepVisibleReplyCandidate(value, promptText, {}, 0, new Set());
-  if (deep && !/^\s*\[object object\]\s*$/i.test(deep)) return deep;
+  if (deep && !/^\s*\[object object\]\s*$/i.test(deep)) {
+    return marionAdminSubstantiveReplyGuard(deep, promptText, value);
+  }
   if (typeof value === "string") {
     const clean = marionAdminProjectionCleanReply(value);
-    if (clean && !/^\s*\[object object\]\s*$/i.test(clean)) return clean;
+    if (clean && !/^\s*\[object object\]\s*$/i.test(clean)) {
+      return marionAdminSubstantiveReplyGuard(clean, promptText, value);
+    }
   }
-  return "";
+  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
+  if (forced && !/^\s*\[object object\]\s*$/i.test(forced) && !marionAdminHoldingReply(forced)) {
+    return marionAdminSubstantiveReplyGuard(forced, promptText, value);
+  }
+  return marionAdminCapabilityReplyFor(promptText) || "";
 }
 /* PRIORITY_9J_R1B_ADMIN_VISIBLE_EXTRACTION_HELPER_END */
 
@@ -3032,6 +3038,53 @@ function marionAdminExactResponsePacket(literal, body, auth, traceId) {
 }
 /* MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_END */
 
+/* MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_V3_START */
+const MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION = "marion.adminSubstantiveResponseHardlock/3.0";
+const MARION_ADMIN_CAPABILITY_REPLY = "I can help you analyze information, plan projects, make decisions, track priorities, and coordinate work across the Sandblast ecosystem. I can also preserve private operational context, identify risks, and turn the current objective into a practical next action.";
+const MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY = "I do not have a verified retrieval result for that request yet. I can continue once the requested source or live retrieval path is available.";
+
+function marionAdminCapabilityReplyFor(prompt) {
+  const text = cleanText(prompt || "").toLowerCase();
+  if (!text) return "";
+  return /\b(?:what can you do|what can you help me (?:do|accomplish)|how can you help me|explain what you can help me accomplish|show me your capabilities|your capabilities|private administrative assistant|administrative assistant)\b/i.test(text)
+    ? MARION_ADMIN_CAPABILITY_REPLY
+    : "";
+}
+
+function marionAdminLookupRequest(prompt) {
+  const text = cleanText(prompt || "").toLowerCase();
+  return /\b(?:search(?: online| the web)?|look up|check online|browse|verify online|find (?:a|the|current|latest)|pull up|retrieve|research|investigate|source-check)\b/i.test(text);
+}
+
+function marionAdminSubstantivePrompt(prompt) {
+  const text = cleanText(prompt || "");
+  if (!text || text.length < 18) return false;
+  return !/^(?:hi|hello|hey|good (?:morning|afternoon|evening)|marion|are you there|still there)[\s.!?]*$/i.test(text);
+}
+
+function marionAdminHoldingReply(value) {
+  const text = cleanText(value || "");
+  if (!text) return false;
+  return /\b(?:hang tight|hold on a moment|give me a breath|separate the signal from the noise|bring it back clean|take a clean look|taking the clean path|i(?:'|’)?ll check it carefully|keep the answer practical|do you want the (?:quick read|risk|safest next move) first|where do you want to go next|tell me what you want to work through|the turn stayed protected|keep the visible reply human|keep the reply natural and grounded|response did not complete cleanly|turn did not complete cleanly|have not substituted an unrelated answer|private runtime is unavailable|final envelope missing|could not complete a substantive response)\b/i.test(text);
+}
+
+function marionAdminSubstantiveReplyGuard(value, prompt, runtime) {
+  const exact = marionAdminExactResponseLiteral(prompt);
+  if (exact) return exact;
+  const capability = marionAdminCapabilityReplyFor(prompt);
+  if (capability) return capability;
+  const reply = marionAdminProjectionCleanReply(value);
+  if (!reply) {
+    return marionAdminLookupRequest(prompt) ? MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY : "";
+  }
+  if (marionAdminSubstantivePrompt(prompt) && marionAdminHoldingReply(reply)) {
+    return marionAdminLookupRequest(prompt) ? MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY : "";
+  }
+  return reply;
+}
+/* MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_V3_END */
+
+
 // MARION-ADMIN-CONVERSATION-ROUTE-PHASE1B:
 // Private admin-only Marion conversation route. Public users still communicate
 // through Nyx. This route is locked to verified server-side/admin headers and
@@ -3084,6 +3137,14 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
       authenticatedPrivateOnly: true,
       maxChars: MARION_ADMIN_EXACT_RESPONSE_MAX_CHARS,
       version: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION
+    },
+    substantiveResponseContract: {
+      enabled: true,
+      authenticatedPrivateOnly: true,
+      holdingRepliesFinal: false,
+      capabilityReplyDeterministic: true,
+      lookupStatusTransparent: true,
+      version: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION
     },
     privateAdminConversation: true,
     adminTokenConfigured: marionAdminConversationEnvTokens().length > 0,
@@ -3159,6 +3220,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
 
   const prompt = cleanText(body.transcript || body.message || body.text || body.prompt || body.query || "");
   const exactResponseLiteral = marionAdminExactResponseLiteral(prompt);
+  const capabilityReply = marionAdminCapabilityReplyFor(prompt);
   const privatePartitionKey = marionAdminPrivatePartitionKey(body, auth);
   const adminVoiceRuntimeAuth = marionAdminVoiceRequestAuth(req, { ...body, requestId: cleanText(body.voiceApprovalRequestId || body.approvalRequestId || body.approvalId || body.requestId || traceId) });
   if (!prompt) {
@@ -3229,8 +3291,9 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         memoryPartition: privatePartitionKey,
         partitionKey: privatePartitionKey
       }, auth, traceId)
-      const runtimeReply = exactResponseLiteral || marionAdminConversationSafeReply(runtime, prompt);
-      if (runtime && (runtime.ok || !!exactResponseLiteral) && runtimeReply) {
+      const runtimeReplyCandidate = exactResponseLiteral || capabilityReply || marionAdminConversationSafeReply(runtime, prompt);
+      const runtimeReply = exactResponseLiteral || capabilityReply || marionAdminSubstantiveReplyGuard(runtimeReplyCandidate, prompt, runtime);
+      if (runtime && runtimeReply && (runtime.ok || !!exactResponseLiteral || !!capabilityReply)) {
         return res.status(200).json({
           ok: true,
           final: true,
@@ -3266,6 +3329,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
           exactResponseRequested: !!exactResponseLiteral,
           exactResponsePreserved: !!exactResponseLiteral,
           exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
+          substantiveResponseGuarded: true,
+          substantiveResponseVersion: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION,
           runtimeHandlerMounted: true,
           runtimeHandlerStage: cleanText(runtime.stage || "marion_runtime_handler_invoked"),
           transcriptOnly: true,
@@ -3438,7 +3503,34 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       }
     });
 
-    const reply = exactResponseLiteral || marionAdminConversationSafeReply(packet, prompt);
+    const replyCandidate = exactResponseLiteral || capabilityReply || marionAdminConversationSafeReply(packet, prompt);
+    const reply = exactResponseLiteral || capabilityReply || marionAdminSubstantiveReplyGuard(replyCandidate, prompt, packet);
+    if (!reply) {
+      return res.status(502).json({
+        ok: false,
+        final: false,
+        handled: true,
+        canEmit: false,
+        reply: "Marion could not complete a substantive response for this turn.",
+        text: "Marion could not complete a substantive response for this turn.",
+        message: "Marion could not complete a substantive response for this turn.",
+        publicAgent: "Nyx",
+        surfaceAgent: "Marion",
+        authority: "Marion",
+        privateAdminConversation: true,
+        adminConversationAllowed: true,
+        publicSurfaceOnly: false,
+        publicFallbackBlocked: true,
+        authenticatedOperator: true,
+        authSource: auth.source,
+        memoryPartition: privatePartitionKey,
+        partitionKey: privatePartitionKey,
+        error: "MARION_SUBSTANTIVE_RESPONSE_MISSING",
+        replyAuthority: "awaiting_composer_final",
+        substantiveResponseVersion: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION,
+        meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION, diagnosticsRedacted: true }
+      });
+    }
     const statusCode = exactResponseLiteral ? 200 : (packet && packet.ok === false ? 202 : 200);
     const voice = isObj(packet && packet.voice) ? packet.voice : {};
     const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
@@ -3479,6 +3571,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       exactResponseRequested: !!exactResponseLiteral,
       exactResponsePreserved: !!exactResponseLiteral,
       exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
+      substantiveResponseGuarded: true,
+      substantiveResponseVersion: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION,
       transcriptOnly: true,
       audioStored: false,
       noRawAudioStored: true,
@@ -3532,7 +3626,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
     });
   } catch (err) {
     const signature = marionAdminRuntimeErrorSignature(err);
-    const fallbackReply = exactResponseLiteral || marionAdminRuntimeSafeFallbackReply(prompt, err);
+    const fallbackCandidate = exactResponseLiteral || capabilityReply || marionAdminRuntimeSafeFallbackReply(prompt, err);
+    const fallbackReply = exactResponseLiteral || capabilityReply || marionAdminSubstantiveReplyGuard(fallbackCandidate, prompt, err);
     const recovered = !!fallbackReply;
     return res.status(recovered ? 200 : 500).json({
       ok: recovered,
@@ -22914,8 +23009,6 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
   const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || result.finalEnvelope);
   const synthesis = safeObj(src.synthesis || payload.synthesis || result.synthesis);
   const norm = { prompt: promptText, userText: promptText, rawUserText: promptText, text: promptText, message: promptText };
-  const priority9JR1BDirectReply = priority9JR1BAdminVisibleReply("", promptText);
-  if (priority9JR1BDirectReply) return priority9JR1BDirectReply;
   const candidates = [
     finalEnvelope.final, finalEnvelope.finalAnswer, finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.message, finalEnvelope.spokenText,
     synthesis.final, synthesis.finalAnswer, synthesis.finalReply, synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.displayReply, synthesis.answer, synthesis.output, synthesis.response, synthesis.text, synthesis.message, synthesis.spokenText,
@@ -23275,8 +23368,10 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     bridgeStatus.mod.route;
 
   const packet = await Promise.resolve(fn(input, context));
-  const packetReply = priority9JR1BAdminVisibleReply(marionAdminTextRuntimeReplyFromPacket(packet, prompt, input), prompt) || priority9JR1BAdminVisibleReply(packet, prompt) || "";
-  const reply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
+  const rawPacketReply = priority9JR1BAdminVisibleReply(marionAdminTextRuntimeReplyFromPacket(packet, prompt, input), prompt) || priority9JR1BAdminVisibleReply(packet, prompt) || "";
+  const packetReply = marionAdminSubstantiveReplyGuard(rawPacketReply, prompt, packet);
+  const approvedReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
+  const reply = marionAdminSubstantiveReplyGuard(approvedReply, prompt, packet);
   const voiceProjection = marionAdminProjectVoiceEnvelope(reply, input, { stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing" });
   const speechSync = marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input);
   voiceProjection.speechSync = speechSync;
