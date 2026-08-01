@@ -1,7 +1,7 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.14-marion-substantive-response-hardlock",
-  "description": "Sandblast backend with Marion Layers 1-28 Round Six certification, authenticated private-admin exact-response preservation, Nyx/Marion identity hardlock, substantive-response enforcement, holding-reply quarantine, and end-to-end contract validation.",
+  "version": "1.0.15-nyx-tts-authority-path-fix",
+  "description": "Sandblast backend with Marion Layers 1-28 Round Six certification, authenticated private-admin exact-response preservation, Nyx/Marion identity hardlock, substantive-response enforcement, holding-reply quarantine, resilient Nyx TTS authority path resolution, and end-to-end contract validation.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -14,7 +14,7 @@
     "test:sandblast-tv": "node --test tests/sandblast-tv/scheduler.test.js",
     "verify:sandblast-tv": "npm run lint:sandblast-tv && npm run test:sandblast-tv",
     "test:nyx-voice": "node scripts/nyx-voice-certification.js",
-    "verify:nyx-voice": "node --check Routes/tts.js && node --check Routes/ttsProvidersResemble.js && node --check Routes/voiceRoute.js && node --check Routes/nyxVoiceMount.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && node --check public/nyx_state_controller.js && npm run test:nyx-voice && npm run test:nyx-route-mount && npm run test:nyx-widget && npm run test:nyx-widget-playback",
+    "verify:nyx-voice": "npm run check:nyx-tts-entry && node --check Routes/ttsProvidersResemble.js && node --check Routes/voiceRoute.js && node --check Routes/nyxVoiceMount.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && node --check public/nyx_state_controller.js && npm run test:nyx-voice && npm run test:nyx-route-mount && npm run test:nyx-widget && npm run test:nyx-widget-playback",
     "test:nyx-widget": "node scripts/widget-byte-certification.js",
     "test:nyx-widget-playback": "node scripts/widget-playback-certification.js",
     "test:nyx-route-mount": "node scripts/route-mount-certification.js",
@@ -49,7 +49,8 @@
     "verify:marion-round6": "npm run verify:marion-round5 && npm run test:marion-round6",
     "test:marion-admin-e2e-contract": "node tests/marion/marion_admin_e2e_contract_test.js",
     "verify:marion-admin-e2e": "node --check index.js && node --check Data/marion/runtime/marionBridge.js && node -e \"const fs=require('fs');const i=fs.readFileSync('index.js','utf8');const b=fs.readFileSync('Data/marion/runtime/marionBridge.js','utf8');if(!i.includes('MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_START')||!b.includes('MARION_PRIVATE_EXACT_RESPONSE_IDENTITY_HARDLOCK_V10_START')||!i.includes('MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_V3_START')||!b.includes('MARION_PRIVATE_SUBSTANTIVE_RESPONSE_HARDLOCK_V12_START'))process.exit(1);\" && npm run test:marion-substantive-response-contract && npm run test:marion-admin-e2e-contract",
-    "test:marion-substantive-response-contract": "node -e \"const b=require('./Data/marion/runtime/marionBridge.js');const input={prompt:'In two sentences, explain what you can help me accomplish as my private administrative assistant.',sessionId:'contract-test',privateAdminConversation:true,marionAdminConversation:true,directMarionAdminInterface:true,authenticatedOperator:true,adminVerified:true,serverSideAdminAuth:true,scope:'private_admin'};Promise.resolve(b.handleMarionAdminConversation(input)).then(o=>{const r=String(o&&o.reply||'');if(!o||o.ok!==true||o.publicAgent!=='Nyx'||o.surfaceAgent!=='Marion'||o.authority!=='Marion'||!/analyze information/i.test(r)||/hang tight|hold on a moment|signal from the noise|safest next move/i.test(r))process.exit(1);console.log('Marion substantive response contract: PASS')}).catch(()=>process.exit(1));\""
+    "test:marion-substantive-response-contract": "node -e \"const b=require('./Data/marion/runtime/marionBridge.js');const input={prompt:'In two sentences, explain what you can help me accomplish as my private administrative assistant.',sessionId:'contract-test',privateAdminConversation:true,marionAdminConversation:true,directMarionAdminInterface:true,authenticatedOperator:true,adminVerified:true,serverSideAdminAuth:true,scope:'private_admin'};Promise.resolve(b.handleMarionAdminConversation(input)).then(o=>{const r=String(o&&o.reply||'');if(!o||o.ok!==true||o.publicAgent!=='Nyx'||o.surfaceAgent!=='Marion'||o.authority!=='Marion'||!/analyze information/i.test(r)||/hang tight|hold on a moment|signal from the noise|safest next move/i.test(r))process.exit(1);console.log('Marion substantive response contract: PASS')}).catch(()=>process.exit(1));\"",
+    "check:nyx-tts-entry": "node -e \"const fs=require('fs');const cp=require('child_process');const candidates=['Utils/tts.js','utils/tts.js','Routes/tts.js'];const file=candidates.find((p)=>fs.existsSync(p));if(!file){console.error('Nyx TTS authority file not found. Checked: '+candidates.join(', '));process.exit(1);}console.log('Nyx TTS authority: '+file);const result=cp.spawnSync(process.execPath,['--check',file],{stdio:'inherit'});if(result.error){console.error(result.error.message);process.exit(1);}process.exit(Number.isInteger(result.status)?result.status:1);\""
   },
   "dependencies": {
     "ably": "^2.22.0",
