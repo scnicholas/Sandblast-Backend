@@ -5,7 +5,7 @@
  * Avatar State Controller (Nyx Brain–Body Bridge)
  * (Standalone build: exposes global AvatarController)
  *
- * v0.4.0 (GENERAL GATEWAY UI + 5 CHIP MODEL + MARION-INFORMED GREETING + FAIL-OPEN)
+ * v0.4.0 (GENERAL GATEWAY UI + 5 CHIP MODEL + STRUCTURED COGNITION-INFORMED GREETING + FAIL-OPEN)
  *  ✅ Keeps v0.3.0 directive engine unchanged in behavior
  *  ✅ Adds UI overlay controller (bubble + chips/actions) (FAIL-OPEN if host UI missing)
  *  ✅ Enforces 5 chips only: general/music/roku/schedule/radio (no "more")
@@ -385,7 +385,7 @@ function setChipRailActive(ui, lane) {
   } catch (_) {}
 }
 
-// Marion-informed greeting builder (NO RAW USER TEXT STORED)
+// Structured cognition-informed greeting builder (NO RAW USER TEXT STORED)
 function deriveGreeting(cog, lane) {
   // cog is expected to be a structured object (from Marion) with safe fields.
   // We only use coarse signals and never store raw text.
@@ -424,7 +424,7 @@ function deriveGreeting(cog, lane) {
   if (stage === "warm") pool = warm;
   if (stage === "engaged") pool = engaged;
 
-  // If Marion flags anxiety/overwhelm, soften further
+  // If structured cognition flags anxiety/overwhelm, soften further
   if (affect.includes("anx") || affect.includes("stress") || affect.includes("overwhelm")) {
     pool = soothing;
   }
@@ -539,7 +539,7 @@ function renderUI(meta) {
   const lane = UI_STATE.lane;
   setChipRailActive(ui, lane);
 
-  // Greeting: only auto-greet when we first render (or when Marion arrives and we haven't greeted)
+  // Greeting: only auto-greet when we first render (or when structured cognition arrives and we haven't greeted)
   const greet = deriveGreeting(UI_STATE.marionCog, lane);
   const laneBlurb = buildLaneBlurb(lane, UI_STATE.urls);
 
