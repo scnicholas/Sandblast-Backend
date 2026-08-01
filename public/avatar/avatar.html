@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Nyx Avatar (Unified Runtime Host)</title>
+    <title>Nyx Avatar (Unified Runtime Host — Repaired)</title>
     <style>
       :root{
         --bg:#0f0f12;
@@ -639,16 +639,7 @@ function resolveVisualPresence(runtime, audioPlaying) {
           if (elOrigin) elOrigin.textContent = (sec && sec.allowedOrigins && sec.allowedOrigins.length) ? sec.allowedOrigins[0] : "—";
           if (elToken) elToken.textContent = (sec && sec.expectedToken) ? "set" : "—";
         } catch (_) {}
-
-        function mountShell() {
-          try {
-            if (!shellMount) return;
-            while (shellMount.firstChild) shellMount.removeChild(shellMount.firstChild);
-            window.NyxAvatarShell.mount(shellMount);
-          } catch (e) {
-            console.warn("NyxAvatarShell.mount failed:", e);
-          }
-        }
+        // Shell mounting is owned exclusively by avatar-bridge.js.
 
         function setDot(p) {
           if (!dot) return;
@@ -821,8 +812,6 @@ function resolveVisualPresence(runtime, audioPlaying) {
           if (elSub) elSub.textContent = "missing: " + missing.join(", ");
           return;
         }
-
-        mountShell();
 
         (function bindAudioUnlockVeil(){
           const veil = document.getElementById("nyxAudioUnlock");
