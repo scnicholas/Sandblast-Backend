@@ -5,7 +5,7 @@
 /**
  * Nyx Avatar Bridge
  *
- * v0.9.0 (COG STATE CONTRACT++++ + MODE CONTRACT++++ + HOST-AUTHORITY++++ + NO TOKEN LEAK++++ + HARDENED MESSAGING++++)
+ * v0.9.1 (COG STATE CONTRACT++++ + MODE CONTRACT++++ + HOST-AUTHORITY++++ + NO TOKEN LEAK++++ + HARDENED MESSAGING++++)
  *
  * Critical Upgrades in v0.9.0:
  * ✅ NYX_STATE contract: emits to host UI via window events + optional NYX_UI hooks
@@ -230,7 +230,7 @@
     contract: {
       lastState: "idle",
       lastMode: "general",
-      lastCogLine: "Marion: standing by",
+      lastCogLine: "Nyx: standing by",
       lastEmitAt: 0,
     },
 
@@ -329,16 +329,16 @@
       const stage = safeStr((packet && packet.stage) || "").toLowerCase();
       const lane = safeStr(packet && packet.lane).toLowerCase();
 
-      if (stage === "boot") return "Marion: initializing…";
-      if (lane === "music") return "Marion: entering music focus…";
-      if (lane === "roku") return "Marion: switching to Roku ops…";
-      if (lane === "radio") return "Marion: broadcast mode…";
-      if (lane === "schedule") return "Marion: scheduling context…";
-      if (lane === "cyber") return "Marion: hardening posture…";
-      if (dom === "firm") return "Marion: narrowing to the critical path…";
-      if (dom === "soft") return "Marion: opening space to explore…";
+      if (stage === "boot") return "Nyx: initializing…";
+      if (lane === "music") return "Nyx: entering music focus…";
+      if (lane === "roku") return "Nyx: switching to Roku ops…";
+      if (lane === "radio") return "Nyx: broadcast mode…";
+      if (lane === "schedule") return "Nyx: scheduling context…";
+      if (lane === "cyber") return "Nyx: hardening posture…";
+      if (dom === "firm") return "Nyx: narrowing to the critical path…";
+      if (dom === "soft") return "Nyx: opening space to explore…";
     } catch (_) {}
-    return "Marion: standing by";
+    return "Nyx: standing by";
   }
 
   function maybeEmitContracts(now) {
@@ -397,6 +397,35 @@
   // Audio (fail-soft)
   // =========================
   const audioEl = document.getElementById("nyxAudio") || null;
+
+  function showAudioLocked(locked) {
+    try {
+      document.documentElement.classList.toggle("audio-locked", !!locked);
+      emitWindowEvent("nyx:audio-lock", { locked: !!locked });
+    } catch (_) {}
+  }
+
+  function emitAudioLifecycle(phase, detail) {
+    const payload = Object.assign({
+      phase: safeStr(phase || "unknown"),
+      at: Date.now()
+    }, detail && typeof detail === "object" ? detail : {});
+
+    emitWindowEvent("nyx:audio", payload);
+
+    try {
+      const target = CONFIG.parentOrigin;
+      if (target && window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: "NYX_AUDIO_LIFECYCLE",
+          v: PROTOCOL_VERSION,
+          payload
+        }, target);
+      }
+    } catch (_) {}
+
+    return payload;
+  }
   let audioCtx = null;
   let analyser = null;
   let freqBuf = null;
@@ -428,7 +457,13 @@
 
   function armAudio() {
     if (!audioEl) return false;
-    if (state.audioArmed) return true;
+    if (state.audioArmed) {
+      try {
+        if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+      } catch (_) {}
+      showAudioLocked(false);
+      return true;
+    }
 
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return false;
@@ -445,6 +480,8 @@
 
       freqBuf = new Uint8Array(analyser.frequencyBinCount);
       state.audioArmed = true;
+      showAudioLocked(false);
+      emitAudioLifecycle("armed", {});
       return true;
     } catch (_) {
       audioCtx = null;
@@ -838,7 +875,7 @@
       incInflight();
       // surface cognition immediately
       uiSetState("thinking");
-      uiSetCogLine("Marion: interpreting intent…");
+      uiSetCogLine("Nyx: interpreting intent…");
       return;
     }
     if (d.type === "NYX_TURN_END") {
@@ -887,7 +924,7 @@
 
         // Surface cognition while network pending
         uiSetState("thinking");
-        uiSetCogLine(isChat ? "Marion: composing…" : "Marion: voicing…");
+        uiSetCogLine(isChat ? "Nyx: composing…" : "Nyx: voicing…");
       }
 
       // Route relative /api/* to CONFIG.apiBase
@@ -927,7 +964,7 @@
           if (effectivePending() === 0) {
             scheduleSettleSoon(180);
             // Let render loop compute final state; but cue end-of-thinking
-            uiSetCogLine("Marion: standing by");
+            uiSetCogLine("Nyx: standing by");
           }
         }
       }
@@ -958,7 +995,7 @@
       if (sniff.isChat || sniff.isTts) {
         incNet();
         uiSetState("thinking");
-        uiSetCogLine(sniff.isChat ? "Marion: composing…" : "Marion: voicing…");
+        uiSetCogLine(sniff.isChat ? "Nyx: composing…" : "Nyx: voicing…");
       }
 
       const done = () => {
@@ -966,7 +1003,7 @@
           decNet();
           if (effectivePending() === 0) {
             scheduleSettleSoon(180);
-            uiSetCogLine("Marion: standing by");
+            uiSetCogLine("Nyx: standing by");
           }
         }
       };
@@ -1016,6 +1053,20 @@
     } catch (e) {
       return Promise.reject(e);
     }
+  }
+
+  function setPresence(presence) {
+    const next = normPresence(presence);
+    if (!next) return false;
+    state.inlet.hintPresence = next;
+    return true;
+  }
+
+  function speakText(text) {
+    const clean = safeStr(text).trim();
+    if (!clean) return Promise.resolve(null);
+    try { armAudio(); } catch (_) {}
+    return hostFetchTts(clean);
   }
 
   function bindControls() {
@@ -1163,7 +1214,12 @@
   window.NyxAvatarBridge = {
     state,
     armAudio,
+    stopAudio,
+    speakText,
+    setPresence,
     applyConsciousness,
+    applyDirective: SHELL.applyDirective,
+    triggerSettle: SHELL.triggerSettle,
     __protocol: PROTOCOL_VERSION,
     __security: SECURITY,
     __config: CONFIG,
