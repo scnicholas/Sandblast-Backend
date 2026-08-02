@@ -10227,3 +10227,34 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.__marionRound43FinalTimeoutGuardV1 = true;
 }());
 /* MARION_ROUND43_FINAL_TIMEOUT_GUARD_V1_END */
+
+/* MARION_PUBLIC_SECURITY_BOUNDARY_COMPOSER_AUTHORITY_R3_START */
+(function marionPublicSecurityBoundaryComposerAuthorityR3(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicSecurityBoundaryComposerAuthorityR3)return;
+  const VERSION="nyx.marion.publicSecurityBoundaryComposerAuthority/3.0";
+  const REPLIES=Object.freeze({"marion_access": "Marion operates as Sandblast’s private cognitive coordination layer and is not directly accessible through the public interface. You’re speaking with Nyx, who can help with Sandblast, radio, TV, media, AI, and business tools.", "owner_only_information": "I can’t display owner-only information through the public Sandblast interface. I can still help with public information about Sandblast, radio, TV, media, AI, or business tools.", "private_instructions": "I can’t reveal private system instructions, protected configuration, or owner-only operating details. I can explain Sandblast’s public features and capabilities without exposing restricted information.", "internal_reasoning": "I can’t expose private internal reasoning, hidden processing, or protected diagnostic details. I can provide a clear public answer or a concise explanation of the result instead."});
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();}catch(_){return"";}}
+  function promptFrom(args){for(const input of args){const x=obj(input),b=obj(x.body),p=obj(x.payload),t=obj(x.turn),m=obj(x.meta),r=obj(x.request);const q=text(typeof input==="string"?input:x.prompt||x.rawUserText||x.userText||x.userQuery||x.query||x.message||x.text||b.prompt||b.userText||b.message||b.text||p.prompt||p.userText||p.message||p.text||t.prompt||t.userText||t.text||m.prompt||m.userText||r.prompt||r.userText||r.text);if(q)return q;}return"";}
+  function privateAdminFrom(args){for(const input of args){const x=obj(input),p=obj(x.payload),b=obj(x.body),m=obj(x.meta),v=obj(x.voice);if(x.authenticatedOperator===true||p.authenticatedOperator===true||b.authenticatedOperator===true||x.directMarionAdminInterface===true||p.directMarionAdminInterface===true||v.directMarionAdminInterface===true||/^(?:private|owner|admin|marion_admin_interface)$/i.test(text(x.audience||p.audience||x.deliveryChannel||p.deliveryChannel||v.deliveryChannel||m.audience)))return true;}return false;}
+  function classify(args){
+    if(privateAdminFrom(args))return"";
+    const t=promptFrom(args).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
+    if(/^(?:can|may|could|how do|how can) i (?:access|use|talk to|speak to|open|reach|connect to) marion$|^(?:access|open|connect me to|let me use|take me to) marion$/.test(t))return"marion_access";
+    if(/(?:show|give|display|reveal|provide|list|tell me)(?: me)? (?:the )?(?:owner only|owner's|owner|private owner|operator only|admin only) (?:information|data|details|memory|records|content|settings)|what (?:owner only|private owner|operator only|admin only) (?:information|data|details) do you know/.test(t))return"owner_only_information";
+    if(/(?:show|reveal|give|display|provide|tell me|print|expose)(?: me)? (?:marion's |your |the )?(?:private |hidden |internal |system )?(?:instructions|system prompt|developer prompt|configuration|config|rules|operating instructions)/.test(t))return"private_instructions";
+    if(/(?:show|reveal|give|display|provide|tell me|print|expose)(?: me)? (?:marion's |your |the )?(?:private |hidden |internal )?(?:reasoning|chain of thought|thought process|analysis|diagnostics|debug reasoning|internal processing)/.test(t))return"internal_reasoning";
+    return"";
+  }
+  function envelope(kind){const reply=REPLIES[kind],subIntent="public_"+kind,reason=subIntent+"_terms";return{ok:true,handled:true,final:true,finalized:true,marionFinal:true,awaitingMarion:false,suppressUserFacingReply:false,emit:true,blocked:false,intent:"identity_query",subIntent,reason,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,publicReply:reply,visibleReply:reply,finalReply:reply,spokenText:reply,payload:{reply,text:reply,message:reply,spokenText:reply,final:true,securityBoundary:true,intent:"identity_query",subIntent},finalEnvelope:{contractVersion:"nyx.marion.final/1.0",finalSignature:"MARION_FINAL_AUTHORITY",authority:"marion_public_security_boundary_composer_authority",intent:"identity_query",subIntent,reason,reply,text:reply,displayReply:reply,visibleReply:reply,finalReply:reply,spokenText:reply,final:true,handled:true,securityBoundary:true,noUserFacingDiagnostics:true},meta:{replyAuthority:"marion_public_security_boundary_composer_authority",intent:"identity_query",subIntent,reason,securityBoundary:true,version:VERSION,noUserFacingDiagnostics:true}};}
+  const names=["composeMarionResponse","compose","run","handle","buildReply","createResponse","default"];
+  const cache=new WeakMap();
+  for(const name of names){const fn=api[name];if(typeof fn!=="function")continue;let wrapped=cache.get(fn);if(!wrapped){wrapped=function(){const args=Array.from(arguments),kind=classify(args);if(kind){const result=envelope(kind);return fn.constructor&&fn.constructor.name==="AsyncFunction"?Promise.resolve(result):result;}return fn.apply(this,args);};try{Object.keys(fn).forEach(k=>wrapped[k]=fn[k]);}catch(_){}cache.set(fn,wrapped);}api[name]=wrapped;}
+  api.classifyMarionPublicSecurityBoundary=function(){return classify(Array.from(arguments));};
+  api.buildMarionPublicSecurityBoundaryReply=function(kind){return REPLIES[kind]?envelope(kind):null;};
+  api.MARION_PUBLIC_SECURITY_BOUNDARY_COMPOSER_AUTHORITY_VERSION=VERSION;
+  api.__marionPublicSecurityBoundaryComposerAuthorityR3=true;
+})();
+/* MARION_PUBLIC_SECURITY_BOUNDARY_COMPOSER_AUTHORITY_R3_END */
