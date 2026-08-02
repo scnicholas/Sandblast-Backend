@@ -3998,3 +3998,24 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
 /* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_START */
 (function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound3CognitiveResilienceCohesionV1)return;const VERSION="nyx.marion.round3.intentRouter/1.0";api.MARION_ROUND3_COGNITIVE_RESILIENCE_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=28;api.MARION_CURRENT_EVIDENCE_WINS=true;api.MARION_ASSUMPTION_DISCLOSURE_REQUIRED=true;api.MARION_EXECUTION_AUTHORIZED=false;api.__marionRound3CognitiveResilienceCohesionV1=true;})();
 /* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_END */
+
+/* MARION_PUBLIC_IDENTITY_ROUTE_FINAL_LOCK_R2_START */
+(function marionPublicIdentityRouteFinalLockR2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicIdentityRouteFinalLockR2)return;
+  const VERSION="nyx.marion.publicIdentityRouteFinalLock/2.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v){try{return String(v==null?"":v).replace(/[ -]/g," ").replace(/\s+/g," ").trim();}catch(_){return"";}}
+  function prompt(input){const x=obj(input),b=obj(x.body),p=obj(x.payload),t=obj(x.turn),m=obj(x.meta);return text(x.prompt||x.rawUserText||x.userText||x.userQuery||x.query||x.message||x.text||b.prompt||b.userText||b.text||p.prompt||p.userText||p.text||t.prompt||t.userText||t.text||m.prompt||m.userText);}
+  function norm(input){return prompt(input).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();}
+  function match(input){return /^(?:who|what) is marion$|^(?:what does marion do|explain marion|tell me about marion)$/.test(norm(input));}
+  function lock(result,input){if(!match(input))return result;const base=obj(result),routing=obj(base.routing);return {...base,ok:base.ok!==false,contract:base.contract||"nyx.marion.intent/2.5",intent:"identity_query",domain:"identity",knowledgeDomain:"",mode:"identity",depth:"identity_baseline",preferredStyle:"identity_clear",subIntent:"public_marion_identity",reason:"public_marion_identity_terms",confidence:0.99,needsClarifier:false,clarifier:"",answerOnly:true,actionRequired:false,currentTurnAuthority:true,publicSurfaceSafe:true,routing:{...routing,intent:"identity_query",domain:"identity",knowledgeDomain:"",mode:"identity",depth:"identity_baseline",preferredStyle:"identity_clear",subIntent:"public_marion_identity",reason:"public_marion_identity_terms",confidence:0.99,needsClarifier:false,answerOnly:true,actionRequired:false,currentTurnAuthority:true,publicSurfaceSafe:true},meta:{...obj(base.meta),publicMarionIdentityRouteLocked:true,publicIdentityRouteFinalLockVersion:VERSION,noUserFacingDiagnostics:true}};}
+  const names=["routeMarionIntent","route","run","handle","default","classifyIntent","classify"];
+  const cache=new WeakMap();
+  for(const name of names){const fn=api[name];if(typeof fn!=="function")continue;let wrapped=cache.get(fn);if(!wrapped){wrapped=function(){const input=arguments[0],out=fn.apply(this,arguments),apply=v=>lock(v,input);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>wrapped[k]=fn[k]);}catch(_){}cache.set(fn,wrapped);}api[name]=wrapped;}
+  api.classifyPublicMarionIdentity=function(input){return match(input)?{intent:"identity_query",subIntent:"public_marion_identity",reason:"public_marion_identity_terms",confidence:0.99}:null;};
+  api.MARION_PUBLIC_IDENTITY_ROUTE_FINAL_LOCK_VERSION=VERSION;
+  api.__marionPublicIdentityRouteFinalLockR2=true;
+})();
+/* MARION_PUBLIC_IDENTITY_ROUTE_FINAL_LOCK_R2_END */
