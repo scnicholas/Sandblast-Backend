@@ -6393,3 +6393,26 @@ function classifyRound3CognitiveResilience(prompt=""){
 /* MARION_LEAN_UI_PRESENCE_CONTRACT_V1_START */
 (function(){"use strict";const a=module.exports;if(!a||a.__leanPresenceV1)return;const V="nyx.marion.leanUiPresence/1.0",H=28;function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}a.buildMarionVisualPresenceContract=function(x={}){const q=x&&typeof x==="object"?x:{},p=q.speech&&typeof q.speech==="object"?q.speech:{},on=p.enabled===true||p.shouldSpeak===true||!!s(q.spokenText||p.spokenText);return{version:V,state:on?"speaking":"idle",authority:"widget",prestart:"thinking",playback:"speaking",completed:"complete",error:"error",audioDriven:true,textFallbackAllowed:true,noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:H}};a.MARION_LEAN_UI_PRESENCE_CONTRACT_VERSION=V;a.__leanPresenceV1=true})();
  /* MARION_LEAN_UI_PRESENCE_CONTRACT_V1_END */
+
+/* NYX_PUBLIC_MARION_IDENTITY_FINAL_AUTHORITY_R2_START */
+(function nyxPublicMarionIdentityFinalAuthorityR2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__nyxPublicMarionIdentityFinalAuthorityR2)return;
+  const VERSION="nyx.chatEngine.publicMarionIdentityFinalAuthority/2.0";
+  const REPLY="Marion is Sandblast’s private cognitive coordination layer. She supports deeper reasoning, context continuity, routing, and response shaping behind the scenes, while I remain Nyx, the public-facing Sandblast assistant. Private operator functions and owner-only information are not exposed through this interface.";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();}catch(_){return"";}}
+  function prompt(input){const x=obj(input),b=obj(x.body),p=obj(x.payload),t=obj(x.turn),m=obj(x.meta);return text(x.prompt||x.rawUserText||x.userText||x.userQuery||x.query||x.message||x.text||b.prompt||b.userText||b.text||p.prompt||p.userText||p.text||t.prompt||t.userText||t.text||m.prompt||m.userText);}
+  function normalized(input){return prompt(input).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();}
+  function isPublic(input){const x=obj(input),p=obj(x.payload),b=obj(x.body),m=obj(x.meta),u=obj(x.ui);const values=[x.audience,p.audience,b.audience,m.audience,x.surfaceAgent,p.surfaceAgent,b.surfaceAgent,u.surfaceAgent,x.publicSurfaceOnly,p.publicSurfaceOnly,b.publicSurfaceOnly,x.publicIdentityLock,p.publicIdentityLock,b.publicIdentityLock];return values.some(v=>v===true||/^(?:public|nyx)$/i.test(text(v)));}
+  function match(input){const t=normalized(input);return isPublic(input)&&/^(?:who|what) is marion$|^(?:what does marion do|explain marion|tell me about marion)$/.test(t);}
+  function packet(input){const x=obj(input),turnId=text(x.turnId||x.traceId||obj(x.payload).turnId);const finalEnvelope={contractVersion:"nyx.public.final/1.0",authority:"nyx_public_marion_identity_final_authority",intent:"identity_query",subIntent:"public_marion_identity",reason:"public_marion_identity_terms",reply:REPLY,text:REPLY,displayReply:REPLY,visibleReply:REPLY,finalReply:REPLY,spokenText:REPLY,final:true,handled:true,publicFastPath:true,noUserFacingDiagnostics:true};return{ok:true,handled:true,final:true,finalized:true,marionFinal:false,awaitingMarion:false,suppressUserFacingReply:false,emit:true,blocked:false,intent:"identity_query",subIntent:"public_marion_identity",reason:"public_marion_identity_terms",reply:REPLY,text:REPLY,answer:REPLY,output:REPLY,response:REPLY,message:REPLY,displayReply:REPLY,publicReply:REPLY,visibleReply:REPLY,finalReply:REPLY,spokenText:REPLY,turnId,payload:{reply:REPLY,text:REPLY,message:REPLY,spokenText:REPLY,final:true,publicFastPath:true,intent:"identity_query",subIntent:"public_marion_identity"},finalEnvelope,meta:{replyAuthority:"nyx_public_marion_identity_final_authority",semanticAuthority:"nyx",intent:"identity_query",subIntent:"public_marion_identity",reason:"public_marion_identity_terms",publicFastPath:true,version:VERSION,noUserFacingDiagnostics:true}};}
+  const names=["handleChat","run","chat","handle","reply","default","processWithMarion","route","ask"];
+  const cache=new WeakMap();
+  for(const name of names){const fn=api[name];if(typeof fn!=="function")continue;let wrapped=cache.get(fn);if(!wrapped){wrapped=function(){const input=arguments[0];if(match(input)){const result=packet(input);return fn.constructor&&fn.constructor.name==="AsyncFunction"?Promise.resolve(result):result;}return fn.apply(this,arguments);};try{Object.keys(fn).forEach(k=>wrapped[k]=fn[k]);}catch(_){}cache.set(fn,wrapped);}api[name]=wrapped;}
+  api.buildNyxPublicMarionIdentityReply=function(input){return match(input)?packet(input):null;};
+  api.NYX_PUBLIC_MARION_IDENTITY_FINAL_AUTHORITY_VERSION=VERSION;
+  api.__nyxPublicMarionIdentityFinalAuthorityR2=true;
+})();
+/* NYX_PUBLIC_MARION_IDENTITY_FINAL_AUTHORITY_R2_END */
