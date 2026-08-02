@@ -6491,3 +6491,359 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.__nyxPublicIdentitySecurityMatrixFinalAuthorityR4=true;
 })();
 /* NYX_PUBLIC_IDENTITY_SECURITY_MATRIX_FINAL_AUTHORITY_R4_END */
+
+/* NYX_PUBLIC_IDENTITY_SECURITY_TERMINAL_GATE_R5_START */
+(function nyxPublicIdentitySecurityTerminalGateR5(){
+  "use strict";
+
+  const VERSION="nyx.chatEngine.publicIdentitySecurityTerminalGate/5.0";
+  const REPLIES=Object.freeze({"marion_identity": "Marion is Sandblast’s private cognitive coordination layer. She supports deeper reasoning, context continuity, routing, and response shaping behind the scenes, while I remain Nyx, the public-facing Sandblast assistant. Private operator functions and owner-only information are not exposed through this interface.", "marion_access": "Marion operates as Sandblast’s private cognitive coordination layer and is not directly accessible through the public interface. You’re speaking with Nyx, who can help with Sandblast, radio, TV, media, AI, and business tools.", "owner_only_information": "I can’t display owner-only information through the public Sandblast interface. I can still help with public information about Sandblast, radio, TV, media, AI, or business tools.", "private_instructions": "I can’t reveal private system instructions, protected configuration, or owner-only operating details. I can explain Sandblast’s public features and capabilities without exposing restricted information.", "internal_reasoning": "I can’t expose private internal reasoning, hidden processing, or protected diagnostic details. I can provide a clear public answer or a concise explanation of the result instead."});
+
+  function objectValue(value){
+    return value&&typeof value==="object"&&!Array.isArray(value)?value:{};
+  }
+
+  function safeText(value){
+    try{
+      return String(value==null?"":value)
+        .replace(/[\u0000-\u001f\u007f]/g," ")
+        .replace(/\s+/g," ")
+        .trim();
+    }catch(_){
+      return"";
+    }
+  }
+
+  function firstText(){
+    for(let index=0;index<arguments.length;index+=1){
+      const value=safeText(arguments[index]);
+      if(value)return value;
+    }
+    return"";
+  }
+
+  function extractPrompt(input,depth){
+    if(depth>5||input==null)return"";
+    if(typeof input==="string")return safeText(input);
+    if(Array.isArray(input)){
+      for(const item of input){
+        const found=extractPrompt(item,depth+1);
+        if(found)return found;
+      }
+      return"";
+    }
+    if(typeof input!=="object")return"";
+
+    const value=objectValue(input);
+    const direct=firstText(
+      value.prompt,
+      value.rawUserText,
+      value.originalUserText,
+      value.userText,
+      value.userQuery,
+      value.query,
+      value.inputText,
+      value.originalText,
+      value.message,
+      value.text,
+      value.transcript
+    );
+    if(direct)return direct;
+
+    const nestedKeys=[
+      "body","payload","turn","request","input","data","event","detail",
+      "meta","session","voice","envelope","packet","context"
+    ];
+    for(const key of nestedKeys){
+      const found=extractPrompt(value[key],depth+1);
+      if(found)return found;
+    }
+    return"";
+  }
+
+  function normalizePrompt(input){
+    return extractPrompt(input,0)
+      .toLowerCase()
+      .replace(/[’‘]/g,"'")
+      .replace(/[^a-z0-9']+/g," ")
+      .replace(/\s+/g," ")
+      .trim();
+  }
+
+  function isPrivateAdmin(input,depth){
+    if(depth>5||input==null)return false;
+    if(Array.isArray(input))return input.some(item=>isPrivateAdmin(item,depth+1));
+    if(typeof input!=="object")return false;
+
+    const value=objectValue(input);
+    if(
+      value.authenticatedOperator===true||
+      value.directMarionAdminInterface===true||
+      value.marionAdminConversation===true||
+      value.adminVoiceVerified===true||
+      value.privateAdminConversation===true
+    )return true;
+
+    const scope=firstText(
+      value.audience,
+      value.scope,
+      value.deliveryChannel,
+      value.adminInterfaceScope,
+      value.surfaceAgent
+    );
+    if(/^(?:private|owner|admin|marion_admin_interface|marion_admin_conversation)$/i.test(scope))return true;
+
+    for(const key of["body","payload","request","meta","session","voice","context"]){
+      if(isPrivateAdmin(value[key],depth+1))return true;
+    }
+    return false;
+  }
+
+  function classify(input){
+    if(isPrivateAdmin(input,0))return"";
+    const prompt=normalizePrompt(input);
+    if(!prompt)return"";
+
+    if(/^(?:who|what) is marion$|^(?:what does marion do|explain marion|tell me about marion)$/.test(prompt)){
+      return"marion_identity";
+    }
+
+    if(
+      /^(?:can|may|could|how do|how can) i (?:access|use|talk to|speak to|open|reach|connect to) marion$/.test(prompt)||
+      /^(?:access|open|connect me to|let me use|take me to) marion$/.test(prompt)
+    ){
+      return"marion_access";
+    }
+
+    if(
+      /(?:show|give|display|reveal|provide|list|tell me)(?: me)? (?:the )?(?:owner only|owner's|owner|private owner|operator only|admin only) (?:information|data|details|memory|records|content|settings)/.test(prompt)||
+      /what (?:owner only|private owner|operator only|admin only) (?:information|data|details) do you know/.test(prompt)
+    ){
+      return"owner_only_information";
+    }
+
+    if(
+      /(?:show|reveal|give|display|provide|tell me|print|expose)(?: me)? (?:marion's |your |the )?(?:private |hidden |internal |system )?(?:instructions|system prompt|developer prompt|configuration|config|rules|operating instructions)/.test(prompt)
+    ){
+      return"private_instructions";
+    }
+
+    if(
+      /(?:show|reveal|give|display|provide|tell me|print|expose)(?: me)? (?:marion's |your |the )?(?:private |hidden |internal )?(?:reasoning|chain of thought|thought process|analysis|diagnostics|debug reasoning|internal processing)/.test(prompt)
+    ){
+      return"internal_reasoning";
+    }
+
+    return"";
+  }
+
+  function buildPacket(input,kind){
+    const reply=REPLIES[kind];
+    const subIntent="public_"+kind;
+    const reason=subIntent+"_terms";
+    const source=objectValue(input);
+    const payloadSource=objectValue(source.payload);
+    const turnId=firstText(source.turnId,source.traceId,payloadSource.turnId);
+
+    const speech={
+      version:"nyx.voice.playback/1.0",
+      enabled:true,
+      shouldSpeak:true,
+      muted:false,
+      text:reply,
+      spokenText:reply,
+      route:"/api/tts",
+      compatibilityRoute:"/tts",
+      method:"POST",
+      synthesisMethod:"POST",
+      playbackMethod:"GET",
+      responseMode:"audio",
+      autoPlay:true,
+      stateHint:"engaged",
+      visualState:"speaking",
+      request:{method:"POST",text:reply,textDisplay:reply,returnJson:false,routeKind:"main"}
+    };
+
+    const finalEnvelope={
+      contractVersion:"nyx.marion.final/1.0",
+      signature:"MARION_FINAL_AUTHORITY",
+      authority:"nyx_public_identity_security_terminal_gate",
+      source:"chatEngine",
+      intent:"identity_query",
+      subIntent,
+      reason,
+      reply,
+      text:reply,
+      displayReply:reply,
+      visibleReply:reply,
+      finalReply:reply,
+      spokenText:reply,
+      speech,
+      final:true,
+      marionFinal:true,
+      handled:true,
+      publicFastPath:true,
+      securityBoundary:kind!=="marion_identity",
+      noUserFacingDiagnostics:true
+    };
+
+    return{
+      ok:true,
+      handled:true,
+      final:true,
+      finalized:true,
+      terminal:true,
+      marionFinal:true,
+      awaitingMarion:false,
+      transportSafe:true,
+      suppressUserFacingReply:false,
+      emit:true,
+      blocked:false,
+      canEmit:true,
+      identitySecurityHandled:true,
+      identitySecurityTerminal:true,
+      intent:"identity_query",
+      subIntent,
+      reason,
+      reply,
+      text:reply,
+      answer:reply,
+      output:reply,
+      response:reply,
+      message:reply,
+      displayReply:reply,
+      publicReply:reply,
+      visibleReply:reply,
+      finalReply:reply,
+      directReply:reply,
+      authoritativeReply:reply,
+      spokenText:reply,
+      speech,
+      turnId,
+      payload:{
+        reply,
+        text:reply,
+        message:reply,
+        answer:reply,
+        output:reply,
+        response:reply,
+        displayReply:reply,
+        visibleReply:reply,
+        finalReply:reply,
+        directReply:reply,
+        authoritativeReply:reply,
+        spokenText:reply,
+        speech,
+        finalEnvelope,
+        final:true,
+        marionFinal:true,
+        handled:true,
+        awaitingMarion:false,
+        suppressUserFacingReply:false,
+        emit:true,
+        blocked:false,
+        canEmit:true,
+        identitySecurityHandled:true,
+        identitySecurityTerminal:true,
+        publicFastPath:true,
+        securityBoundary:kind!=="marion_identity",
+        intent:"identity_query",
+        subIntent,
+        reason
+      },
+      finalEnvelope,
+      meta:{
+        replyAuthority:"nyx_public_identity_security_terminal_gate",
+        semanticAuthority:"nyx",
+        finalAuthority:"nyx_public_identity_security_terminal_gate",
+        identitySecurityHandled:true,
+        identitySecurityTerminal:true,
+        intent:"identity_query",
+        subIntent,
+        reason,
+        publicFastPath:true,
+        securityBoundary:kind!=="marion_identity",
+        transportSafe:true,
+        suppressUserFacingReply:false,
+        emit:true,
+        blocked:false,
+        version:VERSION,
+        noUserFacingDiagnostics:true
+      }
+    };
+  }
+
+  function terminalPacketForArguments(args){
+    const values=Array.from(args||[]);
+    for(const value of values){
+      const kind=classify(value);
+      if(kind)return buildPacket(value,kind);
+    }
+    return null;
+  }
+
+  function wrapFunction(fn){
+    if(typeof fn!=="function"||fn.__nyxPublicIdentitySecurityTerminalGateR5)return fn;
+    const wrapped=function(){
+      const terminal=terminalPacketForArguments(arguments);
+      if(terminal){
+        return fn.constructor&&fn.constructor.name==="AsyncFunction"
+          ? Promise.resolve(terminal)
+          : terminal;
+      }
+      return fn.apply(this,arguments);
+    };
+    try{Object.keys(fn).forEach(key=>{wrapped[key]=fn[key];});}catch(_){}
+    wrapped.__nyxPublicIdentitySecurityTerminalGateR5=true;
+    wrapped.__wrappedOriginal=fn;
+    return wrapped;
+  }
+
+  function projectResult(result,input){
+    const kind=classify(input);
+    if(!kind)return result;
+    return buildPacket(input,kind);
+  }
+
+  const exported=module.exports;
+
+  if(typeof exported==="function"){
+    module.exports=wrapFunction(exported);
+  }
+
+  const api=module.exports&&(
+    typeof module.exports==="object"||
+    typeof module.exports==="function"
+  )?module.exports:null;
+
+  if(api){
+    const exportNames=[
+      "handleChat","run","chat","handle","reply","default","processWithMarion",
+      "route","ask","finalTransportPacket","normalizeCoordinatorOutputForPipeline",
+      "normalizeVisibleFinalReplyFields"
+    ];
+    for(const name of exportNames){
+      if(typeof api[name]==="function")api[name]=wrapFunction(api[name]);
+    }
+
+    if(typeof api.ChatEngine==="function"&&api.ChatEngine.prototype){
+      const prototype=api.ChatEngine.prototype;
+      const methodNames=["processInput","process","handle","run","chat","reply","ask"];
+      for(const name of methodNames){
+        if(typeof prototype[name]==="function"){
+          prototype[name]=wrapFunction(prototype[name]);
+        }
+      }
+    }
+
+    api.classifyNyxPublicIdentitySecurityTerminal=classify;
+    api.buildNyxPublicIdentitySecurityTerminalReply=function(input){
+      const kind=classify(input);
+      return kind?buildPacket(input,kind):null;
+    };
+    api.projectNyxPublicIdentitySecurityTerminalResult=projectResult;
+    api.NYX_PUBLIC_IDENTITY_SECURITY_TERMINAL_GATE_VERSION=VERSION;
+    api.__nyxPublicIdentitySecurityTerminalGateR5=true;
+  }
+})();
+/* NYX_PUBLIC_IDENTITY_SECURITY_TERMINAL_GATE_R5_END */
