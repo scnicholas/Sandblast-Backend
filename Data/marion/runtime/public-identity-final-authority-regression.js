@@ -1,0 +1,15 @@
+"use strict";
+const fs=require("fs"),path=require("path"),assert=require("assert");
+const root=__dirname;
+const chat=fs.readFileSync(path.join(root,"chatEngine.js"),"utf8");
+const router=fs.readFileSync(path.join(root,"marionIntentRouter.js"),"utf8");
+const reply="Marion is Sandblast’s private cognitive coordination layer. She supports deeper reasoning, context continuity, routing, and response shaping behind the scenes, while I remain Nyx, the public-facing Sandblast assistant. Private operator functions and owner-only information are not exposed through this interface.";
+assert.ok(chat.includes("NYX_PUBLIC_MARION_IDENTITY_FINAL_AUTHORITY_R2_START"));
+assert.ok(chat.includes("nyx_public_marion_identity_final_authority"));
+assert.ok(chat.includes(reply));
+assert.ok(router.includes("MARION_PUBLIC_IDENTITY_ROUTE_FINAL_LOCK_R2_START"));
+assert.ok(router.includes('subIntent:"public_marion_identity"'));
+assert.ok(router.includes('confidence:0.99'));
+assert.ok(chat.lastIndexOf("NYX_PUBLIC_MARION_IDENTITY_FINAL_AUTHORITY_R2_START") > chat.lastIndexOf("MARION_LEAN_UI_PRESENCE_CONTRACT_V1_END"));
+assert.ok(router.lastIndexOf("MARION_PUBLIC_IDENTITY_ROUTE_FINAL_LOCK_R2_START") > router.lastIndexOf("MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_END"));
+console.log("PASS Nyx/Marion public identity final-authority regression");
