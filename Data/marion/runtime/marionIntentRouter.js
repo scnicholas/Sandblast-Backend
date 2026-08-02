@@ -4049,3 +4049,34 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
   api.__marionPublicSecurityBoundaryRouteLockR3=true;
 })();
 /* MARION_PUBLIC_SECURITY_BOUNDARY_ROUTE_LOCK_R3_END */
+
+/* MARION_PUBLIC_IDENTITY_SECURITY_MATRIX_ROUTE_LOCK_R4_START */
+(function marionPublicIdentitySecurityMatrixRouteLockR4(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicIdentitySecurityMatrixRouteLockR4)return;
+  const VERSION="nyx.marion.publicIdentitySecurityMatrixRouteLock/4.0";
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();}catch(_){return"";}}
+  function prompt(input){const x=obj(input),b=obj(x.body),p=obj(x.payload),t=obj(x.turn),m=obj(x.meta),r=obj(x.request);return text(x.prompt||x.rawUserText||x.userText||x.userQuery||x.query||x.message||x.text||b.prompt||b.userText||b.message||b.text||p.prompt||p.userText||p.message||p.text||t.prompt||t.userText||t.text||m.prompt||m.userText||r.prompt||r.userText||r.text);}
+  function norm(input){return prompt(input).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();}
+  function isPrivateAdmin(input){const x=obj(input),p=obj(x.payload),b=obj(x.body),m=obj(x.meta),v=obj(x.voice);return x.authenticatedOperator===true||p.authenticatedOperator===true||b.authenticatedOperator===true||x.directMarionAdminInterface===true||p.directMarionAdminInterface===true||v.directMarionAdminInterface===true||/^(?:private|owner|admin|marion_admin_interface)$/i.test(text(x.audience||p.audience||x.deliveryChannel||p.deliveryChannel||v.deliveryChannel||m.audience));}
+  function classify(input){
+    if(isPrivateAdmin(input))return"";
+    const t=norm(input);
+    if(/^(?:who|what) is marion$|^(?:what does marion do|explain marion|tell me about marion)$/.test(t))return"marion_identity";
+    if(/^(?:can|may|could|how do|how can) i (?:access|use|talk to|speak to|open|reach|connect to) marion$|^(?:access|open|connect me to|let me use|take me to) marion$/.test(t))return"marion_access";
+    if(/(?:show|give|display|reveal|provide|list|tell me)(?: me)? (?:the )?(?:owner only|owner's|owner|private owner|operator only|admin only) (?:information|data|details|memory|records|content|settings)|what (?:owner only|private owner|operator only|admin only) (?:information|data|details) do you know/.test(t))return"owner_only_information";
+    if(/(?:show|reveal|give|display|provide|tell me|print|expose)(?: me)? (?:marion's |your |the )?(?:private |hidden |internal |system )?(?:instructions|system prompt|developer prompt|configuration|config|rules|operating instructions)/.test(t))return"private_instructions";
+    if(/(?:show|reveal|give|display|provide|tell me|print|expose)(?: me)? (?:marion's |your |the )?(?:private |hidden |internal )?(?:reasoning|chain of thought|thought process|analysis|diagnostics|debug reasoning|internal processing)/.test(t))return"internal_reasoning";
+    return"";
+  }
+  function lock(result,input,kind){if(!kind)return result;const base=obj(result),routing=obj(base.routing),subIntent="public_"+kind,reason=subIntent+"_terms",securityBoundary=kind!=="marion_identity";return{...base,ok:base.ok!==false,contract:base.contract||"nyx.marion.intent/2.5",intent:"identity_query",domain:"identity",knowledgeDomain:"",mode:"identity",depth:securityBoundary?"identity_boundary":"identity_baseline",preferredStyle:"identity_clear",subIntent,reason,confidence:0.995,needsClarifier:false,clarifier:"",answerOnly:true,actionRequired:false,currentTurnAuthority:true,publicSurfaceSafe:true,securityBoundary,routing:{...routing,intent:"identity_query",domain:"identity",knowledgeDomain:"",mode:"identity",depth:securityBoundary?"identity_boundary":"identity_baseline",preferredStyle:"identity_clear",subIntent,reason,confidence:0.995,needsClarifier:false,answerOnly:true,actionRequired:false,currentTurnAuthority:true,publicSurfaceSafe:true,securityBoundary},meta:{...obj(base.meta),publicIdentitySecurityMatrixRouteLocked:true,publicIdentitySecurityMatrixRouteLockVersion:VERSION,noUserFacingDiagnostics:true}};}
+  const names=["routeMarionIntent","route","run","handle","default","classifyIntent","classify"];
+  const cache=new WeakMap();
+  for(const name of names){const fn=api[name];if(typeof fn!=="function")continue;let wrapped=cache.get(fn);if(!wrapped){wrapped=function(){const input=arguments[0],kind=classify(input),out=fn.apply(this,arguments),apply=v=>lock(v,input,kind);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>wrapped[k]=fn[k]);}catch(_){}cache.set(fn,wrapped);}api[name]=wrapped;}
+  api.classifyPublicIdentitySecurityMatrix=function(input){const kind=classify(input);return kind?{intent:"identity_query",subIntent:"public_"+kind,reason:"public_"+kind+"_terms",confidence:0.995,securityBoundary:kind!=="marion_identity"}:null;};
+  api.MARION_PUBLIC_IDENTITY_SECURITY_MATRIX_ROUTE_LOCK_VERSION=VERSION;
+  api.__marionPublicIdentitySecurityMatrixRouteLockR4=true;
+})();
+/* MARION_PUBLIC_IDENTITY_SECURITY_MATRIX_ROUTE_LOCK_R4_END */
