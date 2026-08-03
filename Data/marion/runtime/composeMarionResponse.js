@@ -767,15 +767,15 @@ function normalizeTechnicalTargetKey(value=""){
   return lower(value).replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
 }
 const TECHNICAL_TARGETS = Object.freeze({
-  chatengine:Object.freeze({targetKey:"chatengine",targetName:"ChatEngine",targetFile:"chatEngine.js",targetPath:"Utils/chatEngine.js",layer:"coordinator/final-trust gate",validation:"node --check Utils/chatEngine.js"}),
-  chat_engine:Object.freeze({targetKey:"chatengine",targetName:"ChatEngine",targetFile:"chatEngine.js",targetPath:"Utils/chatEngine.js",layer:"coordinator/final-trust gate",validation:"node --check Utils/chatEngine.js"}),
+  chatengine:Object.freeze({targetKey:"chatengine",targetName:"ChatEngine",targetFile:"chatEngine.js",targetPath:"utils/chatEngine.js",layer:"coordinator/final-trust gate",validation:"node --check utils/chatEngine.js"}),
+  chat_engine:Object.freeze({targetKey:"chatengine",targetName:"ChatEngine",targetFile:"chatEngine.js",targetPath:"utils/chatEngine.js",layer:"coordinator/final-trust gate",validation:"node --check utils/chatEngine.js"}),
   composemarionresponse:Object.freeze({targetKey:"composeMarionResponse",targetName:"ComposeMarionResponse",targetFile:"composeMarionResponse.js",targetPath:"Data/marion/runtime/composeMarionResponse.js",layer:"composer/reply shaping",validation:"node --check Data/marion/runtime/composeMarionResponse.js"}),
   compose_marion_response:Object.freeze({targetKey:"composeMarionResponse",targetName:"ComposeMarionResponse",targetFile:"composeMarionResponse.js",targetPath:"Data/marion/runtime/composeMarionResponse.js",layer:"composer/reply shaping",validation:"node --check Data/marion/runtime/composeMarionResponse.js"}),
   composer:Object.freeze({targetKey:"composeMarionResponse",targetName:"ComposeMarionResponse",targetFile:"composeMarionResponse.js",targetPath:"Data/marion/runtime/composeMarionResponse.js",layer:"composer/reply shaping",validation:"node --check Data/marion/runtime/composeMarionResponse.js"}),
   marionbridge:Object.freeze({targetKey:"marionBridge",targetName:"MarionBridge",targetFile:"marionBridge.js",targetPath:"Data/marion/runtime/marionBridge.js",layer:"bridge/handoff authority",validation:"node --check Data/marion/runtime/marionBridge.js"}),
   marion_bridge:Object.freeze({targetKey:"marionBridge",targetName:"MarionBridge",targetFile:"marionBridge.js",targetPath:"Data/marion/runtime/marionBridge.js",layer:"bridge/handoff authority",validation:"node --check Data/marion/runtime/marionBridge.js"}),
-  statespine:Object.freeze({targetKey:"stateSpine",targetName:"StateSpine",targetFile:"stateSpine.js",targetPath:"Utils/stateSpine.js",layer:"continuity/state carry",validation:"node --check Utils/stateSpine.js"}),
-  state_spine:Object.freeze({targetKey:"stateSpine",targetName:"StateSpine",targetFile:"stateSpine.js",targetPath:"Utils/stateSpine.js",layer:"continuity/state carry",validation:"node --check Utils/stateSpine.js"}),
+  statespine:Object.freeze({targetKey:"stateSpine",targetName:"StateSpine",targetFile:"stateSpine.js",targetPath:"utils/stateSpine.js",layer:"continuity/state carry",validation:"node --check utils/stateSpine.js"}),
+  state_spine:Object.freeze({targetKey:"stateSpine",targetName:"StateSpine",targetFile:"stateSpine.js",targetPath:"utils/stateSpine.js",layer:"continuity/state carry",validation:"node --check utils/stateSpine.js"}),
   marionintentrouter:Object.freeze({targetKey:"marionIntentRouter",targetName:"MarionIntentRouter",targetFile:"marionIntentRouter.js",targetPath:"Data/marion/runtime/marionIntentRouter.js",layer:"intent routing",validation:"node --check Data/marion/runtime/marionIntentRouter.js"}),
   intent_router:Object.freeze({targetKey:"marionIntentRouter",targetName:"MarionIntentRouter",targetFile:"marionIntentRouter.js",targetPath:"Data/marion/runtime/marionIntentRouter.js",layer:"intent routing",validation:"node --check Data/marion/runtime/marionIntentRouter.js"}),
   mariondomainregistry:Object.freeze({targetKey:"marionDomainRegistry",targetName:"MarionDomainRegistry",targetFile:"marionDomainRegistry.js",targetPath:"Data/marion/runtime/marionDomainRegistry.js",layer:"domain registry",validation:"node --check Data/marion/runtime/marionDomainRegistry.js"}),
@@ -819,7 +819,7 @@ function technicalAutopsyTargetReply(text="",input={},routed={},fallbackReply=""
   const target=extractTechnicalTargetLock(input,routed,text);
   if(!target)return safeStr(fallbackReply);
   const focus={
-    chatengine:"preserve coordinator-only behavior, accept only trusted Marion finals, block recovery authorship, keep runtime telemetry scoped, and verify Utils/chatEngine.js is the active path",
+    chatengine:"preserve coordinator-only behavior, accept only trusted Marion finals, block recovery authorship, keep runtime telemetry scoped, and verify utils/chatEngine.js is the active path",
     composeMarionResponse:"preserve final-envelope authority, keep technical/cyber/domain/emotional/directive lanes isolated, verify governors only activate in allowed lanes, and prevent stale target carry",
     marionBridge:"normalize once, route once, compose once, wrap one trusted final envelope, and reject non-final handoff packets before emission",
     stateSpine:"advance continuity only after trusted final acceptance, reset stale carry when the current explicit target changes, and preserve five-turn/mic-text parity state",
@@ -838,7 +838,7 @@ function applyTechnicalTargetLockToReply(reply="",text="",input={},routed={}){
   const target=extractTechnicalTargetLock(input,routed,text);
   if(!target||!target.explicit)return safeStr(reply);
   let out=safeStr(reply);
-  const wrongTargets=["ComposeMarionResponse.js","Data/marion/runtime/composeMarionResponse.js","ChatEngine.js","chatEngine.js","Utils/chatEngine.js","MarionBridge.js","marionBridge.js","Data/marion/runtime/marionBridge.js","StateSpine.js","stateSpine.js","Utils/stateSpine.js"];
+  const wrongTargets=["ComposeMarionResponse.js","Data/marion/runtime/composeMarionResponse.js","ChatEngine.js","chatEngine.js","utils/chatEngine.js","MarionBridge.js","marionBridge.js","Data/marion/runtime/marionBridge.js","StateSpine.js","stateSpine.js","utils/stateSpine.js"];
   for(const wrong of wrongTargets){
     if(wrong!==target.targetFile&&wrong!==target.targetPath&&wrong!==target.targetName){out=out.replace(new RegExp(wrong.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"g"),target.targetPath);}
   }
@@ -10366,7 +10366,7 @@ for(const n of ["composeMarionResponse", "compose", "run", "handle", "buildReply
 api.buildMarionSessionContinuityReply=build;api.__sessionContinuityR8=true;})();
 /* MARION_SESSION_CONTINUITY_R8_END */
 /* MARION_E2E_CONTINUITY_COHESION_R9_START */
-(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__e2eContinuityR9)return;const path=require("path"),__e2eState=require(path.join(__dirname,"marionContinuityState.js")),__e2eProgression=require(path.join(__dirname,"marionConversationProgression.js")),__e2ePivot=require(path.join(__dirname,"marionContextPivot.js"));
+(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__e2eContinuityR9)return;const path=require("path"),__e2eLoad=(name)=>{try{return require(path.join(__dirname,name))}catch(_){return null}},__e2eState=__e2eLoad("marionContinuityState.js"),__e2eProgression=__e2eLoad("marionConversationProgression.js"),__e2ePivot=__e2eLoad("marionContextPivot.js");if(!__e2eState||!__e2eProgression||!__e2ePivot){api.MARION_E2E_CONTINUITY_COHESION_STATUS={version:"nyx.marion.e2eContinuityCohesion/9.1-fail-open",active:false,degraded:true,missing:{state:!__e2eState,progression:!__e2eProgression,pivot:!__e2ePivot},noUserFacingDiagnostics:true};api.__e2eContinuityR9=true;return;}
 function __E2E_CONT_OBJ(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
 function __E2E_CONT_TEXT(v){try{return String(v??"").replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
 function __E2E_CONT_REPLY(r){const x=__E2E_CONT_OBJ(r),p=__E2E_CONT_OBJ(x.payload),f=__E2E_CONT_OBJ(x.finalEnvelope);for(const v of[x.directReply,x.visibleReply,x.displayReply,x.finalReply,x.reply,x.answer,x.response,x.text,x.message,f.finalReply,f.reply,f.text,p.reply,p.text]){const q=__E2E_CONT_TEXT(v);if(q)return q}return""}
