@@ -4187,3 +4187,122 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
 /* MARION_CONTINUITY_ROUTER_R10_START */
 (function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__continuityRouterR10)return;const p=(()=>{try{return require("./marionConversationProgression.js")}catch(_){return null}})(),v=(()=>{try{return require("./marionContextPivot.js")}catch(_){return null}})();function build(i){if(!p)return null;const a=p.buildProgressionPacket(i);if(!a||!a.active||!a.resolved)return null;const c=v?v.buildContextPivot(i):{};if(c.preservePriorSubject===false)return null;return{contract:"nyx.marion.intent/2.5",intent:"contextual_directive",domain:"execution_context",mode:"contextual_execution",depth:"contextual_precision",preferredStyle:"contextual_directive",subIntent:"continuation_"+a.action,reason:"continuity_router_resolved",confidence:.999,needsClarifier:false,answerOnly:true,actionRequired:false,currentTurnAuthority:true,continuityHandled:true,continuityTerminal:true,suppressGenericIdentityFallback:true,terminalReply:a.reply,progression:a,contextPivot:c,routing:{intent:"contextual_directive",subIntent:"continuation_"+a.action,continuityHandled:true,continuityTerminal:true,suppressGenericIdentityFallback:true},meta:{replyAuthority:"marion_continuity_router_r10",noUserFacingDiagnostics:true}}}for(const n of["routeMarionIntent","route","run","handle","default","classifyIntent","classify"])if(typeof api[n]==="function"){const f=api[n];api[n]=function(){return build(arguments[0])||f.apply(this,arguments)}}api.buildMarionContinuityRoute=build;api.__continuityRouterR10=true})();
 /* MARION_CONTINUITY_ROUTER_R10_END */
+
+/* MARION_STATE_FIRST_CONTINUITY_ROUTER_R11_START */
+(function () {
+  "use strict";
+  const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!api || api.__stateFirstContinuityRouterR11) return;
+
+  const progression = (() => {
+    try { return require("./marionConversationProgression.js"); }
+    catch (_) { return null; }
+  })();
+  const pivot = (() => {
+    try { return require("./marionContextPivot.js"); }
+    catch (_) { return null; }
+  })();
+
+  function build(input) {
+    if (!progression || typeof progression.buildProgressionPacket !== "function") return null;
+    const progressionPacket = progression.buildProgressionPacket(input);
+    if (!progressionPacket || !progressionPacket.active) return null;
+
+    const contextPivot =
+      pivot && typeof pivot.buildContextPivot === "function"
+        ? pivot.buildContextPivot(input)
+        : {};
+
+    if (!progressionPacket.resolved || contextPivot.preservePriorSubject === false) {
+      return {
+        contract: "nyx.marion.intent/2.5",
+        intent: "contextual_directive",
+        domain: "execution_context",
+        mode: "contextual_execution",
+        depth: "contextual_precision",
+        preferredStyle: "contextual_directive",
+        subIntent: "continuation_context_missing",
+        reason: "continuity_context_missing",
+        confidence: 0.999,
+        needsClarifier: true,
+        clarifier: "What would you like me to expand or continue?",
+        answerOnly: true,
+        actionRequired: false,
+        currentTurnAuthority: true,
+        continuityHandled: true,
+        continuityTerminal: false,
+        suppressGenericIdentityFallback: true,
+        progression: progressionPacket,
+        contextPivot,
+        routing: {
+          intent: "contextual_directive",
+          subIntent: "continuation_context_missing",
+          continuityHandled: true,
+          continuityTerminal: false,
+          suppressGenericIdentityFallback: true
+        },
+        meta: {
+          replyAuthority: "marion_state_first_continuity_router_r11",
+          noUserFacingDiagnostics: true
+        }
+      };
+    }
+
+    return {
+      contract: "nyx.marion.intent/2.5",
+      intent: "contextual_directive",
+      domain: "execution_context",
+      mode: "contextual_execution",
+      depth: "contextual_precision",
+      preferredStyle: "contextual_directive",
+      subIntent: "continuation_" + progressionPacket.action,
+      reason: "state_first_continuity_resolved",
+      confidence: 0.999,
+      needsClarifier: false,
+      clarifier: "",
+      answerOnly: true,
+      actionRequired: false,
+      currentTurnAuthority: true,
+      continuityHandled: true,
+      continuityTerminal: true,
+      suppressGenericIdentityFallback: true,
+      terminalReply: progressionPacket.reply,
+      progression: progressionPacket,
+      contextPivot,
+      routing: {
+        intent: "contextual_directive",
+        subIntent: "continuation_" + progressionPacket.action,
+        continuityHandled: true,
+        continuityTerminal: true,
+        suppressGenericIdentityFallback: true
+      },
+      meta: {
+        replyAuthority: "marion_state_first_continuity_router_r11",
+        noUserFacingDiagnostics: true
+      }
+    };
+  }
+
+  for (const name of [
+    "routeMarionIntent",
+    "route",
+    "run",
+    "handle",
+    "default",
+    "classifyIntent",
+    "classify"
+  ]) {
+    if (typeof api[name] !== "function") continue;
+    const original = api[name];
+    api[name] = function () {
+      const result = build(arguments[0]);
+      return result || original.apply(this, arguments);
+    };
+  }
+
+  api.buildStateFirstContinuityRoute = build;
+  api.MARION_STATE_FIRST_CONTINUITY_ROUTER_VERSION =
+    "nyx.marion.stateFirstContinuityRouter/1.0";
+  api.__stateFirstContinuityRouterR11 = true;
+})();
+/* MARION_STATE_FIRST_CONTINUITY_ROUTER_R11_END */
