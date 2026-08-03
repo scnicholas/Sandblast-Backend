@@ -1,5 +1,5 @@
 "use strict";
-const VERSION="nyx.marion.contextPivot/3.0",state=(()=>{try{return require("./marionContinuityState.js")}catch(_){return null}})();
+const VERSION="nyx.marion.contextPivot/4.0",state=(()=>{try{return require("./marionContinuityState.js")}catch(_){return null}})();
 const t=v=>{try{return String(v??"").replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}},o=v=>v&&typeof v==="object"&&!Array.isArray(v)?v:{},n=v=>t(v).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
 const hydrate=i=>state?state.hydrate(i):i;
 function prompt(i){i=hydrate(i);if(typeof i==="string")return t(i);const x=o(i),p=o(x.payload),b=o(x.body),r=o(x.turn);return t(x.prompt||x.rawUserText||x.originalUserText||x.userText||x.query||x.message||x.text||p.prompt||p.userText||p.text||b.prompt||b.userText||b.text||r.prompt||r.userText||r.text)}
