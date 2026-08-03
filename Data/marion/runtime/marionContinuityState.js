@@ -1,13 +1,15 @@
 "use strict";
-const VERSION="nyx.marion.continuityState/2.0",TTL=7200000,MAX=500,TURNS=24,S=new Map();
+const VERSION="nyx.marion.continuityState/3.0",TTL=7200000,MAX=500,TURNS=32,S=new Map();
 const t=v=>{try{return String(v??"").replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}};
 const o=v=>v&&typeof v==="object"&&!Array.isArray(v)?v:{};
-function key(i){const x=o(i),p=o(x.payload),b=o(x.body),m=o(x.meta),s=o(x.session);return t(x.conversationId||x.sessionId||x.clientSessionId||x.threadId||x.traceId||p.conversationId||p.sessionId||p.threadId||b.conversationId||b.sessionId||s.id||s.sessionId||m.sessionId||"public-default").slice(0,180)}
-function purge(){const n=Date.now();for(const[k,v]of S)if(n-(v.updatedAt||0)>TTL)S.delete(k);while(S.size>MAX)S.delete(S.keys().next().value)}
-function get(i){purge();const k=key(i),v=S.get(k)||{turns:[],lastAssistantReply:"",activeTopic:""};return{k,...v,turns:[...(v.turns||[])]}}
+const first=(...a)=>{for(const v of a){const x=t(v);if(x)return x}return""};
+function key(i){const x=o(i),p=o(x.payload),b=o(x.body),m=o(x.meta),s=o(x.session),c=o(x.context),r=o(x.request);return first(x.conversationId,x.sessionId,x.clientSessionId,x.threadId,x.traceId,p.conversationId,p.sessionId,p.clientSessionId,p.threadId,p.traceId,b.conversationId,b.sessionId,b.clientSessionId,b.threadId,s.id,s.sessionId,s.conversationId,c.sessionId,c.conversationId,m.sessionId,m.conversationId,r.sessionId,r.conversationId,"public-default").slice(0,180)}
+function purge(){const n=Date.now();for(const[k,v]of S)if(!v||n-Number(v.updatedAt||0)>TTL)S.delete(k);while(S.size>MAX)S.delete(S.keys().next().value)}
+function get(i){purge();const k=key(i),v=S.get(k)||{turns:[],lastAssistantReply:"",activeTopic:"",lastIntent:"",lastSubIntent:"",updatedAt:0};S.delete(k);S.set(k,v);return{k,...v,turns:[...(v.turns||[])]}}
 function put(v){v.updatedAt=Date.now();v.turns=(v.turns||[]).slice(-TURNS);S.set(v.k,v);purge();return v}
-function recordUser(i,q){const v=get(i),x=t(q);if(x)v.turns.push({role:"user",text:x});return put(v)}
-function recordAssistant(i,r,topic=""){const v=get(i),x=t(r);if(x){v.lastAssistantReply=x;v.activeTopic=t(topic)||v.activeTopic||x.split(/[.!?]/)[0].slice(0,160);v.turns.push({role:"assistant",text:x})}return put(v)}
-function hydrate(i){const x=typeof i==="string"?{text:i}:{...o(i)},v=get(x);return{...x,conversationId:t(x.conversationId||x.sessionId||v.k),lastAssistantReply:t(x.lastAssistantReply||x.previousAssistantReply||v.lastAssistantReply),previousAssistantReply:t(x.previousAssistantReply||x.lastAssistantReply||v.lastAssistantReply),activeTopic:t(x.activeTopic||x.topic||x.lastTopic||v.activeTopic),history:Array.isArray(x.history)&&x.history.length?x.history:v.turns,continuityState:{version:VERSION,sessionKey:v.k,lastAssistantReply:v.lastAssistantReply,activeTopic:v.activeTopic,turnCount:v.turns.length,noUserFacingDiagnostics:true}}}
+function recordUser(i,q){const v=get(i),x=t(q);if(x)v.turns.push({role:"user",text:x,at:Date.now()});return put(v)}
+function recordAssistant(i,r,meta={}){const v=get(i),x=t(r),m=o(meta);if(x){v.lastAssistantReply=x;v.activeTopic=first(m.activeTopic,m.topic,v.activeTopic,x.split(/[.!?]/)[0]);v.lastIntent=first(m.intent,v.lastIntent);v.lastSubIntent=first(m.subIntent,v.lastSubIntent);v.turns.push({role:"assistant",text:x,at:Date.now()})}return put(v)}
+function hydrate(i){const x=typeof i==="string"?{text:i}:{...o(i)},v=get(x),h=Array.isArray(x.history)&&x.history.length?x.history:v.turns;return{...x,conversationId:first(x.conversationId,x.sessionId,v.k),sessionId:first(x.sessionId,x.conversationId,v.k),lastAssistantReply:first(x.lastAssistantReply,x.previousAssistantReply,v.lastAssistantReply),previousAssistantReply:first(x.previousAssistantReply,x.lastAssistantReply,v.lastAssistantReply),activeTopic:first(x.activeTopic,x.topic,x.lastTopic,v.activeTopic),previousIntent:first(x.previousIntent,v.lastIntent),previousSubIntent:first(x.previousSubIntent,v.lastSubIntent),history:h,continuityState:{version:VERSION,sessionKey:v.k,active:!!v.lastAssistantReply,lastAssistantReply:v.lastAssistantReply,activeTopic:v.activeTopic,lastIntent:v.lastIntent,lastSubIntent:v.lastSubIntent,turnCount:v.turns.length,noUserFacingDiagnostics:true}}}
 function reset(i){S.delete(key(i))}
-module.exports={VERSION,key,get,hydrate,recordUser,recordAssistant,reset};
+function snapshot(i){const v=get(i);return{version:VERSION,sessionKey:v.k,lastAssistantReply:v.lastAssistantReply,activeTopic:v.activeTopic,lastIntent:v.lastIntent,lastSubIntent:v.lastSubIntent,turnCount:v.turns.length,updatedAt:v.updatedAt||0,noUserFacingDiagnostics:true}}
+module.exports={VERSION,key,get,hydrate,recordUser,recordAssistant,reset,snapshot};
