@@ -19,7 +19,9 @@ const tts = require("./tts.js");
 const voiceRoute = require("./voiceRoute.js");
 
 const NYX_VOICE_MOUNT_VERSION =
-  "nyx.voice.utilsMount/2.0-canonical-utils-granular-idempotence";
+  "nyx.voice.utilsMount/2.1-health-contract-allowlist-hardlock";
+const NYX_VOICE_HEALTH_CONTRACT =
+  "nyx.voice.health/1.0-strict-allowlist";
 
 const CANONICAL_VOICE_ROUTES = Object.freeze([
   "/api/nyx/voice",
@@ -126,43 +128,215 @@ function registerOnce(app, mounted, method, route, handler) {
   return true;
 }
 
+const HEALTH_STRING_LIMITS = Object.freeze({
+  service: 64,
+  healthContract: 128,
+  scope: 64,
+  version: 320,
+  guideContract: 128,
+  ttsModulePath: 260,
+  ttsModuleResolvedPath: 520,
+  ttsModuleRoot: 64,
+  provider: 64,
+  loadError: 320,
+  error: 320,
+  reason: 160,
+  state: 64,
+  status: 64,
+  transport: 64,
+  transportMode: 64
+});
+
+const HEALTH_BOOLEAN_KEYS = Object.freeze([
+  "ok",
+  "enabled",
+  "ready",
+  "configured",
+  "degraded",
+  "ttsModuleLoaded",
+  "ttsDelegateBound",
+  "ttsHealthBound",
+  "voiceConfigured",
+  "clientVoiceOverrideAllowed",
+  "tokenConfigured",
+  "endpointConfigured",
+  "synthEndpointConfigured",
+  "streamEndpointConfigured",
+  "circuitOpen"
+]);
+
+const HEALTH_NUMBER_KEYS = Object.freeze([
+  "providerStatus",
+  "retryAfterMs",
+  "lastSuccessAt",
+  "lastFailureAt"
+]);
+
+const HEALTH_STRING_KEYS = Object.freeze([
+  "service",
+  "healthContract",
+  "scope",
+  "version",
+  "guideContract",
+  "ttsModulePath",
+  "ttsModuleResolvedPath",
+  "ttsModuleRoot",
+  "provider",
+  "loadError",
+  "error",
+  "reason",
+  "state",
+  "status",
+  "transport",
+  "transportMode"
+]);
+
+function cleanHealthString(value, max) {
+  return String(value == null ? "" : value)
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max || 240);
+}
+
+function finiteHealthNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function sanitizeOperationalHealth(value, depth = 0) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? value
+      : {};
+  const out = {};
+
+  for (const key of HEALTH_BOOLEAN_KEYS) {
+    if (typeof source[key] === "boolean") out[key] = source[key];
+  }
+
+  for (const key of HEALTH_NUMBER_KEYS) {
+    const number = finiteHealthNumber(source[key]);
+    if (number !== undefined) out[key] = number;
+  }
+
+  for (const key of HEALTH_STRING_KEYS) {
+    const text = cleanHealthString(source[key], HEALTH_STRING_LIMITS[key]);
+    if (text) out[key] = text;
+  }
+
+  if (Array.isArray(source.compatibilityRoutes)) {
+    out.compatibilityRoutes = Object.freeze(
+      source.compatibilityRoutes
+        .map((item) => cleanHealthString(item, 160))
+        .filter(Boolean)
+        .slice(0, 8)
+    );
+  }
+
+  const upstreamSource =
+    source.upstream && typeof source.upstream === "object"
+      ? source.upstream
+      : source.upstreamHealth && typeof source.upstreamHealth === "object"
+        ? source.upstreamHealth
+        : null;
+  if (upstreamSource && depth < 1) {
+    const upstream = sanitizeOperationalHealth(upstreamSource, depth + 1);
+    if (Object.keys(upstream).length) out.upstream = upstream;
+  }
+
+  return out;
+}
+
+function buildHealthPayload(snapshot, scope) {
+  const sanitized = sanitizeOperationalHealth(snapshot);
+  return {
+    ok: sanitized.ok !== false,
+    service:
+      sanitized.service ||
+      (scope === "tts_compatibility" ? "nyx-tts-compatibility" : "nyx-voice"),
+    healthContract: NYX_VOICE_HEALTH_CONTRACT,
+    scope: sanitized.scope || scope,
+    version: sanitized.version || NYX_VOICE_MOUNT_VERSION,
+    enabled:
+      typeof sanitized.enabled === "boolean" ? sanitized.enabled : true,
+    guideContract: sanitized.guideContract,
+    ttsModuleLoaded: sanitized.ttsModuleLoaded,
+    ttsModulePath: sanitized.ttsModulePath,
+    ttsModuleResolvedPath: sanitized.ttsModuleResolvedPath,
+    ttsModuleRoot: sanitized.ttsModuleRoot || "utils",
+    ttsDelegateBound: sanitized.ttsDelegateBound,
+    ttsHealthBound: sanitized.ttsHealthBound,
+    voiceConfigured: sanitized.voiceConfigured,
+    clientVoiceOverrideAllowed: sanitized.clientVoiceOverrideAllowed,
+    provider: sanitized.provider,
+    loadError: sanitized.loadError,
+    error: sanitized.error,
+    compatibilityRoutes: sanitized.compatibilityRoutes,
+    upstream: sanitized.upstream,
+    canonicalVoiceRoute: "/api/nyx/voice",
+    canonicalHealthRoute: "/api/nyx/voice/health",
+    moduleRoot: "utils",
+    pathHardlock: true,
+    timestamp: Date.now()
+  };
+}
+
+function compactHealthPayload(payload) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined)
+  );
+}
+
+function applyHealthHeaders(res) {
+  try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-SB-Nyx-Voice-Health-Contract", NYX_VOICE_HEALTH_CONTRACT);
+  } catch (_) {}
+}
+
 function createHealthHandler(healthResolver, scope) {
   return async function nyxVoiceHealthHandler(_req, res) {
+    applyHealthHeaders(res);
     try {
       const health = healthResolver();
       const snapshot = health
         ? await Promise.resolve(health())
         : { ok: true, enabled: true };
 
-      const payload =
-        snapshot && typeof snapshot === "object"
-          ? { ...snapshot }
-          : { ok: true, enabled: true };
-
-      payload.scope = payload.scope || scope;
-      payload.version = payload.version || NYX_VOICE_MOUNT_VERSION;
-      payload.canonicalVoiceRoute = "/api/nyx/voice";
-      payload.canonicalHealthRoute = "/api/nyx/voice/health";
-      payload.moduleRoot = "utils";
-      payload.pathHardlock = true;
+      const payload = compactHealthPayload(
+        buildHealthPayload(snapshot, scope)
+      );
 
       return res
         .status(payload.ok === false ? 503 : 200)
         .json(payload);
     } catch (error) {
-      return res.status(503).json({
-        ok: false,
-        scope,
-        version: NYX_VOICE_MOUNT_VERSION,
-        error: String(
-          (error && (error.message || error)) ||
-            "nyx_voice_health_failed"
-        ),
-        canonicalVoiceRoute: "/api/nyx/voice",
-        canonicalHealthRoute: "/api/nyx/voice/health",
-        moduleRoot: "utils",
-        pathHardlock: true
-      });
+      return res.status(503).json(
+        compactHealthPayload({
+          ok: false,
+          service:
+            scope === "tts_compatibility"
+              ? "nyx-tts-compatibility"
+              : "nyx-voice",
+          healthContract: NYX_VOICE_HEALTH_CONTRACT,
+          scope,
+          version: NYX_VOICE_MOUNT_VERSION,
+          enabled: false,
+          error: cleanHealthString(
+            (error && (error.message || error)) ||
+              "nyx_voice_health_failed",
+            HEALTH_STRING_LIMITS.error
+          ),
+          canonicalVoiceRoute: "/api/nyx/voice",
+          canonicalHealthRoute: "/api/nyx/voice/health",
+          moduleRoot: "utils",
+          pathHardlock: true,
+          timestamp: Date.now()
+        })
+      );
     }
   };
 }
@@ -239,6 +413,7 @@ function mountNyxVoice(app, options) {
 module.exports = mountNyxVoice;
 module.exports.mountNyxVoice = mountNyxVoice;
 module.exports.VERSION = NYX_VOICE_MOUNT_VERSION;
+module.exports.HEALTH_CONTRACT = NYX_VOICE_HEALTH_CONTRACT;
 module.exports.routes = Object.freeze([
   ...CANONICAL_VOICE_ROUTES,
   ...COMPATIBILITY_TTS_ROUTES,
@@ -250,3 +425,5 @@ module.exports.compatibilityRoutes = COMPATIBILITY_TTS_ROUTES;
 module.exports.healthRoutes = CANONICAL_HEALTH_ROUTES;
 module.exports.compatibilityHealthRoutes = COMPATIBILITY_HEALTH_ROUTES;
 module.exports.normalizeMountOptions = normalizeMountOptions;
+module.exports.sanitizeOperationalHealth = sanitizeOperationalHealth;
+module.exports.buildHealthPayload = buildHealthPayload;
