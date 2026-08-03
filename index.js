@@ -1,5 +1,6 @@
 "use strict";
 
+// NYX-VOICE-OPERATIONAL-HEALTH-ISOLATION-V1: keep machine-readable Nyx/TTS health contracts outside global conversation projection.
 // NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./utils before all final not_found guards.
 
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: public media discovery bypasses all R18C law projection and response-edge mutation.
@@ -1030,7 +1031,9 @@ function buildNyxGuidePublicConfig(req) {
     routes: {
       chat: "/api/chat",
       tts: "/api/tts",
-      voice: "/api/voice",
+      ttsHealth: "/api/tts/health",
+      voice: "/api/nyx/voice",
+      voiceHealth: "/api/nyx/voice/health",
       guideHealth: "/api/nyx/guide/health",
       actionsSchema: "/api/nyx/guide/actions/schema",
       actionsValidate: "/api/nyx/guide/actions/validate",
@@ -27389,31 +27392,80 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 })();
 /* R18C_FULL_STACK_INDEX_TRANSPORT_GUARD_END */
 
-/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V3_START
- * Hard namespace isolation for machine-readable Sandblast TV and NYX
- * ecosystem operational JSON. Prevents global Marion/NYX conversation,
- * identity and voice projectors from mutating these API contracts.
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_START
+ * Hard namespace isolation for machine-readable Sandblast TV, Nyx ecosystem,
+ * Nyx voice/TTS health and adjacent Nyx operational-health JSON.
+ *
+ * These routes must bypass every global Marion/Nyx conversation, identity,
+ * memory and voice-text-parity response projector. The route handlers remain
+ * authoritative for their own strict response contracts.
  */
-function isNyxEcosystemOperationalResponseV1(req) {
-  const requestPath = String(
+const OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_VERSION =
+  "nyx.operationalResponseProjectionBoundary/4.0-voice-health-isolation";
+
+const NYX_OPERATIONAL_HEALTH_PATHS_V1 = Object.freeze([
+  "/api/nyx/voice/health",
+  "/nyx/voice/health",
+  "/api/tts/health",
+  "/tts/health",
+  "/api/nyx/voice/transcript/health",
+  "/nyx/voice/transcript/health",
+  "/api/nyx/guide/health",
+  "/nyx/guide/health",
+  "/api/nyx/guide/release/health",
+  "/nyx/guide/release/health"
+]);
+
+function normalizeOperationalResponsePathV4(req) {
+  const raw = String(
     (req && (req.originalUrl || req.url || req.path)) || ""
-  ).split("?")[0].toLowerCase();
+  )
+    .split("?")[0]
+    .trim()
+    .toLowerCase();
+
+  if (!raw) return "";
+  return raw.length > 1 ? raw.replace(/\/+$/g, "") : raw;
+}
+
+function isNyxOperationalHealthResponseV1(req) {
+  return NYX_OPERATIONAL_HEALTH_PATHS_V1.includes(
+    normalizeOperationalResponsePathV4(req)
+  );
+}
+
+function isNyxEcosystemOperationalResponseV1(req) {
+  const requestPath = normalizeOperationalResponsePathV4(req);
 
   return requestPath === "/api/nyx/ecosystem" ||
     requestPath.startsWith("/api/nyx/ecosystem/");
 }
 
 function isSandblastTvOperationalResponseV2(req) {
-  const requestPath = String(
-    (req && (req.originalUrl || req.url || req.path)) || ""
-  ).split("?")[0].toLowerCase();
+  const requestPath = normalizeOperationalResponsePathV4(req);
 
   const sandblastTvOperational = requestPath === "/api/sandblast-tv/v1" ||
     requestPath.startsWith("/api/sandblast-tv/v1/");
 
-  return sandblastTvOperational || isNyxEcosystemOperationalResponseV1(req);
+  return sandblastTvOperational ||
+    isNyxEcosystemOperationalResponseV1(req) ||
+    isNyxOperationalHealthResponseV1(req);
 }
-/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V3_END */
+
+try {
+  app.locals = app.locals || {};
+  app.locals.operationalResponseProjectionBoundary = Object.freeze({
+    version: OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_VERSION,
+    active: true,
+    voiceHealthIsolation: true,
+    protectedHealthPaths: NYX_OPERATIONAL_HEALTH_PATHS_V1
+  });
+  module.exports.OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_VERSION =
+    OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_VERSION;
+  module.exports.NYX_OPERATIONAL_HEALTH_PATHS =
+    NYX_OPERATIONAL_HEALTH_PATHS_V1;
+} catch (_) {}
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_END */
 
 /* R18C_LIVE_HANDLER_REPAIR_START */
 (function(){
@@ -28765,14 +28817,14 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldJson.call(this, body);
+        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
         try { const info = classify(this && this.req); if (info) body = project(body, info); } catch (_) {}
         return oldJson.call(this, body);
       };
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldSend.call(this, body);
+        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classify(this && this.req);
           if (info) {
@@ -28791,7 +28843,7 @@ try {
 
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
+        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classify(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
@@ -28990,7 +29042,7 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldJson.call(this, body);
+        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) body = projectR5(body, info);
@@ -29000,7 +29052,7 @@ try {
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldSend.call(this, body);
+        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) {
@@ -29018,7 +29070,7 @@ try {
     }
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
+        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
