@@ -1,5 +1,7 @@
 "use strict";
 
+// NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./utils before all final not_found guards.
+
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: public media discovery bypasses all R18C law projection and response-edge mutation.
 // NYX-PUBLIC-MEDIA-RESPONSE-CONTRACT-R5.1: preserve explicit answer-only action metadata through final public projection.
 // NYX-MEDIA-CATALOG-RETRIEVAL-R6: read growing movie/cartoon manifests dynamically and answer with live titles.
@@ -756,8 +758,79 @@ app.use((req, res, next) => {
 });
 /* LINGOSENTINEL_WEBFLOW_PUBLIC_TRANSLATION_CORS_END */
 
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+
+/* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_START
+ * Canonical Nyx voice routes are mounted directly on the root Express app.
+ * The existing index-owned /api/tts and /tts routes remain authoritative;
+ * therefore compatibility TTS registration is explicitly disabled here.
+ * This block must remain after body parsers and before every final 404 guard.
+ */
+const NYX_VOICE_UTILS_EARLY_MOUNT_VERSION =
+  "nyx.voice.indexEarlyMount/1.0-utils-path-hardlock";
+
+function mountNyxVoiceUtilsEarly(appInstance) {
+  const status = {
+    ok: false,
+    mounted: false,
+    version: NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
+    requestedPath: "./utils/nyxVoiceMount.js",
+    resolvedPath: "",
+    moduleRoot: "utils",
+    pathHardlock: true,
+    canonicalVoiceRoute: "/api/nyx/voice",
+    canonicalHealthRoute: "/api/nyx/voice/health",
+    compatibilityTtsOwnedByIndex: true,
+    mountedAt: 0,
+    error: ""
+  };
+
+  try {
+    const requestedPath = "./utils/nyxVoiceMount.js";
+    const resolvedPath = require.resolve(requestedPath);
+    const loaded = require(resolvedPath);
+    const mount =
+      typeof loaded === "function"
+        ? loaded
+        : loaded && typeof loaded.mountNyxVoice === "function"
+          ? loaded.mountNyxVoice
+          : null;
+
+    if (!mount) {
+      throw new TypeError(
+        "utils/nyxVoiceMount.js does not export mountNyxVoice(app, options)."
+      );
+    }
+
+    mount(appInstance, {
+      canonicalVoiceRoutes: true,
+      compatibilityTtsRoutes: false,
+      canonicalHealthRoutes: true,
+      compatibilityHealthRoutes: false
+    });
+
+    status.ok = true;
+    status.mounted = true;
+    status.resolvedPath = path.relative(__dirname, resolvedPath).replace(/\\/g, "/");
+    status.mountVersion = String(loaded.VERSION || "");
+    status.mountedAt = Date.now();
+  } catch (error) {
+    status.error = String(
+      (error && (error.code || error.message || error)) ||
+        "nyx_voice_utils_mount_failed"
+    ).slice(0, 500);
+    console.error("[Sandblast][nyx-voice-utils-early-mount]", status.error);
+  }
+
+  appInstance.locals = appInstance.locals || {};
+  appInstance.locals.nyxVoiceUtilsMount = Object.freeze({ ...status });
+  return appInstance.locals.nyxVoiceUtilsMount;
+}
+
+const NYX_VOICE_UTILS_MOUNT_STATUS = mountNyxVoiceUtilsEarly(app);
+/* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_END */
 
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_START
  * This specific public router must be registered before the generic /api
@@ -803,10 +876,10 @@ const NYX_GUIDE_RUNTIME_FILES = Object.freeze([
   "Utils/chatEngine.js",
   "Utils/domainRouter.js",
   "Utils/stateSpine.js",
-  "Routes/voiceRoute.js",
+  "utils/voiceRoute.js",
   "Data/marion/runtime/composeMarionResponse.js",
   "Data/marion/runtime/DomainConcierge.js",
-  "Data/marion/runtime/nyx_state_controller.js",
+  "utils/nyx_state_controller.js",
   "Data/marion/runtime/NyxAnimationEngineAdapter.js",
   "Data/marion/runtime/NyxSpeechTimingAdapter.js",
   "Data/marion/runtime/NyxEmotionMotionBridge.js"
@@ -1730,12 +1803,12 @@ app.locals.nyxGuideSteps789 = {
   function guardedLoad(paths){let error="";for(const p of paths){try{const mod=require(p);if(mod)return{ok:true,path:p,mod};}catch(e){error=text(e&&e.code||e&&e.message,80);}}return{ok:false,path:"",mod:null,error};}
   const moduleChecks=Object.freeze({
     stateSpine:guardedLoad(["./Utils/stateSpine.js","./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
-    voiceRoute:guardedLoad(["./Routes/voiceRoute.js","./routes/voiceRoute.js"]),
+    voiceRoute:guardedLoad(["./utils/voiceRoute.js"]),
     chatEngine:guardedLoad(["./Utils/chatEngine.js","./utils/chatEngine.js"]),
     domainRouter:guardedLoad(["./Utils/domainRouter.js","./utils/domainRouter.js"]),
     domainConcierge:guardedLoad(["./DomainConcierge.js","./Data/marion/runtime/DomainConcierge.js"]),
     intentRouter:guardedLoad(["./marionIntentRouter.js","./Data/marion/runtime/marionIntentRouter.js"]),
-    stateController:guardedLoad(["./nyx_state_controller.js","./Data/marion/runtime/nyx_state_controller.js"])
+    stateController:guardedLoad(["./utils/nyx_state_controller.js"])
   });
   function moduleReady(name,check){if(!check.ok)return false;const m=check.mod,keys=Object.keys(m||{});if(name==="stateSpine")return keys.includes("normalizeNyxGuideExecutionState")||keys.includes("NYX_GUIDE_STEPS_10_11_12_STATE_VERSION");if(name==="voiceRoute")return !!(m.NYX_GUIDE_STEPS_10_11_12_VOICE_VERSION||m.normalizeGuideExecutionBoundary);if(name==="chatEngine")return !!(m.NYX_GUIDE_STEPS_10_11_12_CHAT_VERSION||m.attachNyxGuideExecutionBoundary);if(name==="domainRouter")return !!(m.NYX_GUIDE_STEPS_10_11_12_ROUTER_VERSION||m.attachNyxGuideRouteBoundary);if(name==="domainConcierge")return !!(m.NYX_GUIDE_STEPS_10_11_12_CONCIERGE_VERSION||m.buildNyxGuideExecutionBoundary);if(name==="intentRouter")return !!(m.NYX_GUIDE_STEPS_10_11_12_INTENT_VERSION||m.attachNyxGuideIntentExecution);if(name==="stateController")return !!(m.NYX_GUIDE_STEPS_10_11_12_CONTROLLER_VERSION||m.prototype&&m.prototype.beginGuideAction);return false;}
   function readiness(){const bridge=nyxGuide789Bridge();const bridgeReady=!!(bridge&&typeof bridge.buildGuideActionPlan==="function"&&typeof bridge.buildContinuityEnvelope==="function"&&typeof bridge.sanitizeNyxGuideTelemetryEvent==="function");const modules={};let moduleCount=0;for(const [name,check] of Object.entries(moduleChecks)){const ready=moduleReady(name,check);modules[name]={loaded:check.ok,ready,path:check.path||"",errorCode:check.ok?"":check.error||"unavailable"};if(ready)moduleCount+=1;}const featuresReady=FEATURES.enabled&&FEATURES.execution&&FEATURES.stateValidation&&FEATURES.releaseGate&&!FEATURES.rollbackSafeMode;const releaseReady=featuresReady&&bridgeReady&&moduleCount===Object.keys(moduleChecks).length;return{releaseReady,featuresReady,bridgeReady,moduleCount,moduleTotal:Object.keys(moduleChecks).length,modules};}
@@ -9265,29 +9338,11 @@ const supportResponseMod = tryRequireMany([
 ]);
 
 const voiceRouteMod = tryRequireMany([
-  "./voiceRoute",
-  "./voiceRoute.js",
-  "./Routes/voiceRoute",
-  "./Routes/voiceRoute.js",
-  "./routes/voiceRoute",
-  "./routes/voiceRoute.js",
-  "./utils/voiceRoute",
-  "./utils/voiceRoute.js",
-  "./Utils/voiceRoute",
-  "./Utils/voiceRoute.js"
+  "./utils/voiceRoute.js"
 ]);
 
 const ttsLoadStatus = tryRequireManyWithStatus([
-  "./Utils/tts",
-  "./Utils/tts.js",
-  "./utils/tts",
-  "./utils/tts.js",
-  "./Routes/tts",
-  "./Routes/tts.js",
-  "./routes/tts",
-  "./routes/tts.js",
-  "./tts",
-  "./tts.js"
+  "./utils/tts.js"
 ]);
 const ttsMod = ttsLoadStatus.mod;
 try {
@@ -24069,6 +24124,19 @@ function startSandblastServer(port = PORT) {
       });
     } catch (_) {}
     try {
+      console.log("[Sandblast][nyx-voice-utils-mount]", {
+        ok: NYX_VOICE_UTILS_MOUNT_STATUS.ok === true,
+        mounted: NYX_VOICE_UTILS_MOUNT_STATUS.mounted === true,
+        requestedPath: NYX_VOICE_UTILS_MOUNT_STATUS.requestedPath,
+        resolvedPath: NYX_VOICE_UTILS_MOUNT_STATUS.resolvedPath,
+        moduleRoot: NYX_VOICE_UTILS_MOUNT_STATUS.moduleRoot,
+        canonicalVoiceRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalVoiceRoute,
+        canonicalHealthRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalHealthRoute,
+        compatibilityTtsOwnedByIndex: true,
+        error: NYX_VOICE_UTILS_MOUNT_STATUS.error || ""
+      });
+    } catch (_) {}
+    try {
       const emotionHealth = getMarionEmotionRuntimeHealth();
       console.log("[Sandblast][marion-emotion-runtime]", {
         ok: !!emotionHealth.ok,
@@ -24119,6 +24187,9 @@ module.exports = {
   gracefulShutdown,
   PORT,
   INDEX_VERSION,
+  NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
+  NYX_VOICE_UTILS_MOUNT_STATUS,
+  mountNyxVoiceUtilsEarly,
   PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION,
   NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
   SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
