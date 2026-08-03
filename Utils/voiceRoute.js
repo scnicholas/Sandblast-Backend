@@ -8,7 +8,9 @@
  * and never exposes the configured voice identifier.
  */
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.9.0 GUIDE-CONTEXT-ACTIONS + BINARY-INTEGRITY + CROSS-PROPERTY-CONTINUITY + TELEVISION-SAFE-VOICE";
+const VOICE_ROUTE_VERSION = "voiceRoute v1.9.1 HEALTH-CONTRACT-ALLOWLIST + GUIDE-CONTEXT-ACTIONS + BINARY-INTEGRITY + CROSS-PROPERTY-CONTINUITY + TELEVISION-SAFE-VOICE";
+const NYX_VOICE_HEALTH_CONTRACT =
+  "nyx.voice.health/1.0-strict-allowlist";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Math.min(1, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 0)));
 const DEFAULT_PROVIDER = String(process.env.SB_TTS_PROVIDER || "resemble").trim() || "resemble";
 const DEFAULT_VOICE_UUID = String(
@@ -594,11 +596,73 @@ function applyCors(req, res) {
   setHeaderSafe(res, "Access-Control-Expose-Headers", "X-SB-Voice-Route-Version,X-SB-TTS-Provider,X-SB-TTS-Upstream-Status,X-SB-TTS-Playable,X-SB-TTS-Audio-Signature,X-SB-Guide-State");
 }
 
+const TTS_HEALTH_BOOLEAN_KEYS = Object.freeze([
+  "ok",
+  "enabled",
+  "ready",
+  "configured",
+  "degraded",
+  "tokenConfigured",
+  "voiceConfigured",
+  "endpointConfigured",
+  "synthEndpointConfigured",
+  "streamEndpointConfigured",
+  "circuitOpen"
+]);
+
+const TTS_HEALTH_NUMBER_KEYS = Object.freeze([
+  "providerStatus",
+  "retryAfterMs",
+  "lastSuccessAt",
+  "lastFailureAt"
+]);
+
+const TTS_HEALTH_STRING_KEYS = Object.freeze([
+  "service",
+  "version",
+  "provider",
+  "transport",
+  "transportMode",
+  "state",
+  "status",
+  "reason",
+  "error",
+  "loadError"
+]);
+
+function sanitizeTtsHealth(value) {
+  const source = safeObj(value);
+  const out = {};
+
+  for (const key of TTS_HEALTH_BOOLEAN_KEYS) {
+    if (typeof source[key] === "boolean") out[key] = source[key];
+  }
+
+  for (const key of TTS_HEALTH_NUMBER_KEYS) {
+    const number = Number(source[key]);
+    if (Number.isFinite(number)) out[key] = number;
+  }
+
+  for (const key of TTS_HEALTH_STRING_KEYS) {
+    const text = cleanText(source[key], key === "version" ? 320 : 180);
+    if (text) out[key] = text;
+  }
+
+  return out;
+}
+
 async function health() {
   try {
     const info = ttsHealth ? await Promise.resolve(ttsHealth()) : null;
+    const upstream = sanitizeTtsHealth(info);
+    const upstreamOk =
+      typeof upstream.ok === "boolean" ? upstream.ok : true;
+
     return {
-      ok: !!delegateTts && (!info || info.ok !== false),
+      ok: !!delegateTts && upstreamOk,
+      service: "nyx-voice",
+      healthContract: NYX_VOICE_HEALTH_CONTRACT,
+      scope: "nyx_voice",
       enabled: !!delegateTts,
       version: VOICE_ROUTE_VERSION,
       guideContract: "nyx.guideShell/1.0",
@@ -615,14 +679,36 @@ async function health() {
       clientVoiceOverrideAllowed: ALLOW_CLIENT_VOICE_OVERRIDE,
       provider: DEFAULT_PROVIDER,
       loadError: ttsLoadError || undefined,
-      tts: info && typeof info === "object" ? info : null
+      upstream: Object.keys(upstream).length ? upstream : undefined,
+      moduleRoot: "utils",
+      pathHardlock: true,
+      timestamp: Date.now()
     };
   } catch (err) {
     return {
       ok: false,
+      service: "nyx-voice",
+      healthContract: NYX_VOICE_HEALTH_CONTRACT,
+      scope: "nyx_voice",
       enabled: !!delegateTts,
       version: VOICE_ROUTE_VERSION,
-      error: cleanText(err && (err.message || err) || "tts_health_failed", 300)
+      ttsModuleLoaded: !!ttsMod,
+      ttsModulePath: ttsLoad.path || undefined,
+      ttsModuleResolvedPath: ttsLoad.resolvedPath || undefined,
+      ttsModuleRoot: ttsLoad.moduleRoot || "utils",
+      ttsDelegateBound: !!delegateTts,
+      ttsHealthBound: !!ttsHealth,
+      voiceConfigured: !!DEFAULT_VOICE_UUID,
+      provider: DEFAULT_PROVIDER,
+      error: cleanText(
+        err && (err.message || err) || "tts_health_failed",
+        300
+      ),
+      canonicalVoiceRoute: "/api/nyx/voice",
+      canonicalHealthRoute: "/api/nyx/voice/health",
+      moduleRoot: "utils",
+      pathHardlock: true,
+      timestamp: Date.now()
     };
   }
 }
@@ -730,11 +816,13 @@ module.exports.getHealth = health;
 module.exports.status = health;
 module.exports.resolveTtsDelegate = resolveTtsDelegate;
 module.exports.resolveTtsHealth = resolveTtsHealth;
+module.exports.sanitizeTtsHealth = sanitizeTtsHealth;
 module.exports.normalizeDelegateResult = normalizeDelegateResult;
 module.exports.normalizeGuideContext = normalizeGuideContext;
 module.exports.normalizeGuideActions = normalizeGuideActions;
 module.exports.detectAudio = detectAudio;
 module.exports.VOICE_ROUTE_VERSION = VOICE_ROUTE_VERSION;
+module.exports.NYX_VOICE_HEALTH_CONTRACT = NYX_VOICE_HEALTH_CONTRACT;
 
 /* NYX_VOICE_ROUTE_CONTINUITY_TV_STEPS_5_6_R1_START */
 ;(function () {
