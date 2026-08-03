@@ -1364,3 +1364,240 @@ if (typeof module !== "undefined" && module.exports) {
   C.NYX_GUIDE_STEPS_10_11_12_CONTROLLER_VERSION=V;C.NYX_GUIDE_EXECUTION_CONTRACT=EC;C.NYX_GUIDE_STATE_TRANSITION_CONTRACT=SC;C.NYX_GUIDE_RELEASE_GATE_CONTRACT=RC;if(typeof module!=="undefined"&&module.exports){module.exports.NYX_GUIDE_STEPS_10_11_12_CONTROLLER_VERSION=V;module.exports.NYX_GUIDE_EXECUTION_CONTRACT=EC;module.exports.NYX_GUIDE_STATE_TRANSITION_CONTRACT=SC;module.exports.NYX_GUIDE_RELEASE_GATE_CONTRACT=RC}
 })();
 /* NYX_GUIDE_ORCHESTRATION_STEPS_10_11_12_R1_END */
+
+/* NYX_CONVERSATION_CONTINUITY_BROKER_R1_START */
+;(function () {
+  "use strict";
+
+  const Controller =
+    typeof module !== "undefined" && module.exports
+      ? (module.exports.default || module.exports)
+      : (typeof NyxStateController !== "undefined" ? NyxStateController : null);
+
+  if (!Controller || Controller.NYX_CONVERSATION_CONTINUITY_BROKER_VERSION) return;
+
+  const VERSION = "nyx.stateController.conversationContinuity/1.0";
+  const TTL_MS = 2 * 60 * 60 * 1000;
+  const MAX_SESSIONS = 500;
+  const MAX_TURNS = 32;
+  const sessions = new Map();
+
+  function clean(value) {
+    try {
+      return String(value == null ? "" : value)
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function obj(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  }
+
+  function first() {
+    for (const value of arguments) {
+      const text = clean(value);
+      if (text) return text;
+    }
+    return "";
+  }
+
+  function sessionKey(input) {
+    const root = obj(input);
+    const payload = obj(root.payload);
+    const body = obj(root.body);
+    const meta = obj(root.meta);
+    const session = obj(root.session);
+    const context = obj(root.context);
+    const request = obj(root.request);
+
+    return first(
+      root.conversationId,
+      root.sessionId,
+      root.clientSessionId,
+      root.threadId,
+      root.traceId,
+      payload.conversationId,
+      payload.sessionId,
+      payload.clientSessionId,
+      payload.threadId,
+      body.conversationId,
+      body.sessionId,
+      session.id,
+      session.sessionId,
+      context.sessionId,
+      meta.sessionId,
+      request.sessionId,
+      "public-default"
+    ).slice(0, 180);
+  }
+
+  function purge() {
+    const now = Date.now();
+    for (const [key, state] of sessions) {
+      if (!state || now - Number(state.updatedAt || 0) > TTL_MS) sessions.delete(key);
+    }
+    while (sessions.size > MAX_SESSIONS) {
+      const key = sessions.keys().next().value;
+      if (key === undefined) break;
+      sessions.delete(key);
+    }
+  }
+
+  function read(input) {
+    purge();
+    const key = sessionKey(input);
+    const existing = sessions.get(key) || {
+      turns: [],
+      lastAssistantReply: "",
+      activeTopic: "",
+      lastIntent: "",
+      lastSubIntent: "",
+      updatedAt: 0
+    };
+    sessions.delete(key);
+    sessions.set(key, existing);
+    return {
+      key,
+      ...existing,
+      turns: Array.isArray(existing.turns) ? existing.turns.slice() : []
+    };
+  }
+
+  function write(state) {
+    state.updatedAt = Date.now();
+    state.turns = (Array.isArray(state.turns) ? state.turns : []).slice(-MAX_TURNS);
+    sessions.set(state.key, state);
+    purge();
+    return state;
+  }
+
+  function inferTopic(reply) {
+    const text = clean(reply);
+    return text ? text.split(/[.!?]/)[0].trim().slice(0, 160) : "";
+  }
+
+  function recordUser(input, prompt) {
+    const state = read(input);
+    const text = clean(prompt);
+    if (text) state.turns.push({ role: "user", text, at: Date.now() });
+    return write(state);
+  }
+
+  function recordAssistant(input, reply, metadata = {}) {
+    const state = read(input);
+    const text = clean(reply);
+    const meta = obj(metadata);
+
+    if (text) {
+      state.lastAssistantReply = text;
+      state.activeTopic = first(meta.activeTopic, meta.topic, state.activeTopic, inferTopic(text));
+      state.lastIntent = first(meta.intent, state.lastIntent);
+      state.lastSubIntent = first(meta.subIntent, state.lastSubIntent);
+      state.turns.push({ role: "assistant", text, at: Date.now() });
+    }
+    return write(state);
+  }
+
+  function hydrate(input) {
+    const source = typeof input === "string" ? { text: input } : { ...obj(input) };
+    const state = read(source);
+    const suppliedHistory = Array.isArray(source.history) ? source.history : [];
+
+    return {
+      ...source,
+      conversationId: first(source.conversationId, source.sessionId, state.key),
+      sessionId: first(source.sessionId, source.conversationId, state.key),
+      lastAssistantReply: first(
+        source.lastAssistantReply,
+        source.previousAssistantReply,
+        state.lastAssistantReply
+      ),
+      previousAssistantReply: first(
+        source.previousAssistantReply,
+        source.lastAssistantReply,
+        state.lastAssistantReply
+      ),
+      activeTopic: first(
+        source.activeTopic,
+        source.topic,
+        source.lastTopic,
+        state.activeTopic
+      ),
+      previousIntent: first(source.previousIntent, state.lastIntent),
+      previousSubIntent: first(source.previousSubIntent, state.lastSubIntent),
+      history: suppliedHistory.length ? suppliedHistory.slice(-MAX_TURNS) : state.turns.slice(),
+      continuityState: {
+        version: VERSION,
+        sessionKey: state.key,
+        active: !!state.lastAssistantReply,
+        lastAssistantReply: state.lastAssistantReply,
+        activeTopic: state.activeTopic,
+        lastIntent: state.lastIntent,
+        lastSubIntent: state.lastSubIntent,
+        turnCount: state.turns.length,
+        noUserFacingDiagnostics: true
+      }
+    };
+  }
+
+  function reset(input) {
+    sessions.delete(sessionKey(input));
+  }
+
+  function snapshot(input) {
+    const state = read(input);
+    return {
+      version: VERSION,
+      sessionKey: state.key,
+      lastAssistantReply: state.lastAssistantReply,
+      activeTopic: state.activeTopic,
+      lastIntent: state.lastIntent,
+      lastSubIntent: state.lastSubIntent,
+      turnCount: state.turns.length,
+      updatedAt: state.updatedAt || 0,
+      noUserFacingDiagnostics: true
+    };
+  }
+
+  const broker = Object.freeze({
+    VERSION,
+    sessionKey,
+    read,
+    hydrate,
+    recordUser,
+    recordAssistant,
+    reset,
+    snapshot
+  });
+
+  Controller.NYX_CONVERSATION_CONTINUITY_BROKER_VERSION = VERSION;
+  Controller.conversationContinuity = broker;
+
+  if (Controller.prototype) {
+    Controller.prototype.hydrateConversationContinuity = function (input) {
+      return broker.hydrate(input);
+    };
+    Controller.prototype.recordConversationUserTurn = function (input, prompt) {
+      return broker.recordUser(input, prompt);
+    };
+    Controller.prototype.recordConversationAssistantTurn = function (input, reply, metadata) {
+      return broker.recordAssistant(input, reply, metadata);
+    };
+    Controller.prototype.getConversationContinuitySnapshot = function (input) {
+      return broker.snapshot(input);
+    };
+    Controller.prototype.resetConversationContinuity = function (input) {
+      return broker.reset(input);
+    };
+  }
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports.conversationContinuity = broker;
+    module.exports.NYX_CONVERSATION_CONTINUITY_BROKER_VERSION = VERSION;
+  }
+})();
+/* NYX_CONVERSATION_CONTINUITY_BROKER_R1_END */
