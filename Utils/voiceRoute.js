@@ -8,9 +8,11 @@
  * and never exposes the configured voice identifier.
  */
 
-const VOICE_ROUTE_VERSION = "voiceRoute v1.9.1 HEALTH-CONTRACT-ALLOWLIST + GUIDE-CONTEXT-ACTIONS + BINARY-INTEGRITY + CROSS-PROPERTY-CONTINUITY + TELEVISION-SAFE-VOICE";
+const VOICE_ROUTE_VERSION = "voiceRoute v1.10.0 VOICE-TEXT-PARITY-HARDLOCK + HEALTH-CONTRACT-ALLOWLIST + GUIDE-CONTEXT-ACTIONS + BINARY-INTEGRITY + CROSS-PROPERTY-CONTINUITY + TELEVISION-SAFE-VOICE";
 const NYX_VOICE_HEALTH_CONTRACT =
   "nyx.voice.health/1.0-strict-allowlist";
+const NYX_VOICE_TEXT_PARITY_CONTRACT =
+  "nyx.voiceTextParity/1.0";
 const MAX_RETRY_ATTEMPTS = Math.max(0, Math.min(1, Number(process.env.SB_VOICE_ROUTE_MAX_RETRY || 0)));
 const DEFAULT_PROVIDER = String(process.env.SB_TTS_PROVIDER || "resemble").trim() || "resemble";
 const DEFAULT_VOICE_UUID = String(
@@ -93,6 +95,20 @@ function loadLocalTtsDependency() {
 const ttsLoad = loadLocalTtsDependency();
 const ttsMod = ttsLoad.mod;
 const ttsLoadError = ttsLoad.error;
+
+function normalizeInputSource(value) {
+  const source = cleanText(value || "text", 24)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_");
+  if (["voice", "mic", "microphone", "speech", "audio", "voice_input"].includes(source)) {
+    return "voice";
+  }
+  return "text";
+}
+
+function normalizeParityText(value) {
+  return cleanText(value, 5000);
+}
 
 function normalizeGuideState(value) {
   const state = cleanText(value || "available", 32).toLowerCase().replace(/[^a-z0-9_-]+/g, "");
@@ -272,7 +288,44 @@ function normalizeInput(req) {
   const body = safeObj(req && req.body);
   const query = safeObj(req && req.query);
   const headers = safeObj(req && req.headers);
-  const inputSource = cleanText(pickFirst(body.inputSource, query.inputSource, headers["x-sb-input-source"], "text"), 24).toLowerCase();
+  const inputSource = normalizeInputSource(
+    pickFirst(body.inputSource, body.inputMode, query.inputSource, query.inputMode, headers["x-sb-input-source"], "text")
+  );
+  const requestedSpokenText = normalizeParityText(
+    pickFirst(
+      body.spokenText,
+      body.textSpeak,
+      body.text,
+      body.message,
+      body.prompt,
+      query.spokenText,
+      query.textSpeak,
+      query.text,
+      query.message,
+      query.prompt
+    )
+  );
+  const requestedDisplayText = normalizeParityText(
+    pickFirst(
+      body.textDisplay,
+      body.displayText,
+      query.textDisplay,
+      query.displayText,
+      requestedSpokenText
+    )
+  );
+  const allowDisplaySpeechDivergence = boolish(
+    pickFirst(
+      body.allowDisplaySpeechDivergence,
+      query.allowDisplaySpeechDivergence,
+      headers["x-sb-allow-display-speech-divergence"]
+    ),
+    false
+  );
+  const parityText = requestedSpokenText || requestedDisplayText;
+  const displayText = allowDisplaySpeechDivergence
+    ? (requestedDisplayText || parityText)
+    : parityText;
   const guideSource = safeObj(body.guideContext || query.guideContext);
   const guideContextSource = Object.keys(guideSource).length ? guideSource : {
     surface: pickFirst(body.surface, query.surface, headers["x-sb-guide-surface"], "sandblast.channel"),
@@ -294,8 +347,10 @@ function normalizeInput(req) {
   const voiceUuid = ALLOW_CLIENT_VOICE_OVERRIDE && requestedVoice ? requestedVoice : DEFAULT_VOICE_UUID;
 
   return {
-    text: cleanText(pickFirst(body.text, body.spokenText, body.textSpeak, body.message, body.prompt, query.text, query.spokenText, query.message, query.prompt), 5000),
-    textDisplay: cleanText(pickFirst(body.textDisplay, body.displayText, query.textDisplay, query.displayText), 5000),
+    text: parityText,
+    textDisplay: displayText || parityText,
+    requestedDisplayText,
+    allowDisplaySpeechDivergence,
     requestId: cleanText(pickFirst(body.requestId, query.requestId, headers["x-sb-request-id"]), 80),
     turnId: cleanText(pickFirst(body.turnId, query.turnId, headers["x-sb-turn-id"]), 80),
     traceId: cleanText(pickFirst(body.traceId, query.traceId, headers["x-sb-trace-id"], headers["x-request-id"]), 96),
@@ -430,6 +485,13 @@ async function callDelegate(req, input, attempt) {
     ...body,
     text: input.text,
     textDisplay: input.textDisplay || input.text,
+    textSpeak: input.text,
+    spokenText: input.text,
+    voiceTextParity: {
+      contract: NYX_VOICE_TEXT_PARITY_CONTRACT,
+      aligned: normalizeParityText(input.textDisplay || input.text) === normalizeParityText(input.text),
+      inputSource: input.inputSource
+    },
     requestId: input.requestId,
     turnId: input.turnId,
     traceId: input.traceId,
@@ -478,7 +540,16 @@ function classifyFailure(result, attempt) {
 function buildPlayableAudioEnvelope(input, result, buffer, audioInfo) {
   const audioUrl = extractAudioUrl(result);
   const audioBase64 = input.wantJson ? (buffer ? buffer.toString("base64") : extractAudioBase64(result)) : "";
-  const text = cleanText(pickFirst(result && result.text, result && result.textSpeak, result && result.spokenText, input.textDisplay, input.text), 5000);
+  const spokenText = normalizeParityText(
+    pickFirst(input.text, result && result.spokenText, result && result.textSpeak, result && result.text)
+  );
+  const textDisplay = normalizeParityText(
+    input.allowDisplaySpeechDivergence
+      ? pickFirst(input.textDisplay, spokenText)
+      : spokenText
+  );
+  const parityAligned = textDisplay === spokenText;
+  const text = textDisplay || spokenText;
   const mimeType = audioInfo ? audioInfo.mimeType : cleanText(result && (result.mimeType || result.mime || result.contentType), 80) || "audio/mpeg";
   const format = audioInfo ? audioInfo.format : cleanText(result && result.format, 16) || (mimeType.includes("wav") ? "wav" : "mp3");
   const playable = !!(buffer || audioUrl || audioBase64);
@@ -500,8 +571,16 @@ function buildPlayableAudioEnvelope(input, result, buffer, audioInfo) {
     format,
     signature: audioInfo && audioInfo.signature || "",
     text,
-    textSpeak: text,
-    spokenText: text,
+    textDisplay,
+    textSpeak: spokenText,
+    spokenText,
+    voiceTextParity: {
+      contract: NYX_VOICE_TEXT_PARITY_CONTRACT,
+      aligned: parityAligned,
+      inputSource: input.inputSource,
+      displayChars: textDisplay.length,
+      spokenChars: spokenText.length
+    },
     audioUrl,
     url: audioUrl,
     audioBase64,
@@ -725,6 +804,8 @@ async function voiceRoute(req, res) {
   setHeaderSafe(res, "X-SB-Guide-Actions", String(input.guideActions.length));
   setHeaderSafe(res, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   setHeaderSafe(res, "X-SB-Audio-Contract", "audio-first-v3");
+  setHeaderSafe(res, "X-SB-Voice-Text-Parity-Contract", NYX_VOICE_TEXT_PARITY_CONTRACT);
+  setHeaderSafe(res, "X-SB-Input-Source", input.inputSource);
   setHeaderSafe(res, "X-Content-Type-Options", "nosniff");
 
   let attempt = 0;
@@ -818,11 +899,14 @@ module.exports.resolveTtsDelegate = resolveTtsDelegate;
 module.exports.resolveTtsHealth = resolveTtsHealth;
 module.exports.sanitizeTtsHealth = sanitizeTtsHealth;
 module.exports.normalizeDelegateResult = normalizeDelegateResult;
+module.exports.normalizeInput = normalizeInput;
+module.exports.normalizeInputSource = normalizeInputSource;
 module.exports.normalizeGuideContext = normalizeGuideContext;
 module.exports.normalizeGuideActions = normalizeGuideActions;
 module.exports.detectAudio = detectAudio;
 module.exports.VOICE_ROUTE_VERSION = VOICE_ROUTE_VERSION;
 module.exports.NYX_VOICE_HEALTH_CONTRACT = NYX_VOICE_HEALTH_CONTRACT;
+module.exports.NYX_VOICE_TEXT_PARITY_CONTRACT = NYX_VOICE_TEXT_PARITY_CONTRACT;
 
 /* NYX_VOICE_ROUTE_CONTINUITY_TV_STEPS_5_6_R1_START */
 ;(function () {
