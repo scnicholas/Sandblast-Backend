@@ -62,7 +62,7 @@ function marionExtractReplyText(result) {
 /* MARION_SAFE_PRIMITIVE_TEXT_V1_END */
 
 /**
- * Utils/stateSpine.js
+ * utils/stateSpine.js
  *
  * stateSpine v2.0.2 MARION-STATE-RESTRUCTURE LOOP-ORIGIN-FIX SCHEMA-HANDSHAKE-FIX
  * ------------------------------------------------------------
@@ -1533,10 +1533,10 @@ function canonicalTurnInputSource(inbound = {}, params = {}) {
 function canonicalTechnicalTargetFromText(text=""){
   const t=oneLine(text);
   const mk=(targetKey,targetName,targetFile,targetPath)=>({version:"nyx.marion.technicalTargetLock/1.0",targetKey,targetName,targetFile,targetPath,explicit:true,source:"current_user_text",locked:true,technicalFollowUpLock:true,blockScheduleInterception:true});
-  if(/\b(chat\s*engine|chatengine)\b/i.test(t))return mk("chatengine","ChatEngine","chatEngine.js","Utils/chatEngine.js");
+  if(/\b(chat\s*engine|chatengine)\b/i.test(t))return mk("chatengine","ChatEngine","chatEngine.js","utils/chatEngine.js");
   if(/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t))return mk("composeMarionResponse","ComposeMarionResponse","composeMarionResponse.js","Data/marion/runtime/composeMarionResponse.js");
   if(/\b(marion\s*bridge|marionbridge)\b/i.test(t))return mk("marionBridge","MarionBridge","marionBridge.js","Data/marion/runtime/marionBridge.js");
-  if(/\b(state\s*spine|statespine|state-spine)\b/i.test(t))return mk("stateSpine","StateSpine","stateSpine.js","Utils/stateSpine.js");
+  if(/\b(state\s*spine|statespine|state-spine)\b/i.test(t))return mk("stateSpine","StateSpine","stateSpine.js","utils/stateSpine.js");
   if(/\b(intent\s*router|marionintentrouter)\b/i.test(t))return mk("marionIntentRouter","MarionIntentRouter","marionIntentRouter.js","Data/marion/runtime/marionIntentRouter.js");
   if(/\b(domain\s*router|domainrouter)\b/i.test(t))return mk("domainRouter","DomainRouter","domainRouter.js","Utils/domainRouter.js");
   if(/\b(domain\s*registry|mariondomainregistry)\b/i.test(t))return mk("marionDomainRegistry","MarionDomainRegistry","marionDomainRegistry.js","Data/marion/runtime/marionDomainRegistry.js");
