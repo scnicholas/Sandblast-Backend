@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Routes/voiceRoute.js
+ * utils/voiceRoute.js
  *
  * Nyx guide-shell voice bridge. TTS remains the synthesis authority.
  * This route normalizes public guide context, preserves binary audio integrity,
@@ -63,30 +63,32 @@ function setHeaderSafe(res, key, value) {
   } catch (_) {}
 }
 
-function tryRequireVoiceDependency(candidates) {
-  let lastError = null;
-  for (const candidate of candidates) {
-    try {
-      const resolved = require.resolve(candidate);
-      const mod = require(resolved);
-      if (mod) return { mod, path: candidate, resolvedPath: resolved, error: "" };
-    } catch (err) {
-      lastError = err;
-    }
+function loadLocalTtsDependency() {
+  const localPath = "./tts.js";
+  try {
+    const resolvedPath = require.resolve(localPath);
+    const mod = require(resolvedPath);
+    return {
+      mod: mod || null,
+      path: localPath,
+      resolvedPath,
+      moduleRoot: "utils",
+      error: mod ? "" : "utils/tts.js exported no module value."
+    };
+  } catch (err) {
+    return {
+      mod: null,
+      path: localPath,
+      resolvedPath: "",
+      moduleRoot: "utils",
+      error: cleanText(err && (err.message || err), 300)
+    };
   }
-  return {
-    mod: null,
-    path: "",
-    resolvedPath: "",
-    error: cleanText(lastError && (lastError.message || lastError), 300)
-  };
 }
 
-const ttsLoad = tryRequireVoiceDependency([
-  "../Utils/tts.js", "../Utils/tts", "../utils/tts.js", "../utils/tts",
-  "./tts.js", "./tts", "../tts.js", "../tts",
-  "../Routes/tts.js", "../Routes/tts", "../routes/tts.js", "../routes/tts"
-]);
+// Canonical hardlock: voiceRoute.js and tts.js both originate in /utils.
+// No Routes, runtime, scripts, or parent-directory fallbacks are permitted.
+const ttsLoad = loadLocalTtsDependency();
 const ttsMod = ttsLoad.mod;
 const ttsLoadError = ttsLoad.error;
 
@@ -520,8 +522,10 @@ function buildPlayableAudioEnvelope(input, result, buffer, audioInfo) {
     playback: {
       ready: playable,
       autoPlay: input.guideContext.voiceEnabled,
-      route: "/api/tts",
-      compatibilityRoute: "/tts",
+      route: "/api/nyx/voice",
+      healthRoute: "/api/nyx/voice/health",
+      compatibilityRoute: "/api/tts",
+      compatibilityRoutes: ["/api/tts", "/tts", "/nyx/voice"],
       method: "GET",
       synthesisMethod: "POST",
       mimeType,
@@ -601,6 +605,10 @@ async function health() {
       ttsModuleLoaded: !!ttsMod,
       ttsModulePath: ttsLoad.path || undefined,
       ttsModuleResolvedPath: ttsLoad.resolvedPath || undefined,
+      ttsModuleRoot: ttsLoad.moduleRoot || "utils",
+      canonicalVoiceRoute: "/api/nyx/voice",
+      canonicalHealthRoute: "/api/nyx/voice/health",
+      compatibilityRoutes: ["/api/tts", "/tts", "/nyx/voice"],
       ttsDelegateBound: !!delegateTts,
       ttsHealthBound: !!ttsHealth,
       voiceConfigured: !!DEFAULT_VOICE_UUID,
