@@ -1,5 +1,6 @@
 "use strict";
 
+// NYX-VOICE-TEXT-PARITY-TRANSPORT-ISOLATION-V1: keep canonical Nyx/TTS synthesis JSON outside global conversation projection.
 // NYX-VOICE-OPERATIONAL-HEALTH-ISOLATION-V1: keep machine-readable Nyx/TTS health contracts outside global conversation projection.
 // NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./utils before all final not_found guards.
 
@@ -874,9 +875,9 @@ const NYX_GUIDE_HEALTH_PATHS = Object.freeze([
 ]);
 const NYX_GUIDE_RUNTIME_FILES = Object.freeze([
   "sitebridge.js",
-  "Utils/chatEngine.js",
+  "utils/chatEngine.js",
   "Utils/domainRouter.js",
-  "Utils/stateSpine.js",
+  "utils/stateSpine.js",
   "utils/voiceRoute.js",
   "Data/marion/runtime/composeMarionResponse.js",
   "Data/marion/runtime/DomainConcierge.js",
@@ -1805,9 +1806,9 @@ app.locals.nyxGuideSteps789 = {
   function preflight(req,res){const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req)){res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});return null;}if(!FEATURES.enabled||FEATURES.rollbackSafeMode){res.status(503).json({ok:false,error:"guide_steps_10_12_disabled",rollbackSafeMode:FEATURES.rollbackSafeMode,traceId:trace,diagnosticsRedacted:true});return null;}if(!nyxGuide789RequestBodyWithinLimit(req)){res.status(413).json({ok:false,error:"guide_payload_too_large",traceId:trace,diagnosticsRedacted:true});return null;}const rate=nyxGuide789RateCheck(req,res,NYX_GUIDE_789_RATE_LIMIT);if(!rate.allowed){res.status(429).json({ok:false,error:"guide_rate_limited",retryAfterMs:Math.max(0,rate.resetAt-Date.now()),traceId:trace,diagnosticsRedacted:true});return null;}return{traceId:trace};}
   function guardedLoad(paths){let error="";for(const p of paths){try{const mod=require(p);if(mod)return{ok:true,path:p,mod};}catch(e){error=text(e&&e.code||e&&e.message,80);}}return{ok:false,path:"",mod:null,error};}
   const moduleChecks=Object.freeze({
-    stateSpine:guardedLoad(["./Utils/stateSpine.js","./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
+    stateSpine:guardedLoad(["./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
     voiceRoute:guardedLoad(["./utils/voiceRoute.js"]),
-    chatEngine:guardedLoad(["./Utils/chatEngine.js","./utils/chatEngine.js"]),
+    chatEngine:guardedLoad(["./utils/chatEngine.js"]),
     domainRouter:guardedLoad(["./Utils/domainRouter.js","./utils/domainRouter.js"]),
     domainConcierge:guardedLoad(["./DomainConcierge.js","./Data/marion/runtime/DomainConcierge.js"]),
     intentRouter:guardedLoad(["./marionIntentRouter.js","./Data/marion/runtime/marionIntentRouter.js"]),
@@ -5835,10 +5836,10 @@ function canonicalTechnicalTargetFromText(text = "") {
     blockScheduleInterception: true,
     outerSchedulerBypass: true
   });
-  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "Utils/chatEngine.js", "transport");
+  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "utils/chatEngine.js", "transport");
   if (/\b(marion\s*bridge|marionbridge)\b/i.test(t)) return mk("marionBridge", "MarionBridge", "marionBridge.js", "Data/marion/runtime/marionBridge.js", "bridge");
   if (/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t)) return mk("composeMarionResponse", "ComposeMarionResponse", "composeMarionResponse.js", "Data/marion/runtime/composeMarionResponse.js", "composer");
-  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
+  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "utils/stateSpine.js", "state");
   if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
   if (/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i.test(t)) return mk("marionCommandNormalizer", "MarionCommandNormalizer", "marionCommandNormalizer.js", "Data/marion/runtime/marionCommandNormalizer.js", "normalizer");
   if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
@@ -9301,14 +9302,8 @@ app.use((req, res, next) => {
 });
 
 const chatEngineMod = tryRequireMany([
-  "./chatEngine",
-  "./chatEngine.js",
-  "./ChatEngine",
-  "./ChatEngine.js",
   "./utils/chatEngine",
-  "./utils/chatEngine.js",
-  "./Utils/chatEngine",
-  "./Utils/chatEngine.js"
+  "./utils/chatEngine.js"
 ]);
 
 const universalTranslatorAdapterMod = tryRequireMany([
@@ -9859,12 +9854,8 @@ const marionNuancePhaseACoordinatorMod = tryRequireMany([
 ]);
 
 const stateSpineMod = tryRequireMany([
-  "./stateSpine",
-  "./stateSpine.js",
   "./utils/stateSpine",
-  "./utils/stateSpine.js",
-  "./Utils/stateSpine",
-  "./Utils/stateSpine.js"
+  "./utils/stateSpine.js"
 ]);
 
 const nyxPackRuntimeAdapterMod = tryRequireMany([
@@ -27392,16 +27383,17 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 })();
 /* R18C_FULL_STACK_INDEX_TRANSPORT_GUARD_END */
 
-/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_START
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_START
  * Hard namespace isolation for machine-readable Sandblast TV, Nyx ecosystem,
- * Nyx voice/TTS health and adjacent Nyx operational-health JSON.
+ * Nyx voice/TTS synthesis, and operational-health JSON.
  *
- * These routes must bypass every global Marion/Nyx conversation, identity,
- * memory and voice-text-parity response projector. The route handlers remain
- * authoritative for their own strict response contracts.
+ * Voice synthesis responses must remain outside every global Marion/Nyx
+ * conversation, identity, memory and reply projector. Otherwise visible text,
+ * spoken text and audio metadata can be mutated after the canonical voice route
+ * has already established parity.
  */
-const OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_VERSION =
-  "nyx.operationalResponseProjectionBoundary/4.0-voice-health-isolation";
+const OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_VERSION =
+  "nyx.operationalResponseProjectionBoundary/5.0-voice-text-parity-isolation";
 
 const NYX_OPERATIONAL_HEALTH_PATHS_V1 = Object.freeze([
   "/api/nyx/voice/health",
@@ -27416,7 +27408,14 @@ const NYX_OPERATIONAL_HEALTH_PATHS_V1 = Object.freeze([
   "/nyx/guide/release/health"
 ]);
 
-function normalizeOperationalResponsePathV4(req) {
+const NYX_OPERATIONAL_VOICE_PATHS_V2 = Object.freeze([
+  "/api/nyx/voice",
+  "/nyx/voice",
+  "/api/tts",
+  "/tts"
+]);
+
+function normalizeOperationalResponsePathV5(req) {
   const raw = String(
     (req && (req.originalUrl || req.url || req.path)) || ""
   )
@@ -27430,42 +27429,54 @@ function normalizeOperationalResponsePathV4(req) {
 
 function isNyxOperationalHealthResponseV1(req) {
   return NYX_OPERATIONAL_HEALTH_PATHS_V1.includes(
-    normalizeOperationalResponsePathV4(req)
+    normalizeOperationalResponsePathV5(req)
+  );
+}
+
+function isNyxOperationalVoiceResponseV2(req) {
+  return NYX_OPERATIONAL_VOICE_PATHS_V2.includes(
+    normalizeOperationalResponsePathV5(req)
   );
 }
 
 function isNyxEcosystemOperationalResponseV1(req) {
-  const requestPath = normalizeOperationalResponsePathV4(req);
+  const requestPath = normalizeOperationalResponsePathV5(req);
 
   return requestPath === "/api/nyx/ecosystem" ||
     requestPath.startsWith("/api/nyx/ecosystem/");
 }
 
 function isSandblastTvOperationalResponseV2(req) {
-  const requestPath = normalizeOperationalResponsePathV4(req);
+  const requestPath = normalizeOperationalResponsePathV5(req);
 
   const sandblastTvOperational = requestPath === "/api/sandblast-tv/v1" ||
     requestPath.startsWith("/api/sandblast-tv/v1/");
 
   return sandblastTvOperational ||
     isNyxEcosystemOperationalResponseV1(req) ||
-    isNyxOperationalHealthResponseV1(req);
+    isNyxOperationalHealthResponseV1(req) ||
+    isNyxOperationalVoiceResponseV2(req);
 }
 
 try {
   app.locals = app.locals || {};
   app.locals.operationalResponseProjectionBoundary = Object.freeze({
-    version: OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_VERSION,
+    version: OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_VERSION,
     active: true,
     voiceHealthIsolation: true,
-    protectedHealthPaths: NYX_OPERATIONAL_HEALTH_PATHS_V1
+    voiceSynthesisIsolation: true,
+    voiceTextParityIsolation: true,
+    protectedHealthPaths: NYX_OPERATIONAL_HEALTH_PATHS_V1,
+    protectedVoicePaths: NYX_OPERATIONAL_VOICE_PATHS_V2
   });
   module.exports.OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_VERSION =
-    OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_VERSION;
+    OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_VERSION;
   module.exports.NYX_OPERATIONAL_HEALTH_PATHS =
     NYX_OPERATIONAL_HEALTH_PATHS_V1;
+  module.exports.NYX_OPERATIONAL_VOICE_PATHS =
+    NYX_OPERATIONAL_VOICE_PATHS_V2;
 } catch (_) {}
-/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V4_END */
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_END */
 
 /* R18C_LIVE_HANDLER_REPAIR_START */
 (function(){
@@ -29116,8 +29127,8 @@ try {
 
   const coordinator=load("./Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js");
   const envelope=load("./Data/marion/runtime/nuance/marionNuancePhaseBEnvelope.js");
-  const chatEngine=load("./Utils/chatEngine.js");
-  const stateSpine=load("./Utils/stateSpine.js");
+  const chatEngine=load("./utils/chatEngine.js");
+  const stateSpine=load("./utils/stateSpine.js");
 
   function moduleStatus(moduleValue){
     const moduleObject=obj(moduleValue);
