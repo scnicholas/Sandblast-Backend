@@ -1,5 +1,7 @@
 "use strict";
 
+// SYNTAX-COHESION-REPAIR-V1: resolved Git conflict markers, preserved RSS-priority truth mode, and hardened story normalization.
+
 // Truth Mode bridge.
 // Legacy filename retained for compatibility.
 // Single source of truth: live For Your Life RSS service.
@@ -68,19 +70,30 @@ const DEFAULTS = {
   mode: "live_rss_only",
   maxStories: 24,
   refreshMode: "manual_refresh",
-<<<<<<< HEAD
-  bridgeTimeoutMs: Number(process.env.NEWS_CANADA_BRIDGE_TIMEOUT_MS || 45000),
-=======
-  bridgeTimeoutMs: Number(process.env.NEWS_CANADA_BRIDGE_TIMEOUT_MS || 15000),
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
+  bridgeTimeoutMs: (() => {
+    const value = Number(process.env.NEWS_CANADA_BRIDGE_TIMEOUT_MS);
+    return Number.isFinite(value) && value > 0 ? value : 45000;
+  })(),
 };
 
 function normalizeStory(item) {
   const story = item && typeof item === "object" ? { ...item } : {};
-  story.id = cleanText(story.id || story.guid || story.link || story.url || story.title);
-  story.guid = cleanText(story.guid || story.id);
-  story.slug = cleanText(story.slug || story.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""));
   story.title = cleanText(story.title || story.headline);
+  story.id = cleanText(
+    story.id ||
+    story.guid ||
+    story.link ||
+    story.url ||
+    story.title
+  );
+  story.guid = cleanText(story.guid || story.id);
+  story.slug = cleanText(
+    story.slug ||
+    story.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  );
   story.description = cleanText(story.description || story.summary || story.body || story.content || "");
   story.summary = cleanText(story.summary || story.description || "");
   story.body = cleanText(story.body || story.content || story.summary || story.description || "");
@@ -131,11 +144,8 @@ function normalizePayload(payload, servedFromHint) {
       routeContract: cleanText((src.meta && src.meta.routeContract) || "/api/newscanada/rss"),
       attemptedUrls: Array.isArray(src.meta && src.meta.attemptedUrls) ? src.meta.attemptedUrls : [],
       truthMode: true,
-<<<<<<< HEAD
         rssPriority: true,
         wpRestSecondary: false,
-=======
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
     },
   };
 }
@@ -181,7 +191,9 @@ async function getViaRssService(opts = {}, logger = console.log) {
     if (typeof RSS_SERVICE_MOD.getForYourLifeStories === "function") {
       const payload = await RSS_SERVICE_MOD.getForYourLifeStories({
         maxItems: Number(opts.limit || opts.maxStories || DEFAULTS.maxStories),
-        timeoutMs: Number(opts.timeoutMs || 30000),
+        timeoutMs: Number(opts.timeoutMs) > 0
+          ? Number(opts.timeoutMs)
+          : DEFAULTS.bridgeTimeoutMs,
         refresh: !!opts.refresh,
         clearCache: !!opts.clearCache,
         diagnostics: true,
@@ -192,7 +204,9 @@ async function getViaRssService(opts = {}, logger = console.log) {
     if (typeof RSS_SERVICE_MOD.getNewsCanadaStories === "function") {
       const payload = await RSS_SERVICE_MOD.getNewsCanadaStories({
         maxItems: Number(opts.limit || opts.maxStories || DEFAULTS.maxStories),
-        timeoutMs: Number(opts.timeoutMs || 30000),
+        timeoutMs: Number(opts.timeoutMs) > 0
+          ? Number(opts.timeoutMs)
+          : DEFAULTS.bridgeTimeoutMs,
         refresh: !!opts.refresh,
         clearCache: !!opts.clearCache,
         diagnostics: true,
@@ -229,10 +243,7 @@ function createForYourLifeFeedService(options = {}) {
           cacheFiles: listBridgeCacheFiles(),
           source: "foryourlife_truth_mode_bridge",
           mode: "live_rss_only",
-<<<<<<< HEAD
           parserMode: cleanText((fromRssService.meta && fromRssService.meta.parserMode) || "rss_xml_parser_truth_mode") || "rss_xml_parser_truth_mode",
-=======
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
           servedFrom: "rss_service_truth_mode"
         }
       };
@@ -252,21 +263,14 @@ function createForYourLifeFeedService(options = {}) {
         itemCount: 0,
         degraded: true,
         stale: true,
-<<<<<<< HEAD
         detail: "rss_primary_failed_no_returned_items",
-=======
-        detail: "live_rss_only_failed_no_returned_items",
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
         servedFrom: "truth_mode_bridge_empty",
         routeContract: "/api/newscanada/rss",
         cacheMaintenance,
         cacheFiles: listBridgeCacheFiles(),
         truthMode: true,
-<<<<<<< HEAD
         rssPriority: true,
         wpRestSecondary: false,
-=======
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
       },
     };
   }
@@ -284,11 +288,7 @@ function createForYourLifeFeedService(options = {}) {
       meta: {
         ...payload.meta,
         storyCount: stories.length,
-<<<<<<< HEAD
         detail: cleanText((payload.meta && payload.meta.detail) || (stories.length ? "rss_primary_payload_ready" : "rss_primary_empty_payload")) || (stories.length ? "rss_primary_payload_ready" : "rss_primary_empty_payload"),
-=======
-        detail: cleanText((payload.meta && payload.meta.detail) || (stories.length ? "truth_mode_payload_ready" : "truth_mode_empty_payload")) || (stories.length ? "truth_mode_payload_ready" : "truth_mode_empty_payload"),
->>>>>>> bac0eac3 (Refactor emotion folder and update paths)
       },
     };
   }
