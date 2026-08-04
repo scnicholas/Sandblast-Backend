@@ -9,8 +9,8 @@
  * - enabled source files declared by the manifest
  *
  * Usage:
- *   node scripts/validate_marion_psychology_index.js
- *   node scripts/validate_marion_psychology_index.js --root "C:/project"
+ *   node Scripts/validate_marion_psychology_index.js
+ *   node Scripts/validate_marion_psychology_index.js --root "C:/project"
  */
 
 const fs = require("fs");
