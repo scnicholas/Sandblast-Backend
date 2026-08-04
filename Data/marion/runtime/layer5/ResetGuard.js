@@ -1,10 +1,25 @@
-<<<<<<< HEAD
 "use strict";
 
-function _safeObj(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+/**
+ * ResetGuard.js
+ *
+ * Prevents destructive conversation resets when continuity evidence remains
+ * active. It does not generate replies or own final authority.
+ */
 
-=======
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
+const VERSION =
+  "marion.resetGuard/2.1-conflict-resolved-continuity-safe";
+
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
+}
+
+function unique(values = []) {
+  return [...new Set((Array.isArray(values) ? values : []).filter(Boolean))];
+}
+
 function buildResetGuard({
   continuityState = {},
   emotionalContinuity = {},
@@ -14,104 +29,110 @@ function buildResetGuard({
   previousMemory = {},
   assembledResponse = {}
 } = {}) {
+  const continuity = safeObject(continuityState);
+  const emotional = safeObject(emotionalContinuity);
+  const domain = safeObject(domainContinuity);
+  const topic = safeObject(topicThread);
+  const signals = safeObject(extractedSignals);
+  const previous = safeObject(previousMemory);
+  const response = safeObject(assembledResponse);
+
   const flags = [];
   let shouldSuppressHardReset = false;
 
-<<<<<<< HEAD
-  const prev = _safeObj(previousMemory);
   const previousFingerprint =
-    _safeObj(prev.persistent).queryFingerprint ||
-    _safeObj(prev.extractedSignals).queryFingerprint ||
+    safeObject(previous.persistent).queryFingerprint ||
+    safeObject(previous.extractedSignals).queryFingerprint ||
     "";
 
-  const currentFingerprint = extractedSignals.queryFingerprint || continuityState.queryFingerprint || "";
-  const fallbackApplied = Boolean(assembledResponse.partial || assembledResponse.fallbackApplied || continuityState.fallbackApplied);
-  const previousFallbackStreak = Number(prev.fallbackStreak || 0) || 0;
-  const previousRepeatStreak = Number(prev.repeatQueryStreak || 0) || 0;
-=======
-  const previousFingerprint =
-    previousMemory?.persistent?.queryFingerprint ||
-    previousMemory?.extractedSignals?.queryFingerprint ||
-    '';
+  const currentFingerprint =
+    signals.queryFingerprint ||
+    continuity.queryFingerprint ||
+    "";
 
-  const currentFingerprint = extractedSignals.queryFingerprint || continuityState.queryFingerprint || '';
-  const fallbackApplied = Boolean(assembledResponse.partial || assembledResponse.fallbackApplied);
-  const previousFallbackStreak = Number(previousMemory.fallbackStreak || 0) || 0;
-  const previousRepeatStreak = Number(previousMemory.repeatQueryStreak || 0) || 0;
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
+  const fallbackApplied = Boolean(
+    response.partial ||
+    response.fallbackApplied ||
+    continuity.fallbackApplied
+  );
 
-  const repeatedQuery = Boolean(previousFingerprint) && currentFingerprint === previousFingerprint;
-  const repeatQueryStreak = repeatedQuery ? previousRepeatStreak + 1 : 0;
-  const fallbackStreak = fallbackApplied ? previousFallbackStreak + 1 : 0;
+  const previousFallbackStreak =
+    Number(previous.fallbackStreak || 0) || 0;
 
-  if (topicThread.continued) {
-<<<<<<< HEAD
+  const previousRepeatStreak =
+    Number(previous.repeatQueryStreak || 0) || 0;
+
+  const repeatedQuery =
+    Boolean(previousFingerprint) &&
+    Boolean(currentFingerprint) &&
+    currentFingerprint === previousFingerprint;
+
+  const repeatQueryStreak =
+    repeatedQuery
+      ? previousRepeatStreak + 1
+      : 0;
+
+  const fallbackStreak =
+    fallbackApplied
+      ? previousFallbackStreak + 1
+      : 0;
+
+  if (topic.continued) {
     flags.push("topic-continuity");
     shouldSuppressHardReset = true;
   }
-  if (topicThread.exactRepeat) flags.push("repeat-query");
-  if (emotionalContinuity.maintained || emotionalContinuity.escalation || emotionalContinuity.blendShifted) {
+
+  if (topic.exactRepeat) {
+    flags.push("repeat-query");
+  }
+
+  if (
+    emotional.maintained ||
+    emotional.escalation ||
+    emotional.blendShifted
+  ) {
     flags.push("emotional-continuity");
     shouldSuppressHardReset = true;
   }
-  if (domainContinuity.maintained) {
+
+  if (domain.maintained) {
     flags.push("domain-continuity");
     shouldSuppressHardReset = true;
   }
-  if ((extractedSignals.suppressionSignals || []).length) flags.push("guarded-signal");
-  if (fallbackApplied) flags.push("fallback-active");
-  if (fallbackStreak >= 2) flags.push("fallback-streak");
-  if (repeatQueryStreak >= 2) flags.push("repeat-risk");
-=======
-    flags.push('topic-continuity');
-    shouldSuppressHardReset = true;
-  }
 
-  if (topicThread.exactRepeat) {
-    flags.push('repeat-query');
-  }
-
-  if (emotionalContinuity.maintained || emotionalContinuity.escalation) {
-    flags.push('emotional-continuity');
-    shouldSuppressHardReset = true;
-  }
-
-  if (domainContinuity.maintained) {
-    flags.push('domain-continuity');
-    shouldSuppressHardReset = true;
+  if (
+    Array.isArray(signals.suppressionSignals) &&
+    signals.suppressionSignals.length
+  ) {
+    flags.push("guarded-signal");
   }
 
   if (fallbackApplied) {
-    flags.push('fallback-active');
+    flags.push("fallback-active");
   }
 
   if (fallbackStreak >= 2) {
-    flags.push('fallback-streak');
+    flags.push("fallback-streak");
   }
 
   if (repeatQueryStreak >= 2) {
-    flags.push('repeat-risk');
+    flags.push("repeat-risk");
   }
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
 
-  const shouldForceRecoveryMode =
+  const shouldForceRecoveryMode = Boolean(
     fallbackStreak >= 2 ||
     repeatQueryStreak >= 2 ||
-<<<<<<< HEAD
-    (topicThread.exactRepeat && fallbackApplied) ||
-    !!emotionalContinuity.escalation;
+    (topic.exactRepeat && fallbackApplied) ||
+    emotional.escalation
+  );
 
-  const shouldAllowNormalReset =
+  const shouldAllowNormalReset = Boolean(
     !shouldSuppressHardReset &&
-    !topicThread.continued &&
-    !domainContinuity.maintained &&
-    !emotionalContinuity.maintained &&
-    !emotionalContinuity.escalation;
-=======
-    (topicThread.exactRepeat && fallbackApplied);
-
-  const shouldAllowNormalReset = !shouldSuppressHardReset && !topicThread.continued && !domainContinuity.maintained;
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
+    !topic.continued &&
+    !domain.maintained &&
+    !emotional.maintained &&
+    !emotional.escalation
+  );
 
   return {
     shouldSuppressHardReset,
@@ -120,15 +141,12 @@ function buildResetGuard({
     repeatedQuery,
     repeatQueryStreak,
     fallbackStreak,
-    flags,
-    continuityState
+    flags: unique(flags),
+    continuityState: continuity
   };
 }
 
 module.exports = {
+  VERSION,
   buildResetGuard
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
