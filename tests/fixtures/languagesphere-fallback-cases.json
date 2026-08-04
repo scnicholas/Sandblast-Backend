@@ -3,7 +3,11 @@
     "name": "LanguageSphere Fallback Regression Cases",
     "version": "1.0.0",
     "purpose": "Shared fixture cases for Phase 1-5 fallback and stability testing.",
-    "languages": ["en", "es", "fr"],
+    "languages": [
+      "en",
+      "es",
+      "fr"
+    ],
     "authority": "marion"
   },
   "detectionFallbackCases": [
@@ -124,7 +128,11 @@
       },
       "expected": {
         "glossaryApplied": false,
-        "mustContain": ["Marion", "final", "authority"],
+        "mustContain": [
+          "Marion",
+          "final",
+          "authority"
+        ],
         "mustNotLeakDebug": true
       }
     },
@@ -143,7 +151,11 @@
       },
       "expected": {
         "glossaryApplied": false,
-        "mustContain": ["LanguageSphere", "domain", "isolation"],
+        "mustContain": [
+          "LanguageSphere",
+          "domain",
+          "isolation"
+        ],
         "mustNotLeakDebug": true
       }
     },
@@ -175,7 +187,12 @@
       },
       "expected": {
         "fallbackAllowed": true,
-        "mustContainAny": ["context", "passport", "domain", "language"],
+        "mustContainAny": [
+          "context",
+          "passport",
+          "domain",
+          "language"
+        ],
         "mustNotLeakDebug": true
       }
     },
@@ -199,8 +216,12 @@
         "forceFallback": true
       },
       "expected": {
-        "mustContain": ["financial"],
-        "mustNotContain": ["clinique"],
+        "mustContain": [
+          "financial"
+        ],
+        "mustNotContain": [
+          "clinique"
+        ],
         "mustNotLeakDebug": true
       }
     },
@@ -218,7 +239,12 @@
         "forceFallback": true
       },
       "expected": {
-        "mustContain": ["LanguageSphere", "Marion", "Nyx", "Sandblast"],
+        "mustContain": [
+          "LanguageSphere",
+          "Marion",
+          "Nyx",
+          "Sandblast"
+        ],
         "mustNotLeakDebug": true
       }
     }
@@ -450,7 +476,11 @@
         "forceFallback": true
       },
       "expected": {
-        "mustContain": ["Marion", "final envelope", "domain isolation"],
+        "mustContain": [
+          "Marion",
+          "final envelope",
+          "domain isolation"
+        ],
         "mustNotLeakDebug": true
       }
     },
