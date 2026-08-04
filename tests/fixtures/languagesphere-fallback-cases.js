@@ -1,3 +1,9 @@
+"use strict";
+
+/** CommonJS compatibility shim for the canonical JSON fixture. */
+module.exports = require("./languagesphere-fallback-cases.json");
+
+
 {
   "meta": {
     "name": "LanguageSphere Fallback Regression Cases",
