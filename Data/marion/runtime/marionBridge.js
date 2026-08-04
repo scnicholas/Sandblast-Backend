@@ -69,6 +69,81 @@ const CANONICAL_ENDPOINT = "marion://routeMarion.primary";
 const fs = require("fs");
 const path = require("path");
 
+const MARION_BRIDGE_PRIVATE_IDENTITY_PROJECTION_VERSION =
+  "nyx.marion.bridgePrivateIdentityProjection/1.0-lazy-stable-delegate";
+
+function bridgePrivateRuntimeIdentityProjection(
+  body = {},
+  auth = {},
+  traceId = ""
+) {
+  try {
+    const composer = require("./composeMarionResponse.js");
+    if (
+      composer &&
+      composer !== module.exports &&
+      typeof composer.marionPrivateRuntimeIdentityProjection === "function"
+    ) {
+      return composer.marionPrivateRuntimeIdentityProjection(
+        body,
+        auth,
+        traceId
+      );
+    }
+  } catch (_) {}
+
+  try {
+    const safety = require("./marionAdminRuntimeSafety.js");
+    if (safety && typeof safety.privateRuntimeIdentity === "function") {
+      return safety.privateRuntimeIdentity(body, auth, traceId);
+    }
+  } catch (_) {}
+
+  const source =
+    body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  const authSource =
+    auth && typeof auth === "object" && !Array.isArray(auth) ? auth : {};
+  const sessionId = marionNonThrowingClean(
+    authSource.sessionId ||
+      source.sessionId ||
+      source.conversationId ||
+      source.traceId ||
+      "anonymous"
+  ).replace(/[^a-zA-Z0-9._:-]+/g, "-") || "anonymous";
+  const partitionKey = `private:admin:${sessionId}`;
+
+  return {
+    version: MARION_BRIDGE_PRIVATE_IDENTITY_PROJECTION_VERSION,
+    scope: "private_admin",
+    audience: "owner",
+    answerClass: "marion_admin_conversation",
+    surfaceAgent: "Marion",
+    authority: "Marion",
+    publicAgent: "Nyx",
+    publicSurfaceOnly: false,
+    publicFallbackBlocked: true,
+    privateAdminConversation: true,
+    privateControlPlane: true,
+    adminOnly: true,
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    marionAdminConversationAllowed: true,
+    authenticatedOperator: authSource.verified === true,
+    operatorPersonalization: authSource.verified === true,
+    allowPersonalName: authSource.verified === true,
+    allowOperatorMemory: authSource.verified === true,
+    memoryPartition: partitionKey,
+    partitionKey,
+    privateRuntimeContext: {
+      version: MARION_BRIDGE_PRIVATE_IDENTITY_PROJECTION_VERSION,
+      scope: "private_admin",
+      audience: "owner",
+      traceId: marionNonThrowingClean(traceId),
+      partitionKey
+    }
+  };
+}
+
 /* Stable CommonJS export identity: circular consumers retain this object. */
 const BRIDGE_EXPORTS = module.exports;
 Object.assign(BRIDGE_EXPORTS,{
@@ -82,7 +157,14 @@ Object.assign(BRIDGE_EXPORTS,{
   handleMarionAdminTextRuntime:function(input){return processWithMarion(input);},
   handleAdminConversation:function(input){return processWithMarion(input);},
   invokeMarionAdminTextRuntime:function(input){return processWithMarion(input);},
-  handleTextRuntime:function(input){return processWithMarion(input);}
+  handleTextRuntime:function(input){return processWithMarion(input);},
+  MARION_BRIDGE_PRIVATE_IDENTITY_PROJECTION_VERSION,
+  marionPrivateRuntimeIdentityProjection:function(body,auth,traceId){
+    return bridgePrivateRuntimeIdentityProjection(body,auth,traceId);
+  },
+  getPrivateRuntimeIdentity:function(body,auth,traceId){
+    return bridgePrivateRuntimeIdentityProjection(body,auth,traceId);
+  }
 });
 
 function tryRequireMany(paths){
