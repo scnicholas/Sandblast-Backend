@@ -1,5 +1,248 @@
 "use strict";
 
+// NYX-VOICE-TEXT-PARITY-FINAL-REPROJECTION-R1: synchronize every spoken and visible surface after late final-reply replacement.
+
+/* MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_V3_START
+ * Seed a stable CommonJS export before the composer dependency graph loads.
+ * Circular consumers retain this object and receive the final properties later.
+ */
+const MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION =
+  "nyx.marion.privateRuntimeIdentityProjection/3.0-stable-export-private-boundary";
+const MARION_COMPOSER_STABLE_EXPORTS = module.exports;
+let marionPrivateRuntimeSafetyCache;
+
+function marionPrivateIdentityRead(source, key, fallback) {
+  try {
+    if (source === null || source === undefined) return fallback;
+    const value = source[key];
+    return value === undefined ? fallback : value;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function marionPrivateIdentityObject(value) {
+  try {
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? value
+      : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function marionPrivateIdentityText(value, fallback = "", max = 12000) {
+  try {
+    const type = typeof value;
+    const primitive =
+      type === "string" ? value :
+      type === "number" || type === "boolean" || type === "bigint"
+        ? String(value)
+        : fallback;
+    const limit = Math.max(0, Math.min(Number(max) || 12000, 100000));
+    return String(primitive)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, limit);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function marionPrivateIdentitySafety() {
+  if (marionPrivateRuntimeSafetyCache !== undefined) {
+    return marionPrivateRuntimeSafetyCache;
+  }
+  try {
+    const loaded = require("./marionAdminRuntimeSafety.js");
+    marionPrivateRuntimeSafetyCache =
+      loaded && typeof loaded === "object" ? loaded : null;
+  } catch (_) {
+    marionPrivateRuntimeSafetyCache = null;
+  }
+  return marionPrivateRuntimeSafetyCache;
+}
+
+function marionPrivateRuntimeRequest(value) {
+  const source = marionPrivateIdentityObject(value);
+  const body = marionPrivateIdentityObject(
+    marionPrivateIdentityRead(source, "body", {})
+  );
+  const payload = marionPrivateIdentityObject(
+    marionPrivateIdentityRead(source, "payload", {})
+  );
+  const meta = marionPrivateIdentityObject(
+    marionPrivateIdentityRead(source, "meta", {})
+  );
+  const context = marionPrivateIdentityObject(
+    marionPrivateIdentityRead(source, "privateRuntimeContext", {})
+  );
+
+  for (const item of [source, body, payload, meta]) {
+    if (
+      marionPrivateIdentityRead(item, "privateAdminConversation", false) === true ||
+      marionPrivateIdentityRead(item, "marionAdminConversation", false) === true ||
+      marionPrivateIdentityRead(item, "directMarionAdminInterface", false) === true ||
+      marionPrivateIdentityRead(item, "privateControlPlane", false) === true ||
+      marionPrivateIdentityText(
+        marionPrivateIdentityRead(item, "scope", ""),
+        "",
+        80
+      ).toLowerCase() === "private_admin" ||
+      marionPrivateIdentityText(
+        marionPrivateIdentityRead(item, "adminInterfaceScope", ""),
+        "",
+        120
+      ).toLowerCase() === "marion_admin_conversation"
+    ) {
+      return true;
+    }
+  }
+
+  return Object.keys(context).length > 0;
+}
+
+function marionPrivateRuntimeIdentityProjection(
+  body = {},
+  auth = {},
+  traceId = ""
+) {
+  const source = marionPrivateIdentityObject(body);
+  const nestedBody = marionPrivateIdentityObject(
+    marionPrivateIdentityRead(source, "body", {})
+  );
+  const payload = marionPrivateIdentityObject(
+    marionPrivateIdentityRead(source, "payload", {})
+  );
+  const sourceAuth = marionPrivateIdentityObject(
+    marionPrivateIdentityRead(source, "auth", {})
+  );
+  const explicitAuth = marionPrivateIdentityObject(auth);
+  const privateTurn = marionPrivateRuntimeRequest(source);
+
+  const sessionId = marionPrivateIdentityText(
+    marionPrivateIdentityRead(explicitAuth, "sessionId", "") ||
+    marionPrivateIdentityRead(sourceAuth, "sessionId", "") ||
+    marionPrivateIdentityRead(source, "sessionId", "") ||
+    marionPrivateIdentityRead(source, "conversationId", "") ||
+    marionPrivateIdentityRead(nestedBody, "sessionId", "") ||
+    marionPrivateIdentityRead(nestedBody, "conversationId", ""),
+    "anonymous",
+    160
+  );
+
+  const internalVerification =
+    privateTurn &&
+    (
+      marionPrivateIdentityRead(source, "verified", false) === true ||
+      marionPrivateIdentityRead(source, "adminVerified", false) === true ||
+      marionPrivateIdentityRead(source, "authenticatedOperator", false) === true ||
+      marionPrivateIdentityRead(source, "serverSideAdminVoiceAuth", false) === true ||
+      marionPrivateIdentityRead(source, "trustedServerAuth", false) === true
+    );
+
+  const normalizedBody = {
+    ...nestedBody,
+    ...payload,
+    ...source,
+    sessionId
+  };
+  const normalizedAuth = {
+    ...sourceAuth,
+    ...explicitAuth,
+    sessionId,
+    verified:
+      marionPrivateIdentityRead(explicitAuth, "verified", false) === true ||
+      marionPrivateIdentityRead(sourceAuth, "verified", false) === true ||
+      internalVerification
+  };
+  const resolvedTraceId = marionPrivateIdentityText(
+    traceId ||
+      marionPrivateIdentityRead(source, "traceId", "") ||
+      marionPrivateIdentityRead(source, "requestId", "") ||
+      marionPrivateIdentityRead(nestedBody, "traceId", ""),
+    "",
+    240
+  );
+
+  const safety = marionPrivateIdentitySafety();
+  let identity = null;
+
+  try {
+    if (safety && typeof safety.privateRuntimeIdentity === "function") {
+      identity = safety.privateRuntimeIdentity(
+        normalizedBody,
+        normalizedAuth,
+        resolvedTraceId
+      );
+    }
+  } catch (_) {
+    identity = null;
+  }
+
+  if (!identity || typeof identity !== "object" || Array.isArray(identity)) {
+    const cleanSession =
+      sessionId.replace(/[^a-zA-Z0-9._:-]+/g, "-") || "anonymous";
+    const partitionKey = `private:admin:${cleanSession}`;
+    const verified = normalizedAuth.verified === true;
+    identity = {
+      scope: "private_admin",
+      audience: "owner",
+      answerClass: "marion_admin_conversation",
+      surfaceAgent: "Marion",
+      authority: "Marion",
+      publicAgent: "Nyx",
+      publicSurfaceOnly: false,
+      publicFallbackBlocked: true,
+      privateAdminConversation: true,
+      privateControlPlane: true,
+      adminOnly: true,
+      directMarionAdminInterface: true,
+      marionAdminConversation: true,
+      marionAdminConversationAllowed: true,
+      authenticatedOperator: verified,
+      operatorPersonalization: verified,
+      allowPersonalName: verified,
+      allowOperatorMemory: verified,
+      memoryPartition: partitionKey,
+      partitionKey,
+      privateRuntimeContext: {
+        version: MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION,
+        scope: "private_admin",
+        audience: "owner",
+        traceId: resolvedTraceId,
+        partitionKey
+      }
+    };
+  }
+
+  return Object.freeze({
+    ...identity,
+    version: MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION,
+    scope: "private_admin",
+    audience: "owner",
+    surfaceAgent: "Marion",
+    authority: "Marion",
+    publicAgent: "Nyx",
+    publicSurfaceOnly: false,
+    publicFallbackBlocked: true,
+    privateAdminConversation: true,
+    privateControlPlane: true,
+    adminOnly: true,
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    marionAdminConversationAllowed: true
+  });
+}
+
+Object.assign(MARION_COMPOSER_STABLE_EXPORTS, {
+  MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION,
+  marionPrivateRuntimeIdentityProjection
+});
+/* MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_V3_END */
+
+
 
 
 /* MARION_SAFE_PRIMITIVE_TEXT_V1_START */
@@ -3133,7 +3376,7 @@ function applyPipelineForensicNormalization(reply="",intent="",domain="",knowled
 }
 
 function run(routed={},input={}){return composeMarionResponse(routed,input);}
-module.exports={VERSION,NYX_MARION_LOOP_GOVERNOR_VERSION,QUESTION_SHAPE_NORMALIZATION_VERSION,DOMAIN_CONCIERGE_CORE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_COMPOSER_COMPAT_VERSION,LINGOSENTINEL_GATEWAY_COMPOSER_VERSION,DEFENSIVE_ESCALATION_COMPOSER_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,STATE_SPINE_SCHEMA,STATE_SPINE_SCHEMA_COMPAT,COGNITIVE_LAYER_VERSION,CREATIVE_SUGGESTION_VERSION,CREATIVE_SUGGESTION_TIMING_GOVERNOR_VERSION,INTENT_DEPTH_GOVERNOR_VERSION,CONVERSATION_FOLLOWUP_GOVERNOR_VERSION,ANSWER_SPECIFICITY_GOVERNOR_VERSION,DOMAIN_ANSWER_DEPTH_GOVERNOR_VERSION,DIRECTIVE_EXECUTION_CLARITY_GOVERNOR_VERSION,RESPONSE_COMPRESSION_GOVERNOR_VERSION,TECHNICAL_DIAGNOSIS_PRECISION_GOVERNOR_VERSION,DIAGNOSTIC_LOOP_DETECTION_LAYER_VERSION,MEMORY_CARRY_BOUNDARY_GOVERNOR_VERSION,EMOTIONAL_CONTINUITY_CALIBRATION_GOVERNOR_VERSION,VOICE_TEXT_PARITY_GOVERNOR_VERSION,REPLY_CONTRACT_MINIMALISM_GOVERNOR_VERSION,VOICE_EMOTIONAL_DEPTH_PARITY_GOVERNOR_VERSION,FINAL_REGRESSION_HARMONIZER_VERSION,PROGRESSION_SHAPING_GOVERNOR_VERSION,CONTEXTUAL_DIRECTIVE_HANDLER_VERSION,PIPELINE_FORENSIC_NORMALIZATION_VERSION,CONVERSATIONAL_PACK_CONSUMPTION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,AMBIGUOUS_DEFINITION_CLARIFICATION_VERSION,BENCHMARK_OBSERVATION_HOOK_VERSION,VALID_INTENTS,INTENT_TO_DOMAIN,composeMarionResponse,run,default:composeMarionResponse,confidenceAwareResponseShapingProfile,applyConfidenceAwareResponseShaping,isBroadAnswerableConceptPrompt,broadConceptFallbackReply,ensureFinalReply,assertFinalEnvelope,buildComposerVoiceMetadata,isDirectMarionAdminComposerContext,_internal:{NYX_MARION_LOOP_GOVERNOR_VERSION,isCognitiveLoadSeparationRequest,buildCognitiveLoadSeparationReply,buildLoopGovernorTechnicalReply,buildLingoSentinelPublicAnswer,buildAsterPublicAnswer,buildProjectGatewayProfile,buildCognitiveIntelligenceLayer,applyCreativeSuggestionModule,shouldSurfaceCreativeSuggestion,creativeSuggestionForMode,isDirectExecutionTurn,isCreativeTimingSuppressed,creativeTimingIntent,cognitiveSignalScore,cognitiveLayerMode,normalizeResolvedEmotion,resolveEffectiveEmotion,hasEmotionalContinuityCue,previousEmotionalContinuity,emotionalProgressionProfile,emotionalProgressionReply,shouldEmotionInfluenceIntent,emotionalWorkShiftSuppression,isEmotionalContinuityCalibrationSuppressed,emotionalContinuityCalibrationProfile,calibrateResolvedEmotionForTurn,calibratedEmotionalContinuityReply,applyEmotionalContinuityCalibrationGovernor,voiceTextParitySource,isVoiceTextParityCandidate,normalizeVoiceTextParityText,voiceTextParityProfile,applyVoiceTextParityToInput,voiceEmotionalDepthParityProfile,voiceEmotionalDepthParityReply,applyVoiceEmotionalDepthParityGovernor,replyContractMinimalismKind,isReplyContractMinimalismSuppressed,replyContractMinimalismProfile,stripContractMachinery,compactOperationalReplyForContract,applyReplyContractMinimalismGovernor,finalRegressionPriorityProfile,finalRegressionHarmonizerProfile,applyFinalRegressionHarmonizer,buildFourPhaseProgressionProfile,fourPhaseProgressionPolicyReply,progressionShapingProfile,naturalizeExecutionLanguage,progressionShapingReply,applyProgressionShapingGovernor,pipelineForensicNormalizationProfile,applyPipelineForensicNormalization,buildFinalRuntimeTelemetry,loadConversationalPacks,conversationPackProfile,applyConversationalPackConsumption,publicDiagnosticTranslationReply,developerDiagnosticReply,emotionalSpecificityPackReply,nextStepContextPackReply,repetitionEscapePackReply,backendEmptyGuardPackReply,extractDomainConciergeCarry,extractLingoSentinelCarry,buildParallelLaneCarryMaintenance,confidenceAwareResponseShapingProfile,applyConfidenceAwareResponseShaping,isBroadAnswerableConceptPrompt,broadConceptFallbackReply,extractTextRaw,extractText,detectIdentityIntent,detectDirectiveIntent,extractContextCarry,hasContextCarry,protectsContextFromOverride,resolveIntent,resolveDomain,isBlockedLoopReply,isGreetingOnly,isHowAreYouTurn,isWarmSocialTurn,isCapabilityQuestion,buildWarmSocialReply,isCasualGreetingTurn,isGreetingPostureTurn,normalizeInboundTextForPosture,detectGreetingDistressSignal,inferGreetingPostureFromText,extractGreetingPosture,applyGreetingPostureQuality,registryCapabilityIntro,registryDomainConfig,registryDomainManifest,registryDomainKnowledgePack,registryDomainWiringStatus,registryKnowledgeLoaded,registryKnowledgeEntries,registryKnowledgeAnswer,normalizeKnowledgeDomain,canonicalTechnicalTargetFromText,extractTechnicalTargetLock,technicalAutopsyTargetReply,applyTechnicalTargetLockToReply,isExplicitCybersecurityRequest,isNyxMarionBackendTechnicalContext,isExactTechnicalValidationTurn,isExplicitEnglishTransformRequest,isRouteIsolationExplanationTurn,routeIsolationExplanationReply,isTechnicalIntentBindingTurn,detectKnowledgeDomain,resolveKnowledgeDomain,extractDomainConfidence,shouldFailClosedForDomainConfidence,isDefinitionQuestion,normalizeDefinitionTerm,ambiguousDefinitionClarificationReply,domainConfidenceUserReply,knowledgeDomainReply,isRecoveryRequested,isUsableFinalReply,forceCognitionCompleteReply,identityReply,directiveReply,contextualDirectiveReply,domainQuestionReply,detectArchitectureReasoning,hotFallbackReply,buildReply,safeReply,buildMemoryPatch,ensureFinalReply,assertFinalEnvelope,applyConversationQuality,applyIntentSpecificDepthGovernor,applyAnswerSpecificityGovernor,applyDomainAnswerDepthGovernor,applyDirectiveExecutionClarityGovernor,applyResponseCompressionGovernor,applyTechnicalDiagnosisPrecisionGovernor,memoryCarryBoundaryProfile,applyMemoryCarryBoundaryToInput,isMemoryCarryBoundarySuppressed,isFreshPromptBoundaryReset,technicalDiagnosisKind,isTechnicalDiagnosisSuppressed,technicalDiagnosisProfile,technicalDiagnosisReply,diagnosticLoopDetectionProfile,diagnosticLoopDetectionSummary,extractDiagnosticStateSnapshot,responseCompressionKind,isResponseCompressionSuppressed,responseCompressionPlan,compressVerboseOperationalReply,directiveExecutionKind,isDirectiveExecutionClaritySuppressed,directiveExecutionPlan,directiveExecutionClarityReply,isDomainAnswerDepthSuppressed,domainAnswerNeedsDepth,englishDomainDepthReply,psychologyDomainDepthReply,aiDomainDepthReply,cyberDomainDepthReply,lawDomainDepthReply,financeDomainDepthReply,isAnswerSpecificitySuppressed,specificityNeedScore,technicalSpecificityReply,businessSpecificityReply,conversationQualitySpecificityReply,intentDepthExpansion,depthProfile,isDepthGovernorSuppressed,isThinForIntent,toneProfile,contextCarrySummary,hasNaturalDepth,isInternalContractLeak,sanitizeUserFacingReply,inputSourceKind,isVoiceInput,isSystemCheckTurn,isVoiceSystemCheckTurn,buildVoiceSystemCheckReply,continuationCue,isFollowUpGovernorSuppressed,continuityContext,buildCarryForwardSummary,followUpAnchor,continuationAwareReply,continuationAwareBusinessReply,deriveTopic,fiveTurnContractProfile,fiveTurnContractReply,isFiveTurnContractTurn,isMicTextParityPrompt,micTextParityDirectReply,isDomainIsolationPrompt,domainIsolationDirectReply,isPracticalNyxConsistencyPrompt,practicalNyxConsistencyReply,parityRegressionDirectReply,progressionShapingGuardReply,progressionShapingGuardProfile,continuationCompressionGuardReply,isContinuationCompressionInstruction,continuationCompressionLockedDomain,financeProgressionGuardReply,technicalProgressionGuardReply,englishProgressionGuardReply,highPriorityProgressionSurfaceReply,isProgressionShapingRefinementPrompt,progressionShapingRefinementReply,isDomainConfidenceScoringPrompt,domainConfidenceScoringReply}};
+Object.assign(MARION_COMPOSER_STABLE_EXPORTS,{VERSION,NYX_MARION_LOOP_GOVERNOR_VERSION,QUESTION_SHAPE_NORMALIZATION_VERSION,DOMAIN_CONCIERGE_CORE_VERSION,CONFIDENCE_AWARE_RESPONSE_SHAPING_VERSION,LANGUAGE_SPHERE_COMPOSER_COMPAT_VERSION,LINGOSENTINEL_GATEWAY_COMPOSER_VERSION,DEFENSIVE_ESCALATION_COMPOSER_VERSION,TELEMETRY_VISIBILITY_VERSION,FAILURE_SIGNATURE_AUDIT_VERSION,classifyFailureSignature,buildFailureSignatureAudit,isTelemetryLeakText,stripTelemetryLeakFromReply,STATE_SPINE_SCHEMA,STATE_SPINE_SCHEMA_COMPAT,COGNITIVE_LAYER_VERSION,CREATIVE_SUGGESTION_VERSION,CREATIVE_SUGGESTION_TIMING_GOVERNOR_VERSION,INTENT_DEPTH_GOVERNOR_VERSION,CONVERSATION_FOLLOWUP_GOVERNOR_VERSION,ANSWER_SPECIFICITY_GOVERNOR_VERSION,DOMAIN_ANSWER_DEPTH_GOVERNOR_VERSION,DIRECTIVE_EXECUTION_CLARITY_GOVERNOR_VERSION,RESPONSE_COMPRESSION_GOVERNOR_VERSION,TECHNICAL_DIAGNOSIS_PRECISION_GOVERNOR_VERSION,DIAGNOSTIC_LOOP_DETECTION_LAYER_VERSION,MEMORY_CARRY_BOUNDARY_GOVERNOR_VERSION,EMOTIONAL_CONTINUITY_CALIBRATION_GOVERNOR_VERSION,VOICE_TEXT_PARITY_GOVERNOR_VERSION,REPLY_CONTRACT_MINIMALISM_GOVERNOR_VERSION,VOICE_EMOTIONAL_DEPTH_PARITY_GOVERNOR_VERSION,FINAL_REGRESSION_HARMONIZER_VERSION,PROGRESSION_SHAPING_GOVERNOR_VERSION,CONTEXTUAL_DIRECTIVE_HANDLER_VERSION,PIPELINE_FORENSIC_NORMALIZATION_VERSION,CONVERSATIONAL_PACK_CONSUMPTION_VERSION,FINAL_RUNTIME_TELEMETRY_VERSION,PROGRESSION_SHAPING_REFINEMENT_VERSION,AMBIGUOUS_DEFINITION_CLARIFICATION_VERSION,BENCHMARK_OBSERVATION_HOOK_VERSION,VALID_INTENTS,INTENT_TO_DOMAIN,composeMarionResponse,run,default:composeMarionResponse,confidenceAwareResponseShapingProfile,applyConfidenceAwareResponseShaping,isBroadAnswerableConceptPrompt,broadConceptFallbackReply,ensureFinalReply,assertFinalEnvelope,buildComposerVoiceMetadata,isDirectMarionAdminComposerContext,_internal:{NYX_MARION_LOOP_GOVERNOR_VERSION,isCognitiveLoadSeparationRequest,buildCognitiveLoadSeparationReply,buildLoopGovernorTechnicalReply,buildLingoSentinelPublicAnswer,buildAsterPublicAnswer,buildProjectGatewayProfile,buildCognitiveIntelligenceLayer,applyCreativeSuggestionModule,shouldSurfaceCreativeSuggestion,creativeSuggestionForMode,isDirectExecutionTurn,isCreativeTimingSuppressed,creativeTimingIntent,cognitiveSignalScore,cognitiveLayerMode,normalizeResolvedEmotion,resolveEffectiveEmotion,hasEmotionalContinuityCue,previousEmotionalContinuity,emotionalProgressionProfile,emotionalProgressionReply,shouldEmotionInfluenceIntent,emotionalWorkShiftSuppression,isEmotionalContinuityCalibrationSuppressed,emotionalContinuityCalibrationProfile,calibrateResolvedEmotionForTurn,calibratedEmotionalContinuityReply,applyEmotionalContinuityCalibrationGovernor,voiceTextParitySource,isVoiceTextParityCandidate,normalizeVoiceTextParityText,voiceTextParityProfile,applyVoiceTextParityToInput,voiceEmotionalDepthParityProfile,voiceEmotionalDepthParityReply,applyVoiceEmotionalDepthParityGovernor,replyContractMinimalismKind,isReplyContractMinimalismSuppressed,replyContractMinimalismProfile,stripContractMachinery,compactOperationalReplyForContract,applyReplyContractMinimalismGovernor,finalRegressionPriorityProfile,finalRegressionHarmonizerProfile,applyFinalRegressionHarmonizer,buildFourPhaseProgressionProfile,fourPhaseProgressionPolicyReply,progressionShapingProfile,naturalizeExecutionLanguage,progressionShapingReply,applyProgressionShapingGovernor,pipelineForensicNormalizationProfile,applyPipelineForensicNormalization,buildFinalRuntimeTelemetry,loadConversationalPacks,conversationPackProfile,applyConversationalPackConsumption,publicDiagnosticTranslationReply,developerDiagnosticReply,emotionalSpecificityPackReply,nextStepContextPackReply,repetitionEscapePackReply,backendEmptyGuardPackReply,extractDomainConciergeCarry,extractLingoSentinelCarry,buildParallelLaneCarryMaintenance,confidenceAwareResponseShapingProfile,applyConfidenceAwareResponseShaping,isBroadAnswerableConceptPrompt,broadConceptFallbackReply,extractTextRaw,extractText,detectIdentityIntent,detectDirectiveIntent,extractContextCarry,hasContextCarry,protectsContextFromOverride,resolveIntent,resolveDomain,isBlockedLoopReply,isGreetingOnly,isHowAreYouTurn,isWarmSocialTurn,isCapabilityQuestion,buildWarmSocialReply,isCasualGreetingTurn,isGreetingPostureTurn,normalizeInboundTextForPosture,detectGreetingDistressSignal,inferGreetingPostureFromText,extractGreetingPosture,applyGreetingPostureQuality,registryCapabilityIntro,registryDomainConfig,registryDomainManifest,registryDomainKnowledgePack,registryDomainWiringStatus,registryKnowledgeLoaded,registryKnowledgeEntries,registryKnowledgeAnswer,normalizeKnowledgeDomain,canonicalTechnicalTargetFromText,extractTechnicalTargetLock,technicalAutopsyTargetReply,applyTechnicalTargetLockToReply,isExplicitCybersecurityRequest,isNyxMarionBackendTechnicalContext,isExactTechnicalValidationTurn,isExplicitEnglishTransformRequest,isRouteIsolationExplanationTurn,routeIsolationExplanationReply,isTechnicalIntentBindingTurn,detectKnowledgeDomain,resolveKnowledgeDomain,extractDomainConfidence,shouldFailClosedForDomainConfidence,isDefinitionQuestion,normalizeDefinitionTerm,ambiguousDefinitionClarificationReply,domainConfidenceUserReply,knowledgeDomainReply,isRecoveryRequested,isUsableFinalReply,forceCognitionCompleteReply,identityReply,directiveReply,contextualDirectiveReply,domainQuestionReply,detectArchitectureReasoning,hotFallbackReply,buildReply,safeReply,buildMemoryPatch,ensureFinalReply,assertFinalEnvelope,applyConversationQuality,applyIntentSpecificDepthGovernor,applyAnswerSpecificityGovernor,applyDomainAnswerDepthGovernor,applyDirectiveExecutionClarityGovernor,applyResponseCompressionGovernor,applyTechnicalDiagnosisPrecisionGovernor,memoryCarryBoundaryProfile,applyMemoryCarryBoundaryToInput,isMemoryCarryBoundarySuppressed,isFreshPromptBoundaryReset,technicalDiagnosisKind,isTechnicalDiagnosisSuppressed,technicalDiagnosisProfile,technicalDiagnosisReply,diagnosticLoopDetectionProfile,diagnosticLoopDetectionSummary,extractDiagnosticStateSnapshot,responseCompressionKind,isResponseCompressionSuppressed,responseCompressionPlan,compressVerboseOperationalReply,directiveExecutionKind,isDirectiveExecutionClaritySuppressed,directiveExecutionPlan,directiveExecutionClarityReply,isDomainAnswerDepthSuppressed,domainAnswerNeedsDepth,englishDomainDepthReply,psychologyDomainDepthReply,aiDomainDepthReply,cyberDomainDepthReply,lawDomainDepthReply,financeDomainDepthReply,isAnswerSpecificitySuppressed,specificityNeedScore,technicalSpecificityReply,businessSpecificityReply,conversationQualitySpecificityReply,intentDepthExpansion,depthProfile,isDepthGovernorSuppressed,isThinForIntent,toneProfile,contextCarrySummary,hasNaturalDepth,isInternalContractLeak,sanitizeUserFacingReply,inputSourceKind,isVoiceInput,isSystemCheckTurn,isVoiceSystemCheckTurn,buildVoiceSystemCheckReply,continuationCue,isFollowUpGovernorSuppressed,continuityContext,buildCarryForwardSummary,followUpAnchor,continuationAwareReply,continuationAwareBusinessReply,deriveTopic,fiveTurnContractProfile,fiveTurnContractReply,isFiveTurnContractTurn,isMicTextParityPrompt,micTextParityDirectReply,isDomainIsolationPrompt,domainIsolationDirectReply,isPracticalNyxConsistencyPrompt,practicalNyxConsistencyReply,parityRegressionDirectReply,progressionShapingGuardReply,progressionShapingGuardProfile,continuationCompressionGuardReply,isContinuationCompressionInstruction,continuationCompressionLockedDomain,financeProgressionGuardReply,technicalProgressionGuardReply,englishProgressionGuardReply,highPriorityProgressionSurfaceReply,isProgressionShapingRefinementPrompt,progressionShapingRefinementReply,isDomainConfidenceScoringPrompt,domainConfidenceScoringReply}});
 
 
 // PRIORITY_90_ECHO_FALLBACK_REPAIR_PATCH_START
@@ -9936,7 +10179,11 @@ try{
     const reply=invalid?deterministic(input,prompt,domain):existing;
     const intent=domain==="technical"?"technical_debug":domain==="law"?"domain_question":"simple_chat";
     const memory={...obj(r.memoryPatch),activeDomain:domain==="general"?"":domain,activeSubject:domain==="general"?"":activeSubject(input,prompt),activeTask:domain==="general"?"":activeSubject(input,prompt),lastUserText:prompt,lastAssistantReply:reply,composerRecoveryVersion:VERSION_V9};
-    return {...r,ok:true,final:true,marionFinal:true,handled:true,awaitingMarion:false,canEmit:true,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:first(r.spokenText,reply),intent,domain,primaryDomain:domain,selectedDomain:domain,knowledgeDomain:domain==="law"?"law":"",memoryPatch:memory,sessionPatch:{...obj(r.sessionPatch),...memory},payload:{...obj(r.payload),reply,text:reply,message:reply,final:true,marionFinal:true},meta:{...obj(r.meta),drasticComposerRecovery:true,drasticComposerRecoveryVersion:VERSION_V9,originalReplyAccepted:!invalid,intermediateReplyRejected:invalid&&!!existing,replyAuthority:"composer_final",expectedDomain:domain},version:VERSION_V9,composerVersion:VERSION_V9};
+    const parity={version:"nyx.voiceTextParity/1.1-final-reprojection",active:true,source:first(obj(r.voiceTextParity).source,obj(input.voiceTextParity).source,input.inputSource,input.inputMode,"text"),canonicalText:reply,aligned:true,changed:text(first(r.spokenText,r.textSpeak))!==text(reply),parityLock:true,reason:invalid?"final reply replaced; all visible and spoken surfaces reprojected":"final reply accepted; visible and spoken surfaces synchronized",updatedAt:Date.now()};
+    const speech={...obj(r.speech),text:reply,textSpeak:reply,spokenText:reply,displayText:reply,shouldSpeak:obj(r.speech).shouldSpeak!==false};
+    const payload={...obj(r.payload),reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,textSpeak:reply,spokenText:reply,speech,voiceTextParity:parity,final:true,marionFinal:true};
+    const finalEnvelope={...obj(r.finalEnvelope),reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,textSpeak:reply,spokenText:reply,speech,voiceTextParity:parity,final:true,marionFinal:true};
+    return {...r,ok:true,final:true,marionFinal:true,handled:true,awaitingMarion:false,canEmit:true,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,textSpeak:reply,spokenText:reply,speech,voiceTextParity:parity,finalEnvelope,intent,domain,primaryDomain:domain,selectedDomain:domain,knowledgeDomain:domain==="law"?"law":"",memoryPatch:memory,sessionPatch:{...obj(r.sessionPatch),...memory},payload,meta:{...obj(r.meta),drasticComposerRecovery:true,drasticComposerRecoveryVersion:VERSION_V9,originalReplyAccepted:!invalid,intermediateReplyRejected:invalid&&!!existing,replyAuthority:"composer_final",expectedDomain:domain,voiceTextParityAligned:true,voiceTextParityVersion:parity.version},version:VERSION_V9,composerVersion:VERSION_V9};
   }
   async function definitive(input={},runtimeInput={}){
     const primary=obj(input),secondary=obj(runtimeInput),merged={...primary,...secondary,routing:{...obj(primary.routing),...obj(secondary.routing)}};
@@ -10375,3 +10622,296 @@ function __E2E_CONT_PACKET(input,source){const h=__e2eState.hydrate(input),p=__e
 function wrap(fn){if(typeof fn!=="function"||fn.__e2eContinuityR9)return fn;const w=function(){const raw=arguments[0],h=__e2eState.hydrate(raw),term=__E2E_CONT_PACKET(h,"marion_e2e_continuity_cohesion");if(term){__e2eState.recordAssistant(h,term.reply,{activeTopic:term.contextPivot.activeTopic,intent:term.intent,subIntent:term.subIntent});return fn.constructor&&fn.constructor.name==="AsyncFunction"?Promise.resolve(term):term}const a=Array.from(arguments);a[0]=h;const out=fn.apply(this,a),project=r=>{const reply=__E2E_CONT_REPLY(r);if(reply)__e2eState.recordAssistant(h,reply,{intent:r&&r.intent,subIntent:r&&r.subIntent});return r};return out&&typeof out.then==="function"?out.then(project):project(out)};w.__e2eContinuityR9=true;return w}
 for(const n of["composeMarionResponse","compose","run","handle","buildReply","createResponse","default"])if(typeof api[n]==="function")api[n]=wrap(api[n]);api.buildMarionE2EContinuityReply=i=>__E2E_CONT_PACKET(i,"marion_e2e_continuity_cohesion");api.__e2eContinuityR9=true;})();
 /* MARION_E2E_CONTINUITY_COHESION_R9_END */
+
+/* MARION_PRIVATE_RUNTIME_IDENTITY_TERMINAL_PROJECTION_V3_START
+ * Run after every existing composer wrapper. This projects private identity
+ * metadata without becoming a semantic reply authority.
+ */
+(function marionPrivateRuntimeIdentityTerminalProjectionV3() {
+  "use strict";
+
+  const api =
+    module.exports && typeof module.exports === "object"
+      ? module.exports
+      : null;
+  if (!api || api.__marionPrivateRuntimeIdentityTerminalProjectionV3) return;
+
+  const wrapped = new WeakMap();
+
+  function privateInputFromArgs(args) {
+    for (const item of Array.from(args || []).slice(0, 4)) {
+      if (marionPrivateRuntimeRequest(item)) {
+        return marionPrivateIdentityObject(item);
+      }
+    }
+    return {};
+  }
+
+  function replyText(packet) {
+    if (typeof packet === "string") {
+      return marionPrivateIdentityText(packet);
+    }
+    const value = marionPrivateIdentityObject(packet);
+    const payload = marionPrivateIdentityObject(value.payload);
+    const envelope = marionPrivateIdentityObject(value.finalEnvelope);
+    for (const candidate of [
+      value.directReply,
+      value.visibleReply,
+      value.displayReply,
+      value.finalReply,
+      value.reply,
+      value.answer,
+      value.output,
+      value.response,
+      value.text,
+      value.message,
+      envelope.directReply,
+      envelope.visibleReply,
+      envelope.finalReply,
+      envelope.reply,
+      envelope.text,
+      payload.directReply,
+      payload.visibleReply,
+      payload.finalReply,
+      payload.reply,
+      payload.text,
+      payload.message
+    ]) {
+      const text = marionPrivateIdentityText(candidate);
+      if (text) return text;
+    }
+    return "";
+  }
+
+  function project(packet, input) {
+    if (!marionPrivateRuntimeRequest(input)) return packet;
+
+    const identity = marionPrivateRuntimeIdentityProjection(input);
+    const base =
+      packet && typeof packet === "object" && !Array.isArray(packet)
+        ? packet
+        : { reply: replyText(packet) };
+    const payload = marionPrivateIdentityObject(base.payload);
+    const envelope = marionPrivateIdentityObject(base.finalEnvelope);
+    const meta = marionPrivateIdentityObject(base.meta);
+    const memoryPatch = marionPrivateIdentityObject(base.memoryPatch);
+    const sessionPatch = marionPrivateIdentityObject(base.sessionPatch);
+    const reply = replyText(base);
+
+    const boundary = {
+      scope: "private_admin",
+      audience: "owner",
+      answerClass: "marion_admin_conversation",
+      surfaceAgent: "Marion",
+      authority: "Marion",
+      publicAgent: "Nyx",
+      publicSurfaceOnly: false,
+      publicFallbackBlocked: true,
+      privateAdminConversation: true,
+      privateControlPlane: true,
+      adminOnly: true,
+      directMarionAdminInterface: true,
+      marionAdminConversation: true,
+      marionAdminConversationAllowed: true,
+      authenticatedOperator: identity.authenticatedOperator === true,
+      operatorPersonalization: identity.operatorPersonalization === true,
+      allowPersonalName: identity.allowPersonalName === true,
+      allowOperatorMemory: identity.allowOperatorMemory === true,
+      memoryPartition: identity.memoryPartition,
+      partitionKey: identity.partitionKey,
+      privateRuntimeContext: identity.privateRuntimeContext,
+      privateRuntimeIdentityProjectionVersion:
+        MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION
+    };
+
+    const replyFields = reply
+      ? {
+          reply,
+          text: marionPrivateIdentityText(base.text || reply, reply),
+          answer: marionPrivateIdentityText(base.answer || reply, reply),
+          output: marionPrivateIdentityText(base.output || reply, reply),
+          response: marionPrivateIdentityText(base.response || reply, reply),
+          message: marionPrivateIdentityText(base.message || reply, reply),
+          directReply: marionPrivateIdentityText(
+            base.directReply || reply,
+            reply
+          ),
+          visibleReply: marionPrivateIdentityText(
+            base.visibleReply || reply,
+            reply
+          ),
+          displayReply: marionPrivateIdentityText(
+            base.displayReply || reply,
+            reply
+          ),
+          finalReply: marionPrivateIdentityText(
+            base.finalReply || reply,
+            reply
+          ),
+          textSpeak: marionPrivateIdentityText(
+            base.textSpeak || reply,
+            reply
+          ),
+          spokenText: marionPrivateIdentityText(
+            base.spokenText || reply,
+            reply
+          )
+        }
+      : {};
+
+    return {
+      ...base,
+      ...boundary,
+      ...replyFields,
+      payload: {
+        ...payload,
+        ...boundary,
+        ...(reply
+          ? {
+              reply: marionPrivateIdentityText(
+                payload.reply || reply,
+                reply
+              ),
+              text: marionPrivateIdentityText(
+                payload.text || reply,
+                reply
+              ),
+              message: marionPrivateIdentityText(
+                payload.message || reply,
+                reply
+              ),
+              textSpeak: marionPrivateIdentityText(
+                payload.textSpeak || reply,
+                reply
+              ),
+              spokenText: marionPrivateIdentityText(
+                payload.spokenText || reply,
+                reply
+              )
+            }
+          : {})
+      },
+      finalEnvelope: {
+        ...envelope,
+        ...boundary,
+        ...(reply
+          ? {
+              reply: marionPrivateIdentityText(
+                envelope.reply || reply,
+                reply
+              ),
+              text: marionPrivateIdentityText(
+                envelope.text || reply,
+                reply
+              ),
+              answer: marionPrivateIdentityText(
+                envelope.answer || reply,
+                reply
+              ),
+              directReply: marionPrivateIdentityText(
+                envelope.directReply || reply,
+                reply
+              ),
+              visibleReply: marionPrivateIdentityText(
+                envelope.visibleReply || reply,
+                reply
+              ),
+              displayReply: marionPrivateIdentityText(
+                envelope.displayReply || reply,
+                reply
+              ),
+              finalReply: marionPrivateIdentityText(
+                envelope.finalReply || reply,
+                reply
+              ),
+              textSpeak: marionPrivateIdentityText(
+                envelope.textSpeak || reply,
+                reply
+              ),
+              spokenText: marionPrivateIdentityText(
+                envelope.spokenText || reply,
+                reply
+              )
+            }
+          : {})
+      },
+      memoryPatch: {
+        ...memoryPatch,
+        scope: "private_admin",
+        memoryPartition: identity.memoryPartition,
+        partitionKey: identity.partitionKey
+      },
+      sessionPatch: {
+        ...sessionPatch,
+        scope: "private_admin",
+        memoryPartition: identity.memoryPartition,
+        partitionKey: identity.partitionKey
+      },
+      meta: {
+        ...meta,
+        scope: "private_admin",
+        audience: "owner",
+        surfaceAgent: "Marion",
+        authority: "Marion",
+        publicSurfaceOnly: false,
+        publicFallbackBlocked: true,
+        memoryPartition: identity.memoryPartition,
+        partitionKey: identity.partitionKey,
+        privateRuntimeIdentityProjectionVersion:
+          MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION,
+        noUserFacingDiagnostics: true
+      }
+    };
+  }
+
+  function wrap(fn) {
+    if (
+      typeof fn !== "function" ||
+      fn.__marionPrivateRuntimeIdentityTerminalProjectionV3
+    ) {
+      return fn;
+    }
+    if (wrapped.has(fn)) return wrapped.get(fn);
+
+    const projected = function() {
+      const args = Array.from(arguments);
+      const input = privateInputFromArgs(args);
+      const result = fn.apply(this, args);
+      const finish = value => project(value, input);
+      return result && typeof result.then === "function"
+        ? result.then(finish)
+        : finish(result);
+    };
+
+    try {
+      Object.keys(fn).forEach(key => {
+        projected[key] = fn[key];
+      });
+    } catch (_) {}
+
+    projected.__marionPrivateRuntimeIdentityTerminalProjectionV3 = true;
+    wrapped.set(fn, projected);
+    return projected;
+  }
+
+  for (const name of [
+    "composeMarionResponse",
+    "compose",
+    "run",
+    "handle",
+    "buildReply",
+    "createResponse",
+    "default"
+  ]) {
+    if (typeof api[name] === "function") {
+      api[name] = wrap(api[name]);
+    }
+  }
+
+  api.MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION =
+    MARION_PRIVATE_RUNTIME_IDENTITY_PROJECTION_VERSION;
+  api.marionPrivateRuntimeIdentityProjection =
+    marionPrivateRuntimeIdentityProjection;
+  api.__marionPrivateRuntimeIdentityTerminalProjectionV3 = true;
+})();
+/* MARION_PRIVATE_RUNTIME_IDENTITY_TERMINAL_PROJECTION_V3_END */
