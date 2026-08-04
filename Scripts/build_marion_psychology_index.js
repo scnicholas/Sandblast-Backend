@@ -1,16 +1,13 @@
 "use strict";
 
 /**
- * build_marion_psychology_index.js
+ * Scripts/build_marion_psychology_index.js
  *
- * Builds:
- *   - Data/marion/compiled/psychology_compiled.json
+ * Builds Data/marion/compiled/psychology_compiled.json from the psychology
+ * manifest and enabled source files. Manifest paths are constrained to the
+ * supplied backend root.
  *
- * Reads:
- *   - Data/marion/manifests/psychology_manifest.json
- *   - Data/psychology/*.json
- *
- * Optional usage:
+ * Usage:
  *   node Scripts/build_marion_psychology_index.js
  *   node Scripts/build_marion_psychology_index.js --root "C:/path/to/project"
  */
@@ -18,22 +15,22 @@
 const fs = require("fs");
 const path = require("path");
 
+const VERSION = "marion.psychologyIndexBuilder/2.1-path-cohesion";
 const DEFAULT_ROOT = process.cwd();
 
-function parseArgs(argv) {
+function parseArgs(argv = process.argv) {
   const args = { root: DEFAULT_ROOT, verbose: true };
-  for (let i = 2; i < argv.length; i++) {
-    const a = String(argv[i] || "").trim();
-    if (a === "--root" && argv[i + 1]) {
-      args.root = path.resolve(String(argv[i + 1]));
-      i++;
+
+  for (let index = 2; index < argv.length; index += 1) {
+    const argument = String(argv[index] || "").trim();
+    if (argument === "--root" && argv[index + 1]) {
+      args.root = path.resolve(String(argv[index + 1]));
+      index += 1;
       continue;
     }
-    if (a === "--quiet") {
-      args.verbose = false;
-      continue;
-    }
+    if (argument === "--quiet") args.verbose = false;
   }
+
   return args;
 }
 
@@ -41,81 +38,94 @@ function log(...parts) {
   console.log("[build_marion_psychology_index]", ...parts);
 }
 
-function ensureDirSync(dirPath) {
-  fs.mkdirSync(dirPath, { recursive: true });
+function ensureDirSync(directory) {
+  fs.mkdirSync(directory, { recursive: true });
 }
 
-function exists(p) {
+function exists(filePath) {
   try {
-    fs.accessSync(p);
+    fs.accessSync(filePath);
     return true;
-  } catch {
+  } catch (_) {
     return false;
   }
 }
 
 function readJson(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
-  return JSON.parse(raw);
+  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
 }
 
 function writeJson(filePath, data) {
   ensureDirSync(path.dirname(filePath));
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
+  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
-function normalizeString(v) {
-  return typeof v === "string" ? v.trim() : "";
+function normalizeString(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeStringArray(v) {
-  if (!Array.isArray(v)) return [];
-  return [...new Set(v.map((x) => normalizeString(x)).filter(Boolean))];
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((item) => normalizeString(item)).filter(Boolean))];
 }
 
-function normalizeObject(v) {
-  return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+function normalizeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
-function normalizeRiskLevel(v) {
-  const s = normalizeString(v).toLowerCase();
-  if (["low", "moderate", "high", "critical"].includes(s)) return s;
-  return "low";
+function resolveInsideRoot(root, relativePath, label = "path") {
+  const resolvedRoot = path.resolve(root);
+  const normalizedRelative = normalizeString(relativePath);
+  if (!normalizedRelative) throw new Error(`${label} is missing.`);
+  if (path.isAbsolute(normalizedRelative)) throw new Error(`${label} must be relative to the backend root: ${normalizedRelative}`);
+
+  const resolved = path.resolve(resolvedRoot, normalizedRelative);
+  const relative = path.relative(resolvedRoot, resolved);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`${label} escapes the backend root: ${normalizedRelative}`);
+  }
+
+  return resolved;
 }
 
-function normalizeToneProfile(v) {
-  const obj = normalizeObject(v);
+function normalizeRiskLevel(value) {
+  const normalized = normalizeString(value).toLowerCase();
+  return ["low", "moderate", "high", "critical"].includes(normalized)
+    ? normalized
+    : "low";
+}
+
+function normalizeToneProfile(value) {
+  const source = normalizeObject(value);
   return {
-    expressionStyle: normalizeString(obj.expressionStyle) || "plain_statement",
-    deliveryTone: normalizeString(obj.deliveryTone) || "steadying",
-    semanticFrame: normalizeString(obj.semanticFrame) || "clarity_building",
-    followupStyle: normalizeString(obj.followupStyle) || "reflective",
-    transitionReadiness: normalizeString(obj.transitionReadiness) || "medium",
-    transitionTargets: normalizeStringArray(obj.transitionTargets)
+    expressionStyle: normalizeString(source.expressionStyle) || "plain_statement",
+    deliveryTone: normalizeString(source.deliveryTone) || "steadying",
+    semanticFrame: normalizeString(source.semanticFrame) || "clarity_building",
+    followupStyle: normalizeString(source.followupStyle) || "reflective",
+    transitionReadiness: normalizeString(source.transitionReadiness) || "medium",
+    transitionTargets: normalizeStringArray(source.transitionTargets)
   };
 }
 
-function normalizeSupportFlags(v) {
-  const obj = normalizeObject(v);
+function normalizeSupportFlags(value) {
+  const source = normalizeObject(value);
   return {
-    needsStabilization: !!obj.needsStabilization,
-    needsContainment: !!obj.needsContainment,
-    needsClarification: !!obj.needsClarification,
-    needsConnection: !!obj.needsConnection,
-    highDistress: !!obj.highDistress,
-    crisis: !!obj.crisis,
-    recoveryPresent: !!obj.recoveryPresent,
-    positivePresent: !!obj.positivePresent
+    needsStabilization: Boolean(source.needsStabilization),
+    needsContainment: Boolean(source.needsContainment),
+    needsClarification: Boolean(source.needsClarification),
+    needsConnection: Boolean(source.needsConnection),
+    highDistress: Boolean(source.highDistress),
+    crisis: Boolean(source.crisis),
+    recoveryPresent: Boolean(source.recoveryPresent),
+    positivePresent: Boolean(source.positivePresent)
   };
 }
 
 function pickSummary(record) {
-  return (
-    normalizeString(record.summary) ||
+  return normalizeString(record.summary) ||
     normalizeString(record.interpretation) ||
     normalizeString(record.title) ||
-    "No summary provided."
-  );
+    "No summary provided.";
 }
 
 function slugify(input) {
@@ -134,105 +144,82 @@ function stableRecordId(record, subdomain, index) {
 }
 
 function normalizeRecord(record, subdomain, index, sourcePath) {
-  const obj = normalizeObject(record);
-
+  const source = normalizeObject(record);
   const normalized = {
-    id: stableRecordId(obj, subdomain, index),
+    id: stableRecordId(source, subdomain, index),
     domain: "psychology",
-    subdomain: normalizeString(obj.subdomain) || subdomain,
-    topic: normalizeString(obj.topic) || slugify(obj.title || `entry_${index + 1}`),
-    title: normalizeString(obj.title) || `Untitled ${subdomain} record ${index + 1}`,
-    summary: pickSummary(obj),
-    signals: normalizeStringArray(obj.signals),
-    keywords: normalizeStringArray(obj.keywords),
-    interpretation: normalizeString(obj.interpretation),
-    supportMode: normalizeString(obj.supportMode),
-    routeBias: normalizeString(obj.routeBias),
-    riskLevel: normalizeRiskLevel(obj.riskLevel),
-    supportFlags: normalizeSupportFlags(obj.supportFlags),
-    responseGuidance: normalizeStringArray(obj.responseGuidance),
-    toneProfile: normalizeToneProfile(obj.toneProfile),
-    contraindications: normalizeStringArray(obj.contraindications),
-    triggers: normalizeStringArray(obj.triggers),
-    responsePattern: normalizeStringArray(obj.responsePattern),
-    tags: normalizeStringArray(obj.tags),
+    subdomain: normalizeString(source.subdomain) || subdomain,
+    topic: normalizeString(source.topic) || slugify(source.title || `entry_${index + 1}`),
+    title: normalizeString(source.title) || `Untitled ${subdomain} record ${index + 1}`,
+    summary: pickSummary(source),
+    signals: normalizeStringArray(source.signals),
+    keywords: normalizeStringArray(source.keywords),
+    interpretation: normalizeString(source.interpretation),
+    supportMode: normalizeString(source.supportMode) || "clarify_and_sequence",
+    routeBias: normalizeString(source.routeBias) || "clarify",
+    riskLevel: normalizeRiskLevel(source.riskLevel),
+    supportFlags: normalizeSupportFlags(source.supportFlags),
+    responseGuidance: normalizeStringArray(source.responseGuidance),
+    toneProfile: normalizeToneProfile(source.toneProfile),
+    contraindications: normalizeStringArray(source.contraindications),
+    triggers: normalizeStringArray(source.triggers),
+    responsePattern: normalizeStringArray(source.responsePattern),
+    tags: normalizeStringArray(source.tags),
     sourceFile: sourcePath.replace(/\\/g, "/")
   };
 
-  if (!normalized.tags.includes("psychology")) {
-    normalized.tags.unshift("psychology");
-  }
-  if (!normalized.tags.includes(normalized.subdomain)) {
-    normalized.tags.push(normalized.subdomain);
-  }
-  if (!normalized.supportMode) {
-    normalized.supportMode = "clarify_and_sequence";
-  }
-  if (!normalized.routeBias) {
-    normalized.routeBias = "clarify";
-  }
-
+  if (!normalized.tags.includes("psychology")) normalized.tags.unshift("psychology");
+  if (!normalized.tags.includes(normalized.subdomain)) normalized.tags.push(normalized.subdomain);
   return normalized;
 }
 
 function dedupeRecords(records) {
-  const byId = new Map();
-  const byFallback = new Set();
-  const out = [];
+  const ids = new Set();
+  const fallbackKeys = new Set();
+  const output = [];
 
   for (const record of records) {
-    if (byId.has(record.id)) {
-      continue;
-    }
-
-    const fallbackKey = [
-      record.subdomain,
-      record.topic,
-      record.title.toLowerCase()
-    ].join("::");
-
-    if (byFallback.has(fallbackKey)) {
-      continue;
-    }
-
-    byId.set(record.id, true);
-    byFallback.add(fallbackKey);
-    out.push(record);
+    if (ids.has(record.id)) continue;
+    const fallbackKey = [record.subdomain, record.topic, record.title.toLowerCase()].join("::");
+    if (fallbackKeys.has(fallbackKey)) continue;
+    ids.add(record.id);
+    fallbackKeys.add(fallbackKey);
+    output.push(record);
   }
 
-  return out;
+  return output;
 }
 
 function buildSubdomainMeta(records, manifest) {
-  const out = {};
-  for (const src of manifest.sources) {
-    if (!src.enabled) continue;
-    const subdomain = src.subdomain;
-    const count = records.filter((r) => r.subdomain === subdomain).length;
-    out[subdomain] = {
-      priority: Number(src.priority) || 999,
-      description: normalizeString(src.purpose),
-      recordCount: count
+  const output = {};
+  for (const source of manifest.sources) {
+    if (!source.enabled) continue;
+    const subdomain = normalizeString(source.subdomain);
+    output[subdomain] = {
+      priority: Number(source.priority) || 999,
+      description: normalizeString(source.purpose),
+      recordCount: records.filter((record) => record.subdomain === subdomain).length
     };
   }
-  return out;
+  return output;
 }
 
 function buildPriorityOrder(manifest) {
   return [...manifest.sources]
-    .filter((s) => s.enabled)
-    .sort((a, b) => (Number(a.priority) || 999) - (Number(b.priority) || 999))
-    .map((s) => s.subdomain);
+    .filter((source) => source.enabled)
+    .sort((left, right) => (Number(left.priority) || 999) - (Number(right.priority) || 999))
+    .map((source) => normalizeString(source.subdomain))
+    .filter(Boolean);
 }
 
 function validateManifestShape(manifest) {
-  if (!manifest || typeof manifest !== "object") {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
     throw new Error("Manifest is not a valid object.");
   }
   if (!Array.isArray(manifest.sources) || manifest.sources.length === 0) {
     throw new Error("Manifest.sources is missing or empty.");
   }
-  if (!manifest.outputs || typeof manifest.outputs !== "object") {
+  if (!manifest.outputs || typeof manifest.outputs !== "object" || Array.isArray(manifest.outputs)) {
     throw new Error("Manifest.outputs is missing.");
   }
   if (!normalizeString(manifest.outputs.compiledIndex)) {
@@ -240,59 +227,51 @@ function validateManifestShape(manifest) {
   }
 }
 
-function main() {
-  const args = parseArgs(process.argv);
-  const root = args.root;
+function buildPsychologyIndex({ root = DEFAULT_ROOT, verbose = true } = {}) {
+  const resolvedRoot = path.resolve(root);
+  const manifestPath = resolveInsideRoot(
+    resolvedRoot,
+    path.join("Data", "marion", "manifests", "psychology_manifest.json"),
+    "psychology manifest path"
+  );
 
-  const manifestPath = path.join(root, "Data", "marion", "manifests", "psychology_manifest.json");
-  if (!exists(manifestPath)) {
-    throw new Error(`Manifest not found: ${manifestPath}`);
-  }
-
+  if (!exists(manifestPath)) throw new Error(`Manifest not found: ${manifestPath}`);
   const manifest = readJson(manifestPath);
   validateManifestShape(manifest);
 
   const allRecords = [];
   const sourceFiles = [];
 
-  for (const src of manifest.sources) {
-    if (!src.enabled) continue;
+  for (const manifestSource of manifest.sources) {
+    if (!manifestSource || manifestSource.enabled === false) continue;
+    const relativePath = normalizeString(manifestSource.path);
+    const subdomain = normalizeString(manifestSource.subdomain);
+    if (!subdomain) throw new Error(`Manifest source is missing subdomain: ${relativePath || "(unknown)"}`);
 
-    const relPath = normalizeString(src.path);
-    const subdomain = normalizeString(src.subdomain);
-    const sourcePath = path.join(root, relPath);
-
+    const sourcePath = resolveInsideRoot(resolvedRoot, relativePath, "psychology source path");
     if (!exists(sourcePath)) {
-      if (src.critical) {
-        throw new Error(`Critical source file missing: ${sourcePath}`);
-      }
+      if (manifestSource.critical) throw new Error(`Critical source file missing: ${sourcePath}`);
       continue;
     }
 
     const data = readJson(sourcePath);
-    if (!Array.isArray(data)) {
-      throw new Error(`Source file must be an array: ${sourcePath}`);
-    }
+    if (!Array.isArray(data)) throw new Error(`Source file must be an array: ${sourcePath}`);
+    sourceFiles.push(relativePath.replace(/\\/g, "/"));
 
-    sourceFiles.push(relPath.replace(/\\/g, "/"));
-
-    for (let i = 0; i < data.length; i++) {
-      const normalized = normalizeRecord(data[i], subdomain, i, relPath);
-      allRecords.push(normalized);
+    for (let index = 0; index < data.length; index += 1) {
+      allRecords.push(normalizeRecord(data[index], subdomain, index, relativePath));
     }
   }
 
-  const deduped = dedupeRecords(allRecords);
-
+  const records = dedupeRecords(allRecords);
   const compiled = {
     version: normalizeString(manifest.version) || "1.0.0",
     domain: "psychology",
     compiledAt: new Date().toISOString(),
-    description:
-      "Compiled psychology knowledge index for Marion ingestion. Aggregates affect interpretation, attachment patterns, cognitive distortions, crisis flags, support strategies, and trauma sensitivity into a unified retrieval structure.",
+    description: "Compiled psychology knowledge index for Marion ingestion. Aggregates affect interpretation, attachment patterns, cognitive distortions, crisis flags, support strategies, and trauma sensitivity into a unified retrieval structure.",
     sourceFiles,
     priorityOrder: buildPriorityOrder(manifest),
-    subdomains: buildSubdomainMeta(deduped, manifest),
+    subdomains: buildSubdomainMeta(records, manifest),
     retrievalPolicy: {
       mode: "priority_then_relevance",
       maxPrimaryMatches: 3,
@@ -302,28 +281,44 @@ function main() {
       requireSignalOrKeywordHit: true,
       allowSubdomainBlending: true
     },
-    records: deduped
+    records
   };
 
-  const outputPath = path.join(root, normalizeString(manifest.outputs.compiledIndex));
+  const outputPath = resolveInsideRoot(resolvedRoot, manifest.outputs.compiledIndex, "compiled psychology output path");
   writeJson(outputPath, compiled);
 
-  if (args.verbose) {
-    log(`Root: ${root}`);
+  if (verbose) {
+    log(`Root: ${resolvedRoot}`);
     log(`Manifest: ${manifestPath}`);
     log(`Compiled output written: ${outputPath}`);
     log(`Sources loaded: ${sourceFiles.length}`);
-    log(`Records written: ${deduped.length}`);
+    log(`Records written: ${records.length}`);
+  }
+
+  return { root: resolvedRoot, manifestPath, outputPath, compiled };
+}
+
+function main(argv = process.argv) {
+  const args = parseArgs(argv);
+  return buildPsychologyIndex(args);
+}
+
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error("[build_marion_psychology_index] ERROR:", error && error.message ? error.message : error);
+    process.exitCode = 1;
   }
 }
 
-try {
-  main();
-} catch (err) {
-  console.error("[build_marion_psychology_index] ERROR:", err && err.message ? err.message : err);
-  process.exit(1);
-<<<<<<< HEAD
-}
-=======
-}
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
+module.exports = {
+  VERSION,
+  parseArgs,
+  resolveInsideRoot,
+  normalizeRecord,
+  dedupeRecords,
+  validateManifestShape,
+  buildPsychologyIndex,
+  main
+};
