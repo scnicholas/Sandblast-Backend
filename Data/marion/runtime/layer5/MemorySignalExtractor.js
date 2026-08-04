@@ -1,109 +1,160 @@
-<<<<<<< HEAD
 "use strict";
 
-function _uniq(arr = []) {
-  return [...new Set((Array.isArray(arr) ? arr : []).filter(Boolean))];
+/**
+ * MemorySignalExtractor.js
+ *
+ * Extracts bounded, serialization-safe continuity signals.
+ * It does not own memory persistence or final-reply authority.
+ */
+
+const VERSION =
+  "marion.memorySignalExtractor/2.1-conflict-resolved-safe-signals";
+
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
 }
-function _trim(v) { return v == null ? "" : String(v).trim(); }
+
+function safeText(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+
+  try {
+    return String(value).trim();
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function unique(values = []) {
+  const source = Array.isArray(values) ? values : [];
+  return [...new Set(source.filter(Boolean))];
+}
+
 function normalizeText(text = "") {
-  return _trim(text).toLowerCase().replace(/[^\w\s'-]/g, " ").replace(/\s+/g, " ").trim();
+  return safeText(text)
+    .toLowerCase()
+    .replace(/[^\w\s'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
+
 function fingerprint(text = "") {
-=======
-function uniq(arr = []) {
-  return [...new Set(arr.filter(Boolean))];
-}
-
-function normalizeText(text = '') {
-  return String(text).toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function fingerprint(text = '') {
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
   const input = normalizeText(text);
   let hash = 0;
-  for (let i = 0; i < input.length; i += 1) {
-    hash = ((hash << 5) - hash) + input.charCodeAt(i);
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(index);
     hash |= 0;
   }
-<<<<<<< HEAD
+
   return String(hash >>> 0);
+}
+
+function clampUnitInterval(value) {
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? Math.max(0, Math.min(1, number))
+    : 0;
 }
 
 function extractMemorySignals({
   userQuery = "",
-=======
-  return String(hash);
-}
-
-function extractMemorySignals({
-  userQuery = '',
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
   fusionPacket = {},
   assembledResponse = {}
 } = {}) {
-  const emotion = fusionPacket.emotion || {};
-  const psychology = fusionPacket.psychology || {};
-  const evidence = Array.isArray(fusionPacket.evidence) ? fusionPacket.evidence : [];
-<<<<<<< HEAD
-  const responseMeta = assembledResponse.meta || {};
+  const fusion = safeObject(fusionPacket);
+  const response = safeObject(assembledResponse);
+  const emotion = safeObject(fusion.emotion);
+  const psychology = safeObject(fusion.psychology);
+  const responseMeta = safeObject(response.meta);
+  const evidence = Array.isArray(fusion.evidence)
+    ? fusion.evidence
+    : [];
+
   const normalizedQuery = normalizeText(userQuery);
-  const queryTokens = _uniq(normalizedQuery.split(" ").filter((token) => token.length > 2)).slice(0, 14);
+  const queryTokens = unique(
+    normalizedQuery
+      .split(" ")
+      .filter((token) => token.length > 2)
+  ).slice(0, 14);
+
+  const evidenceWindow = evidence.slice(0, 6);
 
   return {
-    query: _trim(userQuery),
+    query: safeText(userQuery),
     normalizedQuery,
     queryFingerprint: fingerprint(userQuery),
     queryTokens,
-    domain: fusionPacket.domain || "general",
-    intent: fusionPacket.intent || "general",
-    primaryEmotion: emotion.primaryEmotion || "neutral",
-    secondaryEmotion: emotion.secondaryEmotion || null,
-    emotionalIntensity: Number.isFinite(Number(emotion.intensity)) ? Math.max(0, Math.min(1, Number(emotion.intensity))) : 0,
-    emotionalNeeds: _uniq(Array.isArray(emotion.needs) ? emotion.needs : []),
-    suppressionSignals: _uniq(Array.isArray(emotion.suppressionSignals) ? emotion.suppressionSignals : []),
-    blendProfileKeys: _uniq(Object.keys((emotion.blendProfile && typeof emotion.blendProfile === "object") ? emotion.blendProfile : {})),
-    psychologyPatterns: _uniq(Array.isArray(psychology.patterns) ? psychology.patterns : []),
-    psychologyNeeds: _uniq(Array.isArray(psychology.needs) ? psychology.needs : []),
-    psychologyRisks: _uniq(Array.isArray(psychology.risks) ? psychology.risks : []),
-    evidenceTitles: _uniq(evidence.slice(0, 6).map((item) => item && item.title).filter(Boolean)),
-    evidenceTags: _uniq(evidence.slice(0, 6).flatMap((item) => Array.isArray(item && item.tags) ? item.tags : [])).slice(0, 16),
-    responseMode: assembledResponse.responseMode?.mode || "balanced",
-    fallbackApplied: Boolean(assembledResponse.partial || assembledResponse.fallbackApplied),
-    continuityHealth: _trim(responseMeta.continuityHealth || ""),
-    recoveryMode: _trim(responseMeta.recoveryMode || "")
-=======
-  const risks = Array.isArray(psychology.risks) ? psychology.risks : [];
-  const normalizedQuery = normalizeText(userQuery);
-  const queryTokens = uniq(normalizedQuery.split(' ').filter(token => token.length > 2)).slice(0, 12);
-
-  return {
-    query: userQuery,
-    normalizedQuery,
-    queryFingerprint: fingerprint(userQuery),
-    queryTokens,
-    domain: fusionPacket.domain || 'general',
-    intent: fusionPacket.intent || 'general',
-    primaryEmotion: emotion.primaryEmotion || 'neutral',
-    emotionalIntensity: Number.isFinite(emotion.intensity) ? Math.max(0, Math.min(1, emotion.intensity)) : 0,
-    emotionalNeeds: uniq(Array.isArray(emotion.needs) ? emotion.needs : []),
-    psychologyPatterns: uniq(Array.isArray(psychology.patterns) ? psychology.patterns : []),
-    psychologyNeeds: uniq(Array.isArray(psychology.needs) ? psychology.needs : []),
-    psychologyRisks: uniq(risks),
-    evidenceTitles: uniq(evidence.slice(0, 5).map(item => item && item.title)),
-    responseMode: assembledResponse.responseMode?.mode || 'balanced',
-    fallbackApplied: Boolean(assembledResponse.partial || assembledResponse.fallbackApplied)
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
+    domain: safeText(fusion.domain, "general") || "general",
+    intent: safeText(fusion.intent, "general") || "general",
+    primaryEmotion:
+      safeText(emotion.primaryEmotion, "neutral") || "neutral",
+    secondaryEmotion:
+      safeText(emotion.secondaryEmotion) || null,
+    emotionalIntensity:
+      clampUnitInterval(emotion.intensity),
+    emotionalNeeds:
+      unique(Array.isArray(emotion.needs) ? emotion.needs : []),
+    suppressionSignals:
+      unique(
+        Array.isArray(emotion.suppressionSignals)
+          ? emotion.suppressionSignals
+          : []
+      ),
+    blendProfileKeys:
+      unique(
+        Object.keys(
+          safeObject(emotion.blendProfile)
+        )
+      ),
+    psychologyPatterns:
+      unique(
+        Array.isArray(psychology.patterns)
+          ? psychology.patterns
+          : []
+      ),
+    psychologyNeeds:
+      unique(
+        Array.isArray(psychology.needs)
+          ? psychology.needs
+          : []
+      ),
+    psychologyRisks:
+      unique(
+        Array.isArray(psychology.risks)
+          ? psychology.risks
+          : []
+      ),
+    evidenceTitles:
+      unique(
+        evidenceWindow
+          .map((item) => safeText(safeObject(item).title))
+          .filter(Boolean)
+      ),
+    evidenceTags:
+      unique(
+        evidenceWindow.flatMap((item) => {
+          const tags = safeObject(item).tags;
+          return Array.isArray(tags) ? tags : [];
+        })
+      ).slice(0, 16),
+    responseMode:
+      safeText(safeObject(response.responseMode).mode, "balanced") ||
+      "balanced",
+    fallbackApplied:
+      Boolean(response.partial || response.fallbackApplied),
+    continuityHealth:
+      safeText(responseMeta.continuityHealth),
+    recoveryMode:
+      safeText(responseMeta.recoveryMode)
   };
 }
 
 module.exports = {
-<<<<<<< HEAD
+  VERSION,
   extractMemorySignals,
   normalizeText,
   fingerprint
 };
-=======
-  extractMemorySignals
-};
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
