@@ -1,5 +1,7 @@
 "use strict";
 
+// SYNTAX-COHESION-REPAIR-V1: corrected always-true cache bypass; preserved live-refresh and validated-cache authority.
+
 const fs = require("fs");
 const path = require("path");
 
@@ -711,29 +713,83 @@ async function refreshCache(options) {
 
 async function getCachedOrRefresh(options) {
   const opts = options && typeof options === "object" ? options : {};
-  const forceRefresh = !!opts.forceRefresh || !!opts.clearCache || true;
+  const forceRefresh =
+    opts.forceRefresh === true ||
+    opts.clearCache === true;
 
-  if (opts.clearCache) clearCacheFiles();
+  const refreshMs =
+    Number(opts.refreshMs) > 0
+      ? Number(opts.refreshMs)
+      : getEnvNumber(
+          "NEWS_CANADA_REFRESH_MS",
+          DEFAULT_REFRESH_MS
+        );
 
-  const liveRefreshed = await refreshCache({ ...opts, forceRefresh });
-  if (liveRefreshed && liveRefreshed.ok && Array.isArray(liveRefreshed.items) && liveRefreshed.items.length) {
-    return liveRefreshed;
+  const staleMs =
+    Number(opts.staleMs) > 0
+      ? Number(opts.staleMs)
+      : getEnvNumber(
+          "NEWS_CANADA_STALE_MS",
+          DEFAULT_STALE_MS
+        );
+
+  if (opts.clearCache) {
+    clearCacheFiles();
   }
 
   const cached = readCache();
-  if (cached.ok && Array.isArray(cached.items) && cached.items.length) {
+
+  if (
+    !forceRefresh &&
+    cached.ok &&
+    Array.isArray(cached.items) &&
+    cached.items.length &&
+    isCacheFresh(cached, refreshMs)
+  ) {
     return {
       ...cached,
       meta: {
         ...(cached.meta || {}),
-        stale: true,
+        stale: false,
+        degraded: false,
+        servedFrom: "validated_cache_fresh"
+      }
+    };
+  }
+
+  const liveRefreshed = await refreshCache({
+    ...opts,
+    forceRefresh
+  });
+
+  if (
+    liveRefreshed &&
+    liveRefreshed.ok &&
+    Array.isArray(liveRefreshed.items) &&
+    liveRefreshed.items.length
+  ) {
+    return liveRefreshed;
+  }
+
+  if (
+    cached.ok &&
+    Array.isArray(cached.items) &&
+    cached.items.length
+  ) {
+    return {
+      ...cached,
+      meta: {
+        ...(cached.meta || {}),
+        stale: isCacheStale(cached, staleMs),
         degraded: true,
         servedFrom: "validated_cache_after_live_failure"
       }
     };
   }
 
-  return await refreshCache(opts);
+  return liveRefreshed || buildEmptyContract(
+    "live_refresh_failed_no_cache"
+  );
 }
 
 
