@@ -1,6 +1,7 @@
 "use strict";
 
-const VERSION = "marion.adminRuntimeSafety/2.1-private-route-primitive-serialization-hardlock";
+const VERSION = "marion.adminRuntimeSafety/2.2-private-route-primitive-serialization-hardlock-stable-export-private-identity-contract";
+const MARION_ADMIN_RUNTIME_SAFETY_EXPORTS = module.exports;
 
 function safeRead(source, key, fallback) {
   try {
@@ -183,7 +184,20 @@ function privateRuntimeIdentity(body = {}, auth = {}, traceId = "") {
   };
 }
 
-module.exports = {
+function isPrivateRuntimeIdentity(value) {
+  const identity = value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
+  return identity.scope === "private_admin" &&
+    identity.audience === "owner" &&
+    identity.surfaceAgent === "Marion" &&
+    identity.publicSurfaceOnly === false &&
+    identity.publicFallbackBlocked === true &&
+    typeof identity.memoryPartition === "string" &&
+    identity.memoryPartition.startsWith("private:admin:");
+}
+
+Object.assign(MARION_ADMIN_RUNTIME_SAFETY_EXPORTS, {
   VERSION,
   safeRead,
   primitiveText,
@@ -192,5 +206,7 @@ module.exports = {
   errorText,
   safeSerializable,
   privatePartitionKey,
-  privateRuntimeIdentity
-};
+  privateRuntimeIdentity,
+  isPrivateRuntimeIdentity,
+  projectPrivateRuntimeIdentity: privateRuntimeIdentity
+});
