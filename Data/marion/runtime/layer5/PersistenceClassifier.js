@@ -1,109 +1,120 @@
-<<<<<<< HEAD
 "use strict";
 
-function _uniq(arr = []) {
-  return [...new Set((Array.isArray(arr) ? arr : []).filter(Boolean))];
-=======
-function uniq(arr = []) {
-  return [...new Set(arr.filter(Boolean))];
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
+/**
+ * PersistenceClassifier.js
+ *
+ * Separates bounded persistent continuity signals from transient turn state.
+ */
+
+const VERSION =
+  "marion.persistenceClassifier/2.1-conflict-resolved-bounded-carry";
+
+const PERSISTENT_INTENTS = Object.freeze([
+  "strategy",
+  "research",
+  "analysis",
+  "planning",
+  "build",
+  "debug"
+]);
+
+function safeObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
+}
+
+function unique(values = []) {
+  const source = Array.isArray(values) ? values : [];
+  return [...new Set(source.filter(Boolean))];
+}
+
+function copyBounded(values, limit) {
+  return unique(values).slice(0, limit);
 }
 
 function classifyPersistence(signals = {}) {
+  const source = safeObject(signals);
   const persistent = {};
   const transient = {};
 
-<<<<<<< HEAD
-  const domain = signals.domain || "general";
-  const intent = signals.intent || "general";
-  const primaryEmotion = signals.primaryEmotion || "neutral";
-  const emotionalIntensity = Number.isFinite(Number(signals.emotionalIntensity))
-    ? Number(signals.emotionalIntensity)
-    : 0;
+  const domain = source.domain || "general";
+  const intent = source.intent || "general";
+  const primaryEmotion = source.primaryEmotion || "neutral";
 
-  if (domain && domain !== "general") persistent.domain = domain;
-  else transient.domain = domain;
+  const emotionalIntensityValue =
+    Number(source.emotionalIntensity);
 
-  if (["strategy", "research", "analysis", "planning", "build", "debug"].includes(intent)) {
-=======
-  const domain = signals.domain || 'general';
-  const intent = signals.intent || 'general';
-  const primaryEmotion = signals.primaryEmotion || 'neutral';
-  const emotionalIntensity = Number.isFinite(signals.emotionalIntensity)
-    ? signals.emotionalIntensity
-    : 0;
+  const emotionalIntensity =
+    Number.isFinite(emotionalIntensityValue)
+      ? Math.max(0, Math.min(1, emotionalIntensityValue))
+      : 0;
 
-  if (domain && domain !== 'general') {
+  if (domain && domain !== "general") {
     persistent.domain = domain;
   } else {
     transient.domain = domain;
   }
 
-  if (['strategy', 'research', 'analysis', 'planning', 'build', 'debug'].includes(intent)) {
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
+  if (PERSISTENT_INTENTS.includes(intent)) {
     persistent.intent = intent;
   } else {
     transient.intent = intent;
   }
 
-<<<<<<< HEAD
-  if (signals.recoveryMode) persistent.recoveryMode = signals.recoveryMode;
-  if (signals.continuityHealth) transient.continuityHealth = signals.continuityHealth;
+  if (source.recoveryMode) {
+    persistent.recoveryMode = source.recoveryMode;
+  }
 
-  if (primaryEmotion !== "neutral") transient.primaryEmotion = primaryEmotion;
-  if (signals.secondaryEmotion) transient.secondaryEmotion = signals.secondaryEmotion;
-  if (emotionalIntensity >= 0.65) transient.highEmotion = true;
+  if (source.continuityHealth) {
+    transient.continuityHealth = source.continuityHealth;
+  }
 
-  if ((signals.suppressionSignals || []).length) transient.suppressionSignals = _uniq(signals.suppressionSignals);
-  if ((signals.psychologyPatterns || []).length) transient.psychologyPatterns = _uniq(signals.psychologyPatterns);
-  if ((signals.psychologyNeeds || []).length) transient.psychologyNeeds = _uniq(signals.psychologyNeeds);
-  if ((signals.psychologyRisks || []).length) transient.psychologyRisks = _uniq(signals.psychologyRisks);
-  if ((signals.emotionalNeeds || []).length) transient.emotionalNeeds = _uniq(signals.emotionalNeeds);
-  if ((signals.blendProfileKeys || []).length) transient.blendProfileKeys = _uniq(signals.blendProfileKeys);
-  if ((signals.evidenceTitles || []).length) transient.evidenceTitles = _uniq(signals.evidenceTitles).slice(0, 8);
-  if ((signals.evidenceTags || []).length) transient.evidenceTags = _uniq(signals.evidenceTags).slice(0, 16);
-  if ((signals.queryTokens || []).length) transient.queryTokens = _uniq(signals.queryTokens).slice(0, 12);
-
-  persistent.responseMode = signals.responseMode || "balanced";
-  persistent.queryFingerprint = signals.queryFingerprint || "";
-=======
-  if (primaryEmotion !== 'neutral') {
+  if (primaryEmotion !== "neutral") {
     transient.primaryEmotion = primaryEmotion;
+  }
+
+  if (source.secondaryEmotion) {
+    transient.secondaryEmotion = source.secondaryEmotion;
   }
 
   if (emotionalIntensity >= 0.65) {
     transient.highEmotion = true;
   }
 
-  if ((signals.psychologyPatterns || []).length) {
-    transient.psychologyPatterns = uniq(signals.psychologyPatterns);
+  const boundedTransientArrays = [
+    ["suppressionSignals", 16],
+    ["psychologyPatterns", 16],
+    ["psychologyNeeds", 16],
+    ["psychologyRisks", 16],
+    ["emotionalNeeds", 16],
+    ["blendProfileKeys", 16],
+    ["evidenceTitles", 8],
+    ["evidenceTags", 16],
+    ["queryTokens", 12]
+  ];
+
+  for (const [key, limit] of boundedTransientArrays) {
+    if (Array.isArray(source[key]) && source[key].length) {
+      transient[key] = copyBounded(source[key], limit);
+    }
   }
 
-  if ((signals.psychologyNeeds || []).length) {
-    transient.psychologyNeeds = uniq(signals.psychologyNeeds);
+  if (source.fallbackApplied === true) {
+    transient.fallbackApplied = true;
   }
 
-  if ((signals.psychologyRisks || []).length) {
-    transient.psychologyRisks = uniq(signals.psychologyRisks);
-  }
+  persistent.responseMode =
+    source.responseMode || "balanced";
 
-  if ((signals.emotionalNeeds || []).length) {
-    transient.emotionalNeeds = uniq(signals.emotionalNeeds);
-  }
+  persistent.queryFingerprint =
+    source.queryFingerprint || "";
 
-  if ((signals.evidenceTitles || []).length) {
-    transient.evidenceTitles = uniq(signals.evidenceTitles);
-  }
+  persistent.lastMeaningfulDomain =
+    persistent.domain || null;
 
-  if ((signals.queryTokens || []).length) {
-    transient.queryTokens = uniq(signals.queryTokens).slice(0, 10);
-  }
-
-  persistent.responseMode = signals.responseMode || 'balanced';
-  persistent.queryFingerprint = signals.queryFingerprint || '';
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
-  persistent.lastMeaningfulDomain = persistent.domain || null;
-  persistent.lastMeaningfulIntent = persistent.intent || null;
+  persistent.lastMeaningfulIntent =
+    persistent.intent || null;
 
   return {
     persistent,
@@ -112,9 +123,7 @@ function classifyPersistence(signals = {}) {
 }
 
 module.exports = {
+  VERSION,
+  PERSISTENT_INTENTS,
   classifyPersistence
-<<<<<<< HEAD
 };
-=======
-};
->>>>>>> 078f7f11 (Add News Canada RSS service and rss-parser)
