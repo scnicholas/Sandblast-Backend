@@ -15,6 +15,7 @@ const file = path.resolve(
   __dirname,
   "..",
   "public",
+  "nyx",
   "sandblast_nyx_widget.html"
 );
 
