@@ -18,7 +18,7 @@ const Module = require("module");
 const path = require("path");
 
 const TEST_VERSION =
-  "marion.layers9_24PartialCohesionTest/2.0-extension-aware";
+  "marion.layers9_24PartialCohesionTest/2.2-unicode-contract-normalization";
 
 const BASELINE_START_LAYER = 9;
 const BASELINE_HARD_STOP_LAYER = 24;
@@ -136,24 +136,110 @@ function isCompletionCoordinatorRequest(request) {
     );
 }
 
-function parseConversationLayerVersion(value) {
-  const text = String(value || "").trim();
+function normalizeConversationLayerVersion(value) {
+  return String(value || "")
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g, "-")
+    .replace(/\u00A0/g, " ")
+    .trim()
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s*\.\s*/g, ".");
+}
 
-  const match = text.match(
-    /^marion\.conversationLayers\/(\d+)(?:\.(\d+))?(?:-cohesive-(\d+)-(\d+)-part(\d+))?$/i
+function conversationLayerVersionCodePoints(value) {
+  return Array.from(String(value || "")).map((character) => ({
+    character,
+    codePoint: `U+${character.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`
+  }));
+}
+
+function parseConversationLayerVersion(value) {
+  const raw = String(value || "");
+  const text = normalizeConversationLayerVersion(raw);
+
+  const baseMatch = text.match(
+    /^marion\.conversationLayers\/(\d+)(?:\.(\d+))?(.*)$/i
   );
 
-  if (!match) {
+  if (!baseMatch) {
     return null;
   }
 
+  const activeLayer = Number(baseMatch[1]);
+  const minor = Number(baseMatch[2] || 0);
+  const tail = String(baseMatch[3] || "");
+
+  if (
+    !Number.isInteger(activeLayer) ||
+    activeLayer < 1 ||
+    !Number.isInteger(minor) ||
+    minor < 0
+  ) {
+    return null;
+  }
+
+  if (!tail) {
+    return {
+      raw,
+      normalized: text,
+      activeLayer,
+      minor,
+      cohesiveStartLayer: null,
+      cohesiveEndLayer: null,
+      part: null,
+      extensionTags: []
+    };
+  }
+
+  const cohesiveMatch = tail.match(
+    /^-cohesive-(\d+)-(\d+)-part(\d+)(.*)$/i
+  );
+
+  if (!cohesiveMatch) {
+    return null;
+  }
+
+  const cohesiveStartLayer = Number(cohesiveMatch[1]);
+  const cohesiveEndLayer = Number(cohesiveMatch[2]);
+  const part = Number(cohesiveMatch[3]);
+  const extensionTail = String(cohesiveMatch[4] || "");
+
+  if (
+    !Number.isInteger(cohesiveStartLayer) ||
+    !Number.isInteger(cohesiveEndLayer) ||
+    !Number.isInteger(part) ||
+    cohesiveStartLayer < 1 ||
+    cohesiveEndLayer < cohesiveStartLayer ||
+    part < 1
+  ) {
+    return null;
+  }
+
+  const extensionTags = [];
+
+  if (extensionTail) {
+    if (!/^(?:-[a-z][a-z0-9._]*)+$/i.test(extensionTail)) {
+      return null;
+    }
+
+    extensionTags.push(
+      ...extensionTail
+        .split("-")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    );
+  }
+
   return {
-    raw: text,
-    activeLayer: Number(match[1]),
-    minor: Number(match[2] || 0),
-    cohesiveStartLayer: match[3] ? Number(match[3]) : null,
-    cohesiveEndLayer: match[4] ? Number(match[4]) : null,
-    part: match[5] ? Number(match[5]) : null
+    raw,
+    normalized: text,
+    activeLayer,
+    minor,
+    cohesiveStartLayer,
+    cohesiveEndLayer,
+    part,
+    extensionTags
   };
 }
 
@@ -331,7 +417,11 @@ try {
 
   assert.ok(
     parsedVersion,
-    `Unexpected conversation-layer version contract: ${String(flow.version)}`
+    [
+      `Unexpected conversation-layer version contract: ${String(flow.version)}`,
+      `Normalized contract: ${normalizeConversationLayerVersion(flow.version)}`,
+      `Code points: ${JSON.stringify(conversationLayerVersionCodePoints(flow.version))}`
+    ].join("\n")
   );
 
   assert.ok(
@@ -499,6 +589,12 @@ try {
         status.hardStopLayer,
       flowVersion:
         flow.version,
+      normalizedFlowVersion:
+        parsedVersion.normalized,
+      versionPart:
+        parsedVersion.part,
+      versionExtensionTags:
+        parsedVersion.extensionTags,
       extensionAware:
         status.hardStopLayer >
         BASELINE_HARD_STOP_LAYER
