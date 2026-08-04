@@ -1,4 +1,14 @@
-{
+"use strict";
+
+/**
+ * MarionConversationLayerMap.js
+ *
+ * CommonJS representation of the conversational-flow layer map.
+ * The original upload contained raw JSON in a .js file, which is invalid
+ * JavaScript. Keys and values are preserved exactly.
+ */
+
+const MarionConversationLayerMap = {
   "package_version": "marion_conversational_flow_package_v2_round2_continuity",
   "six_domains": [
     "ai",
@@ -125,4 +135,6 @@
     "execution_authorized": false,
     "reply_authority": "composer_final"
   }
-}
+};
+
+module.exports = MarionConversationLayerMap;
