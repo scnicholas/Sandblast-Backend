@@ -12,7 +12,7 @@
  *   authenticatedOperator are not enough by themselves when the request is public.
  */
 
-const VERSION = "nyx.privateOperatorBoundaryLock/2.0";
+const VERSION = "nyx.privateOperatorBoundaryLock/2.1-circular-safe-boundary";
 const OPERATOR_NAME = "Mac";
 const OPERATOR_AGENT = "Marion";
 const PUBLIC_AGENT = "Nyx";
@@ -24,11 +24,13 @@ const REPLY_KEYS = new Set([
 const PRIVATE_MARKER_KEYS = /^(?:authenticatedOperator|operatorAuthenticated|operatorPersonalization|allowPersonalName|operatorName|privateAdminConversation|marionAdminConversation|adminConversationAllowed|adminVerified|sessionVerified|serverSideAdminAuth|trustedServerAuth|ownerVerified|adminVoiceVerified|adminVoiceDeliveryAllowed|adminVoiceRuntimeApproval)$/i;
 const PUBLIC_SOURCE_RE = /(?:sandblast_channel_widget|cosmos-widget|nyx-widget|public_interface|webflow|sandblast\.channel)/i;
 const ADMIN_SOURCE_RE = /(?:marion_admin_conversation|admin_text|admin|marion-admin-interface|protected admin route)/i;
-const ADMIN_ROUTE_RE = /(?:\/api\/marion\/admin\/conversation|\/marion\/admin\/conversation)/i;
+const ADMIN_ROUTE_RE = /(?:\/(?:api\/)?private\/marion\/(?:admin\/)?(?:conversation|runtime)|\/(?:api\/)?marion\/admin\/(?:conversation|runtime))/i;
+const CONTEXT_MARKER = Symbol("nyx.privateOperatorBoundaryLock.context");
 
 function isObj(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
 function safeObj(value) { return isObj(value) ? value : {}; }
-function safeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
+function safeStr(value) { try { return value == null ? "" : String(value).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim(); } catch (_) { return ""; } }
+function safeEntries(value) { try { return Object.entries(value); } catch (_) { return []; } }
 function lower(value) { return safeStr(value).toLowerCase(); }
 function headerValue(headers, key) {
   const h = safeObj(headers);
@@ -61,66 +63,77 @@ function collectContext(input) {
   const audience = firstText(src.audience, body.audience, payload.audience, ui.audience, meta.audience, headerValue(headers, "x-sb-audience"));
   const surfaceAgent = firstText(src.surfaceAgent, body.surfaceAgent, payload.surfaceAgent, ui.surfaceAgent, meta.surfaceAgent, payload.publicAgent, headerValue(headers, "x-sb-public-surface"));
   const site = firstText(client.site, safeObj(body.client).site, safeObj(payload.client).site);
-  return { src, body, payload, meta, ui, client, auth, headers, route, source, audience, surfaceAgent, site };
+  const context = { src, req, body, payload, meta, ui, client, auth, headers, route, source, audience, surfaceAgent, site };
+  try { Object.defineProperty(context, CONTEXT_MARKER, { value: true, enumerable: false }); } catch (_) {}
+  return context;
+}
+function contextOf(input) {
+  try { if (input && input[CONTEXT_MARKER] === true) return input; } catch (_) {}
+  return collectContext(input);
 }
 function hasPublicSurfaceMarkers(ctx) {
-  const c = collectContext(ctx);
+  const c = contextOf(ctx);
   return c.src.publicSurfaceOnly === true || c.body.publicSurfaceOnly === true || c.payload.publicSurfaceOnly === true || c.ui.publicSurfaceOnly === true ||
     c.src.publicIdentityLock === true || c.body.publicIdentityLock === true || c.payload.publicIdentityLock === true ||
     lower(c.audience) === "public" || lower(c.surfaceAgent) === "nyx" || PUBLIC_SOURCE_RE.test(c.source) || PUBLIC_SOURCE_RE.test(c.site) || !!headerValue(c.headers, "x-nyx-client-version");
 }
 function hasAdminSurfaceMarkers(ctx) {
-  const c = collectContext(ctx);
+  const c = contextOf(ctx);
   return ADMIN_ROUTE_RE.test(c.route) || ADMIN_SOURCE_RE.test(c.source) ||
     c.src.privateAdminConversation === true || c.body.privateAdminConversation === true || c.payload.privateAdminConversation === true ||
     c.src.marionAdminConversation === true || c.body.marionAdminConversation === true || c.payload.marionAdminConversation === true ||
     lower(c.audience) === "operator" || lower(c.audience) === "admin" || lower(c.surfaceAgent) === "marion";
 }
 function hasServerVerifiedAuth(ctx) {
-  const c = collectContext(ctx);
+  const c = contextOf(ctx);
+  const reqAuth = safeObj(c.req && (c.req.auth || c.req.authorization));
   const candidates = [
-    c.src.serverSideAdminAuth, c.body.serverSideAdminAuth, c.payload.serverSideAdminAuth, c.meta.serverSideAdminAuth, c.auth.serverSideAdminAuth,
-    c.src.trustedServerAuth, c.body.trustedServerAuth, c.payload.trustedServerAuth, c.meta.trustedServerAuth, c.auth.trustedServerAuth,
-    c.src.sessionVerified, c.body.sessionVerified, c.payload.sessionVerified, c.meta.sessionVerified, c.auth.sessionVerified,
-    c.src.adminVerified, c.body.adminVerified, c.payload.adminVerified, c.meta.adminVerified, c.auth.adminVerified, c.auth.verified,
-    c.src.ownerVerified, c.body.ownerVerified, c.payload.ownerVerified, c.meta.ownerVerified,
-    c.src.adminVoiceVerified, c.body.adminVoiceVerified, c.payload.adminVoiceVerified, c.meta.adminVoiceVerified, c.auth.adminVoiceVerified,
-    c.src.adminVoiceDeliveryAllowed, c.body.adminVoiceDeliveryAllowed, c.payload.adminVoiceDeliveryAllowed, c.meta.adminVoiceDeliveryAllowed, c.auth.adminVoiceDeliveryAllowed
+    c.src.serverSideAdminAuth, c.meta.serverSideAdminAuth, reqAuth.serverSideAdminAuth,
+    c.src.trustedServerAuth, c.meta.trustedServerAuth, reqAuth.trustedServerAuth,
+    c.src.sessionVerified, c.meta.sessionVerified, reqAuth.sessionVerified,
+    c.src.adminVerified, c.meta.adminVerified, reqAuth.adminVerified, reqAuth.verified,
+    c.src.ownerVerified, c.meta.ownerVerified, reqAuth.ownerVerified,
+    c.src.adminVoiceVerified, c.meta.adminVoiceVerified, reqAuth.adminVoiceVerified,
+    c.src.adminVoiceDeliveryAllowed, c.meta.adminVoiceDeliveryAllowed, reqAuth.adminVoiceDeliveryAllowed
   ];
   return candidates.some(boolish);
 }
 function isVerifiedOperatorContext(input) {
-  const c = collectContext(input);
+  const c = contextOf(input);
+  const routeVerified = ADMIN_ROUTE_RE.test(c.route) || ADMIN_ROUTE_RE.test(c.payload.route || "");
   const adminMarkers = hasAdminSurfaceMarkers(c) || c.payload.adminConversationAllowed === true || c.body.adminConversationAllowed === true;
   const publicMarkers = hasPublicSurfaceMarkers(c);
-  const explicitOperator = c.src.authenticatedOperator === true || c.body.authenticatedOperator === true || c.payload.authenticatedOperator === true ||
-    c.src.operatorAuthenticated === true || c.body.operatorAuthenticated === true || c.payload.operatorAuthenticated === true;
-  const verified = hasServerVerifiedAuth(c) || (c.payload.adminConversationAllowed === true && ADMIN_ROUTE_RE.test(c.payload.route || c.route)) || explicitOperator;
+  /* Client/body identity claims may describe intent, but never establish trust. */
+  const verified = hasServerVerifiedAuth(c);
   if (!adminMarkers || !verified) return false;
-  if (publicMarkers && !ADMIN_ROUTE_RE.test(c.route) && !ADMIN_ROUTE_RE.test(c.payload.route || "")) return false;
+  if (publicMarkers && !routeVerified) return false;
   return true;
 }
 function operatorNameFrom(input) {
-  const c = collectContext(input);
+  const c = contextOf(input);
   return firstText(c.payload.operatorName, c.body.operatorName, c.src.operatorName, c.payload.speakerHint, c.body.speakerHint, OPERATOR_NAME) || OPERATOR_NAME;
 }
 function sanitizeOperatorReply(value) {
   const text = safeStr(value);
   return text || "I'm with you, Mac. What would you like to work on next?";
 }
-function projectPrivateOperatorFields(value, context, depth) {
+function projectPrivateOperatorFields(value, context, depth, seen) {
   const d = Number(depth || 0);
   if (d > 8) return value;
-  if (typeof value === "string") return sanitizeOperatorReply(value);
-  if (Array.isArray(value)) return value.map((item) => projectPrivateOperatorFields(item, context, d + 1));
+  if (typeof value === "string") return safeStr(value);
+  const visited = seen instanceof WeakSet ? seen : new WeakSet();
+  if (value && typeof value === "object") {
+    try { if (visited.has(value)) return "[Circular]"; visited.add(value); } catch (_) {}
+  }
+  if (Array.isArray(value)) return value.map((item) => projectPrivateOperatorFields(item, context, d + 1, visited));
   if (!isObj(value)) return value;
   const name = operatorNameFrom(context || value);
   const out = {};
-  for (const [key, child] of Object.entries(value)) {
+  for (const [key, child] of safeEntries(value)) {
     if (REPLY_KEYS.has(key)) { out[key] = sanitizeOperatorReply(child); continue; }
     if (/^audience$/i.test(key)) { out[key] = "operator"; continue; }
     if (/^(?:surfaceAgent|publicAgent|userFacingAgent|authority)$/i.test(key)) { out[key] = OPERATOR_AGENT; continue; }
-    out[key] = projectPrivateOperatorFields(child, context, d + 1);
+    out[key] = projectPrivateOperatorFields(child, context, d + 1, visited);
   }
   out.privateOperatorBoundaryLock = true;
   out.publicSurfaceOnly = false;
@@ -153,21 +166,23 @@ function projectPrivateOperatorFields(value, context, depth) {
   });
   return out;
 }
-function stripUnverifiedOperatorClaims(value, depth) {
+function stripUnverifiedOperatorClaims(value, depth, seen) {
   const d = Number(depth || 0);
   if (d > 8) return value;
-  if (Array.isArray(value)) return value.map((item) => stripUnverifiedOperatorClaims(item, d + 1));
+  const visited = seen instanceof WeakSet ? seen : new WeakSet();
+  if (value && typeof value === "object") {
+    try { if (visited.has(value)) return "[Circular]"; visited.add(value); } catch (_) {}
+  }
+  if (Array.isArray(value)) return value.map((item) => stripUnverifiedOperatorClaims(item, d + 1, visited));
   if (!isObj(value)) return value;
   const out = {};
-  for (const [key, child] of Object.entries(value)) {
+  for (const [key, child] of safeEntries(value)) {
     if (/^operatorName$/i.test(key)) continue;
     if (PRIVATE_MARKER_KEYS.test(key)) {
-      if (/^(?:operatorPersonalization|allowPersonalName|authenticatedOperator|operatorAuthenticated|adminConversationAllowed)$/i.test(key)) out[key] = false;
-      else if (/^(?:privateAdminConversation|marionAdminConversation)$/i.test(key)) out[key] = false;
-      else out[key] = false;
+      out[key] = false;
       continue;
     }
-    out[key] = stripUnverifiedOperatorClaims(child, d + 1);
+    out[key] = stripUnverifiedOperatorClaims(child, d + 1, visited);
   }
   return out;
 }
@@ -214,15 +229,40 @@ module.exports = {
 
 
 /* PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_START */
-(function(){try{
-  const V="nyx.marion.phase3d.voiceTextParityIdentityDrift.runtimeWrapper/1.0";
-  let lock=null;try{lock=require("./voiceTextParityIdentityDriftHardlock.js");}catch(_e){try{lock=require("../Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_e2){lock=null;}}
-  if(!lock||!lock.projectResult||typeof module==="undefined"||!module.exports)return;
-  function ctx(value,args){args=Array.prototype.slice.call(args||[]);return Object.assign({},(args[0]&&typeof args[0]==="object"?args[0]:{}),{payload:value,body:args[0],options:args[1],headers:(args[0]&&args[0].headers)||(args[1]&&args[1].headers)||{},route:(args[0]&&args[0].route)||(args[0]&&args[0].path)||""});}
-  function project(value,args){try{return lock.projectResult(value,ctx(value,args));}catch(_e){return value;}}
-  function wrap(fn,name){if(typeof fn!=="function"||fn.__phase3dVoiceTextParity)return fn;const w=function(){const args=arguments;const r=fn.apply(this,args);if(r&&typeof r.then==="function")return r.then(v=>project(v,args));return project(r,args);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_e){}try{Object.defineProperty(w,"name",{value:fn.name||name||"phase3dVoiceTextParityWrapped"});}catch(_e){}w.__phase3dVoiceTextParity=true;return w;}
-  if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
-  const obj=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleMessage","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","safeResponse","buildResponse","createResponse","finalizeTurn"].forEach(n=>{if(typeof obj[n]==="function")obj[n]=wrap(obj[n],n);});obj.PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_VERSION=V;obj.phase3dVoiceTextParityProject=lock.projectResult;obj.phase3dVoiceTextParityCompare=lock.compareVoiceTextParity;}
-}catch(_){}})();
+(function(){
+  "use strict";
+  try {
+    const V="nyx.marion.phase3d.voiceTextParityIdentityDrift.runtimeWrapper/1.1-circular-safe-lazy";
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(!api)return;
+    let resolved=false,lock=null,loadError="";
+    function ownCallable(value,key){
+      if(!value||!Object.prototype.hasOwnProperty.call(value,key))return null;
+      try{const d=Object.getOwnPropertyDescriptor(value,key);return d&&typeof d.value==="function"?d.value:null;}catch(_){return null;}
+    }
+    function resolveLock(){
+      if(resolved)return lock;
+      resolved=true;
+      try{
+        const candidate=require("./voiceTextParityIdentityDriftHardlock.js");
+        if(candidate&&candidate!==api&&ownCallable(candidate,"projectResult"))lock=candidate;
+      }catch(error){loadError=safeStr(error&&(error.code||error.message||error.name));}
+      return lock;
+    }
+    api.phase3dVoiceTextParityProject=function(value,context){
+      const active=resolveLock(),project=ownCallable(active,"projectResult");
+      if(!project)return value;
+      try{return project(value,context);}catch(_){return value;}
+    };
+    api.phase3dVoiceTextParityCompare=function(){
+      const active=resolveLock(),compare=ownCallable(active,"compareVoiceTextParity");
+      return compare?compare.apply(active,arguments):{ok:false,available:false,reason:loadError||"phase3d_lock_unavailable"};
+    };
+    api.getPhase3dVoiceTextParityStatus=function(){
+      const active=resolveLock();
+      return{version:V,available:!!active,lazy:true,circularSafe:true,error:loadError};
+    };
+    api.PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_VERSION=V;
+  } catch (_) {}
+})();
 /* PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_END */
