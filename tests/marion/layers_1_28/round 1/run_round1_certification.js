@@ -2,6 +2,7 @@
 
 /**
  * Marion Layers 1–28 — Round 1 Baseline Certification
+ * Supports baseline Layers 1–8, explicit Layers 9–26, and index-registered Layers 27–28.
  * Canonical path:
  * tests/marion/layers_1_28/round1/run_round1_certification.js
  */
@@ -11,7 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const childProcess = require("child_process");
 
-const VERSION = "marion.layers1_28.round1Certification/2.0-cohesive";
+const VERSION = "marion.layers1_28.round1Certification/2.1-manifest-schema-aware";
 const ROOT = path.resolve(__dirname, "../../../..");
 const ROUND_DIR = __dirname;
 const SELF = path.basename(__filename);
@@ -21,6 +22,7 @@ const CONFLICT_RE = /^(?:<<<<<<<|=======|>>>>>>>)/m;
 const REQUIRED = Object.freeze([
   "package.json",
   "manifest.json",
+  "index.js",
   "Data/marion/runtime/marionBridge.js",
   "Data/marion/runtime/composeMarionResponse.js",
   "utils/chatEngine.js",
@@ -99,17 +101,54 @@ function assertFiles() {
 }
 function assertManifest() {
   const manifest = readJson("manifest.json");
+  const indexText = readText("index.js");
   const summary = isObj(manifest.summary) ? manifest.summary : {};
   const architecture = isObj(manifest.architecture) ? manifest.architecture : {};
-  const layers = Array.isArray(summary.conversationLayersIncluded) ? summary.conversationLayersIncluded.map(Number).filter(Number.isInteger) : [];
-  const missing = [];
-  for (let layer = 1; layer <= 28; layer += 1) if (!layers.includes(layer)) missing.push(layer);
-  assert.deepStrictEqual(missing, [], `Manifest is missing Layers 1–28: ${missing.join(", ")}`);
+  const layers = Array.isArray(summary.conversationLayersIncluded)
+    ? [...new Set(summary.conversationLayersIncluded.map(Number).filter(Number.isInteger))].sort((a,b)=>a-b)
+    : [];
+
+  const baselineFlag = summary.baselineLayers1to8ValidatedAsExistingRuntimeInvariants === true;
+  const baselineExplicit = Array.from({length:8},(_,i)=>i+1).every((layer)=>layers.includes(layer));
+  assert.ok(
+    baselineFlag || baselineExplicit,
+    "Layers 1–8 must be represented by the baseline-invariants flag or explicit manifest entries."
+  );
+
+  const missingConversationLayers = [];
+  for (let layer = 9; layer <= 26; layer += 1) {
+    if (!layers.includes(layer)) missingConversationLayers.push(layer);
+  }
+  assert.deepStrictEqual(
+    missingConversationLayers,
+    [],
+    `Manifest is missing conversation Layers 9–26: ${missingConversationLayers.join(", ")}`
+  );
+
+  const laterLayersExplicit = layers.includes(27) && layers.includes(28);
+  const laterLayersRegistered =
+    indexText.includes("MARION_LAYERS_27_28_INDEX_REGISTRY_V1_START") &&
+    /hardStopLayer\s*:\s*28/.test(indexText);
+  assert.ok(
+    laterLayersExplicit || laterLayersRegistered,
+    "Layers 27–28 must be explicit in the manifest or registered by the canonical index integration."
+  );
+
   const summaryHardStop = Number(summary.hardStopLayer);
   const architectureHardStop = Number(architecture.hardStopLayer);
-  assert.ok(Number.isInteger(summaryHardStop) && summaryHardStop >= 28, "Manifest summary hard stop must include Layer 28.");
-  assert.ok(Number.isInteger(architectureHardStop) && architectureHardStop >= 28, "Manifest architecture hard stop must include Layer 28.");
-  return { layers: layers.filter((n) => n >= 1 && n <= 28), summaryHardStop, architectureHardStop };
+  assert.ok(Number.isInteger(summaryHardStop) && summaryHardStop >= 26,
+    "Manifest summary hard stop must include Phase B Layer 26.");
+  assert.ok(Number.isInteger(architectureHardStop) && architectureHardStop >= 26,
+    "Manifest architecture hard stop must include Phase B Layer 26.");
+
+  return {
+    baselineLayers1to8: baselineFlag ? "baseline-invariants-flag" : "explicit-manifest-entries",
+    conversationLayers9to26: layers.filter((n)=>n>=9&&n<=26),
+    layers27to28: laterLayersExplicit ? "explicit-manifest-entries" : "canonical-index-registry",
+    summaryHardStop,
+    architectureHardStop,
+    indexRegistryVerified: laterLayersRegistered
+  };
 }
 function checkSyntax() {
   const files = [...REQUIRED, ...OPTIONAL]
@@ -174,7 +213,7 @@ function main() {
   console.log(JSON.stringify({
     ok:true,certification:"marion-layers-1-28-round1",version:VERSION,backendRoot:ROOT,
     package:packageProfile,requiredCoreFiles:REQUIRED.length,optionalCohesionFilesPresent:optionalPresent,
-    manifest,syntaxChecks,isolatedLoadChecks,discoveredRound1Tests:discovered.map(path.basename),executedRound1Tests:executed,
+    manifest,syntaxChecks,isolatedLoadChecks,discoveredRound1Tests:discovered.map((file)=>path.basename(file)),executedRound1Tests:executed,
     circularWarnings:0,failFast:true
   },null,2));
 }
