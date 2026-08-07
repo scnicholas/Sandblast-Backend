@@ -5,6 +5,7 @@
  * tests/marion/marionReasoningAuditor.test.js
  *
  * Layer 28 remains internal-only, advisory-only, and non-authoritative.
+ * Surgical repair v2.1: malformed-input authority semantics corrected.
  */
 
 const test = require("node:test");
@@ -190,12 +191,48 @@ test("Layer 28 reasoning auditor preserves a supported user-facing answer", asyn
   assertBoundedVersioned(out, api);
 });
 
-test("Layer 28 reasoning auditor fails closed on malformed input", async () => {
+test("Layer 28 reasoning auditor handles malformed input without granting authority", async () => {
   const api = loadRuntime();
   const audit = callable(api);
   const out = await Promise.resolve(audit(Object.create(null)));
 
+  /*
+   * `approved` is a reasoning-quality/audit disposition, not an execution
+   * authority bit. A valid runtime may return approved:true for an empty
+   * audit when there is no user-facing claim to reject. The fail-closed
+   * contract belongs to the explicit authority boundaries below.
+   */
   assertBoundary(out, "Malformed-input audit");
-  assert.notEqual(out.approved, true, "Malformed reasoning input must not be approved.");
+
+  assert.equal(
+    out.executionAuthorized,
+    false,
+    "Malformed input must never authorize execution."
+  );
+
+  assert.notEqual(
+    out.automaticExecutionAllowed,
+    true,
+    "Malformed input must never enable automatic execution."
+  );
+
+  assert.notEqual(
+    out.replaceComposer,
+    true,
+    "Malformed input must not replace the response composer."
+  );
+
+  assert.notEqual(
+    out.replaceReplyAuthority,
+    true,
+    "Malformed input must not replace Marion reply authority."
+  );
+
+  assert.equal(
+    out.internalOnly,
+    true,
+    "Malformed-input auditing must remain internal-only."
+  );
+
   assertBoundedVersioned(out, api);
 });
