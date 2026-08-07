@@ -28,22 +28,23 @@ const TEST_RELATIVE = path.join(
   "marionLayer28Integration.test.js"
 );
 
-const PREFERRED_RUNTIME_ROOT = path.join(
-  BACKEND_ROOT,
-  "Data",
-  "marion",
-  "runtime",
-  "supervision",
-  "metacognition"
-);
-
-const FALLBACK_RUNTIME_ROOT = path.join(
-  BACKEND_ROOT,
-  "Data",
-  "marion",
-  "runtime",
-  "metacognition"
-);
+const RUNTIME_ROOTS = Object.freeze([
+  path.join(
+    BACKEND_ROOT,
+    "Data",
+    "marion",
+    "runtime",
+    "supervision",
+    "metacognition"
+  ),
+  path.join(
+    BACKEND_ROOT,
+    "Data",
+    "marion",
+    "runtime",
+    "metacognition"
+  )
+]);
 
 const REQUIRED_RUNTIME_FILES = Object.freeze([
   "marionMetaReasoner.js",
@@ -67,16 +68,13 @@ function deepClone(value) {
 }
 
 function candidatePaths(name) {
-  return [
-    path.join(
-      PREFERRED_RUNTIME_ROOT,
-      name
-    ),
-    path.join(
-      FALLBACK_RUNTIME_ROOT,
-      name
-    )
-  ];
+  return RUNTIME_ROOTS.map(
+    (root) =>
+      path.join(
+        root,
+        name
+      )
+  );
 }
 
 function loadRuntime(name) {
@@ -213,6 +211,32 @@ function assertNonAuthoritative(
     true,
     `${stage} must not replace Marion reply authority.`
   );
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      out,
+      "internalOnly"
+    )
+  ) {
+    assert.equal(
+      out.internalOnly,
+      true,
+      `${stage} must remain internal-only when exposed.`
+    );
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      out,
+      "noUserFacingDiagnostics"
+    )
+  ) {
+    assert.equal(
+      out.noUserFacingDiagnostics,
+      true,
+      `${stage} exposed user-facing diagnostics.`
+    );
+  }
 }
 
 function assertNoVisibleDiagnostics(
@@ -489,16 +513,22 @@ test(
       "Layer 28 reflection metadata is missing."
     );
 
+    const rawDepth =
+      Object.prototype.hasOwnProperty.call(
+        layer,
+        "recursionDepth"
+      )
+        ? layer.recursionDepth
+        : 0;
+
     const recursionDepth =
-      Number(
-        layer.recursionDepth ||
-        0
-      );
+      Number(rawDepth);
 
     assert.ok(
       Number.isFinite(recursionDepth) &&
+      recursionDepth >= 0 &&
       recursionDepth <= 1,
-      "Layer 28 recursion depth exceeded the bounded reflection contract."
+      "Layer 28 recursion depth must remain between 0 and 1."
     );
 
     for (
