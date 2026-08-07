@@ -36,7 +36,7 @@
     "test:marion-phase-b-control": "node tests/marion/phase_b_index_manifest_package_contract_test.js",
     "verify:marion-phase-b-part2-batch2": "node tests/marion/verify_phase_b_part2_batch2.js",
     "verify:marion-phase-b": "npm run test:marion-phase-b-core && npm run test:marion-phase-b-batch1 && npm run test:marion-phase-b-state && npm run test:marion-phase-b-transport && npm run test:marion-phase-b-control && npm run verify:marion-phase-b-part2-batch2",
-    "test:marion-layer27": "node tests/marion/marionStrategicPlanner.test.js && node tests/marion/layer27/marionPriorityArbitrator.test.js && node tests/marion/layer27/marionLayer27Integration.test.js",
+    "test:marion-layer27": "node tests/marion/marionStrategicPlanner.test.js && node tests/marion/marionPriorityArbitrator.test.js && node tests/marion/layer27/marionLayer27Integration.test.js",
     "test:marion-layer28": "node tests/marion/layer28/marionReasoningAuditor.test.js && node tests/marion/layer28/marionQualityCalibrator.test.js && node tests/marion/layer28/marionLayer28Integration.test.js",
     "test:marion-cognitive-supervision": "node tests/marion/marionLayers27_28Regression.test.js",
     "test:marion-round1": "node tests/marion/layers_1_28/round1/run_round1_certification.js",
