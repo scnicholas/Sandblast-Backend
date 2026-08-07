@@ -2,6 +2,7 @@
 
 /**
  * tests/marion/marionStrategicPlanner.test.js
+ * Surgical repair v2.1: actionable-field correction precedence.
  * Canonical runtime:
  * Data/marion/runtime/strategy/marionStrategicPlanner.js
  */
@@ -126,8 +127,64 @@ test("Layer 27 strategic planner preserves explicit current-turn goal correction
     currentTurnAuthority: true
   }));
   assertPlannerEnvelope(out);
-  const text = JSON.stringify(out);
-  assert.match(text, /six dedicated test files|test files first/i);
-  assert.doesNotMatch(text, /executionAuthorized\s*["']?\s*[:=]\s*true/i);
-  assert.doesNotMatch(text, /generate all Layer 27 and 28 runtime files/i);
+
+  const actionableText = JSON.stringify({
+    activeGoal: out.activeGoal,
+    effectiveGoal: out.effectiveGoal,
+    objective: out.objective,
+    currentGoal: out.currentGoal,
+    plan: out.plan,
+    horizons: out.horizons,
+    planHorizons: out.planHorizons,
+    timeline: out.timeline,
+    futureStates: out.futureStates,
+    steps: out.steps,
+    priorities: out.priorities,
+    recommendations: out.recommendations,
+    nextActions: out.nextActions
+  });
+
+  assert.match(
+    actionableText,
+    /six dedicated test files|test files first/i,
+    "Strategic planner did not apply the explicit corrected goal to actionable planning fields."
+  );
+
+  assert.doesNotMatch(
+    actionableText,
+    /generate all Layer 27 and 28 runtime files/i,
+    "The superseded goal remained active in actionable planning fields."
+  );
+
+  const validation = isObject(out.validation) ? out.validation : {};
+
+  if (Object.prototype.hasOwnProperty.call(validation, "currentTurnWins")) {
+    assert.equal(
+      validation.currentTurnWins,
+      true,
+      "Current-turn authority did not win over the previous goal."
+    );
+  }
+
+  if (Object.prototype.hasOwnProperty.call(out, "currentTurnWins")) {
+    assert.equal(
+      out.currentTurnWins,
+      true,
+      "Top-level current-turn authority did not win over the previous goal."
+    );
+  }
+
+  const fullEnvelope = JSON.stringify(out);
+
+  assert.doesNotMatch(
+    fullEnvelope,
+    /executionAuthorized\s*["']?\s*[:=]\s*true/i,
+    "Strategic planner authorized execution during a correction turn."
+  );
+
+  assert.doesNotMatch(
+    fullEnvelope,
+    /automaticExecutionAllowed\s*["']?\s*[:=]\s*true/i,
+    "Strategic planner enabled automatic execution during a correction turn."
+  );
 });
