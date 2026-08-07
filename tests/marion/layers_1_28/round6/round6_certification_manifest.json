@@ -1,0 +1,40 @@
+{
+  "schema": "nyx.marion.round6.finalConsolidationCertification/1.0",
+  "round": 6,
+  "title": "Final Consolidation and Release Readiness Certification",
+  "finalConsolidation": true,
+  "hardStopLayer": 28,
+  "prerequisite": "verify:marion-round5",
+  "tests": [
+    {
+      "id": "6.1",
+      "file": "round6_1_certification_chain_integrity.test.js",
+      "scope": "Rounds 1\u20135 runner continuity and exact package verification chain"
+    },
+    {
+      "id": "6.2",
+      "file": "round6_2_runtime_authority_path_integrity.test.js",
+      "scope": "Canonical Marion runtime authorities plus Layer 27/28 certification pathways"
+    },
+    {
+      "id": "6.3",
+      "file": "round6_3_end_to_end_authority_continuity.test.js",
+      "scope": "Final envelope, reply authority, Boolean control types, State Spine continuity, immutability"
+    },
+    {
+      "id": "6.4",
+      "file": "round6_4_domain_service_cohesion.test.js",
+      "scope": "Six-domain cohesion across routing, composition, bridge, transport, and continuity services"
+    },
+    {
+      "id": "6.5",
+      "file": "round6_5_resilience_warning_performance.test.js",
+      "scope": "Fail-closed malformed input, diagnostic isolation, circular-warning isolation, bounded service load"
+    },
+    {
+      "id": "6.6",
+      "file": "round6_6_final_release_readiness.test.js",
+      "scope": "Final prerequisite inventory, hard-stop Layer 28, terminal non-authoritative supervisor state"
+    }
+  ]
+}
