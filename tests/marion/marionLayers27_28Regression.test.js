@@ -5,8 +5,21 @@
  *
  * Cohesion regression for Marion Layers 27 and 28.
  *
- * Canonical test path:
+ * CANONICAL TEST PATH:
  * tests/marion/marionLayers27_28Regression.test.js
+ *
+ * Layer 27 strategy authority:
+ * Data/marion/runtime/strategy/
+ *
+ * Layer 28 metacognition authority:
+ * preferred: Data/marion/runtime/supervision/metacognition/
+ * fallback:  Data/marion/runtime/metacognition/
+ *
+ * Cognitive supervisor authority:
+ * Data/marion/runtime/supervision/marionCognitiveSupervisor.js
+ *
+ * This certification is additive. Layers 27 and 28 remain non-authoritative
+ * over the established final reply produced by Layers 1 through 26.
  */
 
 const test = require("node:test");
@@ -14,53 +27,80 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
-const MAX_OUTPUT_BYTES = 50000;
-const TEST_RELATIVE = path.join(
-  "tests",
-  "marion",
-  "marionLayers27_28Regression.test.js"
-);
+const VERSION =
+  "marion.layers27_28.regression.test/2.0-path-and-authority-hardening";
 
-const STRATEGY = Object.freeze([
-  "marionStrategicPlanner.js",
-  "marionMissionRegistry.js",
-  "marionObjectiveHierarchy.js",
-  "marionPriorityArbitrator.js",
-  "marionFutureStateProjector.js",
-  "marionConversationTrajectory.js",
-  "marionOpportunityDetector.js",
-  "marionMilestoneTracker.js",
-  "marionExecutionPlanner.js",
-  "marionDependencyResolver.js",
-  "marionStrategicPolicy.js",
-  "marionStrategicTelemetry.js",
-  "marionPlanningEnvelope.js"
-]);
+const BACKEND_ROOT =
+  path.resolve(
+    __dirname,
+    "..",
+    ".."
+  );
 
-const METACOGNITION = Object.freeze([
-  "marionMetaReasoner.js",
-  "marionReflectionEngine.js",
-  "marionConfidenceAnalyzer.js",
-  "marionBiasDetector.js",
-  "marionKnowledgeGapDetector.js",
-  "marionReasoningAuditor.js",
-  "marionResponseEvaluator.js",
-  "marionQualityCalibrator.js",
-  "marionLearningSignalCollector.js",
-  "marionAdaptiveImprovementEngine.js",
-  "marionMetaReasoningPolicy.js",
-  "marionMetaTelemetry.js",
-  "marionReflectionEnvelope.js"
-]);
+const TEST_RELATIVE =
+  path.join(
+    "tests",
+    "marion",
+    "marionLayers27_28Regression.test.js"
+  );
 
-const SUPERVISION = Object.freeze([
-  "marionCognitiveSupervisor.js"
-]);
+const MAX_OUTPUT_BYTES =
+  50000;
 
-const STRATEGY_SET = new Set(STRATEGY);
-const METACOGNITION_SET = new Set(METACOGNITION);
-const SUPERVISION_SET = new Set(SUPERVISION);
+const STRATEGY =
+  Object.freeze([
+    "marionStrategicPlanner.js",
+    "marionMissionRegistry.js",
+    "marionObjectiveHierarchy.js",
+    "marionPriorityArbitrator.js",
+    "marionFutureStateProjector.js",
+    "marionConversationTrajectory.js",
+    "marionOpportunityDetector.js",
+    "marionMilestoneTracker.js",
+    "marionExecutionPlanner.js",
+    "marionDependencyResolver.js",
+    "marionStrategicPolicy.js",
+    "marionStrategicTelemetry.js",
+    "marionPlanningEnvelope.js"
+  ]);
+
+const METACOGNITION =
+  Object.freeze([
+    "marionMetaReasoner.js",
+    "marionReflectionEngine.js",
+    "marionConfidenceAnalyzer.js",
+    "marionBiasDetector.js",
+    "marionKnowledgeGapDetector.js",
+    "marionReasoningAuditor.js",
+    "marionResponseEvaluator.js",
+    "marionQualityCalibrator.js",
+    "marionLearningSignalCollector.js",
+    "marionAdaptiveImprovementEngine.js",
+    "marionMetaReasoningPolicy.js",
+    "marionMetaTelemetry.js",
+    "marionReflectionEnvelope.js"
+  ]);
+
+const SUPERVISION =
+  Object.freeze([
+    "marionCognitiveSupervisor.js"
+  ]);
+
+const STRATEGY_SET =
+  new Set(STRATEGY);
+
+const METACOGNITION_SET =
+  new Set(METACOGNITION);
+
+const SUPERVISION_SET =
+  new Set(SUPERVISION);
+
+const ALL_RUNTIME_FILES =
+  Object.freeze([
+    ...STRATEGY,
+    ...METACOGNITION,
+    ...SUPERVISION
+  ]);
 
 function isObject(value) {
   return Boolean(
@@ -71,10 +111,22 @@ function isObject(value) {
 }
 
 function deepClone(value) {
-  if (typeof globalThis.structuredClone === "function") {
+  if (
+    typeof globalThis.structuredClone ===
+    "function"
+  ) {
     return globalThis.structuredClone(value);
   }
-  return JSON.parse(JSON.stringify(value));
+
+  return JSON.parse(
+    JSON.stringify(value)
+  );
+}
+
+function normalizeForCompare(value) {
+  return path
+    .normalize(value)
+    .toLowerCase();
 }
 
 function runtimeCandidates(name) {
@@ -126,13 +178,19 @@ function runtimeCandidates(name) {
     ];
   }
 
-  throw new Error(`Unknown Layers 27/28 runtime requested: ${name}`);
+  throw new Error(
+    `Unknown Layers 27/28 runtime requested: ${name}`
+  );
 }
 
-function loadRuntime(name) {
-  const attempted = [];
+function resolveRuntime(name) {
+  const attempted =
+    [];
 
-  for (const candidate of runtimeCandidates(name)) {
+  for (
+    const candidate
+    of runtimeCandidates(name)
+  ) {
     attempted.push(candidate);
 
     if (!fs.existsSync(candidate)) {
@@ -142,43 +200,79 @@ function loadRuntime(name) {
     let resolved;
 
     try {
-      resolved = require.resolve(candidate);
+      resolved =
+        require.resolve(candidate);
     } catch (error) {
       throw new Error(
         [
           `Layers 27/28 runtime exists but could not be resolved: ${name}`,
           `Candidate: ${candidate}`,
-          `Cause: ${error && error.message ? error.message : error}`
+          `Cause: ${
+            error && error.message
+              ? error.message
+              : error
+          }`
         ].join("\n"),
         { cause: error }
       );
     }
 
-    try {
-      return require(resolved);
-    } catch (error) {
-      /* Preserve transitive module failures rather than hiding them. */
-      throw new Error(
-        [
-          `Layers 27/28 runtime failed during module loading: ${name}`,
-          `Resolved: ${resolved}`,
-          `Cause: ${error && error.message ? error.message : error}`
-        ].join("\n"),
-        { cause: error }
-      );
-    }
+    assert.equal(
+      normalizeForCompare(resolved),
+      normalizeForCompare(candidate),
+      [
+        `Layers 27/28 runtime resolution drifted: ${name}`,
+        `Expected: ${candidate}`,
+        `Resolved: ${resolved}`
+      ].join("\n")
+    );
+
+    return resolved;
   }
 
   throw new Error(
     [
       `Missing required Layers 27/28 runtime: ${name}`,
       "Attempted:",
-      ...attempted.map((candidate) => `- ${candidate}`)
+      ...attempted.map(
+        (candidate) =>
+          `- ${candidate}`
+      )
     ].join("\n")
   );
 }
 
-function callable(api, names) {
+function loadRuntime(name) {
+  const resolved =
+    resolveRuntime(name);
+
+  try {
+    return require(resolved);
+  } catch (error) {
+    /*
+     * The selected runtime file exists and has already resolved. Any
+     * MODULE_NOT_FOUND raised here is therefore a transitive dependency
+     * failure and must not be rewritten as a missing Layer 27/28 authority.
+     */
+    throw new Error(
+      [
+        `Layers 27/28 runtime failed during module loading: ${name}`,
+        `Resolved: ${resolved}`,
+        `Cause: ${
+          error && error.message
+            ? error.message
+            : error
+        }`
+      ].join("\n"),
+      { cause: error }
+    );
+  }
+}
+
+function callable(
+  api,
+  names
+) {
   if (typeof api === "function") {
     return api;
   }
@@ -186,7 +280,10 @@ function callable(api, names) {
   for (const name of names) {
     const descriptor =
       api &&
-      Object.getOwnPropertyDescriptor(api, name);
+      Object.getOwnPropertyDescriptor(
+        api,
+        name
+      );
 
     if (
       descriptor &&
@@ -201,7 +298,59 @@ function callable(api, names) {
   );
 }
 
-function assertNonAuthoritative(out, stage) {
+function readVersion(
+  api,
+  file
+) {
+  if (
+    !api ||
+    (
+      typeof api !== "object" &&
+      typeof api !== "function"
+    )
+  ) {
+    throw new TypeError(
+      `${file} did not load as a CommonJS API.`
+    );
+  }
+
+  const versionDescriptor =
+    Object.getOwnPropertyDescriptor(
+      api,
+      "VERSION"
+    );
+
+  if (
+    versionDescriptor &&
+    typeof versionDescriptor.value === "string" &&
+    versionDescriptor.value.trim()
+  ) {
+    return versionDescriptor.value;
+  }
+
+  const lowerDescriptor =
+    Object.getOwnPropertyDescriptor(
+      api,
+      "version"
+    );
+
+  if (
+    lowerDescriptor &&
+    typeof lowerDescriptor.value === "string" &&
+    lowerDescriptor.value.trim()
+  ) {
+    return lowerDescriptor.value;
+  }
+
+  throw new TypeError(
+    `${file} must expose a non-empty own VERSION/version string.`
+  );
+}
+
+function assertNonAuthoritative(
+  out,
+  stage
+) {
   assert.ok(
     isObject(out),
     `${stage} must return a non-array object.`
@@ -230,20 +379,56 @@ function assertNonAuthoritative(out, stage) {
     true,
     `${stage} must not replace Marion reply authority.`
   );
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      out,
+      "internalOnly"
+    )
+  ) {
+    assert.equal(
+      out.internalOnly,
+      true,
+      `${stage} must remain internal-only when that boundary is exposed.`
+    );
+  }
 }
 
-function assertBounded(out, message) {
+function assertNoVisibleDiagnostics(
+  value
+) {
+  const text =
+    String(
+      value ||
+      ""
+    );
+
+  assert.doesNotMatch(
+    text,
+    /\b(?:TypeError|ReferenceError|SyntaxError)\b|(?:^|\n)\s*at\s+.+\(.+:\d+:\d+\)/i,
+    "Layers 27/28 leaked runtime diagnostics into a public-facing field."
+  );
+}
+
+function assertBounded(
+  out,
+  message
+) {
   let serialized;
 
   assert.doesNotThrow(
     () => {
-      serialized = JSON.stringify(out);
+      serialized =
+        JSON.stringify(out);
     },
     "Layers 27/28 regression output must be JSON-serializable."
   );
 
   assert.ok(
-    Buffer.byteLength(serialized, "utf8") < MAX_OUTPUT_BYTES,
+    Buffer.byteLength(
+      serialized,
+      "utf8"
+    ) < MAX_OUTPUT_BYTES,
     message
   );
 }
@@ -251,13 +436,19 @@ function assertBounded(out, message) {
 test(
   "Layers 27 and 28 regression remains in the canonical Marion test folder",
   () => {
-    const actual = path.normalize(
-      path.relative(BACKEND_ROOT, __filename)
-    );
+    const actual =
+      path.normalize(
+        path.relative(
+          BACKEND_ROOT,
+          __filename
+        )
+      );
 
     assert.equal(
       actual.toLowerCase(),
-      path.normalize(TEST_RELATIVE).toLowerCase(),
+      path.normalize(
+        TEST_RELATIVE
+      ).toLowerCase(),
       [
         "Layers 27/28 regression pathway drifted.",
         `Expected: ${TEST_RELATIVE}`,
@@ -268,61 +459,209 @@ test(
 );
 
 test(
+  "Layers 27 and 28 runtime manifest is complete and non-overlapping",
+  () => {
+    assert.equal(
+      STRATEGY_SET.size,
+      STRATEGY.length,
+      "Layer 27 strategy manifest contains duplicate runtime names."
+    );
+
+    assert.equal(
+      METACOGNITION_SET.size,
+      METACOGNITION.length,
+      "Layer 28 metacognition manifest contains duplicate runtime names."
+    );
+
+    assert.equal(
+      SUPERVISION_SET.size,
+      SUPERVISION.length,
+      "Supervision manifest contains duplicate runtime names."
+    );
+
+    const unique =
+      new Set(
+        ALL_RUNTIME_FILES
+      );
+
+    assert.equal(
+      unique.size,
+      ALL_RUNTIME_FILES.length,
+      "Layers 27/28 runtime manifests overlap unexpectedly."
+    );
+  }
+);
+
+test(
   "Layers 27 and 28 preserve the established final reply and remain advisory",
   async () => {
-    const supervisorApi = loadRuntime("marionCognitiveSupervisor.js");
-    const supervise = callable(
-      supervisorApi,
-      ["supervise", "run", "evaluate"]
-    );
+    const supervisorApi =
+      loadRuntime(
+        "marionCognitiveSupervisor.js"
+      );
+
+    const supervise =
+      callable(
+        supervisorApi,
+        [
+          "supervise",
+          "run",
+          "evaluate"
+        ]
+      );
 
     const base = {
-      ok: true,
-      final: true,
-      handled: true,
-      reply: "Layers 1 through 26 retain final reply authority.",
-      displayReply: "Layers 1 through 26 retain final reply authority.",
-      finalReply: "Layers 1 through 26 retain final reply authority.",
-      spokenText: "Layers 1 through 26 retain final reply authority.",
+      ok:
+        true,
+      final:
+        true,
+      handled:
+        true,
+      reply:
+        "Layers 1 through 26 retain final reply authority.",
+      displayReply:
+        "Layers 1 through 26 retain final reply authority.",
+      finalReply:
+        "Layers 1 through 26 retain final reply authority.",
+      spokenText:
+        "Layers 1 through 26 retain final reply authority.",
       stateSpine: {
-        schema: "nyx.marion.stateSpine/1.7",
-        currentTurn: 28
+        schema:
+          "nyx.marion.stateSpine/1.7",
+        currentTurn:
+          28
       },
-      noUserFacingDiagnostics: true,
-      executionAuthorized: false
+      noUserFacingDiagnostics:
+        true,
+      executionAuthorized:
+        false
     };
 
-    const snapshot = deepClone(base);
+    const snapshot =
+      deepClone(base);
 
-    const out = await Promise.resolve(
-      supervise({
-        baseEnvelope: base,
-        prompt: "Plan the next integration without executing it.",
-        explicitGoal: "validate Layers 27 and 28",
-        executionAuthorized: false
-      })
+    const out =
+      await Promise.resolve(
+        supervise({
+          baseEnvelope:
+            base,
+          prompt:
+            "Plan the next integration without executing it.",
+          explicitGoal:
+            "validate Layers 27 and 28",
+          executionAuthorized:
+            false
+        })
+      );
+
+    assertNonAuthoritative(
+      out,
+      "Cognitive Supervisor"
     );
 
-    assertNonAuthoritative(out, "Cognitive Supervisor");
+    assert.equal(
+      out.reply,
+      base.reply,
+      "Layers 27/28 changed the established reply."
+    );
 
-    assert.equal(out.reply, base.reply, "Layers 27/28 changed the established reply.");
-    assert.equal(out.displayReply, base.displayReply, "Layers 27/28 changed the display reply.");
+    assert.equal(
+      out.displayReply,
+      base.displayReply,
+      "Layers 27/28 changed the display reply."
+    );
 
-    if (Object.prototype.hasOwnProperty.call(out, "finalReply")) {
-      assert.equal(out.finalReply, base.finalReply, "Layers 27/28 changed the final reply.");
+    if (
+      Object.prototype.hasOwnProperty.call(
+        out,
+        "finalReply"
+      )
+    ) {
+      assert.equal(
+        out.finalReply,
+        base.finalReply,
+        "Layers 27/28 changed the final reply."
+      );
     }
 
-    if (Object.prototype.hasOwnProperty.call(out, "spokenText")) {
-      assert.equal(out.spokenText, base.spokenText, "Layers 27/28 changed spoken text.");
+    if (
+      Object.prototype.hasOwnProperty.call(
+        out,
+        "spokenText"
+      )
+    ) {
+      assert.equal(
+        out.spokenText,
+        base.spokenText,
+        "Layers 27/28 changed spoken text."
+      );
     }
 
-    assert.equal(out.final, true, "Layers 27/28 must preserve final=true.");
-    assert.equal(out.handled, true, "Layers 27/28 must preserve handled=true.");
-    assert.equal(out.noUserFacingDiagnostics, true, "Layers 27/28 must preserve diagnostic isolation.");
+    assert.equal(
+      out.final,
+      true,
+      "Layers 27/28 must preserve final=true."
+    );
 
-    assert.ok(isObject(out.layer27), "Layer 27 metadata is missing.");
-    assert.ok(isObject(out.layer28), "Layer 28 metadata is missing.");
-    assert.ok(isObject(out.cognitiveSupervisor), "Cognitive Supervisor metadata is missing.");
+    assert.equal(
+      out.handled,
+      true,
+      "Layers 27/28 must preserve handled=true."
+    );
+
+    assert.equal(
+      out.noUserFacingDiagnostics,
+      true,
+      "Layers 27/28 must preserve diagnostic isolation."
+    );
+
+    assert.ok(
+      isObject(
+        out.layer27
+      ),
+      "Layer 27 metadata is missing."
+    );
+
+    assert.ok(
+      isObject(
+        out.layer28
+      ),
+      "Layer 28 metadata is missing."
+    );
+
+    assert.ok(
+      isObject(
+        out.cognitiveSupervisor
+      ),
+      "Cognitive Supervisor metadata is missing."
+    );
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        out,
+        "stateSpine"
+      )
+    ) {
+      assert.deepEqual(
+        out.stateSpine,
+        base.stateSpine,
+        "Layers 27/28 changed State Spine continuity metadata."
+      );
+    }
+
+    for (
+      const value
+      of [
+        out.reply,
+        out.displayReply,
+        out.finalReply,
+        out.spokenText
+      ]
+    ) {
+      assertNoVisibleDiagnostics(
+        value
+      );
+    }
 
     assert.deepEqual(
       base,
@@ -338,16 +677,14 @@ test(
 );
 
 test(
-  "all Layer 27 and 28 modules expose versions and load under CommonJS",
+  "all Layer 27 and 28 modules resolve canonically, expose versions, and load under CommonJS",
   () => {
-    const files = [
-      ...STRATEGY,
-      ...METACOGNITION,
-      ...SUPERVISION
-    ];
-
-    for (const file of files) {
-      const api = loadRuntime(file);
+    for (
+      const file
+      of ALL_RUNTIME_FILES
+    ) {
+      const api =
+        loadRuntime(file);
 
       assert.ok(
         api &&
@@ -358,12 +695,16 @@ test(
         `${file} did not load as a CommonJS API.`
       );
 
-      const version = api.VERSION || api.version;
+      const version =
+        readVersion(
+          api,
+          file
+        );
 
       assert.ok(
         typeof version === "string" &&
         version.trim(),
-        `${file} must expose a non-empty version string.`
+        `${file} version contract failed.`
       );
     }
   }
