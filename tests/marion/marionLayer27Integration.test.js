@@ -1,14 +1,19 @@
 "use strict";
 
 /**
+ * tests/marion/marionLayer27Integration.test.js
+ *
  * Marion Layer 27 integration certification.
+ *
+ * CANONICAL TEST PATH:
+ * tests/marion/marionLayer27Integration.test.js
  *
  * Runtime authorities:
  *   Data/marion/runtime/strategy/marionStrategicPlanner.js
  *   Data/marion/runtime/strategy/marionPriorityArbitrator.js
  *   Data/marion/runtime/strategy/marionPlanningEnvelope.js
  *
- * This test does not authorize execution and does not replace the existing
+ * This test remains advisory-only and must not replace the existing
  * Layers 1–26 reply/envelope authority.
  */
 
@@ -17,7 +22,41 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const MAX_OUTPUT_BYTES = 50000;
+const VERSION =
+  "marion.layer27.integration.test/2.1-canonical-marion-folder";
+
+const MAX_OUTPUT_BYTES =
+  50000;
+
+const BACKEND_ROOT =
+  path.resolve(
+    __dirname,
+    "..",
+    ".."
+  );
+
+const CANONICAL_TEST_RELATIVE =
+  path.join(
+    "tests",
+    "marion",
+    "marionLayer27Integration.test.js"
+  );
+
+const STRATEGY_RUNTIME_ROOT =
+  path.join(
+    BACKEND_ROOT,
+    "Data",
+    "marion",
+    "runtime",
+    "strategy"
+  );
+
+const REQUIRED_RUNTIME_FILES =
+  Object.freeze([
+    "marionStrategicPlanner.js",
+    "marionPriorityArbitrator.js",
+    "marionPlanningEnvelope.js"
+  ]);
 
 function isObject(value) {
   return Boolean(
@@ -27,95 +66,32 @@ function isObject(value) {
   );
 }
 
-function findBackendRoot(startDir) {
-  let current =
-    path.resolve(startDir);
-
-  while (true) {
-    const packagePath =
-      path.join(
-        current,
-        "package.json"
-      );
-
-    const runtimePath =
-      path.join(
-        current,
-        "Data",
-        "marion",
-        "runtime"
-      );
-
-    if (
-      fs.existsSync(packagePath) &&
-      fs.existsSync(runtimePath)
-    ) {
-      return current;
-    }
-
-    const parent =
-      path.dirname(current);
-
-    if (parent === current) {
-      break;
-    }
-
-    current =
-      parent;
+function deepClone(value) {
+  if (
+    typeof globalThis.structuredClone ===
+    "function"
+  ) {
+    return globalThis.structuredClone(value);
   }
 
-  /*
-   * Synthetic/node:test compatibility:
-   * allow a root that has the canonical runtime tree even when package.json
-   * is intentionally omitted by an isolated harness.
-   */
-  current =
-    path.resolve(startDir);
-
-  while (true) {
-    const runtimePath =
-      path.join(
-        current,
-        "Data",
-        "marion",
-        "runtime"
-      );
-
-    if (fs.existsSync(runtimePath)) {
-      return current;
-    }
-
-    const parent =
-      path.dirname(current);
-
-    if (parent === current) {
-      break;
-    }
-
-    current =
-      parent;
-  }
-
-  throw new Error(
-    `Unable to resolve Sandblast backend root from ${startDir}`
+  return JSON.parse(
+    JSON.stringify(value)
   );
 }
 
-const BACKEND_ROOT =
-  findBackendRoot(__dirname);
-
 function runtimePath(name) {
   return path.join(
-    BACKEND_ROOT,
-    "Data",
-    "marion",
-    "runtime",
-    "strategy",
+    STRATEGY_RUNTIME_ROOT,
     name
   );
 }
 
 function loadRuntime(name) {
+  assert.ok(
+    REQUIRED_RUNTIME_FILES.includes(name),
+    `Unexpected Layer 27 runtime requested: ${name}`
+  );
+
   const candidate =
     runtimePath(name);
 
@@ -132,26 +108,41 @@ function loadRuntime(name) {
   } catch (error) {
     throw new Error(
       [
-        `Layer 27 runtime file exists but could not be resolved: ${name}`,
+        `Layer 27 runtime exists but could not be resolved: ${name}`,
         `Path: ${candidate}`,
-        `Cause: ${error && error.message ? error.message : error}`
+        `Cause: ${
+          error && error.message
+            ? error.message
+            : error
+        }`
       ].join("\n"),
       { cause: error }
     );
   }
 
+  assert.equal(
+    path.normalize(resolved).toLowerCase(),
+    path.normalize(candidate).toLowerCase(),
+    `Layer 27 runtime resolution drifted from the canonical strategy path: ${name}`
+  );
+
   try {
     return require(resolved);
   } catch (error) {
     /*
-     * The target file exists. A MODULE_NOT_FOUND error here is therefore a
-     * transitive dependency failure and must be reported as such.
+     * The canonical file exists. Any MODULE_NOT_FOUND raised here is a
+     * transitive dependency failure and must not be misreported as a missing
+     * Layer 27 runtime file.
      */
     throw new Error(
       [
-        `Layer 27 runtime module failed during loading: ${name}`,
+        `Layer 27 runtime failed during module loading: ${name}`,
         `Resolved: ${resolved}`,
-        `Cause: ${error && error.message ? error.message : error}`
+        `Cause: ${
+          error && error.message
+            ? error.message
+            : error
+        }`
       ].join("\n"),
       { cause: error }
     );
@@ -203,34 +194,37 @@ async function invoke(
   );
 }
 
-function assertAdvisoryOnly(out) {
+function assertAdvisoryOnly(
+  out,
+  stage
+) {
   assert.ok(
     isObject(out),
-    "Layer 27 output must be a non-array object."
+    `${stage} must return a non-array object.`
   );
 
   assert.equal(
     out.executionAuthorized,
     false,
-    "Layer 27 must remain advisory-only."
+    `${stage} must remain advisory-only.`
   );
 
   assert.notEqual(
     out.automaticExecutionAllowed,
     true,
-    "Layer 27 must not enable automatic execution."
+    `${stage} must not enable automatic execution.`
   );
 
   assert.notEqual(
     out.replaceComposer,
     true,
-    "Layer 27 must not replace the response composer."
+    `${stage} must not replace the response composer.`
   );
 
   assert.notEqual(
     out.replaceReplyAuthority,
     true,
-    "Layer 27 must not replace reply authority."
+    `${stage} must not replace Marion's reply authority.`
   );
 }
 
@@ -241,20 +235,54 @@ function assertNoVisibleDiagnostics(value) {
   assert.doesNotMatch(
     text,
     /\bTypeError\b|\bReferenceError\b|\bSyntaxError\b|\bstack\b|at\s+\w+\s*\(/i,
-    "Layer 27 exposed runtime diagnostics in a user-facing reply."
+    "Layer 27 exposed runtime diagnostics in a user-facing field."
   );
 }
+
+function assertBounded(value, message) {
+  const serialized =
+    JSON.stringify(value);
+
+  assert.ok(
+    Buffer.byteLength(
+      serialized,
+      "utf8"
+    ) < MAX_OUTPUT_BYTES,
+    message
+  );
+}
+
+test(
+  "Layer 27 integration test remains in the canonical Marion folder",
+  () => {
+    const actualRelative =
+      path.normalize(
+        path.relative(
+          BACKEND_ROOT,
+          __filename
+        )
+      );
+
+    assert.equal(
+      actualRelative.toLowerCase(),
+      path.normalize(
+        CANONICAL_TEST_RELATIVE
+      ).toLowerCase(),
+      [
+        "Layer 27 integration test pathway drifted.",
+        `Expected: ${CANONICAL_TEST_RELATIVE}`,
+        `Actual: ${actualRelative}`
+      ].join("\n")
+    );
+  }
+);
 
 test(
   "Layer 27 strategy runtimes resolve from the canonical strategy folder",
   () => {
     for (
       const name
-      of [
-        "marionStrategicPlanner.js",
-        "marionPriorityArbitrator.js",
-        "marionPlanningEnvelope.js"
-      ]
+      of REQUIRED_RUNTIME_FILES
     ) {
       const candidate =
         runtimePath(name);
@@ -268,7 +296,9 @@ test(
         path.normalize(
           require.resolve(candidate)
         ).toLowerCase(),
-        path.normalize(candidate).toLowerCase(),
+        path.normalize(
+          candidate
+        ).toLowerCase(),
         `Layer 27 runtime resolution drifted: ${name}`
       );
     }
@@ -321,9 +351,7 @@ test(
     };
 
     const baseSnapshot =
-      JSON.parse(
-        JSON.stringify(base)
-      );
+      deepClone(base);
 
     const plan =
       await invoke(
@@ -346,13 +374,20 @@ test(
         }
       );
 
-    assertAdvisoryOnly(plan);
+    assertAdvisoryOnly(
+      plan,
+      "Strategic Planner"
+    );
 
     const candidates =
-      Array.isArray(plan.priorities)
+      Array.isArray(
+        plan.priorities
+      )
         ? plan.priorities
         : (
-            Array.isArray(plan.steps)
+            Array.isArray(
+              plan.steps
+            )
               ? plan.steps
               : []
           );
@@ -381,7 +416,10 @@ test(
         }
       );
 
-    assertAdvisoryOnly(priorities);
+    assertAdvisoryOnly(
+      priorities,
+      "Priority Arbitrator"
+    );
 
     const out =
       await invoke(
@@ -402,7 +440,10 @@ test(
         }
       );
 
-    assertAdvisoryOnly(out);
+    assertAdvisoryOnly(
+      out,
+      "Planning Envelope"
+    );
 
     assert.equal(
       out.reply,
@@ -467,13 +508,19 @@ test(
       "Layer 27 metadata is missing."
     );
 
-    assertNoVisibleDiagnostics(
-      out.reply
-    );
-
-    assertNoVisibleDiagnostics(
-      out.displayReply
-    );
+    for (
+      const value
+      of [
+        out.reply,
+        out.displayReply,
+        out.finalReply,
+        out.spokenText
+      ]
+    ) {
+      assertNoVisibleDiagnostics(
+        value
+      );
+    }
 
     assert.deepEqual(
       base,
@@ -481,14 +528,8 @@ test(
       "Layer 27 integration mutated the source Layers 1–26 envelope."
     );
 
-    const serialized =
-      JSON.stringify(out);
-
-    assert.ok(
-      Buffer.byteLength(
-        serialized,
-        "utf8"
-      ) < MAX_OUTPUT_BYTES,
+    assertBounded(
+      out,
       "Layer 27 integration output must remain below 50,000 bytes."
     );
   }
@@ -534,33 +575,37 @@ test(
       "Malformed input must not enable automatic execution."
     );
 
-    const visibleFields = [
-      out.reply,
-      out.displayReply,
-      out.finalReply,
-      out.spokenText,
-      out.message,
-      out.text
-    ];
+    assert.notEqual(
+      out.replaceComposer,
+      true,
+      "Malformed input must not replace the response composer."
+    );
+
+    assert.notEqual(
+      out.replaceReplyAuthority,
+      true,
+      "Malformed input must not replace Marion's reply authority."
+    );
 
     for (
       const value
-      of visibleFields
+      of [
+        out.reply,
+        out.displayReply,
+        out.finalReply,
+        out.spokenText,
+        out.message,
+        out.text
+      ]
     ) {
       assertNoVisibleDiagnostics(
         value
       );
     }
 
-    const serialized =
-      JSON.stringify(out);
-
-    assert.ok(
-      Buffer.byteLength(
-        serialized,
-        "utf8"
-      ) < MAX_OUTPUT_BYTES,
-      "Malformed-input fallback must remain bounded."
+    assertBounded(
+      out,
+      "Malformed-input fallback must remain below 50,000 bytes."
     );
   }
 );
