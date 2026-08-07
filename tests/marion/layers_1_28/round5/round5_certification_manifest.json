@@ -1,0 +1,34 @@
+{
+  "schema": "nyx.marion.round5.serviceCertification/1.0",
+  "round": 5,
+  "title": "Service Reliability and Runtime Cohesion Certification",
+  "hardStopLayer": 28,
+  "prerequisite": "verify:marion-round4",
+  "tests": [
+    {
+      "id": "5.1",
+      "file": "round5_1_service_topology_integrity.test.js",
+      "scope": "Canonical service topology and Round 4\u21925 package pathway integrity"
+    },
+    {
+      "id": "5.2",
+      "file": "round5_2_service_lifecycle_idempotency.test.js",
+      "scope": "Idempotent service loading, load-order resilience, circular-warning isolation"
+    },
+    {
+      "id": "5.3",
+      "file": "round5_3_fail_closed_resilience.test.js",
+      "scope": "Malformed input and hostile-getter containment with fail-closed authority boundaries"
+    },
+    {
+      "id": "5.4",
+      "file": "round5_4_authority_transport_integrity.test.js",
+      "scope": "Reply/display/final/spoken authority and transport-envelope integrity"
+    },
+    {
+      "id": "5.5",
+      "file": "round5_5_cross_round_service_cohesion.test.js",
+      "scope": "Rounds 1\u20134 cohesion, Layer 27/28 prerequisites, hard-stop protection at Layer 28"
+    }
+  ]
+}
