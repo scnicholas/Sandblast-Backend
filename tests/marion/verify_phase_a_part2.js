@@ -1,35 +1,58 @@
 "use strict";
 
-const path = require("path");
-const { spawnSync } = require("child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
-const tests = [
+const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
+const TESTS = Object.freeze([
   "layers_21_24_remaining_runtime_integration_test.js",
   "private_runtime_nuance_integration_test.js",
   "completion_layers_18_24_cohesion_test.js",
   "final_envelope_nuance_redaction_test.js"
-];
+]);
+const TIMEOUT_MS = 90000;
 
-for (const test of tests) {
-  const full = path.join(__dirname, test);
-  const result = spawnSync(process.execPath, [full], {
+function runNode(args, label) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: BACKEND_ROOT,
+    env: { ...process.env, NODE_OPTIONS: "" },
     encoding: "utf8",
-    stdio: "pipe"
+    windowsHide: true,
+    timeout: TIMEOUT_MS,
+    maxBuffer: 16 * 1024 * 1024
   });
 
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
 
-  if (result.status !== 0) {
-    console.error(`FAILED: ${test}`);
-    process.exit(result.status || 1);
+  if (result.error) {
+    console.error(`FAILED: ${label}: ${result.error.message || result.error}`);
+    process.exit(1);
   }
 
-  console.log(`PASS: ${test}`);
+  if (result.status !== 0) {
+    console.error(`FAILED: ${label}`);
+    process.exit(Number.isInteger(result.status) ? result.status : 1);
+  }
+}
+
+for (const name of TESTS) {
+  const full = path.join(__dirname, name);
+
+  if (!fs.existsSync(full)) {
+    console.error(`FAILED: required test is missing: ${full}`);
+    process.exit(1);
+  }
+
+  runNode(["--check", full], `syntax ${name}`);
+  runNode([full], name);
+  console.log(`PASS: ${name}`);
 }
 
 console.log(JSON.stringify({
-  ok: true,
-  suite: "Marion Phase A Layers 21-24 Critical Integration Part 2",
-  testsPassed: tests.length
+  "ok": true,
+  "suite": "Marion Phase A Layers 21-24 Critical Integration Part 2",
+  "testsPassed": 4,
+  "pathPolicy": "tests/marion canonical"
 }, null, 2));
