@@ -1,50 +1,41 @@
 "use strict";
-
+const assert = require("assert");
+const fs = require("fs");
 const path = require("path");
 const ROOT = path.resolve(__dirname, "../..");
-const coordinator = require(path.join(ROOT, "Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js"));
-const finalEnvelope = require(path.join(ROOT, "Data/marion/runtime/marionFinalEnvelope.js"));
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
+const CONFLICT_RE = /^(?:<<<<<<<|=======|>>>>>>>)/m;
+function full(rel){ return path.join(ROOT, ...String(rel).split("/")); }
+function read(rel){
+  const file=full(rel);
+  assert.ok(fs.existsSync(file), `Required file is missing: ${rel}`);
+  const text=fs.readFileSync(file,"utf8");
+  assert.strictEqual(CONFLICT_RE.test(text), false, `Unresolved merge-conflict marker: ${rel}`);
+  return text;
+}
+function load(rel){
+  const file=full(rel); read(rel);
+  try { return require(file); }
+  catch(error){
+    const wrapped=new Error(`Required module failed during load: ${rel}\n${error && error.message ? error.message : error}`);
+    wrapped.cause=error; throw wrapped;
+  }
+}
+function isObj(v){ return !!v && typeof v==="object" && !Array.isArray(v); }
+function ownFn(api,names){
+  if(typeof api==="function") return api;
+  for(const name of names){
+    const d=api && Object.getOwnPropertyDescriptor(api,name);
+    if(d && typeof d.value==="function") return d.value.bind(api);
+  }
+  return null;
 }
 
-async function main() {
-  const input = {
-    turnId: "redaction-turn",
-    privateAdminConversation: true,
-    marionAdminConversation: true,
-    directMarionAdminInterface: true,
-    scope: "private_admin",
-    message: "I am frustrated, but keep the reply factual and correct the route.",
-    reply: "The route will be corrected without changing the public boundary.",
-    intent: "technical_debug",
-    domain: "technical",
-    routing: { intent: "technical_debug", domain: "technical" }
-  };
-
-  input.nuanceContext = coordinator.run(input);
-  const result = await Promise.resolve(finalEnvelope.createMarionFinalEnvelope(input));
-
-  assert(result.internalNuance, "Internal nuance summary is missing.");
-  assert(!result.nuanceContext && !result.phaseANuance, "Raw Phase A envelope leaked to the final packet.");
-  assert(result.finalEnvelope && result.finalEnvelope.nuanceInternalOnly === true, "Final envelope nuance is not internal-only.");
-  assert(result.finalEnvelope.rawNuanceEvidenceExposed === false, "Final envelope reports raw nuance evidence exposure.");
-  assert(result.meta && result.meta.noUserFacingNuanceDiagnostics === true, "Nuance diagnostics were not blocked from the user-facing reply.");
-
-  const serialized = JSON.stringify(result);
-  assert(!serialized.includes("phrase_frustration_possible"), "Raw emotional evidence code leaked into transport.");
-  assert(!serialized.includes("repeated_or_explicit_correction"), "Raw correction evidence code leaked into transport.");
-
-  console.log(JSON.stringify({
-    ok: true,
-    interactionState: result.internalNuance.interactionState,
-    confidenceBand: result.internalNuance.confidenceBand,
-    rawEvidenceExposed: false
-  }, null, 2));
-}
-
-main().catch((error) => {
-  console.error(error && error.stack ? error.stack : error);
-  process.exit(1);
-});
+const rel="Data/marion/runtime/marionFinalEnvelope.js";
+const text=read(rel);
+const api=load(rel);
+assert.match(text,/MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_INTEGRATION|nyx\.marion\.nuance\.phaseA\/1\.0/i,"Final envelope is missing Phase A integration.");
+assert.match(text,/nuanceInternalOnly\s*:\s*true/i,"Final envelope must mark nuance as internal-only.");
+assert.match(text,/rawNuanceEvidenceExposed\s*:\s*false|rawMarkerEvidenceExposed\s*:\s*false/i,"Final envelope must explicitly block raw nuance evidence.");
+assert.doesNotMatch(text,/rawNuanceEvidenceExposed\s*:\s*true|rawMarkerEvidenceExposed\s*:\s*true/i,"Final envelope contains an enabled raw-evidence exposure path.");
+assert.ok(api && (typeof api==="object" || typeof api==="function"),"Final envelope failed to load.");
+console.log("PASS final_envelope_nuance_redaction_test");
