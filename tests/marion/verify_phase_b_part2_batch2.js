@@ -1,58 +1,25 @@
 "use strict";
-
-const fs = require("node:fs");
-const path = require("node:path");
-const { spawnSync } = require("node:child_process");
-
-const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
-const TESTS = Object.freeze([
+const fs=require("fs");
+const path=require("path");
+const {spawnSync}=require("child_process");
+const ROOT=path.resolve(__dirname,"../..");
+const tests=[
   "phase_b_state_spine_integration_test.js",
   "phase_b_chat_engine_transport_test.js",
   "phase_b_index_manifest_package_contract_test.js"
-]);
-const TIMEOUT_MS = 90000;
-
-function runNode(args, label) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: BACKEND_ROOT,
-    env: { ...process.env, NODE_OPTIONS: "" },
-    encoding: "utf8",
-    windowsHide: true,
-    timeout: TIMEOUT_MS,
-    maxBuffer: 16 * 1024 * 1024
-  });
-
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
-
-  if (result.error) {
-    console.error(`FAILED: ${label}: ${result.error.message || result.error}`);
-    process.exit(1);
-  }
-
-  if (result.status !== 0) {
-    console.error(`FAILED: ${label}`);
-    process.exit(Number.isInteger(result.status) ? result.status : 1);
-  }
-}
-
-for (const name of TESTS) {
-  const full = path.join(__dirname, name);
-
-  if (!fs.existsSync(full)) {
-    console.error(`FAILED: required test is missing: ${full}`);
-    process.exit(1);
-  }
-
-  runNode(["--check", full], `syntax ${name}`);
-  runNode([full], name);
+];
+function fail(msg,code=1){console.error(msg);process.exit(code);}
+for(const name of tests){
+  const file=path.join(__dirname,name);
+  if(!fs.existsSync(file)) fail(`Missing Phase B Batch 2 test: ${name}`);
+  let r=spawnSync(process.execPath,["--check",file],{cwd:ROOT,encoding:"utf8",timeout:30000,maxBuffer:1024*1024*4});
+  if(r.error) fail(`Syntax spawn failed for ${name}: ${r.error.message}`);
+  if(r.status!==0){if(r.stderr)process.stderr.write(r.stderr);fail(`Syntax failed: ${name}`,r.status||1);}
+  r=spawnSync(process.execPath,[file],{cwd:ROOT,encoding:"utf8",timeout:60000,maxBuffer:1024*1024*8});
+  if(r.stdout)process.stdout.write(r.stdout);
+  if(r.stderr)process.stderr.write(r.stderr);
+  if(r.error) fail(`Execution spawn failed for ${name}: ${r.error.message}`);
+  if(r.status!==0) fail(`FAILED: ${name}`,r.status||1);
   console.log(`PASS: ${name}`);
 }
-
-console.log(JSON.stringify({
-  "ok": true,
-  "suite": "Marion Phase B Part 2 Batch 2",
-  "testsPassed": 3,
-  "hardStopLayer": 26,
-  "globalCertifiedHardStopLayer": 28
-}, null, 2));
+console.log(JSON.stringify({ok:true,suite:"Marion Phase B Part 2 Batch 2",testsPassed:tests.length,hardStopLayer:26},null,2));
