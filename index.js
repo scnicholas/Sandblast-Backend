@@ -839,7 +839,7 @@ const NYX_VOICE_UTILS_MOUNT_STATUS = mountNyxVoiceUtilsEarly(app);
  * not_found guard near the end of the route table.
  */
 try {
-  const nyxEcosystemRoute = require("./Utils/nyxEcosystemRoute.js");
+  const nyxEcosystemRoute = require("./utils/nyxEcosystemRoute.js");
   app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
   app.locals.nyxEcosystemSpine = {
     mounted: true,
@@ -876,7 +876,7 @@ const NYX_GUIDE_HEALTH_PATHS = Object.freeze([
 const NYX_GUIDE_RUNTIME_FILES = Object.freeze([
   "sitebridge.js",
   "utils/chatEngine.js",
-  "Utils/domainRouter.js",
+  "utils/domainRouter.js",
   "utils/stateSpine.js",
   "utils/voiceRoute.js",
   "Data/marion/runtime/composeMarionResponse.js",
@@ -5842,7 +5842,7 @@ function canonicalTechnicalTargetFromText(text = "") {
   if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "utils/stateSpine.js", "state");
   if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
   if (/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i.test(t)) return mk("marionCommandNormalizer", "MarionCommandNormalizer", "marionCommandNormalizer.js", "Data/marion/runtime/marionCommandNormalizer.js", "normalizer");
-  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
+  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "utils/domainRouter.js", "router");
   if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
   if (/\b(index\.js|index\s*js|server\s*route|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
   return {};
@@ -23005,12 +23005,10 @@ const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
 
 function marionAdminTextRuntimeBridgeStatus() {
   const candidates = [
-    "./marionBridge.js",
-    "./marionBridge",
     "./Data/marion/runtime/marionBridge.js",
     "./Data/marion/runtime/marionBridge",
-    "./Utils/marionBridge.js",
-    "./Utils/marionBridge"
+    "./marionBridge.js",
+    "./marionBridge"
   ];
   for (const candidate of candidates) {
     try {
