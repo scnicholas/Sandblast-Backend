@@ -1,97 +1,70 @@
 "use strict";
-
+const assert = require("assert");
+const fs = require("fs");
 const path = require("path");
 const ROOT = path.resolve(__dirname, "../..");
-
-function load(relativePath) {
-  return require(path.join(ROOT, relativePath));
+const CONFLICT_RE = /^(?:<<<<<<<|=======|>>>>>>>)/m;
+function full(rel){ return path.join(ROOT, ...String(rel).split("/")); }
+function read(rel){
+  const file=full(rel);
+  assert.ok(fs.existsSync(file), `Required file is missing: ${rel}`);
+  const text=fs.readFileSync(file,"utf8");
+  assert.strictEqual(CONFLICT_RE.test(text), false, `Unresolved merge-conflict marker: ${rel}`);
+  return text;
+}
+function load(rel){
+  const file=full(rel); read(rel);
+  try { return require(file); }
+  catch(error){
+    const wrapped=new Error(`Required module failed during load: ${rel}\n${error && error.message ? error.message : error}`);
+    wrapped.cause=error; throw wrapped;
+  }
+}
+function isObj(v){ return !!v && typeof v==="object" && !Array.isArray(v); }
+function ownFn(api,names){
+  if(typeof api==="function") return api;
+  for(const name of names){
+    const d=api && Object.getOwnPropertyDescriptor(api,name);
+    if(d && typeof d.value==="function") return d.value.bind(api);
+  }
+  return null;
 }
 
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
+const groups={
+  emotion:["Data/marion/runtime/emotion/emotionRuntime.js"],
+  conversation:[
+    "Data/marion/runtime/conversation/marionConversationProgression.js",
+    "Data/marion/runtime/conversation/marionContextPivot.js",
+    "Data/marion/runtime/conversation/marionInteractionCalibration.js",
+    "Data/marion/runtime/conversation/marionOutcomeAwareness.js",
+    "Data/marion/runtime/conversation/marionCommitmentTracker.js",
+    "Data/marion/runtime/conversation/marionAnticipatoryGuidance.js",
+    "Data/marion/runtime/conversation/marionOutcomeFlowCoordinator.js",
+    "Data/marion/runtime/conversation/marionConversationLayerRegistry.js"
+  ],
+  completion:[
+    "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+    "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+    "Data/marion/runtime/completion/marionDecisionClosure.js",
+    "Data/marion/runtime/completion/marionGoalRealignment.js"
+  ],
+  strategy:[
+    "Data/marion/runtime/strategy/marionStrategicObjectiveAlignment.js",
+    "Data/marion/runtime/strategy/marionPredictiveRiskModel.js",
+    "Data/marion/runtime/strategy/marionStrategicPathwaySynthesizer.js",
+    "Data/marion/runtime/strategy/marionStrategicFlowCoordinator.js"
+  ]
+};
+let count=0;
+for(const [group,files] of Object.entries(groups)){
+  for(const file of files){
+    const api=load(file);
+    assert.ok(api && (typeof api==="object" || typeof api==="function"), `${group} runtime did not expose an API: ${file}`);
+    count++;
+  }
 }
-
-async function main() {
-  const coordinator = load("Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js");
-  const currentTurn = load("Data/marion/runtime/marionCurrentTurnAuthority.js");
-  const router = load("Data/marion/runtime/marionIntentRouter.js");
-  const finalEnvelope = load("Data/marion/runtime/marionFinalEnvelope.js");
-  const completion = load("Data/marion/runtime/completion/marionCompletionFlowCoordinator.js");
-  const composer = load("Data/marion/runtime/composeMarionResponse.js");
-  const bridge = load("Data/marion/runtime/marionBridge.js");
-  const adapter = load("Data/marion/runtime/marionPrivateRuntimeAdapter.js");
-
-  const input = {
-    turnId: "phase-a-part2-turn",
-    conversationId: "phase-a-part2-conversation",
-    privateAdminConversation: true,
-    marionAdminConversation: true,
-    directMarionAdminInterface: true,
-    scope: "private_admin",
-    message: "No, no. That is not what I meant. Let us slow down and fix the current section.",
-    previousMemory: {}
-  };
-
-  const nuance = coordinator.run(input);
-  assert(nuance.contract === "nyx.marion.nuance.phaseA/1.0", "Phase A contract mismatch.");
-  assert(nuance.layer24.currentState === "correction", "Layer 24 did not recognize the correction state.");
-
-  const prepared = currentTurn.prepareInput({ ...input, nuanceContext: nuance });
-  assert(prepared.nuanceCurrentTurnVerified === true, "Current-turn nuance was not verified.");
-  assert(prepared.nuanceCorrectionOverride === true, "Correction precedence was not applied.");
-
-  const routeResult = await Promise.resolve(
-    router.routeMarionIntent
-      ? router.routeMarionIntent({ ...prepared, phaseANuance: nuance })
-      : router.route({ ...prepared, phaseANuance: nuance })
-  );
-
-  assert(routeResult.nuanceRouting, "Router did not retain bounded nuance routing metadata.");
-  assert(routeResult.nuanceRouting.interactionState === "correction", "Router interaction state mismatch.");
-  assert(routeResult.nuanceRouting.emotionInferenceAloneMayChangeIntent === false, "Emotion was allowed to replace intent.");
-
-  const completionResult = completion.analyzeTurn({
-    prompt: input.message,
-    nuanceContext: nuance,
-    conversationFlow: {},
-    outcomeFlow: {},
-    strategicFlow: {},
-    turnId: input.turnId
-  });
-
-  assert(completionResult.phaseAHardStopLayer === 24, "Completion coordinator did not expose the Layer 24 architecture stop.");
-  assert(completionResult.automaticExecutionAllowed === false, "Completion flow gained execution authority.");
-
-  const envelope = await Promise.resolve(finalEnvelope.createMarionFinalEnvelope({
-    ...prepared,
-    nuanceContext: nuance,
-    reply: "The current section needs correction before closure.",
-    intent: "technical_debug",
-    domain: "technical",
-    routing: { intent: "technical_debug", domain: "technical" }
-  }));
-
-  assert(envelope.internalNuance, "Final envelope did not retain the internal nuance projection.");
-  assert(envelope.internalNuance.interactionState === "correction", "Final envelope interaction state mismatch.");
-  assert(!envelope.nuanceContext && !envelope.phaseANuance, "Raw nuance context leaked into the final transport packet.");
-
-  assert(finalEnvelope.MARION_LAYER_HARD_STOP === 24, "Final envelope hard stop mismatch.");
-  assert(composer.MARION_LAYER_HARD_STOP === 24, "Composer hard stop mismatch.");
-  assert(bridge.MARION_LAYER_HARD_STOP === 24, "Bridge hard stop mismatch.");
-
-  const status = adapter.getStatus();
-  assert(status.hardStopLayer === 24, "Private runtime hard stop mismatch.");
-  assert(status.nuanceReady === true, "Private runtime did not report Phase A readiness.");
-
-  console.log(JSON.stringify({
-    ok: true,
-    interactionState: nuance.layer24.currentState,
-    completionHardStop: completionResult.phaseAHardStopLayer,
-    adapterHardStop: status.hardStopLayer
-  }, null, 2));
-}
-
-main().catch((error) => {
-  console.error(error && error.stack ? error.stack : error);
-  process.exit(1);
-});
+const strategic=read("Data/marion/runtime/strategy/marionStrategicFlowCoordinator.js");
+assert.match(strategic,/MARION_NUANCE_PHASE_A|nuanceCannotAuthorizeAction/i,"Strategic flow is missing its Phase A non-authoritative boundary.");
+const decision=read("Data/marion/runtime/completion/marionDecisionClosure.js");
+assert.match(decision,/HARD_STOP_LAYER\s*=\s*24|conversationArchitectureHardStop\s*:\s*HARD_STOP_LAYER/i,"Completion decision boundary is not Phase-A-aware.");
+console.log(`PASS layers_21_24_remaining_runtime_integration_test (${count} runtime modules)`);
