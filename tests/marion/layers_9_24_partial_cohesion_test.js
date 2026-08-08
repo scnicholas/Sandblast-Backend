@@ -25,7 +25,7 @@ const path = require("path");
 const Module = require("module");
 
 const VERSION =
-  "marion.layers9_24.partialCohesion.test/2.1-phase-boundary-separation";
+  "marion.layers9_24.partialCohesion.test/2.2-runtime-version-projection";
 
 const PHASE_A_HARD_STOP = 24;
 const PHASE_B_HARD_STOP = 26;
@@ -85,6 +85,112 @@ function hasLayer(layers, layer) {
 function numberOrNull(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function cleanVersion(value) {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function conversationLayerFromVersion(value) {
+  const text = cleanVersion(value);
+  if (!text) return null;
+
+  const match = text.match(
+    /conversationLayers\/(\d+)(?:\.\d+)?/i
+  );
+
+  if (!match) return null;
+
+  const layer = Number(match[1]);
+  return Number.isFinite(layer)
+    ? layer
+    : null;
+}
+
+function assertVersionProjectionCohesion({
+  registryVersion,
+  statusVersion,
+  flowVersion,
+  statusHardStop,
+  flowHardStop
+}) {
+  const registryText = cleanVersion(registryVersion);
+  const statusText = cleanVersion(statusVersion);
+  const flowText = cleanVersion(flowVersion);
+
+  assert.ok(registryText, "Conversation Layer Registry must expose VERSION.");
+  assert.ok(flowText, "Conversation flow must expose version.");
+
+  const registryLayer = conversationLayerFromVersion(registryText);
+  const statusLayer = conversationLayerFromVersion(statusText);
+  const flowLayer = conversationLayerFromVersion(flowText);
+
+  if (registryLayer !== null) {
+    assert.ok(
+      registryLayer === PHASE_A_HARD_STOP || registryLayer === PHASE_B_HARD_STOP,
+      `Registry VERSION identifies unsupported conversation layer ${registryLayer}.`
+    );
+  }
+
+  if (statusLayer !== null) {
+    assert.ok(
+      statusLayer === PHASE_A_HARD_STOP || statusLayer === PHASE_B_HARD_STOP,
+      `Registry status version identifies unsupported conversation layer ${statusLayer}.`
+    );
+  }
+
+  if (flowLayer !== null) {
+    assert.equal(
+      flowLayer,
+      flowHardStop,
+      [
+        "Flow version is not synchronized with the active conversation boundary.",
+        `Flow version: ${flowText}`,
+        `Flow hard stop: ${flowHardStop}`
+      ].join("\n")
+    );
+  } else {
+    assert.ok(
+      flowText === registryText || (statusText && flowText === statusText),
+      "Unparseable flow version must match the registry or registry-status version exactly."
+    );
+  }
+
+  if (statusLayer !== null) {
+    assert.equal(
+      statusLayer,
+      statusHardStop,
+      [
+        "Registry status version is not synchronized with the active registry boundary.",
+        `Status version: ${statusText}`,
+        `Status hard stop: ${statusHardStop}`
+      ].join("\n")
+    );
+  }
+
+  if (registryText !== flowText && registryLayer !== null && flowLayer !== null) {
+    assert.equal(
+      registryLayer,
+      PHASE_A_HARD_STOP,
+      "A version projection mismatch is only valid when the exported registry VERSION remains the Phase A base."
+    );
+    assert.equal(
+      flowLayer,
+      PHASE_B_HARD_STOP,
+      "A version projection mismatch is only valid when the active flow has been advanced by Phase B."
+    );
+  }
+
+  return {
+    registryLayer,
+    statusLayer,
+    flowLayer,
+    projectionMode: registryText === flowText
+      ? "direct"
+      : "phase_b_integrated_projection"
+  };
 }
 
 function assertConversationRegistryBoundary(value, label) {
@@ -510,20 +616,35 @@ try {
   );
 
   const registryVersion =
-    typeof registry.VERSION === "string"
-      ? registry.VERSION.trim()
-      : "";
+    cleanVersion(registry.VERSION);
 
-  assert.ok(
-    registryVersion,
-    "Conversation Layer Registry must expose VERSION."
-  );
+  const statusVersion =
+    cleanVersion(
+      status.version ||
+      status.registryVersion ||
+      status.conversationVersion
+    );
 
-  assert.equal(
-    flow.version,
-    registryVersion,
-    "Flow version must remain synchronized with the active Conversation Layer Registry."
-  );
+  const flowVersion =
+    cleanVersion(flow.version);
+
+  const flowHardStop =
+    assertConversationRegistryBoundary(
+      {
+        ...flow,
+        layers: flow.layers || status.layers
+      },
+      "Conversation flow"
+    );
+
+  const versionProjection =
+    assertVersionProjectionCohesion({
+      registryVersion,
+      statusVersion,
+      flowVersion,
+      statusHardStop,
+      flowHardStop
+    });
 
   assert.ok(
     isObject(flow.phaseANuance),
@@ -535,15 +656,6 @@ try {
     "correction",
     "Explicit current-turn correction was not preserved."
   );
-
-  const flowHardStop =
-    assertConversationRegistryBoundary(
-      {
-        ...flow,
-        layers: flow.layers || status.layers
-      },
-      "Conversation flow"
-    );
 
   assert.equal(
     flow.currentTurnIntentPrimary,
@@ -682,6 +794,9 @@ try {
           "layers_9_24_partial_cohesion_test",
         version: VERSION,
         registryVersion,
+        statusVersion: statusVersion || null,
+        flowVersion,
+        versionProjection,
         phaseALocalHardStopLayer:
           PHASE_A_HARD_STOP,
         activeConversationHardStopLayer:
