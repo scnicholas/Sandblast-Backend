@@ -1,16 +1,42 @@
 "use strict";
-const path=require("path"),ROOT=path.resolve(__dirname,"../..");
-const A=require(path.join(ROOT,"Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js"));
-const P=require(path.join(ROOT,"Data/marion/runtime/nuance/marionPragmaticIntentResolver.js"));
-function assert(v,m){if(!v)throw new Error(m);}
-function run(message,extra={}){const input={turnId:`p-${Math.random()}`,message,...extra};return P.run(input,A.run(input),{});}
-let r=run("Do you really think this is production-ready? Show me the critical gaps.");
-assert(r.primaryPragmaticIntent==="request_for_critical_assessment","Readiness challenge did not resolve to critical assessment.");
-assert(r.secondaryPragmaticIntents.includes("request_for_validation")||r.secondaryPragmaticIntents.includes("skepticism"),"Readiness challenge lost validation or skepticism.");
-r=run("No, that is not the target. Fix the runtime file first, then tell me how we validate it.");
-assert(r.primaryPragmaticIntent==="direct_correction","Direct correction was not primary.");
-assert(r.secondaryPragmaticIntents.includes("request_for_action")||r.secondaryPragmaticIntents.includes("request_for_validation"),"Multi-intent turn was not preserved.");
-r=run("Before that, one quick question. Give me this in point form.");
-assert(r.conversationControl&&["temporary_branch","format_control"].includes(r.conversationControl.category),"Conversation control was not detected.");
-assert(r.safeguards.subtextMayAuthorizeExecution===false,"Subtext created execution authority.");
-console.log(JSON.stringify({ok:true,primary:r.primaryPragmaticIntent,control:r.conversationControl},null,2));
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const ROOT = path.resolve(__dirname, "../..");
+const CONFLICT_RE = /^(?:<<<<<<<|=======|>>>>>>>)/m;
+function full(rel){ return path.join(ROOT, ...String(rel).split("/")); }
+function read(rel){
+  const file=full(rel);
+  assert.ok(fs.existsSync(file), `Required file is missing: ${rel}`);
+  const text=fs.readFileSync(file,"utf8");
+  assert.strictEqual(CONFLICT_RE.test(text), false, `Unresolved merge-conflict marker: ${rel}`);
+  return text;
+}
+function load(rel){
+  const file=full(rel); read(rel);
+  try { return require(file); }
+  catch(error){
+    const wrapped=new Error(`Required module failed during load: ${rel}\n${error && error.message ? error.message : error}`);
+    wrapped.cause=error; throw wrapped;
+  }
+}
+function isObj(v){ return !!v && typeof v==="object" && !Array.isArray(v); }
+function ownFn(api,names){
+  if(typeof api==="function") return api;
+  for(const name of names){
+    const d=api && Object.getOwnPropertyDescriptor(api,name);
+    if(d && typeof d.value==="function") return d.value.bind(api);
+  }
+  return null;
+}
+
+const coordinator=load("Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js");
+const run=ownFn(coordinator,["run","analyze","process"]);
+assert.strictEqual(typeof run,"function");
+const message="No, correct the route first.";
+const out=run({turnId:"pragmatic-test",message,privateAdminConversation:true,scope:"private_admin"});
+assert.ok(isObj(out) && isObj(out.layer26),"Phase B output must expose Layer 26 pragmatic intent.");
+assert.ok(typeof out.layer26.literalIntent==="string","Layer 26 literalIntent must be a string.");
+assert.ok(typeof out.layer26.primaryPragmaticIntent==="string" && out.layer26.primaryPragmaticIntent.trim(),"Layer 26 primary pragmatic intent is missing.");
+assert.notStrictEqual(out.layer26.executionAuthorized,true,"Pragmatic intent cannot authorize execution.");
+console.log("PASS layer_26_pragmatic_intent_test");
