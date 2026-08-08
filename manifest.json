@@ -1,11 +1,11 @@
 {
-  "package": "Marion Layers 1-28 Certification \u2014 Round Three",
-  "version": "1.0.10-marion-layers-1-28-round5",
+  "package": "Marion Layers 1-28 Certification — Baseline Freeze Candidate",
+  "version": "1.0.16-nyx-voice-text-parity-continuity",
   "contract": "nyx.marion.conversationFlow/4.0",
-  "generatedUtc": "2026-07-26T19:54:42.331914Z",
+  "generatedUtc": "2026-08-08T02:51:28.217452Z",
   "target": {
     "backend": "Sandblast backend",
-    "scope": "Marion Layers 1-28 cohesive runtime; Layer 27 strategy, Layer 28 internal metacognition, and shared cognitive supervision; composeMarionResponse intentionally untouched",
+    "scope": "Marion Layers 1-28 certified runtime baseline candidate; Rounds 1-6 certified; Layer 27 strategy advisory-only; Layer 28 metacognition internal-only; shared cognitive supervision hard-stopped at Layer 28.",
     "manifestOnly": false,
     "manifestPath": "C:\\Users\\User\\Desktop\\sandblast backend\\manifest.json",
     "guardianMemoryBridgePath": "C:\\Users\\User\\Desktop\\sandblast backend\\src\\memory\\guardian.memory.bridge.js",
@@ -76,7 +76,7 @@
     "newNuanceModuleCount": 15,
     "phaseAPart1IntegrationFilesUpdated": 16,
     "phaseAPart1TestsAdded": 5,
-    "phaseAPart1MergePending": true,
+    "phaseAPart1MergePending": false,
     "phaseANuanceLayers": [
       21,
       22,
@@ -124,7 +124,10 @@
     "round5Scope": "Full Layers 1-28 cohesion, endurance, state drift, loop resistance, hostile-input safety, and recovery",
     "round5ProductionFilesModified": [
       "utils/chatEngine.js"
-    ]
+    ],
+    "round6CertificationPrepared": true,
+    "round6Scope": "Final full Layers 1-28 regression, parallel-session isolation, deterministic cognition, transport containment, state integrity, and deployment readiness",
+    "round6ProductionFilesModified": []
   },
   "filePaths": [
     "DEPLOYMENT_CHECKLIST_LAYERS_11_12.md",
@@ -356,12 +359,12 @@
     "tests/marion/admin_runtime_primitive_guard_regression_test.js",
     "tests/marion/completion_flow_runtime_test.js",
     "tests/marion/conversation_flow_runtime_test.js",
-    "tests/marion/layer27/marionLayer27Integration.test.js",
-    "tests/marion/layer27/marionPriorityArbitrator.test.js",
-    "tests/marion/layer27/marionStrategicPlanner.test.js",
-    "tests/marion/layer28/marionLayer28Integration.test.js",
-    "tests/marion/layer28/marionQualityCalibrator.test.js",
-    "tests/marion/layer28/marionReasoningAuditor.test.js",
+    "tests/marion/marionLayer27Integration.test.js",
+    "tests/marion/marionPriorityArbitrator.test.js",
+    "tests/marion/marionStrategicPlanner.test.js",
+    "tests/marion/marionLayer28Integration.test.js",
+    "tests/marion/marionQualityCalibrator.test.js",
+    "tests/marion/marionReasoningAuditor.test.js",
     "tests/marion/layers_15_17_nuance_boundary_test.js",
     "tests/marion/layers_1_20_functional_validation_test.js",
     "tests/marion/layers_21_24_core_integration_test.js",
@@ -2681,14 +2684,62 @@
   },
   "hardStopLayer": 28,
   "certification": {
-    "round5": {
-      "status": "certified",
-      "test": "tests/marion/layers_1_28/round5/run_round5_certification.js",
-      "contract": "tests/marion/layers_1_28/round5/round5_contract.json",
-      "results": "certification/round5/ROUND5_RESULTS.json",
-      "gaps": "certification/round5/ROUND5_GAPS.json",
-      "assertionsPassed": 17,
-      "assertionsFailed": 0
+    "round5": true,
+    "round1": true,
+    "round2": true,
+    "round3": true,
+    "round4": true,
+    "round6": true,
+    "round6Status": "certified",
+    "round6AssertionsPassed": 14,
+    "round6AssertionsFailed": 0,
+    "roundsCompleted": 6,
+    "layers1to28FinalStatus": "CERTIFIED"
+  },
+  "baselineFreezeCandidate": {
+    "schema": "sandblast.marion.baselineFreezeCandidate/1.0",
+    "status": "PART2_BATCH1_PROVISIONED_REQUIRES_ACTIVE_BACKEND_VALIDATION",
+    "backendRoot": "C:\\Users\\User\\Desktop\\sandblast backend",
+    "hardStopLayer": 28,
+    "layer29Present": false,
+    "commonJs": true,
+    "part1CoreRuntimeExpected": [
+      "utils/chatEngine.js",
+      "utils/stateSpine.js",
+      "Data/marion/runtime/composeMarionResponse.js",
+      "Data/marion/runtime/marionBridge.js",
+      "Data/marion/runtime/marionDomainRegistry.js",
+      "Data/marion/runtime/marionIntentRouter.js",
+      "Data/marion/runtime/marionFinalEnvelope.js",
+      "Data/marion/runtime/supervision/marionCognitiveSupervisor.js"
+    ],
+    "thisBatchCanonicalPaths": [
+      "package-lock.json",
+      "package.json",
+      "manifest.json",
+      "index.js",
+      "tests/marion/marionStrategicPlanner.test.js",
+      "tests/marion/marionPriorityArbitrator.test.js",
+      "tests/marion/marionLayer27Integration.test.js",
+      "tests/marion/marionLayer28Integration.test.js",
+      "tests/marion/marionQualityCalibrator.test.js",
+      "tests/marion/marionReasoningAuditor.test.js",
+      "tests/marion/marionLayers27_28Regression.test.js",
+      "tests/marion/verify_phase_a_part1.js",
+      "tests/marion/verify_phase_a_part2.js",
+      "tests/marion/verify_phase_b_part2_batch2.js",
+      "tests/marion/layers_21_24_gap_refinement_test.js",
+      "tests/marion/layers_15_17_nuance_boundary_test.js",
+      "tests/marion/run_layers_25_26.js"
+    ],
+    "pathPolicy": {
+      "testsRoot": "tests/marion",
+      "layer27TestsNestedFolderAllowed": false,
+      "layer28TestsNestedFolderAllowed": false,
+      "layer27Runtime": "Data/marion/runtime/strategy",
+      "layer28PreferredRuntime": "Data/marion/runtime/supervision/metacognition",
+      "layer28FallbackRuntime": "Data/marion/runtime/metacognition",
+      "utilitiesFolder": "utils"
     }
   }
 }
