@@ -1,6 +1,11 @@
 "use strict";
-const path=require("path"),{spawnSync}=require("child_process");
-const tests=[
+
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
+const TESTS = Object.freeze([
   "layers_25_26_unit_test.js",
   "layer_25_stance_resolution_test.js",
   "layer_26_pragmatic_intent_test.js",
@@ -9,5 +14,50 @@ const tests=[
   "layers_25_26_private_runtime_contract_test.js",
   "layers_25_26_voice_text_parity_test.js",
   "layers_18_26_completion_boundary_contract_test.js"
-];
-for(const name of tests){const r=spawnSync(process.execPath,[path.join(__dirname,name)],{encoding:"utf8"});if(r.stdout)process.stdout.write(r.stdout);if(r.stderr)process.stderr.write(r.stderr);if(r.status!==0){console.error(`FAILED: ${name}`);process.exit(r.status||1);}console.log(`PASS: ${name}`);}console.log(JSON.stringify({ok:true,suite:"Marion Phase B new files and tests",testsPassed:tests.length},null,2));
+]);
+const TIMEOUT_MS = 90000;
+
+function runNode(args, label) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: BACKEND_ROOT,
+    env: { ...process.env, NODE_OPTIONS: "" },
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: TIMEOUT_MS,
+    maxBuffer: 16 * 1024 * 1024
+  });
+
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+
+  if (result.error) {
+    console.error(`FAILED: ${label}: ${result.error.message || result.error}`);
+    process.exit(1);
+  }
+
+  if (result.status !== 0) {
+    console.error(`FAILED: ${label}`);
+    process.exit(Number.isInteger(result.status) ? result.status : 1);
+  }
+}
+
+for (const name of TESTS) {
+  const full = path.join(__dirname, name);
+
+  if (!fs.existsSync(full)) {
+    console.error(`FAILED: required test is missing: ${full}`);
+    process.exit(1);
+  }
+
+  runNode(["--check", full], `syntax ${name}`);
+  runNode([full], name);
+  console.log(`PASS: ${name}`);
+}
+
+console.log(JSON.stringify({
+  "ok": true,
+  "suite": "Marion Phase B Layers 25-26",
+  "testsPassed": 8,
+  "phaseBHardStopLayer": 26,
+  "globalCertifiedHardStopLayer": 28
+}, null, 2));
