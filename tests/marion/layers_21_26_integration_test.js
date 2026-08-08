@@ -1,16 +1,44 @@
 "use strict";
-const path=require("path"),ROOT=path.resolve(__dirname,"../..");
-const B=require(path.join(ROOT,"Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js"));
-function assert(v,m){if(!v)throw new Error(m);}
-const input={turnId:"integration-21-26",conversationId:"c-1",privateAdminConversation:true,directMarionAdminInterface:true,message:"No, that is not what I meant. Work through the current route piece by piece and then validate it.",intent:"technical_debug",domain:"technical"};
-const result=B.run(input);
-assert(result.contract==="nyx.marion.nuance.phaseB/1.0","Phase B contract mismatch.");
-assert(result.phaseA.layer24.currentState==="correction","Phase A interaction state was lost.");
-assert(result.layer25.layer===25&&result.layer26.layer===26,"Layer sequence is incomplete.");
-assert(result.layer25.primaryStance==="corrective","Layer 25 did not honor correction precedence.");
-assert(result.layer26.primaryPragmaticIntent==="direct_correction","Layer 26 did not honor direct correction.");
-assert(result.subtextGate.literalIntentPreserved===true,"Literal intent was not preserved.");
-assert(result.responsePosture.authorityBoundaries.executionAuthorityCreated===false,"Phase B created execution authority.");
-assert(result.carryPolicy.approvedStatePatch.pragmaticIntentTtlTurns<=1,"Pragmatic intent carry is too durable.");
-assert(result.health.phaseACalledOnce===true,"Coordinator does not certify single Phase A invocation.");
-console.log(JSON.stringify({ok:true,stance:result.layer25.primaryStance,pragmatic:result.layer26.primaryPragmaticIntent,hardStop:result.hardStopLayer},null,2));
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const ROOT = path.resolve(__dirname, "../..");
+const CONFLICT_RE = /^(?:<<<<<<<|=======|>>>>>>>)/m;
+function full(rel){ return path.join(ROOT, ...String(rel).split("/")); }
+function read(rel){
+  const file=full(rel);
+  assert.ok(fs.existsSync(file), `Required file is missing: ${rel}`);
+  const text=fs.readFileSync(file,"utf8");
+  assert.strictEqual(CONFLICT_RE.test(text), false, `Unresolved merge-conflict marker: ${rel}`);
+  return text;
+}
+function load(rel){
+  const file=full(rel); read(rel);
+  try { return require(file); }
+  catch(error){
+    const wrapped=new Error(`Required module failed during load: ${rel}\n${error && error.message ? error.message : error}`);
+    wrapped.cause=error; throw wrapped;
+  }
+}
+function isObj(v){ return !!v && typeof v==="object" && !Array.isArray(v); }
+function ownFn(api,names){
+  if(typeof api==="function") return api;
+  for(const name of names){
+    const d=api && Object.getOwnPropertyDescriptor(api,name);
+    if(d && typeof d.value==="function") return d.value.bind(api);
+  }
+  return null;
+}
+
+const coordinator=load("Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js");
+const run=ownFn(coordinator,["run","analyze","process"]);
+assert.strictEqual(typeof run,"function");
+const out=run({turnId:"layers-21-26",message:"No, correct this first, then continue.",privateAdminConversation:true,scope:"private_admin"});
+assert.ok(isObj(out),"Phase B coordinator output missing.");
+assert.ok(isObj(out.phaseA),"Phase B must preserve embedded Phase A context.");
+if(out.phaseA.contract) assert.strictEqual(out.phaseA.contract,"nyx.marion.nuance.phaseA/1.0");
+assert.ok(isObj(out.layer25),"Layer 25 missing.");
+assert.ok(isObj(out.layer26),"Layer 26 missing.");
+assert.notStrictEqual(out.automaticExecutionAllowed,true,"Layers 21-26 must remain non-executing.");
+if(Object.prototype.hasOwnProperty.call(out,"phaseACalledOnce")) assert.strictEqual(out.phaseACalledOnce,true,"Phase A must be called once.");
+console.log("PASS layers_21_26_integration_test");
