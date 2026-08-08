@@ -5,7 +5,7 @@
  * tests/marion/marionReasoningAuditor.test.js
  *
  * Layer 28 remains internal-only, advisory-only, and non-authoritative.
- * Surgical repair v2.1: malformed-input authority semantics corrected.
+ * Baseline-freeze repair v2.2: canonical metacognition precedence + malformed-input authority semantics.
  */
 
 const test = require("node:test");
@@ -19,10 +19,8 @@ const TEST_RELATIVE = path.join("tests", "marion", "marionReasoningAuditor.test.
 const RUNTIME_NAME = "marionReasoningAuditor.js";
 
 const RUNTIME_CANDIDATES = Object.freeze([
-  path.join(BACKEND_ROOT, "Data", "marion", "runtime", "metacognition", RUNTIME_NAME),
   path.join(BACKEND_ROOT, "Data", "marion", "runtime", "supervision", "metacognition", RUNTIME_NAME),
-  path.join(BACKEND_ROOT, "Data", "marion", "runtime", RUNTIME_NAME),
-  path.join(BACKEND_ROOT, "src", "marion", "metacognition", RUNTIME_NAME)
+  path.join(BACKEND_ROOT, "Data", "marion", "runtime", "metacognition", RUNTIME_NAME)
 ]);
 
 const CALLABLE_EXPORTS = Object.freeze(["audit", "analyze", "evaluate", "run"]);
