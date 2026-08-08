@@ -18,16 +18,18 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const VERSION = "nyx.marion.layers27_28.cognitiveSupervisor/1.2";
-const CONTRACT = "nyx.marion.cognitiveSupervision/1.1";
+const VERSION = "nyx.marion.layers27_28.cognitiveSupervisor/1.3-canonical-metacognition-path";
+const CONTRACT = "nyx.marion.cognitiveSupervision/1.2";
 const HARD_STOP_LAYER = 28;
 const MAX_OUTPUT_BYTES = 48000;
 
 const STRATEGY_ROOT = path.join(__dirname, "..", "strategy");
-const METACOGNITION_ROOTS = Object.freeze([
-  path.join(__dirname, "metacognition"),
-  path.join(__dirname, "..", "metacognition")
-]);
+const METACOGNITION_ROOT =
+  path.join(
+    __dirname,
+    "..",
+    "metacognition"
+  );
 
 function safeObject(value) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -193,21 +195,12 @@ function requireStrategy(file) {
 }
 
 function requireMetacognition(file) {
-  const attempted = [];
-  for (const root of METACOGNITION_ROOTS) {
-    const candidate = path.join(root, file);
-    attempted.push(candidate);
-    if (fs.existsSync(candidate)) {
-      return requireExact(`Layer 28 ${file}`, candidate);
-    }
-  }
-
-  throw new Error(
-    [
-      `Missing Layer 28 metacognition runtime: ${file}`,
-      "Attempted:",
-      ...attempted.map((candidate) => `- ${candidate}`)
-    ].join("\n")
+  return requireExact(
+    `Layer 28 ${file}`,
+    path.join(
+      METACOGNITION_ROOT,
+      file
+    )
   );
 }
 
