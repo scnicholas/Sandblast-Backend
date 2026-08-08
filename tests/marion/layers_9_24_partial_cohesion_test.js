@@ -11,6 +11,7 @@
  * Boundary contract:
  * - Layers 9–20 remain the established conversation/outcome/completion stack.
  * - Phase A Layers 21–24 remain locally bounded at Layer 24.
+ * - Phase B may extend the active conversation registry through Layer 26.
  * - This test does NOT redefine the repository/global hard stop, which may be
  *   raised to Layer 28 by the separately certified Layers 27–28 architecture.
  * - Current-turn corrections remain primary.
@@ -24,9 +25,11 @@ const path = require("path");
 const Module = require("module");
 
 const VERSION =
-  "marion.layers9_24.partialCohesion.test/2.0-baseline-freeze-hardening";
+  "marion.layers9_24.partialCohesion.test/2.1-phase-boundary-separation";
 
 const PHASE_A_HARD_STOP = 24;
+const PHASE_B_HARD_STOP = 26;
+const REPOSITORY_GLOBAL_HARD_STOP = 28;
 const MAX_OUTPUT_BYTES = 50000;
 
 const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
@@ -77,6 +80,90 @@ function hasLayer(layers, layer) {
   }
 
   return false;
+}
+
+function numberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function assertConversationRegistryBoundary(value, label) {
+  assert.ok(
+    isObject(value),
+    `${label} must be an object.`
+  );
+
+  const activeStop = numberOrNull(value.hardStopLayer);
+
+  assert.ok(
+    activeStop === PHASE_A_HARD_STOP ||
+    activeStop === PHASE_B_HARD_STOP,
+    [
+      `${label} reported an unsupported conversation hard stop.`,
+      `Expected ${PHASE_A_HARD_STOP} (Phase A only) or ${PHASE_B_HARD_STOP} (Phase B integrated).`,
+      `Actual: ${String(value.hardStopLayer)}`
+    ].join("\\n")
+  );
+
+  if (
+    hasLayer(value.layers, 25) ||
+    hasLayer(value.layers, 26)
+  ) {
+    assert.equal(
+      activeStop,
+      PHASE_B_HARD_STOP,
+      `${label} exposes Layers 25/26 but is not bounded at Layer 26.`
+    );
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(value, "phaseAHardStopLayer")
+  ) {
+    assert.equal(
+      numberOrNull(value.phaseAHardStopLayer),
+      PHASE_A_HARD_STOP,
+      `${label} phaseAHardStopLayer must remain 24.`
+    );
+  }
+
+  assert.ok(
+    activeStop <= PHASE_B_HARD_STOP,
+    `${label} must not absorb Layers 27–28 into the conversation registry.`
+  );
+
+  return activeStop;
+}
+
+function assertPhaseALocalBoundaryEvidence(flow, enriched) {
+  const candidates = [
+    flow && flow.phaseAHardStopLayer,
+    flow && flow.phaseANuance && flow.phaseANuance.hardStopLayer,
+    flow && flow.nuanceContext && flow.nuanceContext.hardStopLayer,
+    enriched && enriched.phaseAHardStopLayer,
+    enriched && enriched.responseShaping &&
+      (enriched.responseShaping.hardStopAtLayer24 === true
+        ? PHASE_A_HARD_STOP
+        : enriched.responseShaping.phaseAHardStopLayer),
+    enriched && enriched.composerContext && enriched.composerContext.hardStopLayer
+  ];
+
+  const phaseAStops = candidates
+    .map(numberOrNull)
+    .filter((value) => value !== null);
+
+  const explicitLayer24Marker = Boolean(
+    enriched &&
+    enriched.responseShaping &&
+    enriched.responseShaping.hardStopAtLayer24 === true
+  );
+
+  assert.ok(
+    explicitLayer24Marker || phaseAStops.includes(PHASE_A_HARD_STOP),
+    [
+      "No explicit Phase A Layer 24 boundary evidence was found.",
+      "The active registry may report Layer 26 after Phase B integration, but Phase A must remain explicitly bounded at Layer 24."
+    ].join("\\n")
+  );
 }
 
 function assertBounded(value, label) {
@@ -371,11 +458,11 @@ try {
     "Conversation Layer Registry status must be a non-array object."
   );
 
-  assert.equal(
-    Number(status.hardStopLayer),
-    PHASE_A_HARD_STOP,
-    "The dedicated Layers 9–24 registry must remain locally bounded at Layer 24."
-  );
+  const statusHardStop =
+    assertConversationRegistryBoundary(
+      status,
+      "Conversation Layer Registry status"
+    );
 
   assert.ok(
     hasLayer(status.layers, 21),
@@ -438,12 +525,6 @@ try {
     "Flow version must remain synchronized with the active Conversation Layer Registry."
   );
 
-  assert.match(
-    registryVersion,
-    /(?:^|[/.:-])24(?:[./:-]|$)/i,
-    "Conversation Layer Registry VERSION no longer identifies the Layer 24 Phase A boundary."
-  );
-
   assert.ok(
     isObject(flow.phaseANuance),
     "Phase A nuance projection is missing."
@@ -455,11 +536,14 @@ try {
     "Explicit current-turn correction was not preserved."
   );
 
-  assert.equal(
-    Number(flow.hardStopLayer),
-    PHASE_A_HARD_STOP,
-    "Conversation flow local hard stop drifted from Layer 24."
-  );
+  const flowHardStop =
+    assertConversationRegistryBoundary(
+      {
+        ...flow,
+        layers: flow.layers || status.layers
+      },
+      "Conversation flow"
+    );
 
   assert.equal(
     flow.currentTurnIntentPrimary,
@@ -508,14 +592,24 @@ try {
     "applyToInput() must return an object."
   );
 
-  assert.equal(
-    Number(
-      enriched.privateRuntimeContext &&
-      enriched.privateRuntimeContext.hardStopLayer
-    ),
-    PHASE_A_HARD_STOP,
-    "Private runtime context lost the Layer 24 Phase A boundary."
-  );
+  if (
+    enriched.privateRuntimeContext &&
+    Object.prototype.hasOwnProperty.call(
+      enriched.privateRuntimeContext,
+      "hardStopLayer"
+    )
+  ) {
+    const privateRuntimeStop =
+      numberOrNull(
+        enriched.privateRuntimeContext.hardStopLayer
+      );
+
+    assert.ok(
+      privateRuntimeStop === PHASE_A_HARD_STOP ||
+      privateRuntimeStop === PHASE_B_HARD_STOP,
+      `Private runtime context has unsupported hard stop: ${privateRuntimeStop}`
+    );
+  }
 
   assert.ok(
     enriched.previousMemory &&
@@ -528,6 +622,11 @@ try {
     enriched.responseShaping.hardStopAtLayer24,
     true,
     "Response shaping lost the Layer 24 hard-stop marker."
+  );
+
+  assertPhaseALocalBoundaryEvidence(
+    flow,
+    enriched
   );
 
   const publicFlow =
@@ -585,6 +684,16 @@ try {
         registryVersion,
         phaseALocalHardStopLayer:
           PHASE_A_HARD_STOP,
+        activeConversationHardStopLayer:
+          statusHardStop,
+        flowHardStopLayer:
+          flowHardStop,
+        phaseBIntegrated:
+          statusHardStop === PHASE_B_HARD_STOP,
+        phaseBHardStopLayer:
+          PHASE_B_HARD_STOP,
+        repositoryGlobalHardStopLayer:
+          REPOSITORY_GLOBAL_HARD_STOP,
         repositoryGlobalHardStopUnaffected:
           true,
         currentTurnCorrectionPreserved:
