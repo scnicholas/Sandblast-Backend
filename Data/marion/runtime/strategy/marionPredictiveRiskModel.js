@@ -85,3 +85,19 @@ module.exports={VERSION,CONTRACT,MAX_RISKS,levelFrom,dedupe,analyze,projectRisk,
   api.__marionNuancePhaseBPredictiveRiskCohesionV1=true;
 })();
 /* MARION_NUANCE_PHASE_B_PredictiveRiskCohesion_V1_END */
+
+/* MARION_BASELINE_FREEZE_STRATEGIC_BOUNDARY_V1_START */
+(function marionBaselineFreezeStrategicBoundaryV1(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionBaselineFreezeStrategicBoundaryV1)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function close(v){return {...obj(v),executionAuthorized:false,automaticExecutionAllowed:false,replaceComposer:false,replaceReplyAuthority:false,internalOnly:true,noUserFacingDiagnostics:true};}
+  const cache=new WeakMap();
+  function wrap(fn){if(typeof fn!=="function")return fn;let w=cache.get(fn);if(w)return w;w=function(){const r=fn.apply(this,arguments);return r&&typeof r.then==="function"?r.then(close):close(r);};cache.set(fn,w);return w;}
+  for(const name of ["analyze","analyzeTurn","projectState","reconcileResult","applyNuance"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.BASELINE_FREEZE_BOUNDARY_VERSION="nyx.marion.baselineFreeze.strategicBoundary/1.0";
+  api.__marionBaselineFreezeStrategicBoundaryV1=true;
+})();
+/* MARION_BASELINE_FREEZE_STRATEGIC_BOUNDARY_V1_END */
+
