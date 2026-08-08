@@ -8,9 +8,10 @@
  * CANONICAL TEST PATH:
  * tests/marion/marionQualityCalibrator.test.js
  *
- * The runtime path has not been separately user-confirmed. Resolution is
- * therefore bounded to known Layer 28 metacognition locations, preferring
- * the supervision/metacognition tree used by Marion's cognitive supervisor.
+ * Baseline-freeze path policy:
+ * preferred: Data/marion/runtime/supervision/metacognition/
+ * fallback:  Data/marion/runtime/metacognition/
+ * No runtime-root or src/marion compatibility locations are accepted.
  */
 
 const test = require("node:test");
@@ -42,20 +43,6 @@ const RUNTIME_CANDIDATES = Object.freeze([
     "Data",
     "marion",
     "runtime",
-    "metacognition",
-    RUNTIME_NAME
-  ),
-  path.join(
-    BACKEND_ROOT,
-    "Data",
-    "marion",
-    "runtime",
-    RUNTIME_NAME
-  ),
-  path.join(
-    BACKEND_ROOT,
-    "src",
-    "marion",
     "metacognition",
     RUNTIME_NAME
   )
