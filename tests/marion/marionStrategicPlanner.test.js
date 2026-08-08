@@ -2,7 +2,7 @@
 
 /**
  * tests/marion/marionStrategicPlanner.test.js
- * Surgical repair v2.1: actionable-field correction precedence.
+ * Baseline-freeze repair v2.2: canonical-only strategy resolution + actionable-field correction precedence.
  * Canonical runtime:
  * Data/marion/runtime/strategy/marionStrategicPlanner.js
  */
@@ -22,10 +22,6 @@ const CANONICAL_RUNTIME = path.join(
   "marionStrategicPlanner.js"
 );
 
-const LEGACY_CANDIDATES = Object.freeze([
-  path.join(BACKEND_ROOT, "Data", "marion", "runtime", "marionStrategicPlanner.js"),
-  path.join(BACKEND_ROOT, "src", "marion", "strategy", "marionStrategicPlanner.js")
-]);
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -36,37 +32,35 @@ function isObject(value) {
 }
 
 function loadRuntime() {
-  const attempted = [];
-  for (const candidate of [CANONICAL_RUNTIME, ...LEGACY_CANDIDATES]) {
-    attempted.push(candidate);
-    if (!fs.existsSync(candidate)) continue;
+  assert.ok(
+    fs.existsSync(CANONICAL_RUNTIME),
+    `Canonical Layer 27 strategic-planner runtime is missing: ${CANONICAL_RUNTIME}`
+  );
 
-    let resolved;
-    try {
-      resolved = require.resolve(candidate);
-    } catch (error) {
-      throw new Error(
-        `Layer 27 strategic-planner runtime exists but could not be resolved.\nCandidate: ${candidate}\nCause: ${error && error.message ? error.message : error}`,
-        { cause: error }
-      );
-    }
-
-    try {
-      return require(resolved);
-    } catch (error) {
-      throw new Error(
-        `Layer 27 strategic-planner runtime failed during module loading.\nResolved module: ${resolved}\nCause: ${error && error.message ? error.message : error}`,
-        { cause: error }
-      );
-    }
+  let resolved;
+  try {
+    resolved = require.resolve(CANONICAL_RUNTIME);
+  } catch (error) {
+    throw new Error(
+      `Layer 27 strategic-planner runtime exists but could not be resolved.\nCandidate: ${CANONICAL_RUNTIME}\nCause: ${error && error.message ? error.message : error}`,
+      { cause: error }
+    );
   }
 
-  throw new Error([
-    "Missing Layer 27 strategic-planner runtime.",
-    `Canonical path: ${CANONICAL_RUNTIME}`,
-    "Attempted candidates:",
-    ...attempted.map((candidate) => `- ${candidate}`)
-  ].join("\n"));
+  assert.equal(
+    path.normalize(resolved).toLowerCase(),
+    path.normalize(CANONICAL_RUNTIME).toLowerCase(),
+    "Strategic-planner runtime resolution drifted from Data/marion/runtime/strategy."
+  );
+
+  try {
+    return require(resolved);
+  } catch (error) {
+    throw new Error(
+      `Layer 27 strategic-planner runtime failed during module loading.\nResolved module: ${resolved}\nCause: ${error && error.message ? error.message : error}`,
+      { cause: error }
+    );
+  }
 }
 
 function callable(api, names) {
