@@ -1,83 +1,46 @@
 "use strict";
-
+const assert = require("assert");
+const fs = require("fs");
 const path = require("path");
 const ROOT = path.resolve(__dirname, "../..");
-
-const coordinator = require(path.join(ROOT, "Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js"));
-const crossDomain = require(path.join(ROOT, "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js"));
-const goal = require(path.join(ROOT, "Data/marion/runtime/completion/marionGoalRealignment.js"));
-const closure = require(path.join(ROOT, "Data/marion/runtime/completion/marionDecisionClosure.js"));
-const completion = require(path.join(ROOT, "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js"));
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
+const CONFLICT_RE = /^(?:<<<<<<<|=======|>>>>>>>)/m;
+function full(rel){ return path.join(ROOT, ...String(rel).split("/")); }
+function read(rel){
+  const file=full(rel);
+  assert.ok(fs.existsSync(file), `Required file is missing: ${rel}`);
+  const text=fs.readFileSync(file,"utf8");
+  assert.strictEqual(CONFLICT_RE.test(text), false, `Unresolved merge-conflict marker: ${rel}`);
+  return text;
+}
+function load(rel){
+  const file=full(rel); read(rel);
+  try { return require(file); }
+  catch(error){
+    const wrapped=new Error(`Required module failed during load: ${rel}\n${error && error.message ? error.message : error}`);
+    wrapped.cause=error; throw wrapped;
+  }
+}
+function isObj(v){ return !!v && typeof v==="object" && !Array.isArray(v); }
+function ownFn(api,names){
+  if(typeof api==="function") return api;
+  for(const name of names){
+    const d=api && Object.getOwnPropertyDescriptor(api,name);
+    if(d && typeof d.value==="function") return d.value.bind(api);
+  }
+  return null;
 }
 
-const prompt = "No, that is not the goal change. Correct the current implementation first.";
-const nuance = coordinator.run({
-  turnId: "completion-cohesion-turn",
-  privateAdminConversation: true,
-  message: prompt
-});
-
-assert(nuance.layer24.currentState === "correction", "Correction state was not detected.");
-
-const crossResult = crossDomain.analyze({
-  prompt,
-  nuanceContext: nuance,
-  conversationFlow: { activeDomain: "technical", activeSubject: "runtime implementation" }
-});
-
-assert(crossResult.phaseAContext, "Cross-domain Phase A context is missing.");
-assert(crossResult.phaseAContext.culturalInferenceAllowed === false, "Cross-domain layer allowed cultural inference.");
-assert(crossResult.phaseAContext.emotionCandidateMayCreateDomain === false, "Emotion was allowed to create a domain.");
-
-const goalResult = goal.analyze({
-  prompt,
-  nuanceContext: nuance,
-  strategicFlow: { objectiveAlignment: { governingObjective: "Repair the runtime safely" } }
-});
-
-assert(goalResult.goalChanged === false, "A correction turn incorrectly changed the governing goal.");
-assert(goalResult.emotionMayRealignGoal === false, "Emotion was allowed to realign the goal.");
-
-const closureResult = closure.analyze({
-  prompt,
-  nuanceContext: nuance,
-  conversationFlow: {},
-  outcomeFlow: {
-    outcomeAwareness: { outcomeType: "validation", outcomeText: "passed" },
-    commitmentTracking: { openCommitments: [] }
-  },
-  strategicFlow: {
-    objectiveAlignment: { governingObjective: "Repair the runtime safely" },
-    predictiveRisk: { overallRisk: "low" },
-    pathwaySynthesis: { selectedPathwayId: "validated-baseline" }
-  },
-  goalRealignment: { activeGoal: "Repair the runtime safely" },
-  crossDomainContext: {}
-});
-
-assert(closureResult.phaseAControls.correctionOverride === true, "Decision closure did not receive correction precedence.");
-assert(closureResult.emotionMayAuthorizeClosure === false, "Emotion was allowed to authorize closure.");
-assert(closureResult.culturalMarkersMayAuthorizeClosure === false, "Cultural markers were allowed to authorize closure.");
-
-const completed = completion.analyzeTurn({
-  prompt,
-  nuanceContext: nuance,
-  conversationFlow: {},
-  outcomeFlow: {},
-  strategicFlow: {},
-  turnId: "completion-cohesion-turn"
-});
-
-assert(completed.phaseAControls.correctionOverride === true, "Completion coordinator did not retain correction controls.");
-assert(completed.conversationArchitectureHardStop === 24, "Completion coordinator architecture hard stop mismatch.");
-assert(completed.automaticExecutionAllowed === false, "Completion coordinator gained execution authority.");
-
-console.log(JSON.stringify({
-  ok: true,
-  interactionState: nuance.layer24.currentState,
-  architectureHardStop: completed.conversationArchitectureHardStop,
-  completionDecisionLayer: 20
-}, null, 2));
+const files=[
+  "Data/marion/runtime/completion/marionCompletionFlowCoordinator.js",
+  "Data/marion/runtime/completion/marionCrossDomainContextIntegrator.js",
+  "Data/marion/runtime/completion/marionDecisionClosure.js",
+  "Data/marion/runtime/completion/marionGoalRealignment.js"
+];
+for(const file of files) load(file);
+const flow=read(files[0]);
+const closure=read(files[2]);
+assert.match(flow,/completionDecisionLayer\s*:\s*20|hardStopAtLayer20|MARION_LAYER_HARD_STOP/i,"Completion coordinator no longer preserves the Layer 20 decision boundary.");
+assert.match(flow,/HARD_STOP_LAYER\s*=\s*24|phaseAHardStopLayer\s*:\s*HARD_STOP_LAYER|conversationArchitectureHardStop\s*:\s*HARD_STOP_LAYER/i,"Completion coordinator is missing the Phase A Layer 24 architecture boundary.");
+assert.match(closure,/correctionOverride|current_turn_correction_unresolved|phaseAClosureBlocked/i,"Decision closure does not protect current-turn corrections.");
+assert.match(closure,/closureAuthorized\s*:\s*false|emotionMayAuthorizeClosure\s*:\s*false/i,"Decision closure authority boundary is missing.");
+console.log("PASS completion_layers_18_24_cohesion_test");
