@@ -13,7 +13,7 @@
  *   Data/marion/runtime/strategy/marionPriorityArbitrator.js
  *   Data/marion/runtime/strategy/marionPlanningEnvelope.js
  *
- * Layer 27 remains advisory-only and must not replace the existing
+ * This test remains advisory-only and must not replace the existing
  * Layers 1–26 reply/envelope authority.
  */
 
@@ -23,7 +23,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const VERSION =
-  "marion.layer27.integration.test/2.2-canonical-marion-folder";
+  "marion.layer27.integration.test/2.1-canonical-marion-folder";
 
 const MAX_OUTPUT_BYTES =
   50000;
@@ -130,9 +130,9 @@ function loadRuntime(name) {
     return require(resolved);
   } catch (error) {
     /*
-     * The canonical target exists. A MODULE_NOT_FOUND raised here therefore
-     * identifies a transitive dependency failure and must not be rewritten
-     * as a missing Layer 27 runtime.
+     * The canonical file exists. Any MODULE_NOT_FOUND raised here is a
+     * transitive dependency failure and must not be misreported as a missing
+     * Layer 27 runtime file.
      */
     throw new Error(
       [
@@ -234,21 +234,14 @@ function assertNoVisibleDiagnostics(value) {
 
   assert.doesNotMatch(
     text,
-    /\b(?:TypeError|ReferenceError|SyntaxError)\b|(?:^|\n)\s*at\s+.+\(.+:\d+:\d+\)/i,
+    /\bTypeError\b|\bReferenceError\b|\bSyntaxError\b|\bstack\b|at\s+\w+\s*\(/i,
     "Layer 27 exposed runtime diagnostics in a user-facing field."
   );
 }
 
 function assertBounded(value, message) {
-  let serialized;
-
-  assert.doesNotThrow(
-    () => {
-      serialized =
-        JSON.stringify(value);
-    },
-    "Layer 27 output must be JSON-serializable."
-  );
+  const serialized =
+    JSON.stringify(value);
 
   assert.ok(
     Buffer.byteLength(
