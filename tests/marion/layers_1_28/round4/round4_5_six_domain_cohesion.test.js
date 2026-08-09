@@ -10,7 +10,10 @@ const {
   loadExact,
   assertCommonJsApi,
   assertSourceHasDomains,
-  byteLength
+  byteLength,
+  CANONICAL_METACOGNITION_ROOT,
+  assertCanonicalMetacognitionTree,
+  assertSupervisorUsesCanonicalMetacognitionPath
 } = require("./_round4_common.js");
 
 test(
@@ -28,7 +31,8 @@ test(
       "tests/marion/marionReasoningAuditor.test.js",
       "tests/marion/marionQualityCalibrator.test.js",
       "tests/marion/marionLayer28Integration.test.js",
-      "tests/marion/marionLayers27_28Regression.test.js"
+      "tests/marion/marionLayers27_28Regression.test.js",
+      "tests/marion/marionCognitiveSupervisionIntegration.test.js"
     ];
 
     const missing =
@@ -46,6 +50,8 @@ test(
     );
   }
 );
+
+test("Round 4.5 Layer 28 uses canonical runtime/metacognition",()=>{const files=assertCanonicalMetacognitionTree();assert.equal(files.length,13);assert.equal(CANONICAL_METACOGNITION_ROOT,"Data/marion/runtime/metacognition");assert.equal(assertSupervisorUsesCanonicalMetacognitionPath(),true);});
 
 test(
   "Round 4.5 cognitive supervision remains non-authoritative at Layer 28",
