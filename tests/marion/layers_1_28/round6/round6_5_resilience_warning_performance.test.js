@@ -5,10 +5,12 @@ const assert = require("node:assert/strict");
 
 const {
   CORE_AUTHORITIES,
+  CANONICAL_METACOGNITION_FILES,
   runIsolated,
   loadExact,
   callable,
-  assertNoVisibleDiagnostics
+  assertNoVisibleDiagnostics,
+  byteLength
 } = require("./_round6_common.js");
 
 test(
@@ -19,13 +21,8 @@ test(
       const assert=require("assert");
       const {performance}=require("perf_hooks");
       const files=${JSON.stringify([
-        "Data/marion/runtime/marionDomainRegistry.js",
-        "Data/marion/runtime/marionIntentRouter.js",
-        "Data/marion/runtime/composeMarionResponse.js",
-        "Data/marion/runtime/marionBridge.js",
-        "Data/marion/runtime/supervision/marionCognitiveSupervisor.js",
-        "utils/stateSpine.js",
-        "utils/chatEngine.js"
+        ...CORE_AUTHORITIES,
+        ...CANONICAL_METACOGNITION_FILES
       ])};
 
       const start=performance.now();
@@ -46,8 +43,8 @@ test(
       const elapsed=performance.now()-start;
 
       assert.ok(
-        elapsed < 7000,
-        "Final core load exceeded 7000ms: "+elapsed
+        elapsed < 10000,
+        "Final core + metacognition load exceeded 10000ms: "+elapsed
       );
 
       console.log(
@@ -66,7 +63,7 @@ test(
 
     assert.ok(
       result.durationMs <
-      20000,
+      25000,
       "Round 6 isolated service process exceeded safety bound."
     );
   }
@@ -108,19 +105,29 @@ test(
       false
     );
 
-    assert.notEqual(
+    assert.strictEqual(
       out.automaticExecutionAllowed,
-      true
+      false
     );
 
-    assert.notEqual(
+    assert.strictEqual(
       out.replaceComposer,
+      false
+    );
+
+    assert.strictEqual(
+      out.replaceReplyAuthority,
+      false
+    );
+
+    assert.strictEqual(
+      out.noUserFacingDiagnostics,
       true
     );
 
-    assert.notEqual(
-      out.replaceReplyAuthority,
-      true
+    assert.ok(
+      byteLength(out) < 50000,
+      "Malformed final-consolidation envelope exceeds 50,000 UTF-8 bytes."
     );
 
     assertNoVisibleDiagnostics(
