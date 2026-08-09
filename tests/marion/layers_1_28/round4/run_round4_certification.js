@@ -32,11 +32,15 @@ const {
   readText,
   readJson,
   syntaxCheck,
-  assertSourceHasDomains
+  assertSourceHasDomains,
+  CANONICAL_METACOGNITION_ROOT,
+  CANONICAL_METACOGNITION_FILES,
+  assertCanonicalMetacognitionTree,
+  assertSupervisorUsesCanonicalMetacognitionPath
 } = require("./_round4_common.js");
 
 const VERSION =
-  "marion.layers1_28.round4Certification/1.0-multidomain-integration";
+  "marion.layers1_28.round4Certification/1.1-canonical-metacognition";
 
 const SELF =
   path.basename(
@@ -83,6 +87,7 @@ const REQUIRED_FILES =
     "tests/marion/marionQualityCalibrator.test.js",
     "tests/marion/marionLayer28Integration.test.js",
     "tests/marion/marionLayers27_28Regression.test.js",
+    "tests/marion/marionCognitiveSupervisionIntegration.test.js",
 
     "Data/marion/runtime/marionBridge.js",
     "Data/marion/runtime/composeMarionResponse.js",
@@ -91,6 +96,7 @@ const REQUIRED_FILES =
     "Data/marion/runtime/supervision/marionCognitiveSupervisor.js",
     "utils/chatEngine.js",
     "utils/stateSpine.js",
+    ...CANONICAL_METACOGNITION_FILES,
 
     "tests/marion/layers_1_28/round4/_round4_common.js",
     "tests/marion/layers_1_28/round4/round4_certification_manifest.json",
@@ -212,10 +218,10 @@ function assertRound4Manifest() {
     4
   );
 
-  assert.strictEqual(
-    manifest.hardStopLayer,
-    28
-  );
+  assert.strictEqual(manifest.hardStopLayer,28);
+  assert.strictEqual(manifest.layer29Present,false,"Round 4 manifest must reject Layer 29.");
+  assert.strictEqual(manifest.canonicalPaths&&manifest.canonicalPaths.layer28Metacognition,
+    CANONICAL_METACOGNITION_ROOT,"Round 4 metacognition pathway drifted.");
 
   const testFiles =
     Array.isArray(
@@ -422,6 +428,8 @@ function main() {
     assertRound4Manifest();
 
   assertDomainFoundation();
+  const canonicalMetacognition=assertCanonicalMetacognitionTree();
+  assertSupervisorUsesCanonicalMetacognitionPath();
 
   const checked =
     syntaxChecks();
@@ -451,6 +459,12 @@ function main() {
           packageProfile,
         hardStopLayer:
           28,
+        layer29Present:
+          false,
+        canonicalMetacognitionRoot:
+          CANONICAL_METACOGNITION_ROOT,
+        canonicalMetacognitionFiles:
+          canonicalMetacognition,
         domains:
           SIX_DOMAINS,
         certificationManifest,
