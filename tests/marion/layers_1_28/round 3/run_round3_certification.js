@@ -23,7 +23,7 @@ const path = require("path");
 const childProcess = require("child_process");
 
 const VERSION =
-  "marion.layers1_28.round3Certification/2.0-cognitive-resilience";
+  "marion.layers1_28.round3Certification/2.1-canonical-metacognition-boundary";
 
 const ROOT =
   path.resolve(__dirname, "../../../..");
@@ -57,6 +57,27 @@ const ROUND3_STATE_VERSION =
 
 const HARD_STOP_LAYER =
   28;
+const CONVERSATION_HARD_STOP_LAYER = 26;
+const PHASE_A_HARD_STOP_LAYER = 24;
+const CANONICAL_METACOGNITION_ROOT = "Data/marion/runtime/metacognition";
+const METACOGNITION_FILES = Object.freeze([
+  "marionMetaReasoner.js",
+  "marionReflectionEngine.js",
+  "marionConfidenceAnalyzer.js",
+  "marionBiasDetector.js",
+  "marionKnowledgeGapDetector.js",
+  "marionReasoningAuditor.js",
+  "marionResponseEvaluator.js",
+  "marionQualityCalibrator.js",
+  "marionLearningSignalCollector.js",
+  "marionAdaptiveImprovementEngine.js",
+  "marionMetaReasoningPolicy.js",
+  "marionMetaTelemetry.js",
+  "marionReflectionEnvelope.js"
+]);
+const METACOGNITION_REQUIRED = Object.freeze(
+  METACOGNITION_FILES.map((name)=>`${CANONICAL_METACOGNITION_ROOT}/${name}`)
+);
 
 const WARNING_RE =
   /Accessing non-existent property|inside circular dependency/i;
@@ -68,15 +89,9 @@ const INTERNAL_LEAK_RE =
   /\b(?:state spine|final envelope|runtimeTelemetry|diagnostic packet|replyAuthority|loop detected|recovery path engaged|CHATENGINE_COORDINATOR_ONLY_ACTIVE)\b/i;
 
 const REQUIRED_FILES = Object.freeze([
-  "package.json",
-  "manifest.json",
-  "index.js",
-  ROUND1_RUNNER,
-  ROUND2_RUNNER,
-  "Data/marion/runtime/marionBridge.js",
-  "Data/marion/runtime/composeMarionResponse.js",
-  "utils/chatEngine.js",
-  "utils/stateSpine.js"
+  "package.json","manifest.json","index.js",ROUND1_RUNNER,ROUND2_RUNNER,
+  "Data/marion/runtime/marionBridge.js","Data/marion/runtime/composeMarionResponse.js",
+  "utils/chatEngine.js","utils/stateSpine.js",...METACOGNITION_REQUIRED
 ]);
 
 const OPTIONAL_COHESION_FILES = Object.freeze([
@@ -229,6 +244,23 @@ function readJson(relativePath) {
       }`
     );
   }
+}
+
+
+function assertCanonicalMetacognitionPath() {
+  const missing=METACOGNITION_REQUIRED.filter((relativePath)=>!fs.existsSync(absolute(relativePath)));
+  assert.deepStrictEqual(missing,[],`Canonical Layer 28 metacognition files are missing: ${missing.join(", ")}`);
+  for(const relativePath of METACOGNITION_REQUIRED){
+    const candidate=absolute(relativePath),resolved=require.resolve(candidate);
+    assert.strictEqual(path.normalize(resolved).toLowerCase(),path.normalize(candidate).toLowerCase(),
+      `Layer 28 metacognition resolution drifted: ${relativePath}`);
+  }
+  const supervisor=readText("Data/marion/runtime/supervision/marionCognitiveSupervisor.js");
+  assert.strictEqual(/path\.join\(\s*__dirname\s*,\s*["']metacognition["']\s*\)/m.test(supervisor),false,
+    "Cognitive Supervisor still resolves stale supervision/metacognition.");
+  assert.ok(/path\.join\(\s*__dirname\s*,\s*["']\.\.["']\s*,\s*["']metacognition["']\s*\)/m.test(supervisor),
+    "Cognitive Supervisor does not resolve canonical runtime/metacognition.");
+  return {root:CANONICAL_METACOGNITION_ROOT,files:[...METACOGNITION_REQUIRED]};
 }
 
 function npmRunReferences(command) {
@@ -412,17 +444,13 @@ function assertManifestContract() {
   const architectureHardStop =
     Number(architecture.hardStopLayer);
 
-  assert.ok(
-    Number.isInteger(summaryHardStop) &&
-    summaryHardStop >= 26,
-    "Manifest summary hard stop must include Phase B Layer 26."
-  );
-
-  assert.ok(
-    Number.isInteger(architectureHardStop) &&
-    architectureHardStop >= 26,
-    "Manifest architecture hard stop must include Phase B Layer 26."
-  );
+  assert.strictEqual(summaryHardStop,HARD_STOP_LAYER,"Manifest summary hard stop must remain Layer 28.");
+  assert.strictEqual(architectureHardStop,CONVERSATION_HARD_STOP_LAYER,"Conversation architecture hard stop must remain Layer 26.");
+  assert.strictEqual(Number(architecture.phaseAHardStopLayer),PHASE_A_HARD_STOP_LAYER,"Phase A hard stop must remain Layer 24.");
+  assert.strictEqual(layers.some((layer)=>layer>HARD_STOP_LAYER),false,"Layer 29 or later must not be registered.");
+  assert.strictEqual(summary.additionalLayerRecommended,false,"No additional Marion layer may be recommended.");
+  assert.notStrictEqual(architecture.automaticExecutionAllowed,true,"Automatic execution must remain disabled.");
+  assert.notStrictEqual(architecture.replyAuthorityReplaced,true,"Reply authority must not be replaced.");
 
   return {
     baselineLayers1to8:
@@ -1029,6 +1057,9 @@ function main() {
   const manifest =
     assertManifestContract();
 
+  const canonicalMetacognition =
+    assertCanonicalMetacognitionPath();
+
   const syntaxChecks =
     runSyntaxChecks(optionalPresent);
 
@@ -1046,6 +1077,11 @@ function main() {
 
   const discovered =
     discoverTests();
+
+  assert.ok(
+    discovered.length > 0,
+    "Round 3 companion certification inventory is empty; folder incomplete."
+  );
 
   const executed =
     discovered.map(runTest);
@@ -1068,6 +1104,7 @@ function main() {
           ROUND2_RUNNER
         ],
         manifest,
+        canonicalMetacognition,
         optionalCohesionFilesPresent:
           optionalPresent,
         syntaxChecks,
