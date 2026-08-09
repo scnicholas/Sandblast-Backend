@@ -1,5 +1,5 @@
 {
-  "schema": "nyx.marion.round5.serviceCertification/1.0",
+  "schema": "nyx.marion.round5.serviceCertification/1.1",
   "round": 5,
   "title": "Service Reliability and Runtime Cohesion Certification",
   "hardStopLayer": 28,
@@ -30,5 +30,10 @@
       "file": "round5_5_cross_round_service_cohesion.test.js",
       "scope": "Rounds 1\u20134 cohesion, Layer 27/28 prerequisites, hard-stop protection at Layer 28"
     }
-  ]
+  ],
+  "canonicalPaths": {
+    "layer28Metacognition": "Data/marion/runtime/metacognition",
+    "cognitiveSupervisor": "Data/marion/runtime/supervision/marionCognitiveSupervisor.js"
+  },
+  "layer29Present": false
 }
