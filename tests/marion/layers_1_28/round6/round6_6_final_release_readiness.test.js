@@ -8,7 +8,14 @@ const {
   abs,
   readJson,
   loadExact,
-  byteLength
+  byteLength,
+  CANONICAL_METACOGNITION_ROOT,
+  PHASE_A_HARD_STOP_LAYER,
+  CONVERSATION_HARD_STOP_LAYER,
+  GLOBAL_HARD_STOP_LAYER,
+  COGNITIVE_SUPERVISION_INTEGRATION_TEST,
+  assertCanonicalMetacognitionTree,
+  assertSupervisorUsesCanonicalMetacognitionPath
 } = require("./_round6_common.js");
 
 const REQUIRED_FINAL_PREREQUISITES = Object.freeze([
@@ -24,7 +31,8 @@ const REQUIRED_FINAL_PREREQUISITES = Object.freeze([
   "tests/marion/marionReasoningAuditor.test.js",
   "tests/marion/marionQualityCalibrator.test.js",
   "tests/marion/marionLayer28Integration.test.js",
-  "tests/marion/marionLayers27_28Regression.test.js"
+  "tests/marion/marionLayers27_28Regression.test.js",
+  COGNITIVE_SUPERVISION_INTEGRATION_TEST
 ]);
 
 test(
@@ -66,8 +74,45 @@ test(
 
     assert.equal(
       manifest.hardStopLayer,
-      28,
-      "Round 6 must not introduce Layer 29."
+      GLOBAL_HARD_STOP_LAYER,
+      "Round 6 must preserve the global Layer 28 hard stop."
+    );
+
+    assert.equal(
+      manifest.phaseAHardStopLayer,
+      PHASE_A_HARD_STOP_LAYER,
+      "Round 6 manifest lost the Phase A Layer 24 boundary."
+    );
+
+    assert.equal(
+      manifest.conversationArchitectureHardStopLayer,
+      CONVERSATION_HARD_STOP_LAYER,
+      "Round 6 manifest lost the Phase B/conversation Layer 26 boundary."
+    );
+
+    assert.equal(
+      manifest.layer29Present,
+      false,
+      "Round 6 must explicitly reject Layer 29."
+    );
+
+    assert.equal(
+      manifest.automaticExecutionAllowed,
+      false,
+      "Round 6 must not enable automatic execution."
+    );
+
+    assert.equal(
+      manifest.replyAuthorityPreserved,
+      true,
+      "Round 6 must preserve established reply authority."
+    );
+
+    assert.equal(
+      manifest.canonicalPaths &&
+      manifest.canonicalPaths.layer28Metacognition,
+      CANONICAL_METACOGNITION_ROOT,
+      "Round 6 manifest Layer 28 metacognition path drifted."
     );
 
     assert.equal(
@@ -124,5 +169,24 @@ test(
         50000
       );
     }
+  }
+);
+
+
+test(
+  "Round 6.6 canonical metacognition and Cognitive Supervisor path remain freeze-ready",
+  () => {
+    const files =
+      assertCanonicalMetacognitionTree();
+
+    assert.equal(
+      files.length,
+      13
+    );
+
+    assert.equal(
+      assertSupervisorUsesCanonicalMetacognitionPath(),
+      true
+    );
   }
 );
