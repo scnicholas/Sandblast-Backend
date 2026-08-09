@@ -1,5 +1,5 @@
 {
-  "schema": "nyx.marion.round6.finalConsolidationCertification/1.0",
+  "schema": "nyx.marion.round6.finalConsolidationCertification/1.1",
   "round": 6,
   "title": "Final Consolidation and Release Readiness Certification",
   "finalConsolidation": true,
@@ -36,5 +36,18 @@
       "file": "round6_6_final_release_readiness.test.js",
       "scope": "Final prerequisite inventory, hard-stop Layer 28, terminal non-authoritative supervisor state"
     }
-  ]
+  ],
+  "phaseAHardStopLayer": 24,
+  "conversationArchitectureHardStopLayer": 26,
+  "layer29Present": false,
+  "automaticExecutionAllowed": false,
+  "replyAuthorityPreserved": true,
+  "canonicalPaths": {
+    "layer27Strategy": "Data/marion/runtime/strategy",
+    "layer28Metacognition": "Data/marion/runtime/metacognition",
+    "cognitiveSupervisor": "Data/marion/runtime/supervision/marionCognitiveSupervisor.js",
+    "finalEnvelope": "Data/marion/runtime/marionFinalEnvelope.js",
+    "layer27And28Tests": "tests/marion",
+    "round6": "tests/marion/layers_1_28/round6"
+  }
 }
