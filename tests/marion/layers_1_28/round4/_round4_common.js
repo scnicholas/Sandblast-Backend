@@ -27,6 +27,27 @@ const SIX_DOMAINS = Object.freeze([
   "law"
 ]);
 
+const CANONICAL_METACOGNITION_ROOT = "Data/marion/runtime/metacognition";
+const METACOGNITION_FILES = Object.freeze([
+  "marionMetaReasoner.js",
+  "marionReflectionEngine.js",
+  "marionConfidenceAnalyzer.js",
+  "marionBiasDetector.js",
+  "marionKnowledgeGapDetector.js",
+  "marionReasoningAuditor.js",
+  "marionResponseEvaluator.js",
+  "marionQualityCalibrator.js",
+  "marionLearningSignalCollector.js",
+  "marionAdaptiveImprovementEngine.js",
+  "marionMetaReasoningPolicy.js",
+  "marionMetaTelemetry.js",
+  "marionReflectionEnvelope.js"
+]);
+const CANONICAL_METACOGNITION_FILES = Object.freeze(
+  METACOGNITION_FILES.map((name) => `${CANONICAL_METACOGNITION_ROOT}/${name}`)
+);
+
+
 function abs(relativePath) {
   return path.resolve(ROOT, relativePath);
 }
@@ -124,6 +145,22 @@ function loadExact(relativePath) {
       { cause: error }
     );
   }
+}
+
+
+function assertCanonicalMetacognitionTree() {
+  const missing=CANONICAL_METACOGNITION_FILES.filter((relativePath)=>!fs.existsSync(abs(relativePath)));
+  assert.deepStrictEqual(missing,[],`Canonical Layer 28 metacognition files are missing: ${missing.join(", ")}`);
+  for(const relativePath of CANONICAL_METACOGNITION_FILES) resolveExact(relativePath);
+  return [...CANONICAL_METACOGNITION_FILES];
+}
+function assertSupervisorUsesCanonicalMetacognitionPath() {
+  const source=readText("Data/marion/runtime/supervision/marionCognitiveSupervisor.js");
+  assert.strictEqual(/path\.join\(\s*__dirname\s*,\s*["']metacognition["']\s*\)/m.test(source),false,
+    "Cognitive Supervisor still resolves stale supervision/metacognition.");
+  assert.ok(/path\.join\(\s*__dirname\s*,\s*["']\.\.["']\s*,\s*["']metacognition["']\s*\)/m.test(source),
+    "Cognitive Supervisor does not resolve canonical runtime/metacognition.");
+  return true;
 }
 
 function ownFunction(target, name) {
@@ -340,5 +377,10 @@ module.exports = {
   runIsolated,
   assertSourceHasDomains,
   assertNoVisibleDiagnostics,
-  byteLength
+  byteLength,
+  CANONICAL_METACOGNITION_ROOT,
+  METACOGNITION_FILES,
+  CANONICAL_METACOGNITION_FILES,
+  assertCanonicalMetacognitionTree,
+  assertSupervisorUsesCanonicalMetacognitionPath
 };
