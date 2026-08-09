@@ -1456,3 +1456,390 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.getCircularExportStatus=function(){return{version:MARION_CIRCULAR_EXPORT_HARDENING_VERSION,stableExportIdentity:api===BRIDGE_EXPORTS,ownDescriptorResolution:true,lazyRuntimeDependencies:true,publicHandlerAliases:6,privateHandlerAliases:5};};
 })();
 /* MARION_CIRCULAR_EXPORT_HARDENING_V1_END */
+
+/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_START */
+(function marionPrivateExecutionSemanticAuthorityHardlockV13(){
+  "use strict";
+
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPrivateExecutionSemanticAuthorityHardlockV13)return;
+
+  const VERSION="nyx.marion.privateExecutionSemanticAuthorityHardlock/13.0";
+  const CONTRACT="nyx.marion.privateExecutionSemanticAuthority/13.0";
+  const ADMIN_NAMES=[
+    "handleMarionAdminConversation",
+    "handleMarionAdminTextRuntime",
+    "handleAdminConversation",
+    "invokeMarionAdminTextRuntime",
+    "handleTextRuntime"
+  ];
+  const ALL_NAMES=[
+    "processWithMarion","route","maybeResolve","ask","handle","default",
+    ...ADMIN_NAMES
+  ];
+
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=16000){
+    try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}
+    catch(_){return"";}
+  }
+  function promptOf(input){
+    const x=obj(input),b=obj(x.body),p=obj(x.payload),t=obj(x.turn),m=obj(x.meta),c=obj(x.command);
+    return clean(
+      x.prompt||x.rawUserText||x.originalUserText||x.userText||x.userQuery||x.inputText||x.query||x.message||x.text||
+      b.prompt||b.userText||b.message||b.text||
+      p.prompt||p.userText||p.message||p.text||
+      t.prompt||t.userText||t.message||t.text||
+      c.prompt||c.userText||c.message||c.text||
+      m.prompt||m.userText,
+      12000
+    );
+  }
+  function replyOf(value){
+    if(typeof value==="string")return clean(value);
+    const x=obj(value),fe=obj(x.finalEnvelope),p=obj(x.payload),r=obj(x.result);
+    return clean(
+      x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||x.answer||x.response||x.output||x.text||x.message||
+      fe.directReply||fe.visibleReply||fe.displayReply||fe.finalReply||fe.reply||fe.text||fe.message||
+      p.directReply||p.visibleReply||p.displayReply||p.finalReply||p.reply||p.text||p.message||
+      r.directReply||r.visibleReply||r.displayReply||r.finalReply||r.reply||r.text||r.message,
+      16000
+    );
+  }
+  function isPrivate(input){
+    const x=obj(input),c=obj(x.privateRuntimeContext);
+    return x.privateAdminConversation===true||
+      x.marionAdminConversation===true||
+      x.directMarionAdminInterface===true||
+      clean(x.scope,80)==="private_admin"||
+      clean(x.answerClass,120)==="marion_admin_conversation"||
+      clean(c.scope,80)==="private_admin";
+  }
+  function verified(input){
+    const x=obj(input),a=obj(x.auth),c=obj(x.context);
+    return x.authenticatedOperator===true||
+      x.adminVerified===true||
+      x.serverSideAdminAuth===true||
+      x.trustedServerAuth===true||
+      x.verified===true||
+      x.sessionVerified===true||
+      a.verified===true||
+      c.authenticatedOperator===true||
+      c.adminVerified===true;
+  }
+  function exactInstruction(input,value){
+    const x=obj(input),out=obj(value),fe=obj(out.finalEnvelope);
+    return x.exactResponseRequested===true||
+      clean(x.replyAuthority,80)==="exact_instruction"||
+      clean(out.replyAuthority,80)==="exact_instruction"||
+      clean(fe.replyAuthority,80)==="exact_instruction"||
+      /\b(?:reply with exactly|respond exactly|return only|reply only)\b/i.test(promptOf(input));
+  }
+  function advisoryOnlyPrompt(prompt){
+    const t=clean(prompt).toLowerCase();
+    return /\b(?:without|do not|don't|dont|never)\s+(?:actually\s+)?(?:execute|executing|run|running|restart|restarting|deploy|deploying|delete|deleting|modify|modifying|apply|applying|change|changing)\b/.test(t)||
+      /\b(?:advice|guidance|recommend|recommendation|explain|outline|describe|plan|planning)\s+only\b/.test(t)||
+      /\b(?:explain|outline|describe|recommend|advise)\b/.test(t)&&/\b(?:next|step|action|restart|deploy|execution)\b/.test(t);
+  }
+  function explicitExecutionRequest(prompt){
+    const t=clean(prompt).toLowerCase();
+    if(!t||advisoryOnlyPrompt(t))return false;
+    return /^(?:please\s+)?(?:now\s+)?(?:restart|deploy|delete|remove|modify|overwrite|write|execute|run|stop|start|install|uninstall|apply|publish|send|commit|push|merge|rollback|restore)\b/.test(t)||
+      /\b(?:restart|deploy|delete|remove|modify|overwrite|execute|run|apply|publish|commit|push|merge|rollback|restore)\b.{0,120}\b(?:now|immediately|right now)\b/.test(t)||
+      /\b(?:go ahead and|proceed to|proceed with|execute this|do it now)\b/.test(t);
+  }
+  function executionClaim(reply){
+    const t=clean(reply).toLowerCase();
+    if(!t)return false;
+    return /\b(?:the\s+)?(?:action|request|command|deployment|restart|change)\s+(?:is|was|has been)\s+(?:approved|authorized|executed|completed|performed|applied|deployed|restarted)\b/.test(t)||
+      /\b(?:approved|authorized)\s+(?:and\s+)?(?:tracked|for execution|to execute)\b/.test(t)||
+      /\b(?:i(?:'m| am)|we(?:'re| are))\s+(?:now\s+)?(?:executing|deploying|restarting|deleting|removing|modifying|applying|publishing|committing|pushing|merging|restoring|rolling back)\b/.test(t)||
+      /\b(?:has|have)\s+(?:now\s+)?(?:executed|deployed|restarted|deleted|removed|modified|applied|published|committed|pushed|merged|restored|rolled back)\b/.test(t)||
+      /\bnext step is to proceed with\b/.test(t);
+  }
+  function authoritySignals(value){
+    const x=obj(value),fe=obj(x.finalEnvelope),meta=obj(x.meta),diag=obj(x.diagnostics),supervision=obj(x.supervision),cognitive=obj(x.cognitiveSupervision);
+    const anyTrue=[
+      x.executionAuthorized,fe.executionAuthorized,meta.executionAuthorized,diag.executionAuthorized,
+      supervision.executionAuthorized,cognitive.executionAuthorized,
+      x.automaticExecutionAllowed,fe.automaticExecutionAllowed,meta.automaticExecutionAllowed,
+      x.safeToExecute,fe.safeToExecute,meta.safeToExecute
+    ].some(v=>v===true);
+    return{
+      executionAuthorized:false,
+      automaticExecutionAllowed:false,
+      safeToExecute:false,
+      upstreamClaimedExecutionAuthority:anyTrue
+    };
+  }
+  function advisoryReply(prompt){
+    const t=clean(prompt).toLowerCase();
+    if(/\b(?:restart|backend)\b/.test(t)&&/\bdeploy/.test(t)){
+      return "I can outline the restart and deployment sequence, but execution remains disabled. I have not restarted the backend, deployed the build, or modified the live system.";
+    }
+    if(/\b(?:restart|backend)\b/.test(t)){
+      return "I can outline the backend restart sequence, but execution remains disabled. I have not restarted or modified the backend.";
+    }
+    if(/\bdeploy/.test(t)){
+      return "I can outline the deployment sequence, but execution remains disabled. I have not deployed or modified the current build.";
+    }
+    return "I can recommend and outline the next action, but execution remains disabled. No operational change has been performed.";
+  }
+  function blockedReply(prompt){
+    const t=clean(prompt).toLowerCase();
+    if(/\brestart\b/.test(t)&&/\bdeploy/.test(t)){
+      return "Execution remains disabled. I have not restarted the backend or deployed the current build. I can outline the exact restart, deployment, and validation sequence for you to approve and perform.";
+    }
+    if(/\brestart\b/.test(t)){
+      return "Execution remains disabled. I have not restarted the backend. I can outline the exact restart and validation sequence for you to approve and perform.";
+    }
+    if(/\bdeploy/.test(t)){
+      return "Execution remains disabled. I have not deployed the build. I can outline the exact deployment and validation sequence for you to approve and perform.";
+    }
+    return "Execution remains disabled, so I have not performed that operational action. I can provide the exact steps, risks, and validation checks for you to approve and perform.";
+  }
+  function projectReply(value,reply,input,reason,{blocked=false,recovered=false}={}){
+    const base=typeof value==="string"?{}:obj(value);
+    const fe=obj(base.finalEnvelope),payload=obj(base.payload),meta=obj(base.meta),diagnostics=obj(base.diagnostics);
+    const text=clean(reply,16000);
+    const authority=authoritySignals(base);
+    const common={
+      executionAuthorized:false,
+      automaticExecutionAllowed:false,
+      safeToExecute:false,
+      executionPerformed:false,
+      actionApprovedForExecution:false,
+      executionBlocked:blocked===true,
+      recommendationOnly:true,
+      advisoryOnly:true,
+      requiresHumanApproval:true,
+      pathwayApprovalIsExecutionApproval:false,
+      executionSemanticGuarded:true,
+      executionSemanticVersion:VERSION,
+      executionSemanticReason:reason
+    };
+    return{
+      ...base,
+      ok:true,
+      handled:true,
+      final:true,
+      marionFinal:true,
+      canEmit:true,
+      awaitingMarion:false,
+      reply:text,
+      text,
+      message:text,
+      answer:text,
+      output:text,
+      response:text,
+      displayReply:text,
+      visibleReply:text,
+      directReply:text,
+      finalReply:text,
+      spokenText:text,
+      speechText:text,
+      authority:"Marion",
+      surfaceAgent:"Marion",
+      publicAgent:"Nyx",
+      scope:"private_admin",
+      audience:"owner",
+      publicSurfaceOnly:false,
+      publicFallbackBlocked:true,
+      privateAdminConversation:true,
+      marionAdminConversation:true,
+      directMarionAdminInterface:true,
+      ...common,
+      finalEnvelope:{
+        ...fe,
+        reply:text,
+        text,
+        message:text,
+        displayReply:text,
+        visibleReply:text,
+        directReply:text,
+        finalReply:text,
+        spokenText:text,
+        final:true,
+        marionFinal:true,
+        handled:true,
+        canEmit:true,
+        authority:"Marion",
+        surfaceAgent:"Marion",
+        publicAgent:"Nyx",
+        scope:"private_admin",
+        audience:"owner",
+        publicSurfaceOnly:false,
+        publicFallbackBlocked:true,
+        privateAdminConversation:true,
+        ...common
+      },
+      payload:{
+        ...payload,
+        reply:text,
+        text,
+        message:text,
+        answer:text,
+        output:text,
+        response:text,
+        displayReply:text,
+        visibleReply:text,
+        directReply:text,
+        finalReply:text,
+        spokenText:text,
+        final:true,
+        marionFinal:true,
+        handled:true,
+        canEmit:true,
+        ...common
+      },
+      meta:{
+        ...meta,
+        ...common,
+        executionAuthorityContract:CONTRACT,
+        upstreamClaimedExecutionAuthority:authority.upstreamClaimedExecutionAuthority,
+        semanticProjectionRecovered:recovered===true
+      },
+      diagnostics:{
+        ...diagnostics,
+        ...common,
+        executionAuthorityContract:CONTRACT,
+        upstreamClaimedExecutionAuthority:authority.upstreamClaimedExecutionAuthority,
+        semanticProjectionRecovered:recovered===true
+      }
+    };
+  }
+  function enforce(value,input){
+    if(!isPrivate(input)||!verified(input)||exactInstruction(input,value))return value;
+
+    const prompt=promptOf(input);
+    const reply=replyOf(value);
+    const operational=explicitExecutionRequest(prompt);
+    const advisory=advisoryOnlyPrompt(prompt);
+    const contradiction=executionClaim(reply);
+
+    if(operational){
+      return projectReply(value,blockedReply(prompt),input,"operational_execution_blocked",{blocked:true,recovered:!reply});
+    }
+
+    if(contradiction){
+      return projectReply(value,advisoryReply(prompt),input,"unauthorized_execution_claim_rewritten",{blocked:false,recovered:!reply});
+    }
+
+    if(advisory&&!reply){
+      return projectReply(value,advisoryReply(prompt),input,"advisory_empty_reply_recovered",{blocked:false,recovered:true});
+    }
+
+    if(value&&typeof value==="object"){
+      const x=obj(value),fe=obj(x.finalEnvelope),meta=obj(x.meta),diagnostics=obj(x.diagnostics);
+      return{
+        ...x,
+        executionAuthorized:false,
+        automaticExecutionAllowed:false,
+        safeToExecute:false,
+        executionPerformed:false,
+        actionApprovedForExecution:false,
+        pathwayApprovalIsExecutionApproval:false,
+        executionSemanticGuarded:true,
+        executionSemanticVersion:VERSION,
+        finalEnvelope:{
+          ...fe,
+          executionAuthorized:false,
+          automaticExecutionAllowed:false,
+          safeToExecute:false,
+          executionPerformed:false,
+          actionApprovedForExecution:false,
+          pathwayApprovalIsExecutionApproval:false,
+          executionSemanticGuarded:true,
+          executionSemanticVersion:VERSION
+        },
+        meta:{
+          ...meta,
+          executionAuthorized:false,
+          automaticExecutionAllowed:false,
+          safeToExecute:false,
+          pathwayApprovalIsExecutionApproval:false,
+          executionSemanticGuarded:true,
+          executionSemanticVersion:VERSION
+        },
+        diagnostics:{
+          ...diagnostics,
+          executionAuthorized:false,
+          automaticExecutionAllowed:false,
+          safeToExecute:false,
+          pathwayApprovalIsExecutionApproval:false,
+          executionSemanticGuarded:true,
+          executionSemanticVersion:VERSION
+        }
+      };
+    }
+    return value;
+  }
+
+  const cache=new WeakMap();
+  for(const name of ALL_NAMES){
+    const original=marionOwnCallable(api,name);
+    if(typeof original!=="function"||original.__marionPrivateExecutionSemanticAuthorityHardlockV13)continue;
+    let wrapped=cache.get(original);
+    if(!wrapped){
+      wrapped=function(){
+        const args=Array.from(arguments),input=args[0];
+        let result;
+        try{result=original.apply(this,args);}catch(err){throw err;}
+        const apply=value=>enforce(value,input);
+        return result&&typeof result.then==="function"?result.then(apply):apply(result);
+      };
+      try{Object.keys(original).forEach(k=>{wrapped[k]=original[k];});}catch(_){}
+      wrapped.__marionPrivateExecutionSemanticAuthorityHardlockV13=true;
+      cache.set(original,wrapped);
+    }
+    api[name]=wrapped;
+  }
+
+  const publicCanonical=marionOwnCallable(api,"processWithMarion")||processWithMarion;
+  const adminCanonical=marionOwnCallable(api,"handleMarionAdminConversation")||publicCanonical;
+  const previousFactory=marionOwnCallable(api,"createMarionBridge");
+  api.createMarionBridge=function(){
+    let base={};
+    try{base=previousFactory&&previousFactory!==api.createMarionBridge?previousFactory():{};}catch(_){base={};}
+    return{
+      ...safeObj(base),
+      version:api.VERSION||VERSION,
+      contract:api.BRIDGE_CONTRACT_VERSION||BRIDGE_CONTRACT_VERSION,
+      endpoint:api.CANONICAL_ENDPOINT||CANONICAL_ENDPOINT,
+      processWithMarion:publicCanonical,
+      route:marionOwnCallable(api,"route")||publicCanonical,
+      maybeResolve:marionOwnCallable(api,"maybeResolve")||publicCanonical,
+      ask:marionOwnCallable(api,"ask")||publicCanonical,
+      handle:marionOwnCallable(api,"handle")||publicCanonical,
+      handleMarionAdminConversation:adminCanonical,
+      handleMarionAdminTextRuntime:marionOwnCallable(api,"handleMarionAdminTextRuntime")||adminCanonical,
+      handleAdminConversation:marionOwnCallable(api,"handleAdminConversation")||adminCanonical,
+      invokeMarionAdminTextRuntime:marionOwnCallable(api,"invokeMarionAdminTextRuntime")||adminCanonical,
+      handleTextRuntime:marionOwnCallable(api,"handleTextRuntime")||adminCanonical
+    };
+  };
+
+  api.getPrivateExecutionSemanticAuthorityContract=function(){
+    return{
+      version:VERSION,
+      contract:CONTRACT,
+      enabled:true,
+      authenticatedPrivateOnly:true,
+      executionAuthorized:false,
+      automaticExecutionAllowed:false,
+      safeToExecute:false,
+      recommendationAllowed:true,
+      exactInstructionPreserved:true,
+      pathwayApprovalIsExecutionApproval:false,
+      publicAgent:"Nyx",
+      surfaceAgent:"Marion",
+      authority:"Marion",
+      hardStopCompatible:true
+    };
+  };
+  api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_VERSION=VERSION;
+  api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_CONTRACT=CONTRACT;
+  api.__marionPrivateExecutionSemanticAuthorityHardlockV13=true;
+})();
+/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_END */
+
