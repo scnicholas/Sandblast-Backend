@@ -1,5 +1,5 @@
 {
-  "schema": "nyx.marion.round4.certification/1.0",
+  "schema": "nyx.marion.round4.certification/1.1",
   "round": 4,
   "title": "Multi-Domain Integration Certification",
   "hardStopLayer": 28,
@@ -29,5 +29,10 @@
       "file": "round4_5_six_domain_cohesion.test.js",
       "scope": "Full six-domain cohesion with Layers 27\u201328 supervision"
     }
-  ]
+  ],
+  "canonicalPaths": {
+    "layer28Metacognition": "Data/marion/runtime/metacognition",
+    "cognitiveSupervisor": "Data/marion/runtime/supervision/marionCognitiveSupervisor.js"
+  },
+  "layer29Present": false
 }
