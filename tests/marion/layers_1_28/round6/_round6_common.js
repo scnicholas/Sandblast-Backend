@@ -9,6 +9,12 @@ const { performance } = require("perf_hooks");
 const ROOT = path.resolve(__dirname, "../../../..");
 const ROUND_DIR = __dirname;
 
+const PHASE_A_HARD_STOP_LAYER = 24;
+const CONVERSATION_HARD_STOP_LAYER = 26;
+const GLOBAL_HARD_STOP_LAYER = 28;
+const COGNITIVE_SUPERVISION_INTEGRATION_TEST =
+  "tests/marion/marionCognitiveSupervisionIntegration.test.js";
+
 const WARNING_RE =
   /Accessing non-existent property|inside circular dependency/i;
 
@@ -27,9 +33,31 @@ const SIX_DOMAINS = Object.freeze([
   "law"
 ]);
 
+const CANONICAL_METACOGNITION_ROOT = "Data/marion/runtime/metacognition";
+const METACOGNITION_FILES = Object.freeze([
+  "marionMetaReasoner.js",
+  "marionReflectionEngine.js",
+  "marionConfidenceAnalyzer.js",
+  "marionBiasDetector.js",
+  "marionKnowledgeGapDetector.js",
+  "marionReasoningAuditor.js",
+  "marionResponseEvaluator.js",
+  "marionQualityCalibrator.js",
+  "marionLearningSignalCollector.js",
+  "marionAdaptiveImprovementEngine.js",
+  "marionMetaReasoningPolicy.js",
+  "marionMetaTelemetry.js",
+  "marionReflectionEnvelope.js"
+]);
+const CANONICAL_METACOGNITION_FILES = Object.freeze(
+  METACOGNITION_FILES.map((name) => `${CANONICAL_METACOGNITION_ROOT}/${name}`)
+);
+
+
 const CORE_AUTHORITIES = Object.freeze([
   "Data/marion/runtime/marionBridge.js",
   "Data/marion/runtime/composeMarionResponse.js",
+  "Data/marion/runtime/marionFinalEnvelope.js",
   "Data/marion/runtime/marionIntentRouter.js",
   "Data/marion/runtime/marionDomainRegistry.js",
   "Data/marion/runtime/supervision/marionCognitiveSupervisor.js",
@@ -128,6 +156,67 @@ function loadExact(relativePath) {
       { cause: error }
     );
   }
+}
+
+
+function assertCanonicalMetacognitionTree() {
+  const missing=CANONICAL_METACOGNITION_FILES.filter((relativePath)=>!fs.existsSync(abs(relativePath)));
+  assert.deepStrictEqual(missing,[],`Canonical Layer 28 metacognition files are missing: ${missing.join(", ")}`);
+  for(const relativePath of CANONICAL_METACOGNITION_FILES) resolveExact(relativePath);
+  return [...CANONICAL_METACOGNITION_FILES];
+}
+function assertSupervisorUsesCanonicalMetacognitionPath() {
+  const source=readText("Data/marion/runtime/supervision/marionCognitiveSupervisor.js");
+  assert.strictEqual(/path\.join\(\s*__dirname\s*,\s*["']metacognition["']\s*\)/m.test(source),false,
+    "Cognitive Supervisor still resolves stale supervision/metacognition.");
+  assert.ok(/path\.join\(\s*__dirname\s*,\s*["']\.\.["']\s*,\s*["']metacognition["']\s*\)/m.test(source),
+    "Cognitive Supervisor does not resolve canonical runtime/metacognition.");
+  return true;
+}
+
+const EXPECTED_ROUND6_COMPANION_FILES = Object.freeze([
+  "run_round6_certification.js",
+  "round6_1_certification_chain_integrity.test.js",
+  "round6_2_runtime_authority_path_integrity.test.js",
+  "round6_3_end_to_end_authority_continuity.test.js",
+  "round6_4_domain_service_cohesion.test.js",
+  "round6_5_resilience_warning_performance.test.js",
+  "round6_6_final_release_readiness.test.js",
+  "round6_certification_manifest.json"
+]);
+function assertRound6CompanionInventory() {
+  const missing=EXPECTED_ROUND6_COMPANION_FILES.filter((name)=>!fs.existsSync(path.join(ROUND_DIR,name)));
+  assert.deepStrictEqual(missing,[],`Round 6 certification folder is incomplete: ${missing.join(", ")}`);
+  return [...EXPECTED_ROUND6_COMPANION_FILES];
+}
+
+
+function assertNoRound6PathOrLayerDrift(relativePaths) {
+  const paths =
+    Array.isArray(relativePaths)
+      ? relativePaths
+      : [];
+
+  for (const relativePath of paths) {
+    const source =
+      readText(relativePath);
+
+    // Reject actual stale path construction/literals, not explanatory messages.
+    assert.strictEqual(
+      /path\.join\(\s*__dirname\s*,\s*["']metacognition["']\s*\)|Data[\\/]marion[\\/]runtime[\\/]supervision[\\/]metacognition/i.test(source),
+      false,
+      `Stale supervision/metacognition runtime path found: ${relativePath}`
+    );
+
+    // Reject actual authority declarations that advance past the certified stop.
+    assert.strictEqual(
+      /hardStopLayer\s*[:=]\s*(?:29|[3-9]\d)\b|layer29Present\s*[:=]\s*true\b|GLOBAL_HARD_STOP_LAYER\s*=\s*(?:29|[3-9]\d)\b/i.test(source),
+      false,
+      `Layer 29+ authority drift found: ${relativePath}`
+    );
+  }
+
+  return true;
 }
 
 function ownFunction(target, name) {
@@ -347,5 +436,17 @@ module.exports = {
   npmRunReferences,
   assertSourceHasTerms,
   assertNoVisibleDiagnostics,
-  byteLength
+  byteLength,
+  CANONICAL_METACOGNITION_ROOT,
+  METACOGNITION_FILES,
+  CANONICAL_METACOGNITION_FILES,
+  assertCanonicalMetacognitionTree,
+  assertSupervisorUsesCanonicalMetacognitionPath,
+  EXPECTED_ROUND6_COMPANION_FILES,
+  assertRound6CompanionInventory,
+  PHASE_A_HARD_STOP_LAYER,
+  CONVERSATION_HARD_STOP_LAYER,
+  GLOBAL_HARD_STOP_LAYER,
+  COGNITIVE_SUPERVISION_INTEGRATION_TEST,
+  assertNoRound6PathOrLayerDrift
 };
