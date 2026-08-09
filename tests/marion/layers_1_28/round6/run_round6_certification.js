@@ -35,11 +35,21 @@ const {
   isObject,
   readJson,
   syntaxCheck,
-  npmRunReferences
+  npmRunReferences,
+  CANONICAL_METACOGNITION_ROOT,
+  CANONICAL_METACOGNITION_FILES,
+  PHASE_A_HARD_STOP_LAYER,
+  CONVERSATION_HARD_STOP_LAYER,
+  GLOBAL_HARD_STOP_LAYER,
+  COGNITIVE_SUPERVISION_INTEGRATION_TEST,
+  assertCanonicalMetacognitionTree,
+  assertSupervisorUsesCanonicalMetacognitionPath,
+  assertRound6CompanionInventory,
+  assertNoRound6PathOrLayerDrift
 } = require("./_round6_common.js");
 
 const VERSION =
-  "marion.layers1_28.round6Certification/1.0-final-consolidation";
+  "marion.layers1_28.round6Certification/1.1-freeze-ready-final-consolidation";
 
 const PACKAGE_ROUND5 =
   "node tests/marion/layers_1_28/round5/run_round5_certification.js";
@@ -82,8 +92,10 @@ const REQUIRED_FILES =
     "tests/marion/marionQualityCalibrator.test.js",
     "tests/marion/marionLayer28Integration.test.js",
     "tests/marion/marionLayers27_28Regression.test.js",
+    COGNITIVE_SUPERVISION_INTEGRATION_TEST,
 
     ...CORE_AUTHORITIES,
+    ...CANONICAL_METACOGNITION_FILES,
 
     "tests/marion/layers_1_28/round6/_round6_common.js",
     "tests/marion/layers_1_28/round6/round6_certification_manifest.json",
@@ -111,6 +123,13 @@ function assertPackageContract() {
     pkg.type,
     "commonjs",
     "CommonJS architecture changed."
+  );
+
+  assert.ok(
+    isObject(pkg.engines) &&
+    typeof pkg.engines.node === "string" &&
+    pkg.engines.node.trim(),
+    "Node engine declaration is missing."
   );
 
   assert.strictEqual(
@@ -189,8 +208,53 @@ function assertRound6Manifest() {
   );
 
   assert.strictEqual(
+    manifest.phaseAHardStopLayer,
+    PHASE_A_HARD_STOP_LAYER,
+    "Round 6 manifest Phase A boundary drifted."
+  );
+
+  assert.strictEqual(
+    manifest.conversationArchitectureHardStopLayer,
+    CONVERSATION_HARD_STOP_LAYER,
+    "Round 6 manifest conversation boundary drifted."
+  );
+
+  assert.strictEqual(
     manifest.hardStopLayer,
-    28
+    GLOBAL_HARD_STOP_LAYER,
+    "Round 6 manifest global hard stop drifted."
+  );
+
+  assert.strictEqual(
+    manifest.layer29Present,
+    false,
+    "Round 6 manifest must explicitly reject Layer 29."
+  );
+
+  assert.strictEqual(
+    manifest.automaticExecutionAllowed,
+    false,
+    "Round 6 manifest must not enable automatic execution."
+  );
+
+  assert.strictEqual(
+    manifest.replyAuthorityPreserved,
+    true,
+    "Round 6 manifest must preserve established reply authority."
+  );
+
+  assert.strictEqual(
+    manifest.canonicalPaths &&
+    manifest.canonicalPaths.layer28Metacognition,
+    CANONICAL_METACOGNITION_ROOT,
+    "Round 6 canonical Layer 28 metacognition path drifted."
+  );
+
+  assert.strictEqual(
+    manifest.canonicalPaths &&
+    manifest.canonicalPaths.cognitiveSupervisor,
+    "Data/marion/runtime/supervision/marionCognitiveSupervisor.js",
+    "Round 6 Cognitive Supervisor path drifted."
   );
 
   assert.strictEqual(
@@ -354,6 +418,24 @@ function main() {
   const certificationManifest =
     assertRound6Manifest();
 
+  const companionInventory =
+    assertRound6CompanionInventory();
+
+  const canonicalMetacognition =
+    assertCanonicalMetacognitionTree();
+
+  assertSupervisorUsesCanonicalMetacognitionPath();
+
+  assertNoRound6PathOrLayerDrift(
+    [
+      "tests/marion/layers_1_28/round6/run_round6_certification.js",
+      ...EXPECTED_TESTS.map(
+        (name) =>
+          `tests/marion/layers_1_28/round6/${name}`
+      )
+    ]
+  );
+
   const checked =
     syntaxChecks();
 
@@ -378,8 +460,22 @@ function main() {
         package: packageProfile,
         prerequisite:
           "verify:marion-round5",
-        hardStopLayer: 28,
-        finalConsolidation: true,
+        phaseAHardStopLayer:
+          PHASE_A_HARD_STOP_LAYER,
+        conversationArchitectureHardStopLayer:
+          CONVERSATION_HARD_STOP_LAYER,
+        hardStopLayer:
+          GLOBAL_HARD_STOP_LAYER,
+        layer29Present:
+          false,
+        finalConsolidation:
+          true,
+        canonicalMetacognitionRoot:
+          CANONICAL_METACOGNITION_ROOT,
+        canonicalMetacognitionFiles:
+          canonicalMetacognition,
+        round6CompanionInventory:
+          companionInventory,
         runtimeAuthorities:
           CORE_AUTHORITIES,
         certificationManifest,
