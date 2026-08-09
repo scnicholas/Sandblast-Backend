@@ -29,6 +29,11 @@ test(
         "Data/marion/runtime/marionIntentRouter.js"
       );
 
+    const finalEnvelope =
+      loadExact(
+        "Data/marion/runtime/marionFinalEnvelope.js"
+      );
+
     const composer =
       loadExact(
         "Data/marion/runtime/composeMarionResponse.js"
@@ -53,6 +58,7 @@ test(
       const [label, api]
       of Object.entries({
         router,
+        finalEnvelope,
         composer,
         bridge,
         chat,
@@ -88,6 +94,18 @@ test(
         composerSource
       ),
       "ComposeMarionResponse no longer exposes a recognizable response contract."
+    );
+
+    const finalEnvelopeSource =
+      readText(
+        "Data/marion/runtime/marionFinalEnvelope.js"
+      );
+
+    assert.ok(
+      /final|envelope|reply/i.test(
+        finalEnvelopeSource
+      ),
+      "Marion Final Envelope no longer exposes a recognizable terminal-envelope contract."
     );
 
     const chatSource =
