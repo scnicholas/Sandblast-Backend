@@ -10,26 +10,19 @@ function Get-BackendRoot {
     return $resolved.TrimEnd('\')
 }
 
-function Get-ToolkitRoot {
-    return (Split-Path -Parent $PSScriptRoot)
-}
-
 function Get-BaselineRoot {
     param([string]$BackendRoot)
     return (Join-Path $BackendRoot '_certified_baselines')
 }
 
 function Get-ExcludedTopLevelNames {
-    @(
-        'node_modules',
-        '.git',
-        '_certified_baselines'
-    )
+    @('node_modules', '.git', '_certified_baselines')
 }
 
 function Test-IsExcludedRelativePath {
     param([string]$RelativePath)
     $normalized = $RelativePath.Replace('/', '\').TrimStart('\')
+
     foreach ($name in (Get-ExcludedTopLevelNames)) {
         if ($normalized -eq $name -or $normalized.StartsWith("$name\")) {
             return $true
@@ -52,7 +45,23 @@ function Get-RelativePathSafe {
         [string]$BasePath,
         [string]$FullPath
     )
-    return [System.IO.Path]::GetRelativePath($BasePath, $FullPath).Replace('/', '\')
+
+    # Windows PowerShell 5.1 / .NET Framework compatibility.
+    # System.IO.Path.GetRelativePath() is not available in older .NET Framework.
+    $base = [System.IO.Path]::GetFullPath($BasePath).TrimEnd('\', '/')
+    $full = [System.IO.Path]::GetFullPath($FullPath)
+
+    if ($full.Equals($base, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return ''
+    }
+
+    $prefix = $base + [System.IO.Path]::DirectorySeparatorChar
+
+    if (-not $full.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path is outside the expected backend root. Base='$base' Full='$full'"
+    }
+
+    return $full.Substring($prefix.Length).Replace('/', '\')
 }
 
 function Get-HashInventory {
@@ -89,7 +98,7 @@ function Get-LatestCertifiedBaseline {
         Sort-Object Name -Descending
 
     if (-not $candidates) {
-        throw "No certified baseline was found under: $baselineRoot"
+        throw "No certified baseline found under: $baselineRoot"
     }
 
     return $candidates[0].FullName
@@ -142,28 +151,24 @@ function Invoke-Round6Certification {
     Push-Location $BackendRoot
     try {
         & npm.cmd run verify:marion-round6
-        $exit = $LASTEXITCODE
+        $exitCode = $LASTEXITCODE
     }
     finally {
         Pop-Location
     }
 
-    if ($exit -ne 0) {
-        throw "Marion Round 6 certification failed with exit code $exit. Baseline must NOT be frozen."
+    if ($exitCode -ne 0) {
+        throw "Marion Round 6 certification failed with exit code $exitCode. Baseline must NOT be frozen."
     }
-
-    return $exit
+    return $exitCode
 }
 
 function Copy-BackendSnapshot {
-    param(
-        [string]$BackendRoot,
-        [string]$SnapshotRoot
-    )
+    param([string]$BackendRoot, [string]$SnapshotRoot)
 
     New-Item -ItemType Directory -Path $SnapshotRoot -Force | Out-Null
 
-    $xd = @(
+    $excludedDirs = @(
         (Join-Path $BackendRoot 'node_modules'),
         (Join-Path $BackendRoot '.git'),
         (Join-Path $BackendRoot '_certified_baselines')
@@ -184,21 +189,17 @@ function Copy-BackendSnapshot {
         '/NJS',
         '/XF', '*.log', '*.tmp',
         '/XD'
-    ) + $xd
+    ) + $excludedDirs
 
     & robocopy @args | Out-Null
     $code = $LASTEXITCODE
 
-    # Robocopy exit codes 0-7 are success/nonfatal.
     if ($code -gt 7) {
         throw "Robocopy snapshot failed with exit code $code"
     }
 }
 
 function Write-JsonFile {
-    param(
-        [object]$Object,
-        [string]$Path
-    )
+    param([object]$Object, [string]$Path)
     $Object | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $Path -Encoding UTF8
 }
