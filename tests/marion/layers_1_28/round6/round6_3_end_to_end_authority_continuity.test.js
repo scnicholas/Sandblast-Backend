@@ -73,23 +73,17 @@ test(
     assert.equal(out.reply, reply);
     assert.equal(out.displayReply, reply);
 
-    if (
-      Object.prototype.hasOwnProperty.call(
-        out,
-        "finalReply"
-      )
-    ) {
-      assert.equal(out.finalReply, reply);
-    }
+    assert.equal(
+      out.finalReply,
+      reply,
+      "finalReply authority was not preserved."
+    );
 
-    if (
-      Object.prototype.hasOwnProperty.call(
-        out,
-        "spokenText"
-      )
-    ) {
-      assert.equal(out.spokenText, reply);
-    }
+    assert.equal(
+      out.spokenText,
+      reply,
+      "spokenText authority was not preserved."
+    );
 
     assert.strictEqual(
       out.final,
@@ -114,19 +108,22 @@ test(
       false
     );
 
-    assert.notEqual(
+    assert.strictEqual(
       out.automaticExecutionAllowed,
-      true
+      false,
+      "automaticExecutionAllowed must remain Boolean false."
     );
 
-    assert.notEqual(
+    assert.strictEqual(
       out.replaceComposer,
-      true
+      false,
+      "replaceComposer must remain Boolean false."
     );
 
-    assert.notEqual(
+    assert.strictEqual(
       out.replaceReplyAuthority,
-      true
+      false,
+      "replaceReplyAuthority must remain Boolean false."
     );
 
     assert.equal(
@@ -134,17 +131,11 @@ test(
       true
     );
 
-    if (
-      Object.prototype.hasOwnProperty.call(
-        out,
-        "stateSpine"
-      )
-    ) {
-      assert.deepEqual(
-        out.stateSpine,
-        base.stateSpine
-      );
-    }
+    assert.deepEqual(
+      out.stateSpine,
+      base.stateSpine,
+      "State Spine continuity was not preserved."
+    );
 
     assert.deepEqual(
       base,
