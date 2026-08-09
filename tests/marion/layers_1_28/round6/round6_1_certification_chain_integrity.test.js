@@ -7,7 +7,8 @@ const fs = require("node:fs");
 const {
   abs,
   readJson,
-  npmRunReferences
+  npmRunReferences,
+  GLOBAL_HARD_STOP_LAYER
 } = require("./_round6_common.js");
 
 const PRIOR_ROUNDS = Object.freeze([
@@ -47,6 +48,20 @@ test(
       pkg.type,
       "commonjs",
       "CommonJS architecture changed."
+    );
+
+
+    assert.ok(
+      pkg.engines &&
+      typeof pkg.engines.node === "string" &&
+      pkg.engines.node.trim(),
+      "Node engine declaration is missing."
+    );
+
+    assert.equal(
+      GLOBAL_HARD_STOP_LAYER,
+      28,
+      "Round 6 global hard stop constant drifted."
     );
 
     assert.equal(
