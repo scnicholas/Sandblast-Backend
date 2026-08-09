@@ -6,9 +6,14 @@ const fs = require("node:fs");
 
 const {
   CORE_AUTHORITIES,
+  CANONICAL_METACOGNITION_ROOT,
+  CANONICAL_METACOGNITION_FILES,
+  COGNITIVE_SUPERVISION_INTEGRATION_TEST,
   abs,
   loadExact,
-  assertCommonJsApi
+  assertCommonJsApi,
+  assertCanonicalMetacognitionTree,
+  assertSupervisorUsesCanonicalMetacognitionPath
 } = require("./_round6_common.js");
 
 const LAYER_27_TESTS = Object.freeze([
@@ -21,7 +26,8 @@ const LAYER_28_TESTS = Object.freeze([
   "tests/marion/marionReasoningAuditor.test.js",
   "tests/marion/marionQualityCalibrator.test.js",
   "tests/marion/marionLayer28Integration.test.js",
-  "tests/marion/marionLayers27_28Regression.test.js"
+  "tests/marion/marionLayers27_28Regression.test.js",
+  COGNITIVE_SUPERVISION_INTEGRATION_TEST
 ]);
 
 test(
@@ -59,6 +65,36 @@ test(
       missing,
       [],
       `Canonical Layer 27/28 certification files are missing: ${missing.join(", ")}`
+    );
+  }
+);
+
+
+test(
+  "Round 6.2 Layer 28 metacognition resolves only from canonical runtime/metacognition",
+  () => {
+    const files =
+      assertCanonicalMetacognitionTree();
+
+    assert.equal(
+      CANONICAL_METACOGNITION_ROOT,
+      "Data/marion/runtime/metacognition"
+    );
+
+    assert.deepEqual(
+      files,
+      [...CANONICAL_METACOGNITION_FILES]
+    );
+
+    assert.equal(
+      files.length,
+      13,
+      "Canonical Layer 28 metacognition inventory must contain exactly 13 modules."
+    );
+
+    assert.equal(
+      assertSupervisorUsesCanonicalMetacognitionPath(),
+      true
     );
   }
 );
