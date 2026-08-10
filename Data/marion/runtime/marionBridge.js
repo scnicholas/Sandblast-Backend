@@ -1905,15 +1905,15 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_2_END */
 
-/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_1_START */
+/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_2_START */
 (function marionPrivateContinuityIdentityRecoveryHardlockV14(){
   "use strict";
 
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
   if(!api||api.__marionPrivateContinuityIdentityRecoveryHardlockV14)return;
 
-  const VERSION="nyx.marion.privateContinuityIdentityRecoveryHardlock/14.1";
-  const CONTRACT="nyx.marion.privateContinuityIdentityRecovery/14.1";
+  const VERSION="nyx.marion.privateContinuityIdentityRecoveryHardlock/14.2";
+  const CONTRACT="nyx.marion.privateContinuityIdentityRecovery/14.2";
   const TTL=Math.max(60000,Number(process.env.SB_MARION_PRIVATE_RECOVERY_TTL_MS)||2*60*60*1000);
   const MAX=Math.max(16,Math.min(2048,Number(process.env.SB_MARION_PRIVATE_RECOVERY_MAX)||256));
   const sessions=new Map();
@@ -2122,6 +2122,82 @@ function classifyRound3CognitiveResilience(prompt=""){
     const s=T(v,180);
     return s?s.charAt(0).toUpperCase()+s.slice(1):s;
   }
+  function stageTokens(stage){
+    const raw=L(stage,240)
+      .replace(/\b(?:the|a|an|and|or|of|to|for|with|stage|step|phase|part)\b/g," ")
+      .replace(/[^a-z0-9]+/g," ")
+      .replace(/\s+/g," ")
+      .trim();
+    return raw?raw.split(" ").filter(v=>v.length>=4).slice(0,8):[];
+  }
+  function replyMatchesStage(reply,stage){
+    const r=L(reply,16000);
+    const s=L(stage,240);
+    if(!r||!s)return false;
+    if(r.includes(s))return true;
+    const tokens=stageTokens(stage);
+    if(!tokens.length)return false;
+    const hits=tokens.filter(token=>r.includes(token)).length;
+    return hits>=Math.min(tokens.length,2);
+  }
+  function sequenceAcknowledgement(state){
+    const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
+    if(!seq.length)return"";
+    return `Understood. The validation sequence is ${recallSequence(state)}`;
+  }
+  function rollbackReplySubstantive(reply){
+    const r=L(reply,16000);
+    if(!r)return false;
+    const subject=/\b(?:rollback|baseline)\b/.test(r);
+    const mechanism=/\b(?:known[- ]good|recovery point|restore|restoring|revert|reverting|drift|compare|comparison|last verified|verified state|stable state|known state|separate intentional|isolate changes?|recovery state)\b/.test(r);
+    const badStatusEcho=/\b(?:outcome is recorded as failed|recorded as failed|not complete|complete and record the validation for|validation for pivot briefly)\b/.test(r);
+    return subject&&mechanism&&!badStatusEcho;
+  }
+  function sequenceDefinitionPrompt(prompt,state){
+    const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
+    return seq.length>=2&&parseSequence(prompt).length>=2;
+  }
+  function semanticContinuityMismatch(prompt,reply,state){
+    const p=L(prompt,12000);
+    const r=L(reply,16000);
+    const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
+
+    if(!r)return false;
+
+    if(sequenceDefinitionPrompt(prompt,state)){
+      const matched=seq.filter(stage=>replyMatchesStage(r,stage)).length;
+      return matched<Math.min(seq.length,2);
+    }
+
+    const ord=ordinalIndex(prompt);
+    if(ord>=0&&seq[ord]&&/\b(?:stage|step|phase|part|focus|verify)\b/.test(p)){
+      if(!replyMatchesStage(r,seq[ord]))return true;
+      if(/\b(?:legal advice|general legal information|jurisdiction|source verification|governing law|liability)\b/.test(r) &&
+         !/\b(?:legal|law|jurisdiction|liability)\b/.test(L(seq[ord],240))){
+        return true;
+      }
+    }
+
+    if(/\b(?:certified\s+)?rollback\s+baseline\b/.test(p) &&
+       /\b(?:matter|matters|why|important|importance|regression|testing|test)\b/.test(p)){
+      return !rollbackReplySubstantive(r);
+    }
+
+    if(/\b(?:return to|go back to|original plan)\b/.test(p)&&seq.length){
+      const expected=sequenceAfter(prompt,state);
+      if(expected&&/\b(?:comes after|after)\b/.test(p) && !replyMatchesStage(r,expected)){
+        return true;
+      }
+    }
+
+    if(isIdentityQuery(prompt)){
+      const good=/\bmarion\b/.test(r)&&/\b(?:private|administrative|admin)\b/.test(r);
+      const bad=/\b(?:i['’]?m nyx|i am nyx)\b/.test(r);
+      return !good||bad;
+    }
+
+    return false;
+  }
   function recallSequence(state){
     const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
     if(!seq.length)return"";
@@ -2170,6 +2246,10 @@ function classifyRound3CognitiveResilience(prompt=""){
     const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
 
     if(isIdentityQuery(prompt))return identityReply();
+
+    if(sequenceDefinitionPrompt(prompt,state)){
+      return sequenceAcknowledgement(state);
+    }
 
     if(seq.length&&/\b(?:what were|list|remind me|three stages|those stages|stages i just gave)\b/.test(t)){
       return `The stages are ${recallSequence(state)}`;
@@ -2322,22 +2402,59 @@ function classifyRound3CognitiveResilience(prompt=""){
     const out=O(value);
     const prompt=promptOf(input);
 
+    if(operationalPrompt(prompt)){
+      const repaired=project(value,blockedExecutionReply(prompt),input,"execution_empty_or_not_ok_recovered");
+      rememberOutput(state,repaired);
+      return repaired;
+    }
+
+    /*
+      V14.2 critical semantic authority:
+      A non-empty ok:true reply is not automatically authoritative.
+      When the private session has an explicit sequence/identity/pivot target,
+      validate the reply against that target before allowing pass-through.
+    */
+    if(reply&&out.ok!==false&&semanticContinuityMismatch(prompt,reply,state)){
+      const recovered=contextualRecovery(prompt,state);
+      if(recovered){
+        const repaired=project(
+          value,
+          recovered,
+          input,
+          "semantic_continuity_mismatch_recovered"
+        );
+        if(repaired&&typeof repaired==="object"){
+          repaired.semanticContinuityValidated=true;
+          repaired.semanticContinuityMismatchRecovered=true;
+          repaired.meta={
+            ...O(repaired.meta),
+            semanticContinuityValidated:true,
+            semanticContinuityMismatchRecovered:true,
+            semanticContinuityOriginalReply:T(reply,1200)
+          };
+          repaired.diagnostics={
+            ...O(repaired.diagnostics),
+            semanticContinuityValidated:true,
+            semanticContinuityMismatchRecovered:true,
+            semanticContinuityOriginalReply:T(reply,1200)
+          };
+        }
+        rememberOutput(state,repaired);
+        return repaired;
+      }
+    }
+
     if(reply&&out.ok!==false){
       rememberOutput(state,value);
       if(value&&typeof value==="object"){
         value.meta={
           ...O(value.meta),
           privateContinuityRecoveryVersion:VERSION,
-          privateContinuityRecoveryState:"pass_through"
+          privateContinuityRecoveryState:"pass_through",
+          semanticContinuityValidated:true
         };
       }
       return value;
-    }
-
-    if(operationalPrompt(prompt)){
-      const repaired=project(value,blockedExecutionReply(prompt),input,"execution_empty_or_not_ok_recovered");
-      rememberOutput(state,repaired);
-      return repaired;
     }
 
     const recovered=contextualRecovery(prompt,state);
@@ -2346,6 +2463,13 @@ function classifyRound3CognitiveResilience(prompt=""){
         ?"private_identity_empty_or_not_ok_recovered"
         :"private_continuity_empty_or_not_ok_recovered";
       const repaired=project(value,recovered,input,reason);
+      if(repaired&&typeof repaired==="object"){
+        repaired.semanticContinuityValidated=true;
+        repaired.meta={
+          ...O(repaired.meta),
+          semanticContinuityValidated:true
+        };
+      }
       rememberOutput(state,repaired);
       return repaired;
     }
@@ -2404,7 +2528,11 @@ function classifyRound3CognitiveResilience(prompt=""){
       contract:CONTRACT,
       enabled:true,
       authenticatedPrivateOnly:true,
-      recoveryOnEmptyOrNotOkOnly:true,
+      recoveryOnEmptyOrNotOkOnly:false,
+      recoveryOnSemanticMismatch:true,
+      semanticContinuityValidator:true,
+      sequenceInitializationRecovery:true,
+      pivotSubstanceValidator:true,
       publicNyxNoOp:true,
       publicAgent:"Nyx",
       surfaceAgent:"Marion",
@@ -2416,12 +2544,14 @@ function classifyRound3CognitiveResilience(prompt=""){
       exactInstructionCacheMutation:false,
       isolatedTurnReset:true,
       pivotRecovery:true,
+      stageSpecificSemanticRecovery:true,
       sessionLocalOnly:true,
       canonicalRegressionPath:"Data/marion/runtime/marionBridge.private-continuity-identity.v14.test.js",
       sessionCacheTtlMs:TTL,
       sessionCacheMax:MAX,
       hardStopCompatible:true,
-      executionSemanticV13Compatible:true
+      executionSemanticV13Compatible:true,
+      semanticContinuityAuthority:true
     };
   };
   api._privateContinuityIdentityRecoveryDiagnostics=function(){
@@ -2435,14 +2565,18 @@ function classifyRound3CognitiveResilience(prompt=""){
       authenticatedPrivateOnly:true,
       publicNyxNoOp:true,
       isolatedTurnReset:true,
-      exactInstructionCacheMutation:false
+      exactInstructionCacheMutation:false,
+      semanticContinuityValidator:true,
+      recoveryOnSemanticMismatch:true,
+      pivotSubstanceValidator:true
     };
   };
   api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_VERSION=VERSION;
   api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_CONTRACT=CONTRACT;
   api.__marionPrivateContinuityIdentityRecoveryHardlockV14=true;
   api.__marionPrivateContinuityIdentityRecoveryHardlockV14_1=true;
-  api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_PATCH_LEVEL="14.1-canonical-test-path-isolation-pivot";
+  api.__marionPrivateContinuityIdentityRecoveryHardlockV14_2=true;
+  api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_PATCH_LEVEL="14.2-semantic-continuity-authority";
 })();
-/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_1_END */
+/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_2_END */
 
