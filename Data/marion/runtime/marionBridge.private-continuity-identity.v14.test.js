@@ -8,8 +8,8 @@ const CANONICAL_BRIDGE_RELATIVE_PATH =
   "Data/marion/runtime/marionBridge.js";
 
 /*
- * The test lives beside marionBridge.js.
- * Resolve from __dirname so execution is independent of PowerShell's current directory.
+ * This regression lives beside marionBridge.js.
+ * Resolve from __dirname so the canonical test works regardless of CWD.
  */
 const bridgePath = path.join(__dirname, "marionBridge.js");
 const bridge = require(bridgePath);
@@ -44,7 +44,7 @@ function input(prompt, sessionId, turn, extra = {}) {
     serverSideAdminAuth: true,
     scope: "private_admin",
     testMode: true,
-    round: "V14.1",
+    round: "V14.2",
     ...extra
   };
 }
@@ -56,6 +56,32 @@ function requireNonEmptyOk(output, turn) {
   return reply.toLowerCase();
 }
 
+function assertNoLegalHijack(reply, turn) {
+  assert(
+    !/\b(?:general legal information|not legal advice|jurisdiction|governing law|source verification)\b/i.test(reply),
+    `Turn ${turn} was hijacked into the Legal domain`
+  );
+}
+
+function assertRollbackSubstance(reply) {
+  const r = reply.toLowerCase();
+
+  assert(
+    r.includes("baseline") || r.includes("rollback"),
+    "Turn 4 did not remain on the rollback-baseline subject"
+  );
+
+  assert(
+    /known[- ]good|recovery point|restore|restoring|revert|drift|compare|comparison|last verified|verified state|stable state|known state|separate intentional|isolate change/.test(r),
+    "Turn 4 mentioned the baseline but did not explain why it matters"
+  );
+
+  assert(
+    !/outcome is recorded as failed|recorded as failed|not complete|complete and record the validation for|validation for pivot briefly/.test(r),
+    "Turn 4 returned workflow/status echo instead of a substantive baseline explanation"
+  );
+}
+
 (async () => {
   console.log(`[INFO] Canonical test: ${CANONICAL_TEST_RELATIVE_PATH}`);
   console.log(`[INFO] Canonical bridge: ${CANONICAL_BRIDGE_RELATIVE_PATH}`);
@@ -65,21 +91,63 @@ function requireNonEmptyOk(output, turn) {
     typeof bridge.handleMarionAdminConversation === "function",
     "handleMarionAdminConversation missing"
   );
+
   assert(
     typeof bridge.getPrivateContinuityIdentityRecoveryContract === "function",
     "V14 continuity/identity contract export missing"
   );
 
-  const contract = bridge.getPrivateContinuityIdentityRecoveryContract();
-  assert(contract && /14\.1/.test(contract.version), "V14.1 contract not loaded");
-  assert(contract.executionAuthorized === false, "execution authority must remain false");
-  assert(contract.automaticExecutionAllowed === false, "automatic execution must remain false");
-  assert(contract.safeToExecute === false, "safeToExecute must remain false");
-  assert(contract.publicNyxNoOp === true, "public Nyx must remain untouched");
-  assert(contract.isolatedTurnReset === true, "isolated-turn cache reset contract missing");
+  const contract =
+    bridge.getPrivateContinuityIdentityRecoveryContract();
+
+  assert(
+    contract && /14\.2/.test(contract.version),
+    "V14.2 contract not loaded"
+  );
+
+  assert(
+    contract.executionAuthorized === false,
+    "execution authority must remain false"
+  );
+
+  assert(
+    contract.automaticExecutionAllowed === false,
+    "automatic execution must remain false"
+  );
+
+  assert(
+    contract.safeToExecute === false,
+    "safeToExecute must remain false"
+  );
+
+  assert(
+    contract.publicNyxNoOp === true,
+    "public Nyx must remain untouched"
+  );
+
+  assert(
+    contract.isolatedTurnReset === true,
+    "isolated-turn cache reset contract missing"
+  );
+
   assert(
     contract.exactInstructionCacheMutation === false,
     "exact-response cache mutation must remain disabled"
+  );
+
+  assert(
+    contract.semanticContinuityValidator === true,
+    "semantic continuity validator contract missing"
+  );
+
+  assert(
+    contract.recoveryOnSemanticMismatch === true,
+    "semantic mismatch recovery contract missing"
+  );
+
+  assert(
+    contract.pivotSubstanceValidator === true,
+    "rollback pivot substance validator contract missing"
   );
 
   assert(
@@ -94,16 +162,29 @@ function requireNonEmptyOk(output, turn) {
     executionContract && /13\.2/.test(executionContract.version),
     "V13.2 execution semantic contract not preserved"
   );
+
   assert(
     executionContract.executionAuthorized === false,
     "V13.2 execution authority drift"
   );
+
+  assert(
+    executionContract.automaticExecutionAllowed === false,
+    "V13.2 automatic execution authority drift"
+  );
+
+  assert(
+    executionContract.safeToExecute === false,
+    "V13.2 safeToExecute drift"
+  );
+
   assert(
     executionContract.pathwayApprovalIsExecutionApproval === false,
     "pathway approval/execution approval separation drift"
   );
 
-  const sessionId = "v14-1-regression-" + Date.now();
+  const sessionId =
+    "v14-2-regression-" + Date.now();
 
   const prompts = [
     "I am planning a three-stage backend validation. Remember that the stages are architecture, continuity, and final authority.",
@@ -119,19 +200,30 @@ function requireNonEmptyOk(output, turn) {
   const outputs = [];
 
   for (let i = 0; i < prompts.length; i += 1) {
-    const output = await bridge.handleMarionAdminConversation(
-      input(prompts[i], sessionId, i + 1)
-    );
+    const output =
+      await bridge.handleMarionAdminConversation(
+        input(prompts[i], sessionId, i + 1)
+      );
+
     outputs.push(output);
 
     console.log(
-      `[TURN ${i + 1}] ok=${output && output.ok} reply=${JSON.stringify(replyOf(output))}`
+      `[TURN ${i + 1}] ok=${output && output.ok} recovery=${output && output.privateContinuityRecoveryReason || "none"} reply=${JSON.stringify(replyOf(output))}`
     );
   }
 
+  // Turn 1: explicit plan initialization must remain semantically aligned.
   const r1 = requireNonEmptyOk(outputs[0], 1);
-  assert(r1.length > 0, "Turn 1 initialization failed");
+  assert(
+    r1.includes("architecture") &&
+    r1.includes("continuity") &&
+    r1.includes("final") &&
+    r1.includes("authority"),
+    "Turn 1 did not acknowledge the explicit three-stage validation sequence"
+  );
+  assertNoLegalHijack(r1, 1);
 
+  // Turn 2: prior-turn sequence recall.
   const r2 = requireNonEmptyOk(outputs[1], 2);
   assert(
     r2.includes("architecture") &&
@@ -140,27 +232,35 @@ function requireNonEmptyOk(output, turn) {
     r2.includes("authority"),
     "Turn 2 continuity recall failed"
   );
+  assertNoLegalHijack(r2, 2);
 
+  // Turn 3: stage-specific semantic continuity.
   const r3 = requireNonEmptyOk(outputs[2], 3);
   assert(
     r3.includes("continuity"),
     "Turn 3 second-stage focus failed"
   );
-
-  const r4 = requireNonEmptyOk(outputs[3], 4);
   assert(
-    r4.includes("baseline") ||
-    r4.includes("rollback") ||
-    r4.includes("recovery"),
-    "Turn 4 rollback-baseline pivot response failed"
+    /session|follow-up|anchor|pivot|thread|context|loop|cross-session|state/.test(r3),
+    "Turn 3 named continuity but did not explain continuity validation"
   );
+  assertNoLegalHijack(r3, 3);
 
+  // Turn 4: must actually answer WHY a certified rollback baseline matters.
+  const r4 = requireNonEmptyOk(outputs[3], 4);
+  assertRollbackSubstance(r4);
+  assertNoLegalHijack(r4, 4);
+
+  // Turn 5: return to pre-pivot sequence.
   const r5 = requireNonEmptyOk(outputs[4], 5);
   assert(
-    r5.includes("final") && r5.includes("authority"),
+    r5.includes("final") &&
+    r5.includes("authority"),
     "Turn 5 pivot-return failed"
   );
+  assertNoLegalHijack(r5, 5);
 
+  // Turn 6: new continuity risk, not an exact-repeat loop.
   const r6 = requireNonEmptyOk(outputs[5], 6);
   assert(
     r6.includes("stale") ||
@@ -169,7 +269,13 @@ function requireNonEmptyOk(output, turn) {
     r6.includes("loop"),
     "Turn 6 progression recovery failed"
   );
+  assert(
+    r6 !== r3,
+    "Turn 6 repeated the earlier continuity answer exactly"
+  );
+  assertNoLegalHijack(r6, 6);
 
+  // Turn 7: private Marion identity boundary.
   const r7 = requireNonEmptyOk(outputs[6], 7);
   assert(
     r7.includes("marion") &&
@@ -187,15 +293,18 @@ function requireNonEmptyOk(output, turn) {
     outputs[6].surfaceAgent === "Marion",
     "Turn 7 surfaceAgent drift"
   );
+
   assert(
     outputs[6].authority === "Marion",
     "Turn 7 authority drift"
   );
+
   assert(
     outputs[6].scope === "private_admin",
     "Turn 7 private scope drift"
   );
 
+  // Turn 8: V13.2 execution/advisory invariants must survive V14.2.
   const o8 = outputs[7];
   const r8 = requireNonEmptyOk(o8, 8);
 
@@ -203,14 +312,17 @@ function requireNonEmptyOk(output, turn) {
     o8.executionAuthorized === false,
     "Turn 8 execution authority drift"
   );
+
   assert(
     o8.automaticExecutionAllowed === false,
     "Turn 8 automatic execution drift"
   );
+
   assert(
     o8.safeToExecute === false,
     "Turn 8 safeToExecute drift"
   );
+
   assert(
     !r8.includes("approved and tracked as open"),
     "V13 contradiction reintroduced"
@@ -239,28 +351,32 @@ function requireNonEmptyOk(output, turn) {
   );
 
   /*
-   * V14 wraps only private-admin handlers. Its recovery marker must never
-   * appear on ordinary public processing.
+   * V14.2 wraps only authenticated private-admin handlers.
+   * The recovery marker must never appear on ordinary public processing.
    */
   const publicProbe =
     await bridge.processWithMarion({
       prompt: "Hello.",
-      sessionId: "v14-1-public-" + Date.now()
+      sessionId: "v14-2-public-" + Date.now()
     });
 
   assert(
     !publicProbe ||
     publicProbe.privateContinuityRecovered !== true,
-    "V14 private recovery leaked onto public Nyx processing"
+    "V14.2 private recovery leaked onto public Nyx processing"
   );
 
   console.log(
-    "[PASS] V14.1 private continuity/identity recovery regression passed."
+    "[PASS] V14.2 private continuity/identity semantic regression passed."
   );
 
   process.exit(0);
 })().catch((err) => {
-  console.error("[FAIL] V14.1 regression failed.");
-  console.error(err && err.stack ? err.stack : err);
+  console.error("[FAIL] V14.2 regression failed.");
+  console.error(
+    err && err.stack
+      ? err.stack
+      : err
+  );
   process.exit(1);
 });
