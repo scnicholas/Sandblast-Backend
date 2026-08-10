@@ -1457,15 +1457,15 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_CIRCULAR_EXPORT_HARDENING_V1_END */
 
-/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_1_START */
+/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_2_START */
 (function marionPrivateExecutionSemanticAuthorityHardlockV13(){
   "use strict";
 
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
   if(!api||api.__marionPrivateExecutionSemanticAuthorityHardlockV13)return;
 
-  const VERSION="nyx.marion.privateExecutionSemanticAuthorityHardlock/13.1";
-  const CONTRACT="nyx.marion.privateExecutionSemanticAuthority/13.1";
+  const VERSION="nyx.marion.privateExecutionSemanticAuthorityHardlock/13.2";
+  const CONTRACT="nyx.marion.privateExecutionSemanticAuthority/13.2";
   const ADMIN_NAMES=[
     "handleMarionAdminConversation",
     "handleMarionAdminTextRuntime",
@@ -1503,6 +1503,27 @@ function classifyRound3CognitiveResilience(prompt=""){
       fe.directReply||fe.visibleReply||fe.displayReply||fe.finalReply||fe.reply||fe.text||fe.message||
       p.directReply||p.visibleReply||p.displayReply||p.finalReply||p.reply||p.text||p.message||
       r.directReply||r.visibleReply||r.displayReply||r.finalReply||r.reply||r.text||r.message,
+      16000
+    );
+  }
+  function deliverableReplyOf(value){
+    if(typeof value==="string")return clean(value);
+    const x=obj(value),fe=obj(x.finalEnvelope),p=obj(x.payload);
+    /*
+      V13.2: distinguish a user-facing final reply from internal/nested
+      diagnostic/status text. Payload/result "message" fields alone are
+      not sufficient evidence that a reply was actually deliverable.
+    */
+    return clean(
+      x.directReply||x.visibleReply||x.displayReply||x.finalReply||
+      x.reply||x.answer||x.response||x.output||x.text||
+      fe.directReply||fe.visibleReply||fe.displayReply||fe.finalReply||
+      fe.reply||fe.answer||fe.response||fe.output||fe.text||
+      (
+        p.final===true||p.marionFinal===true
+          ? (p.directReply||p.visibleReply||p.displayReply||p.finalReply||p.reply||p.text)
+          : ""
+      ),
       16000
     );
   }
@@ -1723,20 +1744,48 @@ function classifyRound3CognitiveResilience(prompt=""){
 
     const prompt=promptOf(input);
     const reply=replyOf(value);
+    const deliverableReply=deliverableReplyOf(value);
+    const out=obj(value);
     const operational=explicitExecutionRequest(prompt);
     const advisory=advisoryOnlyPrompt(prompt);
-    const contradiction=executionClaim(reply);
+    const contradiction=executionClaim(deliverableReply||reply);
 
     if(operational){
-      return projectReply(value,blockedReply(prompt),input,"operational_execution_blocked",{blocked:true,recovered:!reply});
+      return projectReply(
+        value,
+        blockedReply(prompt),
+        input,
+        "operational_execution_blocked",
+        {blocked:true,recovered:!deliverableReply}
+      );
     }
 
     if(contradiction){
-      return projectReply(value,advisoryReply(prompt),input,"unauthorized_execution_claim_rewritten",{blocked:false,recovered:!reply});
+      return projectReply(
+        value,
+        advisoryReply(prompt),
+        input,
+        "unauthorized_execution_claim_rewritten",
+        {blocked:false,recovered:!deliverableReply}
+      );
     }
 
-    if(advisory&&!reply){
-      return projectReply(value,advisoryReply(prompt),input,"advisory_empty_reply_recovered",{blocked:false,recovered:true});
+    /*
+      V13.2 critical repair:
+      A safe advisory request must recover when the upstream packet is
+      explicitly not-ok OR lacks a deliverable user-facing reply.
+      Hidden payload/result diagnostic text may not suppress recovery.
+    */
+    if(advisory&&(out.ok===false||!deliverableReply)){
+      return projectReply(
+        value,
+        advisoryReply(prompt),
+        input,
+        out.ok===false
+          ? "advisory_not_ok_reply_recovered"
+          : "advisory_empty_reply_recovered",
+        {blocked:false,recovered:true}
+      );
     }
 
     if(value&&typeof value==="object"){
@@ -1851,7 +1900,8 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_CONTRACT=CONTRACT;
   api.__marionPrivateExecutionSemanticAuthorityHardlockV13=true;
   api.__marionPrivateExecutionSemanticAuthorityHardlockV13_1=true;
-  api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_PATCH_LEVEL="13.1-input-authorized-exact-response";
+  api.__marionPrivateExecutionSemanticAuthorityHardlockV13_2=true;
+  api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_PATCH_LEVEL="13.2-advisory-error-visible-reply-recovery";
 })();
-/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_1_END */
+/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_2_END */
 
