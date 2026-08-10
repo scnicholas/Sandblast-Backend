@@ -1457,15 +1457,15 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_CIRCULAR_EXPORT_HARDENING_V1_END */
 
-/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_START */
+/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_1_START */
 (function marionPrivateExecutionSemanticAuthorityHardlockV13(){
   "use strict";
 
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
   if(!api||api.__marionPrivateExecutionSemanticAuthorityHardlockV13)return;
 
-  const VERSION="nyx.marion.privateExecutionSemanticAuthorityHardlock/13.0";
-  const CONTRACT="nyx.marion.privateExecutionSemanticAuthority/13.0";
+  const VERSION="nyx.marion.privateExecutionSemanticAuthorityHardlock/13.1";
+  const CONTRACT="nyx.marion.privateExecutionSemanticAuthority/13.1";
   const ADMIN_NAMES=[
     "handleMarionAdminConversation",
     "handleMarionAdminTextRuntime",
@@ -1528,11 +1528,21 @@ function classifyRound3CognitiveResilience(prompt=""){
       c.adminVerified===true;
   }
   function exactInstruction(input,value){
-    const x=obj(input),out=obj(value),fe=obj(out.finalEnvelope);
+    const x=obj(input),b=obj(x.body),p=obj(x.payload),m=obj(x.meta);
+    /*
+      V13.1: exact-response preservation is INPUT-authorized only.
+      Internal/output labels such as replyAuthority="exact_instruction"
+      must never bypass the execution/advisory semantic guard unless
+      the incoming request itself explicitly asked for a literal reply.
+    */
     return x.exactResponseRequested===true||
+      b.exactResponseRequested===true||
+      p.exactResponseRequested===true||
+      m.exactResponseRequested===true||
       clean(x.replyAuthority,80)==="exact_instruction"||
-      clean(out.replyAuthority,80)==="exact_instruction"||
-      clean(fe.replyAuthority,80)==="exact_instruction"||
+      clean(b.replyAuthority,80)==="exact_instruction"||
+      clean(p.replyAuthority,80)==="exact_instruction"||
+      clean(m.replyAuthority,80)==="exact_instruction"||
       /\b(?:reply with exactly|respond exactly|return only|reply only)\b/i.test(promptOf(input));
   }
   function advisoryOnlyPrompt(prompt){
@@ -1840,6 +1850,8 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_VERSION=VERSION;
   api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_CONTRACT=CONTRACT;
   api.__marionPrivateExecutionSemanticAuthorityHardlockV13=true;
+  api.__marionPrivateExecutionSemanticAuthorityHardlockV13_1=true;
+  api.MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_PATCH_LEVEL="13.1-input-authorized-exact-response";
 })();
-/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_END */
+/* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_1_END */
 
