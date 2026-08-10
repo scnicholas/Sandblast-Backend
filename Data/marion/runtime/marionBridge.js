@@ -1905,15 +1905,15 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_2_END */
 
-/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_START */
+/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_1_START */
 (function marionPrivateContinuityIdentityRecoveryHardlockV14(){
   "use strict";
 
   const api=module.exports&&typeof module.exports==="object"?module.exports:null;
   if(!api||api.__marionPrivateContinuityIdentityRecoveryHardlockV14)return;
 
-  const VERSION="nyx.marion.privateContinuityIdentityRecoveryHardlock/14.0";
-  const CONTRACT="nyx.marion.privateContinuityIdentityRecovery/14.0";
+  const VERSION="nyx.marion.privateContinuityIdentityRecoveryHardlock/14.1";
+  const CONTRACT="nyx.marion.privateContinuityIdentityRecovery/14.1";
   const TTL=Math.max(60000,Number(process.env.SB_MARION_PRIVATE_RECOVERY_TTL_MS)||2*60*60*1000);
   const MAX=Math.max(16,Math.min(2048,Number(process.env.SB_MARION_PRIVATE_RECOVERY_MAX)||256));
   const sessions=new Map();
@@ -1972,6 +1972,21 @@ function classifyRound3CognitiveResilience(prompt=""){
       a.verified===true||
       c.authenticatedOperator===true||
       c.adminVerified===true;
+  }
+  function isIsolatedTurn(input){
+    const x=O(input),b=O(x.body),m=O(x.meta),s=O(x.session);
+    if(x.newSession===true||x.firstTurn===true||x.resetSession===true||x.resetContinuity===true||
+       b.newSession===true||b.firstTurn===true||b.resetSession===true||b.resetContinuity===true||
+       m.newSession===true||m.firstTurn===true||m.resetSession===true||m.resetContinuity===true||
+       s.newSession===true||s.firstTurn===true||s.resetSession===true||s.resetContinuity===true)return true;
+    try{
+      const guard=api&&api.currentTurnAuthority&&typeof api.currentTurnAuthority==="object"
+        ? api.currentTurnAuthority
+        : null;
+      if(guard&&typeof guard.isIsolatedTurn==="function")
+        return guard.isIsolatedTurn(input)===true;
+    }catch(_){}
+    return false;
   }
   function exactInstruction(input){
     const x=O(input),b=O(x.body),p=O(x.payload),m=O(x.meta);
@@ -2069,7 +2084,10 @@ function classifyRound3CognitiveResilience(prompt=""){
     return state;
   }
   function rememberInput(input){
-    if(!isPrivate(input)||!verified(input))return null;
+    if(!isPrivate(input)||!verified(input)||exactInstruction(input))return null;
+    const sid=sessionId(input);
+    if(!sid)return null;
+    if(isIsolatedTurn(input))sessions.delete(sid);
     const state=stateFor(input);
     if(!state)return null;
     const prompt=promptOf(input);
@@ -2173,6 +2191,10 @@ function classifyRound3CognitiveResilience(prompt=""){
 
     if(/\bcontinuity\b/.test(t)&&/\b(?:verify|test|check|risk|detect)\b/.test(t)){
       return explainStage("continuity");
+    }
+
+    if(/\b(?:certified\s+)?rollback\s+baseline\b/.test(t)&&/\b(?:matter|matters|why|important|importance|regression|testing|test)\b/.test(t)){
+      return "A certified rollback baseline gives aggressive regression testing a known-good recovery point. It lets you compare drift, restore the last verified state if a change breaks continuity or authority, and separate intentional code changes from incidental runtime or cache churn before you certify a new baseline.";
     }
 
     if(/\b(?:return to|go back to|original plan)\b/.test(t)&&seq.length){
@@ -2391,7 +2413,11 @@ function classifyRound3CognitiveResilience(prompt=""){
       automaticExecutionAllowed:false,
       safeToExecute:false,
       exactInstructionPreserved:true,
+      exactInstructionCacheMutation:false,
+      isolatedTurnReset:true,
+      pivotRecovery:true,
       sessionLocalOnly:true,
+      canonicalRegressionPath:"Data/marion/runtime/marionBridge.private-continuity-identity.v14.test.js",
       sessionCacheTtlMs:TTL,
       sessionCacheMax:MAX,
       hardStopCompatible:true,
@@ -2407,12 +2433,16 @@ function classifyRound3CognitiveResilience(prompt=""){
       ttlMs:TTL,
       max:MAX,
       authenticatedPrivateOnly:true,
-      publicNyxNoOp:true
+      publicNyxNoOp:true,
+      isolatedTurnReset:true,
+      exactInstructionCacheMutation:false
     };
   };
   api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_VERSION=VERSION;
   api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_CONTRACT=CONTRACT;
   api.__marionPrivateContinuityIdentityRecoveryHardlockV14=true;
+  api.__marionPrivateContinuityIdentityRecoveryHardlockV14_1=true;
+  api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_PATCH_LEVEL="14.1-canonical-test-path-isolation-pivot";
 })();
-/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_END */
+/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_1_END */
 
