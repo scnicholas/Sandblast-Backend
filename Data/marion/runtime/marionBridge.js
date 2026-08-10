@@ -1905,3 +1905,514 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_PRIVATE_EXECUTION_SEMANTIC_AUTHORITY_HARDLOCK_V13_2_END */
 
+/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_START */
+(function marionPrivateContinuityIdentityRecoveryHardlockV14(){
+  "use strict";
+
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPrivateContinuityIdentityRecoveryHardlockV14)return;
+
+  const VERSION="nyx.marion.privateContinuityIdentityRecoveryHardlock/14.0";
+  const CONTRACT="nyx.marion.privateContinuityIdentityRecovery/14.0";
+  const TTL=Math.max(60000,Number(process.env.SB_MARION_PRIVATE_RECOVERY_TTL_MS)||2*60*60*1000);
+  const MAX=Math.max(16,Math.min(2048,Number(process.env.SB_MARION_PRIVATE_RECOVERY_MAX)||256));
+  const sessions=new Map();
+
+  const ADMIN_NAMES=[
+    "handleMarionAdminConversation",
+    "handleMarionAdminTextRuntime",
+    "handleAdminConversation",
+    "invokeMarionAdminTextRuntime",
+    "handleTextRuntime"
+  ];
+
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function T(v,max=16000){
+    try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}
+    catch(_){return"";}
+  }
+  function L(v,max=16000){return T(v,max).toLowerCase();}
+  function promptOf(input){
+    const x=O(input),b=O(x.body),p=O(x.payload),t=O(x.turn),c=O(x.command),m=O(x.meta);
+    return T(
+      x.prompt||x.rawUserText||x.originalUserText||x.userText||x.userQuery||x.inputText||x.query||x.message||x.text||
+      b.prompt||b.rawUserText||b.userText||b.userQuery||b.text||b.query||b.message||
+      p.prompt||p.rawUserText||p.userText||p.userQuery||p.text||p.query||p.message||
+      t.prompt||t.userText||t.text||t.message||
+      c.prompt||c.userText||c.text||c.message||
+      m.prompt||m.userText,
+      12000
+    );
+  }
+  function sessionId(input){
+    const x=O(input),b=O(x.body),m=O(x.meta),s=O(x.session),c=O(x.privateRuntimeContext);
+    return T(
+      x.sessionId||x.conversationId||b.sessionId||m.sessionId||s.sessionId||
+      c.sessionId||c.partitionKey,
+      240
+    );
+  }
+  function isPrivate(input){
+    const x=O(input),c=O(x.privateRuntimeContext);
+    return x.privateAdminConversation===true||
+      x.marionAdminConversation===true||
+      x.directMarionAdminInterface===true||
+      T(x.scope,80)==="private_admin"||
+      T(x.answerClass,120)==="marion_admin_conversation"||
+      T(c.scope,80)==="private_admin";
+  }
+  function verified(input){
+    const x=O(input),a=O(x.auth),c=O(x.context);
+    return x.authenticatedOperator===true||
+      x.adminVerified===true||
+      x.serverSideAdminAuth===true||
+      x.trustedServerAuth===true||
+      x.verified===true||
+      x.sessionVerified===true||
+      a.verified===true||
+      c.authenticatedOperator===true||
+      c.adminVerified===true;
+  }
+  function exactInstruction(input){
+    const x=O(input),b=O(x.body),p=O(x.payload),m=O(x.meta);
+    return x.exactResponseRequested===true||
+      b.exactResponseRequested===true||
+      p.exactResponseRequested===true||
+      m.exactResponseRequested===true||
+      T(x.replyAuthority,80)==="exact_instruction"||
+      T(b.replyAuthority,80)==="exact_instruction"||
+      T(p.replyAuthority,80)==="exact_instruction"||
+      T(m.replyAuthority,80)==="exact_instruction"||
+      /\b(?:reply with exactly|respond exactly|return only|reply only|reply exactly)\b/i.test(promptOf(input));
+  }
+  function deliverableReply(value){
+    if(typeof value==="string")return T(value);
+    const x=O(value),fe=O(x.finalEnvelope),p=O(x.payload);
+    return T(
+      x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||x.answer||x.response||x.output||x.text||
+      fe.directReply||fe.visibleReply||fe.displayReply||fe.finalReply||fe.reply||fe.answer||fe.response||fe.output||fe.text||
+      ((p.final===true||p.marionFinal===true)?(p.directReply||p.visibleReply||p.displayReply||p.finalReply||p.reply||p.text):"")
+    );
+  }
+  function operationalPrompt(prompt){
+    const t=L(prompt);
+    if(/\b(?:without|do not|don't|dont|never)\s+(?:actually\s+)?(?:execute|executing|run|running|restart|restarting|deploy|deploying|delete|deleting|modify|modifying|apply|applying|change|changing)\b/.test(t))return false;
+    return /^(?:please\s+)?(?:now\s+)?(?:restart|deploy|delete|remove|modify|overwrite|write|execute|run|stop|start|install|uninstall|apply|publish|send|commit|push|merge|rollback|restore)\b/.test(t)||
+      /\b(?:go ahead and|proceed to|proceed with|execute this|do it now)\b/.test(t);
+  }
+  function isIdentityQuery(prompt){
+    const t=L(prompt);
+    return /\b(?:who are you|are you nyx|are you marion|nyx or marion|public or private|private administrative surface|administrative surface|admin surface|identity)\b/.test(t);
+  }
+  function isFollowup(prompt){
+    const t=L(prompt);
+    return /^(?:and|also|then|now|so|what|which|why|how|where|when|who|focus|return|go back|do not repeat|don't repeat|continue|keep going|next|for this turn)\b/.test(t)||
+      /\b(?:what were|just gave you|second stage|third stage|first stage|comes after|comes before|original plan|return to|previous answer|additional risk|there|that stage|that plan|those stages|continue from|pick up where)\b/.test(t);
+  }
+  function ordinalIndex(prompt){
+    const t=L(prompt);
+    if(/\b(?:first|1st|stage\s*1|step\s*1)\b/.test(t))return 0;
+    if(/\b(?:second|2nd|stage\s*2|step\s*2)\b/.test(t))return 1;
+    if(/\b(?:third|3rd|stage\s*3|step\s*3)\b/.test(t))return 2;
+    if(/\b(?:fourth|4th|stage\s*4|step\s*4)\b/.test(t))return 3;
+    if(/\b(?:fifth|5th|stage\s*5|step\s*5)\b/.test(t))return 4;
+    return -1;
+  }
+  function normalizeItem(v){
+    return T(v,160).replace(/^(?:and|then)\s+/i,"").replace(/[.;:]+$/,"").trim();
+  }
+  function parseSequence(prompt){
+    const s=T(prompt,6000);
+    const m=s.match(/\b(?:stages?|steps?|phases?|parts?)\s+(?:are|were|will be|include)\s+(.+?)(?:[.!?]|$)/i);
+    if(!m)return[];
+    let body=m[1].replace(/\s+(?:and then|then)\s+/gi,", ").replace(/\s*,?\s+and\s+/gi,", ");
+    const items=body.split(/\s*,\s*/).map(normalizeItem).filter(Boolean).slice(0,12);
+    return items.length>=2?items:[];
+  }
+  function inferSubject(prompt){
+    const s=T(prompt,1000);
+    const m=s.match(/\b(?:planning|building|testing|validating|working on|reviewing)\s+(?:an?\s+|the\s+)?(.+?)(?:[.!?]|$)/i);
+    return T(m&&m[1]||s,260);
+  }
+  function prune(){
+    const now=Date.now();
+    for(const [k,v] of sessions){
+      if(!v||now-v.updatedAt>TTL)sessions.delete(k);
+    }
+    while(sessions.size>MAX){
+      const first=sessions.keys().next();
+      if(first.done)break;
+      sessions.delete(first.value);
+    }
+  }
+  function stateFor(input){
+    const sid=sessionId(input);
+    if(!sid)return null;
+    prune();
+    let state=sessions.get(sid);
+    if(!state){
+      state={
+        sessionId:sid,
+        planSequence:[],
+        activeSubject:"",
+        anchorUserText:"",
+        previousUserText:"",
+        lastUserText:"",
+        lastAssistantReply:"",
+        turnCount:0,
+        continuityRiskCursor:0,
+        updatedAt:Date.now()
+      };
+      sessions.set(sid,state);
+    }
+    state.updatedAt=Date.now();
+    return state;
+  }
+  function rememberInput(input){
+    if(!isPrivate(input)||!verified(input))return null;
+    const state=stateFor(input);
+    if(!state)return null;
+    const prompt=promptOf(input);
+    if(!prompt)return state;
+
+    state.previousUserText=state.lastUserText||state.previousUserText||"";
+    state.lastUserText=prompt;
+    state.turnCount+=1;
+
+    const seq=parseSequence(prompt);
+    if(seq.length){
+      state.planSequence=seq;
+      state.anchorUserText=prompt;
+      state.activeSubject=inferSubject(prompt);
+    }else if(!state.activeSubject&&!isFollowup(prompt)){
+      state.activeSubject=inferSubject(prompt);
+      state.anchorUserText=prompt;
+    }else if(!state.anchorUserText&&!isFollowup(prompt)){
+      state.anchorUserText=prompt;
+    }
+
+    state.updatedAt=Date.now();
+    return state;
+  }
+  function rememberOutput(state,value){
+    if(!state)return;
+    const reply=deliverableReply(value);
+    if(reply)state.lastAssistantReply=reply;
+    state.updatedAt=Date.now();
+  }
+  function title(v){
+    const s=T(v,180);
+    return s?s.charAt(0).toUpperCase()+s.slice(1):s;
+  }
+  function recallSequence(state){
+    const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
+    if(!seq.length)return"";
+    if(seq.length===1)return title(seq[0])+".";
+    if(seq.length===2)return `${title(seq[0])} and ${seq[1]}.`;
+    return `${seq.slice(0,-1).map(title).join(", ")}, and ${seq[seq.length-1]}.`;
+  }
+  function sequenceAfter(prompt,state){
+    const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
+    if(seq.length<2)return"";
+    const t=L(prompt);
+    for(let i=0;i<seq.length-1;i++){
+      if(t.includes(L(seq[i],160)))return seq[i+1];
+    }
+    return"";
+  }
+  function explainStage(stage){
+    const s=L(stage,160);
+    if(/\bcontinuity\b/.test(s)){
+      return "For continuity, verify that the same private session retains the active subject, resolves short follow-ups against the correct anchor, survives a temporary context pivot, returns to the earlier thread, progresses without exact-repeat loops, and never leaks context across sessions.";
+    }
+    if(/\barchitecture\b/.test(s)){
+      return "For architecture, verify canonical module resolution, dependency ownership, export contracts, route authority, hard-stop boundaries, and that no compatibility wrapper silently replaces the intended runtime authority.";
+    }
+    if(/\bfinal\s*authority\b/.test(s)||(/\bfinal\b/.test(s)&&/\bauthority\b/.test(s))){
+      return "For final authority, verify that one terminal composer owns the user-facing reply, intermediate diagnostics cannot become final, public Nyx and private Marion identities stay separated, and execution remains disabled unless a distinct authorized control plane permits it.";
+    }
+    return `For ${stage}, verify its inputs, state transitions, authority boundary, expected output, failure behavior, and regression invariants before advancing.`;
+  }
+  function additionalContinuityRisk(state){
+    const risks=[
+      "A continuity test should detect stale-anchor contamination: a follow-up resolves against an older topic instead of the immediately active thread.",
+      "A continuity test should detect cross-session leakage: context from one private session appears inside another session.",
+      "A continuity test should detect pivot-return loss: a temporary topic change destroys the earlier anchor instead of preserving a safe return path.",
+      "A continuity test should detect reply-loop drift: the system repeats a prior answer instead of producing a new context-aware progression."
+    ];
+    const index=Math.max(0,Number(state&&state.continuityRiskCursor)||0)%risks.length;
+    if(state)state.continuityRiskCursor=index+1;
+    return risks[index];
+  }
+  function identityReply(){
+    return "I’m Marion on the authenticated private administrative surface. Nyx remains the public Sandblast agent; this private owner-facing runtime is Marion-authoritative.";
+  }
+  function contextualRecovery(prompt,state){
+    const t=L(prompt);
+    const seq=Array.isArray(state&&state.planSequence)?state.planSequence:[];
+
+    if(isIdentityQuery(prompt))return identityReply();
+
+    if(seq.length&&/\b(?:what were|list|remind me|three stages|those stages|stages i just gave)\b/.test(t)){
+      return `The stages are ${recallSequence(state)}`;
+    }
+
+    const after=sequenceAfter(prompt,state);
+    if(after&&/\b(?:comes after|after)\b/.test(t)){
+      return `${title(after)} comes next.`;
+    }
+
+    const ord=ordinalIndex(prompt);
+    if(ord>=0&&seq[ord]&&/\b(?:stage|step|phase|part|focus|verify)\b/.test(t)){
+      return explainStage(seq[ord]);
+    }
+
+    if(/\b(?:additional|another|one more)\b/.test(t)&&/\b(?:risk|failure|problem)\b/.test(t)&&/\bcontinuity\b/.test(t)){
+      return additionalContinuityRisk(state);
+    }
+
+    if(/\bcontinuity\b/.test(t)&&/\b(?:verify|test|check|risk|detect)\b/.test(t)){
+      return explainStage("continuity");
+    }
+
+    if(/\b(?:return to|go back to|original plan)\b/.test(t)&&seq.length){
+      const after2=sequenceAfter(prompt,state);
+      if(after2)return `${title(after2)} comes next.`;
+      return `The original sequence is ${recallSequence(state)}`;
+    }
+
+    if(isFollowup(prompt)&&state&&state.activeSubject){
+      return `I still have the active thread anchored to ${state.activeSubject}. Ask the next point against that thread and I’ll keep the response inside the same private Marion context.`;
+    }
+
+    return "";
+  }
+  function blockedExecutionReply(prompt){
+    const t=L(prompt);
+    if(/\brestart\b/.test(t)&&/\bdeploy\b/.test(t)){
+      return "Execution remains disabled. I have not restarted the backend or deployed the current build. I can outline the exact sequence for you to approve and perform.";
+    }
+    return "Execution remains disabled. I have not performed that operational action. I can outline the steps and validation checks for you to approve and perform.";
+  }
+  function project(base,reply,input,reason){
+    const out=typeof base==="string"?{}:O(base);
+    const fe=O(out.finalEnvelope),payload=O(out.payload),meta=O(out.meta),diag=O(out.diagnostics);
+    const text=T(reply,16000);
+    const common={
+      privateContinuityRecovered:true,
+      privateContinuityRecoveryVersion:VERSION,
+      privateContinuityRecoveryReason:reason,
+      executionAuthorized:false,
+      automaticExecutionAllowed:false,
+      safeToExecute:false,
+      executionPerformed:false,
+      actionApprovedForExecution:false,
+      publicAgent:"Nyx",
+      surfaceAgent:"Marion",
+      authority:"Marion",
+      audience:"owner",
+      scope:"private_admin",
+      publicSurfaceOnly:false,
+      publicFallbackBlocked:true,
+      authenticatedOperator:true,
+      privateAdminConversation:true,
+      marionAdminConversation:true,
+      directMarionAdminInterface:true
+    };
+    return{
+      ...out,
+      ...common,
+      ok:true,
+      handled:true,
+      final:true,
+      marionFinal:true,
+      terminal:true,
+      canEmit:true,
+      awaitingMarion:false,
+      reply:text,
+      text,
+      answer:text,
+      output:text,
+      response:text,
+      message:text,
+      displayReply:text,
+      visibleReply:text,
+      directReply:text,
+      finalReply:text,
+      spokenText:text,
+      speechText:text,
+      finalEnvelope:{
+        ...fe,
+        ...common,
+        reply:text,
+        text,
+        answer:text,
+        output:text,
+        response:text,
+        message:text,
+        displayReply:text,
+        visibleReply:text,
+        directReply:text,
+        finalReply:text,
+        spokenText:text,
+        final:true,
+        marionFinal:true,
+        handled:true,
+        terminal:true,
+        canEmit:true
+      },
+      payload:{
+        ...payload,
+        ...common,
+        reply:text,
+        text,
+        answer:text,
+        output:text,
+        response:text,
+        message:text,
+        displayReply:text,
+        visibleReply:text,
+        directReply:text,
+        finalReply:text,
+        spokenText:text,
+        final:true,
+        marionFinal:true,
+        handled:true,
+        terminal:true,
+        canEmit:true
+      },
+      meta:{
+        ...meta,
+        ...common,
+        privateContinuityRecoveryContract:CONTRACT
+      },
+      diagnostics:{
+        ...diag,
+        ...common,
+        privateContinuityRecoveryContract:CONTRACT
+      }
+    };
+  }
+  function enforce(value,input,state){
+    if(!isPrivate(input)||!verified(input)||exactInstruction(input))return value;
+
+    const reply=deliverableReply(value);
+    const out=O(value);
+    const prompt=promptOf(input);
+
+    if(reply&&out.ok!==false){
+      rememberOutput(state,value);
+      if(value&&typeof value==="object"){
+        value.meta={
+          ...O(value.meta),
+          privateContinuityRecoveryVersion:VERSION,
+          privateContinuityRecoveryState:"pass_through"
+        };
+      }
+      return value;
+    }
+
+    if(operationalPrompt(prompt)){
+      const repaired=project(value,blockedExecutionReply(prompt),input,"execution_empty_or_not_ok_recovered");
+      rememberOutput(state,repaired);
+      return repaired;
+    }
+
+    const recovered=contextualRecovery(prompt,state);
+    if(recovered&&(out.ok===false||!reply)){
+      const reason=isIdentityQuery(prompt)
+        ?"private_identity_empty_or_not_ok_recovered"
+        :"private_continuity_empty_or_not_ok_recovered";
+      const repaired=project(value,recovered,input,reason);
+      rememberOutput(state,repaired);
+      return repaired;
+    }
+
+    return value;
+  }
+
+  const wrapperCache=new WeakMap();
+  for(const name of ADMIN_NAMES){
+    const original=marionOwnCallable(api,name);
+    if(typeof original!=="function"||original.__marionPrivateContinuityIdentityRecoveryHardlockV14)continue;
+    let wrapped=wrapperCache.get(original);
+    if(!wrapped){
+      wrapped=function(){
+        const args=Array.from(arguments);
+        const input=O(args[0]);
+        const state=rememberInput(input);
+        let result;
+        try{result=original.apply(this,args);}catch(err){throw err;}
+        const apply=value=>enforce(value,input,state);
+        return result&&typeof result.then==="function"?result.then(apply):apply(result);
+      };
+      try{Object.keys(original).forEach(k=>{wrapped[k]=original[k];});}catch(_){}
+      wrapped.__marionPrivateContinuityIdentityRecoveryHardlockV14=true;
+      wrapperCache.set(original,wrapped);
+    }
+    api[name]=wrapped;
+  }
+
+  const adminCanonical=marionOwnCallable(api,"handleMarionAdminConversation");
+  const previousFactory=marionOwnCallable(api,"createMarionBridge");
+  api.createMarionBridge=function(){
+    let base={};
+    try{base=previousFactory&&previousFactory!==api.createMarionBridge?previousFactory():{};}catch(_){base={};}
+    return{
+      ...safeObj(base),
+      version:api.VERSION||VERSION,
+      contract:api.BRIDGE_CONTRACT_VERSION||BRIDGE_CONTRACT_VERSION,
+      endpoint:api.CANONICAL_ENDPOINT||CANONICAL_ENDPOINT,
+      processWithMarion:marionOwnCallable(api,"processWithMarion")||processWithMarion,
+      route:marionOwnCallable(api,"route")||processWithMarion,
+      maybeResolve:marionOwnCallable(api,"maybeResolve")||processWithMarion,
+      ask:marionOwnCallable(api,"ask")||processWithMarion,
+      handle:marionOwnCallable(api,"handle")||processWithMarion,
+      handleMarionAdminConversation:adminCanonical,
+      handleMarionAdminTextRuntime:marionOwnCallable(api,"handleMarionAdminTextRuntime")||adminCanonical,
+      handleAdminConversation:marionOwnCallable(api,"handleAdminConversation")||adminCanonical,
+      invokeMarionAdminTextRuntime:marionOwnCallable(api,"invokeMarionAdminTextRuntime")||adminCanonical,
+      handleTextRuntime:marionOwnCallable(api,"handleTextRuntime")||adminCanonical
+    };
+  };
+
+  api.getPrivateContinuityIdentityRecoveryContract=function(){
+    return{
+      version:VERSION,
+      contract:CONTRACT,
+      enabled:true,
+      authenticatedPrivateOnly:true,
+      recoveryOnEmptyOrNotOkOnly:true,
+      publicNyxNoOp:true,
+      publicAgent:"Nyx",
+      surfaceAgent:"Marion",
+      authority:"Marion",
+      executionAuthorized:false,
+      automaticExecutionAllowed:false,
+      safeToExecute:false,
+      exactInstructionPreserved:true,
+      sessionLocalOnly:true,
+      sessionCacheTtlMs:TTL,
+      sessionCacheMax:MAX,
+      hardStopCompatible:true,
+      executionSemanticV13Compatible:true
+    };
+  };
+  api._privateContinuityIdentityRecoveryDiagnostics=function(){
+    prune();
+    return{
+      version:VERSION,
+      contract:CONTRACT,
+      size:sessions.size,
+      ttlMs:TTL,
+      max:MAX,
+      authenticatedPrivateOnly:true,
+      publicNyxNoOp:true
+    };
+  };
+  api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_VERSION=VERSION;
+  api.MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_CONTRACT=CONTRACT;
+  api.__marionPrivateContinuityIdentityRecoveryHardlockV14=true;
+})();
+/* MARION_PRIVATE_CONTINUITY_IDENTITY_RECOVERY_HARDLOCK_V14_END */
+
