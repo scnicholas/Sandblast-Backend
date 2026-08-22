@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('assert');
+const State=require('../../Data/marion/runtime/ecosystem/MarionEcosystemStateSpine');
+const Bootstrap=require('../../Data/marion/runtime/ecosystem/MarionEcosystemComponentBootstrap');
+const Context=require('../../Data/marion/runtime/ecosystem/MarionEcosystemContextAssembler');
+Bootstrap.bootstrap();State.resetForTests();
+State.setSession('s1','nyx',{language:'en',mode:'one_to_one',data:{sourceLanguage:'en',targetLanguage:'en'}});
+let c=Context.assemble({sessionId:'s1',source:'nyx',sourceLanguage:'en',targetLanguage:'en'});assert.equal(c.needsLingoSentinel,false);assert.equal(c.routeClass,'nyx-marion');
+State.setSession('s1','lingosentinel',{language:'fr',culture:'social_norms',layer:'culture',mode:'one_to_one',data:{sourceLanguage:'en',targetLanguage:'fr',cultureContext:'social_norms'}});
+c=Context.assemble({sessionId:'s1',source:'nyx'});assert.equal(c.targetLanguage,'fr');assert.equal(c.cultureContext,'social_norms');assert.equal(c.needsLingoSentinel,true);assert.equal(c.routeClass,'nyx-lingosentinel-marion');
+console.log('PASS marion_ecosystem_phase2_context_test');
