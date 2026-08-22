@@ -1,0 +1,11 @@
+(function(W,D){'use strict';
+  var PROD='https://sandblast-backend.onrender.com',L=location,local=L.protocol==='file:'||/^(localhost|127\.0\.0\.1)$/.test(L.hostname),base=(W.LS_BACKEND||D.documentElement.dataset.lsBackend||(local?'http://localhost:3000':PROD)).replace(/\/$/,''),token=W.LS_WIDGET_TOKEN||'';
+  function state(){try{return W.LingoSentinel&&W.LingoSentinel.translation?W.LingoSentinel.translation.state():{}}catch(_){return{}}}
+  async function post(path,payload){var r=await fetch(base+path,{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',headers:Object.assign({'Content-Type':'application/json'},token?{'x-sb-widget-token':token}:{}),body:JSON.stringify(payload||{})}),j=await r.json();if(!r.ok||j.ok===false)throw Error(j.error||j.stage||('http_'+r.status));return j}
+  var adapter={
+    async request(payload){var s=state(),p=payload||{},j=await post('/api/lingosentinel/marion/request',{sessionId:p.sessionId||s.sessionId,conversationId:p.conversationId||'',roomId:p.roomId||'lingosentinel-main',eventType:'conversation.message',intent:p.type||'conversation',sourceLanguage:p.sourceLanguage||s.sourceLanguage||'en',targetLanguage:p.targetLanguage||s.targetLanguage||'en',cultureContext:p.cultureContext||s.culture||'general',layer:p.layer||'language',mode:p.mode||'one_to_one',participantId:p.participantId||'host',speakerRole:p.speakerRole||'host',message:p.text||p.message||''});var e=j.response||{};return{text:e.message||'',envelope:e,request:j.request||null}}
+  };
+  async function connect(){if(!W.LingoSentinel||!W.LingoSentinel.marion)return false;try{var s=state();await post('/api/lingosentinel/marion/handshake',{sessionId:s.sessionId,sourceLanguage:s.sourceLanguage||'en',targetLanguage:s.targetLanguage||'en'});W.LingoSentinel.marion.register(adapter);W.dispatchEvent(new CustomEvent('lingosentinel:marion-hardlink-ready',{detail:{baseUrl:base,contract:'marion.lingosentinel/1.0'}}));return true}catch(e){W.dispatchEvent(new CustomEvent('lingosentinel:marion-hardlink-error',{detail:{error:e.message||'connect_failed'}}));return false}}
+  if(!connect())W.addEventListener('lingosentinel:integration-ready',connect,{once:true});
+  W.LingoSentinelMarionPhase1Adapter={connect:connect,adapter:adapter,baseUrl:base};
+})(window,document);
