@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('assert');
+const State=require('../../Data/marion/runtime/LingoSentinel/MarionLingoSentinelStateBridge');
+const History=require('../../Data/marion/runtime/LingoSentinel/MarionLingoSentinelConversationStore');
+const Context=require('../../Data/marion/runtime/LingoSentinel/MarionLingoSentinelContextAssembler');
+History.reset();
+State.syncFromLingo({sessionId:'phase3-context',conversationId:'c1',sourceLanguage:'en',targetLanguage:'fr',cultureContext:'social_norms',layer:'culture',mode:'one_to_one',speakerRole:'host',participantId:'host',uiState:'dock'});
+History.append({sessionId:'phase3-context',conversationId:'c1',role:'host',sourceLanguage:'en',text:'Hello',canonicalText:'Hello'});
+const c=Context.assemble({sessionId:'phase3-context',conversationId:'c1',sourceLanguage:'en',targetLanguage:'fr',cultureContext:'social_norms',layer:'culture',mode:'one_to_one',speakerRole:'host',message:'How should I phrase this?'});
+assert.equal(c.targetLanguage,'fr');assert.equal(c.cultureContext,'social_norms');assert.equal(c.layer,'culture');assert.ok(c.stateRevision>=1);assert.equal(c.history.length,1);
+const m=Context.marionContext(c,{requestId:'req1'});assert.equal(m.lingoSentinel.cultureContext,'social_norms');assert.equal(m.lingoSentinel.history[0].text,'Hello');console.log('PASS marion_lingosentinel_phase3_context_test');
