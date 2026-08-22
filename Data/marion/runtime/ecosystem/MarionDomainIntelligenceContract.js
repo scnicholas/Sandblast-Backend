@@ -2,7 +2,8 @@
 
 const crypto = require('crypto');
 
-const VERSION = 'marion.domainIntelligenceContract/5.0';
+const VERSION = 'marion.domainIntelligenceContract/5.0.1-render-compat';
+const RENDER_COMPAT_VERSION = 'sandblast.marion.domain-render-compat/1.0';
 const CONTRACT = 'sandblast.marion.domain-intelligence/5.0';
 
 const DOMAINS = Object.freeze([
@@ -43,6 +44,68 @@ function obj(value) {
 
 function arr(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function textValue(value, max = 6000) {
+  return typeof value === 'string'
+    ? clean(value, max)
+    : '';
+}
+
+function firstRenderableText(...values) {
+  for (const value of values) {
+    const text = textValue(value, 6000);
+    if (text) return text;
+  }
+
+  return '';
+}
+
+function renderText(output = {}) {
+  const out = obj(output);
+  const payload = obj(out.payload);
+  const finalEnvelope = obj(out.finalEnvelope);
+  const result = obj(out.result);
+
+  return firstRenderableText(
+    out.answer,
+    out.reply,
+    out.visibleReply,
+    out.displayReply,
+    out.text,
+    out.message,
+    out.summary,
+    out.output,
+    out.response,
+    out.content,
+
+    payload.answer,
+    payload.reply,
+    payload.visibleReply,
+    payload.displayReply,
+    payload.text,
+    payload.message,
+    payload.summary,
+    payload.output,
+    payload.response,
+
+    finalEnvelope.answer,
+    finalEnvelope.reply,
+    finalEnvelope.visibleReply,
+    finalEnvelope.displayReply,
+    finalEnvelope.text,
+    finalEnvelope.message,
+
+    result.answer,
+    result.reply,
+    result.visibleReply,
+    result.displayReply,
+    result.text,
+    result.message,
+    result.summary,
+    result.output,
+    result.response
+  );
 }
 
 function id(value, prefix) {
@@ -157,6 +220,10 @@ function validate(value = {}) {
 function response(request = {}, output = {}) {
   const req = normalize(request);
   const out = obj(output);
+  const answer = renderText(out);
+  const renderable = Boolean(answer);
+  const payload = obj(out.payload);
+  const spokenText = textValue(payload.spokenText || out.spokenText, 6000) || answer;
 
   return {
     ok: out.ok !== false,
@@ -174,8 +241,40 @@ function response(request = {}, output = {}) {
     domain: req.domain,
     intent: req.intent,
 
-    answer: clean(out.answer || out.text || out.summary, 6000),
-    payload: obj(out.payload),
+    // Canonical domain result.
+    answer,
+
+    // Render-compatibility aliases. These make the domain result discoverable
+    // by Marion's existing reply projection without granting final authority.
+    reply: answer,
+    text: answer,
+    message: answer,
+    output: answer,
+    response: answer,
+    displayReply: answer,
+    visibleReply: answer,
+    spokenText,
+
+    renderable,
+    domainResponse: true,
+    marionFinal: false,
+    finalAuthority: false,
+
+    payload: {
+      ...payload,
+      answer,
+      reply: answer,
+      text: answer,
+      message: answer,
+      displayReply: answer,
+      visibleReply: answer,
+      spokenText,
+      renderable,
+      domainResponse: true,
+      marionFinal: false,
+      finalAuthority: false
+    },
+
     warnings: arr(out.warnings).map(v => clean(v, 240)).filter(Boolean).slice(0, 20),
 
     advisoryOnly: out.advisoryOnly !== false,
@@ -183,7 +282,10 @@ function response(request = {}, output = {}) {
 
     metadata: {
       ...obj(out.metadata),
-      correlated: true
+      correlated: true,
+      renderCompat: RENDER_COMPAT_VERSION,
+      renderable,
+      replyAuthority: 'domain_advisory'
     },
 
     timestamp: Date.now()
@@ -193,11 +295,14 @@ function response(request = {}, output = {}) {
 module.exports = Object.freeze({
   VERSION,
   CONTRACT,
+  RENDER_COMPAT_VERSION,
   DOMAINS,
   INTENTS,
   normalize,
   validate,
   response,
   normalizeDomain,
-  normalizeIntent
+  normalizeIntent,
+  renderText,
+  firstRenderableText
 });
