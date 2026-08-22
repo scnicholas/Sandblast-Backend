@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('assert');
+const Registry=require('../../Data/marion/runtime/ecosystem/MarionComponentRegistry');
+const Permissions=require('../../Data/marion/runtime/ecosystem/MarionEcosystemPermissions');
+const Bootstrap=require('../../Data/marion/runtime/ecosystem/MarionEcosystemComponentBootstrap');
+const Nyx=require('../../Data/marion/runtime/ecosystem/MarionNyxEcosystemAdapter');
+const Lingo=require('../../Data/marion/runtime/ecosystem/MarionLingoSentinelEcosystemAdapter');
+Registry.resetForTests();Registry.bootstrapDefaults();Permissions.resetForTests();Bootstrap.resetForTests();
+const result=Bootstrap.bootstrap();
+assert.equal(result.ok,true);assert.equal(Registry.get('nyx').status,'ready');assert.equal(Registry.get('lingosentinel').status,'ready');
+assert.equal(Permissions.authorize('nyx','request','marion.reasoning').ok,true);assert.equal(Permissions.authorize('nyx','request','lingosentinel.translation').ok,true);assert.equal(Permissions.authorize('lingosentinel','request','marion.reasoning').ok,true);
+assert.equal(Nyx.ingestState({sessionId:'s1',targetLanguage:'fr',mode:'one_to_one'}).ok,true);assert.equal(Lingo.ingestState({sessionId:'s1',targetLanguage:'fr',cultureContext:'traditions'}).ok,true);
+console.log('PASS marion_ecosystem_phase2_components_test');
