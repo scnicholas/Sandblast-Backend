@@ -858,6 +858,190 @@ try {
 }
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_END */
 
+/* SANDBLAST_ECOSYSTEM_BASELINE_1_0_ROUTE_MOUNT_START
+ * Additive Baseline 1.0 health/manifest boundary.
+ *
+ * Surgical constraints:
+ * - does NOT register, replace, or remount Ecosystem Phases 1-5;
+ * - uses the existing guarded module-loader discipline;
+ * - fails open at process boot if the optional baseline module is absent;
+ * - mounts before the final generic /api not_found guard;
+ * - records one immutable mount result in app.locals.
+ */
+const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_VERSION =
+  "sandblast.ecosystem.baselineRouteMount/1.0-index-surgical";
+
+const SANDBLAST_ECOSYSTEM_BASELINE_MOUNT_PATH =
+  "/api/marion/ecosystem";
+
+const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_REQUIRE_CANDIDATES = Object.freeze([
+  "./Data/marion/runtime/ecosystem/MarionEcosystemBaselineRoute",
+  "./Data/marion/runtime/ecosystem/MarionEcosystemBaselineRoute.js"
+]);
+
+function mountSandblastEcosystemBaselineRouteOnce(appInstance) {
+  const status = {
+    ok: false,
+    mounted: false,
+    alreadyMounted: false,
+    degraded: false,
+    version: SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_VERSION,
+    mountPath: SANDBLAST_ECOSYSTEM_BASELINE_MOUNT_PATH,
+    requestedPath: "",
+    resolvedPath: "",
+    moduleVersion: "",
+    mountedAt: 0,
+    error: ""
+  };
+
+  if (!appInstance || typeof appInstance.use !== "function") {
+    status.degraded = true;
+    status.error = "express_app_unavailable";
+    return Object.freeze(status);
+  }
+
+  appInstance.locals = appInstance.locals || {};
+
+  if (appInstance.locals.__sandblastEcosystemBaselineRouteMounted) {
+    const previous = appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+    return Object.freeze({
+      ...status,
+      ok: previous.ok === true,
+      mounted: false,
+      alreadyMounted: true,
+      degraded: previous.degraded === true,
+      requestedPath: previous.requestedPath || "",
+      resolvedPath: previous.resolvedPath || "",
+      moduleVersion: previous.moduleVersion || "",
+      mountedAt: Number(previous.mountedAt || 0),
+      error: previous.error || ""
+    });
+  }
+
+  const loaded = tryRequireManyWithStatus(
+    SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_REQUIRE_CANDIDATES
+  );
+
+  if (!loaded || loaded.ok !== true || !loaded.mod) {
+    status.degraded = true;
+    status.error = "baseline_route_module_unavailable";
+    status.requestedPath = loaded && loaded.requested || "";
+    status.resolvedPath = loaded && loaded.resolvedPath || "";
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    console.warn("[Sandblast][ecosystem-baseline-route]", {
+      ok: false,
+      mounted: false,
+      degraded: true,
+      version: status.version,
+      mountPath: status.mountPath,
+      error: status.error
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  }
+
+  const baselineRouter =
+    typeof loaded.mod === "function"
+      ? loaded.mod
+      : loaded.mod && typeof loaded.mod.router === "function"
+        ? loaded.mod.router
+        : null;
+
+  if (!baselineRouter) {
+    status.degraded = true;
+    status.requestedPath = loaded.requested || "";
+    status.resolvedPath = loaded.resolvedPath || "";
+    status.moduleVersion = cleanText(loaded.version || loaded.mod.VERSION || "");
+    status.error = "baseline_route_export_invalid";
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    console.warn("[Sandblast][ecosystem-baseline-route]", {
+      ok: false,
+      mounted: false,
+      degraded: true,
+      version: status.version,
+      mountPath: status.mountPath,
+      error: status.error
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  }
+
+  try {
+    appInstance.use(
+      SANDBLAST_ECOSYSTEM_BASELINE_MOUNT_PATH,
+      baselineRouter
+    );
+
+    status.ok = true;
+    status.mounted = true;
+    status.requestedPath = loaded.requested || "";
+    status.resolvedPath = loaded.resolvedPath || "";
+    status.moduleVersion = cleanText(
+      loaded.version ||
+      loaded.mod.VERSION ||
+      baselineRouter.VERSION ||
+      ""
+    );
+    status.mountedAt = Date.now();
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    appInstance.locals.sandblastEcosystemBaseline =
+      appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+
+    console.log("[Sandblast][ecosystem-baseline-route]", {
+      ok: true,
+      mounted: true,
+      version: status.version,
+      moduleVersion: status.moduleVersion || "unknown",
+      mountPath: status.mountPath
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  } catch (error) {
+    status.degraded = true;
+    status.requestedPath = loaded.requested || "";
+    status.resolvedPath = loaded.resolvedPath || "";
+    status.moduleVersion = cleanText(
+      loaded.version ||
+      loaded.mod.VERSION ||
+      baselineRouter.VERSION ||
+      ""
+    );
+    status.error = cleanText(
+      error && (error.code || error.message || error) ||
+      "baseline_route_mount_failed"
+    ).slice(0, 300);
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    console.error("[Sandblast][ecosystem-baseline-route]", {
+      ok: false,
+      mounted: false,
+      degraded: true,
+      version: status.version,
+      mountPath: status.mountPath,
+      error: status.error
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  }
+}
+
+const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS =
+  mountSandblastEcosystemBaselineRouteOnce(app);
+
+/* SANDBLAST_ECOSYSTEM_BASELINE_1_0_ROUTE_MOUNT_END */
+
+
 /* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_START
  * Public, non-authoritative guide configuration boundary.
  * This layer exposes UI capability metadata only. It never composes replies,
@@ -24179,6 +24363,9 @@ module.exports = {
   gracefulShutdown,
   PORT,
   INDEX_VERSION,
+  SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_VERSION,
+  SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS,
+  mountSandblastEcosystemBaselineRouteOnce,
   NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
   NYX_VOICE_UTILS_MOUNT_STATUS,
   mountNyxVoiceUtilsEarly,
