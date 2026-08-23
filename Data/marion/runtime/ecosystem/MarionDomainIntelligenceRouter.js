@@ -6,7 +6,96 @@ const Guardians = require('./MarionGuardiansEcosystemAdapter');
 const Ledger = require('./MarionDomainRequestLedger');
 const Telemetry = require('./MarionEcosystemTelemetry');
 
-const VERSION = 'marion.domainIntelligenceRouter/5.0';
+const VERSION = 'marion.domainIntelligenceRouter/5.0.1-render-cohesion';
+const RENDER_COHESION_VERSION = 'sandblast.marion.domain-router-render-cohesion/1.0';
+
+function obj(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function clean(value, max = 6000) {
+  return typeof value === 'string'
+    ? value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
+    : '';
+}
+
+function routerProjection(response = {}) {
+  const envelope = obj(response);
+  const payload = obj(envelope.payload);
+
+  const reply = clean(
+    envelope.reply ||
+    envelope.visibleReply ||
+    envelope.displayReply ||
+    envelope.answer ||
+    envelope.text ||
+    envelope.message ||
+    envelope.output ||
+    payload.reply ||
+    payload.answer ||
+    payload.text ||
+    payload.message,
+    6000
+  );
+
+  const spokenText = clean(
+    envelope.spokenText ||
+    payload.spokenText ||
+    reply,
+    6000
+  );
+
+  return {
+    reply,
+    text: reply,
+    answer: reply,
+    output: reply,
+    message: reply,
+    displayReply: reply,
+    visibleReply: reply,
+    spokenText,
+    renderable: Boolean(reply),
+    domainResponse: true,
+
+    marionFinal: false,
+    finalAuthority: false,
+
+    payload: {
+      ...payload,
+      reply,
+      text: reply,
+      answer: reply,
+      message: reply,
+      displayReply: reply,
+      visibleReply: reply,
+      spokenText,
+      renderable: Boolean(reply),
+      domainResponse: true,
+      marionFinal: false,
+      finalAuthority: false
+    },
+
+    renderMeta: {
+      version: RENDER_COHESION_VERSION,
+      nestedResponsePreserved: true,
+      scalarProjectionPresent: Boolean(reply),
+      replyAuthority: 'domain_advisory'
+    }
+  };
+}
+
+function wrapResponse(request, response, extra = {}) {
+  const projection = routerProjection(response);
+
+  return {
+    ok: extra.ok !== false,
+    ...projection,
+    response,
+    request,
+    ...extra,
+    version: VERSION
+  };
+}
 
 async function route(input = {}) {
   const startedAt = Date.now();
@@ -35,15 +124,19 @@ async function route(input = {}) {
   const claim = Ledger.claim(request);
 
   if (claim.status === 'duplicate_completed') {
-    return {
-      ok: true,
-      duplicate: true,
+    const response = {
+      ...claim.response,
+      duplicate: true
+    };
+
+    return wrapResponse(
       request,
-      response: {
-        ...claim.response,
+      response,
+      {
+        ok: true,
         duplicate: true
       }
-    };
+    );
   }
 
   if (!claim.ok) {
@@ -94,13 +187,14 @@ async function route(input = {}) {
       durationMs: Date.now() - startedAt
     });
 
-    return {
-      ok: output.ok !== false,
+    return wrapResponse(
       request,
       response,
-      domainOutput: output,
-      version: VERSION
-    };
+      {
+        ok: output.ok !== false,
+        domainOutput: output
+      }
+    );
 
   } catch (error) {
     Ledger.fail(
@@ -155,7 +249,10 @@ function resetForTests() {
 
 module.exports = Object.freeze({
   VERSION,
+  RENDER_COHESION_VERSION,
   route,
   getHealth,
-  resetForTests
+  resetForTests,
+  routerProjection,
+  wrapResponse
 });
