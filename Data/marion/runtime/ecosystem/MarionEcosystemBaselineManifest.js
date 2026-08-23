@@ -1,11 +1,14 @@
 'use strict';
 
-const VERSION = 'sandblast.ecosystemBaseline/1.0.0';
+const VERSION = 'sandblast.ecosystemBaseline/1.0.2';
 
 const BASELINE = Object.freeze({
-  name: 'Sandblast Ecosystem Baseline 1.0',
-  baselineVersion: '1.0.0',
+  name: 'Sandblast Ecosystem Baseline 1.0.2',
+  baselineVersion: '1.0.2',
   status: 'STATIC_CERTIFIED_LIVE_PENDING',
+  predecessor: '1.0.1',
+  patchType: 'cross-file-render-cohesion-hotfix',
+  patchSummary: 'Domain Intelligence Router scalar projection plus index object-response render guard',
 
   phases: Object.freeze([
     { phase: 1, name: 'Ecosystem Foundation', version: '1.0', role: 'control-plane foundation' },
@@ -20,6 +23,8 @@ const BASELINE = Object.freeze({
     ecosystemState: 'sandblast.marion.ecosystem-state/1.0',
     mediaEvent: 'sandblast.marion.media-event/4.0',
     domainIntelligence: 'sandblast.marion.domain-intelligence/5.0',
+    domainIntelligenceImplementation: 'marion.domainIntelligenceContract/5.0.1-render-compat',
+    domainIntelligenceRouterImplementation: 'marion.domainIntelligenceRouter/5.0.1-render-cohesion',
     chronicleClaim: 'sandblast.chronicle.claim/1.0'
   }),
 
@@ -47,6 +52,7 @@ const BASELINE = Object.freeze({
 
   certification: Object.freeze({
     staticCertified: true,
+    patchRegressionCertified: true,
     liveCertified: false,
     liveCertificationRequiredBeforeProductionFreezeClaim: true
   })
