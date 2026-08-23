@@ -764,6 +764,507 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
+
+/* LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_V1_START
+ * Surgical public /api/lingosentinel/translate continuity guard.
+ *
+ * The canonical modular LingoSentinel translation routes remain intact below.
+ * This guard handles the public translation request only when a compatible
+ * existing translator adapter is available. If it cannot translate, next()
+ * preserves the established modular Spontaneity/Public-Boundary fallback.
+ *
+ * Utility translation only: no Marion-final authority, private route, memory,
+ * credential, or provider secret is exposed here.
+ */
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION =
+  "nyx.lingosentinel.publicTranslateIndexGuard/1.0";
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH =
+  "/api/lingosentinel/translate";
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_HEALTH_PATH =
+  "/api/lingosentinel/translate/index-health";
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED =
+  !/^(?:0|false|off|disabled)$/i.test(
+    String(process.env.LINGOSENTINEL_INDEX_TRANSLATE_GUARD_ENABLED || "true").trim()
+  );
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_TIMEOUT_MS =
+  clampNumberEnv("LINGOSENTINEL_INDEX_TRANSLATE_TIMEOUT_MS", 15000, 1500, 90000);
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_RATE_PER_MINUTE =
+  clampNumberEnv("LINGOSENTINEL_INDEX_TRANSLATE_RATE_PER_MINUTE", 60, 10, 600);
+
+const lingoSentinelIndexTranslateRate = new Map();
+let lingoSentinelIndexTranslateAdapterCache = null;
+let lingoSentinelIndexTranslateLastError = "";
+let lingoSentinelIndexTranslateLastSuccessAt = 0;
+
+function lingoSentinelIndexTranslateText(value, max = 4000) {
+  return String(value == null ? "" : value)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function lingoSentinelIndexTranslateLanguage(value, fallback = "") {
+  const raw = lingoSentinelIndexTranslateText(value, 24).toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "auto" || raw === "detect" || raw === "unknown") return "auto";
+  const match = raw.match(/^[a-z]{2,3}(?:[-_][a-z]{2,4})?/i);
+  return match ? match[0].split(/[-_]/)[0].toLowerCase() : fallback;
+}
+
+function lingoSentinelIndexTranslateFirstText(...values) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const text = lingoSentinelIndexTranslateText(value, 6000);
+    if (text) return text;
+  }
+  return "";
+}
+
+function lingoSentinelIndexTranslateExtract(result) {
+  if (typeof result === "string") {
+    return lingoSentinelIndexTranslateText(result, 6000);
+  }
+
+  const out = result && typeof result === "object" && !Array.isArray(result)
+    ? result
+    : {};
+  const payload = out.payload && typeof out.payload === "object" && !Array.isArray(out.payload)
+    ? out.payload
+    : {};
+  const message = out.message && typeof out.message === "object" && !Array.isArray(out.message)
+    ? out.message
+    : {};
+  const finalEnvelope =
+    out.finalEnvelope && typeof out.finalEnvelope === "object" && !Array.isArray(out.finalEnvelope)
+      ? out.finalEnvelope
+      : {};
+  const translated =
+    out.translation && typeof out.translation === "object" && !Array.isArray(out.translation)
+      ? out.translation
+      : {};
+
+  return lingoSentinelIndexTranslateFirstText(
+    out.translatedText,
+    out.targetText,
+    out.translated,
+    out.translation,
+    out.text,
+    out.reply,
+    out.final,
+    message.translatedText,
+    message.targetText,
+    message.translation,
+    payload.translatedText,
+    payload.targetText,
+    payload.translation,
+    payload.text,
+    payload.reply,
+    translated.translatedText,
+    translated.targetText,
+    translated.text,
+    finalEnvelope.translatedText,
+    finalEnvelope.text,
+    finalEnvelope.reply
+  );
+}
+
+function lingoSentinelIndexTranslateResolveAdapter() {
+  if (
+    lingoSentinelIndexTranslateAdapterCache &&
+    lingoSentinelIndexTranslateAdapterCache.mod
+  ) {
+    return lingoSentinelIndexTranslateAdapterCache;
+  }
+
+  const candidates = [
+    "./Data/marion/runtime/UniversalTranslatorAdapter",
+    "./Data/marion/runtime/UniversalTranslatorAdapter.js",
+    "./UniversalTranslatorAdapter",
+    "./UniversalTranslatorAdapter.js",
+    "./utils/UniversalTranslatorAdapter",
+    "./utils/UniversalTranslatorAdapter.js",
+    "./Utils/UniversalTranslatorAdapter",
+    "./Utils/UniversalTranslatorAdapter.js"
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const loaded = require(candidate);
+      const mod =
+        loaded && typeof loaded === "object" && loaded.default
+          ? loaded.default
+          : loaded;
+
+      if (
+        typeof mod === "function" ||
+        (
+          mod &&
+          typeof mod === "object" &&
+          (
+            typeof mod.translateText === "function" ||
+            typeof mod.translate === "function" ||
+            typeof mod.applyUniversalTranslation === "function"
+          )
+        )
+      ) {
+        lingoSentinelIndexTranslateAdapterCache = {
+          mod,
+          candidate,
+          method:
+            typeof mod === "function"
+              ? "function"
+              : typeof mod.translateText === "function"
+                ? "translateText"
+                : typeof mod.translate === "function"
+                  ? "translate"
+                  : "applyUniversalTranslation"
+        };
+        return lingoSentinelIndexTranslateAdapterCache;
+      }
+    } catch (_) {}
+  }
+
+  return { mod: null, candidate: "", method: "" };
+}
+
+function lingoSentinelIndexTranslateRateAllowed(req) {
+  const nowMs = Date.now();
+  const ip = lingoSentinelIndexTranslateText(
+    (req && (req.ip || (req.headers && req.headers["x-forwarded-for"]))) || "unknown",
+    120
+  ) || "unknown";
+  const key = ip.split(",")[0].trim();
+  const current = lingoSentinelIndexTranslateRate.get(key);
+
+  if (!current || nowMs >= current.resetAt) {
+    lingoSentinelIndexTranslateRate.set(key, {
+      count: 1,
+      resetAt: nowMs + 60000
+    });
+    return { allowed: true, resetAt: nowMs + 60000 };
+  }
+
+  if (current.count >= LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_RATE_PER_MINUTE) {
+    return { allowed: false, resetAt: current.resetAt };
+  }
+
+  current.count += 1;
+
+  if (lingoSentinelIndexTranslateRate.size > 2000) {
+    for (const [mapKey, item] of lingoSentinelIndexTranslateRate) {
+      if (!item || nowMs >= item.resetAt) {
+        lingoSentinelIndexTranslateRate.delete(mapKey);
+      }
+      if (lingoSentinelIndexTranslateRate.size <= 1500) break;
+    }
+  }
+
+  return { allowed: true, resetAt: current.resetAt };
+}
+
+async function lingoSentinelIndexTranslateInvoke(adapter, text, options) {
+  const mod = adapter && adapter.mod;
+  if (!mod) return null;
+
+  const translationOptions = {
+    sourceLanguage: options.sourceLanguage,
+    targetLanguage: options.targetLanguage,
+    domain: "translation",
+    context: "lingosentinel-public-translate",
+    cultureContext: options.cultureContext,
+    protectedTerms: Array.isArray(options.protectedTerms)
+      ? options.protectedTerms.slice(0, 40)
+      : []
+  };
+
+  let work;
+
+  if (typeof mod === "function") {
+    work = Promise.resolve(mod(text, translationOptions));
+  } else if (typeof mod.translateText === "function") {
+    work = Promise.resolve(mod.translateText(text, translationOptions));
+  } else if (typeof mod.translate === "function") {
+    work = Promise.resolve(mod.translate(text, translationOptions));
+  } else if (typeof mod.applyUniversalTranslation === "function") {
+    work = Promise.resolve(
+      mod.applyUniversalTranslation(
+        {
+          reply: text,
+          text,
+          final: text,
+          finalEnvelope: {
+            reply: text,
+            text,
+            displayReply: text,
+            final: true,
+            marionFinal: false,
+            authority: "lingosentinel-public-translate"
+          }
+        },
+        translationOptions
+      )
+    );
+  } else {
+    return null;
+  }
+
+  let timer = null;
+  try {
+    return await Promise.race([
+      work,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const err = new Error("lingosentinel_index_translate_timeout");
+          err.code = "ETIMEDOUT";
+          reject(err);
+        }, LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+app.get(LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_HEALTH_PATH, (req, res) => {
+  applyLingoSentinelPublicCors(req, res);
+  res.setHeader("Cache-Control", "no-store");
+
+  const origin = String((req.headers && req.headers.origin) || "").trim();
+  if (origin && !lingoSentinelPublicCorsOriginAllowed(origin)) {
+    return res.status(403).json({
+      ok: false,
+      error: "origin_not_allowed",
+      service: "lingosentinel-public-translate-index-guard",
+      version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+    });
+  }
+
+  const adapter = lingoSentinelIndexTranslateResolveAdapter();
+
+  return res.status(200).json({
+    ok: true,
+    service: "lingosentinel-public-translate-index-guard",
+    version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+    enabled: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED,
+    routeMounted: true,
+    route: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH,
+    adapterReady: !!adapter.mod,
+    adapterCandidate: adapter.candidate || "",
+    adapterMethod: adapter.method || "",
+    modularFallbackPreserved: true,
+    marionFinalAuthorityClaimed: false,
+    lastSuccessAt: lingoSentinelIndexTranslateLastSuccessAt || 0,
+    lastError: lingoSentinelIndexTranslateLastError || "",
+    diagnosticsRedacted: true,
+    t: Date.now()
+  });
+});
+
+app.post(
+  LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH,
+  async (req, res, next) => {
+    if (!LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED) {
+      return next();
+    }
+
+    applyLingoSentinelPublicCors(req, res);
+    res.setHeader("Cache-Control", "no-store");
+
+    const origin = String((req.headers && req.headers.origin) || "").trim();
+    if (origin && !lingoSentinelPublicCorsOriginAllowed(origin)) {
+      return res.status(403).json({
+        ok: false,
+        error: "origin_not_allowed",
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    const rate = lingoSentinelIndexTranslateRateAllowed(req);
+    if (!rate.allowed) {
+      return res.status(429).json({
+        ok: false,
+        error: "translation_rate_limited",
+        retryAfterMs: Math.max(0, rate.resetAt - Date.now()),
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    const body =
+      req.body && typeof req.body === "object" && !Array.isArray(req.body)
+        ? req.body
+        : {};
+
+    const text = lingoSentinelIndexTranslateText(
+      body.text ||
+      body.message ||
+      body.query ||
+      body.sourceText,
+      4000
+    );
+
+    const sourceLanguage = lingoSentinelIndexTranslateLanguage(
+      body.sourceLanguage ||
+      body.sourceLang ||
+      body.source ||
+      "auto",
+      "auto"
+    );
+
+    const targetLanguage = lingoSentinelIndexTranslateLanguage(
+      body.targetLanguage ||
+      body.targetLang ||
+      body.target ||
+      "",
+      ""
+    );
+
+    const cultureContext = lingoSentinelIndexTranslateText(
+      body.cultureContext ||
+      body.culture ||
+      "general",
+      120
+    ) || "general";
+
+    const requestId = lingoSentinelIndexTranslateText(
+      body.requestId ||
+      body.messageId ||
+      req.headers["x-request-id"] ||
+      req.sbTraceId ||
+      `ls-${Date.now().toString(36)}`,
+      128
+    );
+
+    if (!text) {
+      return res.status(400).json({
+        ok: false,
+        error: "text_required",
+        requestId,
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    if (!targetLanguage || targetLanguage === "auto") {
+      return res.status(400).json({
+        ok: false,
+        error: "target_language_required",
+        requestId,
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    if (sourceLanguage !== "auto" && sourceLanguage === targetLanguage) {
+      lingoSentinelIndexTranslateLastSuccessAt = Date.now();
+      lingoSentinelIndexTranslateLastError = "";
+
+      return res.status(200).json({
+        ok: true,
+        translatedText: text,
+        translation: text,
+        targetText: text,
+        sourceLanguage,
+        targetLanguage,
+        cultureContext,
+        requestId,
+        applied: false,
+        identityTranslation: true,
+        provider: "identity",
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+        marionFinal: false,
+        message: {
+          translatedText: text,
+          sourceLanguage,
+          targetLanguage
+        }
+      });
+    }
+
+    const adapter = lingoSentinelIndexTranslateResolveAdapter();
+    if (!adapter.mod) {
+      lingoSentinelIndexTranslateLastError = "translation_adapter_unavailable";
+      return next();
+    }
+
+    try {
+      const result = await lingoSentinelIndexTranslateInvoke(
+        adapter,
+        text,
+        {
+          sourceLanguage,
+          targetLanguage,
+          cultureContext,
+          protectedTerms: Array.isArray(body.protectedTerms)
+            ? body.protectedTerms
+            : []
+        }
+      );
+
+      const translatedText = lingoSentinelIndexTranslateExtract(result);
+
+      if (!translatedText) {
+        lingoSentinelIndexTranslateLastError = "translation_result_empty";
+        return next();
+      }
+
+      lingoSentinelIndexTranslateLastSuccessAt = Date.now();
+      lingoSentinelIndexTranslateLastError = "";
+
+      return res.status(200).json({
+        ok: true,
+        translatedText,
+        translation: translatedText,
+        targetText: translatedText,
+        sourceLanguage,
+        targetLanguage,
+        cultureContext,
+        requestId,
+        applied: translatedText !== text,
+        provider: adapter.candidate || "UniversalTranslatorAdapter",
+        adapterMethod: adapter.method || "",
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+        modularFallbackPreserved: true,
+        marionFinal: false,
+        message: {
+          translatedText,
+          sourceLanguage,
+          targetLanguage
+        }
+      });
+    } catch (error) {
+      lingoSentinelIndexTranslateLastError =
+        lingoSentinelIndexTranslateText(
+          (error && (error.code || error.message || error)) ||
+          "translation_adapter_failed",
+          160
+        ) || "translation_adapter_failed";
+
+      return next();
+    }
+  }
+);
+
+app.locals.lingoSentinelPublicTranslateIndexGuard = Object.freeze({
+  mounted: true,
+  enabled: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED,
+  route: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH,
+  healthRoute: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_HEALTH_PATH,
+  version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+  modularFallbackPreserved: true,
+  marionFinalAuthorityClaimed: false
+});
+/* LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_V1_END */
+
 /* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_START
  * Canonical Nyx voice routes are mounted directly on the root Express app.
  * The existing index-owned /api/tts and /tts routes remain authoritative;
