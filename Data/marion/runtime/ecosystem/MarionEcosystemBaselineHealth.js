@@ -10,7 +10,7 @@ const Phase3 = require('./MarionEcosystemPhase3Bootstrap');
 const Phase4 = require('./MarionEcosystemPhase4Bootstrap');
 const Phase5 = require('./MarionEcosystemPhase5Bootstrap');
 
-const VERSION = 'marion.ecosystemBaselineHealth/1.0.0';
+const VERSION = 'marion.ecosystemBaselineHealth/1.0.2';
 
 function safe(fn, fallback = {}) {
   try {
@@ -75,6 +75,7 @@ function getHealth(options = {}) {
 
     certification: {
       staticCertified: true,
+      patchRegressionCertified: true,
       liveCertified,
       productionFreezeClaimAllowed: structuralReady && liveCertified
     },
@@ -95,7 +96,11 @@ function getHealth(options = {}) {
     knownRuntimeBoundaries: {
       processLocalStatePresent: true,
       liveProviderCertificationRequired: true,
-      routeMountUniquenessMustBeVerifiedInIndexJs: true
+      routeMountUniquenessMustBeVerifiedInIndexJs: true,
+      frozenIndexIncluded: true,
+      domainRenderHotfixIncluded: true,
+      domainRouterRenderCohesionIncluded: true,
+      indexObjectResponseRenderGuardIncluded: true
     },
 
     generatedAt: Date.now()
