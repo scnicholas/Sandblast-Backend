@@ -15271,11 +15271,39 @@ function buildLoggingSpine(trace) {
   };
 }
 
+const MARION_DOMAIN_RESPONSE_OBJECT_RENDER_GUARD_VERSION =
+  "nyx.marion.domainResponseObjectRenderGuard/1.0";
+
+function scalarMarionReplyCandidate(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function nestedMarionResponseReplyCandidate(value) {
+  const responseObject = isObj(value) ? value : {};
+  const responsePayload = isObj(responseObject.payload) ? responseObject.payload : {};
+
+  return (
+    responseObject.reply ||
+    responseObject.visibleReply ||
+    responseObject.displayReply ||
+    responseObject.answer ||
+    responseObject.text ||
+    responseObject.message ||
+    responseObject.output ||
+    responsePayload.reply ||
+    responsePayload.answer ||
+    responsePayload.text ||
+    responsePayload.message ||
+    ""
+  );
+}
+
 function getMarionAuthorityReply(marion) {
   if (!isObj(marion)) return "";
   const finalEnvelope = isObj(marion.finalEnvelope) ? marion.finalEnvelope : {};
   const payload = isObj(marion.payload) ? marion.payload : {};
   const packet = isObj(marion.packet) ? marion.packet : {};
+  const nestedResponseReply = nestedMarionResponseReplyCandidate(marion.response);
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
   const contract = isObj(marion.contract) ? marion.contract : {};
   const result = isObj(marion.result) ? marion.result : {};
@@ -15288,7 +15316,7 @@ function getMarionAuthorityReply(marion) {
     finalEnvelope.text ||
     finalEnvelope.displayReply ||
     finalEnvelope.spokenText ||
-    marion.response ||
+    scalarMarionReplyCandidate(marion.response) ||
     marion.reply ||
     marion.text ||
     marion.output ||
@@ -15336,6 +15364,7 @@ function getMarionAuthorityReply(marion) {
     resultSynthesis.text ||
     resultSynthesis.output ||
     resultSynthesis.answer ||
+    nestedResponseReply ||
     ""
   );
   return isConversationDiagnosticFallbackReply(reply) ? "" : reply;
@@ -24363,6 +24392,9 @@ module.exports = {
   gracefulShutdown,
   PORT,
   INDEX_VERSION,
+  MARION_DOMAIN_RESPONSE_OBJECT_RENDER_GUARD_VERSION,
+  scalarMarionReplyCandidate,
+  nestedMarionResponseReplyCandidate,
   SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_VERSION,
   SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS,
   mountSandblastEcosystemBaselineRouteOnce,
