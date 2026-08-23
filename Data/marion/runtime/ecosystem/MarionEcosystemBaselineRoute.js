@@ -6,7 +6,7 @@ const Health = require('./MarionEcosystemBaselineHealth');
 const Manifest = require('./MarionEcosystemBaselineManifest');
 
 const router = express.Router();
-const VERSION = 'marion.ecosystemBaselineRoute/1.0.0';
+const VERSION = 'marion.ecosystemBaselineRoute/1.0.2';
 
 function harden(res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
