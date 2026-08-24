@@ -2709,7 +2709,7 @@ function classifyRound3CognitiveResilience(prompt=""){
   if(!api||api.__marionNyxSinglePassPublicKnowledgeR3)return;
   const V="marionBridge v8.2.0 NYX-SINGLE-PASS-PUBLIC-KNOWLEDGE-R3-LIVE";
   const prior=marionOwnCallable(api,"processWithMarion")||processWithMarion;
-  const FAST_BUDGET=2500;
+  const FAST_BUDGET=4500;
   function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
   function T(v){return marionNonThrowingClean(v)}
   function prompt(i){const s=O(i),b=O(s.body),p=O(s.payload),t=O(s.turn);return T(s.rawUserText||s.originalUserText||s.userText||s.userQuery||s.prompt||s.query||s.inputText||s.message||s.text||b.rawUserText||b.userText||b.message||b.text||p.rawUserText||p.userText||p.message||p.text||t.userText||t.message||t.text)}
@@ -2734,3 +2734,38 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_NYX_SINGLE_PASS_PUBLIC_KNOWLEDGE_R3_END */
 
+
+
+/* MARION_NYX_PUBLIC_FINAL_TRANSPORT_AUTHORITY_R4_START
+ * Terminal response-authority projection for already-verified public Marion
+ * knowledge finals. Prevents compatibility transport helpers from re-selecting
+ * stale Nyx identity/presence aliases after the fast Marion path succeeds.
+ */
+(function marionNyxPublicFinalTransportAuthorityR4(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNyxPublicFinalTransportAuthorityR4)return;
+  const V="marionBridge v8.3.0 NYX-PUBLIC-FINAL-TRANSPORT-AUTHORITY-R4";
+  const publicNames=["processWithMarion","route","maybeResolve","ask","handle","default"];
+  const transportNames=["safeResponse","buildResponse","createResponse","finalizeTurn"];
+  const priorPublic={},priorTransport={};
+  for(const n of publicNames)if(typeof api[n]==="function")priorPublic[n]=api[n];
+  for(const n of transportNames)if(typeof api[n]==="function")priorTransport[n]=api[n];
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionNonThrowingClean(v)}
+  function priv(x){const o=O(x),b=O(o.body),p=O(o.payload),m=O(o.meta),c=O(o.privateRuntimeContext);return[o,b,p,m].some(v=>v.privateAdminConversation===true||v.marionAdminConversation===true||v.directMarionAdminInterface===true||v.authenticatedOperator===true)||/^(?:owner|private_admin)$/i.test(T(o.audience||o.scope))||!!c.version}
+  function bad(v){const t=T(v).toLowerCase();if(!t)return true;return /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac|that response did not complete cleanly|route is unavailable|couldn[’']?t complete that answer cleanly)\b/i.test(t)}
+  function fast(x){const o=O(x),m=O(o.meta),f=O(o.finalEnvelope);return !priv(o)&&(o.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true||f.singlePassPublicKnowledge===true||T(o.marionRoute)==="marion-primary")&&(o.marionFinal===true||f.marionFinal===true)}
+  function pick(x){const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope);const list=[o.authoritativeReply,f.authoritativeReply,f.finalReply,f.reply,p.authoritativeReply,p.finalReply,p.reply,r.authoritativeReply,rf.authoritativeReply,rf.finalReply,rf.reply,o.finalReply,o.directReply,o.visibleReply,o.displayReply,o.publicReply,o.reply,o.answer,o.output,o.response,o.text,o.message];for(const v of list){const t=T(v);if(t&&!bad(t))return t}return""}
+  function project(value){const x=O(value);if(!fast(x))return value;const reply=pick(x);if(!reply)return value;const payload={...O(x.payload),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.payload).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true};const finalEnvelope={...O(x.finalEnvelope),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.finalEnvelope).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope",singlePassPublicKnowledge:true};return{...x,ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),replyAuthority:"marionFinalEnvelope",semanticAuthority:"marion",displayAuthority:"nyx",publicAgent:"Nyx",surfaceAgent:"Nyx",payload,finalEnvelope,meta:{...O(x.meta),singlePassPublicKnowledge:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicFinalTransportAuthorityVersion:V,noUserFacingDiagnostics:true},diagnostics:{...O(x.diagnostics),publicFinalTransportAuthorityVersion:V,authoritativeReplyProjected:true,noUserFacingDiagnostics:true}}}
+  function wrapPublic(fn){return async function(){const v=await fn.apply(this,arguments);return project(v)}}
+  for(const n of publicNames)if(priorPublic[n])api[n]=wrapPublic(priorPublic[n]);
+  function wrapTransport(fn){return function(value){const seeded=project(value),v=fn.apply(this,[seeded]);const done=x=>project(x);return v&&typeof v.then==="function"?v.then(done):done(v)}}
+  for(const n of transportNames)if(priorTransport[n])api[n]=wrapTransport(priorTransport[n]);
+  const canonical=api.processWithMarion;
+  const previousFactory=typeof api.createMarionBridge==="function"?api.createMarionBridge:null;
+  api.createMarionBridge=function(){let base={};try{base=previousFactory?previousFactory():{}}catch(_){base={}}return{...O(base),version:V,endpoint:api.CANONICAL_ENDPOINT||CANONICAL_ENDPOINT,processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical,safeResponse:api.safeResponse,buildResponse:api.buildResponse,createResponse:api.createResponse,finalizeTurn:api.finalizeTurn}};
+  api.MARION_NYX_PUBLIC_FINAL_TRANSPORT_AUTHORITY_VERSION=V;
+  api.__marionNyxPublicFinalTransportAuthorityR4=true;
+})();
+/* MARION_NYX_PUBLIC_FINAL_TRANSPORT_AUTHORITY_R4_END */
