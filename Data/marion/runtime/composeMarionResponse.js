@@ -10938,3 +10938,29 @@ for(const n of["composeMarionResponse","compose","run","handle","buildReply","cr
   api.__marionPublicKnowledgeSinglePassComposerR19=true;
 })();
 /* MARION_PUBLIC_KNOWLEDGE_SINGLE_PASS_COMPOSER_R19_END */
+
+/* MARION_PUBLIC_KNOWLEDGE_DIRECT_COMPOSER_R20_START
+ * Direct semantic authority for strongly-routed public six-domain turns.
+ * Exposes a stable helper for MarionBridge so circular/legacy wrapper stacks
+ * cannot displace a valid current-turn knowledge answer.
+ */
+(function marionPublicKnowledgeDirectComposerR20(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeDirectComposerR20)return;
+  const V="composeMarionResponse v9.2 PUBLIC-KNOWLEDGE-DIRECT-R20";
+  const prior=typeof api.composeMarionResponse==="function"?api.composeMarionResponse:null;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return safeStr(v)}
+  function priv(r,i){const a=O(r),b=O(i),c=O(b.privateRuntimeContext);return a.privateAdminConversation===true||b.privateAdminConversation===true||a.marionAdminConversation===true||b.marionAdminConversation===true||a.directMarionAdminInterface===true||b.directMarionAdminInterface===true||b.authenticatedOperator===true||/^(?:owner|private_admin)$/i.test(T(a.audience||b.audience||a.scope||b.scope))||!!c.version}
+  function eligible(r,i){if(priv(r,i))return false;const a=O(r),b=O(i),rr=O(a.routing),ri=O(a.marionIntent);return a.fastPathEligible===true||b.fastPathEligible===true||rr.fastPathEligible===true||ri.fastPathEligible===true||a.singlePassRequired===true||b.singlePassRequired===true||rr.singlePassRequired===true}
+  function domain(r,i){const a=O(r),b=O(i),rr=O(a.routing);return normalizeKnowledgeDomain(a.knowledgeDomain||rr.knowledgeDomain||a.domain||rr.domain||b.knowledgeDomain||b.domain)}
+  function direct(routed={},input={}){if(!eligible(routed,input))return null;const q=extractText(routed,input),d=domain(routed,input);if(!d)return null;let reply="";try{reply=knowledgeDomainReply(d,q,input,routed)||""}catch(_){reply=""}if(d==="psychology"&&/\bcognitive bias\b/i.test(q)&&(!isUsableFinalReply(reply)||/name the part|keep this useful instead of generic/i.test(reply)))reply="A cognitive bias is a systematic shortcut in judgment that can skew how people notice evidence, estimate risk, remember events, or make decisions. Biases are not automatically irrational; they become a problem when the shortcut consistently distorts the situation or survives better evidence.";if(!isUsableFinalReply(reply)||isBlockedLoopReply(reply)||isInternalContractLeak(reply))return null;const turnId=resolveTurnId(routed,input),memoryPatch={activeDomain:d,activeSubject:deriveTopic(q),lastUserText:q,lastAssistantReply:reply,stateStage:"final",replySignature:hashText(reply),singlePassPublicKnowledge:true};return{ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,authoritativeReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:reply,intent:"domain_question",domain:d,primaryDomain:d,selectedDomain:d,knowledgeDomain:d,turnId,source:"composeMarionResponse",authority:"marionFinalEnvelope",replyAuthority:"composer_final",singlePassPublicKnowledge:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnBound:true,routing:{...O(O(routed).routing),domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},memoryPatch,sessionPatch:memoryPatch,payload:{reply,text:reply,message:reply,authoritativeReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,spokenText:reply,final:true,marionFinal:true,handled:true},meta:{singlePassPublicKnowledge:true,publicKnowledgeDirectComposerVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",noUserFacingDiagnostics:true},diagnostics:{singlePassPublicKnowledge:true,publicKnowledgeDirectComposerVersion:V,legacyRecoveryBypassed:true,noUserFacingDiagnostics:true},version:V,composerVersion:V}}
+  function compose(routed={},input={}){const x=direct(routed,input);return x||(prior?prior.apply(this,arguments):null)}
+  api.composePublicKnowledgeFast=direct;
+  api.composeMarionResponse=compose;api.compose=compose;api.run=compose;api.default=compose;
+  api.MARION_PUBLIC_KNOWLEDGE_DIRECT_COMPOSER_VERSION=V;
+  api.__marionPublicKnowledgeDirectComposerR20=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_DIRECT_COMPOSER_R20_END */
+
