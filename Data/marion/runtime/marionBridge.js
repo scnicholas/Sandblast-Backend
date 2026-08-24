@@ -2650,3 +2650,47 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.__marionNyxBridgeSemanticAttestationR1=true;
 })();
 /* MARION_NYX_BRIDGE_SEMANTIC_ATTESTATION_R1_END */
+
+/* MARION_NYX_SINGLE_PASS_PUBLIC_KNOWLEDGE_R2_START
+ * Terminal public knowledge path:
+ * one route -> one Marion composition -> one final envelope -> Nyx.
+ * No browser-style retry, no bridge loop-recovery composition, no generic
+ * identity certification. Private/admin traffic remains on the prior path.
+ */
+(function marionNyxSinglePassPublicKnowledgeR2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNyxSinglePassPublicKnowledgeR2)return;
+  const V="marionBridge v8.1.0 NYX-SINGLE-PASS-PUBLIC-KNOWLEDGE-R2";
+  const prior=marionOwnCallable(api,"processWithMarion")||processWithMarion;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionNonThrowingClean(v)}
+  function priv(i){const s=O(i),c=O(s.privateRuntimeContext),b=O(s.body),p=O(s.payload);return s.privateAdminConversation===true||s.marionAdminConversation===true||s.directMarionAdminInterface===true||s.authenticatedOperator===true||b.privateAdminConversation===true||p.privateAdminConversation===true||T(s.audience).toLowerCase()==="owner"||T(s.scope).toLowerCase()==="private_admin"||!!c.version}
+  function generic(v){const t=T(v).toLowerCase();return !t||/^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac)\b/i.test(t)}
+  function failure(input,reason,timing={}){const n=normalizeInbound(input),x=buildErrorResult(reason,{singlePassPublicKnowledge:true,marionTiming:timing},n);x.statusCode=502;x.marionRoute="marion-single-pass-rejected";x.marionAttestation={verified:false,route:"marion-single-pass-rejected",authority:"none",currentTurnBound:true,publicAgent:"Nyx",backendAgentRedacted:true,version:V};x.meta={...O(x.meta),singlePassPublicKnowledge:true,marionTiming:timing,semanticAuthority:"none",displayAuthority:"nyx",noUserFacingDiagnostics:true};return x}
+  async function execute(input){
+    const t0=Date.now();resolveRuntimeDependencies(false);
+    const routeBuilder=marionOwnCallable(intentRouterMod,"buildPublicKnowledgeFastRoute"),routeFn=routeBuilder||marionOwnCallable(intentRouterMod,"routeMarionIntent")||routeMarionIntent,composeFn=marionOwnCallable(composerMod,"composeMarionResponse")||marionOwnCallable(composerMod,"run")||marionOwnCallable(composerMod,"default")||composeMarionResponse,finalFn=marionOwnCallable(finalEnvelopeMod,"createMarionFinalEnvelope");
+    if(!routeFn||!composeFn||!finalFn)return null;
+    const routed=await Promise.resolve(routeFn(input));if(!O(routed).fastPathEligible&&!O(O(routed).routing).fastPathEligible)return null;
+    const t1=Date.now(),normalized=normalizeInbound({...O(input),text:T(O(routed).effectivePrompt||O(routed).text||O(input).text),message:T(O(routed).effectivePrompt||O(routed).message||O(input).message)});if(!normalized.ok)return failure(input,"single_pass_input_invalid",{routeMs:t1-t0,totalMs:Date.now()-t0});
+    const composeInput={...normalizeComposeInput(normalized,routed,{}),singlePassPublicKnowledge:true,singlePassRequired:true,skipLoopRecovery:true,fastPathEligible:true,publicSurfaceOnly:true,audience:"public",surfaceAgent:"nyx"};
+    const domain=T(O(routed.routing).knowledgeDomain||O(routed.routing).domain||O(routed).knowledgeDomain||O(routed).domain),intent=T(O(routed.routing).intent||O(routed).intent||"domain_question");
+    let contract;try{contract=await Promise.resolve(composeFn({...O(routed),primaryDomain:domain,domain,knowledgeDomain:domain,intent,routing:{...O(routed.routing),domain,knowledgeDomain:domain,intent,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},marionIntent:{...O(routed.marionIntent),intent,domain,knowledgeDomain:domain,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true}},composeInput))}catch(_){contract=null}
+    const t2=Date.now(),reply=marionPrivateReplyText(contract);if(!contract||generic(reply))return failure(input,"single_pass_composer_reply_invalid",{routeMs:t1-t0,composeMs:t2-t1,totalMs:t2-t0});
+    const timing={routeMs:t1-t0,composeMs:t2-t1,envelopeMs:0,totalMs:0};
+    let final;try{final=await Promise.resolve(finalFn({...O(contract),reply,authoritativeReply:reply,displayReply:reply,prompt:normalized.userQuery,userText:normalized.userQuery,rawUserText:normalized.userQuery,query:normalized.userQuery,inputText:normalized.userQuery,sessionId:normalized.sessionId,conversationId:normalized.sessionId,turnId:normalized.turnId,intent,domain,knowledgeDomain:domain,routing:{...O(routed.routing),domain,knowledgeDomain:domain,intent,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},marionIntent:O(routed.marionIntent),sixDomainCoverage:O(routed).sixDomainCoverage||O(routed.routing).sixDomainCoverage,singlePassPublicKnowledge:true,singlePassRequired:true,skipLoopRecovery:true,publicSurfaceOnly:true,audience:"public",surfaceAgent:"nyx",meta:{...O(contract).meta,bridgeVersion:V,composerVersion:T(O(contract).version||O(contract).composerVersion),singlePassPublicKnowledge:true,marionTiming:timing,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",noUserFacingDiagnostics:true},diagnostics:{...O(contract).diagnostics,singlePassPublicKnowledge:true,noUserFacingDiagnostics:true}}))}catch(_){final=null}
+    const t3=Date.now();timing.envelopeMs=t3-t2;timing.totalMs=t3-t0;const out=O(final),fr=marionPrivateReplyText(out);if(out.marionFinal!==true||generic(fr))return failure(input,"single_pass_final_invalid",timing);
+    out.marionRoute="marion-primary";out.publicAgent="Nyx";out.surfaceAgent="Nyx";out.marionAttestation={verified:true,route:"marion-primary",authority:"marionFinalEnvelope",currentTurnBound:true,publicAgent:"Nyx",backendAgentRedacted:true,version:V};out.meta={...O(out.meta),bridgeVersion:V,singlePassPublicKnowledge:true,marionTiming:timing,marionRoute:"marion-primary",marionFinal:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicAgent:"Nyx",surfaceAgent:"Nyx",backendAgentRedacted:true,noUserFacingDiagnostics:true};out.diagnostics={...O(out.diagnostics),singlePassPublicKnowledge:true,marionTiming:timing,noUserFacingDiagnostics:true};return out
+  }
+  async function canonical(input){if(priv(input))return prior.apply(this,arguments);resolveRuntimeDependencies(false);const builder=marionOwnCallable(intentRouterMod,"buildPublicKnowledgeFastRoute");let candidate=null;try{candidate=builder?builder(input):null}catch(_){candidate=null}if(candidate){const out=await execute(input);if(out)return out}return prior.apply(this,arguments)}
+  try{Object.keys(prior).forEach(k=>canonical[k]=prior[k])}catch(_){}
+  canonical.__marionNyxSinglePassPublicKnowledgeR2=true;
+  for(const n of["processWithMarion","route","maybeResolve","ask","handle","default"])api[n]=canonical;
+  const prevFactory=marionOwnCallable(api,"createMarionBridge");
+  api.createMarionBridge=function(){let b={};try{b=prevFactory?prevFactory():{}}catch(_){b={}}return{...O(b),version:V,endpoint:api.CANONICAL_ENDPOINT||CANONICAL_ENDPOINT,processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical}};
+  api.VERSION=V+" + "+T(api.VERSION||VERSION);
+  api.MARION_NYX_SINGLE_PASS_PUBLIC_KNOWLEDGE_VERSION=V;
+  api.__marionNyxSinglePassPublicKnowledgeR2=true;
+})();
+/* MARION_NYX_SINGLE_PASS_PUBLIC_KNOWLEDGE_R2_END */
