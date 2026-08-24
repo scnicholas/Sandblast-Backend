@@ -10964,3 +10964,32 @@ for(const n of["composeMarionResponse","compose","run","handle","buildReply","cr
 })();
 /* MARION_PUBLIC_KNOWLEDGE_DIRECT_COMPOSER_R20_END */
 
+
+
+/* MARION_PUBLIC_KNOWLEDGE_DETERMINISTIC_COMPOSER_R21_START
+ * Terminal deterministic concept authority for the narrow public fast route.
+ * Uses the established six-domain answer functions before broader registry /
+ * continuity machinery, preserving nuance while avoiding unnecessary latency.
+ */
+(function marionPublicKnowledgeDeterministicComposerR21(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeDeterministicComposerR21)return;
+  const V="composeMarionResponse v9.3 PUBLIC-KNOWLEDGE-DETERMINISTIC-R21";
+  const priorFast=typeof api.composePublicKnowledgeFast==="function"?api.composePublicKnowledgeFast:null;
+  const priorCompose=typeof api.composeMarionResponse==="function"?api.composeMarionResponse:null;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return safeStr(v)}
+  function priv(r,i){const a=O(r),b=O(i),c=O(b.privateRuntimeContext);return a.privateAdminConversation===true||b.privateAdminConversation===true||a.marionAdminConversation===true||b.marionAdminConversation===true||a.directMarionAdminInterface===true||b.directMarionAdminInterface===true||b.authenticatedOperator===true||/^(?:owner|private_admin)$/i.test(T(a.audience||b.audience||a.scope||b.scope))||!!c.version}
+  function eligible(r,i){if(priv(r,i))return false;const a=O(r),b=O(i),rr=O(a.routing),ri=O(a.marionIntent);return a.fastPathEligible===true||b.fastPathEligible===true||rr.fastPathEligible===true||ri.fastPathEligible===true||a.singlePassRequired===true||b.singlePassRequired===true||rr.singlePassRequired===true}
+  function domain(r,i){const a=O(r),b=O(i),rr=O(a.routing);return normalizeKnowledgeDomain(a.knowledgeDomain||rr.knowledgeDomain||a.domain||rr.domain||b.knowledgeDomain||b.domain)}
+  function specialized(d,q,input){try{if(d==="ai"&&typeof aiDomainAnswer==="function")return aiDomainAnswer(q);if(d==="cyber"&&typeof cyberDomainAnswer==="function")return cyberDomainAnswer(q);if(d==="law"&&typeof lawDomainAnswer==="function")return lawDomainAnswer(q);if(d==="finance"&&typeof financeDomainAnswer==="function")return financeDomainAnswer(q);if(d==="psychology"&&typeof psychologyDomainAnswer==="function")return psychologyDomainAnswer(q,input);if(d==="english"){const t=lower(q);if(/\bidiom\b/i.test(t))return "An idiom is a fixed or familiar expression whose meaning is not fully predictable from the literal meanings of its individual words. For example, “break a leg” means “good luck,” not a literal instruction to get injured.";if(/\bplain language\b/i.test(t))return "Plain language is communication designed so the intended audience can find, understand, and use the information easily. It favors familiar words, clear structure, direct sentences, and only as much detail as the reader needs.";}return""}catch(_){return""}}
+  function packet(routed,input,d,q,reply){const turnId=resolveTurnId(routed,input),memoryPatch={activeDomain:d,activeSubject:deriveTopic(q),lastUserText:q,lastAssistantReply:reply,stateStage:"final",replySignature:hashText(reply),singlePassPublicKnowledge:true};const finalEnvelope={ok:true,final:true,marionFinal:true,handled:true,canEmit:true,authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:reply,intent:"domain_question",domain:d,knowledgeDomain:d,turnId,currentTurnBound:true,singlePassPublicKnowledge:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"composer_final"};return{...finalEnvelope,primaryDomain:d,selectedDomain:d,source:"composeMarionResponse",authority:"marionFinalEnvelope",singlePassRequired:true,skipLoopRecovery:true,routing:{...O(O(routed).routing),domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},memoryPatch,sessionPatch:memoryPatch,payload:{...finalEnvelope},finalEnvelope,meta:{singlePassPublicKnowledge:true,publicKnowledgeDeterministicComposerVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",noUserFacingDiagnostics:true},diagnostics:{singlePassPublicKnowledge:true,publicKnowledgeDeterministicComposerVersion:V,legacyRecoveryBypassed:true,registryBypassEligible:true,noUserFacingDiagnostics:true},version:V,composerVersion:V}}
+  function fast(routed={},input={}){if(!eligible(routed,input))return null;const q=extractText(routed,input),d=domain(routed,input);if(!d||!q)return null;let reply=specialized(d,q,input);if(d==="psychology"&&/\bcognitive bias\b/i.test(q)&&(!reply||/name the part|keep this useful instead of generic|i hear you/i.test(reply)))reply="A cognitive bias is a systematic shortcut in judgment that can skew how people notice evidence, estimate risk, remember events, or make decisions. Biases are not automatically irrational; they become a problem when the shortcut consistently distorts the situation or survives better evidence.";if(!reply&&priorFast){try{const x=priorFast(routed,input);if(x&&typeof x.then!=="function")return x}catch(_){}}if(!reply)return null;if(!isUsableFinalReply(reply)||isBlockedLoopReply(reply)||isInternalContractLeak(reply))return null;return packet(routed,input,d,q,reply)}
+  function compose(routed={},input={}){const x=fast(routed,input);return x||(priorCompose?priorCompose.apply(this,arguments):null)}
+  api.composePublicKnowledgeFast=fast;
+  api.composeMarionResponse=compose;api.compose=compose;api.run=compose;api.default=compose;
+  api.MARION_PUBLIC_KNOWLEDGE_DETERMINISTIC_COMPOSER_VERSION=V;
+  api.__marionPublicKnowledgeDeterministicComposerR21=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_DETERMINISTIC_COMPOSER_R21_END */
