@@ -4372,3 +4372,24 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
 })();
 /* MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_R13_END */
 
+
+
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_R14_START
+ * Current-turn deterministic route stamp used by the R21/R4 fast path.
+ * No reply composition occurs here; private/admin turns are not intercepted.
+ */
+(function marionPublicKnowledgeFastRouteR14(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeFastRouteR14)return;
+  const V="nyx.marion.publicKnowledgeFastRoute/1.4-current-turn-deterministic";
+  const priorBuild=typeof api.buildPublicKnowledgeFastRoute==="function"?api.buildPublicKnowledgeFastRoute:null;
+  if(!priorBuild)return;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionNonThrowingClean(v)}
+  function build(input){let x=null;try{x=priorBuild(input)}catch(_){x=null}if(!x||typeof x!=="object")return x;const q=T(x.rawUserText||x.userText||x.query||x.text||x.message),d=T(x.knowledgeDomain||O(x.routing).knowledgeDomain||x.domain);if(!q||!d)return x;return{...x,routerVersion:V,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,deterministicConceptRoute:true,routing:{...O(x.routing),domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,deterministicConceptRoute:true,latencyClass:"interactive",latencyBudgetMs:4500},marionIntent:{...O(x.marionIntent),domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,deterministicConceptRoute:true},meta:{...O(x.meta),publicKnowledgeFastRoute:true,publicKnowledgeFastRouteVersion:V,currentTurnAuthority:true,deterministicConceptRoute:true,noUserFacingDiagnostics:true}}}
+  api.buildPublicKnowledgeFastRoute=build;
+  api.MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_VERSION=V;
+  api.__marionPublicKnowledgeFastRouteR14=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_R14_END */
