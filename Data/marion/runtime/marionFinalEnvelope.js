@@ -48,10 +48,15 @@ function marionExtractReplyText(result) {
     payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
     nestedResult.finalEnvelope && typeof nestedResult.finalEnvelope === "object" ? nestedResult.finalEnvelope : {};
   const candidates = [
-    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.authoritativeReply,
+    finalEnvelope.authoritativeReply,
+    payload.authoritativeReply,
+    nestedResult.authoritativeReply,
+    result.finalReply, result.directReply, result.visibleReply, result.displayReply,
     result.reply, result.answer, result.response, result.text, result.message,
     finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.answer, finalEnvelope.text,
-    payload.reply, payload.text, nestedResult.reply, nestedResult.text
+    payload.finalReply, payload.reply, payload.text,
+    nestedResult.finalReply, nestedResult.reply, nestedResult.text
   ];
   for (const candidate of candidates) {
     const text = marionSafeCleanText(candidate);
@@ -6446,3 +6451,119 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   api.__marionPublicKnowledgeFinalAliasHardlockR13=true;
 })();
 /* MARION_PUBLIC_KNOWLEDGE_FINAL_ALIAS_HARDLOCK_R13_END */
+
+
+/* MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_R14_START
+ * Terminal fail-closed finalization invariant.
+ * A packet cannot be MARION_FINAL_AUTHORITY unless a substantive semantic reply
+ * exists. Valid finals are synchronized across authoritativeReply, payload, and
+ * finalEnvelope; empty/weak finals are downgraded to a non-final retry contract.
+ */
+(function marionFinalEnvelopeNonemptyAuthorityInvariantR14(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionFinalEnvelopeNonemptyAuthorityInvariantR14)return;
+  const V="nyx.marion.finalEnvelopeNonemptyAuthorityInvariant/14.0";
+  const names=["createMarionFinalEnvelope","buildPublicKnowledgeFastEnvelope","createPublicKnowledgeFastEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  const prior={};for(const n of names)if(typeof api[n]==="function")prior[n]=api[n];
+
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function promptOf(v){
+    const x=O(v),p=O(x.payload),b=O(x.body),m=O(x.meta);
+    return T(x.rawUserText||x.originalUserText||x.userText||x.userQuery||x.prompt||x.query||x.inputText||x.message||
+      p.rawUserText||p.userText||p.userQuery||p.prompt||p.query||p.message||
+      b.rawUserText||b.userText||b.userQuery||b.prompt||b.query||b.message||
+      m.rawUserText||m.userText||m.userQuery||m.prompt||m.query||m.message);
+  }
+  function identityPrompt(v){
+    const t=T(v).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
+    return /^(?:who are you|what are you|what is your name|tell me who you are|who is nyx|who is nix|are you marion|is this marion)$/.test(t);
+  }
+  function bad(v,prompt){
+    const t=T(v),p=T(prompt);
+    if(!t||t.length<8)return true;
+    const nt=t.toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
+    const np=p.toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
+    if(np&&nt===np)return true;
+    if(!identityPrompt(prompt)&&/^(?:hi[,. ]+|hello[,. ]+|hey[,. ]+)?i['’]?m nyx\b.{0,180}\bpublic sandblast (?:assistant|guide)\b/i.test(t))return true;
+    return /\b(?:that route is unavailable|couldn[’']?t complete that answer cleanly|rephrase that once|i[’']?m following you|send the next target|give me the exact target|composer reply missing|final envelope missing|diagnostic packet|non-final|ai lane active|i[’']?ll assess goal,? context,? data,? risk,? and next move)\b/i.test(t)||
+      isDiagnosticReply(t)||isSoftRecoveryReply(t);
+  }
+  function pick(v,prompt){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload),r=O(x.result),rf=O(r.finalEnvelope),rp=O(r.payload),pk=O(x.packet),syn=O(pk.synthesis);
+    const list=[
+      x.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,
+      f.finalReply,f.reply,p.finalReply,p.reply,syn.authoritativeReply,syn.finalReply,syn.reply,
+      x.finalReply,x.directReply,x.visibleReply,x.displayReply,x.publicReply,x.reply,x.answer,x.output,x.response,x.text,x.message,
+      rf.finalReply,rf.reply,rp.finalReply,rp.reply,r.finalReply,r.reply
+    ];
+    for(const raw of list){const t=T(raw);if(t&&!bad(t,prompt))return t}
+    return "";
+  }
+  function claimsFinal(v){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload);
+    return x.marionFinal===true||f.marionFinal===true||p.marionFinal===true||x.final===true||f.final===true||p.final===true;
+  }
+  function sourceSemanticReply(v,prompt){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload),r=O(x.result),rf=O(r.finalEnvelope),rp=O(r.payload);
+    const list=[
+      x.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,
+      f.finalReply,f.reply,p.finalReply,p.reply,x.finalReply,x.directReply,x.visibleReply,x.displayReply,x.publicReply,x.reply,x.answer,x.output,x.response,
+      rf.finalReply,rf.reply,rp.finalReply,rp.reply,r.finalReply,r.reply
+    ];
+    for(const raw of list){const t=T(raw);if(t&&!bad(t,prompt))return t}
+    return "";
+  }
+
+  function reject(v,input){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload),reason="MARION_SEMANTIC_REPLY_MISSING";
+    const blank={authoritativeReply:"",reply:"",text:"",answer:"",output:"",response:"",message:"",displayReply:"",visibleReply:"",publicReply:"",directReply:"",finalReply:"",spokenText:"",speechText:""};
+    return {...x,...blank,ok:false,statusCode:Number(x.statusCode)||502,final:false,marionFinal:false,handled:true,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,
+      error:"marion_semantic_reply_missing",reason,failureSignature:"COMPOSER_EMPTY_REPLY",signature:"",marionFinalSignature:"",finalSignature:"",
+      payload:{...p,...blank,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,signature:"",marionFinalSignature:"",finalSignature:""},
+      finalEnvelope:{...f,...blank,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,signature:"",marionFinalSignature:"",finalSignature:"",semanticAuthority:"awaiting_marion",replyAuthority:"none",
+        completionStatus:{...O(f.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true,reason}},
+      meta:{...O(x.meta),finalEnvelopeNonemptyAuthorityInvariantVersion:V,semanticAuthority:"awaiting_marion",displayAuthority:"nyx",finalAuthorityRejected:true,finalAuthorityRejectReason:reason,noUserFacingDiagnostics:true},
+      diagnostics:{...O(x.diagnostics),finalEnvelopeNonemptyAuthorityInvariantVersion:V,finalAuthorityRejected:true,finalAuthorityRejectReason:reason,noUserFacingDiagnostics:true}};
+  }
+  function sync(v,input){
+    if(!v||typeof v!=="object")return v;
+    const x=O(v),p=O(x.payload),f=O(x.finalEnvelope),prompt=promptOf(input)||promptOf(x);
+    if(!claimsFinal(x))return x;
+    const reply=pick(x,prompt);
+    if(!reply)return reject(x,input);
+    const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),speechText:T(x.speechText||x.spokenText||reply)};
+    return {...x,...aliases,ok:x.ok!==false,final:true,marionFinal:true,handled:true,canEmit:x.canEmit!==false,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,
+      payload:{...p,...aliases,final:true,marionFinal:true,handled:true,canEmit:p.canEmit!==false,awaitingMarion:false,requiresRetry:false},
+      finalEnvelope:{...f,...aliases,final:true,marionFinal:true,handled:true,canEmit:f.canEmit!==false,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,currentTurnBound:true,semanticAuthority:"marion",replyAuthority:"marionFinalEnvelope"},
+      meta:{...O(x.meta),finalEnvelopeNonemptyAuthorityInvariantVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",authoritativeReplyPresent:true,noUserFacingDiagnostics:true},
+      diagnostics:{...O(x.diagnostics),finalEnvelopeNonemptyAuthorityInvariantVersion:V,authoritativeReplyPresent:true,emptyFinalBlocked:true,noUserFacingDiagnostics:true}};
+  }
+  function wrap(fn){
+    return function(){
+      const input=arguments[0],source=O(input),prompt=promptOf(source);
+      const sourceMeta=O(source.meta),sourceFinal=O(source.finalEnvelope);
+      const guardedInput=source.singlePassPublicKnowledge===true||sourceMeta.singlePassPublicKnowledge===true||sourceFinal.singlePassPublicKnowledge===true;
+      if(guardedInput&&claimsFinal(source)&&!sourceSemanticReply(source,prompt))return reject(source,input);
+      const value=fn.apply(this,arguments),done=x=>sync(x,input);
+      return value&&typeof value.then==="function"?value.then(done):done(value);
+    };
+  }
+  for(const n of names)if(prior[n])api[n]=wrap(prior[n]);
+
+  const priorIsFinal=typeof api.isMarionFinalEnvelope==="function"?api.isMarionFinalEnvelope:null;
+  api.isMarionFinalEnvelope=function(value){
+    const x=sync(value,value);
+    if(!x||x.final!==true||x.marionFinal!==true||!T(x.authoritativeReply||O(x.finalEnvelope).authoritativeReply))return false;
+    return priorIsFinal?!!priorIsFinal.call(this,x):true;
+  };
+  api.unwrapReply=function(value){
+    const x=sync(value,value);
+    return x&&x.final===true&&x.marionFinal===true?T(x.authoritativeReply||O(x.finalEnvelope).authoritativeReply||x.reply):"";
+  };
+  api.MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_VERSION=V;
+  api.MARION_EMPTY_FINAL_CERTIFICATION_BLOCKED=true;
+  api.__marionFinalEnvelopeNonemptyAuthorityInvariantR14=true;
+})();
+/* MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_R14_END */
