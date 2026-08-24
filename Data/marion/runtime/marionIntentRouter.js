@@ -4306,3 +4306,38 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
   api.__stateFirstContinuityRouterR11 = true;
 })();
 /* MARION_STATE_FIRST_CONTINUITY_ROUTER_R11_END */
+
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_R12_START
+ * Narrow public six-domain fast route. It does not compose replies.
+ * It only locks the current turn to one authoritative domain so the bridge
+ * can execute a single Marion composition instead of recovery/retry chains.
+ */
+(function marionPublicKnowledgeFastRouteR12(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeFastRouteR12)return;
+  const V="nyx.marion.publicKnowledgeFastRoute/1.2";
+  const N=["routeMarionIntent","route","run","handle","default"];
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
+  function P(x,d=0){if(d>4||x==null)return"";if(typeof x==="string")return T(x);if(Array.isArray(x)){for(const v of x){const q=P(v,d+1);if(q)return q}return""}if(typeof x!=="object")return"";const o=O(x),q=T(o.rawUserText||o.originalUserText||o.userText||o.userQuery||o.prompt||o.query||o.inputText||o.message||o.text);if(q)return q;for(const k of["body","payload","turn","request","input","data"]){const q=P(o[k],d+1);if(q)return q}return""}
+  function priv(x){const o=O(x),b=O(o.body),p=O(o.payload),m=O(o.meta);return[o,b,p,m].some(v=>v.privateAdminConversation===true||v.marionAdminConversation===true||v.directMarionAdminInterface===true||v.authenticatedOperator===true)||/^(owner|private_admin)$/i.test(T(o.audience||o.scope))}
+  function D(q){const t=T(q).toLowerCase();
+    if(/\b(?:artificial intelligence|what is ai|machine learning|large language model|llm|ai agent|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";
+    if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";
+    if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";
+    if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";
+    if(/\b(?:contract law|consideration in contract|legal consideration|negligence|tort|jurisdiction|case law|statute|fiduciary)\b/i.test(t))return"law";
+    if(/\b(?:cash flow|working capital|gross margin|unit economics|burn rate|runway|customer acquisition cost|lifetime value|roi|roas)\b/i.test(t))return"finance";
+    return""
+  }
+  function Q(q){const t=T(q).toLowerCase();if(!t||/^(?:open|launch|go to|take me to|play|start|stop|pause)\b/.test(t))return false;if(/^(?:who are you|what are you|who is nyx|who is nix|who is marion|what is marion)\b/.test(t))return false;return /[?]$/.test(t)||/^(?:what|why|how|define|explain|describe|compare|tell me about)\b/.test(t)}
+  function build(input){if(priv(input))return null;const q=P(input),d=D(q);if(!d||!Q(q))return null;const dc={version:"nyx.marion.domainConfidence/1.1",confidence:.995,band:"high",routeLocked:true,primaryDomain:d,knowledgeDomain:d,reason:"public_knowledge_fast_route"};const cov=[{domain:d,accessible:true,authority:"marion"}];const routing={domain:d,knowledgeDomain:d,intent:"domain_question",mode:d==="ai"?"ai_architecture_reasoning":"reasoning",depth:d==="ai"||d==="cyber"?"forensic":"balanced",endpoint:"marion://routeMarion.primary",domainConfidence:dc,sixDomainCoverage:cov,answerOnly:true,actionRequired:false,currentTurnAuthority:true,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,latencyClass:"interactive"};return{ok:true,final:false,routerVersion:V,contract:"nyx.marion.intent/2.5",intent:"domain_question",domain:d,knowledgeDomain:d,rawUserText:q,userText:q,text:q,message:q,query:q,effectivePrompt:q,normalizedUserIntent:q,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,marionIntent:{activate:true,intent:"domain_question",domain:d,knowledgeDomain:d,confidence:.995,reason:"public_knowledge_fast_route",currentTurnAuthority:true,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},routing,domainConfidence:dc,sixDomainCoverage:cov,meta:{publicKnowledgeFastRoute:true,publicKnowledgeFastRouteVersion:V,currentTurnAuthority:true,noUserFacingDiagnostics:true}}}
+  const prior={};for(const n of N)if(typeof api[n]==="function")prior[n]=api[n];
+  function W(n){const f=prior[n];return function(input){const x=build(input);return x||(f?f.apply(this,arguments):null)}}
+  for(const n of N)api[n]=W(n);
+  api.buildPublicKnowledgeFastRoute=build;
+  api.MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_VERSION=V;
+  api.__marionPublicKnowledgeFastRouteR12=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_R12_END */
