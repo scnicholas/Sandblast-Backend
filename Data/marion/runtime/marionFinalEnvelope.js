@@ -6419,3 +6419,30 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
 })();
 /* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R12_END */
 
+
+
+/* MARION_PUBLIC_KNOWLEDGE_FINAL_ALIAS_HARDLOCK_R13_START
+ * Terminal alias hardlock for verified public single-pass Marion finals.
+ * The same substantive authoritative reply is carried at top level, payload
+ * and finalEnvelope so downstream public projection cannot accidentally select
+ * an older Nyx identity/presence alias.
+ */
+(function marionPublicKnowledgeFinalAliasHardlockR13(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeFinalAliasHardlockR13)return;
+  const V="nyx.marion.publicKnowledgeFinalAliasHardlock/1.3";
+  const names=["createMarionFinalEnvelope","buildPublicKnowledgeFastEnvelope","createPublicKnowledgeFastEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  const prior={};for(const n of names)if(typeof api[n]==="function")prior[n]=api[n];
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function bad(v){const t=T(v).toLowerCase();if(!t)return true;return /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac|that response did not complete cleanly|route is unavailable|couldn[’']?t complete that answer cleanly)\b/i.test(t)||isDiagnosticReply(t)||isSoftRecoveryReply(t)}
+  function eligible(x){const o=O(x),m=O(o.meta),f=O(o.finalEnvelope);return o.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true||f.singlePassPublicKnowledge===true}
+  function pick(x){const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope);const list=[o.authoritativeReply,f.authoritativeReply,f.finalReply,f.reply,p.authoritativeReply,p.finalReply,p.reply,r.authoritativeReply,rf.authoritativeReply,rf.finalReply,rf.reply,o.finalReply,o.directReply,o.visibleReply,o.displayReply,o.publicReply,o.reply,o.answer,o.output,o.response,o.text,o.message];for(const v of list){const t=T(v);if(t&&!bad(t))return t}return""}
+  function project(value,source){const x=O(value),s=O(source);if(!eligible(x)&&!eligible(s))return value;const reply=pick(x)||pick(s);if(!reply)return value;const payload={...O(x.payload),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.payload).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true};const finalEnvelope={...O(x.finalEnvelope),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.finalEnvelope).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true,currentTurnBound:true,singlePassPublicKnowledge:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope",meta:{...O(O(x.finalEnvelope).meta),publicKnowledgeFinalAliasHardlockVersion:V,noUserFacingDiagnostics:true}};return{...x,ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),replyAuthority:"marionFinalEnvelope",semanticAuthority:"marion",displayAuthority:"nyx",payload,finalEnvelope,meta:{...O(x.meta),singlePassPublicKnowledge:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicKnowledgeFinalAliasHardlockVersion:V,noUserFacingDiagnostics:true}}}
+  function wrap(fn){return function(){const args=Array.from(arguments),source=args[0],v=fn.apply(this,args),done=x=>project(x,source);return v&&typeof v.then==="function"?v.then(done):done(v)}}
+  for(const n of names)if(prior[n])api[n]=wrap(prior[n]);
+  api.MARION_PUBLIC_KNOWLEDGE_FINAL_ALIAS_HARDLOCK_VERSION=V;
+  api.__marionPublicKnowledgeFinalAliasHardlockR13=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_FINAL_ALIAS_HARDLOCK_R13_END */
