@@ -6391,3 +6391,31 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   api.__marionPublicKnowledgeFastEnvelopeR11=true;
 })();
 /* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R11_END */
+
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R12_START
+ * Authority-precedence repair for public single-pass knowledge turns.
+ * Prefer an explicit authoritative/nested Marion reply over stale generic
+ * top-level Nyx aliases, then use the existing fast envelope builder.
+ */
+(function marionPublicKnowledgeFastEnvelopeR12(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeFastEnvelopeR12)return;
+  const V="nyx.marion.publicKnowledgeFastEnvelope/1.2-authority-precedence";
+  const priorFast=typeof api.buildPublicKnowledgeFastEnvelope==="function"?api.buildPublicKnowledgeFastEnvelope:null;
+  const priorCreate=typeof api.createMarionFinalEnvelope==="function"?api.createMarionFinalEnvelope:null;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function fast(i){const x=O(i),m=O(x.meta);return x.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true}
+  function bad(v){const t=T(v).toLowerCase();if(!t)return true;return /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac|that response did not complete cleanly|route is unavailable)\b/i.test(t)||isDiagnosticReply(t)||isSoftRecoveryReply(t)}
+  function pick(i){const x=O(i),f=O(x.finalEnvelope),p=O(x.payload),r=O(x.result);const list=[x.authoritativeReply,f.authoritativeReply,f.finalReply,f.reply,p.authoritativeReply,p.finalReply,p.reply,r.authoritativeReply,O(r.finalEnvelope).finalReply,O(r.finalEnvelope).reply,x.finalReply,x.directReply,x.visibleReply,x.displayReply,x.publicReply,x.reply,x.answer,x.output,x.response,x.text,x.message];for(const v of list){const t=T(v);if(t&&!bad(t))return t}return""}
+  function build(i={}){if(!fast(i)||!priorFast)return null;const reply=pick(i);if(!reply)return null;const x={...O(i),reply,authoritativeReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:T(O(i).spokenText||reply),meta:{...O(O(i).meta),singlePassPublicKnowledge:true,publicKnowledgeFastEnvelopeVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",noUserFacingDiagnostics:true}};const out=priorFast(x);if(out&&typeof out==="object"){out.meta={...O(out.meta),publicKnowledgeFastEnvelopeVersion:V,authorityPrecedenceRepair:true,noUserFacingDiagnostics:true};if(out.finalEnvelope&&typeof out.finalEnvelope==="object")out.finalEnvelope.meta={...O(out.finalEnvelope.meta),publicKnowledgeFastEnvelopeVersion:V,authorityPrecedenceRepair:true,noUserFacingDiagnostics:true}}return out}
+  function create(input={}){if(fast(input)){const x=build(input);if(x)return x}return priorCreate?priorCreate.apply(this,arguments):createMarionErrorEnvelope({error:"final_envelope_builder_unavailable"})}
+  api.buildPublicKnowledgeFastEnvelope=build;
+  api.createPublicKnowledgeFastEnvelope=build;
+  api.createMarionFinalEnvelope=create;api.buildResponse=create;api.createResponse=create;api.finalizeTurn=create;api.default=create;
+  api.MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_VERSION=V;
+  api.__marionPublicKnowledgeFastEnvelopeR12=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R12_END */
+
