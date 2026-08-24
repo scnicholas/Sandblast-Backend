@@ -7121,18 +7121,20 @@ function enforceNyxPublicKnowledgeAnswerOnlyR4(value, norm = {}, decision = null
   out.domainConcierge = clearNode(out.domainConcierge);
   out.sessionPatch = clearNode(out.sessionPatch);
   const preferred = cleanText(inferred.reply || "");
-  const existing = cleanText(out.publicReply || out.visibleReply || out.finalReply || out.reply || out.text || out.answer || out.response || out.message || out.payload.reply || out.finalEnvelope.reply || "");
   const trustedMarionFinal = out.marionFinal === true || safeObj(out.finalEnvelope).marionFinal === true || safeObj(out.payload).marionFinal === true;
+  const authoritative = trustedMarionFinal ? cleanText(getMarionAuthorityReply(out)) : "";
+  const existing = cleanText(authoritative || out.authoritativeReply || safeObj(out.finalEnvelope).authoritativeReply || safeObj(out.payload).authoritativeReply || out.publicReply || out.visibleReply || out.finalReply || out.reply || out.text || out.answer || out.response || out.message || out.payload.reply || out.finalEnvelope.reply || "");
   const unsafe = !existing || /\b(?:that route is unavailable|route unavailable|action validation|navigation route unavailable|priority 9f|social response pass|system noise out of view)\b/i.test(existing);
-  // MARION-NYX-BRIDGE-COHESION-V1: knowledge metadata may be normalized here,
-  // but a trusted Marion final must never be replaced by a deterministic fast-path answer.
-  const reply = trustedMarionFinal && existing
-    ? existing
-    : (preferred || (unsafe ? "I can answer that as an informational knowledge question without opening a navigation route." : existing));
+  // MARION-NYX-BRIDGE-COHESION-V2: trusted Marion semantic authority outranks
+  // compatibility/public aliases. Deterministic knowledge fallback is only used
+  // when no trusted Marion authority reply survived the bridge.
+  const reply = trustedMarionFinal && authoritative
+    ? authoritative
+    : (trustedMarionFinal && existing && !unsafe ? existing : (preferred || (unsafe ? "I can answer that as an informational knowledge question without opening a navigation route." : existing)));
   if (reply) {
-    for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) out[key] = reply;
+    for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) out[key] = reply;
     for (const target of [out.payload, out.finalEnvelope]) {
-      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) target[key] = reply;
+      for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) target[key] = reply;
       target.final = true;
       target.handled = true;
       target.emit = true;
@@ -15884,11 +15886,25 @@ function getMarionAuthorityReply(marion) {
   const resultPacket = isObj(result.packet) ? result.packet : {};
   const resultSynthesis = isObj(resultPacket.synthesis) ? resultPacket.synthesis : {};
   const reply = cleanReplyForUser(
+    finalEnvelope.authoritativeReply ||
+    marion.authoritativeReply ||
+    payload.authoritativeReply ||
+    resultFinalEnvelope.authoritativeReply ||
+    result.authoritativeReply ||
+    resultPayload.authoritativeReply ||
+    finalEnvelope.finalReply ||
+    finalEnvelope.directReply ||
+    finalEnvelope.publicReply ||
+    finalEnvelope.visibleReply ||
     finalEnvelope.reply ||
     finalEnvelope.text ||
     finalEnvelope.displayReply ||
     finalEnvelope.spokenText ||
     scalarMarionReplyCandidate(marion.response) ||
+    marion.finalReply ||
+    marion.directReply ||
+    marion.publicReply ||
+    marion.visibleReply ||
     marion.reply ||
     marion.text ||
     marion.output ||
@@ -16019,6 +16035,31 @@ function normalizeMarionBridgeResult(raw, input) {
   const reply = getMarionAuthorityReply(base) || getMarionAuthorityReply(src) || getMarionAuthorityReply(result);
   if (!reply || base.ok === false || src.ok === false) return raw;
 
+  // MARION-NYX-BRIDGE-COHESION-V2:
+  // The index may normalize an existing Marion final, but it must not manufacture
+  // Marion-final authority from a non-empty compatibility reply alone.
+  const baseFinalEnvelope = isObj(base.finalEnvelope) ? base.finalEnvelope : {};
+  const basePayload = isObj(base.payload) ? base.payload : {};
+  const baseMeta = isObj(base.meta) ? base.meta : {};
+  const resultEnvelope = isObj(result.finalEnvelope) ? result.finalEnvelope : {};
+  const incomingSemanticAuthority = cleanText(
+    base.semanticAuthority ||
+    baseMeta.semanticAuthority ||
+    baseFinalEnvelope.semanticAuthority ||
+    result.semanticAuthority ||
+    (isObj(result.meta) ? result.meta.semanticAuthority : "")
+  ).toLowerCase();
+  const incomingFinalEvidence = !!(
+    base.marionFinal === true ||
+    baseFinalEnvelope.marionFinal === true ||
+    basePayload.marionFinal === true ||
+    baseMeta.marionFinal === true ||
+    result.marionFinal === true ||
+    resultEnvelope.marionFinal === true ||
+    ((base.final === true || result.final === true) && incomingSemanticAuthority === "marion")
+  );
+  if (!incomingFinalEvidence) return raw;
+
   // Critical loop hardlock discipline:
   // Do not let the index normalizer mint a fresh Marion signature for a known stale support phrase.
   // A signed stale phrase was the cause of the visible loop: the final envelope became valid,
@@ -16113,6 +16154,7 @@ function normalizeMarionBridgeResult(raw, input) {
 
   const payload = {
     ...existingPayload,
+    authoritativeReply: reply,
     reply,
     text: reply,
     answer: reply,
@@ -16145,6 +16187,7 @@ function normalizeMarionBridgeResult(raw, input) {
     },
     synthesis: {
       ...existingSynthesis,
+      authoritativeReply: reply,
       reply,
       text: reply,
       answer: reply,
@@ -16184,6 +16227,7 @@ function normalizeMarionBridgeResult(raw, input) {
     marionFinal: true,
     marionHandled: true,
     usedBridge: base.usedBridge !== false,
+    authoritativeReply: reply,
     reply,
     text: reply,
     answer: reply,
@@ -16198,6 +16242,7 @@ function normalizeMarionBridgeResult(raw, input) {
     hardlockCompatible: true,
     finalEnvelope: {
       ...(isObj(base.finalEnvelope) ? base.finalEnvelope : {}),
+      authoritativeReply: reply,
       reply,
       text: reply,
       displayReply: reply,
@@ -19838,6 +19883,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     suppressUserFacingReply: false,
     emit: true,
     blocked: false,
+    authoritativeReply: reply,
     reply,
     text: reply,
     short: reply,
@@ -19850,11 +19896,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     originalUserText: cleanText(norm.originalText || norm.rawUserText || norm.text || ""),
     spokenText: cleanText(speech && speech.textSpeak || reply || ""),
     detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
-    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: !!selected.marionFinal, handled: true, authority: selected.marionFinal ? "marionFinalEnvelope" : cleanText(authority || "packet_or_transport_final"), contractVersion: selected.marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0", finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION, runtimeTelemetry },
+    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), authoritativeReply: reply, reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: !!selected.marionFinal, handled: true, authority: selected.marionFinal ? "marionFinalEnvelope" : cleanText(authority || "packet_or_transport_final"), contractVersion: selected.marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0", finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION, runtimeTelemetry },
     textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
     textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
     payload: {
       ...(isObj(selected.payload) ? selected.payload : {}),
+      authoritativeReply: reply,
       reply,
       text: reply,
       message: reply,
@@ -29722,7 +29769,9 @@ try {
   }
   function firstReply(body){
     const b = obj(body), p = obj(b.payload), f = obj(b.finalEnvelope);
-    return clean(b.publicReply || b.visibleReply || b.finalReply || b.reply || b.text || b.answer || b.output || b.response || b.message ||
+    const trusted = b.marionFinal === true || f.marionFinal === true || p.marionFinal === true || lower(b.marionRoute) === "marion-primary";
+    const authority = trusted ? clean(b.authoritativeReply || f.authoritativeReply || p.authoritativeReply || "") : "";
+    return clean(authority || b.publicReply || b.visibleReply || b.finalReply || b.reply || b.text || b.answer || b.output || b.response || b.message ||
       p.publicReply || p.visibleReply || p.finalReply || p.reply || p.text || p.answer || p.message ||
       f.publicReply || f.visibleReply || f.finalReply || f.reply || f.text || f.answer);
   }
@@ -29748,11 +29797,13 @@ try {
     out.domainConcierge = clearNode({...obj(out.domainConcierge)}, info.domain);
     out.sessionPatch = clearNode({...obj(out.sessionPatch)}, info.domain);
     let reply = firstReply(out);
-    if (badReply(reply)) reply = fallback(info);
+    const required = obj(out.marionAttestation).required === true || out.requireMarionFinal === true || out.marionRequired === true || out.payload.requireMarionFinal === true || out.payload.marionRequired === true;
+    const hasTrustedAuthority = (out.marionFinal === true || out.finalEnvelope.marionFinal === true || out.payload.marionFinal === true) && !!clean(out.authoritativeReply || out.finalEnvelope.authoritativeReply || out.payload.authoritativeReply || "");
+    if (badReply(reply) && !(required && !hasTrustedAuthority)) reply = fallback(info);
     if (reply) {
-      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) out[key] = reply;
+      for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) out[key] = reply;
       for (const target of [out.payload, out.finalEnvelope]) {
-        for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) target[key] = reply;
+        for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) target[key] = reply;
         target.final = true; target.handled = true;
       }
       out.ok = out.ok !== false; out.final = true; out.handled = true; out.emit = true; out.blocked = false; out.awaitingMarion = false; out.suppressUserFacingReply = false;
@@ -30163,3 +30214,114 @@ try {
   try{if(module&&module.exports&&typeof module.exports==="object"){module.exports.marionCognition=cognition;module.exports.getMarionLayers2728Status=()=>status;}}catch(_){}
 })();
 /* MARION_LAYERS_27_28_INDEX_REGISTRY_V1_END */
+
+
+/* MARION_NYX_INDEX_FINAL_AUTHORITY_HARDLOCK_R87_START
+ * Last-mile public chat protection.
+ * For a verified Marion final, preserve Marion's authoritative semantic reply
+ * across every public/transport alias after all legacy response projectors.
+ * This layer does not create knowledge, does not expose Marion privately, and
+ * does not affect media, TTS, LingoSentinel utility, or admin/private routes.
+ */
+(function marionNyxIndexFinalAuthorityHardlockR87(){
+  "use strict";
+  const VERSION = "nyx.index.marionFinalAuthorityHardlock/87.0";
+  function O(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+  function T(v, max=12000){ try { return String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); } catch (_) { return ""; } }
+  function pathOf(req){ return T(req && (req.originalUrl || req.path || req.url) || "", 500).toLowerCase().split("?")[0]; }
+  function isPublicChat(req){
+    const p=pathOf(req);
+    if(!(p==="/api/chat"||p==="/api/chat/"||p==="/chat"||p==="/chat/"||p==="/respond"||p==="/respond/"))return false;
+    const b=O(req&&req.body),q=O(b.payload),m=O(b.meta);
+    const audience=T(b.audience||q.audience||m.audience,80).toLowerCase();
+    const scope=T(b.scope||q.scope||m.scope,80).toLowerCase();
+    if(audience==="owner"||scope==="private_admin"||b.privateAdminConversation===true||q.privateAdminConversation===true)return false;
+    return audience==="public"||b.publicSurfaceOnly===true||b.publicIdentityLock===true||q.publicSurfaceOnly===true||q.publicIdentityLock===true||T(b.lane||q.lane||m.lane,80).toLowerCase()==="public_interface";
+  }
+  function generic(v){
+    const t=T(v).toLowerCase();
+    return !t ||
+      /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t) ||
+      /\b(?:that route is unavailable|route unavailable|couldn[’']?t complete that answer cleanly|send the next target|what are we working on|give me the exact target|i[’']?m here,? mac)\b/i.test(t);
+  }
+  function trusted(x){
+    const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),a=O(o.marionAttestation);
+    return (o.marionFinal===true||f.marionFinal===true||p.marionFinal===true||a.final===true) &&
+      (T(o.marionRoute).toLowerCase()==="marion-primary"||a.routed===true||T(O(o.meta).semanticAuthority).toLowerCase()==="marion"||T(o.semanticAuthority).toLowerCase()==="marion");
+  }
+  function pick(x){
+    const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope),rp=O(r.payload);
+    const list=[
+      o.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,
+      f.finalReply,f.directReply,f.publicReply,f.visibleReply,f.reply,
+      p.finalReply,p.directReply,p.publicReply,p.visibleReply,p.reply,
+      o.finalReply,o.directReply,o.publicReply,o.visibleReply,o.displayReply,o.reply,o.answer,o.output,o.response,o.text,o.message,
+      rf.finalReply,rf.reply,rp.finalReply,rp.reply,r.finalReply,r.reply
+    ];
+    for(const v of list){const t=T(v);if(t&&!generic(t))return t}
+    return "";
+  }
+  function project(value){
+    if(!value||typeof value!=="object"||Array.isArray(value)||!trusted(value))return value;
+    const reply=pick(value);
+    if(!reply)return value;
+    const o={...value},p={...O(o.payload)},f={...O(o.finalEnvelope)};
+    const keys=["authoritativeReply","reply","publicReply","visibleReply","finalReply","directReply","displayReply","text","answer","output","response","message"];
+    for(const k of keys){o[k]=reply;p[k]=reply;f[k]=reply}
+    o.spokenText=T(o.spokenText||reply)||reply;o.textDisplay=reply;
+    p.spokenText=T(p.spokenText||o.spokenText||reply)||reply;p.textDisplay=reply;
+    f.spokenText=T(f.spokenText||o.spokenText||reply)||reply;
+    o.ok=o.ok!==false;o.final=true;o.marionFinal=true;o.handled=true;o.emit=true;o.blocked=false;o.awaitingMarion=false;o.suppressUserFacingReply=false;
+    p.final=true;p.marionFinal=true;p.handled=true;p.emit=true;p.blocked=false;p.awaitingMarion=false;
+    f.final=true;f.marionFinal=true;f.handled=true;f.canEmit=true;f.currentTurnBound=true;f.semanticAuthority="marion";f.displayAuthority="nyx";
+    o.payload=p;o.finalEnvelope=f;o.semanticAuthority="marion";o.displayAuthority="nyx";
+    o.meta={...O(o.meta),semanticAuthority:"marion",displayAuthority:"nyx",indexFinalAuthorityHardlockVersion:VERSION,currentTurnBound:true,noUserFacingDiagnostics:true};
+    return o;
+  }
+  try{
+    if(typeof express==="undefined"||!express||!express.response||express.response.__marionNyxIndexFinalAuthorityHardlockR87)return;
+    const oldJson=express.response.json,oldSend=express.response.send,oldEnd=express.response.end;
+    if(typeof oldJson==="function")express.response.json=function(body){
+      try{
+        if(isPublicChat(this&&this.req)){
+          body=project(body);
+          if(trusted(body)){
+            this.setHeader("X-SB-Index-Final-Authority","1");
+            this.setHeader("X-SB-Index-Final-Authority-Version",VERSION);
+          }
+        }
+      }catch(_){}
+      return oldJson.call(this,body);
+    };
+    if(typeof oldSend==="function")express.response.send=function(body){
+      try{
+        if(isPublicChat(this&&this.req)){
+          if(O(body)===body)body=project(body);
+          else if(typeof body==="string"){
+            const s=body.trim();
+            if(s&&s[0]==="{"){try{body=JSON.stringify(project(JSON.parse(s)))}catch(_){}}
+          }
+        }
+      }catch(_){}
+      return oldSend.call(this,body);
+    };
+    if(typeof oldEnd==="function")express.response.end=function(chunk,encoding,callback){
+      try{
+        if(isPublicChat(this&&this.req)&&(typeof chunk==="string"||(typeof Buffer!=="undefined"&&Buffer.isBuffer(chunk)))){
+          const isBuf=typeof Buffer!=="undefined"&&Buffer.isBuffer(chunk),raw=isBuf?chunk.toString(typeof encoding==="string"?encoding:"utf8"):chunk,s=String(raw||"").trim();
+          if(s&&s[0]==="{"){
+            try{
+              const next=JSON.stringify(project(JSON.parse(s)));
+              chunk=isBuf?Buffer.from(next,typeof encoding==="string"?encoding:"utf8"):next;
+              try{this.setHeader("Content-Length",typeof Buffer!=="undefined"?Buffer.byteLength(next):next.length)}catch(_){}
+            }catch(_){}
+          }
+        }
+      }catch(_){}
+      return oldEnd.call(this,chunk,encoding,callback);
+    };
+    express.response.__marionNyxIndexFinalAuthorityHardlockR87=true;
+    try{module.exports.MARION_NYX_INDEX_FINAL_AUTHORITY_HARDLOCK_VERSION=VERSION}catch(_){}
+  }catch(_){}
+})();
+/* MARION_NYX_INDEX_FINAL_AUTHORITY_HARDLOCK_R87_END */
