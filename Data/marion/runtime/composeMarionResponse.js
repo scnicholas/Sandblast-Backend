@@ -3546,8 +3546,8 @@ function priority9FR1ComposerCollect(value,depth,seen){if(value==null||depth>4)r
 ["packet","ctx","options","fallback","input","body","payload","meta","diagnostics","normalized","norm","routing","route","state","session","memory","conversationState","progressionMemory","memoryPatch","sessionPatch","finalEnvelope","questionShape"].forEach(function(k){try{if(value[k]!=null)out=out.concat(priority9FR1ComposerCollect(value[k],depth+1,seen));}catch(_){}});return out;}
 function priority9FR1ComposerSource(packet,ctx){return priority9FR1ComposerCollect({packet:packet,ctx:ctx},0,[]).filter(Boolean).join(" ");}
 function priority9FR1ComposerReadReply(packet){return priority90ReadReply(safeObj(packet));}
-function priority9FR1ComposerShouldForce(packet,ctx){var source=priority9FR1ComposerSource(packet,ctx);var reply=priority9FR1ComposerReadReply(packet);return priority9FR1LayeredPromptText(source)||priority9FR1Stale9ERecallText(reply)&&priority9FR1LayeredPromptText(source+" "+reply);}
-function priority9FR1ComposerDisciplinePacket(packet,ctx){var out=safeObj(packet);if(priority9FR1ComposerShouldForce(out,ctx)){var reply=priority9FR1LayeredReplyFor(priority9FR1ComposerSource(out,ctx));return priority9EApplyReplyEverywhere(out,reply,{priority9FR1LayeredPrecedenceHotfix:true,priority9FR1LayeredPrecedenceHotfixVersion:PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION,priority9FR1Reason:"layered_prompt_overrode_9e_recall",noUserFacingDiagnostics:true});}return out;}
+function priority9FR1ComposerShouldForce(packet,ctx){var c=safeObj(ctx),prompt=priority90ExtractPromptFromPackets(safeObj(c.input),safeObj(c.routed))||priority9FR1LayeredPrecedenceText(safeObj(c.input).rawUserText||safeObj(c.input).userText||safeObj(c.input).prompt||safeObj(c.input).message||safeObj(c.input).text||"");var reply=priority9FR1ComposerReadReply(packet);if(!priority9FR1LayeredPromptText(prompt))return false;return !reply||priority9FR1Stale9ERecallText(reply)||/Priority\s*9E|Priority\s*90/i.test(reply)||priority9FR1LayeredPromptText(prompt);}
+function priority9FR1ComposerDisciplinePacket(packet,ctx){var out=safeObj(packet),c=safeObj(ctx),prompt=priority90ExtractPromptFromPackets(safeObj(c.input),safeObj(c.routed))||priority9FR1LayeredPrecedenceText(safeObj(c.input).rawUserText||safeObj(c.input).userText||safeObj(c.input).prompt||safeObj(c.input).message||safeObj(c.input).text||"");if(priority9FR1ComposerShouldForce(out,c)){var reply=priority9FR1LayeredReplyFor(prompt);return priority9EApplyReplyEverywhere(out,reply,{priority9FR1LayeredPrecedenceHotfix:true,priority9FR1LayeredPrecedenceHotfixVersion:PRIORITY_9F_R1_LAYERED_PRECEDENCE_HOTFIX_VERSION,priority9FR1Reason:"explicit_current_turn_layered_prompt",priority9FCurrentTurnBound:true,noUserFacingDiagnostics:true});}return out;}
 var __priority9FR1OriginalComposeMarionResponse=composeMarionResponse;
 composeMarionResponse=function priority9FR1ComposeMarionResponse(routed,input){return priority9FR1ComposerDisciplinePacket(__priority9FR1OriginalComposeMarionResponse(routed,input),{routed:safeObj(routed),input:safeObj(input),memory:safeObj(input).memory||safeObj(input).conversationState,progressionMemory:safeObj(input).progressionMemory});};
 run=function priority9FR1Run(routed,input){return composeMarionResponse(routed,input);};
@@ -3565,8 +3565,8 @@ function priority9FR2Collect(value,depth,seen){if(value==null||depth>4)return []
 ["packet","ctx","options","fallback","input","body","payload","meta","diagnostics","normalized","norm","routing","routeResult","route","state","session","memory","conversationState","progressionMemory","memoryPatch","sessionPatch","finalEnvelope","questionShape","domainConfidence","domainConcierge","composerContext","stateSpinePatch"].forEach(function(k){try{if(value[k]!=null)out=out.concat(priority9FR2Collect(value[k],depth+1,seen));}catch(_){}});return out;}
 function priority9FR2Source(packet,ctx){return priority9FR2Collect({packet:packet,ctx:ctx},0,[]).filter(Boolean).join(" ");}
 function priority9FR2ReplyFor(value){var source=priority9FR2Text(value);var patch=/\b(surgical autopsy|patch|hotfix|fix|update|resend|zip|downloadable|files?|critical updates|gap refinements)\b/i.test(source);var surface=patch?"patch the Marion runtime so 9F cannot be hijacked by the psychology, English, or general reasoning domain":"stabilize Marion’s live conversational behavior inside the 9F stack";var intent=patch?"keep layered conversational prompts in Marion’s conversational-architecture lane while blocking six-domain fallback replies":"preserve context, avoid looping, and turn disjointed input into a clear next move";var risk=patch?"domain hijack after 9F-R1, where a psychology or general-domain answer replaces the real Marion task":"domain fallback overpowering the layered conversational stack";var next=patch?"enforce 9F-R2 in composer, router, concierge, bridge, final envelope, state, confidence, and index, then rerun the live layered prompt":"keep 9F dominant over stale recall and domain fallback, then rerun the layered prompt and pass only when Marion returns surface request, deeper intent, risk, execution mode, and next action";return "I’m reading this as Priority 9F-R2: domain hijack suppression. The surface request is to "+surface+"; the deeper intent is to "+intent+". The active lane is Marion conversational architecture, not psychology, English, or general reasoning. The main risk is "+risk+", so the response mode stays layered conversational: hold the context, answer the real task, and give the next concrete move. Next move: "+next+".";}
-function priority9FR2ShouldForce(packet,ctx){var out=safeObj(packet),source=priority9FR2Source(out,ctx),prompt=priority90ExtractPromptFromPackets(safeObj(ctx).input,safeObj(ctx).routed)||priority90ExtractPromptFromPackets(out,safeObj(ctx).input),reply=priority90ReadReply(out);return (priority9FR2LayeredPromptText(source)||priority9FR2LayeredPromptText(prompt))&&(priority9FR2DomainHijackReplyText(reply)||priority9FR2DomainHijackRoute(source)||!reply||priority9FR1Stale9ERecallText(reply)||/Priority\s*9F-R1/i.test(reply));}
-function priority9FR2DisciplinePacket(packet,ctx){var out=safeObj(packet);if(priority9FR2ShouldForce(out,ctx)){return priority9EApplyReplyEverywhere(out,priority9FR2ReplyFor(priority9FR2Source(out,ctx)),{priority9FR2DomainHijackSuppression:true,priority9FR2DomainHijackSuppressionVersion:PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_VERSION,priority9FR2Reason:"layered_prompt_overrode_domain_hijack",domainHijackSuppressed:true,noUserFacingDiagnostics:true});}return out;}
+function priority9FR2ShouldForce(packet,ctx){var out=safeObj(packet),c=safeObj(ctx),prompt=priority90ExtractPromptFromPackets(safeObj(c.input),safeObj(c.routed))||priority9FR2Text(safeObj(c.input).rawUserText||safeObj(c.input).userText||safeObj(c.input).prompt||safeObj(c.input).message||safeObj(c.input).text||""),reply=priority90ReadReply(out);if(!priority9FR2LayeredPromptText(prompt))return false;return priority9FR2DomainHijackReplyText(reply)||!reply||priority9FR1Stale9ERecallText(reply)||/Priority\s*9F-R1/i.test(reply);}
+function priority9FR2DisciplinePacket(packet,ctx){var out=safeObj(packet),c=safeObj(ctx),prompt=priority90ExtractPromptFromPackets(safeObj(c.input),safeObj(c.routed))||priority9FR2Text(safeObj(c.input).rawUserText||safeObj(c.input).userText||safeObj(c.input).prompt||safeObj(c.input).message||safeObj(c.input).text||"");if(priority9FR2ShouldForce(out,c)){return priority9EApplyReplyEverywhere(out,priority9FR2ReplyFor(prompt),{priority9FR2DomainHijackSuppression:true,priority9FR2DomainHijackSuppressionVersion:PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_VERSION,priority9FR2Reason:"explicit_current_turn_layered_prompt",priority9FCurrentTurnBound:true,domainHijackSuppressed:true,noUserFacingDiagnostics:true});}return out;}
 var __priority9FR2OriginalDetectKnowledgeDomain=typeof detectKnowledgeDomain==="function"?detectKnowledgeDomain:null;
 if(__priority9FR2OriginalDetectKnowledgeDomain){detectKnowledgeDomain=function priority9FR2DetectKnowledgeDomain(text){if(priority9FR2LayeredPromptText(text))return "";return __priority9FR2OriginalDetectKnowledgeDomain(text);};}
 var __priority9FR2OriginalDirectDomainDepthAnswer=typeof directDomainDepthAnswer==="function"?directDomainDepthAnswer:null;
@@ -3590,8 +3590,8 @@ for(var i=0;i<keys.length;i+=1){try{if(value[keys[i]]!=null)out=out.concat(prior
 function priority9FR3Source(packet,ctx){return priority9FR3Collect({packet:packet,ctx:ctx},0,[]).filter(Boolean).join(" ");}
 function priority9FR3ReplyFor(value){var source=priority9FR3Text(value);var patch=/\b(surgical autopsy|line[-\s]?by[-\s]?line|audit|patch|hotfix|fix|update|resend|zip|downloadable|files?|critical updates|gap refinements)\b/i.test(source);return patch?"I’m reading this as Priority 9F-R3: ALT runtime prompt-echo suppression. The surface request is to patch the Marion ALT/admin runtime so it never returns the raw user prompt as the final answer; the deeper intent is to keep 9F layered conversational prompts inside Marion’s conversational-architecture lane. The active lane is Marion conversational architecture. The main risk is the ALT handler falling back to prompt echo after stale recall and domain hijack have been suppressed. Next move: enforce prompt-echo rejection across composer, admin gateway, bridge, final envelope, loop guard, voice gateway, and index, then rerun the live layered prompt.":"I’m reading this as Priority 9F-R3: ALT runtime prompt-echo suppression. The surface request is to stabilize Marion’s layered conversational behavior; the deeper intent is to preserve context, avoid looping, and turn disjointed input into a clear next move. The active lane is Marion conversational architecture. The main risk is the ALT/admin handler returning the raw prompt instead of the composed answer, so the response mode must stay layered: identify the surface request, deeper intent, risk, execution mode, and next action. Next move: keep 9F dominant across ALT, bridge, final envelope, and last-mile render, then rerun the live layered prompt.";}
 function priority9FR3Apply(out,reply,flags){if(typeof priority9EApplyReplyEverywhere==="function")return priority9EApplyReplyEverywhere(out,reply,flags);if(typeof priority90ApplyReplyEverywhere==="function")return priority90ApplyReplyEverywhere(out,reply,flags);out=safeObj(out);out.reply=reply;out.publicReply=reply;out.visibleReply=reply;out.finalReply=reply;out.displayReply=reply;out.text=reply;out.message=reply;out.answer=reply;out.output=reply;out.response=reply;out.spokenText=reply;out.final=true;out.marionFinal=true;out.canEmit=true;out.payload={...safeObj(out.payload),reply:reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,message:reply,answer:reply,output:reply,response:reply,spokenText:reply};out.finalEnvelope={...safeObj(out.finalEnvelope),reply:reply,publicReply:reply,visibleReply:reply,finalReply:reply,text:reply,message:reply,answer:reply,output:reply,response:reply,spokenText:reply,final:true,marionFinal:true,canEmit:true};out.meta={...safeObj(out.meta),...safeObj(flags)};out.diagnostics={...safeObj(out.diagnostics),...safeObj(flags)};return out;}
-function priority9FR3ShouldForce(packet,ctx){var out=safeObj(packet),source=priority9FR3Source(out,ctx),prompt=priority90ExtractPromptFromPackets(safeObj(ctx).input,safeObj(ctx).routed)||priority90ExtractPromptFromPackets(out,safeObj(ctx).input),reply=priority90ReadReply(out);if(!(priority9FR3LayeredPrompt(source)||priority9FR3LayeredPrompt(prompt)))return false;return !reply||priority9FR3PromptEcho(reply,prompt)||priority9FR2DomainHijackReplyText(reply)||priority9FR1Stale9ERecallText(reply)||/Priority\s*9F-R[12]/i.test(reply);}
-function priority9FR3DisciplinePacket(packet,ctx){var out=safeObj(packet);if(priority9FR3ShouldForce(out,ctx)){return priority9FR3Apply(out,priority9FR3ReplyFor(priority9FR3Source(out,ctx)),{priority9FR3AltPromptEchoSuppression:true,priority9FR3AltPromptEchoSuppressionVersion:PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_VERSION,priority9FR3Reason:"layered_prompt_overrode_alt_prompt_echo",promptEchoSuppressed:true,noUserFacingDiagnostics:true});}return out;}
+function priority9FR3ShouldForce(packet,ctx){var out=safeObj(packet),c=safeObj(ctx),prompt=priority90ExtractPromptFromPackets(safeObj(c.input),safeObj(c.routed))||priority9FR3Text(safeObj(c.input).rawUserText||safeObj(c.input).userText||safeObj(c.input).prompt||safeObj(c.input).message||safeObj(c.input).text||""),reply=priority90ReadReply(out);if(!priority9FR3LayeredPrompt(prompt))return false;return !reply||priority9FR3PromptEcho(reply,prompt)||priority9FR2DomainHijackReplyText(reply)||priority9FR1Stale9ERecallText(reply)||/Priority\s*9F-R[12]/i.test(reply);}
+function priority9FR3DisciplinePacket(packet,ctx){var out=safeObj(packet),c=safeObj(ctx),prompt=priority90ExtractPromptFromPackets(safeObj(c.input),safeObj(c.routed))||priority9FR3Text(safeObj(c.input).rawUserText||safeObj(c.input).userText||safeObj(c.input).prompt||safeObj(c.input).message||safeObj(c.input).text||"");if(priority9FR3ShouldForce(out,c)){return priority9FR3Apply(out,priority9FR3ReplyFor(prompt),{priority9FR3AltPromptEchoSuppression:true,priority9FR3AltPromptEchoSuppressionVersion:PRIORITY_9F_R3_ALT_PROMPT_ECHO_SUPPRESSION_VERSION,priority9FR3Reason:"explicit_current_turn_layered_prompt",priority9FCurrentTurnBound:true,promptEchoSuppressed:true,noUserFacingDiagnostics:true});}return out;}
 var __priority9FR3OriginalComposeMarionResponse=composeMarionResponse;
 composeMarionResponse=function priority9FR3ComposeMarionResponse(routed,input){return priority9FR3DisciplinePacket(__priority9FR3OriginalComposeMarionResponse(routed,input),{routed:safeObj(routed),input:safeObj(input),memory:safeObj(input).memory||safeObj(input).conversationState,progressionMemory:safeObj(input).progressionMemory});};
 run=function priority9FR3Run(routed,input){return composeMarionResponse(routed,input);};
@@ -3612,7 +3612,7 @@ function priority9FR4ComposerPromptFrom(routed={},input={}){return priority9FR4C
 function priority9FR4ComposerReply(){return "Next steps: lock Priority 9F-R3 as live accepted, enforce Priority 9F-R4 continuation carry, confirm \u201cNext steps,\u201d \u201cContinue,\u201d \u201cRun that again,\u201d and \u201cWhat now?\u201d stay inside the 9F conversational-stack lane, then move into deeper continuity memory and layered follow-up handling.";}
 function priority9FR4ComposerReadReply(packet){if(!packet||typeof packet!=="object")return priority9FR4ComposerStr(packet);const p=packet.payload&&typeof packet.payload==="object"?packet.payload:{};const f=packet.finalEnvelope&&typeof packet.finalEnvelope==="object"?packet.finalEnvelope:{};return priority9FR4ComposerStr(packet.reply||packet.finalReply||packet.publicReply||packet.visibleReply||packet.text||packet.message||packet.response||packet.answer||p.reply||p.finalReply||p.publicReply||p.visibleReply||p.text||p.message||f.reply||f.finalReply||f.publicReply||f.visibleReply||f.text||f.message);}
 function priority9FR4ComposerApply(packet, reply){const out=(packet&&typeof packet==="object"&&!Array.isArray(packet))?{...packet}:{};const final=priority9FR4ComposerStr(reply)||priority9FR4ComposerReply();["reply","finalReply","publicReply","visibleReply","text","message","response","answer","spokenText"].forEach(k=>{out[k]=final;});out.payload={...(out.payload&&typeof out.payload==="object"?out.payload:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};out.finalEnvelope={...(out.finalEnvelope&&typeof out.finalEnvelope==="object"?out.finalEnvelope:{}),reply:final,finalReply:final,publicReply:final,visibleReply:final,text:final,message:final,answer:final};out.priority9FR4ContinuationCarryEnforced=true;out.priority9FR4ContinuationCarryVersion=PRIORITY_9F_R4_CONTINUATION_CARRY_COMPOSER_VERSION;out.noUserFacingDiagnostics=true;return out;}
-function priority9FR4ComposerShouldForce(packet,routed={},input={}){const prompt=priority9FR4ComposerPromptFrom(routed,input);const source=[prompt,priority9FR4ComposerCollect(routed),priority9FR4ComposerCollect(input),priority9FR4ComposerCollect(packet)].join(" ");const reply=priority9FR4ComposerReadReply(packet);return priority9FR4ComposerIsCarryInstruction(prompt)||priority9FR4ComposerIsCarryInstruction(source)||(priority9FR4ComposerIsShortContinuation(prompt)&&priority9FR4ComposerHas9FContext(source))||((priority9FR4ComposerIsShortContinuation(prompt)||priority9FR4ComposerIsCarryInstruction(source))&&priority9FR4ComposerOldHandoff(reply));}
+function priority9FR4ComposerShouldForce(packet,routed={},input={}){const prompt=priority9FR4ComposerPromptFrom(routed,input),i=input&&typeof input==="object"?input:{},m=(i.previousMemory&&typeof i.previousMemory==="object"?i.previousMemory:(i.memory&&typeof i.memory==="object"?i.memory:(i.conversationState&&typeof i.conversationState==="object"?i.conversationState:{}))),bounded=[m.activeLane,m.conversationLane,m.activeTask,m.lastAcceptedLane,m.priority9FState,m.priority9FR4ContinuationCarryVersion].filter(Boolean).join(" "),reply=priority9FR4ComposerReadReply(packet);if(priority9FR4ComposerIsCarryInstruction(prompt))return true;if(!priority9FR4ComposerIsShortContinuation(prompt))return false;return priority9FR4ComposerHas9FContext(bounded)||priority9FR4ComposerOldHandoff(reply);}
 function priority9FR4ComposerDisciplinePacket(packet,routed={},input={}){return priority9FR4ComposerShouldForce(packet,routed,input)?priority9FR4ComposerApply(packet,priority9FR4ComposerReply()):packet;}
 var __priority9FR4OriginalComposeMarionResponse=composeMarionResponse;
 composeMarionResponse=function priority9FR4ComposeMarionResponse(routed,input){return priority9FR4ComposerDisciplinePacket(__priority9FR4OriginalComposeMarionResponse(routed,input),routed,input);};
@@ -11091,3 +11091,132 @@ for(const n of["composeMarionResponse","compose","run","handle","buildReply","cr
   api.__marionPublicKnowledgeSemanticFinalInvariantR22=true;
 })();
 /* MARION_PUBLIC_KNOWLEDGE_SEMANTIC_FINAL_INVARIANT_R22_END */
+
+
+/* MARION_PUBLIC_KNOWLEDGE_CURRENT_TURN_AUTHORITY_R23_START
+ * Terminal current-turn semantic authority for public six-domain questions.
+ * Fixes the production Network-tab failure where stale Priority 9F metadata
+ * contaminated a normal AI domain question and the backend returned a blocked
+ * non-final packet with internal `short` diagnostics.
+ *
+ * Rules:
+ * - classify from the current user turn only;
+ * - never activate Priority 9F from VERSION/meta/diagnostics/old packet text;
+ * - strong public six-domain questions bypass legacy progression/recovery layers;
+ * - return one substantive authoritativeReply synchronized across all aliases;
+ * - keep private/admin traffic on the prior composer path.
+ */
+(function marionPublicKnowledgeCurrentTurnAuthorityR23(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeCurrentTurnAuthorityR23)return;
+  const V="composeMarionResponse v9.5 PUBLIC-KNOWLEDGE-CURRENT-TURN-AUTHORITY-R23";
+  const prior=typeof api.composeMarionResponse==="function"?api.composeMarionResponse:null;
+
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function privateTurn(a,b){
+    const x=O(a),y=O(b),xb=O(x.body),yb=O(y.body),xp=O(x.payload),yp=O(y.payload),xc=O(x.privateRuntimeContext),yc=O(y.privateRuntimeContext);
+    for(const n of[x,y,xb,yb,xp,yp]){
+      if(n.privateAdminConversation===true||n.marionAdminConversation===true||n.directMarionAdminInterface===true||n.authenticatedOperator===true||n.privateControlPlane===true)return true;
+      if(/^(?:owner|private_admin)$/i.test(T(n.audience||n.scope)))return true;
+    }
+    return !!xc.version||!!yc.version;
+  }
+  function currentPrompt(routed,input){
+    const i=O(input),r=O(routed),ib=O(i.body),ip=O(i.payload),it=O(i.turn),rb=O(r.body),rp=O(r.payload);
+    return T(i.voiceTextParityText||i.rawUserText||i.originalUserText||i.userText||i.userQuery||i.prompt||i.query||i.inputText||i.message||i.text||
+      ib.rawUserText||ib.userText||ib.userQuery||ib.prompt||ib.query||ib.message||ib.text||
+      ip.rawUserText||ip.userText||ip.userQuery||ip.prompt||ip.query||ip.message||ip.text||
+      it.rawUserText||it.userText||it.message||it.text||
+      r.rawUserText||r.originalUserText||r.userText||r.userQuery||r.prompt||r.query||r.inputText||r.message||r.text||
+      rb.rawUserText||rb.userText||rb.message||rb.text||rp.rawUserText||rp.userText||rp.message||rp.text);
+  }
+  function domain(routed,input,q){
+    const r=O(routed),i=O(input),rr=O(r.routing),ri=O(r.marionIntent),ir=O(i.routing),ii=O(i.marionIntent);
+    let d=normalizeKnowledgeDomain(r.knowledgeDomain||rr.knowledgeDomain||ri.knowledgeDomain||r.primaryDomain||r.selectedDomain||r.domain||
+      i.knowledgeDomain||ir.knowledgeDomain||ii.knowledgeDomain||i.primaryDomain||i.selectedDomain||i.domain);
+    if(d)return d;
+    const t=T(q).toLowerCase();
+    if(/\b(?:artificial intelligence|what is ai|machine learning|large language model|llm|ai agent|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";
+    if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";
+    if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";
+    if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";
+    if(/\b(?:contract law|consideration in contract|legal consideration|negligence|tort|jurisdiction|case law|statute|fiduciary)\b/i.test(t))return"law";
+    if(/\b(?:cash flow|working capital|gross margin|unit economics|burn rate|runway|customer acquisition cost|lifetime value|roi|roas)\b/i.test(t))return"finance";
+    return"";
+  }
+  function question(q){
+    const t=T(q).toLowerCase();
+    if(!t||/^(?:who are you|what are you|who is nyx|who is nix|who is marion|what is marion)\b/.test(t))return false;
+    if(/^(?:open|launch|go to|take me to|play|start|stop|pause)\b/.test(t))return false;
+    return /[?]$/.test(t)||/^(?:what|why|how|define|explain|describe|compare|tell me about)\b/.test(t);
+  }
+  function explicit9F(q){
+    const t=T(q).toLowerCase();
+    return /\b(?:priority\s*9f|9f\s*r[1-4]|deep conversational stack|layered conversational|marion conversational architecture|continuation carry)\b/i.test(t);
+  }
+  function answer(d,q,input){
+    try{
+      if(d==="ai")return aiDomainAnswer(q);
+      if(d==="cyber")return cyberDomainAnswer(q);
+      if(d==="law")return lawDomainAnswer(q);
+      if(d==="finance")return financeDomainAnswer(q);
+      if(d==="psychology"){
+        let x=psychologyDomainAnswer(q,input);
+        if(/\bcognitive bias\b/i.test(q)&&(!x||/name the part|keep this useful instead of generic|i hear you/i.test(x)))x="A cognitive bias is a systematic shortcut in judgment that can skew how people notice evidence, estimate risk, remember events, or make decisions. Biases are not automatically irrational; they become a problem when the shortcut consistently distorts the situation or survives better evidence.";
+        return x;
+      }
+      if(d==="english"){
+        const t=T(q).toLowerCase();
+        if(/\bidiom\b/i.test(t))return"An idiom is a fixed or familiar expression whose meaning is not fully predictable from the literal meanings of its individual words. For example, “break a leg” means “good luck,” not a literal instruction to get injured.";
+        if(/\bplain language\b/i.test(t))return"Plain language is communication designed so the intended audience can find, understand, and use the information easily. It favors familiar words, clear structure, direct sentences, and only as much detail as the reader needs.";
+        const x=knowledgeDomainReply("english",q,input,{});
+        return T(x);
+      }
+    }catch(_){}
+    return"";
+  }
+  function bad(reply,q){
+    const t=T(reply);
+    if(!t||t.length<12)return true;
+    if(isPromptEchoReply(t,q)||isBlockedLoopReply(t)||isInternalContractLeak(t))return true;
+    return /\b(?:Priority\s*9F-R[1-4]|layered conversational precedence|domain hijack suppression|ALT runtime prompt-echo suppression|continuation carry|AI lane active|final envelope missing|diagnostic packet|that route is unavailable|couldn[’']?t complete that answer cleanly)\b/i.test(t);
+  }
+  function packet(routed,input,d,q,reply){
+    const r=O(routed),rr=O(r.routing),turnId=resolveTurnId(routed,input);
+    const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:reply,speechText:reply};
+    const finalEnvelope={...aliases,ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,intent:"domain_question",domain:d,knowledgeDomain:d,turnId,currentTurnBound:true,singlePassPublicKnowledge:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"composer_final"};
+    const memoryPatch={activeDomain:d,activeSubject:deriveTopic(q),lastUserText:q,lastAssistantReply:reply,stateStage:"final",replySignature:hashText(reply),singlePassPublicKnowledge:true,currentTurnAuthority:true};
+    return {...aliases,ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,
+      intent:"domain_question",domain:d,primaryDomain:d,selectedDomain:d,knowledgeDomain:d,turnId,source:"composeMarionResponse",authority:"marionFinalEnvelope",replyAuthority:"composer_final",
+      singlePassPublicKnowledge:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnBound:true,priority9FQuarantined:true,
+      routing:{...rr,domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,priority9FQuarantined:true},
+      memoryPatch,sessionPatch:memoryPatch,payload:{...finalEnvelope},finalEnvelope,
+      meta:{...O(r.meta),singlePassPublicKnowledge:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicKnowledgeCurrentTurnAuthorityVersion:V,priority9FQuarantined:true,legacyProgressionBypassed:true,noUserFacingDiagnostics:true},
+      diagnostics:{publicKnowledgeCurrentTurnAuthorityVersion:V,priority9FQuarantined:true,legacyProgressionBypassed:true,currentPromptOnly:true,noUserFacingDiagnostics:true},
+      version:V,composerVersion:V};
+  }
+  function direct(routed={},input={}){
+    if(privateTurn(routed,input))return null;
+    const q=currentPrompt(routed,input),d=domain(routed,input,q);
+    if(!q||!d||!question(q)||explicit9F(q))return null;
+    const reply=T(answer(d,q,input));
+    if(bad(reply,q))return null;
+    return packet(routed,input,d,q,reply);
+  }
+  function compose(routed={},input={}){
+    const x=direct(routed,input);
+    if(x)return x;
+    return prior?prior.apply(this,arguments):null;
+  }
+  api.composePublicKnowledgeTerminal=direct;
+  api.composePublicKnowledgeFast=direct;
+  api.composeMarionResponse=compose;
+  api.compose=compose;
+  api.run=compose;
+  api.default=compose;
+  api.MARION_PUBLIC_KNOWLEDGE_CURRENT_TURN_AUTHORITY_VERSION=V;
+  api.__marionPublicKnowledgeCurrentTurnAuthorityR23=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_CURRENT_TURN_AUTHORITY_R23_END */
