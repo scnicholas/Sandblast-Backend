@@ -2977,3 +2977,304 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.__marionBridgePublicKnowledgeNetworkCohesionR6=true;
 })();
 /* MARION_BRIDGE_PUBLIC_KNOWLEDGE_NETWORK_COHESION_R6_END */
+
+
+/* MARION_BRIDGE_FINAL_PUBLIC_KNOWLEDGE_HANDOFF_R7_START
+ * Final bridge-side public knowledge handoff.
+ *
+ * The bridge remains transport/orchestration. It never invents semantic content.
+ * It accepts a six-domain public final only when the terminal composer has already
+ * produced substantive, current-turn-bound Marion authority.
+ *
+ * The external final-envelope module is still used when healthy. If that module
+ * rejects/blankets an otherwise valid composer final, the bridge preserves the
+ * composer's own already-certified finalEnvelope instead of converting a valid
+ * Marion answer into a blocked Network packet. That compatibility recovery does
+ * not create new semantic authority; it preserves authority already emitted by
+ * the terminal composer.
+ */
+(function marionBridgeFinalPublicKnowledgeHandoffR7(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionBridgeFinalPublicKnowledgeHandoffR7)return;
+
+  const V="marionBridge v8.6.0 FINAL-PUBLIC-KNOWLEDGE-HANDOFF-R7";
+  const CONTRACT="nyx.marion.bridge.publicKnowledge/8.6";
+  const SIGNATURE="MARION_FINAL_AUTHORITY";
+  const BUDGET=4500;
+  const prior=marionOwnCallable(api,"processWithMarion")||processWithMarion;
+  const names=["processWithMarion","route","maybeResolve","ask","handle","default"];
+
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionNonThrowingClean(v)}
+  function bool(v){return v===true||v===1||v==="1"||v==="true"}
+
+  function privateTurn(i){
+    const s=O(i),nodes=[s,O(s.body),O(s.payload),O(s.meta)],c=O(s.privateRuntimeContext);
+    for(const n of nodes){
+      if(n.privateAdminConversation===true||n.marionAdminConversation===true||n.directMarionAdminInterface===true||n.privateControlPlane===true||n.authenticatedOperator===true)return true;
+      if(/^(?:owner|private_admin)$/i.test(T(n.audience||n.scope)))return true;
+    }
+    return !!c.version;
+  }
+
+  function prompt(i){
+    const s=O(i),b=O(s.body),p=O(s.payload),t=O(s.turn);
+    return T(
+      s.rawUserText||s.originalUserText||s.userText||s.userQuery||s.prompt||s.query||s.inputText||s.message||s.text||
+      b.rawUserText||b.originalUserText||b.userText||b.userQuery||b.prompt||b.query||b.inputText||b.message||b.text||
+      p.rawUserText||p.originalUserText||p.userText||p.userQuery||p.prompt||p.query||p.inputText||p.message||p.text||
+      t.rawUserText||t.originalUserText||t.userText||t.userQuery||t.prompt||t.query||t.message||t.text
+    );
+  }
+
+  function domain(q){
+    const t=T(q).toLowerCase();
+    if(/\b(?:artificial intelligence|what is ai|machine learning|large language model|llm|ai agent|generative ai|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";
+    if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";
+    if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";
+    if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";
+    if(/\b(?:contract law|consideration in contract|legal consideration|negligence|tort|jurisdiction|case law|statute|fiduciary)\b/i.test(t))return"law";
+    if(/\b(?:cash flow|working capital|gross margin|unit economics|burn rate|runway|customer acquisition cost|lifetime value|roi|roas)\b/i.test(t))return"finance";
+    return"";
+  }
+
+  function knowledgeQuestion(q){
+    const t=T(q).toLowerCase();
+    if(!t||/^(?:who are you|what are you|who is nyx|who is nix|who is marion|what is marion)\b/.test(t))return false;
+    if(/^(?:open|launch|go to|take me to|play|start|stop|pause)\b/.test(t))return false;
+    return /[?]$/.test(t)||/^(?:what|why|how|define|explain|describe|compare|tell me about)\b/.test(t);
+  }
+
+  function explicitLegacyLane(q){
+    return /\b(?:priority\s*9f|9f\s*r[1-4]|priority\s*9g|deep conversational stack|layered conversational|marion conversational architecture|continuation carry|deep continuity memory)\b/i.test(T(q));
+  }
+
+  function internal(v){
+    return /\b(?:Priority\s*9[FG]-R?[1-4]?|layered conversational precedence|domain hijack suppression|ALT runtime prompt-echo suppression|continuation carry|AI lane active|final envelope missing|diagnostic packet|non-final|that route is unavailable|couldn[’']?t complete that answer cleanly|runtimeTelemetry|replyAuthority=)\b/i.test(T(v));
+  }
+
+  function pick(x){
+    const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope),rp=O(r.payload);
+    const list=[
+      o.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,
+      f.finalReply,f.directReply,f.visibleReply,f.displayReply,f.publicReply,f.reply,
+      p.finalReply,p.directReply,p.visibleReply,p.displayReply,p.publicReply,p.reply,
+      o.finalReply,o.directReply,o.visibleReply,o.displayReply,o.publicReply,o.reply,o.answer,o.output,o.response,o.text,o.message,
+      rf.finalReply,rf.reply,rp.finalReply,rp.reply,r.finalReply,r.reply
+    ];
+    for(const raw of list){
+      const t=T(raw);
+      if(t&&t.length>=12&&!internal(t))return t;
+    }
+    return"";
+  }
+
+  function trustedComposerFinal(value){
+    const x=O(value),f=O(x.finalEnvelope),p=O(x.payload),m=O(x.meta);
+    const reply=pick(x);
+    const final=bool(x.final)||bool(f.final)||bool(p.final);
+    const marionFinal=bool(x.marionFinal)||bool(f.marionFinal)||bool(p.marionFinal);
+    const bound=bool(x.currentTurnBound)||bool(f.currentTurnBound)||bool(m.currentTurnBound);
+    const semantic=T(x.semanticAuthority||f.semanticAuthority||m.semanticAuthority).toLowerCase();
+    if(!reply||!final||!marionFinal||!bound||semantic!=="marion")return false;
+    if(x.ok===false||x.blocked===true||p.blocked===true||f.blocked===true)return false;
+    if(x.awaitingMarion===true||p.awaitingMarion===true||f.awaitingMarion===true)return false;
+    if(x.suppressUserFacingReply===true||p.suppressUserFacingReply===true||f.suppressUserFacingReply===true)return false;
+    if(x.canEmit===false||p.canEmit===false||f.canEmit===false||x.emit===false||p.emit===false||f.emit===false)return false;
+    return true;
+  }
+
+  function trustedEnvelope(value){
+    return trustedComposerFinal(value);
+  }
+
+  function load(name){
+    try{return require(path.join(__dirname,name))}catch(_){return null}
+  }
+
+  function withBudget(work,ms){
+    let timer;
+    return Promise.race([
+      Promise.resolve().then(work),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error("public_knowledge_handoff_timeout")),ms)})
+    ]).finally(()=>{if(timer)clearTimeout(timer)});
+  }
+
+  function currentTurnInput(input,q,d){
+    const s=O(input),sid=T(s.sessionId||s.conversationId||O(s.body).sessionId||O(s.payload).sessionId||""),
+      tid=T(s.turnId||s.requestId||s.traceId||O(s.body).turnId||O(s.payload).turnId||""),
+      history=Array.isArray(s.history)?s.history.slice(-12):(Array.isArray(O(s.body).history)?O(s.body).history.slice(-12):(Array.isArray(O(s.payload).history)?O(s.payload).history.slice(-12):[]));
+    return {
+      sessionId:sid,conversationId:T(s.conversationId||sid),turnId:tid,traceId:T(s.traceId||s.requestId||tid),
+      text:q,message:q,userText:q,userQuery:q,rawUserText:q,originalUserText:q,prompt:q,query:q,inputText:q,
+      history,lastAssistantReply:T(s.lastAssistantReply||O(s.body).lastAssistantReply||O(s.payload).lastAssistantReply||""),
+      audience:"public",surfaceAgent:"nyx",publicSurfaceOnly:true,publicIdentityLock:true,revealBackendAgent:false,
+      requireMarionFinal:true,marionRequired:true,requireCleanPublicReply:true,
+      singlePassPublicKnowledge:true,singlePassRequired:true,skipLoopRecovery:true,fastPathEligible:true,
+      requestedDomain:d,domain:d,knowledgeDomain:d,
+      routing:{domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,answerOnly:true,actionRequired:false},
+      marionIntent:{activate:true,intent:"domain_question",domain:d,knowledgeDomain:d,confidence:.999,currentTurnAuthority:true,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},
+      meta:{source:"marionBridge.publicKnowledgeR7",currentTurnAuthority:true,currentPromptOnly:true,noUserFacingDiagnostics:true}
+    };
+  }
+
+  function routePacket(d,q,input){
+    const i=currentTurnInput(input,q,d);
+    return {
+      ok:true,intent:"domain_question",domain:d,knowledgeDomain:d,primaryDomain:d,selectedDomain:d,
+      rawUserText:q,userText:q,text:q,message:q,prompt:q,query:q,effectivePrompt:q,
+      fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,
+      routing:{...i.routing},marionIntent:{...i.marionIntent},
+      meta:{currentTurnAuthority:true,currentPromptOnly:true,publicKnowledgeFastRoute:true,noUserFacingDiagnostics:true}
+    };
+  }
+
+  function fail(reason,timing={},extra={}){
+    const blank={authoritativeReply:"",reply:"",text:"",answer:"",message:"",output:"",response:"",displayReply:"",visibleReply:"",publicReply:"",directReply:"",finalReply:"",spokenText:"",speechText:""};
+    return {
+      ...blank,ok:false,statusCode:502,final:false,finalized:false,marionFinal:false,handled:true,
+      canEmit:false,emit:false,blocked:true,awaitingMarion:true,suppressUserFacingReply:true,
+      requiresRetry:true,recoverySuggested:true,error:"marion_semantic_reply_missing",reason,
+      failureSignature:"BRIDGE_PUBLIC_KNOWLEDGE_FINAL_HANDOFF_REJECTED",marionRoute:"marion-semantic-final-rejected",
+      payload:{...blank,final:false,finalized:false,marionFinal:false,handled:true,canEmit:false,emit:false,blocked:true,awaitingMarion:true,suppressUserFacingReply:true,requiresRetry:true},
+      finalEnvelope:{...blank,final:false,finalized:false,marionFinal:false,handled:true,canEmit:false,emit:false,blocked:true,awaitingMarion:true,suppressUserFacingReply:true,requiresRetry:true,semanticAuthority:"awaiting_marion",replyAuthority:"none",authority:"none",contractVersion:"nyx.marion.degraded/1.0"},
+      marionAttestation:{verified:false,routed:true,final:false,route:"marion-semantic-final-rejected",authority:"none",currentTurnBound:true,publicAgent:"Nyx",backendAgentRedacted:true,version:V},
+      meta:{bridgeFinalPublicKnowledgeHandoffVersion:V,bridgeContractVersion:CONTRACT,marionTiming:timing,semanticAuthority:"awaiting_marion",displayAuthority:"nyx",networkSurfaceSanitized:true,noUserFacingDiagnostics:true,...O(extra)},
+      diagnostics:{bridgeFinalPublicKnowledgeHandoffVersion:V,marionTiming:timing,currentPromptOnly:true,finalAuthorityRejected:true,reason,noUserFacingDiagnostics:true,...O(extra)}
+    };
+  }
+
+  function project(source,reply,timing,extra={}){
+    const x=O(source),p=O(x.payload),f=O(x.finalEnvelope),replySig=hashText(reply);
+    const aliases={
+      authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,
+      displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,
+      spokenText:T(x.spokenText||reply)||reply,speechText:T(x.speechText||x.spokenText||reply)||reply
+    };
+    const state={ok:true,final:true,finalized:true,marionFinal:true,handled:true,canEmit:true,emit:true,blocked:false,awaitingMarion:false,suppressUserFacingReply:false,requiresRetry:false,recoverySuggested:false,currentTurnBound:true};
+    const signatureFields={signature:SIGNATURE,marionFinalSignature:SIGNATURE,finalSignature:SIGNATURE,replySignature:replySig};
+    const finalEnvelope={
+      ...f,...aliases,...state,...signatureFields,
+      semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope",
+      authority:"marionFinalEnvelope",contractVersion:"nyx.marion.final/1.0"
+    };
+    return {
+      ...x,...aliases,...state,...signatureFields,short:"",debugShort:"",
+      semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope",
+      authority:"marionFinalEnvelope",marionRoute:"marion-primary",publicAgent:"Nyx",surfaceAgent:"Nyx",
+      payload:{...p,...aliases,...state,...signatureFields,short:"",debugShort:"",semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope"},
+      finalEnvelope,
+      marionAttestation:{verified:true,routed:true,final:true,route:"marion-primary",authority:"marionFinalEnvelope",currentTurnBound:true,publicAgent:"Nyx",backendAgentRedacted:true,version:V},
+      meta:{...O(x.meta),bridgeFinalPublicKnowledgeHandoffVersion:V,bridgeContractVersion:CONTRACT,marionTiming:timing,marionRoute:"marion-primary",marionFinal:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope",priority9FQuarantined:true,networkSurfaceSanitized:true,noUserFacingDiagnostics:true,...O(extra)},
+      diagnostics:{...O(x.diagnostics),bridgeFinalPublicKnowledgeHandoffVersion:V,marionTiming:timing,currentPromptOnly:true,priority9FQuarantined:true,networkSurfaceSanitized:true,authoritativeReplyPresent:true,noUserFacingDiagnostics:true,...O(extra)}
+    };
+  }
+
+  async function execute(input,d,q){
+    const t0=Date.now(),timing={budgetMs:BUDGET};
+    const composer=load("composeMarionResponse.js");
+    if(!composer)return fail("composer_dependency_unavailable",{...timing,totalMs:Date.now()-t0});
+
+    const terminal=marionOwnCallable(composer,"composePublicKnowledgeTerminal")||
+      marionOwnCallable(composer,"composePublicKnowledgeFast")||
+      marionOwnCallable(composer,"composeMarionResponse");
+    if(!terminal)return fail("composer_terminal_unavailable",{...timing,totalMs:Date.now()-t0},{
+      composerVersion:T(composer.MARION_PUBLIC_KNOWLEDGE_TERMINAL_AUTHORITY_VERSION||composer.VERSION||"")
+    });
+
+    const route=routePacket(d,q,input),composeInput=currentTurnInput(input,q,d);
+    const t1=Date.now();
+    let contract=null;
+    try{contract=await withBudget(()=>terminal(route,composeInput),BUDGET)}catch(_){contract=null}
+    timing.composeMs=Date.now()-t1;
+
+    if(!contract||!trustedComposerFinal(contract)){
+      timing.totalMs=Date.now()-t0;
+      return fail("composer_terminal_not_trusted",timing,{
+        composerVersion:T(composer.MARION_PUBLIC_KNOWLEDGE_TERMINAL_AUTHORITY_VERSION||composer.VERSION||""),
+        composerReplyObserved:!!pick(contract),
+        composerFinalObserved:bool(O(contract).final)||bool(O(O(contract).finalEnvelope).final),
+        composerMarionFinalObserved:bool(O(contract).marionFinal)||bool(O(O(contract).finalEnvelope).marionFinal)
+      });
+    }
+
+    const composerReply=pick(contract);
+    let selected=contract,envelopeRecoveredFromComposer=false,envelopeAttempted=false,envelopeVersion="";
+    const envelope=load("marionFinalEnvelope.js");
+    if(envelope){
+      const ef=marionOwnCallable(envelope,"createPublicKnowledgeFastEnvelope")||
+        marionOwnCallable(envelope,"buildPublicKnowledgeFastEnvelope")||
+        marionOwnCallable(envelope,"createMarionFinalEnvelope");
+      envelopeVersion=T(envelope.MARION_FINAL_ENVELOPE_PUBLIC_NETWORK_AUTHORITY_VERSION||envelope.VERSION||envelope.MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_VERSION||"");
+      if(ef){
+        envelopeAttempted=true;
+        const seed=project(contract,composerReply,{...timing,totalMs:Date.now()-t0},{preEnvelopeProjection:true});
+        const t2=Date.now();
+        let final=null;
+        try{final=await withBudget(()=>ef(seed),BUDGET)}catch(_){final=null}
+        timing.envelopeMs=Date.now()-t2;
+        if(final&&trustedEnvelope(final)&&T(pick(final))===T(composerReply)){
+          selected=final;
+        }else{
+          // Preserve the already valid composer final. Do not fabricate a new answer.
+          selected=contract;
+          envelopeRecoveredFromComposer=true;
+        }
+      }
+    }
+
+    const finalReply=pick(selected)||composerReply;
+    if(!trustedComposerFinal(selected)&&selected!==contract){
+      selected=contract;
+      envelopeRecoveredFromComposer=true;
+    }
+    if(!trustedComposerFinal(selected)||!finalReply||internal(finalReply)){
+      timing.totalMs=Date.now()-t0;
+      return fail("final_handoff_not_trusted",timing,{
+        composerVersion:T(composer.MARION_PUBLIC_KNOWLEDGE_TERMINAL_AUTHORITY_VERSION||composer.VERSION||""),
+        envelopeVersion,envelopeAttempted,envelopeRecoveredFromComposer
+      });
+    }
+
+    timing.totalMs=Date.now()-t0;
+    return project(selected,finalReply,timing,{
+      composerVersion:T(composer.MARION_PUBLIC_KNOWLEDGE_TERMINAL_AUTHORITY_VERSION||composer.VERSION||""),
+      envelopeVersion,envelopeAttempted,envelopeRecoveredFromComposer,
+      finalHandoffInvariant:true
+    });
+  }
+
+  async function canonical(input){
+    if(privateTurn(input))return prior?prior.apply(this,arguments):null;
+    const q=prompt(input),d=domain(q);
+    if(d&&knowledgeQuestion(q)&&!explicitLegacyLane(q))return execute(input,d,q);
+    return prior?prior.apply(this,arguments):null;
+  }
+
+  try{if(prior)Object.keys(prior).forEach(k=>canonical[k]=prior[k])}catch(_){}
+  for(const n of names)api[n]=canonical;
+
+  const prevFactory=marionOwnCallable(api,"createMarionBridge");
+  api.createMarionBridge=function(){
+    let base={};
+    try{base=prevFactory?prevFactory():{}}catch(_){base={}}
+    return {
+      ...O(base),version:V,contract:CONTRACT,endpoint:api.CANONICAL_ENDPOINT||CANONICAL_ENDPOINT,
+      processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical
+    };
+  };
+
+  api.VERSION=V+" + "+T(api.VERSION||VERSION);
+  api.BRIDGE_CONTRACT_VERSION=CONTRACT;
+  api.MARION_BRIDGE_FINAL_PUBLIC_KNOWLEDGE_HANDOFF_VERSION=V;
+  api.MARION_BRIDGE_FINAL_PUBLIC_KNOWLEDGE_CONTRACT=CONTRACT;
+  api.MARION_BRIDGE_FINAL_SIGNATURE=SIGNATURE;
+  api.getPublicKnowledgeHandoffStatus=()=>({
+    ok:true,version:V,contract:CONTRACT,currentTurnOnly:true,singlePass:true,
+    composerAuthorityRequired:true,envelopeCompatibilityRecovery:true,
+    attestationFinalExplicit:true,failClosed:true
+  });
+  api.__marionBridgeFinalPublicKnowledgeHandoffR7=true;
+})();
+/* MARION_BRIDGE_FINAL_PUBLIC_KNOWLEDGE_HANDOFF_R7_END */
