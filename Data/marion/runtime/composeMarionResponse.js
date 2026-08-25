@@ -11220,3 +11220,211 @@ for(const n of["composeMarionResponse","compose","run","handle","buildReply","cr
   api.__marionPublicKnowledgeCurrentTurnAuthorityR23=true;
 })();
 /* MARION_PUBLIC_KNOWLEDGE_CURRENT_TURN_AUTHORITY_R23_END */
+
+
+/* MARION_PUBLIC_KNOWLEDGE_TERMINAL_AUTHORITY_R24_START
+ * Final public six-domain semantic authority.
+ *
+ * This terminal layer exists because the legacy composer contains many historical
+ * response wrappers. It does not delete those layers. It creates one final,
+ * current-turn-only path for public knowledge questions and leaves all private,
+ * admin, explicit Priority-9F, media, execution, and non-domain traffic on the
+ * existing composer.
+ *
+ * Critical invariants:
+ * 1) current user text outranks voice parity, route memory and old metadata;
+ * 2) explicit domain language in the current turn outranks stale routed domains;
+ * 3) no empty/generic/internal reply may be certified;
+ * 4) a valid result carries one identical authoritativeReply through every
+ *    public alias, payload and finalEnvelope;
+ * 5) final/marionFinal/emit/canEmit/finalized are internally consistent;
+ * 6) a Marion final signature is emitted only after substantive semantic text
+ *    is present.
+ */
+(function marionPublicKnowledgeTerminalAuthorityR24(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeTerminalAuthorityR24)return;
+
+  const V="composeMarionResponse v9.6 PUBLIC-KNOWLEDGE-TERMINAL-AUTHORITY-R24";
+  const prior=typeof api.composeMarionResponse==="function"?api.composeMarionResponse:null;
+  const SIGNATURE="MARION_FINAL_AUTHORITY";
+
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+
+  function privateTurn(routed,input){
+    const nodes=[O(routed),O(input),O(O(routed).body),O(O(input).body),O(O(routed).payload),O(O(input).payload),O(O(routed).meta),O(O(input).meta)];
+    for(const n of nodes){
+      if(n.privateAdminConversation===true||n.marionAdminConversation===true||n.directMarionAdminInterface===true||n.privateControlPlane===true||n.authenticatedOperator===true)return true;
+      if(/^(?:owner|private_admin)$/i.test(T(n.audience||n.scope)))return true;
+    }
+    return !!O(O(routed).privateRuntimeContext).version||!!O(O(input).privateRuntimeContext).version;
+  }
+
+  function prompt(input,routed){
+    const i=O(input),r=O(routed),ib=O(i.body),ip=O(i.payload),it=O(i.turn),rb=O(r.body),rp=O(r.payload);
+    // Actual current-turn text always wins. voiceTextParityText is compatibility-only.
+    return T(
+      i.rawUserText||i.originalUserText||i.userText||i.userQuery||i.prompt||i.query||i.inputText||i.message||i.text||
+      ib.rawUserText||ib.originalUserText||ib.userText||ib.userQuery||ib.prompt||ib.query||ib.inputText||ib.message||ib.text||
+      ip.rawUserText||ip.originalUserText||ip.userText||ip.userQuery||ip.prompt||ip.query||ip.inputText||ip.message||ip.text||
+      it.rawUserText||it.originalUserText||it.userText||it.userQuery||it.prompt||it.query||it.message||it.text||
+      i.voiceTextParityText||
+      r.rawUserText||r.originalUserText||r.userText||r.userQuery||r.prompt||r.query||r.inputText||r.message||r.text||
+      rb.rawUserText||rb.originalUserText||rb.userText||rb.userQuery||rb.prompt||rb.query||rb.message||rb.text||
+      rp.rawUserText||rp.originalUserText||rp.userText||rp.userQuery||rp.prompt||rp.query||rp.message||rp.text
+    );
+  }
+
+  function explicitDomainFromPrompt(q){
+    const t=T(q).toLowerCase();
+    if(/\b(?:artificial intelligence|what is ai|machine learning|large language model|llm|ai agent|generative ai|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";
+    if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";
+    if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";
+    if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";
+    if(/\b(?:contract law|consideration in contract|legal consideration|negligence|tort|jurisdiction|case law|statute|fiduciary)\b/i.test(t))return"law";
+    if(/\b(?:cash flow|working capital|gross margin|unit economics|burn rate|runway|customer acquisition cost|lifetime value|roi|roas)\b/i.test(t))return"finance";
+    return"";
+  }
+
+  function routedDomain(routed,input){
+    const r=O(routed),i=O(input),rr=O(r.routing),ri=O(r.marionIntent),ir=O(i.routing),ii=O(i.marionIntent);
+    return normalizeKnowledgeDomain(
+      r.knowledgeDomain||rr.knowledgeDomain||ri.knowledgeDomain||r.primaryDomain||r.selectedDomain||r.domain||
+      i.knowledgeDomain||ir.knowledgeDomain||ii.knowledgeDomain||i.primaryDomain||i.selectedDomain||i.domain
+    );
+  }
+
+  function domain(routed,input,q){
+    // Current turn is semantic authority. Routed state is fallback only.
+    return explicitDomainFromPrompt(q)||routedDomain(routed,input)||"";
+  }
+
+  function knowledgeQuestion(q){
+    const t=T(q).toLowerCase();
+    if(!t)return false;
+    if(/^(?:who are you|what are you|who is nyx|who is nix|who is marion|what is marion)\b/.test(t))return false;
+    if(/^(?:open|launch|go to|take me to|play|start|stop|pause)\b/.test(t))return false;
+    return /[?]$/.test(t)||/^(?:what|why|how|define|explain|describe|compare|tell me about)\b/.test(t);
+  }
+
+  function explicitLegacyLane(q){
+    return /\b(?:priority\s*9f|9f\s*r[1-4]|priority\s*9g|deep conversational stack|layered conversational|marion conversational architecture|continuation carry|deep continuity memory)\b/i.test(T(q));
+  }
+
+  function answer(d,q,input){
+    try{
+      if(d==="ai"){
+        const x=T(aiDomainAnswer(q));
+        return x||"Artificial intelligence is the field of building computer systems that can perform tasks involving perception, language, prediction, reasoning, generation, or decision support. Modern AI usually learns statistical patterns from data and applies those patterns to new inputs; it does not think or understand in exactly the same way a person does.";
+      }
+      if(d==="cyber"){
+        const x=T(cyberDomainAnswer(q));
+        return x||"Cybersecurity is the practice of protecting systems, networks, accounts, applications, and data from unauthorized access, disruption, manipulation, or theft. Effective security combines identity controls, patching, least privilege, monitoring, backups, incident response, and user awareness.";
+      }
+      if(d==="law"){
+        const x=T(lawDomainAnswer(q));
+        return x||"Law is a system of rules, duties, rights, procedures, and remedies recognized by a governing authority. The precise answer to a legal question depends on the jurisdiction, facts, and the body of law that applies.";
+      }
+      if(d==="finance"){
+        const x=T(financeDomainAnswer(q));
+        return x||"Finance is the discipline of managing money, capital, risk, cash flow, investment, and funding decisions. For a business, the practical focus is usually liquidity, profitability, working capital, financing cost, and return on invested resources.";
+      }
+      if(d==="psychology"){
+        let x=T(psychologyDomainAnswer(q,input));
+        if(/\bcognitive bias\b/i.test(q)&&(!x||/name the part|keep this useful instead of generic|i hear you/i.test(x)))x="A cognitive bias is a systematic mental shortcut that can influence judgment and decision-making. Biases can help people process information quickly, but they can also distort how evidence, risk, memory, and other people are interpreted.";
+        return x||"Psychology is the scientific study of behavior and mental processes, including cognition, emotion, learning, perception, motivation, development, and social interaction.";
+      }
+      if(d==="english"){
+        const t=T(q).toLowerCase();
+        if(/\bidiom\b/i.test(t))return"An idiom is a familiar expression whose intended meaning is not fully predictable from the literal meanings of its individual words. For example, “break a leg” means “good luck,” especially before a performance.";
+        if(/\bplain language\b/i.test(t))return"Plain language is communication designed so the intended audience can find, understand, and use the information easily. It favors familiar words, clear structure, direct sentences, and only as much detail as the reader needs.";
+        const x=T(knowledgeDomainReply("english",q,input,{}));
+        return x||"English is a language whose meaning depends on vocabulary, grammar, syntax, context, register, and cultural usage. I can explain a specific word, sentence, idiom, tone, or grammatical structure directly.";
+      }
+    }catch(_){}
+    return"";
+  }
+
+  function genericIdentity(v){
+    return /^(?:hi[,. ]+|hello[,. ]+|hey[,. ]+)?i['’]?m nyx\b.{0,180}\bpublic sandblast (?:assistant|guide)\b/i.test(T(v));
+  }
+  function internal(v){
+    return /\b(?:Priority\s*9[FG]-R?[1-4]?|layered conversational precedence|domain hijack suppression|ALT runtime prompt-echo suppression|continuation carry|AI lane active|final envelope missing|diagnostic packet|non-final|that route is unavailable|couldn[’']?t complete that answer cleanly|runtimeTelemetry|replyAuthority=)\b/i.test(T(v));
+  }
+  function usable(reply,q){
+    const t=T(reply);
+    return !!t&&t.length>=12&&!genericIdentity(t)&&!internal(t)&&!isPromptEchoReply(t,q)&&!isBlockedLoopReply(t)&&!isInternalContractLeak(t);
+  }
+
+  function packet(routed,input,d,q,reply){
+    const r=O(routed),rr=O(r.routing),turnId=resolveTurnId(routed,input),sig=SIGNATURE,replySig=hashText(reply);
+    const aliases={
+      authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,
+      displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,
+      spokenText:reply,speechText:reply
+    };
+    const state={
+      ok:true,final:true,finalized:true,marionFinal:true,handled:true,canEmit:true,emit:true,
+      blocked:false,awaitingMarion:false,suppressUserFacingReply:false,requiresRetry:false,recoverySuggested:false,
+      currentTurnBound:true,singlePassPublicKnowledge:true
+    };
+    const finalEnvelope={
+      ...aliases,...state,intent:"domain_question",domain:d,knowledgeDomain:d,turnId,
+      semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"composer_final",
+      authority:"marionFinalEnvelope",contractVersion:"nyx.marion.final/1.0",
+      signature:sig,marionFinalSignature:sig,finalSignature:sig,replySignature:replySig
+    };
+    const memoryPatch={
+      activeDomain:d,activeSubject:deriveTopic(q),lastUserText:q,lastAssistantReply:reply,
+      stateStage:"final",replySignature:replySig,singlePassPublicKnowledge:true,currentTurnAuthority:true
+    };
+    return {
+      ...aliases,...state,
+      intent:"domain_question",domain:d,primaryDomain:d,selectedDomain:d,knowledgeDomain:d,turnId,
+      source:"composeMarionResponse",authority:"marionFinalEnvelope",replyAuthority:"composer_final",
+      semanticAuthority:"marion",displayAuthority:"nyx",signature:sig,marionFinalSignature:sig,finalSignature:sig,
+      replySignature:replySig,singlePassRequired:true,skipLoopRecovery:true,priority9FQuarantined:true,
+      routing:{...rr,domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,priority9FQuarantined:true},
+      memoryPatch,sessionPatch:memoryPatch,
+      payload:{...finalEnvelope},
+      finalEnvelope,
+      meta:{...O(r.meta),singlePassPublicKnowledge:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"composer_final",publicKnowledgeTerminalAuthorityVersion:V,priority9FQuarantined:true,legacyProgressionBypassed:true,noUserFacingDiagnostics:true},
+      diagnostics:{publicKnowledgeTerminalAuthorityVersion:V,priority9FQuarantined:true,legacyProgressionBypassed:true,currentPromptOnly:true,currentPromptDomainPrecedence:true,authoritativeReplyPresent:true,noUserFacingDiagnostics:true},
+      version:V,composerVersion:V
+    };
+  }
+
+  function terminal(routed={},input={}){
+    if(privateTurn(routed,input))return null;
+    const q=prompt(input,routed);
+    if(!q||!knowledgeQuestion(q)||explicitLegacyLane(q))return null;
+    const d=domain(routed,input,q);
+    if(!d)return null;
+    const reply=T(answer(d,q,input));
+    if(!usable(reply,q))return null;
+    return packet(routed,input,d,q,reply);
+  }
+
+  function compose(routed={},input={}){
+    const x=terminal(routed,input);
+    if(x)return x;
+    return prior?prior.apply(this,arguments):null;
+  }
+
+  api.composePublicKnowledgeTerminal=terminal;
+  api.composePublicKnowledgeFast=terminal;
+  api.composeMarionResponse=compose;
+  api.compose=compose;
+  api.run=compose;
+  api.default=compose;
+  api.MARION_PUBLIC_KNOWLEDGE_TERMINAL_AUTHORITY_VERSION=V;
+  api.MARION_PUBLIC_KNOWLEDGE_FINAL_SIGNATURE=SIGNATURE;
+  api.getPublicKnowledgeTerminalStatus=()=>({
+    ok:true,version:V,currentTurnTextFirst:true,currentTurnDomainFirst:true,
+    finalRequiresSubstantiveReply:true,finalSignatureRequiresReply:true,legacyPublicRecoveryBypassed:true
+  });
+  api.__marionPublicKnowledgeTerminalAuthorityR24=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_TERMINAL_AUTHORITY_R24_END */
