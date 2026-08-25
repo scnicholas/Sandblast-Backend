@@ -6567,3 +6567,62 @@ const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","
   api.__marionFinalEnvelopeNonemptyAuthorityInvariantR14=true;
 })();
 /* MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_R14_END */
+
+
+/* MARION_FINAL_ENVELOPE_PUBLIC_NETWORK_AUTHORITY_R15_START
+ * Network-surface cohesion for verified public knowledge finals.
+ * Internal Priority 9F / recovery summaries are never allowed to become
+ * user-facing reply aliases or a public `short` diagnostic.
+ */
+(function marionFinalEnvelopePublicNetworkAuthorityR15(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionFinalEnvelopePublicNetworkAuthorityR15)return;
+  const V="nyx.marion.finalEnvelopePublicNetworkAuthority/15.0";
+  const names=["createMarionFinalEnvelope","buildPublicKnowledgeFastEnvelope","createPublicKnowledgeFastEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  const prior={};for(const n of names)if(typeof api[n]==="function")prior[n]=api[n];
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function internal(v){const t=T(v);return /\b(?:Priority\s*9F-R[1-4]|layered conversational precedence|domain hijack suppression|ALT runtime prompt-echo suppression|continuation carry|AI lane active|final envelope missing|diagnostic packet|state spine|reply authority)\b/i.test(t)}
+  function pick(x){
+    const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope),rp=O(r.payload);
+    for(const v of[o.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,f.finalReply,f.reply,p.finalReply,p.reply,o.finalReply,o.directReply,o.visibleReply,o.displayReply,o.publicReply,o.reply,o.answer,o.output,o.response,o.text,o.message]){
+      const t=T(v);if(t&&!internal(t))return t;
+    }
+    return"";
+  }
+  function cleanNetworkFields(x){
+    const out={...O(x)};
+    for(const k of["short","debugShort","diagnosticShort","internalSummary","recoverySummary"]){
+      if(internal(out[k]))out[k]="";
+    }
+    const p={...O(out.payload)},f={...O(out.finalEnvelope)};
+    for(const target of[p,f])for(const k of["short","debugShort","diagnosticShort","internalSummary","recoverySummary"])if(internal(target[k]))target[k]="";
+    out.payload=p;out.finalEnvelope=f;return out;
+  }
+  function sync(value){
+    if(!value||typeof value!=="object")return value;
+    let x=cleanNetworkFields(value),f=O(x.finalEnvelope),p=O(x.payload),m=O(x.meta);
+    const publicKnowledge=x.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true||f.singlePassPublicKnowledge===true||O(x.routing).intent==="domain_question";
+    if(!publicKnowledge)return x;
+    const reply=pick(x);
+    if((x.marionFinal===true||f.marionFinal===true||p.marionFinal===true)&&!reply){
+      return {...x,ok:false,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,
+        failureSignature:"MARION_SEMANTIC_REPLY_MISSING",error:"marion_semantic_reply_missing",
+        payload:{...p,authoritativeReply:"",reply:"",text:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true},
+        finalEnvelope:{...f,authoritativeReply:"",reply:"",text:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true,semanticAuthority:"awaiting_marion",replyAuthority:"none"},
+        meta:{...m,finalEnvelopePublicNetworkAuthorityVersion:V,networkSurfaceSanitized:true,semanticAuthority:"awaiting_marion",noUserFacingDiagnostics:true}};
+    }
+    if(!reply)return x;
+    const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),speechText:T(x.speechText||x.spokenText||reply)};
+    return {...x,...aliases,short:"",debugShort:"",ok:x.ok!==false,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,
+      payload:{...p,...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false},
+      finalEnvelope:{...f,...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope"},
+      meta:{...m,finalEnvelopePublicNetworkAuthorityVersion:V,networkSurfaceSanitized:true,authoritativeReplyPresent:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",noUserFacingDiagnostics:true}};
+  }
+  function wrap(fn){return function(){const args=Array.from(arguments);if(args.length&&args[0]&&typeof args[0]==="object")args[0]=cleanNetworkFields(args[0]);const v=fn.apply(this,args),done=x=>sync(x);return v&&typeof v.then==="function"?v.then(done):done(v)}}
+  for(const n of names)if(prior[n])api[n]=wrap(prior[n]);
+  api.MARION_FINAL_ENVELOPE_PUBLIC_NETWORK_AUTHORITY_VERSION=V;
+  api.__marionFinalEnvelopePublicNetworkAuthorityR15=true;
+})();
+/* MARION_FINAL_ENVELOPE_PUBLIC_NETWORK_AUTHORITY_R15_END */
