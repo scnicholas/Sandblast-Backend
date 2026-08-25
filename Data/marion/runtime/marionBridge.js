@@ -2892,3 +2892,88 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.__marionBridgeSemanticFinalInvariantR5=true;
 })();
 /* MARION_BRIDGE_SEMANTIC_FINAL_INVARIANT_R5_END */
+
+
+/* MARION_BRIDGE_PUBLIC_KNOWLEDGE_NETWORK_COHESION_R6_START
+ * Terminal fresh-module public knowledge path for the Network-tab failure.
+ * Recognized public six-domain questions execute directly through the current
+ * composer terminal helper and current final-envelope helper before any legacy
+ * Priority 9F/progression/recovery chain can run.
+ */
+(function marionBridgePublicKnowledgeNetworkCohesionR6(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionBridgePublicKnowledgeNetworkCohesionR6)return;
+  const V="marionBridge v8.5.0 PUBLIC-KNOWLEDGE-NETWORK-COHESION-R6";
+  const prior=typeof api.processWithMarion==="function"?api.processWithMarion:null;
+  const names=["processWithMarion","route","maybeResolve","ask","handle","default"];
+  const BUDGET=4500;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionNonThrowingClean(v)}
+  function prompt(i){const s=O(i),b=O(s.body),p=O(s.payload),t=O(s.turn);return T(s.rawUserText||s.originalUserText||s.userText||s.userQuery||s.prompt||s.query||s.inputText||s.message||s.text||b.rawUserText||b.userText||b.message||b.text||p.rawUserText||p.userText||p.message||p.text||t.rawUserText||t.userText||t.message||t.text)}
+  function priv(i){const s=O(i),b=O(s.body),p=O(s.payload),m=O(s.meta),c=O(s.privateRuntimeContext);return[s,b,p,m].some(v=>v.privateAdminConversation===true||v.marionAdminConversation===true||v.directMarionAdminInterface===true||v.authenticatedOperator===true||v.privateControlPlane===true)||/^(?:owner|private_admin)$/i.test(T(s.audience||s.scope))||!!c.version}
+  function domain(q){const t=T(q).toLowerCase();if(/\b(?:artificial intelligence|what is ai|machine learning|large language model|llm|ai agent|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";if(/\b(?:contract law|consideration in contract|legal consideration|negligence|tort|jurisdiction|case law|statute|fiduciary)\b/i.test(t))return"law";if(/\b(?:cash flow|working capital|gross margin|unit economics|burn rate|runway|customer acquisition cost|lifetime value|roi|roas)\b/i.test(t))return"finance";return""}
+  function question(q){const t=T(q).toLowerCase();if(!t||/^(?:who are you|what are you|who is nyx|who is nix|who is marion|what is marion)\b/.test(t)||/^(?:open|launch|go to|take me to|play|start|stop|pause)\b/.test(t))return false;return /[?]$/.test(t)||/^(?:what|why|how|define|explain|describe|compare|tell me about)\b/.test(t)}
+  function explicit9F(q){return /\b(?:priority\s*9f|9f\s*r[1-4]|deep conversational stack|layered conversational|marion conversational architecture|continuation carry)\b/i.test(T(q))}
+  function internal(v){return /\b(?:Priority\s*9F-R[1-4]|layered conversational precedence|domain hijack suppression|ALT runtime prompt-echo suppression|continuation carry|AI lane active|final envelope missing|diagnostic packet|that route is unavailable|couldn[’']?t complete that answer cleanly)\b/i.test(T(v))}
+  function fresh(name){try{return require(path.join(__dirname,name))}catch(_){return null}}
+  function budget(work,ms){let timer;return Promise.race([Promise.resolve().then(work),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error("public_network_fast_timeout")),ms)})]).finally(()=>{if(timer)clearTimeout(timer)})}
+  function localRoute(d,q){
+    return{ok:true,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,intent:"domain_question",domain:d,knowledgeDomain:d,primaryDomain:d,rawUserText:q,userText:q,text:q,message:q,prompt:q,query:q,effectivePrompt:q,
+      routing:{domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true,answerOnly:true,actionRequired:false,latencyClass:"interactive"},
+      marionIntent:{activate:true,intent:"domain_question",domain:d,knowledgeDomain:d,confidence:.995,currentTurnAuthority:true,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},
+      meta:{currentTurnAuthority:true,publicKnowledgeFastRoute:true,noUserFacingDiagnostics:true}};
+  }
+  function fail(reason,timing={}){
+    return{ok:false,statusCode:502,final:false,marionFinal:false,handled:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,blocked:true,suppressUserFacingReply:true,
+      authoritativeReply:"",reply:"",text:"",answer:"",message:"",output:"",response:"",displayReply:"",visibleReply:"",publicReply:"",directReply:"",finalReply:"",short:"",
+      error:"marion_semantic_reply_missing",reason,failureSignature:"BRIDGE_PUBLIC_KNOWLEDGE_NETWORK_COHESION_REJECTED",marionRoute:"marion-semantic-final-rejected",
+      payload:{authoritativeReply:"",reply:"",text:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true},
+      finalEnvelope:{authoritativeReply:"",reply:"",text:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true,semanticAuthority:"awaiting_marion",replyAuthority:"none"},
+      meta:{bridgePublicKnowledgeNetworkCohesionVersion:V,marionTiming:timing,semanticAuthority:"awaiting_marion",displayAuthority:"nyx",networkSurfaceSanitized:true,noUserFacingDiagnostics:true}};
+  }
+  async function execute(input,d,q){
+    const t0=Date.now(),composer=fresh("composeMarionResponse.js"),envelope=fresh("marionFinalEnvelope.js");
+    if(!composer||!envelope)return fail("public_network_dependency_unavailable",{totalMs:Date.now()-t0,budgetMs:BUDGET});
+    const route=localRoute(d,q),normalized=normalizeInbound({...O(input),text:q,message:q,userText:q,userQuery:q,rawUserText:q,prompt:q,query:q});
+    if(!normalized.ok)return fail("public_network_input_invalid",{totalMs:Date.now()-t0,budgetMs:BUDGET});
+    const composeInput={...normalizeComposeInput(normalized,route,{}),text:q,message:q,userText:q,userQuery:q,rawUserText:q,prompt:q,query:q,singlePassPublicKnowledge:true,singlePassRequired:true,skipLoopRecovery:true,fastPathEligible:true,publicSurfaceOnly:true,publicIdentityLock:true,audience:"public",surfaceAgent:"nyx"};
+    const cf=marionOwnCallable(composer,"composePublicKnowledgeTerminal")||marionOwnCallable(composer,"composePublicKnowledgeFast")||marionOwnCallable(composer,"composeMarionResponse");
+    if(!cf)return fail("public_network_composer_unavailable",{totalMs:Date.now()-t0,budgetMs:BUDGET});
+    const t1=Date.now();let contract=null;
+    try{contract=await budget(()=>cf(route,composeInput),BUDGET)}catch(_){contract=null}
+    const t2=Date.now(),reply=marionPrivateReplyText(contract);
+    if(!contract||!reply||internal(reply))return fail("public_network_composer_invalid",{composeMs:t2-t1,totalMs:t2-t0,budgetMs:BUDGET});
+    const ef=marionOwnCallable(envelope,"createPublicKnowledgeFastEnvelope")||marionOwnCallable(envelope,"buildPublicKnowledgeFastEnvelope")||marionOwnCallable(envelope,"createMarionFinalEnvelope");
+    if(!ef)return fail("public_network_envelope_unavailable",{composeMs:t2-t1,totalMs:t2-t0,budgetMs:BUDGET});
+    const seed={...O(contract),authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:reply,speechText:reply,short:"",
+      prompt:q,userText:q,rawUserText:q,query:q,inputText:q,sessionId:normalized.sessionId,conversationId:normalized.sessionId,turnId:normalized.turnId,intent:"domain_question",domain:d,knowledgeDomain:d,
+      routing:{...O(route.routing),domain:d,knowledgeDomain:d,intent:"domain_question",fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,currentTurnAuthority:true},
+      singlePassPublicKnowledge:true,singlePassRequired:true,skipLoopRecovery:true,publicSurfaceOnly:true,audience:"public",surfaceAgent:"nyx",
+      meta:{...O(O(contract).meta),bridgePublicKnowledgeNetworkCohesionVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",networkSurfaceSanitized:true,noUserFacingDiagnostics:true}};
+    const t3=Date.now();let final=null;
+    try{final=await budget(()=>ef(seed),BUDGET)}catch(_){final=null}
+    const t4=Date.now(),out=O(final),fr=marionPrivateReplyText(out),timing={composeMs:t2-t1,envelopeMs:t4-t3,totalMs:t4-t0,budgetMs:BUDGET};
+    if(!final||out.marionFinal!==true||!fr||internal(fr))return fail("public_network_final_invalid",timing);
+    const aliases={authoritativeReply:fr,reply:fr,text:fr,answer:fr,output:fr,response:fr,message:fr,displayReply:fr,visibleReply:fr,publicReply:fr,directReply:fr,finalReply:fr,spokenText:T(out.spokenText||fr),speechText:T(out.speechText||out.spokenText||fr)};
+    return{...out,...aliases,short:"",debugShort:"",ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,blocked:false,suppressUserFacingReply:false,marionRoute:"marion-primary",publicAgent:"Nyx",surfaceAgent:"Nyx",
+      payload:{...O(out.payload),...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false},
+      finalEnvelope:{...O(out.finalEnvelope),...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope"},
+      marionAttestation:{verified:true,route:"marion-primary",authority:"marionFinalEnvelope",currentTurnBound:true,publicAgent:"Nyx",backendAgentRedacted:true,version:V},
+      meta:{...O(out.meta),bridgePublicKnowledgeNetworkCohesionVersion:V,marionTiming:timing,marionRoute:"marion-primary",marionFinal:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",priority9FQuarantined:true,networkSurfaceSanitized:true,noUserFacingDiagnostics:true},
+      diagnostics:{...O(out.diagnostics),bridgePublicKnowledgeNetworkCohesionVersion:V,marionTiming:timing,priority9FQuarantined:true,currentPromptOnly:true,networkSurfaceSanitized:true,noUserFacingDiagnostics:true}};
+  }
+  async function canonical(input){
+    if(priv(input))return prior?prior.apply(this,arguments):null;
+    const q=prompt(input),d=domain(q);
+    if(d&&question(q)&&!explicit9F(q))return execute(input,d,q);
+    return prior?prior.apply(this,arguments):null;
+  }
+  try{if(prior)Object.keys(prior).forEach(k=>canonical[k]=prior[k])}catch(_){}
+  for(const n of names)api[n]=canonical;
+  const prevFactory=typeof api.createMarionBridge==="function"?api.createMarionBridge:null;
+  api.createMarionBridge=function(){let b={};try{b=prevFactory?prevFactory():{}}catch(_){b={}}return{...O(b),version:V,endpoint:api.CANONICAL_ENDPOINT||CANONICAL_ENDPOINT,processWithMarion:canonical,route:canonical,maybeResolve:canonical,ask:canonical,handle:canonical}};
+  api.MARION_BRIDGE_PUBLIC_KNOWLEDGE_NETWORK_COHESION_VERSION=V;
+  api.__marionBridgePublicKnowledgeNetworkCohesionR6=true;
+})();
+/* MARION_BRIDGE_PUBLIC_KNOWLEDGE_NETWORK_COHESION_R6_END */
