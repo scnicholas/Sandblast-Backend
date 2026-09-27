@@ -1,0 +1,157 @@
+{
+  "datasetId": "marion.response-style.synthetic.v1",
+  "version": "1.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.response-style.v1",
+  "cases": [
+    {
+      "caseId": "style.concise.001"
+    },
+    {
+      "caseId": "style.concise.002"
+    },
+    {
+      "caseId": "style.concise.003"
+    },
+    {
+      "caseId": "style.concise.004"
+    },
+    {
+      "caseId": "style.concise.005"
+    },
+    {
+      "caseId": "style.detail.001"
+    },
+    {
+      "caseId": "style.detail.002"
+    },
+    {
+      "caseId": "style.detail.003"
+    },
+    {
+      "caseId": "style.detail.004"
+    },
+    {
+      "caseId": "style.detail.005"
+    },
+    {
+      "caseId": "style.structure.001"
+    },
+    {
+      "caseId": "style.structure.002"
+    },
+    {
+      "caseId": "style.structure.003"
+    },
+    {
+      "caseId": "style.structure.004"
+    },
+    {
+      "caseId": "style.structure.005"
+    },
+    {
+      "caseId": "style.tone.001"
+    },
+    {
+      "caseId": "style.tone.002"
+    },
+    {
+      "caseId": "style.tone.003"
+    },
+    {
+      "caseId": "style.tone.004"
+    },
+    {
+      "caseId": "style.tone.005"
+    },
+    {
+      "caseId": "style.plain.001"
+    },
+    {
+      "caseId": "style.plain.002"
+    },
+    {
+      "caseId": "style.plain.003"
+    },
+    {
+      "caseId": "style.plain.004"
+    },
+    {
+      "caseId": "style.plain.005"
+    },
+    {
+      "caseId": "style.access.001"
+    },
+    {
+      "caseId": "style.access.002"
+    },
+    {
+      "caseId": "style.access.003"
+    },
+    {
+      "caseId": "style.access.004"
+    },
+    {
+      "caseId": "style.access.005"
+    },
+    {
+      "caseId": "style.uncertain.001"
+    },
+    {
+      "caseId": "style.uncertain.002"
+    },
+    {
+      "caseId": "style.uncertain.003"
+    },
+    {
+      "caseId": "style.uncertain.004"
+    },
+    {
+      "caseId": "style.uncertain.005"
+    },
+    {
+      "caseId": "style.clarifying.001"
+    },
+    {
+      "caseId": "style.clarifying.002"
+    },
+    {
+      "caseId": "style.clarifying.003"
+    },
+    {
+      "caseId": "style.clarifying.004"
+    },
+    {
+      "caseId": "style.clarifying.005"
+    },
+    {
+      "caseId": "style.continuity.001"
+    },
+    {
+      "caseId": "style.continuity.002"
+    },
+    {
+      "caseId": "style.continuity.003"
+    },
+    {
+      "caseId": "style.continuity.004"
+    },
+    {
+      "caseId": "style.continuity.005"
+    },
+    {
+      "caseId": "style.repair.001"
+    },
+    {
+      "caseId": "style.repair.002"
+    },
+    {
+      "caseId": "style.repair.003"
+    },
+    {
+      "caseId": "style.repair.004"
+    },
+    {
+      "caseId": "style.repair.005"
+    }
+  ]
+}
