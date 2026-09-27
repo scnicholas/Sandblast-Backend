@@ -1,7 +1,7 @@
 {
   "datasetId": "marion.retrieval.synthetic.v2",
   "version": "2.0.0",
-  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "fixtureStore": "marion.fx.retrieve.v2",
   "cases": [
     {
       "caseId": "ret.direct.001"
