@@ -11437,16 +11437,19 @@ for(const n of["composeMarionResponse","compose","run","handle","buildReply","cr
   "use strict";
   const api = module.exports && typeof module.exports === "object" ? module.exports : null;
   if (!api || api.__marionSelfLearningFinalContractV1) return;
-  let integration = null;
-  try { integration = require("./learning/MarionLearningIntegration.js"); } catch (_) { integration = null; }
   function isAcceptedMarionLearningFinal(value) {
-    if (integration && typeof integration.isAcceptedMarionFinal === "function") return integration.isAcceptedMarionFinal(value);
     const x = value && typeof value === "object" ? value : {};
     const f = x.finalEnvelope && typeof x.finalEnvelope === "object" ? x.finalEnvelope : {};
-    const reply = [x.authoritativeReply, x.reply, x.finalReply, x.text, f.authoritativeReply, f.reply, f.finalReply, f.text].some(v => typeof v === "string" && v.trim());
-    return x.ok === true && x.final === true && x.marionFinal === true && f.final === true && f.marionFinal === true && reply && x.blocked !== true && x.awaitingMarion !== true;
+    const reply = [x.authoritativeReply, x.reply, x.finalReply, x.text, f.authoritativeReply, f.reply, f.finalReply, f.text]
+      .some(v => typeof v === "string" && v.trim().length > 0);
+    const denied = [x, f].some(part => part.ok === false || part.final === false || part.marionFinal === false ||
+      part.blocked === true || part.awaitingMarion === true ||
+      part.canEmit === false || part.emit === false || part.suppressUserFacingReply === true ||
+      part.requiresRetry === true || part.recoverySuggested === true);
+    return x.ok === true && x.final === true && x.marionFinal === true &&
+      f.final === true && f.marionFinal === true && reply && !denied;
   }
-  api.MARION_SELF_LEARNING_FINAL_CONTRACT_VERSION = "marion.selfLearning.finalContract/1.0";
+  api.MARION_SELF_LEARNING_FINAL_CONTRACT_VERSION = "marion.selfLearning.finalContract/1.1-strict-final-eligibility";
   api.isAcceptedMarionLearningFinal = isAcceptedMarionLearningFinal;
   api.getMarionSelfLearningComposerStatus = () => ({ version: api.MARION_SELF_LEARNING_FINAL_CONTRACT_VERSION, finalMustBeAccepted: true, rawConversationCaptured: false });
   api.__marionSelfLearningFinalContractV1 = true;
