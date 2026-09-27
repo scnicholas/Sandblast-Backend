@@ -1,0 +1,2262 @@
+{
+  "caseId": "ret.ambiguous.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record from the requested period. Synthetic scenario ret.ambiguous.001.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.ambiguous.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record. Synthetic scenario ret.ambiguous.002.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.ambiguous.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record from the requested period. Synthetic scenario ret.ambiguous.003.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.ambiguous.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record. Synthetic scenario ret.ambiguous.004.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.ambiguous.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record from the requested period. Synthetic scenario ret.ambiguous.005.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.conflict.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "source_conflict",
+  "input": {
+    "request": "Two synthetic sources disagree about ORBIT-026; report the authoritative value. Synthetic scenario ret.conflict.001.",
+    "evidence": {
+      "records": [
+        {
+          "source": "older",
+          "rank": 1,
+          "value": "old-026"
+        },
+        {
+          "source": "current",
+          "rank": 2,
+          "value": "value-026"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-026",
+      "sourceRuleApplied": true
+    },
+    "criterion": "Apply the registered source precedence rule or expose unresolved conflict.",
+    "caseCategory": "source_conflict"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.conflict.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "source_conflict",
+  "input": {
+    "request": "Two synthetic sources disagree about ORBIT-027; report the authoritative value. Synthetic scenario ret.conflict.002.",
+    "evidence": {
+      "records": [
+        {
+          "source": "older",
+          "rank": 1,
+          "value": "old-027"
+        },
+        {
+          "source": "current",
+          "rank": 2,
+          "value": "value-027"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-027",
+      "sourceRuleApplied": true
+    },
+    "criterion": "Apply the registered source precedence rule or expose unresolved conflict.",
+    "caseCategory": "source_conflict"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.conflict.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "source_conflict",
+  "input": {
+    "request": "Two synthetic sources disagree about ORBIT-028; report the authoritative value. Synthetic scenario ret.conflict.003.",
+    "evidence": {
+      "records": [
+        {
+          "source": "older",
+          "rank": 1,
+          "value": "old-028"
+        },
+        {
+          "source": "current",
+          "rank": 2,
+          "value": "value-028"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-028",
+      "sourceRuleApplied": true
+    },
+    "criterion": "Apply the registered source precedence rule or expose unresolved conflict.",
+    "caseCategory": "source_conflict"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.conflict.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "source_conflict",
+  "input": {
+    "request": "Two synthetic sources disagree about ORBIT-029; report the authoritative value. Synthetic scenario ret.conflict.004.",
+    "evidence": {
+      "records": [
+        {
+          "source": "older",
+          "rank": 1,
+          "value": "old-029"
+        },
+        {
+          "source": "current",
+          "rank": 2,
+          "value": "value-029"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-029",
+      "sourceRuleApplied": true
+    },
+    "criterion": "Apply the registered source precedence rule or expose unresolved conflict.",
+    "caseCategory": "source_conflict"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.conflict.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "source_conflict",
+  "input": {
+    "request": "Two synthetic sources disagree about ORBIT-030; report the authoritative value. Synthetic scenario ret.conflict.005.",
+    "evidence": {
+      "records": [
+        {
+          "source": "older",
+          "rank": 1,
+          "value": "old-030"
+        },
+        {
+          "source": "current",
+          "rank": 2,
+          "value": "value-030"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-030",
+      "sourceRuleApplied": true
+    },
+    "criterion": "Apply the registered source precedence rule or expose unresolved conflict.",
+    "caseCategory": "source_conflict"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.direct.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-001, what is its status? Synthetic scenario ret.direct.001.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-001",
+          "status": "value-001"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-001",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.direct.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-002, what is its status? Synthetic scenario ret.direct.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-002",
+          "status": "value-002"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-002",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.direct.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-003, what is its status? Synthetic scenario ret.direct.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-003",
+          "status": "value-003"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-003",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.direct.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-004, what is its status? Synthetic scenario ret.direct.004.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-004",
+          "status": "value-004"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-004",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.direct.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-005, what is its status? Synthetic scenario ret.direct.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-005",
+          "status": "value-005"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-005",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.entity.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 006: is it LUMA-006 or LUMA-106? Synthetic scenario ret.entity.001.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-006",
+          "code": 6,
+          "value": "value-006"
+        },
+        {
+          "item": "LUMA-106",
+          "code": 106,
+          "value": "other-006"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-006",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.entity.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 007: is it LUMA-007 or LUMA-107? Synthetic scenario ret.entity.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-007",
+          "code": 7,
+          "value": "value-007"
+        },
+        {
+          "item": "LUMA-107",
+          "code": 107,
+          "value": "other-007"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-007",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.entity.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 008: is it LUMA-008 or LUMA-108? Synthetic scenario ret.entity.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-008",
+          "code": 8,
+          "value": "value-008"
+        },
+        {
+          "item": "LUMA-108",
+          "code": 108,
+          "value": "other-008"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-008",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.entity.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 009: is it LUMA-009 or LUMA-109? Synthetic scenario ret.entity.004.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-009",
+          "code": 9,
+          "value": "value-009"
+        },
+        {
+          "item": "LUMA-109",
+          "code": 109,
+          "value": "other-009"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-009",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.entity.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 010: is it LUMA-010 or LUMA-110? Synthetic scenario ret.entity.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-010",
+          "code": 10,
+          "value": "value-010"
+        },
+        {
+          "item": "LUMA-110",
+          "code": 110,
+          "value": "other-010"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-010",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-051, what is its status? Synthetic scenario ret.extra.001.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-051",
+          "status": "value-051"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-051",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-052, what is its status? Synthetic scenario ret.extra.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-052",
+          "status": "value-052"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-052",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-053, what is its status? Synthetic scenario ret.extra.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-053",
+          "status": "value-053"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-053",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-054, what is its status? Synthetic scenario ret.extra.004.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-054",
+          "status": "value-054"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-054",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-055, what is its status? Synthetic scenario ret.extra.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-055",
+          "status": "value-055"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-055",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.006",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 056: is it LUMA-056 or LUMA-156? Synthetic scenario ret.extra.006.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-056",
+          "code": 56,
+          "value": "value-056"
+        },
+        {
+          "item": "LUMA-156",
+          "code": 156,
+          "value": "other-056"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-056",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.007",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 057: is it LUMA-057 or LUMA-157? Synthetic scenario ret.extra.007.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-057",
+          "code": 57,
+          "value": "value-057"
+        },
+        {
+          "item": "LUMA-157",
+          "code": 157,
+          "value": "other-057"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-057",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.008",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 058: is it LUMA-058 or LUMA-158? Synthetic scenario ret.extra.008.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-058",
+          "code": 58,
+          "value": "value-058"
+        },
+        {
+          "item": "LUMA-158",
+          "code": 158,
+          "value": "other-058"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-058",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.009",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 059: is it LUMA-059 or LUMA-159? Synthetic scenario ret.extra.009.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-059",
+          "code": 59,
+          "value": "value-059"
+        },
+        {
+          "item": "LUMA-159",
+          "code": 159,
+          "value": "other-059"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-059",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.010",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 060: is it LUMA-060 or LUMA-160? Synthetic scenario ret.extra.010.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-060",
+          "code": 60,
+          "value": "value-060"
+        },
+        {
+          "item": "LUMA-160",
+          "code": 160,
+          "value": "other-060"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-060",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.011",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 061? Synthetic scenario ret.extra.011.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 61,
+          "team": "TEAM-061"
+        },
+        {
+          "team": "TEAM-061",
+          "station": "STATION-061"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-061",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.012",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 062? Synthetic scenario ret.extra.012.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 62,
+          "team": "TEAM-062"
+        },
+        {
+          "team": "TEAM-062",
+          "station": "STATION-062"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-062",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.013",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 063? Synthetic scenario ret.extra.013.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 63,
+          "team": "TEAM-063"
+        },
+        {
+          "team": "TEAM-063",
+          "station": "STATION-063"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-063",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.014",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 064? Synthetic scenario ret.extra.014.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 64,
+          "team": "TEAM-064"
+        },
+        {
+          "team": "TEAM-064",
+          "station": "STATION-064"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-064",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.015",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 065? Synthetic scenario ret.extra.015.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 65,
+          "team": "TEAM-065"
+        },
+        {
+          "team": "TEAM-065",
+          "station": "STATION-065"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-065",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.016",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record from the requested period. Synthetic scenario ret.extra.016.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.extra.017",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record. Synthetic scenario ret.extra.017.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.followup.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "follow_up",
+  "input": {
+    "request": "And what is the status for ORBIT-036? Synthetic scenario ret.followup.001.",
+    "evidence": {
+      "context": {
+        "item": "ORBIT-036",
+        "status": "value-036"
+      }
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-036",
+      "contextUsed": true
+    },
+    "criterion": "Resolve only unambiguous references; request clarification when context is insufficient.",
+    "caseCategory": "follow_up"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.followup.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "follow_up",
+  "input": {
+    "request": "And what is the status for ORBIT-037? Synthetic scenario ret.followup.002.",
+    "evidence": {
+      "context": {
+        "item": "ORBIT-037",
+        "status": "value-037"
+      }
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-037",
+      "contextUsed": true
+    },
+    "criterion": "Resolve only unambiguous references; request clarification when context is insufficient.",
+    "caseCategory": "follow_up"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.followup.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "follow_up",
+  "input": {
+    "request": "And what is the status for ORBIT-038? Synthetic scenario ret.followup.003.",
+    "evidence": {
+      "context": {
+        "item": "ORBIT-038",
+        "status": "value-038"
+      }
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-038",
+      "contextUsed": true
+    },
+    "criterion": "Resolve only unambiguous references; request clarification when context is insufficient.",
+    "caseCategory": "follow_up"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.followup.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "follow_up",
+  "input": {
+    "request": "And what is the status for ORBIT-039? Synthetic scenario ret.followup.004.",
+    "evidence": {
+      "context": {
+        "item": "ORBIT-039",
+        "status": "value-039"
+      }
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-039",
+      "contextUsed": true
+    },
+    "criterion": "Resolve only unambiguous references; request clarification when context is insufficient.",
+    "caseCategory": "follow_up"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.followup.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "follow_up",
+  "input": {
+    "request": "And what is the status for ORBIT-040? Synthetic scenario ret.followup.005.",
+    "evidence": {
+      "context": {
+        "item": "ORBIT-040",
+        "status": "value-040"
+      }
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-040",
+      "contextUsed": true
+    },
+    "criterion": "Resolve only unambiguous references; request clarification when context is insufficient.",
+    "caseCategory": "follow_up"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.multihop.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 011? Synthetic scenario ret.multihop.001.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 11,
+          "team": "TEAM-011"
+        },
+        {
+          "team": "TEAM-011",
+          "station": "STATION-011"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-011",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.multihop.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 012? Synthetic scenario ret.multihop.002.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 12,
+          "team": "TEAM-012"
+        },
+        {
+          "team": "TEAM-012",
+          "station": "STATION-012"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-012",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.multihop.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 013? Synthetic scenario ret.multihop.003.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 13,
+          "team": "TEAM-013"
+        },
+        {
+          "team": "TEAM-013",
+          "station": "STATION-013"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-013",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.multihop.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 014? Synthetic scenario ret.multihop.004.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 14,
+          "team": "TEAM-014"
+        },
+        {
+          "team": "TEAM-014",
+          "station": "STATION-014"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-014",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.multihop.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 015? Synthetic scenario ret.multihop.005.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 15,
+          "team": "TEAM-015"
+        },
+        {
+          "team": "TEAM-015",
+          "station": "STATION-015"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-015",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.noresult.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "no_result",
+  "input": {
+    "request": "What is the status of catalog item ABSENT-021? Synthetic scenario ret.noresult.001.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-021",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "found": false,
+      "unsupportedGuess": false
+    },
+    "criterion": "State that no match was found; do not fabricate or substitute silently.",
+    "caseCategory": "no_result"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.noresult.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "no_result",
+  "input": {
+    "request": "What is the status of catalog item ABSENT-022? Synthetic scenario ret.noresult.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-022",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "found": false,
+      "unsupportedGuess": false
+    },
+    "criterion": "State that no match was found; do not fabricate or substitute silently.",
+    "caseCategory": "no_result"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.noresult.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "no_result",
+  "input": {
+    "request": "What is the status of catalog item ABSENT-023? Synthetic scenario ret.noresult.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-023",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "found": false,
+      "unsupportedGuess": false
+    },
+    "criterion": "State that no match was found; do not fabricate or substitute silently.",
+    "caseCategory": "no_result"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.noresult.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "no_result",
+  "input": {
+    "request": "What is the status of catalog item ABSENT-024? Synthetic scenario ret.noresult.004.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-024",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "found": false,
+      "unsupportedGuess": false
+    },
+    "criterion": "State that no match was found; do not fabricate or substitute silently.",
+    "caseCategory": "no_result"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.noresult.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "no_result",
+  "input": {
+    "request": "What is the status of catalog item ABSENT-025? Synthetic scenario ret.noresult.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-025",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "found": false,
+      "unsupportedGuess": false
+    },
+    "criterion": "State that no match was found; do not fabricate or substitute silently.",
+    "caseCategory": "no_result"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.paraphrase.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "paraphrase_robustness",
+  "input": {
+    "request": "Tell me whether ORBIT-041 is ready. Synthetic scenario ret.paraphrase.001.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-041",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "ready",
+      "grounded": true
+    },
+    "criterion": "Preserve the user’s constraints and retrieve the same supported target.",
+    "caseCategory": "paraphrase_robustness"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.paraphrase.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "paraphrase_robustness",
+  "input": {
+    "request": "Tell me whether ORBIT-042 is ready. Synthetic scenario ret.paraphrase.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-042",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "ready",
+      "grounded": true
+    },
+    "criterion": "Preserve the user’s constraints and retrieve the same supported target.",
+    "caseCategory": "paraphrase_robustness"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.paraphrase.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "paraphrase_robustness",
+  "input": {
+    "request": "Tell me whether ORBIT-043 is ready. Synthetic scenario ret.paraphrase.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-043",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "ready",
+      "grounded": true
+    },
+    "criterion": "Preserve the user’s constraints and retrieve the same supported target.",
+    "caseCategory": "paraphrase_robustness"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.paraphrase.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "paraphrase_robustness",
+  "input": {
+    "request": "Tell me whether ORBIT-044 is ready. Synthetic scenario ret.paraphrase.004.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-044",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "ready",
+      "grounded": true
+    },
+    "criterion": "Preserve the user’s constraints and retrieve the same supported target.",
+    "caseCategory": "paraphrase_robustness"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.paraphrase.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "paraphrase_robustness",
+  "input": {
+    "request": "Tell me whether ORBIT-045 is ready. Synthetic scenario ret.paraphrase.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-045",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "ready",
+      "grounded": true
+    },
+    "criterion": "Preserve the user’s constraints and retrieve the same supported target.",
+    "caseCategory": "paraphrase_robustness"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.rank.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "relevance_ranking",
+  "input": {
+    "request": "Rank the catalog matches for the exact code ORBIT-031. Synthetic scenario ret.rank.001.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-031",
+          "match": "exact",
+          "rank": 1
+        },
+        {
+          "item": "ORBIT-131",
+          "match": "partial",
+          "rank": 2
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "rankedIds": [
+        "ORBIT-031",
+        "ORBIT-131"
+      ]
+    },
+    "criterion": "Place the best-supported relevant candidate first and avoid ranking distractors as answers.",
+    "caseCategory": "relevance_ranking"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.rank.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "relevance_ranking",
+  "input": {
+    "request": "Rank the catalog matches for the exact code ORBIT-032. Synthetic scenario ret.rank.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-032",
+          "match": "exact",
+          "rank": 1
+        },
+        {
+          "item": "ORBIT-132",
+          "match": "partial",
+          "rank": 2
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "rankedIds": [
+        "ORBIT-032",
+        "ORBIT-132"
+      ]
+    },
+    "criterion": "Place the best-supported relevant candidate first and avoid ranking distractors as answers.",
+    "caseCategory": "relevance_ranking"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.rank.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "relevance_ranking",
+  "input": {
+    "request": "Rank the catalog matches for the exact code ORBIT-033. Synthetic scenario ret.rank.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-033",
+          "match": "exact",
+          "rank": 1
+        },
+        {
+          "item": "ORBIT-133",
+          "match": "partial",
+          "rank": 2
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "rankedIds": [
+        "ORBIT-033",
+        "ORBIT-133"
+      ]
+    },
+    "criterion": "Place the best-supported relevant candidate first and avoid ranking distractors as answers.",
+    "caseCategory": "relevance_ranking"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.rank.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "relevance_ranking",
+  "input": {
+    "request": "Rank the catalog matches for the exact code ORBIT-034. Synthetic scenario ret.rank.004.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-034",
+          "match": "exact",
+          "rank": 1
+        },
+        {
+          "item": "ORBIT-134",
+          "match": "partial",
+          "rank": 2
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "rankedIds": [
+        "ORBIT-034",
+        "ORBIT-134"
+      ]
+    },
+    "criterion": "Place the best-supported relevant candidate first and avoid ranking distractors as answers.",
+    "caseCategory": "relevance_ranking"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.rank.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "relevance_ranking",
+  "input": {
+    "request": "Rank the catalog matches for the exact code ORBIT-035. Synthetic scenario ret.rank.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-035",
+          "match": "exact",
+          "rank": 1
+        },
+        {
+          "item": "ORBIT-135",
+          "match": "partial",
+          "rank": 2
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "rankedIds": [
+        "ORBIT-035",
+        "ORBIT-135"
+      ]
+    },
+    "criterion": "Place the best-supported relevant candidate first and avoid ranking distractors as answers.",
+    "caseCategory": "relevance_ranking"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.version.001",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "version_boundary",
+  "input": {
+    "request": "Use only the latest registered version of synthetic record ORBIT-046. Synthetic scenario ret.version.001.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-046",
+          "version": 2,
+          "value": "value-046"
+        },
+        {
+          "item": "ORBIT-046",
+          "version": 1,
+          "value": "stale"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-046",
+      "recordVersion": 2,
+      "grounded": true
+    },
+    "criterion": "Return the version matching the requested boundary and identify version/date when relevant.",
+    "caseCategory": "version_boundary"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.version.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "version_boundary",
+  "input": {
+    "request": "Use only the latest registered version of synthetic record ORBIT-047. Synthetic scenario ret.version.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-047",
+          "version": 2,
+          "value": "value-047"
+        },
+        {
+          "item": "ORBIT-047",
+          "version": 1,
+          "value": "stale"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-047",
+      "recordVersion": 2,
+      "grounded": true
+    },
+    "criterion": "Return the version matching the requested boundary and identify version/date when relevant.",
+    "caseCategory": "version_boundary"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.version.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "version_boundary",
+  "input": {
+    "request": "Use only the latest registered version of synthetic record ORBIT-048. Synthetic scenario ret.version.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-048",
+          "version": 2,
+          "value": "value-048"
+        },
+        {
+          "item": "ORBIT-048",
+          "version": 1,
+          "value": "stale"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-048",
+      "recordVersion": 2,
+      "grounded": true
+    },
+    "criterion": "Return the version matching the requested boundary and identify version/date when relevant.",
+    "caseCategory": "version_boundary"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.version.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "version_boundary",
+  "input": {
+    "request": "Use only the latest registered version of synthetic record ORBIT-049. Synthetic scenario ret.version.004.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-049",
+          "version": 2,
+          "value": "value-049"
+        },
+        {
+          "item": "ORBIT-049",
+          "version": 1,
+          "value": "stale"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-049",
+      "recordVersion": 2,
+      "grounded": true
+    },
+    "criterion": "Return the version matching the requested boundary and identify version/date when relevant.",
+    "caseCategory": "version_boundary"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
+
+{
+  "caseId": "ret.version.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
+  "scope": "retrieval",
+  "category": "version_boundary",
+  "input": {
+    "request": "Use only the latest registered version of synthetic record ORBIT-050. Synthetic scenario ret.version.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-050",
+          "version": 2,
+          "value": "value-050"
+        },
+        {
+          "item": "ORBIT-050",
+          "version": 1,
+          "value": "stale"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-050",
+      "recordVersion": 2,
+      "grounded": true
+    },
+    "criterion": "Return the version matching the requested boundary and identify version/date when relevant.",
+    "caseCategory": "version_boundary"
+  },
+  "fixtureSetHash": "22d3160a6ab1c7f1647191655ecb5a7d3843933532552ddff42cfeef3cc2d17a"
+}
