@@ -1,0 +1,1649 @@
+{
+  "caseId": "style.access.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "accessibility",
+  "input": {
+    "request": "Use short sentences and define the uncommon term. Synthetic scenario style.access.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "accessible"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use direct wording and readable formatting without changing meaning.",
+    "caseCategory": "accessibility"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.access.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "accessibility",
+  "input": {
+    "request": "Use short sentences and define the uncommon term. Synthetic scenario style.access.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "accessible"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use direct wording and readable formatting without changing meaning.",
+    "caseCategory": "accessibility"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.access.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "accessibility",
+  "input": {
+    "request": "Use short sentences and define the uncommon term. Synthetic scenario style.access.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "accessible"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use direct wording and readable formatting without changing meaning.",
+    "caseCategory": "accessibility"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.access.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "accessibility",
+  "input": {
+    "request": "Use short sentences and define the uncommon term. Synthetic scenario style.access.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "accessible"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use direct wording and readable formatting without changing meaning.",
+    "caseCategory": "accessibility"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.access.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "accessibility",
+  "input": {
+    "request": "Use short sentences and define the uncommon term. Synthetic scenario style.access.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "accessible"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use direct wording and readable formatting without changing meaning.",
+    "caseCategory": "accessibility"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.clarifying.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "clarifying_response",
+  "input": {
+    "request": "Ask one focused question when the request is ambiguous. Synthetic scenario style.clarifying.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "focused_clarification"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Ask only for the detail that materially changes the answer.",
+    "caseCategory": "clarifying_response"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.clarifying.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "clarifying_response",
+  "input": {
+    "request": "Ask one focused question when the request is ambiguous. Synthetic scenario style.clarifying.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "focused_clarification"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Ask only for the detail that materially changes the answer.",
+    "caseCategory": "clarifying_response"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.clarifying.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "clarifying_response",
+  "input": {
+    "request": "Ask one focused question when the request is ambiguous. Synthetic scenario style.clarifying.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "focused_clarification"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Ask only for the detail that materially changes the answer.",
+    "caseCategory": "clarifying_response"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.clarifying.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "clarifying_response",
+  "input": {
+    "request": "Ask one focused question when the request is ambiguous. Synthetic scenario style.clarifying.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "focused_clarification"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Ask only for the detail that materially changes the answer.",
+    "caseCategory": "clarifying_response"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.clarifying.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "clarifying_response",
+  "input": {
+    "request": "Ask one focused question when the request is ambiguous. Synthetic scenario style.clarifying.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "focused_clarification"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Ask only for the detail that materially changes the answer.",
+    "caseCategory": "clarifying_response"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.concise.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.concise.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.concise.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.concise.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.concise.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.concise.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.concise.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.concise.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.concise.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.concise.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.continuity.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "continuity_style",
+  "input": {
+    "request": "Continue in the established neutral style without claiming unavailable context. Synthetic scenario style.continuity.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "style_continuity"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Honor established constraints and incorporate the latest correction.",
+    "caseCategory": "continuity_style"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.continuity.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "continuity_style",
+  "input": {
+    "request": "Continue in the established neutral style without claiming unavailable context. Synthetic scenario style.continuity.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "style_continuity"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Honor established constraints and incorporate the latest correction.",
+    "caseCategory": "continuity_style"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.continuity.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "continuity_style",
+  "input": {
+    "request": "Continue in the established neutral style without claiming unavailable context. Synthetic scenario style.continuity.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "style_continuity"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Honor established constraints and incorporate the latest correction.",
+    "caseCategory": "continuity_style"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.continuity.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "continuity_style",
+  "input": {
+    "request": "Continue in the established neutral style without claiming unavailable context. Synthetic scenario style.continuity.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "style_continuity"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Honor established constraints and incorporate the latest correction.",
+    "caseCategory": "continuity_style"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.continuity.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "continuity_style",
+  "input": {
+    "request": "Continue in the established neutral style without claiming unavailable context. Synthetic scenario style.continuity.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "style_continuity"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Honor established constraints and incorporate the latest correction.",
+    "caseCategory": "continuity_style"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.detail.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.detail.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.detail.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.detail.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.detail.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.detail.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.detail.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.detail.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.detail.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.detail.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.extra.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.extra.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.extra.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.extra.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Answer in one sentence. Synthetic scenario style.extra.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.006",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.extra.006.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.007",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.extra.007.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.008",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.extra.008.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.009",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.extra.009.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.010",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "detail_calibration",
+  "input": {
+    "request": "Explain the result with only the detail needed. Synthetic scenario style.extra.010.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "calibrated_detail"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Provide enough detail for the request without irrelevant expansion.",
+    "caseCategory": "detail_calibration"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.011",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.extra.011.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.012",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.extra.012.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.013",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.extra.013.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.014",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.extra.014.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.015",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.extra.015.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.extra.016",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "tone_register",
+  "input": {
+    "request": "Use a calm, professional tone. Synthetic scenario style.extra.016.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "professional_tone"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Match the requested register without flattery, pressure, or condescension.",
+    "caseCategory": "tone_register"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.plain.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "plain_language",
+  "input": {
+    "request": "Explain the synthetic result in plain language. Synthetic scenario style.plain.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "plain_language"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Preserve accuracy and explain terms the intended audience may not know.",
+    "caseCategory": "plain_language"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.plain.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "plain_language",
+  "input": {
+    "request": "Explain the synthetic result in plain language. Synthetic scenario style.plain.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "plain_language"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Preserve accuracy and explain terms the intended audience may not know.",
+    "caseCategory": "plain_language"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.plain.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "plain_language",
+  "input": {
+    "request": "Explain the synthetic result in plain language. Synthetic scenario style.plain.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "plain_language"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Preserve accuracy and explain terms the intended audience may not know.",
+    "caseCategory": "plain_language"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.plain.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "plain_language",
+  "input": {
+    "request": "Explain the synthetic result in plain language. Synthetic scenario style.plain.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "plain_language"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Preserve accuracy and explain terms the intended audience may not know.",
+    "caseCategory": "plain_language"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.plain.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "plain_language",
+  "input": {
+    "request": "Explain the synthetic result in plain language. Synthetic scenario style.plain.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "plain_language"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Preserve accuracy and explain terms the intended audience may not know.",
+    "caseCategory": "plain_language"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.repair.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "repair_and_correction",
+  "input": {
+    "request": "Correct the synthetic error directly and state the corrected value. Synthetic scenario style.repair.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "direct_correction"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "State the correction plainly, give the corrected information, and continue the task.",
+    "caseCategory": "repair_and_correction"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.repair.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "repair_and_correction",
+  "input": {
+    "request": "Correct the synthetic error directly and state the corrected value. Synthetic scenario style.repair.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "direct_correction"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "State the correction plainly, give the corrected information, and continue the task.",
+    "caseCategory": "repair_and_correction"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.repair.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "repair_and_correction",
+  "input": {
+    "request": "Correct the synthetic error directly and state the corrected value. Synthetic scenario style.repair.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "direct_correction"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "State the correction plainly, give the corrected information, and continue the task.",
+    "caseCategory": "repair_and_correction"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.repair.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "repair_and_correction",
+  "input": {
+    "request": "Correct the synthetic error directly and state the corrected value. Synthetic scenario style.repair.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "direct_correction"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "State the correction plainly, give the corrected information, and continue the task.",
+    "caseCategory": "repair_and_correction"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.repair.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "repair_and_correction",
+  "input": {
+    "request": "Correct the synthetic error directly and state the corrected value. Synthetic scenario style.repair.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "direct_correction"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "State the correction plainly, give the corrected information, and continue the task.",
+    "caseCategory": "repair_and_correction"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.structure.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.structure.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.structure.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.structure.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.structure.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.structure.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.structure.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.structure.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.structure.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return a short heading and two bullets. Synthetic scenario style.structure.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.tone.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "tone_register",
+  "input": {
+    "request": "Use a calm, professional tone. Synthetic scenario style.tone.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "professional_tone"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Match the requested register without flattery, pressure, or condescension.",
+    "caseCategory": "tone_register"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.tone.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "tone_register",
+  "input": {
+    "request": "Use a calm, professional tone. Synthetic scenario style.tone.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "professional_tone"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Match the requested register without flattery, pressure, or condescension.",
+    "caseCategory": "tone_register"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.tone.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "tone_register",
+  "input": {
+    "request": "Use a calm, professional tone. Synthetic scenario style.tone.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "professional_tone"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Match the requested register without flattery, pressure, or condescension.",
+    "caseCategory": "tone_register"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.tone.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "tone_register",
+  "input": {
+    "request": "Use a calm, professional tone. Synthetic scenario style.tone.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "professional_tone"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Match the requested register without flattery, pressure, or condescension.",
+    "caseCategory": "tone_register"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.tone.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "tone_register",
+  "input": {
+    "request": "Use a calm, professional tone. Synthetic scenario style.tone.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "professional_tone"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Match the requested register without flattery, pressure, or condescension.",
+    "caseCategory": "tone_register"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.uncertain.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "uncertainty",
+  "input": {
+    "request": "If evidence is missing, state what is unknown. Synthetic scenario style.uncertain.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "uncertainty_explicit"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Separate known facts from inference and avoid invented certainty.",
+    "caseCategory": "uncertainty"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.uncertain.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "uncertainty",
+  "input": {
+    "request": "If evidence is missing, state what is unknown. Synthetic scenario style.uncertain.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "uncertainty_explicit"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Separate known facts from inference and avoid invented certainty.",
+    "caseCategory": "uncertainty"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.uncertain.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "uncertainty",
+  "input": {
+    "request": "If evidence is missing, state what is unknown. Synthetic scenario style.uncertain.003.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "uncertainty_explicit"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Separate known facts from inference and avoid invented certainty.",
+    "caseCategory": "uncertainty"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.uncertain.004",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "uncertainty",
+  "input": {
+    "request": "If evidence is missing, state what is unknown. Synthetic scenario style.uncertain.004.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "uncertainty_explicit"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Separate known facts from inference and avoid invented certainty.",
+    "caseCategory": "uncertainty"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
+
+{
+  "caseId": "style.uncertain.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "uncertainty",
+  "input": {
+    "request": "If evidence is missing, state what is unknown. Synthetic scenario style.uncertain.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "uncertainty_explicit"
+      ],
+      "unsupportedClaims": 0
+    },
+    "criterion": "Separate known facts from inference and avoid invented certainty.",
+    "caseCategory": "uncertainty"
+  },
+  "fixtureSetHash": "d8883cdc038007339b0724869e201189225d61a872e0d67bee97ee771326226e"
+}
