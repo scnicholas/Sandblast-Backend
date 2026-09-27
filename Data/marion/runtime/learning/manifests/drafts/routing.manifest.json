@@ -1,7 +1,7 @@
 {
   "datasetId": "marion.routing.synthetic.v2",
   "version": "2.0.0",
-  "fixtureStore": "marion.synthetic.fixtures.routing.v2",
+  "fixtureStore": "marion.fx.route.v2",
   "cases": [
     {
       "caseId": "route.intent.001"
