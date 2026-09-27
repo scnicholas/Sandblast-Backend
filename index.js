@@ -2593,7 +2593,7 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.5-learning-runtime-health-gate";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.4-learning-bootstrap-consent-gate";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
@@ -2608,6 +2608,14 @@ const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
   "/api/private/marion/admin/conversation/health",
   "/private/marion/admin/conversation/health"
 ]);
+
+const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
+  available: ["/api/private/marion/learning/manifests/available", "/private/marion/learning/manifests/available"],
+  approved: ["/api/private/marion/learning/manifests/approved", "/private/marion/learning/manifests/approved"],
+  approve: ["/api/private/marion/learning/manifests/approve", "/private/marion/learning/manifests/approve"],
+  revoke: ["/api/private/marion/learning/manifests/revoke", "/private/marion/learning/manifests/revoke"],
+  evaluate: ["/api/private/marion/learning/evaluate", "/private/marion/learning/evaluate"]
+});
 
 const MARION_ADMIN_CONVERSATION_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceGateway.js",
@@ -2834,40 +2842,76 @@ function marionAdminConversationRuntimeReady() {
   return marionAdminConversationRuntimeDiagnostics().every((item) => item.exists);
 }
 
-// Self-learning stays unavailable unless deployment injects private, durable
-// stores and an offline evaluator. Never substitute process memory for them.
+// Backend startup is fail-closed: durable private stores, packaged fixtures,
+// an allowlisted offline resolver, and a trusted review verifier are required.
 function ensureMarionLearningRuntime() {
   app.locals = app.locals || {};
   const current = app.locals.marionLearningBackend;
-  if (current && current.runtime) return { ready: true, status: "ready" };
+  if (current && current.runtime) {
+    if (app.locals.marionLearningAdminHandlers) return { ready: true, status: "ready" };
+    try {
+      const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
+      app.locals.marionLearningAdminHandlers = admin.createMarionLearningAdminHandlers({
+        runtime: current.runtime,
+        getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
+      });
+      return { ready: true, status: "ready" };
+    } catch (_) {
+      return { ready: false, status: "learning_admin_handlers_unavailable" };
+    }
+  }
   if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") {
     return { ready: false, status: "disabled" };
   }
-  const adapters = app.locals.marionLearningAdapters;
-  if (!adapters || !adapters.signalStore || typeof adapters.signalStore.appendSignal !== "function" ||
-      !adapters.proposalStore || typeof adapters.proposalStore.get !== "function" ||
-      typeof adapters.proposalStore.set !== "function" ||
-      typeof adapters.durableAuditAppend !== "function" || typeof adapters.runVersion !== "function") {
-    return { ready: false, status: "durable_adapters_missing" };
+  const trust = app.locals.marionLearningTrust || {};
+  if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function") {
+    return { ready: false, status: "trusted_resolver_or_review_verifier_missing" };
   }
   try {
+    const learningRoot = path.join(__dirname, "Data/marion/runtime/learning");
+    const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "manifests/fixture_store"));
+    const fixtureModule = require("./Data/marion/runtime/learning/MarionLearningFixtureStore.js");
+    const fixtureStore = fixtureModule.createMarionLearningFixtureStore({ directory: fixtureDirectory });
+    const contract = require("./Data/marion/runtime/learning/MarionLearningFixtureContract.js");
+    const adapterModule = require("./Data/marion/runtime/learning/MarionLearningBackendAdapters.js");
+    const adapters = adapterModule.createMarionLearningBackendAdapters({
+      dataDir: process.env.SB_MARION_LEARNING_DATA_DIR,
+      resolveVersion: trust.resolveVersion,
+      loadFixture: fixtureStore.loadFixture,
+      scoreFixture: contract.scoreFixture,
+      healthProbe: trust.healthProbe
+    });
+    const registryModule = require("./Data/marion/runtime/learning/MarionLearningManifestRegistry.js");
     const setup = require("./Data/marion/runtime/learning/MarionLearningBackendSetup.js");
-    if (!setup || typeof setup.createAndRegisterMarionLearningBackend !== "function") {
-      return { ready: false, status: "learning_modules_unavailable" };
-    }
     const backend = setup.createAndRegisterMarionLearningBackend({
-      signalStore: adapters.signalStore,
-      proposalStore: adapters.proposalStore,
-      durableAuditAppend: adapters.durableAuditAppend,
-      runVersion: adapters.runVersion,
-      healthProbe: adapters.healthProbe,
+      ...adapters,
+      manifestSource: registryModule.createFileManifestSource({ directory: path.join(learningRoot, "manifests") }),
+      verifyFixtureSet: fixtureStore.verifyFixtureSet,
+      verifyFixtureReview: trust.verifyFixtureReview,
       gateway: require("./Data/marion/runtime/MarionVoiceGateway.js")
     });
+    const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
+    app.locals.marionLearningFixtureStore = fixtureStore;
+    app.locals.marionLearningAdapters = adapters;
     app.locals.marionLearningBackend = backend;
+    app.locals.marionLearningAdminHandlers = admin.createMarionLearningAdminHandlers({
+      runtime: backend.runtime,
+      getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
+    });
     return { ready: true, status: "ready" };
   } catch (_) {
     return { ready: false, status: "adapter_setup_failed" };
   }
+}
+
+function marionLearningVerifiedOwnerContext(req) {
+  const auth = marionAdminConsoleRequestAuth(req);
+  const sessionId = cleanText(auth && (auth.sessionId || (auth.session && auth.session.id)) || "");
+  if (!auth || auth.verified !== true || auth.sessionVerified !== true ||
+      marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER || !sessionId ||
+      auth.testBypass === true || auth.testingBypass === true) return null;
+  const actorId = `owner:${crypto.createHash("sha256").update(sessionId).digest("hex").slice(0, 24)}`;
+  return Object.freeze({ authenticated: true, role: "owner", actorId, verifiedBy: "server_middleware" });
 }
 
 function marionLearningContextFor(req, body, auth) {
@@ -3952,7 +3996,7 @@ app.options([...MARION_ADMIN_CONVERSATION_ROUTES, ...MARION_ADMIN_CONVERSATION_H
   return res.status(204).end();
 });
 
-app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
+app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   const marionLearning = ensureMarionLearningRuntime();
@@ -3963,23 +4007,6 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
   } catch (_) {
     MarionVoiceGateway = null;
   }
-
-  let learningStorageReady = false;
-  if (marionLearning.ready && app.locals.marionLearningAdapters &&
-      typeof app.locals.marionLearningAdapters.healthProbe === "function") {
-    try {
-      const probe = await app.locals.marionLearningAdapters.healthProbe();
-      learningStorageReady = !!(probe && probe.ready === true);
-    } catch (_) {
-      learningStorageReady = false;
-    }
-  }
-  let gatewayLearningRegistered = false;
-  try {
-    gatewayLearningRegistered = !!(MarionVoiceGateway &&
-      typeof MarionVoiceGateway.getMarionLearningIntegrationStatus === "function" &&
-      MarionVoiceGateway.getMarionLearningIntegrationStatus().registered === true);
-  } catch (_) {}
 
   return res.status(200).json({
     ok: true,
@@ -4035,12 +4062,8 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
       version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || "")
     },
     selfLearning: {
-      enabled: marionLearning.ready && learningStorageReady && gatewayLearningRegistered,
-      status: !marionLearning.ready ? marionLearning.status :
-        (!learningStorageReady ? "storage_not_ready" :
-          (!gatewayLearningRegistered ? "gateway_runtime_not_registered" : "ready")),
-      runtimeRegistered: marionLearning.ready && gatewayLearningRegistered,
-      durableStorageReady: learningStorageReady,
+      enabled: marionLearning.ready,
+      status: marionLearning.status,
       requiresExplicitOwnerConsent: true,
       requiresDurableAdapters: true,
       liveActivationEnabled: false,
@@ -4056,6 +4079,43 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
     meta: { v: PUBLIC_INDEX_VERSION, t: now() }
   });
 });
+
+function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
+  return async (req, res) => {
+    hardenCors(req, res);
+    hardenConversationNoStore(res);
+    const traceId = cleanText(req.headers["x-sb-trace-id"] || `marion_learning_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    const auth = marionAdminConsoleRequestAuth(req);
+    if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+    if (marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER ||
+        auth.sessionVerified !== true || auth.testBypass === true || auth.testingBypass === true) {
+      return res.status(403).json({ ok: false, reason: "verified_owner_session_required", traceId });
+    }
+    if (!marionAdminConsoleCapabilityAllowed(auth, action)) return marionAdminConsoleCapabilityDenied(res, traceId, auth, action);
+    const status = ensureMarionLearningRuntime();
+    const handlers = app.locals && app.locals.marionLearningAdminHandlers;
+    if (!status.ready || !handlers || typeof handlers[handlerName] !== "function") {
+      return res.status(503).json({ ok: false, reason: status.status || "learning_admin_unavailable", traceId });
+    }
+    try {
+      const result = await handlers[handlerName](req);
+      return res.status(result.status).json({ ...result.body, traceId });
+    } catch (_) {
+      return res.status(503).json({ ok: false, reason: "learning_registry_unavailable", traceId });
+    }
+  };
+}
+
+app.options(Object.values(MARION_LEARNING_ADMIN_ROUTES).flat(), (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
+app.get(MARION_LEARNING_ADMIN_ROUTES.available, marionLearningAdminEndpoint("listAvailable", "learning.manifest.read"));
+app.get(MARION_LEARNING_ADMIN_ROUTES.approved, marionLearningAdminEndpoint("listApproved", "learning.manifest.read"));
+app.post(MARION_LEARNING_ADMIN_ROUTES.approve, marionLearningAdminEndpoint("approve", "learning.manifest.approve", true));
+app.post(MARION_LEARNING_ADMIN_ROUTES.revoke, marionLearningAdminEndpoint("revoke", "learning.manifest.revoke", true));
+app.post(MARION_LEARNING_ADMIN_ROUTES.evaluate, marionLearningAdminEndpoint("evaluate", "learning.manifest.evaluate", true));
 
 app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   hardenCors(req, res);
@@ -4353,7 +4413,6 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         forceSilent: adminVoiceRuntimeAuth.verified !== true,
         privateAdminConversation: true
       },
-      adminVerified: auth.verified === true,
       marionLearningContext,
       context: {
         sessionId: cleanText(body.sessionId || "marion-admin"),
@@ -22138,7 +22197,7 @@ const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
   OBSERVER: "observer",
   BLOCKED: "blocked"
 });
-const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "runtime", "conversation.text", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke", "voice.continuity.open", "voice.continuity.revoke"]);
+const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "runtime", "conversation.text", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke", "voice.continuity.open", "voice.continuity.revoke", "learning.manifest.approve", "learning.manifest.revoke", "learning.manifest.evaluate"]);
 const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   health: "status.read",
   status: "status.read",
@@ -22167,7 +22226,11 @@ const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   "voice.continuity.health": "voice.continuity.read",
   "voice.continuity.open": "voice.continuity.open",
   "voice.continuity.check": "voice.continuity.check",
-  "voice.continuity.revoke": "voice.continuity.revoke"
+  "voice.continuity.revoke": "voice.continuity.revoke",
+  "learning.manifest.read": "learning.manifest.read",
+  "learning.manifest.approve": "learning.manifest.approve",
+  "learning.manifest.revoke": "learning.manifest.revoke",
+  "learning.manifest.evaluate": "learning.manifest.evaluate"
 });
 const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
   owner: Object.freeze([
@@ -22178,7 +22241,8 @@ const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
     "speaker.registry.read", "speaker.registry.check", "speaker.registry.request",
     "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke",
     "voice.challenge.read", "voice.challenge.issue", "voice.challenge.check", "voice.challenge.revoke",
-    "voice.continuity.read", "voice.continuity.open", "voice.continuity.check", "voice.continuity.revoke"
+    "voice.continuity.read", "voice.continuity.open", "voice.continuity.check", "voice.continuity.revoke",
+    "learning.manifest.read", "learning.manifest.approve", "learning.manifest.revoke", "learning.manifest.evaluate"
   ]),
   admin_operator: Object.freeze([
     "status.read", "command.submit", "command.approve", "command.deny",
