@@ -2,7 +2,7 @@
 
 const Policy = require("./MarionLearningPolicy");
 const Dataset = require("./MarionLearningDataset");
-const VERSION = "marion.learningEvaluator/1.0";
+const VERSION = "marion.learningEvaluator/1.1-fixture-store-bound";
 
 function createEvaluator({ runVersion, auditStore, clock = () => new Date().toISOString() } = {}) {
   if (typeof runVersion !== "function") throw new TypeError("runVersion is required for offline evaluation");
@@ -20,9 +20,18 @@ function createEvaluator({ runVersion, auditStore, clock = () => new Date().toIS
       return { ok: false, reason: "insufficient_or_mismatched_samples", required: Policy.MINIMUM_EVALUATION_SAMPLES };
     }
 
+    // Bind every run to the exact manifest and fixture store that was validated.
+    // The runner must pass this context to its loader and verify returned fixtures.
+    const evaluationContext = Object.freeze({
+      mode: "offline",
+      scope: candidate.scope,
+      datasetId: dataset.datasetId,
+      datasetVersion: dataset.version,
+      fixtureStore: dataset.fixtureStore
+    });
     const [baseline, proposed] = await Promise.all([
-      runVersion(candidate.baselineVersion, dataset.caseIds, { mode: "offline", scope: candidate.scope }),
-      runVersion(candidate.candidateVersion, dataset.caseIds, { mode: "offline", scope: candidate.scope })
+      runVersion(candidate.baselineVersion, dataset.caseIds, evaluationContext),
+      runVersion(candidate.candidateVersion, dataset.caseIds, evaluationContext)
     ]);
     const baselineScore = Number(baseline && baseline.score);
     const candidateScore = Number(proposed && proposed.score);
