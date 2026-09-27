@@ -2863,10 +2863,27 @@ function ensureMarionLearningRuntime() {
   if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") {
     return { ready: false, status: "disabled" };
   }
-  const trust = app.locals.marionLearningTrust || {};
+  let trust = app.locals.marionLearningTrust;
+  if (!trust) {
+    try {
+      const trustedHooks = require("./Data/marion/runtime/learning/MarionLearningTrustedHooks.js");
+      const offlineVersions = app.locals.marionLearningOfflineVersions instanceof Map
+        ? app.locals.marionLearningOfflineVersions : new Map();
+      app.locals.marionLearningOfflineVersions = offlineVersions;
+      trust = trustedHooks.createMarionLearningTrustedHooks({
+        versionRegistry: offlineVersions,
+        reviewDirectory: process.env.SB_MARION_LEARNING_REVIEW_DIR,
+        reviewHmacKey: process.env.SB_MARION_LEARNING_REVIEW_HMAC_KEY
+      });
+      app.locals.marionLearningTrust = trust;
+    } catch (_) {
+      return { ready: false, status: "trusted_hook_setup_failed" };
+    }
+  }
   if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function") {
     return { ready: false, status: "trusted_resolver_or_review_verifier_missing" };
   }
+  if (trust.configured === false) return { ready: false, status: "review_trust_config_missing" };
   try {
     const learningRoot = path.join(__dirname, "Data/marion/runtime/learning");
     const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "manifests/fixture_store"));
