@@ -1,7 +1,7 @@
 {
-  "datasetId": "marion.response-style.synthetic.v1",
-  "version": "1.0.0",
-  "fixtureStore": "marion.synthetic.fixtures.response-style.v1",
+  "datasetId": "marion.response-style.synthetic.v2",
+  "version": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.response-style.v2",
   "cases": [
     {
       "caseId": "style.concise.001"
@@ -152,6 +152,54 @@
     },
     {
       "caseId": "style.repair.005"
+    },
+    {
+      "caseId": "style.extra.001"
+    },
+    {
+      "caseId": "style.extra.002"
+    },
+    {
+      "caseId": "style.extra.003"
+    },
+    {
+      "caseId": "style.extra.004"
+    },
+    {
+      "caseId": "style.extra.005"
+    },
+    {
+      "caseId": "style.extra.006"
+    },
+    {
+      "caseId": "style.extra.007"
+    },
+    {
+      "caseId": "style.extra.008"
+    },
+    {
+      "caseId": "style.extra.009"
+    },
+    {
+      "caseId": "style.extra.010"
+    },
+    {
+      "caseId": "style.extra.011"
+    },
+    {
+      "caseId": "style.extra.012"
+    },
+    {
+      "caseId": "style.extra.013"
+    },
+    {
+      "caseId": "style.extra.014"
+    },
+    {
+      "caseId": "style.extra.015"
+    },
+    {
+      "caseId": "style.extra.016"
     }
   ]
 }
