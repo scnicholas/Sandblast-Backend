@@ -2593,7 +2593,7 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.4-learning-bootstrap-consent-gate";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.5-learning-runtime-health-gate";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
@@ -2844,7 +2844,9 @@ function ensureMarionLearningRuntime() {
     return { ready: false, status: "disabled" };
   }
   const adapters = app.locals.marionLearningAdapters;
-  if (!adapters || !adapters.signalStore || !adapters.proposalStore ||
+  if (!adapters || !adapters.signalStore || typeof adapters.signalStore.appendSignal !== "function" ||
+      !adapters.proposalStore || typeof adapters.proposalStore.get !== "function" ||
+      typeof adapters.proposalStore.set !== "function" ||
       typeof adapters.durableAuditAppend !== "function" || typeof adapters.runVersion !== "function") {
     return { ready: false, status: "durable_adapters_missing" };
   }
@@ -3950,7 +3952,7 @@ app.options([...MARION_ADMIN_CONVERSATION_ROUTES, ...MARION_ADMIN_CONVERSATION_H
   return res.status(204).end();
 });
 
-app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
+app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   const marionLearning = ensureMarionLearningRuntime();
@@ -3961,6 +3963,23 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
   } catch (_) {
     MarionVoiceGateway = null;
   }
+
+  let learningStorageReady = false;
+  if (marionLearning.ready && app.locals.marionLearningAdapters &&
+      typeof app.locals.marionLearningAdapters.healthProbe === "function") {
+    try {
+      const probe = await app.locals.marionLearningAdapters.healthProbe();
+      learningStorageReady = !!(probe && probe.ready === true);
+    } catch (_) {
+      learningStorageReady = false;
+    }
+  }
+  let gatewayLearningRegistered = false;
+  try {
+    gatewayLearningRegistered = !!(MarionVoiceGateway &&
+      typeof MarionVoiceGateway.getMarionLearningIntegrationStatus === "function" &&
+      MarionVoiceGateway.getMarionLearningIntegrationStatus().registered === true);
+  } catch (_) {}
 
   return res.status(200).json({
     ok: true,
@@ -4016,8 +4035,12 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
       version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || "")
     },
     selfLearning: {
-      enabled: marionLearning.ready,
-      status: marionLearning.status,
+      enabled: marionLearning.ready && learningStorageReady && gatewayLearningRegistered,
+      status: !marionLearning.ready ? marionLearning.status :
+        (!learningStorageReady ? "storage_not_ready" :
+          (!gatewayLearningRegistered ? "gateway_runtime_not_registered" : "ready")),
+      runtimeRegistered: marionLearning.ready && gatewayLearningRegistered,
+      durableStorageReady: learningStorageReady,
       requiresExplicitOwnerConsent: true,
       requiresDurableAdapters: true,
       liveActivationEnabled: false,
@@ -4330,6 +4353,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         forceSilent: adminVoiceRuntimeAuth.verified !== true,
         privateAdminConversation: true
       },
+      adminVerified: auth.verified === true,
       marionLearningContext,
       context: {
         sessionId: cleanText(body.sessionId || "marion-admin"),
