@@ -23,6 +23,9 @@ function createCandidate(input) {
   if (!candidate.proposalId || !Policy.ALLOWED_SCOPES.includes(scope) || !candidate.baselineVersion || !candidate.candidateVersion || !candidate.datasetId || !candidate.datasetVersion || !candidate.artifactRef || !Number.isInteger(candidate.sampleCount)) {
     return { ok: false, reason: Policy.PROTECTED_SCOPES.includes(scope) ? "protected_scope" : "invalid_candidate" };
   }
+  if (![candidate.proposalId, candidate.baselineVersion, candidate.candidateVersion, candidate.datasetId, candidate.datasetVersion, candidate.artifactRef].every(value => /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(value))) {
+    return { ok: false, reason: "invalid_candidate_reference" };
+  }
   if (candidate.baselineVersion === candidate.candidateVersion) return { ok: false, reason: "candidate_must_be_versioned" };
   return { ok: true, candidate: Object.freeze({ ...candidate, state: "pending_evaluation", liveBehaviorChanged: false }) };
 }
