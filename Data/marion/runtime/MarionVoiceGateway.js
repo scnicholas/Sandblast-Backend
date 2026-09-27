@@ -1525,3 +1525,56 @@ try {
   if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleMessage","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","safeResponse","buildResponse","createResponse","finalizeTurn"].forEach(n=>{if(typeof obj[n]==="function")obj[n]=wrap(obj[n],n);});obj.PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_VERSION=V;obj.phase3dVoiceTextParityProject=lock.projectResult;obj.phase3dVoiceTextParityCompare=lock.compareVoiceTextParity;}
 }catch(_){}})();
 /* PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_END */
+
+/* MARION_SELF_LEARNING_ADMIN_CAPTURE_V1_START
+ * Self-learning capture is private, opt-in, metadata-only, and runs after the
+ * Gateway has returned its normalized Marion final. It never reads input text.
+ */
+(function marionSelfLearningAdminCaptureV1() {
+  "use strict";
+  const api = module.exports && typeof module.exports === "object" ? module.exports : null;
+  if (!api || api.__marionSelfLearningAdminCaptureV1) return;
+  let integration = null;
+  try { integration = require("./learning/MarionLearningIntegration.js"); } catch (_) { integration = null; }
+  if (!integration) return;
+  let composer = null;
+  function acceptedFinal(result) {
+    if (!composer) {
+      try { composer = require("./composeMarionResponse.js"); } catch (_) { composer = null; }
+    }
+    if (composer && typeof composer.isAcceptedMarionLearningFinal === "function") return composer.isAcceptedMarionLearningFinal(result);
+    return integration.isAcceptedMarionFinal(result);
+  }
+  function gatewayAdminVerified(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    return opts.adminVerified === true || opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
+      opts.adminVoiceDeliveryAllowed === true || opts.serverSideAdminVoiceAuth === true || opts.trustedServerAuth === true ||
+      (typeof hasOptionAdminVoiceProof === "function" && (hasOptionAdminVoiceProof(opts.authorization || {}) || hasOptionAdminVoiceProof(opts.output || {})));
+  }
+  async function capture(result, options) {
+    try {
+      await integration.captureAcceptedAdminFinal({ result, options, gatewayAdminVerified: gatewayAdminVerified(options), finalValidator: acceptedFinal });
+    } catch (_) {
+      // Learning persistence failures must not alter or suppress Marion's reply.
+    }
+  }
+  function registerMarionLearningRuntime(runtime) { return integration.registerRuntime(runtime); }
+  function getMarionLearningIntegrationStatus() { return integration.status(); }
+
+  const original = api.handleMarionAdminConversation || handleMarionAdminConversation;
+  if (typeof original !== "function" || original.__marionSelfLearningAdminCaptureV1) return;
+  const wrapped = async function marionSelfLearningAdminCapture(input, options) {
+    const args = arguments;
+    const result = await original.apply(this, args);
+    await capture(result, options);
+    return result;
+  };
+  Object.keys(original).forEach(key => { try { wrapped[key] = original[key]; } catch (_) {} });
+  wrapped.__marionSelfLearningAdminCaptureV1 = true;
+  api.handleMarionAdminConversation = wrapped;
+  api.registerMarionLearningRuntime = registerMarionLearningRuntime;
+  api.getMarionLearningIntegrationStatus = getMarionLearningIntegrationStatus;
+  api.MARION_SELF_LEARNING_ADMIN_CAPTURE_VERSION = "marion.selfLearning.adminCapture/1.0";
+  api.__marionSelfLearningAdminCaptureV1 = true;
+})();
+/* MARION_SELF_LEARNING_ADMIN_CAPTURE_V1_END */
