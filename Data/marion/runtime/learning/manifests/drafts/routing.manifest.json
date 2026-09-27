@@ -1,7 +1,7 @@
 {
-  "datasetId": "marion.routing.synthetic.v1",
-  "version": "1.0.0",
-  "fixtureStore": "marion.synthetic.fixtures.routing.v1",
+  "datasetId": "marion.routing.synthetic.v2",
+  "version": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.routing.v2",
   "cases": [
     {
       "caseId": "route.intent.001"
@@ -152,6 +152,57 @@
     },
     {
       "caseId": "route.robust.005"
+    },
+    {
+      "caseId": "route.extra.001"
+    },
+    {
+      "caseId": "route.extra.002"
+    },
+    {
+      "caseId": "route.extra.003"
+    },
+    {
+      "caseId": "route.extra.004"
+    },
+    {
+      "caseId": "route.extra.005"
+    },
+    {
+      "caseId": "route.extra.006"
+    },
+    {
+      "caseId": "route.extra.007"
+    },
+    {
+      "caseId": "route.extra.008"
+    },
+    {
+      "caseId": "route.extra.009"
+    },
+    {
+      "caseId": "route.extra.010"
+    },
+    {
+      "caseId": "route.extra.011"
+    },
+    {
+      "caseId": "route.extra.012"
+    },
+    {
+      "caseId": "route.extra.013"
+    },
+    {
+      "caseId": "route.extra.014"
+    },
+    {
+      "caseId": "route.extra.015"
+    },
+    {
+      "caseId": "route.extra.016"
+    },
+    {
+      "caseId": "route.extra.017"
     }
   ]
 }
