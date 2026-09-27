@@ -1,7 +1,7 @@
 {
-  "datasetId": "marion.retrieval.synthetic.v1",
-  "version": "1.0.0",
-  "fixtureStore": "marion.synthetic.fixtures.retrieval.v1",
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "version": "2.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v2",
   "cases": [
     {
       "caseId": "ret.direct.001"
@@ -152,6 +152,57 @@
     },
     {
       "caseId": "ret.version.005"
+    },
+    {
+      "caseId": "ret.extra.001"
+    },
+    {
+      "caseId": "ret.extra.002"
+    },
+    {
+      "caseId": "ret.extra.003"
+    },
+    {
+      "caseId": "ret.extra.004"
+    },
+    {
+      "caseId": "ret.extra.005"
+    },
+    {
+      "caseId": "ret.extra.006"
+    },
+    {
+      "caseId": "ret.extra.007"
+    },
+    {
+      "caseId": "ret.extra.008"
+    },
+    {
+      "caseId": "ret.extra.009"
+    },
+    {
+      "caseId": "ret.extra.010"
+    },
+    {
+      "caseId": "ret.extra.011"
+    },
+    {
+      "caseId": "ret.extra.012"
+    },
+    {
+      "caseId": "ret.extra.013"
+    },
+    {
+      "caseId": "ret.extra.014"
+    },
+    {
+      "caseId": "ret.extra.015"
+    },
+    {
+      "caseId": "ret.extra.016"
+    },
+    {
+      "caseId": "ret.extra.017"
     }
   ]
 }
