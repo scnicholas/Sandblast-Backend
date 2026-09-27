@@ -1,0 +1,157 @@
+{
+  "datasetId": "marion.retrieval.synthetic.v1",
+  "version": "1.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.retrieval.v1",
+  "cases": [
+    {
+      "caseId": "ret.direct.001"
+    },
+    {
+      "caseId": "ret.direct.002"
+    },
+    {
+      "caseId": "ret.direct.003"
+    },
+    {
+      "caseId": "ret.direct.004"
+    },
+    {
+      "caseId": "ret.direct.005"
+    },
+    {
+      "caseId": "ret.entity.001"
+    },
+    {
+      "caseId": "ret.entity.002"
+    },
+    {
+      "caseId": "ret.entity.003"
+    },
+    {
+      "caseId": "ret.entity.004"
+    },
+    {
+      "caseId": "ret.entity.005"
+    },
+    {
+      "caseId": "ret.multihop.001"
+    },
+    {
+      "caseId": "ret.multihop.002"
+    },
+    {
+      "caseId": "ret.multihop.003"
+    },
+    {
+      "caseId": "ret.multihop.004"
+    },
+    {
+      "caseId": "ret.multihop.005"
+    },
+    {
+      "caseId": "ret.ambiguous.001"
+    },
+    {
+      "caseId": "ret.ambiguous.002"
+    },
+    {
+      "caseId": "ret.ambiguous.003"
+    },
+    {
+      "caseId": "ret.ambiguous.004"
+    },
+    {
+      "caseId": "ret.ambiguous.005"
+    },
+    {
+      "caseId": "ret.noresult.001"
+    },
+    {
+      "caseId": "ret.noresult.002"
+    },
+    {
+      "caseId": "ret.noresult.003"
+    },
+    {
+      "caseId": "ret.noresult.004"
+    },
+    {
+      "caseId": "ret.noresult.005"
+    },
+    {
+      "caseId": "ret.conflict.001"
+    },
+    {
+      "caseId": "ret.conflict.002"
+    },
+    {
+      "caseId": "ret.conflict.003"
+    },
+    {
+      "caseId": "ret.conflict.004"
+    },
+    {
+      "caseId": "ret.conflict.005"
+    },
+    {
+      "caseId": "ret.rank.001"
+    },
+    {
+      "caseId": "ret.rank.002"
+    },
+    {
+      "caseId": "ret.rank.003"
+    },
+    {
+      "caseId": "ret.rank.004"
+    },
+    {
+      "caseId": "ret.rank.005"
+    },
+    {
+      "caseId": "ret.followup.001"
+    },
+    {
+      "caseId": "ret.followup.002"
+    },
+    {
+      "caseId": "ret.followup.003"
+    },
+    {
+      "caseId": "ret.followup.004"
+    },
+    {
+      "caseId": "ret.followup.005"
+    },
+    {
+      "caseId": "ret.paraphrase.001"
+    },
+    {
+      "caseId": "ret.paraphrase.002"
+    },
+    {
+      "caseId": "ret.paraphrase.003"
+    },
+    {
+      "caseId": "ret.paraphrase.004"
+    },
+    {
+      "caseId": "ret.paraphrase.005"
+    },
+    {
+      "caseId": "ret.version.001"
+    },
+    {
+      "caseId": "ret.version.002"
+    },
+    {
+      "caseId": "ret.version.003"
+    },
+    {
+      "caseId": "ret.version.004"
+    },
+    {
+      "caseId": "ret.version.005"
+    }
+  ]
+}
