@@ -1,0 +1,157 @@
+{
+  "datasetId": "marion.routing.synthetic.v1",
+  "version": "1.0.0",
+  "fixtureStore": "marion.synthetic.fixtures.routing.v1",
+  "cases": [
+    {
+      "caseId": "route.intent.001"
+    },
+    {
+      "caseId": "route.intent.002"
+    },
+    {
+      "caseId": "route.intent.003"
+    },
+    {
+      "caseId": "route.intent.004"
+    },
+    {
+      "caseId": "route.intent.005"
+    },
+    {
+      "caseId": "route.domain.001"
+    },
+    {
+      "caseId": "route.domain.002"
+    },
+    {
+      "caseId": "route.domain.003"
+    },
+    {
+      "caseId": "route.domain.004"
+    },
+    {
+      "caseId": "route.domain.005"
+    },
+    {
+      "caseId": "route.mixed.001"
+    },
+    {
+      "caseId": "route.mixed.002"
+    },
+    {
+      "caseId": "route.mixed.003"
+    },
+    {
+      "caseId": "route.mixed.004"
+    },
+    {
+      "caseId": "route.mixed.005"
+    },
+    {
+      "caseId": "route.capability.001"
+    },
+    {
+      "caseId": "route.capability.002"
+    },
+    {
+      "caseId": "route.capability.003"
+    },
+    {
+      "caseId": "route.capability.004"
+    },
+    {
+      "caseId": "route.capability.005"
+    },
+    {
+      "caseId": "route.clarify.001"
+    },
+    {
+      "caseId": "route.clarify.002"
+    },
+    {
+      "caseId": "route.clarify.003"
+    },
+    {
+      "caseId": "route.clarify.004"
+    },
+    {
+      "caseId": "route.clarify.005"
+    },
+    {
+      "caseId": "route.action.001"
+    },
+    {
+      "caseId": "route.action.002"
+    },
+    {
+      "caseId": "route.action.003"
+    },
+    {
+      "caseId": "route.action.004"
+    },
+    {
+      "caseId": "route.action.005"
+    },
+    {
+      "caseId": "route.priority.001"
+    },
+    {
+      "caseId": "route.priority.002"
+    },
+    {
+      "caseId": "route.priority.003"
+    },
+    {
+      "caseId": "route.priority.004"
+    },
+    {
+      "caseId": "route.priority.005"
+    },
+    {
+      "caseId": "route.continuity.001"
+    },
+    {
+      "caseId": "route.continuity.002"
+    },
+    {
+      "caseId": "route.continuity.003"
+    },
+    {
+      "caseId": "route.continuity.004"
+    },
+    {
+      "caseId": "route.continuity.005"
+    },
+    {
+      "caseId": "route.handoff.001"
+    },
+    {
+      "caseId": "route.handoff.002"
+    },
+    {
+      "caseId": "route.handoff.003"
+    },
+    {
+      "caseId": "route.handoff.004"
+    },
+    {
+      "caseId": "route.handoff.005"
+    },
+    {
+      "caseId": "route.robust.001"
+    },
+    {
+      "caseId": "route.robust.002"
+    },
+    {
+      "caseId": "route.robust.003"
+    },
+    {
+      "caseId": "route.robust.004"
+    },
+    {
+      "caseId": "route.robust.005"
+    }
+  ]
+}
