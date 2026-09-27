@@ -1,24 +1,36 @@
 "use strict";
 
 // Offline-only evaluator bridge. It runs allowlisted version handlers against
-// synthetic fixtures and returns scores only; outputs and fixture contents are
-// never persisted or included in the learning report.
+// synthetic fixtures bound to one validated dataset manifest and fixture store.
+// Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/1.0";
+const VERSION = "marion.learningOfflineRunner/1.1-fixture-store-bound";
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const FORBIDDEN_FIXTURE_KEYS = new Set([
-  "rawAudio", "audio", "recording", "personalData", "email", "phone", "address",
-  "ownerId", "actorId", "sessionId", "userId", "cookie", "token", "credential"
+  "rawaudio", "audio", "recording", "personaldata", "email", "phone", "address",
+  "ownerid", "actorid", "sessionid", "userid", "cookie", "token", "credential",
+  "transcript", "prompt", "authorization", "secret", "password"
 ]);
+const MAX_FIXTURE_DEPTH = 16;
+const MAX_FIXTURE_NODES = 10000;
 
-function hasForbiddenFixtureData(value, depth = 0) {
-  if (!value || typeof value !== "object" || depth > 8) return false;
+function normalizedKey(key) {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function validateFixtureData(value, seen = new Set(), state = { nodes: 0 }, depth = 0) {
+  if (depth > MAX_FIXTURE_DEPTH || ++state.nodes > MAX_FIXTURE_NODES) return false;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object" || seen.has(value)) return false;
+  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
+  seen.add(value);
   for (const [key, nested] of Object.entries(value)) {
-    if (FORBIDDEN_FIXTURE_KEYS.has(key)) return true;
-    if (hasForbiddenFixtureData(nested, depth + 1)) return true;
+    if (FORBIDDEN_FIXTURE_KEYS.has(normalizedKey(key)) || !validateFixtureData(nested, seen, state, depth + 1)) return false;
   }
-  return false;
+  seen.delete(value);
+  return true;
 }
 
 function finiteScore(value) {
@@ -34,16 +46,19 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
 
   async function runVersion(version, caseIds, options = {}) {
     const versionId = typeof version === "string" ? version.trim() : "";
-    const mode = options && options.mode;
-    const scope = options && options.scope;
+    const { mode, scope, datasetId, datasetVersion, fixtureStore } = options || {};
     if (mode !== "offline") throw new Error("offline_mode_required");
-    if (!ID_RE.test(versionId) || !ALLOWED_SCOPES.has(scope)) throw new Error("invalid_offline_evaluation_request");
+    if (!ID_RE.test(versionId) || !ALLOWED_SCOPES.has(scope) ||
+        !ID_RE.test(datasetId || "") || !ID_RE.test(datasetVersion || "") || !ID_RE.test(fixtureStore || "")) {
+      throw new Error("invalid_offline_evaluation_request");
+    }
     if (!Array.isArray(caseIds) || caseIds.length < 20 || caseIds.length > caseLimit ||
         caseIds.some(id => typeof id !== "string" || !ID_RE.test(id)) || new Set(caseIds).size !== caseIds.length) {
       throw new Error("invalid_offline_fixture_set");
     }
 
-    const handler = await resolveVersion(versionId, { mode: "offline", scope });
+    const runContext = Object.freeze({ mode: "offline", scope, datasetId, datasetVersion, fixtureStore });
+    const handler = await resolveVersion(versionId, runContext);
     if (!handler || handler.mode !== "offline" || typeof handler.runOffline !== "function") {
       throw new Error("version_not_registered_for_offline_evaluation");
     }
@@ -52,16 +67,18 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     const regressions = [];
     const criticalFailures = [];
     for (const caseId of caseIds) {
-      const fixture = await loadFixture(caseId, { mode: "offline", scope });
+      const fixture = await loadFixture(caseId, Object.freeze({ ...runContext, caseId }));
       if (!fixture || fixture.caseId !== caseId || fixture.synthetic !== true ||
-          !fixture.input || typeof fixture.input !== "object" || hasForbiddenFixtureData(fixture)) {
+          fixture.datasetId !== datasetId || fixture.datasetVersion !== datasetVersion ||
+          fixture.fixtureStore !== fixtureStore || !fixture.input || typeof fixture.input !== "object" ||
+          Array.isArray(fixture.input) || !validateFixtureData(fixture) || !validateFixtureData(fixture.input)) {
         throw new Error("fixture_not_approved_synthetic_data");
       }
       const output = await handler.runOffline(fixture.input, Object.freeze({
-        mode: "offline", scope, version: versionId, caseId,
+        ...runContext, version: versionId, caseId,
         sideEffectsAllowed: false, activationAllowed: false
       }));
-      const scored = await scoreFixture(fixture, output, { mode: "offline", scope, version: versionId });
+      const scored = await scoreFixture(fixture, output, Object.freeze({ ...runContext, version: versionId, caseId }));
       const score = finiteScore(scored && scored.score);
       if (score === null) throw new Error("fixture_score_invalid");
       total += score;
