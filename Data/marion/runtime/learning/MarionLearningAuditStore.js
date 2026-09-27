@@ -19,13 +19,18 @@ function createMarionLearningAuditStore({ durableAppend, clock = () => new Date(
   if (typeof durableAppend !== "function") throw new TypeError("durableAppend is required; audit events must be persisted privately");
   let previousHash = "GENESIS";
   let sequence = 0;
-  async function append(event) {
-    if (!event || typeof event !== "object" || Array.isArray(event)) throw new TypeError("audit event must be an object");
-    const safeEvent = Object.freeze({ ...event, auditSequence: ++sequence, auditAt: clock() });
-    const entry = Object.freeze({ ...safeEvent, previousHash, eventHash: hashEvent(previousHash, safeEvent) });
-    await durableAppend(entry);
-    previousHash = entry.eventHash;
-    return entry;
+  let appendQueue = Promise.resolve();
+  function append(event) {
+    if (!event || typeof event !== "object" || Array.isArray(event)) return Promise.reject(new TypeError("audit event must be an object"));
+    const operation = appendQueue.then(async () => {
+      const safeEvent = Object.freeze({ ...event, auditSequence: ++sequence, auditAt: clock() });
+      const entry = Object.freeze({ ...safeEvent, previousHash, eventHash: hashEvent(previousHash, safeEvent) });
+      await durableAppend(entry);
+      previousHash = entry.eventHash;
+      return entry;
+    });
+    appendQueue = operation.catch(() => undefined);
+    return operation;
   }
   return Object.freeze({ VERSION, append });
 }
