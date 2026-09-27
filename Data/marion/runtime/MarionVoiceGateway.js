@@ -1547,9 +1547,12 @@ try {
   }
   function gatewayAdminVerified(options) {
     const opts = options && typeof options === "object" ? options : {};
-    return opts.adminVerified === true || opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
-      opts.adminVoiceDeliveryAllowed === true || opts.serverSideAdminVoiceAuth === true || opts.trustedServerAuth === true ||
-      (typeof hasOptionAdminVoiceProof === "function" && (hasOptionAdminVoiceProof(opts.authorization || {}) || hasOptionAdminVoiceProof(opts.output || {})));
+    const authorization = opts.authorization && typeof opts.authorization === "object" ? opts.authorization : {};
+    const output = opts.output && typeof opts.output === "object" ? opts.output : {};
+    const verifiedFlag = value => value.adminVerified === true || value.adminVoiceVerified === true ||
+      value.adminVoiceTokenVerified === true || value.adminVoiceDeliveryAllowed === true ||
+      value.serverSideAdminVoiceAuth === true;
+    return verifiedFlag(opts) || verifiedFlag(authorization) || verifiedFlag(output);
   }
   async function capture(result, options) {
     try {
@@ -1574,7 +1577,7 @@ try {
   api.handleMarionAdminConversation = wrapped;
   api.registerMarionLearningRuntime = registerMarionLearningRuntime;
   api.getMarionLearningIntegrationStatus = getMarionLearningIntegrationStatus;
-  api.MARION_SELF_LEARNING_ADMIN_CAPTURE_VERSION = "marion.selfLearning.adminCapture/1.0";
+  api.MARION_SELF_LEARNING_ADMIN_CAPTURE_VERSION = "marion.selfLearning.adminCapture/1.1-strict-auth-proof";
   api.__marionSelfLearningAdminCaptureV1 = true;
 })();
 /* MARION_SELF_LEARNING_ADMIN_CAPTURE_V1_END */
