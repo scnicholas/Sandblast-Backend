@@ -2593,7 +2593,7 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.3-substantive-response-hardlock";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.4-learning-bootstrap-consent-gate";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
@@ -2789,7 +2789,9 @@ function marionAdminConversationRequestAuth(req) {
           session: session.session,
           role,
           capabilities: session.capabilities || (typeof marionAdminConsoleCapabilitiesForRole === "function" ? marionAdminConsoleCapabilitiesForRole(role) : []),
-          authMode: "admin_console_session"
+          authMode: session.authMode || "admin_console_session",
+          testBypass: session.testBypass === true,
+          testingBypass: session.testingBypass === true
         };
       }
     }
@@ -2830,6 +2832,96 @@ function marionAdminConversationRuntimeDiagnostics() {
 
 function marionAdminConversationRuntimeReady() {
   return marionAdminConversationRuntimeDiagnostics().every((item) => item.exists);
+}
+
+// Self-learning stays unavailable unless deployment injects private, durable
+// stores and an offline evaluator. Never substitute process memory for them.
+function ensureMarionLearningRuntime() {
+  app.locals = app.locals || {};
+  const current = app.locals.marionLearningBackend;
+  if (current && current.runtime) return { ready: true, status: "ready" };
+  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") {
+    return { ready: false, status: "disabled" };
+  }
+  const adapters = app.locals.marionLearningAdapters;
+  if (!adapters || !adapters.signalStore || !adapters.proposalStore ||
+      typeof adapters.durableAuditAppend !== "function" || typeof adapters.runVersion !== "function") {
+    return { ready: false, status: "durable_adapters_missing" };
+  }
+  try {
+    const setup = require("./Data/marion/runtime/learning/MarionLearningBackendSetup.js");
+    if (!setup || typeof setup.createAndRegisterMarionLearningBackend !== "function") {
+      return { ready: false, status: "learning_modules_unavailable" };
+    }
+    const backend = setup.createAndRegisterMarionLearningBackend({
+      signalStore: adapters.signalStore,
+      proposalStore: adapters.proposalStore,
+      durableAuditAppend: adapters.durableAuditAppend,
+      runVersion: adapters.runVersion,
+      healthProbe: adapters.healthProbe,
+      gateway: require("./Data/marion/runtime/MarionVoiceGateway.js")
+    });
+    app.locals.marionLearningBackend = backend;
+    return { ready: true, status: "ready" };
+  } catch (_) {
+    return { ready: false, status: "adapter_setup_failed" };
+  }
+}
+
+function marionLearningContextFor(req, body, auth) {
+  const source = isObj(body) ? body : {};
+  const identity = isObj(auth) ? auth : {};
+  const signalInput = isObj(source.marionLearningSignal) ? source.marionLearningSignal : {};
+  const score = Number(signalInput.outcomeScore);
+  const allowedClasses = ["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"];
+  const allowedScopes = ["retrieval", "routing", "response_style"];
+  const sessionId = cleanText(identity.sessionId || (identity.session && identity.session.id) || "");
+  if (source.marionLearningConsent !== true || identity.verified !== true ||
+      identity.sessionVerified !== true || identity.testBypass === true || identity.testingBypass === true ||
+      cleanText(identity.role || "") !== "owner" || !sessionId ||
+      !Number.isFinite(score) || score < 0 || score > 1 ||
+      !allowedClasses.includes(cleanText(signalInput.signalClass)) ||
+      !allowedScopes.includes(cleanText(signalInput.scope))) return null;
+
+  return Object.freeze({
+    authenticated: true,
+    ownerAuthenticated: true,
+    role: "owner",
+    verifiedBy: "server_middleware",
+    actorId: `owner:${crypto.createHash("sha256").update(sessionId).digest("hex").slice(0, 24)}`,
+    learningConsent: true,
+    signal: Object.freeze({
+      signalId: `mls_${crypto.randomBytes(16).toString("hex")}`,
+      signalClass: cleanText(signalInput.signalClass),
+      scope: cleanText(signalInput.scope),
+      sourceSubsystem: "marion_admin_conversation",
+      outcomeScore: score,
+      occurredAt: new Date().toISOString()
+    })
+  });
+}
+
+async function captureAcceptedMarionLearningFinal(result, learningContext) {
+  const backend = app.locals && app.locals.marionLearningBackend;
+  if (!backend || !backend.runtime || typeof backend.runtime.captureFinalOutcome !== "function" || !learningContext) return;
+  try {
+    const composer = require("./Data/marion/runtime/composeMarionResponse.js");
+    if (!composer || typeof composer.isAcceptedMarionLearningFinal !== "function" ||
+        composer.isAcceptedMarionLearningFinal(result) !== true) return;
+    const signal = learningContext.signal || {};
+    await backend.runtime.captureFinalOutcome({
+      finalAccepted: true,
+      learningConsent: true,
+      signalId: signal.signalId,
+      signalClass: signal.signalClass,
+      scope: signal.scope,
+      sourceSubsystem: signal.sourceSubsystem,
+      outcomeScore: signal.outcomeScore,
+      occurredAt: signal.occurredAt
+    });
+  } catch (_) {
+    // Learning persistence must never suppress or alter Marion's response.
+  }
 }
 
 function marionAdminRedactText(value) {
@@ -3861,6 +3953,7 @@ app.options([...MARION_ADMIN_CONVERSATION_ROUTES, ...MARION_ADMIN_CONVERSATION_H
 app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
+  const marionLearning = ensureMarionLearningRuntime();
 
   let MarionVoiceGateway = null;
   try {
@@ -3922,6 +4015,14 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
       hasVoiceHandler: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleVoiceTranscript === "function"),
       version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || "")
     },
+    selfLearning: {
+      enabled: marionLearning.ready,
+      status: marionLearning.status,
+      requiresExplicitOwnerConsent: true,
+      requiresDurableAdapters: true,
+      liveActivationEnabled: false,
+      rawConversationStored: false
+    },
     lingoSentinel: {
       silentOversight: true,
       userToUserBoundary: true,
@@ -3981,6 +4082,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   }
 
   const prompt = cleanText(body.transcript || body.message || body.text || body.prompt || body.query || "");
+  ensureMarionLearningRuntime();
+  const marionLearningContext = marionLearningContextFor(req, body, auth);
   const exactResponseLiteral = marionAdminExactResponseLiteral(prompt);
   const capabilityReply = marionAdminCapabilityReplyFor(prompt);
   const privatePartitionKey = marionAdminPrivatePartitionKey(body, auth);
@@ -4056,6 +4159,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       const runtimeReplyCandidate = exactResponseLiteral || capabilityReply || marionAdminConversationSafeReply(runtime, prompt);
       const runtimeReply = exactResponseLiteral || capabilityReply || marionAdminSubstantiveReplyGuard(runtimeReplyCandidate, prompt, runtime);
       if (runtime && runtimeReply && (runtime.ok || !!exactResponseLiteral || !!capabilityReply)) {
+        await captureAcceptedMarionLearningFinal(runtime, marionLearningContext);
         return res.status(200).json({
           ok: true,
           final: true,
@@ -4226,6 +4330,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         forceSilent: adminVoiceRuntimeAuth.verified !== true,
         privateAdminConversation: true
       },
+      marionLearningContext,
       context: {
         sessionId: cleanText(body.sessionId || "marion-admin"),
         requestId: traceId,
