@@ -2842,30 +2842,33 @@ function marionAdminConversationRuntimeReady() {
   return marionAdminConversationRuntimeDiagnostics().every((item) => item.exists);
 }
 
-// Render does not expose an interactive shell on every service plan. Create
-// the private review directory from the mounted persistent disk before the
-// server accepts requests. Directory creation never enables learning.
-function prepareMarionLearningReviewDirectoryAtStartup() {
-  const configuredDirectory = process.env.SB_MARION_LEARNING_REVIEW_DIR;
-  if (!configuredDirectory) return { ready: false, skipped: true, reason: "not_configured" };
-  if (!path.isAbsolute(configuredDirectory)) return { ready: false, skipped: false, reason: "absolute_path_required" };
+// Production learning/review records use Postgres because Render Free does not
+// provide a persistent local disk. This diagnostic never exposes credentials.
+function marionLearningStorageConfiguration() {
+  const enabled = String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() === "true";
+  const configured = typeof process.env.DATABASE_URL === "string" && /^postgres(?:ql)?:\/\//i.test(process.env.DATABASE_URL);
+  return Object.freeze({ storage: "postgresql", configured, enabled, ready: false,
+    reason: !enabled ? "learning_disabled" : configured ? "database_schema_check_required" : "database_url_missing_or_invalid" });
+}
 
-  const reviewDirectory = path.resolve(configuredDirectory);
-  try {
-    fs.mkdirSync(reviewDirectory, { recursive: true, mode: 0o700 });
-    let stat = fs.lstatSync(reviewDirectory);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) {
-      return { ready: false, skipped: false, reason: "review_path_must_be_real_directory" };
-    }
-    fs.chmodSync(reviewDirectory, 0o700);
-    stat = fs.lstatSync(reviewDirectory);
-    if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) {
-      return { ready: false, skipped: false, reason: "review_directory_permissions_invalid" };
-    }
-    return { ready: true, skipped: false, reason: "ready" };
-  } catch (_) {
-    return { ready: false, skipped: false, reason: "review_directory_setup_failed" };
-  }
+function getMarionLearningPostgresPool() {
+  app.locals = app.locals || {};
+  if (app.locals.marionLearningPgPool) return app.locals.marionLearningPgPool;
+  const config = marionLearningStorageConfiguration();
+  if (!config.configured) return null;
+  const pg = require("pg");
+  const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 3,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    ssl: { rejectUnauthorized: true }
+  });
+  if (typeof pool.on === "function") pool.on("error", () => {
+    console.warn("[Sandblast][marion-learning-postgres]", { status: "idle_connection_error" });
+  });
+  app.locals.marionLearningPgPool = pool;
+  return pool;
 }
 
 function marionLearningOfflineHandlersReady() {
@@ -2905,41 +2908,47 @@ function ensureMarionLearningRuntime() {
       return { ready: false, status: "learning_admin_handlers_unavailable" };
     }
   }
-  let trust = app.locals.marionLearningTrust;
-  if (!trust) {
-    try {
-      const trustedHooks = require("./Data/marion/runtime/learning/MarionLearningTrustedHooks.js");
-      const offlineVersions = app.locals.marionLearningOfflineVersions instanceof Map
-        ? app.locals.marionLearningOfflineVersions : new Map();
-      app.locals.marionLearningOfflineVersions = offlineVersions;
-      trust = trustedHooks.createMarionLearningTrustedHooks({
-        versionRegistry: offlineVersions,
-        reviewDirectory: process.env.SB_MARION_LEARNING_REVIEW_DIR,
-        reviewHmacKey: process.env.SB_MARION_LEARNING_REVIEW_HMAC_KEY
-      });
-      app.locals.marionLearningTrust = trust;
-    } catch (_) {
-      return { ready: false, status: "trusted_hook_setup_failed" };
-    }
-  }
-  if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function") {
-    return { ready: false, status: "trusted_resolver_or_review_verifier_missing" };
-  }
-  if (trust.configured === false) return { ready: false, status: "review_trust_config_missing" };
+  const storageConfig = marionLearningStorageConfiguration();
+  if (!storageConfig.configured) return { ready: false, status: "database_url_missing_or_invalid" };
   try {
     const learningRoot = path.join(__dirname, "Data/marion/runtime/learning");
     const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "manifests/fixture_store"));
     const fixtureModule = require("./Data/marion/runtime/learning/MarionLearningFixtureStore.js");
     const fixtureStore = fixtureModule.createMarionLearningFixtureStore({ directory: fixtureDirectory });
     const contract = require("./Data/marion/runtime/learning/MarionLearningFixtureContract.js");
-    const adapterModule = require("./Data/marion/runtime/learning/MarionLearningBackendAdapters.js");
-    const adapters = adapterModule.createMarionLearningBackendAdapters({
-      dataDir: process.env.SB_MARION_LEARNING_DATA_DIR,
-      resolveVersion: trust.resolveVersion,
-      loadFixture: fixtureStore.loadFixture,
-      scoreFixture: contract.scoreFixture,
-      healthProbe: trust.healthProbe
-    });
+    const pgPool = getMarionLearningPostgresPool();
+    if (!pgPool) return { ready: false, status: "database_url_missing_or_invalid" };
+    const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+    let trust = app.locals.marionLearningTrust;
+    let adapters = app.locals.marionLearningAdapters;
+    if (!adapters) {
+      adapters = adapterModule.createMarionLearningPostgresAdapters({
+        pool: pgPool,
+        resolveVersion: (...args) => {
+          if (!trust || typeof trust.resolveVersion !== "function") throw new Error("offline_resolver_not_ready");
+          return trust.resolveVersion(...args);
+        },
+        loadFixture: fixtureStore.loadFixture,
+        scoreFixture: contract.scoreFixture
+      });
+      app.locals.marionLearningAdapters = adapters;
+    }
+    if (!trust) {
+      const trustedHooks = require("./Data/marion/runtime/learning/MarionLearningTrustedHooks.js");
+      const offlineVersions = app.locals.marionLearningOfflineVersions instanceof Map
+        ? app.locals.marionLearningOfflineVersions : new Map();
+      app.locals.marionLearningOfflineVersions = offlineVersions;
+      trust = trustedHooks.createMarionLearningTrustedHooks({
+        versionRegistry: offlineVersions,
+        reviewStore: adapters.reviewStore,
+        reviewHmacKey: process.env.SB_MARION_LEARNING_REVIEW_HMAC_KEY
+      });
+      app.locals.marionLearningTrust = trust;
+    }
+    if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function") {
+      return { ready: false, status: "trusted_resolver_or_review_verifier_missing" };
+    }
+    if (trust.configured === false) return { ready: false, status: "review_trust_config_missing" };
     const registryModule = require("./Data/marion/runtime/learning/MarionLearningManifestRegistry.js");
     const setup = require("./Data/marion/runtime/learning/MarionLearningBackendSetup.js");
     const backend = setup.createAndRegisterMarionLearningBackend({
@@ -2951,7 +2960,6 @@ function ensureMarionLearningRuntime() {
     });
     const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
     app.locals.marionLearningFixtureStore = fixtureStore;
-    app.locals.marionLearningAdapters = adapters;
     app.locals.marionLearningBackend = backend;
     app.locals.marionLearningAdminHandlers = admin.createMarionLearningAdminHandlers({
       runtime: backend.runtime,
@@ -2961,8 +2969,10 @@ function ensureMarionLearningRuntime() {
       return { ready: false, status: "offline_handlers_not_registered" };
     }
     return { ready: true, status: "ready" };
-  } catch (_) {
-    return { ready: false, status: "adapter_setup_failed" };
+  } catch (error) {
+    const message = String(error && error.message || "");
+    const status = /Cannot find module ['\"]pg/.test(message) ? "postgres_dependency_missing" : "postgres_learning_setup_failed";
+    return { ready: false, status };
   }
 }
 
@@ -4126,6 +4136,7 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
     selfLearning: {
       enabled: marionLearning.ready,
       status: marionLearning.status,
+      storage: marionLearningStorageConfiguration(),
       requiresExplicitOwnerConsent: true,
       requiresDurableAdapters: true,
       liveActivationEnabled: false,
@@ -4160,6 +4171,10 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
       return res.status(503).json({ ok: false, reason: status.status || "learning_admin_unavailable", traceId });
     }
     try {
+      const storage = app.locals && app.locals.marionLearningAdapters;
+      if (!storage || typeof storage.healthProbe !== "function" || !(await storage.healthProbe()).ready) {
+        return res.status(503).json({ ok: false, reason: "learning_postgres_schema_or_connection_not_ready", traceId });
+      }
       const result = await handlers[handlerName](req);
       return res.status(result.status).json({ ...result.body, traceId });
     } catch (_) {
@@ -25387,15 +25402,32 @@ let server = null;
 
 function startSandblastServer(port = PORT) {
   if (server && typeof server.close === "function") return server;
-  const reviewStoreSetup = prepareMarionLearningReviewDirectoryAtStartup();
-  const learningEnabled = String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() === "true";
-  if (!reviewStoreSetup.skipped || learningEnabled) {
-    console.log("[Sandblast][marion-learning-review-directory]", {
-      directoryPrepared: reviewStoreSetup.ready,
-      reason: reviewStoreSetup.reason,
-      learningEnabled
-    });
+  const learningStorage = marionLearningStorageConfiguration();
+  let learningSetup = { ready: false, status: learningStorage.reason };
+  if (learningStorage.enabled) learningSetup = ensureMarionLearningRuntime();
+  let storageProbe = null;
+  if (learningStorage.configured) {
+    try {
+      const pgPool = getMarionLearningPostgresPool();
+      const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+      storageProbe = () => adapterModule.probeMarionLearningPostgres(pgPool);
+    } catch (_) {
+      learningSetup = { ready: false, status: "postgres_dependency_missing" };
+    }
   }
+  Promise.resolve(typeof storageProbe === "function" ? storageProbe() : { ready: false })
+    .then(result => console.log("[Sandblast][marion-learning-postgres]", {
+      configured: learningStorage.configured,
+      databaseReady: !!(result && result.ready === true),
+      learningEnabled: learningStorage.enabled,
+      runtimeStatus: learningSetup.status,
+      liveActivationEnabled: false
+    }))
+    .catch(() => console.log("[Sandblast][marion-learning-postgres]", {
+      configured: learningStorage.configured, databaseReady: false,
+      learningEnabled: learningStorage.enabled, runtimeStatus: "database_probe_failed",
+      liveActivationEnabled: false
+    }));
   server = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
     try {
