@@ -2842,12 +2842,57 @@ function marionAdminConversationRuntimeReady() {
   return marionAdminConversationRuntimeDiagnostics().every((item) => item.exists);
 }
 
+// Render does not expose an interactive shell on every service plan. Create
+// the private review directory from the mounted persistent disk before the
+// server accepts requests. Directory creation never enables learning.
+function prepareMarionLearningReviewDirectoryAtStartup() {
+  const configuredDirectory = process.env.SB_MARION_LEARNING_REVIEW_DIR;
+  if (!configuredDirectory) return { ready: false, skipped: true, reason: "not_configured" };
+  if (!path.isAbsolute(configuredDirectory)) return { ready: false, skipped: false, reason: "absolute_path_required" };
+
+  const reviewDirectory = path.resolve(configuredDirectory);
+  try {
+    fs.mkdirSync(reviewDirectory, { recursive: true, mode: 0o700 });
+    let stat = fs.lstatSync(reviewDirectory);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      return { ready: false, skipped: false, reason: "review_path_must_be_real_directory" };
+    }
+    fs.chmodSync(reviewDirectory, 0o700);
+    stat = fs.lstatSync(reviewDirectory);
+    if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) {
+      return { ready: false, skipped: false, reason: "review_directory_permissions_invalid" };
+    }
+    return { ready: true, skipped: false, reason: "ready" };
+  } catch (_) {
+    return { ready: false, skipped: false, reason: "review_directory_setup_failed" };
+  }
+}
+
+function marionLearningOfflineHandlersReady() {
+  const registry = app.locals && app.locals.marionLearningOfflineVersions;
+  if (!(registry instanceof Map) || registry.size === 0) return false;
+  for (const [version, entry] of registry.entries()) {
+    if (!entry || entry.version !== version || entry.mode !== "offline" ||
+        typeof entry.runOffline !== "function" || !Array.isArray(entry.bindings) || entry.bindings.length === 0 ||
+        entry.bindings.some((binding) => !binding ||
+          typeof binding.datasetId !== "string" || typeof binding.datasetVersion !== "string" ||
+          !["retrieval", "routing", "response_style"].includes(binding.scope))) return false;
+  }
+  return true;
+}
+
 // Backend startup is fail-closed: durable private stores, packaged fixtures,
 // an allowlisted offline resolver, and a trusted review verifier are required.
 function ensureMarionLearningRuntime() {
   app.locals = app.locals || {};
+  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") {
+    return { ready: false, status: "disabled" };
+  }
   const current = app.locals.marionLearningBackend;
   if (current && current.runtime) {
+    if (!marionLearningOfflineHandlersReady()) {
+      return { ready: false, status: "offline_handlers_not_registered" };
+    }
     if (app.locals.marionLearningAdminHandlers) return { ready: true, status: "ready" };
     try {
       const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
@@ -2859,9 +2904,6 @@ function ensureMarionLearningRuntime() {
     } catch (_) {
       return { ready: false, status: "learning_admin_handlers_unavailable" };
     }
-  }
-  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") {
-    return { ready: false, status: "disabled" };
   }
   let trust = app.locals.marionLearningTrust;
   if (!trust) {
@@ -2915,6 +2957,9 @@ function ensureMarionLearningRuntime() {
       runtime: backend.runtime,
       getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
     });
+    if (!marionLearningOfflineHandlersReady()) {
+      return { ready: false, status: "offline_handlers_not_registered" };
+    }
     return { ready: true, status: "ready" };
   } catch (_) {
     return { ready: false, status: "adapter_setup_failed" };
@@ -25342,6 +25387,15 @@ let server = null;
 
 function startSandblastServer(port = PORT) {
   if (server && typeof server.close === "function") return server;
+  const reviewStoreSetup = prepareMarionLearningReviewDirectoryAtStartup();
+  const learningEnabled = String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() === "true";
+  if (!reviewStoreSetup.skipped || learningEnabled) {
+    console.log("[Sandblast][marion-learning-review-directory]", {
+      directoryPrepared: reviewStoreSetup.ready,
+      reason: reviewStoreSetup.reason,
+      learningEnabled
+    });
+  }
   server = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
     try {
