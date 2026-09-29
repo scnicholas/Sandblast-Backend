@@ -45,6 +45,13 @@ const fs = require("fs");
 const crypto = require("crypto");
 const os = require("os");
 
+// Load local environment variables before any module or setting reads process.env.
+// Production hosts can still provide their own environment variables; dotenv only fills gaps.
+const envLoader = tryRequireMany(["dotenv", "./node_modules/dotenv"]);
+if (envLoader && typeof envLoader.config === "function") {
+  try { envLoader.config(); } catch (_) {}
+}
+
 const marionAdminRuntimeSafety = (() => {
   try { return require("./Data/marion/runtime/marionAdminRuntimeSafety.js"); }
   catch (_) { return null; }
@@ -445,10 +452,6 @@ function mountLingoSentinelTranslationRoutesOnce(appInstance, label) {
   return result;
 }
 
-const envLoader = tryRequireMany(["dotenv", "./node_modules/dotenv"]);
-if (envLoader && typeof envLoader.config === "function") {
-  try { envLoader.config(); } catch (_) {}
-}
 
 const NYX_TTS_CONFIG_BRIDGE_VERSION = "nyx.tts.indexConfigAliasBridge/1.0-r13";
 const NYX_TTS_DEFAULT_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
