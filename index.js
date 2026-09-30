@@ -45,11 +45,15 @@ const fs = require("fs");
 const crypto = require("crypto");
 const os = require("os");
 
-// Load local environment variables before any module or setting reads process.env.
-// Production hosts can still provide their own environment variables; dotenv only fills gaps.
-const envLoader = tryRequireMany(["dotenv", "./node_modules/dotenv"]);
-if (envLoader && typeof envLoader.config === "function") {
-  try { envLoader.config(); } catch (_) {}
+// Load local environment before application modules capture process.env values.
+try {
+  const dotenv = require("dotenv");
+  if (dotenv && typeof dotenv.config === "function") dotenv.config();
+} catch (_) {
+  try {
+    const dotenv = require("./node_modules/dotenv");
+    if (dotenv && typeof dotenv.config === "function") dotenv.config();
+  } catch (_) {}
 }
 
 const marionAdminRuntimeSafety = (() => {
@@ -451,7 +455,6 @@ function mountLingoSentinelTranslationRoutesOnce(appInstance, label) {
   }
   return result;
 }
-
 
 const NYX_TTS_CONFIG_BRIDGE_VERSION = "nyx.tts.indexConfigAliasBridge/1.0-r13";
 const NYX_TTS_DEFAULT_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
@@ -25414,8 +25417,12 @@ function startSandblastServer(port = PORT) {
       const pgPool = getMarionLearningPostgresPool();
       const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
       storageProbe = () => adapterModule.probeMarionLearningPostgres(pgPool);
-    } catch (_) {
-      learningSetup = { ready: false, status: "postgres_dependency_missing" };
+    } catch (error) {
+      const message = String(error && error.message || "");
+      const status = /Cannot find module ['\"]pg/.test(message)
+        ? "postgres_dependency_missing"
+        : "postgres_adapter_unavailable";
+      learningSetup = { ready: false, status };
     }
   }
   Promise.resolve(typeof storageProbe === "function" ? storageProbe() : { ready: false })
