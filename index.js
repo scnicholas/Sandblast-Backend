@@ -2858,10 +2858,10 @@ function marionLearningStorageConfiguration() {
 }
 
 function getMarionLearningPostgresPool() {
+  const config = marionLearningStorageConfiguration();
+  if (!config.configured || !config.enabled) return null;
   app.locals = app.locals || {};
   if (app.locals.marionLearningPgPool) return app.locals.marionLearningPgPool;
-  const config = marionLearningStorageConfiguration();
-  if (!config.configured) return null;
   const pg = require("pg");
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
@@ -25412,7 +25412,7 @@ function startSandblastServer(port = PORT) {
   let learningSetup = { ready: false, status: learningStorage.reason };
   if (learningStorage.enabled) learningSetup = ensureMarionLearningRuntime();
   let storageProbe = null;
-  if (learningStorage.configured) {
+  if (learningStorage.enabled && learningSetup.ready && learningStorage.configured) {
     try {
       const pgPool = getMarionLearningPostgresPool();
       const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
