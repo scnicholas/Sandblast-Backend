@@ -2857,6 +2857,133 @@ function marionLearningStorageConfiguration() {
     reason: !enabled ? "learning_disabled" : configured ? "database_schema_check_required" : "database_url_missing_or_invalid" });
 }
 
+// Schema changes are deliberately separate from server startup. This guarded,
+// one-time command is locked to the confirmed Marion evaluation database.
+const MARION_LEARNING_EVAL_SCHEMA_INIT_COMMAND = "--initialize-marion-learning-eval-schema";
+const MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION = "marion-learning-eval";
+const MARION_LEARNING_EVAL_DATABASE = "neondb";
+const MARION_LEARNING_EVAL_HOSTS = new Set([
+  "ep-long-lab-b5ujxh55.c-7.us-east-2.aws.neon.tech",
+  "ep-long-lab-b5ujxh55-pooler.c-7.us-east-2.aws.neon.tech"
+]);
+
+function marionLearningSchemaInitError(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+function validateMarionLearningEvalSchemaInitTarget({
+  databaseUrl = process.env.DATABASE_URL,
+  confirmation = process.env.SB_MARION_LEARNING_SCHEMA_INIT_CONFIRM,
+  selfLearningEnabled = process.env.SB_MARION_SELF_LEARNING_ENABLED
+} = {}) {
+  if (confirmation !== MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION) {
+    throw marionLearningSchemaInitError("explicit_evaluation_branch_confirmation_required");
+  }
+  if (String(selfLearningEnabled || "").toLowerCase() === "true") {
+    throw marionLearningSchemaInitError("disable_self_learning_before_schema_initialization");
+  }
+  if (typeof databaseUrl !== "string" || databaseUrl.length === 0) {
+    throw marionLearningSchemaInitError("database_url_missing");
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(databaseUrl);
+  } catch (_) {
+    throw marionLearningSchemaInitError("database_url_invalid");
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
+    throw marionLearningSchemaInitError("database_url_not_postgresql");
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (!MARION_LEARNING_EVAL_HOSTS.has(host)) {
+    throw marionLearningSchemaInitError("database_endpoint_not_allowlisted_for_evaluation");
+  }
+
+  let database = "";
+  try {
+    database = decodeURIComponent(parsed.pathname.replace(/^\/+|\/+$/g, ""));
+  } catch (_) {
+    throw marionLearningSchemaInitError("database_name_invalid");
+  }
+  if (database !== MARION_LEARNING_EVAL_DATABASE) {
+    throw marionLearningSchemaInitError("database_name_not_allowlisted_for_evaluation");
+  }
+  return Object.freeze({ database, host });
+}
+
+async function marionLearningAuditBootstrapState(pool, adapter) {
+  const existence = await pool.query(`SELECT
+    to_regclass('public.marion_learning_audit') IS NOT NULL AS audit_exists,
+    to_regclass('public.marion_learning_audit_state') IS NOT NULL AS state_exists`);
+  const tables = existence && existence.rows && existence.rows[0];
+  if (!tables) throw marionLearningSchemaInitError("audit_preflight_failed");
+  if (tables.audit_exists !== tables.state_exists) {
+    throw marionLearningSchemaInitError("partial_audit_schema_refused");
+  }
+  if (!tables.audit_exists) return "empty_schema";
+
+  const counts = await pool.query(`SELECT
+    (SELECT COUNT(*)::text FROM public.marion_learning_audit) AS audit_rows,
+    (SELECT COUNT(*)::text FROM public.marion_learning_audit_state) AS state_rows,
+    (SELECT sequence::text FROM public.marion_learning_audit_state WHERE singleton = TRUE) AS state_sequence,
+    (SELECT event_hash FROM public.marion_learning_audit_state WHERE singleton = TRUE) AS state_hash`);
+  const row = counts && counts.rows && counts.rows[0];
+  if (!row) throw marionLearningSchemaInitError("audit_preflight_failed");
+
+  if (row.audit_rows === "0" && row.state_rows === "0") return "empty_audit_store";
+  if (row.audit_rows === "0" && row.state_rows === "1" &&
+      row.state_sequence === "0" && row.state_hash === "GENESIS") {
+    const health = await adapter.probeMarionLearningPostgres(pool);
+    return health && health.ready === true ? "already_initialized" : "bootstrap_present_schema_incomplete";
+  }
+
+  const health = await adapter.probeMarionLearningPostgres(pool);
+  if (health && health.ready === true) return "already_initialized";
+  throw marionLearningSchemaInitError("nonempty_or_inconsistent_audit_store_refused");
+}
+
+async function initializeMarionLearningEvalSchema() {
+  const target = validateMarionLearningEvalSchemaInitTarget();
+  let Pool;
+  try {
+    ({ Pool } = require("pg"));
+  } catch (_) {
+    throw marionLearningSchemaInitError("postgres_dependency_missing");
+  }
+
+  const adapter = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+  if (typeof adapter.initializeMarionLearningPostgresSchema !== "function" ||
+      typeof adapter.probeMarionLearningPostgres !== "function") {
+    throw marionLearningSchemaInitError("explicit_schema_initializer_unavailable");
+  }
+
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 1,
+    connectionTimeoutMillis: 8000,
+    idleTimeoutMillis: 5000,
+    ssl: { rejectUnauthorized: true }
+  });
+  try {
+    const state = await marionLearningAuditBootstrapState(pool, adapter);
+    if (state === "already_initialized") {
+      console.log(JSON.stringify({ status: "already_initialized", branch: MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION, database: target.database }));
+      return;
+    }
+    await adapter.initializeMarionLearningPostgresSchema(pool);
+    const health = await adapter.probeMarionLearningPostgres(pool);
+    if (!health || health.ready !== true) {
+      throw marionLearningSchemaInitError("post_initialization_health_probe_failed");
+    }
+    console.log(JSON.stringify({ status: "initialized_and_verified", branch: MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION, database: target.database }));
+  } finally {
+    await pool.end().catch(() => {});
+  }
+}
+
 function getMarionLearningPostgresPool() {
   const config = marionLearningStorageConfiguration();
   if (!config.configured || !config.enabled) return null;
@@ -25481,7 +25608,19 @@ function startSandblastServer(port = PORT) {
   return server;
 }
 
-if (require.main === module || process.env.SB_INDEX_AUTO_LISTEN === "true") {
+const marionLearningSchemaInitRequested = require.main === module &&
+  process.argv.slice(2).includes(MARION_LEARNING_EVAL_SCHEMA_INIT_COMMAND);
+if (marionLearningSchemaInitRequested) {
+  initializeMarionLearningEvalSchema().then(() => {
+    process.exit(0);
+  }).catch((error) => {
+    const code = error && /^[a-z0-9_]+$/i.test(String(error.code || ""))
+      ? String(error.code)
+      : "initialization_failed";
+    console.error(JSON.stringify({ status: "failed", code }));
+    process.exit(1);
+  });
+} else if (require.main === module || process.env.SB_INDEX_AUTO_LISTEN === "true") {
   startSandblastServer(PORT);
 }
 
@@ -25508,6 +25647,10 @@ module.exports = {
   app,
   server,
   startSandblastServer,
+  MARION_LEARNING_EVAL_SCHEMA_INIT_COMMAND,
+  validateMarionLearningEvalSchemaInitTarget,
+  marionLearningAuditBootstrapState,
+  initializeMarionLearningEvalSchema,
   gracefulShutdown,
   PORT,
   INDEX_VERSION,
