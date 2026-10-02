@@ -2863,8 +2863,7 @@ const MARION_LEARNING_EVAL_SCHEMA_INIT_COMMAND = "--initialize-marion-learning-e
 const MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION = "marion-learning-eval";
 const MARION_LEARNING_EVAL_DATABASE = "neondb";
 const MARION_LEARNING_EVAL_HOSTS = new Set([
-  "ep-long-lab-b5ujxh55.c-7.us-east-2.aws.neon.tech",
-  "ep-long-lab-b5ujxh55-pooler.c-7.us-east-2.aws.neon.tech"
+  "ep-falling-violet-b5js6sve-pooler.c-7.us-east-2.aws.neon.tech"
 ]);
 
 function marionLearningSchemaInitError(code) {
@@ -25565,7 +25564,7 @@ function startSandblastServer(port = PORT) {
       learningEnabled: learningStorage.enabled, runtimeStatus: "database_probe_failed",
       liveActivationEnabled: false
     }));
-  server = app.listen(port, () => {
+  const listeningServer = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
     try {
       console.log("[Sandblast][nyx-tts-readiness]", {
@@ -25605,7 +25604,17 @@ function startSandblastServer(port = PORT) {
       });
     } catch (_) {}
   });
-  return server;
+  server = listeningServer;
+  listeningServer.once("error", (error) => {
+    if (server === listeningServer) server = null;
+    const code = error && typeof error.code === "string" ? error.code : "UNKNOWN";
+    console.error("[Sandblast][startup]", {
+      status: code === "EADDRINUSE" ? "port_in_use" : "listen_failed",
+      code,
+      port: Number.isInteger(Number(port)) ? Number(port) : null
+    });
+  });
+  return listeningServer;
 }
 
 const marionLearningSchemaInitRequested = require.main === module &&
