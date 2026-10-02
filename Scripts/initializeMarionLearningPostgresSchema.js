@@ -8,8 +8,7 @@ const path = require("path");
 const EXPECTED_BRANCH_CONFIRMATION = "marion-learning-eval";
 const EXPECTED_DATABASE = "neondb";
 const ALLOWED_HOSTS = new Set([
-  "ep-long-lab-b5ujxh55.c-7.us-east-2.aws.neon.tech",
-  "ep-long-lab-b5ujxh55-pooler.c-7.us-east-2.aws.neon.tech"
+  "ep-falling-violet-b5js6sve-pooler.c-7.us-east-2.aws.neon.tech"
 ]);
 
 function makeError(code) {
