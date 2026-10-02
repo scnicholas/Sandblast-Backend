@@ -5,8 +5,16 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.3-read-only-signed-review-store";
+const VERSION = "marion.learningPostgresAdapters/1.4-immutable-signed-review-issuance";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
+const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
+const HASH_RE = /^[a-f0-9]{64}$/;
+const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
+const REVIEW_RECORD_KEYS = new Set([
+  "approved", "approvedBy", "caseCount", "caseIds", "datasetId", "fixtureSetHash",
+  "fixtureStore", "manifestHash", "ownerConsent", "reviewId", "reviewRef", "scope",
+  "signature", "version"
+]);
 const schemaReadyByPool = new WeakMap();
 const REQUIRED_SCHEMA_CHECKS = Object.freeze([
   ["signals", "marion_learning_signals"],
@@ -314,9 +322,8 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     }
   });
 
-  // TrustedHooks only needs a lookup. Keeping this adapter read-only prevents
-  // callers from manufacturing owner-approved reviews through the storage API.
-  // A separate owner-authenticated review issuance flow must create signed rows.
+  // Only insert immutable, already-signed review rows. Updates and deletes are
+  // intentionally absent; the trusted hook validates the HMAC before insert.
   const reviewStore = Object.freeze({
     async get(reviewRef) {
       const key = String(reviewRef || "");
@@ -326,6 +333,30 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
         [key]
       );
       return result && result.rowCount ? result.rows[0].record : null;
+    },
+    async insertIfAbsent(record) {
+      if (!record || typeof record !== "object" || Array.isArray(record) ||
+          (Object.getPrototypeOf(record) !== Object.prototype && Object.getPrototypeOf(record) !== null) ||
+          Object.keys(record).length !== REVIEW_RECORD_KEYS.size ||
+          Object.keys(record).some(key => !REVIEW_RECORD_KEYS.has(key))) {
+        throw new TypeError("invalid_signed_fixture_review");
+      }
+      const caseIds = record.caseIds;
+      if (!ID_RE.test(record.reviewRef || "") || !ID_RE.test(record.reviewId || "") ||
+          record.approved !== true || record.ownerConsent !== true || !OWNER_ACTOR_RE.test(record.approvedBy || "") ||
+          !ID_RE.test(record.datasetId || "") || !ID_RE.test(record.version || "") ||
+          !ID_RE.test(record.fixtureStore || "") || !ALLOWED_SCOPES.has(record.scope) ||
+          !HASH_RE.test(record.manifestHash || "") || !HASH_RE.test(record.fixtureSetHash || "") ||
+          typeof record.signature !== "string" || !HASH_RE.test(record.signature) ||
+          !Array.isArray(caseIds) || Object.getPrototypeOf(caseIds) !== Array.prototype ||
+          caseIds.length < 20 || caseIds.length > 500 || record.caseCount !== caseIds.length ||
+          new Set(caseIds).size !== caseIds.length || caseIds.some(id => typeof id !== "string" || !ID_RE.test(id))) {
+        throw new TypeError("invalid_signed_fixture_review");
+      }
+      const result = await pool.query(`INSERT INTO marion_learning_reviews (review_ref, record)
+        VALUES ($1, $2::jsonb) ON CONFLICT (review_ref) DO NOTHING RETURNING review_ref`,
+      [record.reviewRef, JSON.stringify(record)]);
+      return !!(result && result.rowCount === 1);
     }
   });
 
