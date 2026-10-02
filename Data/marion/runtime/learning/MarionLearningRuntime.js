@@ -1,17 +1,21 @@
 "use strict";
 
-const VERSION = "marion.learningRuntime/1.0";
+const VERSION = "marion.learningRuntime/1.2-evaluation-capture-gate";
 
 function isVerifiedOwner(authContext) {
   return !!(authContext && authContext.authenticated === true && authContext.role === "owner" && authContext.verifiedBy === "server_middleware" && typeof authContext.actorId === "string" && authContext.actorId.trim());
 }
 
-function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, healthProbe = async () => ({ ready: true }) } = {}) {
+function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry, healthProbe = async () => ({ ready: true }), captureEnabled = false } = {}) {
   if (!signalAdapter || typeof signalAdapter.record !== "function") throw new TypeError("signalAdapter.record is required");
   if (!evaluator || typeof evaluator.evaluate !== "function") throw new TypeError("evaluator.evaluate is required");
   if (!approvalGate || typeof approvalGate.submitEvaluation !== "function" || typeof approvalGate.decide !== "function") throw new TypeError("approvalGate methods are required");
+  if (!manifestRegistry || typeof manifestRegistry.listAvailable !== "function" ||
+      typeof manifestRegistry.issueFixtureReview !== "function" || typeof manifestRegistry.approveManifest !== "function" || typeof manifestRegistry.revokeManifest !== "function" || typeof manifestRegistry.listApproved !== "function" ||
+      typeof manifestRegistry.selectApprovedManifest !== "function") throw new TypeError("trusted manifestRegistry methods are required");
 
   async function captureFinalOutcome(event) {
+    if (captureEnabled !== true) return { ok: false, accepted: false, reason: "learning_disabled" };
     const src = event && typeof event === "object" ? event : {};
     if (src.finalAccepted !== true) return { ok: false, accepted: false, reason: "final_response_not_accepted" };
     if (src.learningConsent !== true) return { ok: false, accepted: false, reason: "learning_consent_required" };
@@ -27,9 +31,36 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, h
     return signalAdapter.record(signal);
   }
 
-  async function evaluateCandidate(candidate, dataset, authContext) {
+  async function listAvailableManifests(authContext) {
     if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
-    return evaluator.evaluate(candidate, dataset);
+    return manifestRegistry.listAvailable(authContext);
+  }
+
+  async function approveManifest(selection, authContext) {
+    if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
+    return manifestRegistry.approveManifest(selection, authContext);
+  }
+
+  async function issueFixtureReview(selection, authContext) {
+    if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
+    return manifestRegistry.issueFixtureReview(selection, authContext);
+  }
+
+  async function revokeManifest(selection, authContext) {
+    if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
+    return manifestRegistry.revokeManifest(selection, authContext);
+  }
+
+  async function listApprovedManifests(scope, authContext) {
+    if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
+    return manifestRegistry.listApproved(scope, authContext);
+  }
+
+  async function evaluateCandidate(candidate, selection, authContext) {
+    if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
+    const selected = await manifestRegistry.selectApprovedManifest(selection, authContext);
+    if (!selected || selected.ok !== true) return selected || { ok: false, reason: "manifest_selection_failed" };
+    return evaluator.evaluate(candidate, selected.manifest, selected.registration);
   }
 
   async function submitEvaluation(report, authContext) {
@@ -61,12 +92,13 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, h
         signalCapture: true,
         offlineEvaluation: true,
         approvalGate: true,
+        manifestRegistry: true,
         privateDurableStores: ready
       }
     };
   }
 
-  return Object.freeze({ VERSION, captureFinalOutcome, evaluateCandidate, submitEvaluation, decideProposal, getPrivateHealth });
+  return Object.freeze({ VERSION, captureFinalOutcome, listAvailableManifests, issueFixtureReview, approveManifest, revokeManifest, listApprovedManifests, evaluateCandidate, submitEvaluation, decideProposal, getPrivateHealth });
 }
 
 module.exports = { VERSION, createMarionLearningRuntime, isVerifiedOwner };
