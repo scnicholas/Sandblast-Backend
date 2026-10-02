@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/1.1-fixture-store-bound";
+const VERSION = "marion.learningOfflineRunner/1.3-scope-bound-fixtures";
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const FORBIDDEN_FIXTURE_KEYS = new Set([
@@ -38,18 +38,19 @@ function finiteScore(value) {
   return Number.isFinite(score) && score >= 0 && score <= 1 ? score : null;
 }
 
-function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreFixture, maxCases = 500 } = {}) {
-  if (typeof resolveVersion !== "function" || typeof loadFixture !== "function" || typeof scoreFixture !== "function") {
-    throw new TypeError("resolveVersion, loadFixture, and scoreFixture are required");
+function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreFixture, authorizeEvaluation, maxCases = 500 } = {}) {
+  if (typeof resolveVersion !== "function" || typeof loadFixture !== "function" || typeof scoreFixture !== "function" || typeof authorizeEvaluation !== "function") {
+    throw new TypeError("resolveVersion, loadFixture, scoreFixture, and registry authorizeEvaluation are required");
   }
   const caseLimit = Math.max(20, Math.min(500, Number(maxCases) || 500));
 
   async function runVersion(version, caseIds, options = {}) {
     const versionId = typeof version === "string" ? version.trim() : "";
-    const { mode, scope, datasetId, datasetVersion, fixtureStore } = options || {};
+    const { mode, scope, datasetId, datasetVersion, fixtureStore, manifestHash, fixtureSetHash } = options || {};
     if (mode !== "offline") throw new Error("offline_mode_required");
     if (!ID_RE.test(versionId) || !ALLOWED_SCOPES.has(scope) ||
-        !ID_RE.test(datasetId || "") || !ID_RE.test(datasetVersion || "") || !ID_RE.test(fixtureStore || "")) {
+        !ID_RE.test(datasetId || "") || !ID_RE.test(datasetVersion || "") || !ID_RE.test(fixtureStore || "") ||
+        !/^[a-f0-9]{64}$/.test(manifestHash || "") || !/^[a-f0-9]{64}$/.test(fixtureSetHash || "")) {
       throw new Error("invalid_offline_evaluation_request");
     }
     if (!Array.isArray(caseIds) || caseIds.length < 20 || caseIds.length > caseLimit ||
@@ -57,7 +58,12 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       throw new Error("invalid_offline_fixture_set");
     }
 
-    const runContext = Object.freeze({ mode: "offline", scope, datasetId, datasetVersion, fixtureStore });
+    const requestedCaseIds = Object.freeze([...caseIds]);
+    const runContext = Object.freeze({ mode: "offline", scope, datasetId, datasetVersion, fixtureStore,
+      manifestHash, fixtureSetHash, caseIds: requestedCaseIds });
+    let authorized = false;
+    try { authorized = await authorizeEvaluation(runContext) === true; } catch (_) { authorized = false; }
+    if (!authorized) throw new Error("manifest_not_registered_or_fixture_binding_invalid");
     const handler = await resolveVersion(versionId, runContext);
     if (!handler || handler.mode !== "offline" || typeof handler.runOffline !== "function") {
       throw new Error("version_not_registered_for_offline_evaluation");
@@ -70,7 +76,8 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       const fixture = await loadFixture(caseId, Object.freeze({ ...runContext, caseId }));
       if (!fixture || fixture.caseId !== caseId || fixture.synthetic !== true ||
           fixture.datasetId !== datasetId || fixture.datasetVersion !== datasetVersion ||
-          fixture.fixtureStore !== fixtureStore || !fixture.input || typeof fixture.input !== "object" ||
+          fixture.fixtureStore !== fixtureStore || fixture.scope !== scope ||
+          fixture.fixtureSetHash !== fixtureSetHash || !fixture.input || typeof fixture.input !== "object" ||
           Array.isArray(fixture.input) || !validateFixtureData(fixture) || !validateFixtureData(fixture.input)) {
         throw new Error("fixture_not_approved_synthetic_data");
       }
