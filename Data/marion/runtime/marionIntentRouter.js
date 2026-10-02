@@ -4323,7 +4323,7 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
   function P(x,d=0){if(d>4||x==null)return"";if(typeof x==="string")return T(x);if(Array.isArray(x)){for(const v of x){const q=P(v,d+1);if(q)return q}return""}if(typeof x!=="object")return"";const o=O(x),q=T(o.rawUserText||o.originalUserText||o.userText||o.userQuery||o.prompt||o.query||o.inputText||o.message||o.text);if(q)return q;for(const k of["body","payload","turn","request","input","data"]){const q=P(o[k],d+1);if(q)return q}return""}
   function priv(x){const o=O(x),b=O(o.body),p=O(o.payload),m=O(o.meta);return[o,b,p,m].some(v=>v.privateAdminConversation===true||v.marionAdminConversation===true||v.directMarionAdminInterface===true||v.authenticatedOperator===true)||/^(owner|private_admin)$/i.test(T(o.audience||o.scope))}
   function D(q){const t=T(q).toLowerCase();
-    if(/\b(?:artificial intelligence|what is ai|machine learning|large language model|llm|ai agent|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";
+    if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine learning|large language model|llm|ai agent|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";
     if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";
     if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";
     if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";
@@ -4359,7 +4359,7 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
   function T(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
   function P(x,d=0){if(d>5||x==null)return"";if(typeof x==="string")return T(x);if(Array.isArray(x)){for(const v of x){const q=P(v,d+1);if(q)return q}return""}if(typeof x!=="object")return"";const o=O(x),q=T(o.rawUserText||o.originalUserText||o.userText||o.userQuery||o.prompt||o.query||o.inputText||o.message||o.text);if(q)return q;for(const k of["body","payload","turn","request","input","data"]){const q=P(o[k],d+1);if(q)return q}return""}
   function priv(x){const o=O(x),b=O(o.body),p=O(o.payload),m=O(o.meta),c=O(o.privateRuntimeContext);return[o,b,p,m].some(v=>v.privateAdminConversation===true||v.marionAdminConversation===true||v.directMarionAdminInterface===true||v.authenticatedOperator===true)||/^(?:owner|private_admin)$/i.test(T(o.audience||o.scope))||!!c.version}
-  function D(q){const t=T(q).toLowerCase();if(/\b(?:artificial intelligence|what is ai|machine learning|large language model|llm|ai agent|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";if(/\b(?:contract law|consideration in contract|legal consideration|negligence|tort|jurisdiction|case law|statute|fiduciary)\b/i.test(t))return"law";if(/\b(?:cash flow|working capital|gross margin|unit economics|burn rate|runway|customer acquisition cost|lifetime value|roi|roas)\b/i.test(t))return"finance";return""}
+  function D(q){const t=T(q).toLowerCase();if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine learning|large language model|llm|ai agent|cognitive intelligence|retrieval augmented generation|rag|neural network|tool routing|agent orchestration)\b/i.test(t))return"ai";if(/\b(?:cognitive bias|cognitive distortion|attachment theory|attachment style|emotional regulation|trauma response|psychology)\b/i.test(t))return"psychology";if(/\b(?:grammar|syntax|semantics|pragmatics|morphology|phonology|plain language|english idiom|idiom|english language)\b/i.test(t))return"english";if(/\b(?:least privilege|zero trust|phishing|ransomware|cybersecurity|cyber security|mfa|multi factor authentication|threat model|attack surface)\b/i.test(t))return"cyber";if(/\b(?:contract law|consideration in contract|legal consideration|negligence|tort|jurisdiction|case law|statute|fiduciary)\b/i.test(t))return"law";if(/\b(?:cash flow|working capital|gross margin|unit economics|burn rate|runway|customer acquisition cost|lifetime value|roi|roas)\b/i.test(t))return"finance";return""}
   function Q(q){const t=T(q).toLowerCase();if(!t||/^(?:open|launch|go to|take me to|play|start|stop|pause)\b/.test(t))return false;if(/^(?:who are you|what are you|who is nyx|who is nix|who is marion|what is marion)\b/.test(t))return false;return /[?]$/.test(t)||/^(?:what|why|how|define|explain|describe|compare|tell me about)\b/.test(t)}
   function local(input){if(priv(input))return null;const q=P(input),d=D(q);if(!d||!Q(q))return null;const dc={version:"nyx.marion.domainConfidence/1.1",confidence:.995,band:"high",routeLocked:true,primaryDomain:d,knowledgeDomain:d,reason:"public_knowledge_fast_route_r13"},cov=[{domain:d,accessible:true,authority:"marion"}],routing={domain:d,knowledgeDomain:d,intent:"domain_question",mode:d==="ai"?"ai_architecture_reasoning":d==="cyber"?"defensive_cybersecurity":"reasoning",depth:d==="ai"||d==="cyber"?"forensic":"balanced",endpoint:"marion://routeMarion.primary",domainConfidence:dc,sixDomainCoverage:cov,answerOnly:true,actionRequired:false,currentTurnAuthority:true,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,latencyClass:"interactive"};return{ok:true,final:false,routerVersion:V,contract:"nyx.marion.intent/2.5",intent:"domain_question",domain:d,knowledgeDomain:d,rawUserText:q,userText:q,text:q,message:q,query:q,effectivePrompt:q,normalizedUserIntent:q,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true,marionIntent:{activate:true,intent:"domain_question",domain:d,knowledgeDomain:d,confidence:.995,reason:"public_knowledge_fast_route_r13",currentTurnAuthority:true,fastPathEligible:true,singlePassRequired:true,skipLoopRecovery:true},routing,domainConfidence:dc,sixDomainCoverage:cov,meta:{publicKnowledgeFastRoute:true,publicKnowledgeFastRouteVersion:V,currentTurnAuthority:true,noUserFacingDiagnostics:true}}}
   function build(input){let x=null;try{x=priorBuild?priorBuild(input):null}catch(_){x=null}if(x&&O(x).fastPathEligible===true)return{...O(x),routerVersion:V,meta:{...O(O(x).meta),publicKnowledgeFastRouteVersion:V,currentTurnAuthority:true,noUserFacingDiagnostics:true}};return local(input)}
@@ -4393,3 +4393,62 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
   api.__marionPublicKnowledgeFastRouteR14=true;
 })();
 /* MARION_PUBLIC_KNOWLEDGE_FAST_ROUTE_R14_END */
+
+/* MARION_ROUTE_RESULT_CONSISTENCY_R15_START
+ * Keep the public route fields aligned with the route packet already produced
+ * by the classifier. This only projects public results; private/operator turns
+ * pass through untouched.
+ */
+(function marionRouteResultConsistencyR15(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionRouteResultConsistencyR15)return;
+  const VERSION="nyx.marion.routeResultConsistency/1.0";
+  const names=["routeMarionIntent","route","run","handle","default"];
+  const prior={}; for(const name of names) if(typeof api[name]==="function") prior[name]=api[name];
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim()}catch(_){return""}}
+  function privateContext(value){
+    const seen=new Set();
+    function visit(v,depth){
+      if(!v||typeof v!=="object"||depth>5||seen.has(v))return false;
+      seen.add(v);
+      if(v.privateAdminConversation===true||v.marionAdminConversation===true||v.directMarionAdminInterface===true||v.authenticatedOperator===true||
+        /^(?:owner|private_admin)$/i.test(T(v.audience||v.scope))||O(v.privateRuntimeContext).version)return true;
+      for(const key of["body","payload","meta","privateRuntimeContext","turn","request","input","data","session","context"]){
+        try{if(visit(v[key],depth+1))return true}catch(_){}
+      }
+      return false;
+    }
+    try{return visit(value,0)}catch(_){return true}
+  }
+  function project(input,result){
+    if(!result||typeof result!=="object"||privateContext(input)||privateContext(result))return result;
+    const x=O(result),routing=O(x.routing),marionIntent=O(x.marionIntent);
+    const routeIntent=T(marionIntent.intent||routing.intent);
+    const routeDomain=T(routing.domain||marionIntent.domain);
+    const routeKnowledgeDomain=T(routing.knowledgeDomain||marionIntent.knowledgeDomain);
+    if(!routeIntent&&!routeDomain&&!routeKnowledgeDomain)return result;
+    const next={...x};
+    if(routeIntent)next.intent=routeIntent;
+    if(routeDomain)next.domain=routeDomain;
+    if(routeKnowledgeDomain)next.knowledgeDomain=routeKnowledgeDomain;
+    next.meta={...O(x.meta),routeResultConsistencyVersion:VERSION};
+    return next;
+  }
+  for(const name of names){
+    const fn=prior[name];
+    if(!fn)continue;
+    const wrapped=function(){
+      const input=arguments[0];
+      const result=fn.apply(this,arguments);
+      if(result&&typeof result.then==="function")return result.then(value=>project(input,value));
+      return project(input,result);
+    };
+    try{Object.keys(fn).forEach(key=>{wrapped[key]=fn[key]})}catch(_){}
+    api[name]=wrapped;
+  }
+  api.MARION_ROUTE_RESULT_CONSISTENCY_VERSION=VERSION;
+  api.__marionRouteResultConsistencyR15=true;
+})();
+/* MARION_ROUTE_RESULT_CONSISTENCY_R15_END */
