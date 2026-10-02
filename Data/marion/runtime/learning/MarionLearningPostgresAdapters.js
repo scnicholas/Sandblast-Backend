@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.1-explicit-schema";
+const VERSION = "marion.learningPostgresAdapters/1.2-explicit-schema-safe-audit-json";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const schemaReadyByPool = new WeakMap();
 const REQUIRED_SCHEMA_CHECKS = Object.freeze([
@@ -116,16 +116,86 @@ function parseAuditSequence(value) {
   }
 }
 
+function normalizeAuditJson(value, ancestors = new Set(), arrayElement = false) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError("invalid_learning_audit_event");
+    return value;
+  }
+  if (value === undefined && !arrayElement) return undefined;
+  if (!value || typeof value !== "object" || ancestors.has(value)) {
+    throw new TypeError("invalid_learning_audit_event");
+  }
+
+  const isArray = Array.isArray(value);
+  const prototype = Object.getPrototypeOf(value);
+  if ((isArray && prototype !== Array.prototype) ||
+      (!isArray && prototype !== Object.prototype && prototype !== null)) {
+    throw new TypeError("invalid_learning_audit_event");
+  }
+
+  ancestors.add(value);
+  try {
+    if (isArray) {
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      for (const key of Reflect.ownKeys(descriptors)) {
+        if (key === "length") continue;
+        const descriptor = descriptors[key];
+        if (typeof key !== "string" || !/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= value.length) {
+          if (descriptor.enumerable) throw new TypeError("invalid_learning_audit_event");
+          continue;
+        }
+        if (!Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+          throw new TypeError("invalid_learning_audit_event");
+        }
+      }
+      const result = [];
+      for (let index = 0; index < value.length; index += 1) {
+        const descriptor = descriptors[String(index)];
+        if (!descriptor) {
+          result.push(null);
+        } else if (!Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+          throw new TypeError("invalid_learning_audit_event");
+        } else {
+          const item = descriptor.value;
+          result.push(item === undefined ? null : normalizeAuditJson(item, ancestors, true));
+        }
+      }
+      return result;
+    }
+
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    const result = Object.create(null);
+    for (const key of Reflect.ownKeys(descriptors)) {
+      const descriptor = descriptors[key];
+      if (!descriptor.enumerable) continue;
+      if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(descriptor, "value")) {
+        throw new TypeError("invalid_learning_audit_event");
+      }
+      if (descriptor.value === undefined) continue;
+      Object.defineProperty(result, key, {
+        value: normalizeAuditJson(descriptor.value, ancestors, false),
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
+    }
+    return result;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
 function serializeAuditEvent(event) {
   if (!event || typeof event !== "object" || Array.isArray(event)) {
     throw new TypeError("invalid_learning_audit_event");
   }
   try {
-    const serialized = JSON.stringify(event);
-    if (typeof serialized !== "string") throw new Error("not_json");
-    const value = JSON.parse(serialized);
+    const value = normalizeAuditJson(event);
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("not_object");
-    return { serialized, value };
+    const serialized = stableJson(value);
+    if (typeof serialized !== "string") throw new Error("not_json");
+    return { serialized, value: JSON.parse(serialized) };
   } catch (_) {
     throw new TypeError("invalid_learning_audit_event");
   }
