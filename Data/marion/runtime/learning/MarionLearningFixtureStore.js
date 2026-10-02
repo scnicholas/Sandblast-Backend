@@ -6,9 +6,10 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
-const VERSION = "marion.learningFixtureStore/1.0-content-addressed";
+const VERSION = "marion.learningFixtureStore/1.1-scope-bound";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const MAX_FIXTURE_BYTES = 128 * 1024;
+const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
@@ -47,19 +48,24 @@ function createMarionLearningFixtureStore({ directory } = {}) {
     try {
       if (!ID_RE.test(datasetId || "") || !ID_RE.test(version || "") || !ID_RE.test(fixtureStore || "") || !Array.isArray(caseIds) || caseIds.length < Dataset.MINIMUM_CASES || caseIds.length > Dataset.MAXIMUM_CASES || new Set(caseIds).size !== caseIds.length) return { ok: false };
       const fixtures = [];
+      let scope = "";
       for (const id of caseIds) {
         const fixture = await read(fixtureStore, id);
         if (fixture.caseId !== id || fixture.synthetic !== true || fixture.datasetId !== datasetId || fixture.datasetVersion !== version || fixture.fixtureStore !== fixtureStore || !plainObject(fixture.input) || !plainObject(fixture.reference)) return { ok: false };
+        if (!ALLOWED_SCOPES.has(fixture.scope) || (scope && fixture.scope !== scope)) return { ok: false };
+        scope = fixture.scope;
         fixtures.push(fixture);
       }
       const fixtureSetHash = hashFixtureSet(datasetId, version, fixtureStore, fixtures);
       if (fixtures.some(f => f.fixtureSetHash !== fixtureSetHash)) return { ok: false };
-      return { ok: true, syntheticOnly: true, datasetId, version, fixtureStore, caseCount: fixtures.length, fixtureSetHash };
+      return { ok: true, syntheticOnly: true, datasetId, version, fixtureStore, scope, caseCount: fixtures.length, fixtureSetHash };
     } catch (_) { return { ok: false }; }
   }
   async function loadFixture(caseId, context = {}) {
     const fixture = await read(context.fixtureStore, caseId);
-    if (fixture.datasetId !== context.datasetId || fixture.datasetVersion !== context.datasetVersion || fixture.fixtureStore !== context.fixtureStore || fixture.fixtureSetHash !== context.fixtureSetHash) throw new Error("fixture_binding_mismatch");
+    if (fixture.datasetId !== context.datasetId || fixture.datasetVersion !== context.datasetVersion ||
+        fixture.fixtureStore !== context.fixtureStore || fixture.scope !== context.scope ||
+        fixture.fixtureSetHash !== context.fixtureSetHash) throw new Error("fixture_binding_mismatch");
     return fixture;
   }
   return Object.freeze({ VERSION, directory: root, verifyFixtureSet, loadFixture });
