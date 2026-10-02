@@ -3,7 +3,7 @@
 // HTTP-neutral owner-only handlers for the host app to mount under its private
 // Marion admin routes. Authentication is resolved from server middleware only.
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
-const VERSION = "marion.learningAdminHandlers/1.0-owner-verified";
+const VERSION = "marion.learningAdminHandlers/1.1-owner-signed-review";
 
 function objectBody(request) {
   return request && request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body : {};
@@ -13,6 +13,7 @@ function reply(status, body) { return Object.freeze({ status, body: Object.freez
 
 function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } = {}) {
   if (!runtime || typeof runtime.listAvailableManifests !== "function" ||
+      typeof runtime.issueFixtureReview !== "function" ||
       typeof runtime.approveManifest !== "function" || typeof runtime.revokeManifest !== "function" ||
       typeof runtime.listApprovedManifests !== "function" || typeof runtime.evaluateCandidate !== "function") {
     throw new TypeError("registered Marion learning runtime manifest methods are required");
@@ -39,6 +40,10 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
   return Object.freeze({
     VERSION,
     listAvailable: request => run(request, (_body, auth) => runtime.listAvailableManifests(auth)),
+    issueReview: request => run(request, (body, auth) => runtime.issueFixtureReview({
+      datasetId: body.datasetId, version: body.version, scope: body.scope,
+      ownerConsent: body.ownerConsent
+    }, auth)),
     approve: request => run(request, (body, auth) => runtime.approveManifest({
       datasetId: body.datasetId, version: body.version, scope: body.scope, reviewRef: body.reviewRef
     }, auth)),
