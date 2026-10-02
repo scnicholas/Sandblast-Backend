@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.2-explicit-schema-safe-audit-json";
+const VERSION = "marion.learningPostgresAdapters/1.3-read-only-signed-review-store";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const schemaReadyByPool = new WeakMap();
 const REQUIRED_SCHEMA_CHECKS = Object.freeze([
@@ -13,6 +13,7 @@ const REQUIRED_SCHEMA_CHECKS = Object.freeze([
   ["proposals", "marion_learning_proposals"],
   ["registrations", "marion_learning_manifest_registrations"],
   ["revocations", "marion_learning_manifest_revocations"],
+  ["reviews", "marion_learning_reviews"],
   ["audit_state", "marion_learning_audit_state"],
   ["audit", "marion_learning_audit"]
 ]);
@@ -62,6 +63,12 @@ const SCHEMA_STATEMENTS = Object.freeze([
     key_hash CHAR(64) PRIMARY KEY,
     record JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE TABLE IF NOT EXISTS marion_learning_reviews (
+    review_ref TEXT PRIMARY KEY CHECK (review_ref ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$'),
+    record JSONB NOT NULL CHECK (jsonb_typeof(record) = 'object'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (record ? 'reviewRef' AND record->>'reviewRef' = review_ref)
   )`,
   `CREATE TABLE IF NOT EXISTS marion_learning_audit_state (
     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
@@ -307,6 +314,21 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     }
   });
 
+  // TrustedHooks only needs a lookup. Keeping this adapter read-only prevents
+  // callers from manufacturing owner-approved reviews through the storage API.
+  // A separate owner-authenticated review issuance flow must create signed rows.
+  const reviewStore = Object.freeze({
+    async get(reviewRef) {
+      const key = String(reviewRef || "");
+      if (!ID_RE.test(key)) return null;
+      const result = await pool.query(
+        "SELECT record FROM marion_learning_reviews WHERE review_ref = $1",
+        [key]
+      );
+      return result && result.rowCount ? result.rows[0].record : null;
+    }
+  });
+
   async function durableAuditAppend(event) {
     const normalizedEvent = serializeAuditEvent(event);
     const client = await pool.connect();
@@ -351,6 +373,7 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     proposalStore,
     durableAuditAppend,
     manifestRegistryStore,
+    reviewStore,
     resolveVersion,
     loadFixture,
     scoreFixture,
