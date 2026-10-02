@@ -2618,6 +2618,7 @@ const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
 const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
   available: ["/api/private/marion/learning/manifests/available", "/private/marion/learning/manifests/available"],
   approved: ["/api/private/marion/learning/manifests/approved", "/private/marion/learning/manifests/approved"],
+  reviewIssue: ["/api/private/marion/learning/reviews/issue", "/private/marion/learning/reviews/issue"],
   approve: ["/api/private/marion/learning/manifests/approve", "/private/marion/learning/manifests/approve"],
   revoke: ["/api/private/marion/learning/manifests/revoke", "/private/marion/learning/manifests/revoke"],
   evaluate: ["/api/private/marion/learning/evaluate", "/private/marion/learning/evaluate"]
@@ -2852,9 +2853,24 @@ function marionAdminConversationRuntimeReady() {
 // provide a persistent local disk. This diagnostic never exposes credentials.
 function marionLearningStorageConfiguration() {
   const enabled = String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() === "true";
-  const configured = typeof process.env.DATABASE_URL === "string" && /^postgres(?:ql)?:\/\//i.test(process.env.DATABASE_URL);
-  return Object.freeze({ storage: "postgresql", configured, enabled, ready: false,
-    reason: !enabled ? "learning_disabled" : configured ? "database_schema_check_required" : "database_url_missing_or_invalid" });
+  const evaluationEnabled = String(process.env.SB_MARION_LEARNING_EVALUATION_ENABLED || "").toLowerCase() === "true";
+  const runtimeEnabled = enabled || evaluationEnabled;
+  let configured = false;
+  let reason = !runtimeEnabled ? "learning_disabled" : "database_url_missing_or_invalid";
+  if (typeof process.env.DATABASE_URL === "string" && /^postgres(?:ql)?:\/\//i.test(process.env.DATABASE_URL)) {
+    try {
+      const parsed = new URL(process.env.DATABASE_URL);
+      const database = decodeURIComponent(parsed.pathname.replace(/^\/+|\/+$/g, ""));
+      const evaluationTarget = parsed.hostname.toLowerCase() === "ep-falling-violet-b5js6sve-pooler.c-7.us-east-2.aws.neon.tech" && database === "neondb";
+      configured = !evaluationEnabled || evaluationTarget;
+      reason = !runtimeEnabled ? "learning_disabled" : !configured ? "evaluation_database_not_allowlisted" :
+        enabled ? "database_schema_check_required" : "evaluation_runtime_schema_check_required";
+    } catch (_) {
+      configured = false;
+      reason = "database_url_missing_or_invalid";
+    }
+  }
+  return Object.freeze({ storage: "postgresql", configured, enabled, evaluationEnabled, runtimeEnabled, ready: false, reason });
 }
 
 // Schema changes are deliberately separate from server startup. This guarded,
@@ -2985,7 +3001,7 @@ async function initializeMarionLearningEvalSchema() {
 
 function getMarionLearningPostgresPool() {
   const config = marionLearningStorageConfiguration();
-  if (!config.configured || !config.enabled) return null;
+  if (!config.configured || !config.runtimeEnabled) return null;
   app.locals = app.locals || {};
   if (app.locals.marionLearningPgPool) return app.locals.marionLearningPgPool;
   const pg = require("pg");
@@ -3020,31 +3036,30 @@ function marionLearningOfflineHandlersReady() {
 // an allowlisted offline resolver, and a trusted review verifier are required.
 function ensureMarionLearningRuntime() {
   app.locals = app.locals || {};
-  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") {
+  const storageConfig = marionLearningStorageConfiguration();
+  if (!storageConfig.runtimeEnabled) {
     return { ready: false, status: "disabled" };
   }
+  if (!storageConfig.configured) return { ready: false, status: storageConfig.reason };
   const current = app.locals.marionLearningBackend;
   if (current && current.runtime) {
-    if (!marionLearningOfflineHandlersReady()) {
-      return { ready: false, status: "offline_handlers_not_registered" };
+    if (app.locals.marionLearningAdminHandlers && typeof app.locals.marionLearningAdminHandlers.issueReview === "function") {
+      return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
     }
-    if (app.locals.marionLearningAdminHandlers) return { ready: true, status: "ready" };
     try {
       const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
       app.locals.marionLearningAdminHandlers = admin.createMarionLearningAdminHandlers({
         runtime: current.runtime,
         getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
       });
-      return { ready: true, status: "ready" };
+      return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
     } catch (_) {
       return { ready: false, status: "learning_admin_handlers_unavailable" };
     }
   }
-  const storageConfig = marionLearningStorageConfiguration();
-  if (!storageConfig.configured) return { ready: false, status: "database_url_missing_or_invalid" };
   try {
     const learningRoot = path.join(__dirname, "Data/marion/runtime/learning");
-    const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "manifests/fixture_store"));
+    const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "fixture_store"));
     const fixtureModule = require("./Data/marion/runtime/learning/MarionLearningFixtureStore.js");
     const fixtureStore = fixtureModule.createMarionLearningFixtureStore({ directory: fixtureDirectory });
     const contract = require("./Data/marion/runtime/learning/MarionLearningFixtureContract.js");
@@ -3077,8 +3092,9 @@ function ensureMarionLearningRuntime() {
       });
       app.locals.marionLearningTrust = trust;
     }
-    if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function") {
-      return { ready: false, status: "trusted_resolver_or_review_verifier_missing" };
+    if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function" ||
+        typeof trust.issueFixtureReview !== "function") {
+      return { ready: false, status: "trusted_resolver_or_review_issuer_missing" };
     }
     if (trust.configured === false) return { ready: false, status: "review_trust_config_missing" };
     const registryModule = require("./Data/marion/runtime/learning/MarionLearningManifestRegistry.js");
@@ -3088,6 +3104,8 @@ function ensureMarionLearningRuntime() {
       manifestSource: registryModule.createFileManifestSource({ directory: path.join(learningRoot, "manifests") }),
       verifyFixtureSet: fixtureStore.verifyFixtureSet,
       verifyFixtureReview: trust.verifyFixtureReview,
+      issueFixtureReview: trust.issueFixtureReview,
+      captureEnabled: storageConfig.enabled,
       gateway: require("./Data/marion/runtime/MarionVoiceGateway.js")
     });
     const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
@@ -3097,10 +3115,7 @@ function ensureMarionLearningRuntime() {
       runtime: backend.runtime,
       getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
     });
-    if (!marionLearningOfflineHandlersReady()) {
-      return { ready: false, status: "offline_handlers_not_registered" };
-    }
-    return { ready: true, status: "ready" };
+    return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
   } catch (error) {
     const message = String(error && error.message || "");
     const status = /Cannot find module ['\"]pg/.test(message) ? "postgres_dependency_missing" : "postgres_learning_setup_failed";
@@ -3119,6 +3134,7 @@ function marionLearningVerifiedOwnerContext(req) {
 }
 
 function marionLearningContextFor(req, body, auth) {
+  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") return null;
   const source = isObj(body) ? body : {};
   const identity = isObj(auth) ? auth : {};
   const signalInput = isObj(source.marionLearningSignal) ? source.marionLearningSignal : {};
@@ -3152,6 +3168,7 @@ function marionLearningContextFor(req, body, auth) {
 }
 
 async function captureAcceptedMarionLearningFinal(result, learningContext) {
+  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") return;
   const backend = app.locals && app.locals.marionLearningBackend;
   if (!backend || !backend.runtime || typeof backend.runtime.captureFinalOutcome !== "function" || !learningContext) return;
   try {
@@ -4266,7 +4283,9 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
       version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || "")
     },
     selfLearning: {
-      enabled: marionLearning.ready,
+      enabled: marionLearningStorageConfiguration().enabled,
+      evaluationEnabled: marionLearningStorageConfiguration().evaluationEnabled,
+      offlineEvaluationReady: marionLearning.ready && marionLearningOfflineHandlersReady(),
       status: marionLearning.status,
       storage: marionLearningStorageConfiguration(),
       requiresExplicitOwnerConsent: true,
@@ -4302,6 +4321,9 @@ function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
     if (!status.ready || !handlers || typeof handlers[handlerName] !== "function") {
       return res.status(503).json({ ok: false, reason: status.status || "learning_admin_unavailable", traceId });
     }
+    if (handlerName === "evaluate" && !marionLearningOfflineHandlersReady()) {
+      return res.status(503).json({ ok: false, reason: "offline_evaluation_handlers_not_registered", traceId });
+    }
     try {
       const storage = app.locals && app.locals.marionLearningAdapters;
       if (!storage || typeof storage.healthProbe !== "function" || !(await storage.healthProbe()).ready) {
@@ -4322,6 +4344,7 @@ app.options(Object.values(MARION_LEARNING_ADMIN_ROUTES).flat(), (req, res) => {
 });
 app.get(MARION_LEARNING_ADMIN_ROUTES.available, marionLearningAdminEndpoint("listAvailable", "learning.manifest.read"));
 app.get(MARION_LEARNING_ADMIN_ROUTES.approved, marionLearningAdminEndpoint("listApproved", "learning.manifest.read"));
+app.post(MARION_LEARNING_ADMIN_ROUTES.reviewIssue, marionLearningAdminEndpoint("issueReview", "learning.manifest.approve", true));
 app.post(MARION_LEARNING_ADMIN_ROUTES.approve, marionLearningAdminEndpoint("approve", "learning.manifest.approve", true));
 app.post(MARION_LEARNING_ADMIN_ROUTES.revoke, marionLearningAdminEndpoint("revoke", "learning.manifest.revoke", true));
 app.post(MARION_LEARNING_ADMIN_ROUTES.evaluate, marionLearningAdminEndpoint("evaluate", "learning.manifest.evaluate", true));
@@ -25536,9 +25559,9 @@ function startSandblastServer(port = PORT) {
   if (server && typeof server.close === "function") return server;
   const learningStorage = marionLearningStorageConfiguration();
   let learningSetup = { ready: false, status: learningStorage.reason };
-  if (learningStorage.enabled) learningSetup = ensureMarionLearningRuntime();
+  if (learningStorage.runtimeEnabled) learningSetup = ensureMarionLearningRuntime();
   let storageProbe = null;
-  if (learningStorage.enabled && learningSetup.ready && learningStorage.configured) {
+  if (learningStorage.runtimeEnabled && learningSetup.ready && learningStorage.configured) {
     try {
       const pgPool = getMarionLearningPostgresPool();
       const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
@@ -25556,15 +25579,17 @@ function startSandblastServer(port = PORT) {
       configured: learningStorage.configured,
       databaseReady: !!(result && result.ready === true),
       learningEnabled: learningStorage.enabled,
+      evaluationEnabled: learningStorage.evaluationEnabled,
       runtimeStatus: learningSetup.status,
       liveActivationEnabled: false
     }))
     .catch(() => console.log("[Sandblast][marion-learning-postgres]", {
       configured: learningStorage.configured, databaseReady: false,
-      learningEnabled: learningStorage.enabled, runtimeStatus: "database_probe_failed",
+      learningEnabled: learningStorage.enabled, evaluationEnabled: learningStorage.evaluationEnabled,
+      runtimeStatus: "database_probe_failed",
       liveActivationEnabled: false
     }));
-  const listeningServer = app.listen(port, () => {
+  server = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
     try {
       console.log("[Sandblast][nyx-tts-readiness]", {
@@ -25604,17 +25629,7 @@ function startSandblastServer(port = PORT) {
       });
     } catch (_) {}
   });
-  server = listeningServer;
-  listeningServer.once("error", (error) => {
-    if (server === listeningServer) server = null;
-    const code = error && typeof error.code === "string" ? error.code : "UNKNOWN";
-    console.error("[Sandblast][startup]", {
-      status: code === "EADDRINUSE" ? "port_in_use" : "listen_failed",
-      code,
-      port: Number.isInteger(Number(port)) ? Number(port) : null
-    });
-  });
-  return listeningServer;
+  return server;
 }
 
 const marionLearningSchemaInitRequested = require.main === module &&
