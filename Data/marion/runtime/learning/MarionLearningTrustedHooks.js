@@ -6,10 +6,15 @@
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningTrustedHooks/2.0-offline-review-bound";
+const VERSION = "marion.learningTrustedHooks/2.1-owner-issued-review";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
+const REVIEW_RECORD_KEYS = new Set([
+  "approved", "approvedBy", "caseCount", "caseIds", "datasetId", "fixtureSetHash",
+  "fixtureStore", "manifestHash", "ownerConsent", "reviewId", "reviewRef", "scope",
+  "signature", "version"
+]);
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const MIN_REVIEW_KEY_BYTES = 32;
 
@@ -74,12 +79,29 @@ function timingSafeHexEqual(left, right) {
   return leftBytes.length === rightBytes.length && crypto.timingSafeEqual(leftBytes, rightBytes);
 }
 
+function validReviewIssuance(input) {
+  return isPlainDataObject(input) &&
+    ID_RE.test(input.reviewRef || "") && ID_RE.test(input.reviewId || "") &&
+    OWNER_ACTOR_RE.test(input.approvedBy || "") &&
+    ID_RE.test(input.datasetId || "") && ID_RE.test(input.version || "") &&
+    ID_RE.test(input.fixtureStore || "") && ALLOWED_SCOPES.has(input.scope) &&
+    HASH_RE.test(input.manifestHash || "") && HASH_RE.test(input.fixtureSetHash || "") &&
+    input.ownerConsent === true && Array.isArray(input.caseIds) &&
+    input.caseIds.length >= 20 && input.caseIds.length <= 500 &&
+    Number.isSafeInteger(input.caseCount) && input.caseCount === input.caseIds.length &&
+    new Set(input.caseIds).size === input.caseIds.length &&
+    input.caseIds.every(id => typeof id === "string" && ID_RE.test(id));
+}
+
 function buildReviewTrust({ versionRegistry, reviewStore, reviewHmacKey } = {}) {
   const getReview = reviewStore &&
     (typeof reviewStore.get === "function" ? reviewStore.get.bind(reviewStore) :
       typeof reviewStore.getReview === "function" ? reviewStore.getReview.bind(reviewStore) : null);
+  const insertReview = reviewStore && typeof reviewStore.insertIfAbsent === "function"
+    ? reviewStore.insertIfAbsent.bind(reviewStore) : null;
   const key = typeof reviewHmacKey === "string" ? reviewHmacKey : "";
   const configured = versionRegistry instanceof Map && typeof getReview === "function" &&
+    typeof insertReview === "function" &&
     Buffer.byteLength(key, "utf8") >= MIN_REVIEW_KEY_BYTES;
 
   function resolveVersion(versionOrRequest, datasetIdOrBinding, datasetVersion, scope) {
@@ -119,7 +141,8 @@ function buildReviewTrust({ versionRegistry, reviewStore, reviewHmacKey } = {}) 
 
     let review;
     try { review = await getReview(reviewRef); } catch (_) { return null; }
-    if (!isPlainDataObject(review) ||
+    if (!isPlainDataObject(review) || Object.keys(review).length !== REVIEW_RECORD_KEYS.size ||
+        Object.keys(review).some(keyName => !REVIEW_RECORD_KEYS.has(keyName)) ||
         review.approved !== true || review.ownerConsent !== true || review.reviewRef !== reviewRef ||
         !OWNER_ACTOR_RE.test(review.approvedBy || "") || review.datasetId !== datasetId ||
         review.version !== version || review.scope !== scope || review.fixtureStore !== fixtureStore ||
@@ -149,7 +172,30 @@ function buildReviewTrust({ versionRegistry, reviewStore, reviewHmacKey } = {}) 
     });
   }
 
-  return Object.freeze({ VERSION, configured, resolveVersion, verifyFixtureReview });
+  async function issueFixtureReview(input = {}) {
+    if (!configured || !validReviewIssuance(input)) return null;
+    const unsigned = reviewPayload({ ...input, approved: true, ownerConsent: true });
+    let signature;
+    try { signature = crypto.createHmac("sha256", key).update(stableJson(unsigned)).digest("hex"); }
+    catch (_) { return null; }
+    const signedRecord = Object.freeze({ ...unsigned, signature });
+    let inserted = false;
+    try { inserted = await insertReview(signedRecord) === true; } catch (_) { return null; }
+    if (!inserted) return null;
+    return verifyFixtureReview({
+      reviewRef: signedRecord.reviewRef,
+      datasetId: signedRecord.datasetId,
+      version: signedRecord.version,
+      scope: signedRecord.scope,
+      fixtureStore: signedRecord.fixtureStore,
+      manifestHash: signedRecord.manifestHash,
+      fixtureSetHash: signedRecord.fixtureSetHash,
+      caseIds: signedRecord.caseIds,
+      caseCount: signedRecord.caseCount
+    });
+  }
+
+  return Object.freeze({ VERSION, configured, resolveVersion, verifyFixtureReview, issueFixtureReview });
 }
 
 function createLegacyRuntimeHooks({ runtime, resolveAuthContext, enabled = false } = {}) {
