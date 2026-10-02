@@ -399,25 +399,77 @@ function transportSafePacket(packet = {}) {
   const out = jsonSafe(packet);
   if (!isObj(out)) return out;
   const priorEnvelope = safeObj(out.finalEnvelope);
-  const reply = marionPrivateReplyText(out) || extractReply(out) || safeStr(priorEnvelope.authoritativeReply) || safeStr(priorEnvelope.reply);
-  const explicitMarionFinal = out.marionFinal === true || priorEnvelope.marionFinal === true || safeObj(out.payload).marionFinal === true;
+  const payloadBefore = safeObj(out.payload);
+  const metaBefore = safeObj(out.meta);
+  const envelopeReply = safeStr(priorEnvelope.authoritativeReply || priorEnvelope.reply || priorEnvelope.finalReply || priorEnvelope.text);
+  const envelopeSignature = safeStr(priorEnvelope.signature || priorEnvelope.marionFinalSignature || priorEnvelope.finalSignature);
+  const topLevelReply = firstText(out.authoritativeReply, out.reply, out.finalReply, out.visibleReply, out.displayReply, out.publicReply, out.text, out.answer, out.output, out.response, out.message);
+  const privateReply = marionPrivateReplyText(out);
+  const currentTurnBound = out.currentTurnBound === true || priorEnvelope.currentTurnBound === true || metaBefore.currentTurnBound === true;
+  const semanticAuthority = safeStr(out.semanticAuthority || priorEnvelope.semanticAuthority || metaBefore.semanticAuthority).toLowerCase();
+  const signedEnvelopeCurrent = priorEnvelope.final === true && priorEnvelope.marionFinal === true &&
+    envelopeSignature === "MARION_FINAL_AUTHORITY" &&
+    priorEnvelope.currentTurnBound === true && !!envelopeReply &&
+    safeStr(priorEnvelope.replySignature) === hashText(envelopeReply) &&
+    (!topLevelReply || topLevelReply === envelopeReply);
+  const reply = privateReply || (signedEnvelopeCurrent ? envelopeReply : (topLevelReply || extractReply(out) || envelopeReply));
+  const conflictingUnsignedEnvelope = !!(reply && envelopeReply && reply !== envelopeReply && !signedEnvelopeCurrent);
+  const explicitMarionFinal = !conflictingUnsignedEnvelope && currentTurnBound && semanticAuthority === "marion" &&
+    (out.marionFinal === true || (priorEnvelope.marionFinal === true && signedEnvelopeCurrent) || payloadBefore.marionFinal === true);
+  if (conflictingUnsignedEnvelope) {
+    delete out.signature;
+    delete out.marionFinalSignature;
+    delete out.finalSignature;
+  }
+  const hasTopFinalFlag = typeof out.final === "boolean";
+  const hasPayloadFinalFlag = typeof payloadBefore.final === "boolean";
+  const declaredFinal = hasTopFinalFlag ? out.final === true :
+    (hasPayloadFinalFlag ? payloadBefore.final === true : (priorEnvelope.final === true && !conflictingUnsignedEnvelope));
+  const finalized = !!reply && declaredFinal;
+  const marionFinal = finalized && explicitMarionFinal;
   if (reply) {
-    out.authoritativeReply = reply;
-    out.reply = reply;
-    out.text = reply;
-    out.answer = reply;
-    out.output = reply;
-    out.response = reply;
-    out.message = reply;
-    out.spokenText = safeStr(out.spokenText || reply);
-    out.payload = { ...safeObj(out.payload), authoritativeReply: reply, reply, text: reply, message: reply, final: true, marionFinal: explicitMarionFinal };
+    Object.assign(out, {
+      authoritativeReply: reply, publicReply: reply, visibleReply: reply, displayReply: reply,
+      directReply: reply, finalReply: reply, reply, text: reply, answer: reply,
+      output: reply, response: reply, message: reply, spokenText: reply, speechText: reply, textSpeak: reply
+    });
+    out.replySignature = hashText(reply);
+    const priorSpeech = safeObj(out.speech);
+    if (Object.keys(priorSpeech).length) {
+      out.speech = { ...priorSpeech, text: reply, textDisplay: reply, displayText: reply, textSpeak: reply, spokenText: reply };
+    }
+    const payload = {
+      ...payloadBefore, authoritativeReply: reply, publicReply: reply, visibleReply: reply,
+      displayReply: reply, directReply: reply, finalReply: reply, reply, text: reply,
+      answer: reply, output: reply, response: reply, message: reply, spokenText: reply,
+      speechText: reply, textSpeak: reply, replySignature: out.replySignature,
+      final: finalized, marionFinal
+    };
+    if (conflictingUnsignedEnvelope) {
+      delete payload.signature;
+      delete payload.marionFinalSignature;
+      delete payload.finalSignature;
+    }
+    out.payload = {
+      ...payload
+    };
+  } else if (Object.keys(payloadBefore).length) {
+    out.payload = {
+      ...payloadBefore,
+      final: false,
+      marionFinal: false
+    };
+    if (conflictingUnsignedEnvelope) {
+      delete out.payload.signature;
+      delete out.payload.marionFinalSignature;
+      delete out.payload.finalSignature;
+    }
   }
   out.ok = out.ok !== false;
-  const hasFinalReply = !!reply;
-  out.final = hasFinalReply ? true : false;
-  out.marionFinal = hasFinalReply && explicitMarionFinal;
-  out.canEmit = hasFinalReply ? out.canEmit !== false : false;
-  out.requiresRetry = hasFinalReply ? out.requiresRetry === true : true;
+  out.final = finalized;
+  out.marionFinal = marionFinal;
+  out.canEmit = finalized ? out.canEmit !== false : false;
+  out.requiresRetry = finalized ? out.requiresRetry === true : true;
   out.handled = true;
   out.awaitingMarion = out.final === true ? false : out.awaitingMarion !== false;
   out.transportSafe = true;
@@ -428,9 +480,26 @@ function transportSafePacket(packet = {}) {
   if (out.payload && out.payload.sessionPatch) out.payload.sessionPatch = compactPatchForTransport(out.payload.sessionPatch);
   out.finalEnvelope = {
     ...priorEnvelope,
+    ...(conflictingUnsignedEnvelope ? { signature: "", marionFinalSignature: "", finalSignature: "" } : {}),
     authoritativeReply: reply || "",
+    publicReply: reply || "",
+    visibleReply: reply || "",
+    displayReply: reply || "",
+    directReply: reply || "",
+    finalReply: reply || "",
     reply: reply || "",
-    spokenText: safeStr(priorEnvelope.spokenText || out.spokenText || reply),
+    text: reply || "",
+    answer: reply || "",
+    output: reply || "",
+    response: reply || "",
+    message: reply || "",
+    spokenText: reply || "",
+    speechText: reply || "",
+    textSpeak: reply || "",
+    replySignature: reply ? hashText(reply) : "",
+    ...(Object.keys(safeObj(priorEnvelope.speech)).length && reply ? {
+      speech: { ...safeObj(priorEnvelope.speech), text: reply, textDisplay: reply, displayText: reply, textSpeak: reply, spokenText: reply }
+    } : {}),
     final: out.final === true,
     marionFinal: out.marionFinal === true,
     canEmit: out.canEmit === true,
@@ -2853,12 +2922,24 @@ function classifyRound3CognitiveResilience(prompt=""){
     if(priv(input)||priv(v))return v;
     const x=O(v),p=O(x.payload),f=O(x.finalEnvelope),prompt=promptOf(input)||promptOf(x);
     if(!claimsMarionFinal(x))return x;
-    const reply=pick(x,prompt);
+    const topReply=T(x.authoritativeReply||x.reply||x.finalReply||x.directReply||x.visibleReply||x.displayReply||x.publicReply||x.text||x.answer||x.output||x.response||x.message);
+    const envelopeReply=T(f.authoritativeReply||f.reply||f.finalReply||f.directReply||f.visibleReply||f.displayReply||f.publicReply||f.text||f.answer||f.output||f.response||f.message);
+    const reply=topReply||envelopeReply||pick(x,prompt);
+    const currentTurnBound=x.currentTurnBound===true||f.currentTurnBound===true||O(x.meta).currentTurnBound===true;
+    const semantic=T(x.semanticAuthority||f.semanticAuthority||O(x.meta).semanticAuthority).toLowerCase();
+    const finalClaim=x.final===true||f.final===true||p.final===true;
+    const replySignature=hashText(reply);
+    const signatures=[x.replySignature,p.replySignature,f.replySignature].map(T).filter(Boolean);
+    if((topReply&&envelopeReply&&topReply!==envelopeReply)||!currentTurnBound||!finalClaim||semantic!=="marion"||
+      x.final===false||x.marionFinal===false||x.blocked===true||p.blocked===true||f.blocked===true||
+      x.canEmit===false||p.canEmit===false||f.canEmit===false||signatures.some(signature=>signature!==replySignature))return reject(x,input);
     if(!reply)return reject(x,input);
-    const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),speechText:T(x.speechText||x.spokenText||reply)};
+    const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:reply,speechText:reply,replySignature};
+    const speech=O(x.speech);
     return {...x,...aliases,ok:x.ok!==false,final:true,marionFinal:true,handled:true,canEmit:x.canEmit!==false,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,marionRoute:"marion-primary",
       publicAgent:"Nyx",surfaceAgent:"Nyx",
       payload:{...p,...aliases,final:true,marionFinal:true,handled:true,canEmit:p.canEmit!==false,awaitingMarion:false,requiresRetry:false},
+      speech:{...speech,text:reply,textDisplay:reply,displayText:reply,textSpeak:reply,spokenText:reply},
       finalEnvelope:{...f,...aliases,final:true,marionFinal:true,handled:true,canEmit:f.canEmit!==false,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope"},
       marionAttestation:{...O(x.marionAttestation),verified:true,route:"marion-primary",authority:"marionFinalEnvelope",currentTurnBound:true,publicAgent:"Nyx",backendAgentRedacted:true,version:V},
       meta:{...O(x.meta),bridgeSemanticFinalInvariantVersion:V,marionRoute:"marion-primary",marionFinal:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",authoritativeReplyPresent:true,noUserFacingDiagnostics:true},
