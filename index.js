@@ -25561,32 +25561,72 @@ function startSandblastServer(port = PORT) {
   let learningSetup = { ready: false, status: learningStorage.reason };
   if (learningStorage.runtimeEnabled) learningSetup = ensureMarionLearningRuntime();
   let storageProbe = null;
-  if (learningStorage.runtimeEnabled && learningSetup.ready && learningStorage.configured) {
+  let databaseProbeSetupStatus = "not_configured";
+  if (learningStorage.configured && (!learningStorage.runtimeEnabled || learningSetup.ready)) {
     try {
-      const pgPool = getMarionLearningPostgresPool();
       const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
-      storageProbe = () => adapterModule.probeMarionLearningPostgres(pgPool);
+      if (learningStorage.runtimeEnabled) {
+        const pgPool = getMarionLearningPostgresPool();
+        storageProbe = () => adapterModule.probeMarionLearningPostgres(pgPool);
+      } else {
+        // Probe database reachability independently without enabling learning or evaluation.
+        const { Pool } = require("pg");
+        const diagnosticPool = new Pool({
+          connectionString: process.env.DATABASE_URL,
+          max: 1,
+          idleTimeoutMillis: 5000,
+          connectionTimeoutMillis: 5000,
+          ssl: { rejectUnauthorized: true }
+        });
+        if (typeof diagnosticPool.on === "function") diagnosticPool.on("error", () => {
+          console.warn("[Sandblast][marion-learning-postgres]", { status: "diagnostic_connection_error" });
+        });
+        storageProbe = async () => {
+          try {
+            return await adapterModule.probeMarionLearningPostgres(diagnosticPool);
+          } finally {
+            await diagnosticPool.end().catch(() => {});
+          }
+        };
+      }
+      databaseProbeSetupStatus = "ready_to_probe";
     } catch (error) {
       const message = String(error && error.message || "");
-      const status = /Cannot find module ['\"]pg/.test(message)
+      databaseProbeSetupStatus = /Cannot find module ['\"]pg/.test(message)
         ? "postgres_dependency_missing"
         : "postgres_adapter_unavailable";
-      learningSetup = { ready: false, status };
+      if (learningStorage.runtimeEnabled) {
+        learningSetup = { ready: false, status: databaseProbeSetupStatus };
+      }
     }
+  } else if (learningStorage.configured && learningStorage.runtimeEnabled && !learningSetup.ready) {
+    databaseProbeSetupStatus = "skipped_runtime_not_ready";
   }
-  Promise.resolve(typeof storageProbe === "function" ? storageProbe() : { ready: false })
-    .then(result => console.log("[Sandblast][marion-learning-postgres]", {
+  Promise.resolve()
+    .then(() => typeof storageProbe === "function" ? storageProbe() : null)
+    .then(result => {
+      const databaseReady = !!(result && result.ready === true);
+      console.log("[Sandblast][marion-learning-postgres]", {
+        configured: learningStorage.configured,
+        databaseProbeRan: typeof storageProbe === "function",
+        databaseReady,
+        databaseProbeStatus: typeof storageProbe === "function"
+          ? databaseReady ? "ready" : "not_ready"
+          : databaseProbeSetupStatus,
+        learningEnabled: learningStorage.enabled,
+        evaluationEnabled: learningStorage.evaluationEnabled,
+        runtimeStatus: learningSetup.status,
+        liveActivationEnabled: false
+      });
+    })
+    .catch(() => console.log("[Sandblast][marion-learning-postgres]", {
       configured: learningStorage.configured,
-      databaseReady: !!(result && result.ready === true),
+      databaseProbeRan: true,
+      databaseReady: false,
+      databaseProbeStatus: "failed",
       learningEnabled: learningStorage.enabled,
       evaluationEnabled: learningStorage.evaluationEnabled,
       runtimeStatus: learningSetup.status,
-      liveActivationEnabled: false
-    }))
-    .catch(() => console.log("[Sandblast][marion-learning-postgres]", {
-      configured: learningStorage.configured, databaseReady: false,
-      learningEnabled: learningStorage.enabled, evaluationEnabled: learningStorage.evaluationEnabled,
-      runtimeStatus: "database_probe_failed",
       liveActivationEnabled: false
     }));
   server = app.listen(port, () => {
