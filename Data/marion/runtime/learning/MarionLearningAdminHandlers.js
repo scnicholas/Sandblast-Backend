@@ -2,8 +2,9 @@
 
 // HTTP-neutral owner-only handlers for the host app to mount under its private
 // Marion admin routes. Authentication is resolved from server middleware only.
+const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
-const VERSION = "marion.learningAdminHandlers/1.1-owner-signed-review";
+const VERSION = "marion.learningAdminHandlers/1.2-server-issued-review-id";
 
 function objectBody(request) {
   return request && request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body : {};
@@ -40,10 +41,16 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
   return Object.freeze({
     VERSION,
     listAvailable: request => run(request, (_body, auth) => runtime.listAvailableManifests(auth)),
-    issueReview: request => run(request, (body, auth) => runtime.issueFixtureReview({
-      datasetId: body.datasetId, version: body.version, scope: body.scope,
-      ownerConsent: body.ownerConsent
-    }, auth)),
+    issueReview: request => run(request, (body, auth) => {
+      // Review identifiers are server issued. Accepting caller chosen IDs lets
+      // an owner accidentally collide with or replay another stored review.
+      const reviewRef = `review_${crypto.randomBytes(16).toString("hex")}`;
+      const reviewId = `review_${crypto.randomBytes(16).toString("hex")}`;
+      return runtime.issueFixtureReview({
+        datasetId: body.datasetId, version: body.version, scope: body.scope,
+        reviewRef, reviewId, ownerConsent: body.ownerConsent
+      }, auth);
+    }),
     approve: request => run(request, (body, auth) => runtime.approveManifest({
       datasetId: body.datasetId, version: body.version, scope: body.scope, reviewRef: body.reviewRef
     }, auth)),
