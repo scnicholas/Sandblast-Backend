@@ -7,7 +7,7 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/1.2-signed-review-issuer";
+const VERSION = "marion.learningBackendSetup/1.3-owner-review-issuer-wired";
 
 function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
@@ -27,6 +27,10 @@ function createAndRegisterMarionLearningBackend({
     manifestSource, registrationStore: manifestRegistryStore, verifyFixtureSet,
     verifyFixtureReview, issueFixtureReview, auditStore
   });
+  if (typeof manifestRegistry.issueFixtureReview !== "function" ||
+      typeof manifestRegistry.approveManifest !== "function") {
+    throw new Error("owner_fixture_review_workflow_unavailable");
+  }
   // Setup constructs the runner itself so callers cannot accidentally inject
   // a runVersion function that skips registry authorization.
   const offlineRunner = createMarionLearningOfflineRunner({
