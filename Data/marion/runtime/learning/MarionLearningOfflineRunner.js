@@ -4,7 +4,7 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/1.3-scope-bound-fixtures";
+const VERSION = "marion.learningOfflineRunner/1.4-handler-binding-hardlock";
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const FORBIDDEN_FIXTURE_KEYS = new Set([
@@ -65,7 +65,10 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     try { authorized = await authorizeEvaluation(runContext) === true; } catch (_) { authorized = false; }
     if (!authorized) throw new Error("manifest_not_registered_or_fixture_binding_invalid");
     const handler = await resolveVersion(versionId, runContext);
-    if (!handler || handler.mode !== "offline" || typeof handler.runOffline !== "function") {
+    const hasExactBinding = !!handler && Array.isArray(handler.bindings) && handler.bindings.some(binding =>
+      binding && binding.datasetId === datasetId && binding.datasetVersion === datasetVersion && binding.scope === scope);
+    if (!handler || handler.version !== versionId || handler.mode !== "offline" ||
+        typeof handler.runOffline !== "function" || !hasExactBinding) {
       throw new Error("version_not_registered_for_offline_evaluation");
     }
 
