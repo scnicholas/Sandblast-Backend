@@ -6,7 +6,8 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
-const VERSION = "marion.learningFixtureStore/1.1-scope-bound";
+const FixtureContract = require("./MarionLearningFixtureContract");
+const VERSION = "marion.learningFixtureStore/1.2-contract-bound";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const MAX_FIXTURE_BYTES = 128 * 1024;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -51,7 +52,10 @@ function createMarionLearningFixtureStore({ directory } = {}) {
       let scope = "";
       for (const id of caseIds) {
         const fixture = await read(fixtureStore, id);
-        if (fixture.caseId !== id || fixture.synthetic !== true || fixture.datasetId !== datasetId || fixture.datasetVersion !== version || fixture.fixtureStore !== fixtureStore || !plainObject(fixture.input) || !plainObject(fixture.reference)) return { ok: false };
+        const contract = FixtureContract.validateFixture(fixture);
+        if (!contract || contract.ok !== true || fixture.caseId !== id || fixture.synthetic !== true ||
+            fixture.datasetId !== datasetId || fixture.datasetVersion !== version ||
+            fixture.fixtureStore !== fixtureStore || !plainObject(fixture.input) || !plainObject(fixture.reference)) return { ok: false };
         if (!ALLOWED_SCOPES.has(fixture.scope) || (scope && fixture.scope !== scope)) return { ok: false };
         scope = fixture.scope;
         fixtures.push(fixture);
@@ -63,6 +67,8 @@ function createMarionLearningFixtureStore({ directory } = {}) {
   }
   async function loadFixture(caseId, context = {}) {
     const fixture = await read(context.fixtureStore, caseId);
+    const contract = FixtureContract.validateFixture(fixture);
+    if (!contract || contract.ok !== true) throw new Error("fixture_contract_invalid");
     if (fixture.datasetId !== context.datasetId || fixture.datasetVersion !== context.datasetVersion ||
         fixture.fixtureStore !== context.fixtureStore || fixture.scope !== context.scope ||
         fixture.fixtureSetHash !== context.fixtureSetHash) throw new Error("fixture_binding_mismatch");
