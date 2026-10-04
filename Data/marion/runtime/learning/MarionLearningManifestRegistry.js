@@ -3,12 +3,13 @@
 // Trusted manifest selection and immutable approval registry. A manifest file
 // is only a candidate until an owner-approved, fixture-bound record is stored.
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningManifestRegistry/1.1-owner-issued-review";
+const VERSION = "marion.learningManifestRegistry/1.2-sync-bootstrap-safe-paths";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -42,6 +43,8 @@ function createFileManifestSource({ directory } = {}) {
   }
 
   async function list() {
+    const rootStat = await fs.lstat(root);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("manifest_root_must_be_real_directory");
     const rootReal = await fs.realpath(root);
     const roots = [rootReal];
     for (const name of ["drafts", "approved"]) {
@@ -65,7 +68,32 @@ function createFileManifestSource({ directory } = {}) {
     return output;
   }
 
-  return Object.freeze({ load, list, directory: root });
+  function listSync() {
+    const rootStat = fsSync.lstatSync(root);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("manifest_root_must_be_real_directory");
+    const rootReal = fsSync.realpathSync(root);
+    const roots = [rootReal];
+    for (const name of ["drafts", "approved"]) {
+      const candidate = path.join(rootReal, name);
+      try {
+        const stat = fsSync.lstatSync(candidate);
+        if (stat.isDirectory() && !stat.isSymbolicLink() && fsSync.realpathSync(candidate) === candidate) roots.push(candidate);
+      } catch (error) { if (!error || error.code !== "ENOENT") throw error; }
+    }
+    const output = [];
+    for (const directory of roots) {
+      for (const entry of fsSync.readdirSync(directory, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+        const fullPath = path.join(directory, entry.name);
+        const stat = fsSync.lstatSync(fullPath);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_MANIFEST_BYTES) continue;
+        try { output.push(JSON.parse(fsSync.readFileSync(fullPath, "utf8"))); } catch (_) { /* malformed drafts are omitted */ }
+      }
+    }
+    return output;
+  }
+
+  return Object.freeze({ load, list, listSync, directory: root });
 }
 
 function exactRegistration(record, dataset, scope, manifestHashValue, fixtureSetHash) {
