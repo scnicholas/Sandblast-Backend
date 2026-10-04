@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningRuntime/1.3-accurate-evaluation-health";
+const VERSION = "marion.learningRuntime/1.4-offline-evaluation-readiness-gate";
 
 function isVerifiedOwner(authContext) {
   return !!(authContext && authContext.authenticated === true && authContext.role === "owner" && authContext.verifiedBy === "server_middleware" && typeof authContext.actorId === "string" && authContext.actorId.trim());
@@ -58,8 +58,28 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
     return manifestRegistry.listApproved(scope, authContext);
   }
 
+  async function evaluationReadiness() {
+    let storageReady = false;
+    let offlineReady = false;
+    try {
+      const dependencyStatus = await healthProbe();
+      storageReady = !!(dependencyStatus && dependencyStatus.ready === true);
+    } catch (_) { storageReady = false; }
+    try { offlineReady = await offlineEvaluationReady() === true; }
+    catch (_) { offlineReady = false; }
+    return Object.freeze({
+      ready: storageReady && offlineReady,
+      storageReady,
+      offlineReady,
+      reason: !storageReady ? "durable_storage_not_ready" :
+        !offlineReady ? "offline_evaluation_handlers_not_registered" : "ready"
+    });
+  }
+
   async function evaluateCandidate(candidate, selection, authContext) {
     if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
+    const readiness = await evaluationReadiness();
+    if (!readiness.ready) return { ok: false, reason: readiness.reason };
     const selected = await manifestRegistry.selectApprovedManifest(selection, authContext);
     if (!selected || selected.ok !== true) return selected || { ok: false, reason: "manifest_selection_failed" };
     return evaluator.evaluate(candidate, selected.manifest, selected.registration);
@@ -77,27 +97,20 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
 
   async function getPrivateHealth(authContext) {
     if (!isVerifiedOwner(authContext)) return { ok: false, status: 403, reason: "owner_authentication_required" };
-    let dependencyStatus;
-    let offlineReady = false;
-    try { dependencyStatus = await healthProbe(); }
-    catch (_) { dependencyStatus = { ready: false }; }
-    try { offlineReady = await offlineEvaluationReady() === true; }
-    catch (_) { offlineReady = false; }
-    const storageReady = !!(dependencyStatus && dependencyStatus.ready === true);
-    const ready = storageReady && offlineReady;
+    const readiness = await evaluationReadiness();
     return {
-      ok: true, status: ready ? 200 : 503,
+      ok: true, status: readiness.ready ? 200 : 503,
       service: "marion-learning-runtime", version: VERSION,
       mode: "offline_candidate_evaluation_only",
-      ready, liveActivationEnabled: false,
-      reason: ready ? "ready" : !storageReady ? "durable_storage_not_ready" : "offline_handlers_not_registered",
+      ready: readiness.ready, liveActivationEnabled: false,
+      reason: readiness.reason,
       transcriptStorageEnabled: false, audioStorageEnabled: false,
       dependencies: {
         signalCapture: captureEnabled === true,
-        offlineEvaluation: offlineReady,
+        offlineEvaluation: readiness.offlineReady,
         approvalGate: true,
         manifestRegistry: true,
-        privateDurableStores: storageReady
+        privateDurableStores: readiness.storageReady
       }
     };
   }
