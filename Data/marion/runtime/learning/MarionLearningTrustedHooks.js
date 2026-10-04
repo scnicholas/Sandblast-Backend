@@ -6,7 +6,7 @@
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningTrustedHooks/2.1-owner-issued-review";
+const VERSION = "marion.learningTrustedHooks/2.2-durable-review-diagnostics";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -100,9 +100,17 @@ function buildReviewTrust({ versionRegistry, reviewStore, reviewHmacKey } = {}) 
   const insertReview = reviewStore && typeof reviewStore.insertIfAbsent === "function"
     ? reviewStore.insertIfAbsent.bind(reviewStore) : null;
   const key = typeof reviewHmacKey === "string" ? reviewHmacKey : "";
+  const keyBytes = Buffer.byteLength(key, "utf8");
+  const configurationReason = !(versionRegistry instanceof Map)
+    ? "review_version_registry_missing"
+    : typeof getReview !== "function" || typeof insertReview !== "function"
+      ? "review_store_unavailable"
+      : keyBytes < MIN_REVIEW_KEY_BYTES
+        ? "review_hmac_key_missing_or_too_short"
+        : "ready";
   const configured = versionRegistry instanceof Map && typeof getReview === "function" &&
     typeof insertReview === "function" &&
-    Buffer.byteLength(key, "utf8") >= MIN_REVIEW_KEY_BYTES;
+    keyBytes >= MIN_REVIEW_KEY_BYTES;
 
   function resolveVersion(versionOrRequest, datasetIdOrBinding, datasetVersion, scope) {
     if (!configured) return null;
@@ -195,7 +203,7 @@ function buildReviewTrust({ versionRegistry, reviewStore, reviewHmacKey } = {}) 
     });
   }
 
-  return Object.freeze({ VERSION, configured, resolveVersion, verifyFixtureReview, issueFixtureReview });
+  return Object.freeze({ VERSION, configured, configurationReason, resolveVersion, verifyFixtureReview, issueFixtureReview });
 }
 
 function createLegacyRuntimeHooks({ runtime, resolveAuthContext, enabled = false } = {}) {
