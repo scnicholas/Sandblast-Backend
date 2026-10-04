@@ -11415,6 +11415,12 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
 
   api.composePublicKnowledgeTerminal=terminal;
   api.composePublicKnowledgeFast=terminal;
+  // Retain the pre-R24 composer for isolated, server-side offline evaluation.
+  // It is never selected by a live request; the trusted learning adapter
+  // invokes it only with synthetic fixture text and projects reply text only.
+  api.composeMarionResponseBeforeR24=prior;
+  api.MARION_COMPOSE_BASELINE_VERSION="composeMarionResponse.v9.5.r23";
+  api.MARION_COMPOSE_CURRENT_VERSION="composeMarionResponse.v9.6.r24";
   api.composeMarionResponse=compose;
   api.compose=compose;
   api.run=compose;
