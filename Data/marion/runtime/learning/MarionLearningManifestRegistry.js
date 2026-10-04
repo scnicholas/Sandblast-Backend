@@ -8,7 +8,7 @@ const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
 
-const VERSION = "marion.learningManifestRegistry/1.1-signed-owner-review";
+const VERSION = "marion.learningManifestRegistry/1.0-exact-fixture-binding";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -76,7 +76,7 @@ function exactRegistration(record, dataset, scope, manifestHashValue, fixtureSet
     record.caseIds.length === dataset.caseIds.length && record.caseIds.every((id, i) => id === dataset.caseIds[i]);
 }
 
-function createMarionLearningManifestRegistry({ manifestSource, registrationStore, verifyFixtureSet, verifyFixtureReview, issueFixtureReview, auditStore } = {}) {
+function createMarionLearningManifestRegistry({ manifestSource, registrationStore, verifyFixtureSet, verifyFixtureReview, auditStore } = {}) {
   if (!manifestSource || typeof manifestSource.load !== "function" || typeof manifestSource.list !== "function") {
     throw new TypeError("manifestSource.load/list are required");
   }
@@ -85,8 +85,8 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       typeof registrationStore.getRevocation !== "function" || typeof registrationStore.putRevocationIfAbsent !== "function") {
     throw new TypeError("private durable registrationStore and revocation methods are required");
   }
-  if (typeof verifyFixtureSet !== "function" || typeof verifyFixtureReview !== "function" || typeof issueFixtureReview !== "function") {
-    throw new TypeError("trusted fixture-set verifier, review verifier, and review issuer are required");
+  if (typeof verifyFixtureSet !== "function" || typeof verifyFixtureReview !== "function") {
+    throw new TypeError("trusted verifyFixtureSet and verifyFixtureReview callbacks are required");
   }
   if (!auditStore || typeof auditStore.append !== "function") throw new TypeError("durable auditStore.append is required");
 
@@ -120,57 +120,6 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     return { ok: true, manifests: Object.freeze(result) };
   }
 
-  async function issueFixtureReviewForManifest({ datasetId, version, scope, ownerConsent } = {}, authContext) {
-    if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
-    if (!ID_RE.test(datasetId || "") || !ID_RE.test(version || "") || !ALLOWED_SCOPES.has(scope) || ownerConsent !== true) {
-      return { ok: false, reason: "explicit_owner_fixture_review_consent_required" };
-    }
-
-    const { dataset, manifestHash: manifestHashValue } = await readAndValidate(datasetId, version);
-    const fixtureSet = await verifyFixtureSet({
-      datasetId, version, fixtureStore: dataset.fixtureStore, caseIds: dataset.caseIds, mode: "review"
-    });
-    if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
-        fixtureSet.datasetId !== datasetId || fixtureSet.version !== version ||
-        fixtureSet.fixtureStore !== dataset.fixtureStore || fixtureSet.scope !== scope ||
-        fixtureSet.caseCount !== dataset.caseIds.length || !HASH_RE.test(fixtureSet.fixtureSetHash || "")) {
-      return { ok: false, reason: "fixture_set_not_verified_for_requested_scope" };
-    }
-
-    const key = registrationKey(datasetId, version);
-    if (await registrationStore.getRevocation(key)) return { ok: false, reason: "manifest_version_revoked" };
-    if (await registrationStore.get(key)) return { ok: false, reason: "manifest_version_already_registered" };
-
-    const reviewRef = `mlr_${crypto.randomBytes(16).toString("hex")}`;
-    const reviewId = `mlrid_${crypto.randomBytes(16).toString("hex")}`;
-    const reviewRecord = {
-      approved: true, ownerConsent: true, approvedBy: authContext.actorId,
-      reviewRef, reviewId, datasetId, version, scope, fixtureStore: dataset.fixtureStore,
-      manifestHash: manifestHashValue, fixtureSetHash: fixtureSet.fixtureSetHash,
-      caseIds: [...dataset.caseIds], caseCount: dataset.caseIds.length
-    };
-
-    // Record the owner review action before inserting its immutable signature.
-    await auditStore.append({
-      type: "learning_fixture_review", action: "issue_signed_fixture_review",
-      reviewRef, reviewId, datasetId, version, scope, fixtureStore: dataset.fixtureStore,
-      manifestHash: manifestHashValue, fixtureSetHash: fixtureSet.fixtureSetHash,
-      caseCount: dataset.caseIds.length, actorId: authContext.actorId
-    });
-    const signed = await issueFixtureReview(reviewRecord);
-    if (!signed || signed.approved !== true || signed.reviewRef !== reviewRef || signed.reviewId !== reviewId ||
-        signed.datasetId !== datasetId || signed.version !== version || signed.scope !== scope ||
-        signed.fixtureStore !== dataset.fixtureStore || signed.manifestHash !== manifestHashValue ||
-        signed.fixtureSetHash !== fixtureSet.fixtureSetHash) {
-      return { ok: false, reason: "fixture_review_issuance_failed" };
-    }
-    return {
-      ok: true, status: "review_issued", reviewRef, reviewId,
-      datasetId, version, scope, caseCount: dataset.caseIds.length,
-      manifestHash: manifestHashValue, fixtureSetHash: fixtureSet.fixtureSetHash
-    };
-  }
-
   async function approveManifest({ datasetId, version, scope, reviewRef } = {}, authContext) {
     if (!isVerifiedOwner(authContext)) return { ok: false, reason: "owner_authentication_required" };
     if (!ID_RE.test(datasetId || "") || !ID_RE.test(version || "") || !ALLOWED_SCOPES.has(scope) ||
@@ -182,8 +131,7 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     });
     if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
         fixtureSet.datasetId !== datasetId || fixtureSet.version !== version ||
-        fixtureSet.fixtureStore !== dataset.fixtureStore || fixtureSet.scope !== scope ||
-        fixtureSet.caseCount !== dataset.caseIds.length ||
+        fixtureSet.fixtureStore !== dataset.fixtureStore || fixtureSet.caseCount !== dataset.caseIds.length ||
         !HASH_RE.test(fixtureSet.fixtureSetHash || "")) return { ok: false, reason: "fixture_set_not_verified" };
 
     const review = await verifyFixtureReview({
@@ -266,8 +214,7 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     });
     if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
         fixtureSet.datasetId !== datasetId || fixtureSet.version !== version ||
-        fixtureSet.fixtureStore !== record.fixtureStore || fixtureSet.scope !== scope ||
-        fixtureSet.fixtureSetHash !== record.fixtureSetHash ||
+        fixtureSet.fixtureStore !== record.fixtureStore || fixtureSet.fixtureSetHash !== record.fixtureSetHash ||
         fixtureSet.caseCount !== dataset.caseIds.length) return { ok: false, reason: "registered_fixture_set_unavailable" };
     return {
       ok: true,
@@ -300,8 +247,7 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
       });
       return !!(fixtureSet && fixtureSet.ok === true && fixtureSet.syntheticOnly === true &&
         fixtureSet.datasetId === datasetId && fixtureSet.version === datasetVersion &&
-        fixtureSet.fixtureStore === fixtureStore && fixtureSet.scope === scope &&
-        fixtureSet.fixtureSetHash === requestedFixtureSetHash &&
+        fixtureSet.fixtureStore === fixtureStore && fixtureSet.fixtureSetHash === requestedFixtureSetHash &&
         fixtureSet.caseCount === caseIds.length);
     } catch (_) {
       return false;
@@ -325,7 +271,7 @@ function createMarionLearningManifestRegistry({ manifestSource, registrationStor
     return { ok: true, registrations: Object.freeze(output) };
   }
 
-  return Object.freeze({ VERSION, listAvailable, issueFixtureReview: issueFixtureReviewForManifest, approveManifest, revokeManifest, listApproved, selectApprovedManifest, authorizeEvaluation });
+  return Object.freeze({ VERSION, listAvailable, approveManifest, revokeManifest, listApproved, selectApprovedManifest, authorizeEvaluation });
 }
 
 function publicRecord(record) {
