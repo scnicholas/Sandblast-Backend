@@ -3,11 +3,12 @@
 // Read-only content-addressed fixture loader. Approval is deliberately delegated
 // to the host's trusted review service; a synthetic marker alone is not approval.
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const Dataset = require("./MarionLearningDataset");
 const FixtureContract = require("./MarionLearningFixtureContract");
-const VERSION = "marion.learningFixtureStore/1.2-contract-bound";
+const VERSION = "marion.learningFixtureStore/1.3-sync-review-bootstrap";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const MAX_FIXTURE_BYTES = 128 * 1024;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
@@ -45,6 +46,23 @@ function createMarionLearningFixtureStore({ directory } = {}) {
     if (!plainObject(parsed)) throw new Error("fixture_shape_invalid");
     return parsed;
   }
+  function readSync(store, caseId) {
+    if (!ID_RE.test(store || "") || !ID_RE.test(caseId || "")) throw new Error("invalid_fixture_reference");
+    const rootStat = fsSync.lstatSync(root);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("fixture_root_must_be_real_directory");
+    const rootReal = fsSync.realpathSync(root);
+    const storeDir = path.join(root, store);
+    const storeStat = fsSync.lstatSync(storeDir);
+    if (!storeStat.isDirectory() || storeStat.isSymbolicLink() || fsSync.realpathSync(storeDir) !== path.join(rootReal, store)) {
+      throw new Error("fixture_store_path_invalid");
+    }
+    const filePath = path.join(storeDir, `${caseId}.json`);
+    const stat = fsSync.lstatSync(filePath);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_FIXTURE_BYTES) throw new Error("fixture_file_invalid");
+    const parsed = JSON.parse(fsSync.readFileSync(filePath, "utf8"));
+    if (!plainObject(parsed)) throw new Error("fixture_shape_invalid");
+    return parsed;
+  }
   async function verifyFixtureSet({ datasetId, version, fixtureStore, caseIds } = {}) {
     try {
       if (!ID_RE.test(datasetId || "") || !ID_RE.test(version || "") || !ID_RE.test(fixtureStore || "") || !Array.isArray(caseIds) || caseIds.length < Dataset.MINIMUM_CASES || caseIds.length > Dataset.MAXIMUM_CASES || new Set(caseIds).size !== caseIds.length) return { ok: false };
@@ -74,7 +92,38 @@ function createMarionLearningFixtureStore({ directory } = {}) {
         fixture.fixtureSetHash !== context.fixtureSetHash) throw new Error("fixture_binding_mismatch");
     return fixture;
   }
-  return Object.freeze({ VERSION, directory: root, verifyFixtureSet, loadFixture });
+  function verifyFixtureSetSync({ datasetId, version, fixtureStore, caseIds } = {}) {
+    try {
+      if (!ID_RE.test(datasetId || "") || !ID_RE.test(version || "") || !ID_RE.test(fixtureStore || "") ||
+          !Array.isArray(caseIds) || caseIds.length < Dataset.MINIMUM_CASES || caseIds.length > Dataset.MAXIMUM_CASES ||
+          new Set(caseIds).size !== caseIds.length) return { ok: false };
+      const fixtures = [];
+      let scope = "";
+      for (const id of caseIds) {
+        const fixture = readSync(fixtureStore, id);
+        const contract = FixtureContract.validateFixture(fixture);
+        if (!contract || contract.ok !== true || fixture.caseId !== id || fixture.synthetic !== true ||
+            fixture.datasetId !== datasetId || fixture.datasetVersion !== version ||
+            fixture.fixtureStore !== fixtureStore || !plainObject(fixture.input) || !plainObject(fixture.reference)) return { ok: false };
+        if (!ALLOWED_SCOPES.has(fixture.scope) || (scope && fixture.scope !== scope)) return { ok: false };
+        scope = fixture.scope;
+        fixtures.push(fixture);
+      }
+      const fixtureSetHash = hashFixtureSet(datasetId, version, fixtureStore, fixtures);
+      if (fixtures.some(f => f.fixtureSetHash !== fixtureSetHash)) return { ok: false };
+      return { ok: true, syntheticOnly: true, datasetId, version, fixtureStore, scope, caseCount: fixtures.length, fixtureSetHash };
+    } catch (_) { return { ok: false }; }
+  }
+  function loadFixtureSync(caseId, context = {}) {
+    const fixture = readSync(context.fixtureStore, caseId);
+    const contract = FixtureContract.validateFixture(fixture);
+    if (!contract || contract.ok !== true) throw new Error("fixture_contract_invalid");
+    if (fixture.datasetId !== context.datasetId || fixture.datasetVersion !== context.datasetVersion ||
+        fixture.fixtureStore !== context.fixtureStore || fixture.scope !== context.scope ||
+        fixture.fixtureSetHash !== context.fixtureSetHash) throw new Error("fixture_binding_mismatch");
+    return fixture;
+  }
+  return Object.freeze({ VERSION, directory: root, verifyFixtureSet, verifyFixtureSetSync, loadFixture, loadFixtureSync });
 }
 
 module.exports = { VERSION, createMarionLearningFixtureStore, hashFixtureSet };
