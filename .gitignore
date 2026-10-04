@@ -15,6 +15,16 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Local package registry credentials and private key material
+.npmrc
+!/.npmrc.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
 # =========================
 # Local runtime output / curl dumps
 # =========================
