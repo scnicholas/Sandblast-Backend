@@ -1,12 +1,14 @@
 "use strict";
 
-const VERSION = "marion.learningRuntime/1.2-evaluation-capture-gate";
+const VERSION = "marion.learningRuntime/1.3-accurate-evaluation-health";
 
 function isVerifiedOwner(authContext) {
   return !!(authContext && authContext.authenticated === true && authContext.role === "owner" && authContext.verifiedBy === "server_middleware" && typeof authContext.actorId === "string" && authContext.actorId.trim());
 }
 
-function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry, healthProbe = async () => ({ ready: true }), captureEnabled = false } = {}) {
+function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry,
+  healthProbe = async () => ({ ready: true }), offlineEvaluationReady = async () => false,
+  captureEnabled = false } = {}) {
   if (!signalAdapter || typeof signalAdapter.record !== "function") throw new TypeError("signalAdapter.record is required");
   if (!evaluator || typeof evaluator.evaluate !== "function") throw new TypeError("evaluator.evaluate is required");
   if (!approvalGate || typeof approvalGate.submitEvaluation !== "function" || typeof approvalGate.decide !== "function") throw new TypeError("approvalGate methods are required");
@@ -76,24 +78,26 @@ function createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, m
   async function getPrivateHealth(authContext) {
     if (!isVerifiedOwner(authContext)) return { ok: false, status: 403, reason: "owner_authentication_required" };
     let dependencyStatus;
-    try {
-      dependencyStatus = await healthProbe();
-    } catch (_) {
-      dependencyStatus = { ready: false };
-    }
-    const ready = !!(dependencyStatus && dependencyStatus.ready === true);
+    let offlineReady = false;
+    try { dependencyStatus = await healthProbe(); }
+    catch (_) { dependencyStatus = { ready: false }; }
+    try { offlineReady = await offlineEvaluationReady() === true; }
+    catch (_) { offlineReady = false; }
+    const storageReady = !!(dependencyStatus && dependencyStatus.ready === true);
+    const ready = storageReady && offlineReady;
     return {
       ok: true, status: ready ? 200 : 503,
       service: "marion-learning-runtime", version: VERSION,
       mode: "offline_candidate_evaluation_only",
       ready, liveActivationEnabled: false,
+      reason: ready ? "ready" : !storageReady ? "durable_storage_not_ready" : "offline_handlers_not_registered",
       transcriptStorageEnabled: false, audioStorageEnabled: false,
       dependencies: {
-        signalCapture: true,
-        offlineEvaluation: true,
+        signalCapture: captureEnabled === true,
+        offlineEvaluation: offlineReady,
         approvalGate: true,
         manifestRegistry: true,
-        privateDurableStores: ready
+        privateDurableStores: storageReady
       }
     };
   }
