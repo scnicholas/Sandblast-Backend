@@ -2599,7 +2599,7 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.4-learning-bootstrap-consent-gate";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.5-storage-readiness-probe";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
@@ -2871,6 +2871,32 @@ function marionLearningStorageConfiguration() {
     }
   }
   return Object.freeze({ storage: "postgresql", configured, enabled, evaluationEnabled, runtimeEnabled, ready: false, reason });
+}
+
+// Storage readiness is populated by the read-only Postgres schema probe during
+// server startup. Keep configuration separate from verified runtime state so
+// health does not claim the schema is ready before that probe completes.
+function marionLearningStorageReadiness() {
+  const config = marionLearningStorageConfiguration();
+  if (!config.runtimeEnabled || !config.configured) return config;
+  const probe = app.locals && app.locals.marionLearningPostgresReadiness;
+  if (!probe || probe.checked !== true) {
+    return Object.freeze({ ...config, ready: false, reason: "evaluation_runtime_schema_check_pending" });
+  }
+  const reason = /^[a-z0-9_]+$/i.test(String(probe.reason || ""))
+    ? String(probe.reason)
+    : "evaluation_runtime_schema_check_failed";
+  return Object.freeze({ ...config, ready: probe.ready === true, reason });
+}
+
+function recordMarionLearningStorageReadiness(ready, reason) {
+  app.locals = app.locals || {};
+  const safeReason = /^[a-z0-9_]+$/i.test(String(reason || ""))
+    ? String(reason)
+    : "evaluation_runtime_schema_check_failed";
+  const state = Object.freeze({ checked: true, ready: ready === true, reason: safeReason, checkedAt: Date.now() });
+  app.locals.marionLearningPostgresReadiness = state;
+  return state;
 }
 
 // Schema changes are deliberately separate from server startup. This guarded,
@@ -4217,10 +4243,24 @@ app.options([...MARION_ADMIN_CONVERSATION_ROUTES, ...MARION_ADMIN_CONVERSATION_H
   return res.status(204).end();
 });
 
-app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
+app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
   const marionLearning = ensureMarionLearningRuntime();
+  const storageProbePromise = app.locals && app.locals.marionLearningPostgresReadinessPromise;
+  if (storageProbePromise && typeof storageProbePromise.then === "function") {
+    try { await storageProbePromise; } catch (_) {}
+  }
+  const learningStorage = marionLearningStorageReadiness();
+  const offlineHandlersReady = marionLearningOfflineHandlersReady();
+  const offlineEvaluationReady = marionLearning.ready && learningStorage.ready && offlineHandlersReady;
+  const offlineEvaluationReason = offlineEvaluationReady
+    ? "ready"
+    : !learningStorage.ready
+      ? learningStorage.reason
+      : !marionLearning.ready
+        ? String(marionLearning.status || "marion_learning_runtime_not_ready")
+        : "offline_evaluation_handlers_not_registered";
 
   let MarionVoiceGateway = null;
   try {
@@ -4283,11 +4323,12 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
       version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || "")
     },
     selfLearning: {
-      enabled: marionLearningStorageConfiguration().enabled,
-      evaluationEnabled: marionLearningStorageConfiguration().evaluationEnabled,
-      offlineEvaluationReady: marionLearning.ready && marionLearningOfflineHandlersReady(),
+      enabled: learningStorage.enabled,
+      evaluationEnabled: learningStorage.evaluationEnabled,
+      offlineEvaluationReady,
+      offlineEvaluationReason,
       status: marionLearning.status,
-      storage: marionLearningStorageConfiguration(),
+      storage: learningStorage,
       requiresExplicitOwnerConsent: true,
       requiresDurableAdapters: true,
       liveActivationEnabled: false,
@@ -25562,11 +25603,12 @@ function startSandblastServer(port = PORT) {
   if (learningStorage.runtimeEnabled) learningSetup = ensureMarionLearningRuntime();
   let storageProbe = null;
   let databaseProbeSetupStatus = "not_configured";
-  if (learningStorage.configured && (!learningStorage.runtimeEnabled || learningSetup.ready)) {
+  if (learningStorage.configured) {
     try {
       const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
       if (learningStorage.runtimeEnabled) {
         const pgPool = getMarionLearningPostgresPool();
+        if (!pgPool) throw new Error("postgres_pool_unavailable");
         storageProbe = () => adapterModule.probeMarionLearningPostgres(pgPool);
       } else {
         // Probe database reachability independently without enabling learning or evaluation.
@@ -25599,13 +25641,29 @@ function startSandblastServer(port = PORT) {
         learningSetup = { ready: false, status: databaseProbeSetupStatus };
       }
     }
-  } else if (learningStorage.configured && learningStorage.runtimeEnabled && !learningSetup.ready) {
-    databaseProbeSetupStatus = "skipped_runtime_not_ready";
   }
-  Promise.resolve()
+  app.locals = app.locals || {};
+  if (learningStorage.runtimeEnabled && learningStorage.configured) {
+    app.locals.marionLearningPostgresReadiness = Object.freeze({
+      checked: false,
+      ready: false,
+      reason: "evaluation_runtime_schema_check_pending"
+    });
+  }
+  const storageReadinessPromise = Promise.resolve()
     .then(() => typeof storageProbe === "function" ? storageProbe() : null)
     .then(result => {
       const databaseReady = !!(result && result.ready === true);
+      const readinessReason = databaseReady
+        ? "evaluation_storage_ready"
+        : typeof storageProbe === "function"
+          ? "evaluation_runtime_schema_check_required"
+          : databaseProbeSetupStatus === "postgres_dependency_missing"
+            ? "postgres_dependency_missing"
+            : databaseProbeSetupStatus === "postgres_adapter_unavailable"
+              ? "postgres_adapter_unavailable"
+              : "evaluation_runtime_schema_check_unavailable";
+      const readiness = recordMarionLearningStorageReadiness(databaseReady, readinessReason);
       console.log("[Sandblast][marion-learning-postgres]", {
         configured: learningStorage.configured,
         databaseProbeRan: typeof storageProbe === "function",
@@ -25613,22 +25671,30 @@ function startSandblastServer(port = PORT) {
         databaseProbeStatus: typeof storageProbe === "function"
           ? databaseReady ? "ready" : "not_ready"
           : databaseProbeSetupStatus,
+        readinessReason: readiness.reason,
         learningEnabled: learningStorage.enabled,
         evaluationEnabled: learningStorage.evaluationEnabled,
         runtimeStatus: learningSetup.status,
         liveActivationEnabled: false
       });
+      return readiness;
     })
-    .catch(() => console.log("[Sandblast][marion-learning-postgres]", {
-      configured: learningStorage.configured,
-      databaseProbeRan: true,
-      databaseReady: false,
-      databaseProbeStatus: "failed",
-      learningEnabled: learningStorage.enabled,
-      evaluationEnabled: learningStorage.evaluationEnabled,
-      runtimeStatus: learningSetup.status,
-      liveActivationEnabled: false
-    }));
+    .catch(() => {
+      const readiness = recordMarionLearningStorageReadiness(false, "evaluation_runtime_schema_check_failed");
+      console.log("[Sandblast][marion-learning-postgres]", {
+        configured: learningStorage.configured,
+        databaseProbeRan: typeof storageProbe === "function",
+        databaseReady: false,
+        databaseProbeStatus: "failed",
+        readinessReason: readiness.reason,
+        learningEnabled: learningStorage.enabled,
+        evaluationEnabled: learningStorage.evaluationEnabled,
+        runtimeStatus: learningSetup.status,
+        liveActivationEnabled: false
+      });
+      return readiness;
+    });
+  app.locals.marionLearningPostgresReadinessPromise = storageReadinessPromise;
   server = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
     try {
