@@ -7,12 +7,12 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/1.3-owner-review-issuer-wired";
+const VERSION = "marion.learningBackendSetup/1.4-offline-health-probe";
 
 function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
   verifyFixtureSet, verifyFixtureReview, issueFixtureReview, resolveVersion, loadFixture, scoreFixture,
-  healthProbe, captureEnabled = false, gateway
+  healthProbe, offlineEvaluationReady, captureEnabled = false, gateway
 } = {}) {
   if (!signalStore || typeof signalStore.appendSignal !== "function") throw new TypeError("private durable signalStore.appendSignal is required");
   if (!proposalStore || typeof proposalStore.get !== "function" || typeof proposalStore.set !== "function") throw new TypeError("private durable proposalStore.get/set are required");
@@ -39,7 +39,8 @@ function createAndRegisterMarionLearningBackend({
   const signalAdapter = createMarionLearningSignalAdapter({ signalStore });
   const evaluator = createEvaluator({ runVersion: offlineRunner.runVersion, auditStore });
   const approvalGate = createApprovalGate({ proposalStore, auditStore });
-  const runtime = createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry, healthProbe, captureEnabled });
+  const runtime = createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry,
+    healthProbe, offlineEvaluationReady, captureEnabled });
   const gatewayModule = gateway || require("../MarionVoiceGateway.js");
   if (!gatewayModule || typeof gatewayModule.registerMarionLearningRuntime !== "function") {
     throw new Error("Gateway learning registration hook is unavailable");
