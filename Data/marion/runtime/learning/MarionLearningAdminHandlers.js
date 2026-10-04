@@ -4,7 +4,7 @@
 // Marion admin routes. Authentication is resolved from server middleware only.
 const crypto = require("node:crypto");
 const { isVerifiedOwner } = require("./MarionLearningRuntime");
-const VERSION = "marion.learningAdminHandlers/1.2-server-issued-review-id";
+const VERSION = "marion.learningAdminHandlers/1.3-readiness-status-codes";
 
 function objectBody(request) {
   return request && request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body : {};
@@ -31,7 +31,8 @@ function createMarionLearningAdminHandlers({ runtime, getVerifiedOwnerContext } 
       if (result && result.ok === true) return reply(200, result);
       const reason = result && typeof result.reason === "string" ? result.reason : "learning_request_rejected";
       const status = reason === "owner_authentication_required" ? 403 :
-        /not_registered|mismatch|revoked|unavailable|race/.test(reason) ? 409 : 422;
+        ["offline_evaluation_handlers_not_registered", "durable_storage_not_ready"].includes(reason) || /(?:_unavailable|_not_ready)$/.test(reason) ? 503 :
+          /not_registered|mismatch|revoked|race/.test(reason) ? 409 : 422;
       return reply(status, { ok: false, reason });
     } catch (_) {
       return reply(503, { ok: false, reason: "learning_registry_unavailable" });
