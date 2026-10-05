@@ -5,7 +5,7 @@
 // labels, expected checks, private identity, tools, and session data do not.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.1-evidence-aware-async";
+const VERSION = "marion.learningOfflineComposerVersions/1.2-evidence-aware-sync-registration";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 
@@ -102,10 +102,10 @@ function createOfflineEntry(version, compose, bindings) {
   });
 }
 
-async function registerMarionLearningOfflineComposerVersions({ versionRegistry, manifestSource, fixtureStore, composer } = {}) {
+function registerMarionLearningOfflineComposerVersions({ versionRegistry, manifestSource, fixtureStore, composer } = {}) {
   if (!(versionRegistry instanceof Map)) return { ok: false, reason: "offline_version_registry_missing" };
-  if (!manifestSource || typeof manifestSource.list !== "function" ||
-      !fixtureStore || typeof fixtureStore.verifyFixtureSet !== "function") {
+  if (!manifestSource || typeof manifestSource.listSync !== "function" ||
+      !fixtureStore || typeof fixtureStore.verifyFixtureSetSync !== "function") {
     return { ok: false, reason: "offline_fixture_bootstrap_unavailable" };
   }
   if (!composer || typeof composer.composeMarionResponseBeforeR24 !== "function" ||
@@ -121,7 +121,7 @@ async function registerMarionLearningOfflineComposerVersions({ versionRegistry, 
   }
 
   let manifests;
-  try { manifests = await manifestSource.list(); }
+  try { manifests = manifestSource.listSync(); }
   catch (_) { return { ok: false, reason: "offline_manifest_source_unavailable" }; }
   if (!Array.isArray(manifests)) return { ok: false, reason: "offline_manifest_source_invalid" };
 
@@ -143,7 +143,7 @@ async function registerMarionLearningOfflineComposerVersions({ versionRegistry, 
     const dataset = item.dataset;
     let fixtureSet;
     try {
-      fixtureSet = await fixtureStore.verifyFixtureSet({
+      fixtureSet = fixtureStore.verifyFixtureSetSync({
         datasetId: dataset.datasetId,
         version: dataset.version,
         fixtureStore: dataset.fixtureStore,
