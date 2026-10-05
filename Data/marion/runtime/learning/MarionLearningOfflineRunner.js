@@ -4,7 +4,16 @@
 // synthetic fixtures bound to one validated dataset manifest and fixture store.
 // Outputs and fixture contents are never persisted or included in the report.
 
-const VERSION = "marion.learningOfflineRunner/1.4-handler-binding-hardlock";
+const VERSION = "marion.learningOfflineRunner/1.5-sanitized-failure-diagnostics";
+const DIAGNOSTICS_VERSION = "marion.learningDiagnostics/1.0";
+const MAX_DIAGNOSTIC_CASES = 100;
+const MAX_DIAGNOSTIC_CHECKS_PER_CASE = 32;
+const SAFE_DIAGNOSTIC_CHECK_TYPES = new Set([
+  "sentence_count_max", "sentence_words_max", "max_words", "contains_all",
+  "contains_any", "phrase_absent", "phrase_present_any", "heading_present",
+  "bullet_count_exact", "question_count_exact", "definition_of_term",
+  "uncertainty_present", "correction_present", "exact_match"
+]);
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const FORBIDDEN_FIXTURE_KEYS = new Set([
@@ -36,6 +45,32 @@ function validateFixtureData(value, seen = new Set(), state = { nodes: 0 }, dept
 function finiteScore(value) {
   const score = Number(value);
   return Number.isFinite(score) && score >= 0 && score <= 1 ? score : null;
+}
+
+function sanitizeFailedChecks(scored) {
+  if (!scored || !Array.isArray(scored.failedChecks) || scored.failedChecks.length > MAX_FIXTURE_NODES) return null;
+  const result = [];
+  const seenIndexes = new Set();
+  for (const item of scored.failedChecks) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const descriptors = Object.getOwnPropertyDescriptors(item);
+    const keys = Reflect.ownKeys(descriptors);
+    if (keys.length !== 3 || keys.some(key => typeof key !== "string" ||
+        !["index", "type", "critical"].includes(key) || descriptors[key].enumerable !== true ||
+        !Object.prototype.hasOwnProperty.call(descriptors[key], "value"))) return null;
+    const index = descriptors.index.value;
+    const type = descriptors.type.value;
+    const critical = descriptors.critical.value;
+    if (!Number.isInteger(index) || index < 0 || index >= MAX_FIXTURE_NODES || seenIndexes.has(index) ||
+        typeof type !== "string" || !SAFE_DIAGNOSTIC_CHECK_TYPES.has(type) || typeof critical !== "boolean") return null;
+    seenIndexes.add(index);
+    result.push(Object.freeze({ index, type, critical }));
+  }
+  return result;
+}
+
+function countObject(counts) {
+  return Object.freeze(Object.fromEntries(Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]))));
 }
 
 function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreFixture, authorizeEvaluation, maxCases = 500 } = {}) {
@@ -75,6 +110,14 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
     let total = 0;
     const regressions = [];
     const criticalFailures = [];
+    const failedCheckCounts = new Map();
+    const criticalCheckCounts = new Map();
+    const failedCases = [];
+    let failedCaseCount = 0;
+    let criticalFailureCaseCount = 0;
+    let failedCheckCount = 0;
+    let criticalCheckCount = 0;
+    let omittedCaseCount = 0;
     for (const caseId of caseIds) {
       const fixture = await loadFixture(caseId, Object.freeze({ ...runContext, caseId }));
       if (!fixture || fixture.caseId !== caseId || fixture.synthetic !== true ||
@@ -90,11 +133,36 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       }));
       const scored = await scoreFixture(fixture, output, Object.freeze({ ...runContext, version: versionId, caseId }));
       const score = finiteScore(scored && scored.score);
-      if (score === null) throw new Error("fixture_score_invalid");
+      if (score === null || !scored || typeof scored.criticalFailure !== "boolean") throw new Error("fixture_score_invalid");
+      const failedChecks = sanitizeFailedChecks(scored);
+      if (!failedChecks) throw new Error("fixture_diagnostics_invalid");
+      const hasCriticalCheckFailure = failedChecks.some(item => item.critical);
+      if (hasCriticalCheckFailure !== scored.criticalFailure) throw new Error("fixture_diagnostics_inconsistent");
       total += score;
       const delta = Number(scored && scored.delta);
       if (Number.isFinite(delta) && delta < 0) regressions.push({ caseId, delta });
       if (scored && scored.criticalFailure === true) criticalFailures.push({ caseId });
+      if (scored.criticalFailure) criticalFailureCaseCount++;
+      if (failedChecks.length) {
+        failedCaseCount++;
+        failedCheckCount += failedChecks.length;
+        for (const check of failedChecks) {
+          failedCheckCounts.set(check.type, (failedCheckCounts.get(check.type) || 0) + 1);
+          if (check.critical) {
+            criticalCheckCount++;
+            criticalCheckCounts.set(check.type, (criticalCheckCounts.get(check.type) || 0) + 1);
+          }
+        }
+        if (failedCases.length < MAX_DIAGNOSTIC_CASES) {
+          failedCases.push(Object.freeze({
+            caseId,
+            failedCheckCount: failedChecks.length,
+            criticalFailure: scored.criticalFailure,
+            failedChecks: Object.freeze(failedChecks.slice(0, MAX_DIAGNOSTIC_CHECKS_PER_CASE)),
+            omittedCheckCount: Math.max(0, failedChecks.length - MAX_DIAGNOSTIC_CHECKS_PER_CASE)
+          }));
+        } else omittedCaseCount++;
+      }
     }
 
     return Object.freeze({
@@ -105,7 +173,19 @@ function createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreF
       caseCount: caseIds.length,
       score: total / caseIds.length,
       regressions: Object.freeze(regressions),
-      criticalFailures: Object.freeze(criticalFailures)
+      criticalFailures: Object.freeze(criticalFailures),
+      diagnostics: Object.freeze({
+        version: DIAGNOSTICS_VERSION,
+        complete: true,
+        failedCaseCount,
+        criticalFailureCaseCount,
+        failedCheckCount,
+        criticalCheckCount,
+        failedCheckCounts: countObject(failedCheckCounts),
+        criticalCheckCounts: countObject(criticalCheckCounts),
+        failedCases: Object.freeze(failedCases),
+        omittedCaseCount
+      })
     });
   }
 
