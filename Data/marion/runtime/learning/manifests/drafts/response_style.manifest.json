@@ -1,6 +1,6 @@
 {
   "datasetId": "marion.response-style.synthetic.v2",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "fixtureStore": "marion.fx.style.v2",
   "cases": [
     {
