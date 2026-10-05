@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningFixtureContract/1.2-text-rubric-scoring";
+const VERSION = "marion.learningFixtureContract/1.3-sanitized-failure-diagnostics";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const ALLOWED_SCOPES = new Set(["retrieval", "routing", "response_style"]);
 const STYLE_TAGS = new Set([
@@ -179,21 +179,38 @@ function scoreFixture(fixture, output) {
     const expected = fixture.reference.expected;
     const keys = Object.keys(expected);
     let matched = 0;
-    for (const key of keys) if (stableJson(output[key]) === stableJson(expected[key])) matched++;
+    const failedChecks = [];
+    for (let index = 0; index < keys.length; index++) {
+      const key = keys[index];
+      if (stableJson(output[key]) === stableJson(expected[key])) matched++;
+      else failedChecks.push(Object.freeze({ index, type: "exact_match", critical: true }));
+    }
     const score = matched / keys.length;
-    return Object.freeze({ score, criticalFailure: score < 1 });
+    return Object.freeze({ score, criticalFailure: score < 1, failedChecks: Object.freeze(failedChecks) });
   }
   const reply = extractReply(output);
   if (!reply || reply.length > 16000) throw new TypeError("response_style_reply_required");
   const checks = fixture.reference.rubric.checks;
   let passed = 0;
   let criticalFailure = false;
-  for (const check of checks) {
+  const failedChecks = [];
+  for (let index = 0; index < checks.length; index++) {
+    const check = checks[index];
     const success = checkPasses(check, reply);
     if (success) passed++;
-    if (!success && check.critical !== false) criticalFailure = true;
+    if (!success) {
+      const critical = check.critical !== false;
+      failedChecks.push(Object.freeze({ index, type: check.type, critical }));
+      if (critical) criticalFailure = true;
+    }
   }
-  return Object.freeze({ score: passed / checks.length, criticalFailure, passedChecks: passed, totalChecks: checks.length });
+  return Object.freeze({
+    score: passed / checks.length,
+    criticalFailure,
+    passedChecks: passed,
+    totalChecks: checks.length,
+    failedChecks: Object.freeze(failedChecks)
+  });
 }
 
 module.exports = { VERSION, validateFixture, scoreFixture };
