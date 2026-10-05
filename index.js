@@ -22887,9 +22887,15 @@ function marionAdminConsoleMasterRequestAuth(req) {
       break;
     }
   }
-  const mfaCandidate = cleanText(headers["x-sb-marion-admin-mfa-token"] || headers["x-sb-marion-admin-console-mfa-token"] || headers["x-marion-admin-mfa-token"] || "");
+  const mfaCandidates = uniq([
+    headers["x-sb-marion-admin-mfa-token"],
+    headers["x-sb-marion-admin-console-mfa-token"],
+    headers["x-marion-admin-mfa-token"]
+  ].map((item) => cleanText(item || "")).filter(Boolean));
   const mfaRequired = mfaTokens.length > 0;
-  const mfaVerified = !mfaRequired || mfaTokens.some((token) => timingSafeTextEqual(mfaCandidate, token));
+  const mfaVerified = !mfaRequired || mfaCandidates.some((candidate) =>
+    mfaTokens.some((token) => timingSafeTextEqual(candidate, token))
+  );
   const verified = !!verifiedCandidate && mfaVerified;
   const role = verified ? verifiedRole : MARION_ADMIN_CONSOLE_ROLES.BLOCKED;
   const capabilities = verified ? marionAdminConsoleCapabilitiesForRole(role) : [];
@@ -22901,7 +22907,7 @@ function marionAdminConsoleMasterRequestAuth(req) {
     provided: candidates.length > 0,
     source: verifiedCandidate ? verifiedCandidate.source : (candidates.length ? "invalid" : "none"),
     mfaRequired,
-    mfaProvided: !!mfaCandidate,
+    mfaProvided: mfaCandidates.length > 0,
     mfaVerified,
     sessionVerified: false,
     sessionProvided: false,
@@ -23079,6 +23085,7 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     remoteTrustedUserBoundary: !!(auth && auth.remoteTrustedUserBoundary),
     mfaRequired: !!(auth && auth.mfaRequired),
     mfaProvided: !!(auth && auth.mfaProvided),
+    mfaVerified: !!(auth && auth.mfaVerified),
     publicSurface: "Nyx",
     authority: "Marion",
     diagnosticsRedacted: true,
