@@ -1,11 +1,11 @@
 "use strict";
 
-// Registers the two actual response composer versions for bounded, synthetic
-// offline evaluation. Every registration is tied to a fixture set that was
-// re-read, contract-checked, and content-hash verified at process startup.
+// Registers real composer versions for bounded, synthetic offline evaluation.
+// Only request text and supplied synthetic evidence cross this boundary; rubric
+// labels, expected checks, private identity, tools, and session data do not.
 const Dataset = require("./MarionLearningDataset");
 
-const VERSION = "marion.learningOfflineComposerVersions/1.0-synthetic-response-style";
+const VERSION = "marion.learningOfflineComposerVersions/1.1-evidence-aware-async";
 const RESPONSE_STYLE_SCOPE = "response_style";
 const MAX_REQUEST_CHARS = 8000;
 
@@ -16,6 +16,30 @@ function isPlainObject(value) {
   const descriptors = Object.getOwnPropertyDescriptors(value);
   return Reflect.ownKeys(descriptors).every(key => typeof key === "string" &&
     descriptors[key].enumerable === true && Object.prototype.hasOwnProperty.call(descriptors[key], "value"));
+}
+
+function cleanText(value, limit = 1000) {
+  if (typeof value !== "string") return "";
+  return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
+}
+
+function renderEvidence(evidence) {
+  if (evidence === undefined) return "";
+  if (!isPlainObject(evidence)) throw new Error("offline_fixture_evidence_invalid");
+  const keys = Object.keys(evidence).sort();
+  if (!keys.length) return "";
+  if (keys.length > 20) throw new Error("offline_fixture_evidence_invalid");
+  const lines = [];
+  for (const key of keys) {
+    const label = cleanText(key, 80);
+    const value = evidence[key];
+    if (!label || (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") ||
+        (typeof value === "number" && !Number.isFinite(value))) throw new Error("offline_fixture_evidence_invalid");
+    const rendered = typeof value === "string" ? cleanText(value, 1000) : String(value);
+    if (!rendered) throw new Error("offline_fixture_evidence_invalid");
+    lines.push(`- ${label}: ${rendered}`);
+  }
+  return `\n\nProvided synthetic facts for this task:\n${lines.join("\n")}\nUse only these facts for factual details.`;
 }
 
 function extractReply(result) {
@@ -49,14 +73,13 @@ function createOfflineEntry(version, compose, bindings) {
       const bound = frozenBindings.some(binding => binding.datasetId === context.datasetId &&
         binding.datasetVersion === context.datasetVersion && binding.scope === context.scope);
       if (!bound) throw new Error("offline_composer_binding_missing");
+      const composerRequest = `${request}${renderEvidence(input.evidence)}`;
+      if (composerRequest.length > MAX_REQUEST_CHARS) throw new Error("offline_fixture_request_invalid");
 
-      // Pass a new public-only projection. Fixture fields, expected values,
-      // private identity, stored conversation state, tools, and auth never reach
-      // the production composer.
       const routed = Object.freeze({});
       const composerInput = Object.freeze({
-        rawUserText: request,
-        userText: request,
+        rawUserText: composerRequest,
+        userText: composerRequest,
         inputChannel: "text",
         turnId: `offline_${context.caseId}`,
         audience: "public",
@@ -74,17 +97,15 @@ function createOfflineEntry(version, compose, bindings) {
       const result = await compose(routed, composerInput);
       const reply = extractReply(result);
       if (!reply) throw new Error("offline_composer_did_not_return_accepted_final");
-      // Only the scoreable text aliases leave this boundary; diagnostics and
-      // memory/session patches from the composer are discarded.
       return Object.freeze({ reply, text: reply, displayReply: reply, visibleReply: reply });
     }
   });
 }
 
-function registerMarionLearningOfflineComposerVersions({ versionRegistry, manifestSource, fixtureStore, composer } = {}) {
+async function registerMarionLearningOfflineComposerVersions({ versionRegistry, manifestSource, fixtureStore, composer } = {}) {
   if (!(versionRegistry instanceof Map)) return { ok: false, reason: "offline_version_registry_missing" };
-  if (!manifestSource || typeof manifestSource.listSync !== "function" ||
-      !fixtureStore || typeof fixtureStore.verifyFixtureSetSync !== "function") {
+  if (!manifestSource || typeof manifestSource.list !== "function" ||
+      !fixtureStore || typeof fixtureStore.verifyFixtureSet !== "function") {
     return { ok: false, reason: "offline_fixture_bootstrap_unavailable" };
   }
   if (!composer || typeof composer.composeMarionResponseBeforeR24 !== "function" ||
@@ -100,7 +121,7 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
   }
 
   let manifests;
-  try { manifests = manifestSource.listSync(); }
+  try { manifests = await manifestSource.list(); }
   catch (_) { return { ok: false, reason: "offline_manifest_source_unavailable" }; }
   if (!Array.isArray(manifests)) return { ok: false, reason: "offline_manifest_source_invalid" };
 
@@ -120,12 +141,15 @@ function registerMarionLearningOfflineComposerVersions({ versionRegistry, manife
     if (counts.get(item.key) !== 1 || seen.has(item.key)) continue;
     seen.add(item.key);
     const dataset = item.dataset;
-    const fixtureSet = fixtureStore.verifyFixtureSetSync({
-      datasetId: dataset.datasetId,
-      version: dataset.version,
-      fixtureStore: dataset.fixtureStore,
-      caseIds: dataset.caseIds
-    });
+    let fixtureSet;
+    try {
+      fixtureSet = await fixtureStore.verifyFixtureSet({
+        datasetId: dataset.datasetId,
+        version: dataset.version,
+        fixtureStore: dataset.fixtureStore,
+        caseIds: dataset.caseIds
+      });
+    } catch (_) { continue; }
     if (!fixtureSet || fixtureSet.ok !== true || fixtureSet.syntheticOnly !== true ||
         fixtureSet.scope !== RESPONSE_STYLE_SCOPE || fixtureSet.datasetId !== dataset.datasetId ||
         fixtureSet.version !== dataset.version || fixtureSet.fixtureStore !== dataset.fixtureStore ||
