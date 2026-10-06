@@ -29190,6 +29190,27 @@ function isSandblastTvOperationalResponseV2(req) {
     isNyxOperationalVoiceResponseV2(req);
 }
 
+const MARION_PRIVATE_CONTROL_PLANE_PREFIXES = Object.freeze([
+  "/api/private/marion",
+  "/private/marion",
+  "/api/marion/admin",
+  "/marion/admin",
+  "/api/lingosentinel/private/marion"
+]);
+
+// Public conversation projectors must never rewrite private Marion control-plane
+// responses, especially authorization failures and machine-readable admin APIs.
+function isMarionPrivateControlPlaneRequest(req) {
+  const requestPath = normalizeOperationalResponsePathV5(req);
+  return MARION_PRIVATE_CONTROL_PLANE_PREFIXES.some((prefix) =>
+    requestPath === prefix || requestPath.startsWith(`${prefix}/`)
+  );
+}
+
+function isGlobalResponseProjectionBypass(req) {
+  return isSandblastTvOperationalResponseV2(req) || isMarionPrivateControlPlaneRequest(req);
+}
+
 try {
   app.locals = app.locals || {};
   app.locals.operationalResponseProjectionBoundary = Object.freeze({
@@ -29518,7 +29539,7 @@ try {
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractText({ req: req, body: O(req.body), payload: O(req.body) });
@@ -29529,7 +29550,7 @@ try {
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractText({ req: req, body: O(req.body), payload: O(req.body) });
@@ -29974,9 +29995,10 @@ try {
     };
   }
   function isUserChatRoute(req){
-    const url = L(firstText(req && req.originalUrl, req && req.url, req && req.path));
-    if (!url) return true;
-    return /\/api\/chat\b|\/chat\b|\/marion\b|\/admin\b/i.test(url);
+    const url = L(firstText(req && req.originalUrl, req && req.url, req && req.path))
+      .split("?")[0]
+      .replace(/\/+$/g, "");
+    return url === "/api/chat" || url === "/chat" || url === "/respond";
   }
   function wrap(name){
     const old = module.exports[name];
@@ -30009,7 +30031,7 @@ try {
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -30023,7 +30045,7 @@ try {
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -30335,7 +30357,7 @@ try {
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -30346,7 +30368,7 @@ try {
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -30447,8 +30469,8 @@ try {
         if(isConversationHealth(req))return body;
         try{const projected=lock.projectPublicPayload(body,{body:req&&req.body,headers:req&&req.headers});return preserveTrustedFinal(body,projected,req);}catch(_err){return body;}
       }
-      express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{if(isPublic(this&&this.req))body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
-      express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{if(isPublic(this&&this.req)){if(body&&typeof body==="object")body=project(this&&this.req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(this&&this.req,JSON.parse(s)));}catch(_parseErr){}}}}}catch(_err){}return oldSend.call(this,body);};
+      express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{if(isPublic(this&&this.req))body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
+      express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(isPublic(this&&this.req)){if(body&&typeof body==="object")body=project(this&&this.req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(this&&this.req,JSON.parse(s)));}catch(_parseErr){}}}}}catch(_err){}return oldSend.call(this,body);};
       express.response.__nyxPublicSurfaceIdentityLockPatched=true;
     }
   }catch(_err){}
@@ -30485,8 +30507,8 @@ try {
   let lock=null;try{lock=require("./Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
   if(!lock||!lock.projectResult||typeof express==="undefined"||!express.response||express.response.__phase3dVoiceTextParityHardlock)return;
   const oldJson=express.response.json; const oldSend=express.response.send;
-  express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
-  express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
+  express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
+  express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
   express.response.__phase3dVoiceTextParityHardlock=true;
   try{module.exports=Object.assign(module.exports||{},{PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_VERSION:V});}catch(_){}
 }catch(_){}})();
@@ -30613,14 +30635,14 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
-        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
         try { const info = classify(this && this.req); if (info) body = project(body, info); } catch (_) {}
         return oldJson.call(this, body);
       };
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
-        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classify(this && this.req);
           if (info) {
@@ -30639,7 +30661,7 @@ try {
 
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
-        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classify(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
@@ -30838,7 +30860,7 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
-        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) body = projectR5(body, info);
@@ -30848,7 +30870,7 @@ try {
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
-        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) {
@@ -30866,7 +30888,7 @@ try {
     }
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
-        if (isSandblastTvOperationalResponseV2(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
