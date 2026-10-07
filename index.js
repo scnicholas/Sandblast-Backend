@@ -280,15 +280,23 @@ const HARDENING_CONSTANTS = Object.freeze({
   AVATAR_MAX_BASENAME_CHARS: clampNumberEnv("SB_AVATAR_MAX_BASENAME_CHARS", 180, 16, 255)
 });
 
+function sandblastFatalProcessError(kind, error) {
+  try {
+    console.error(`[Sandblast][${kind}]`, error && (error.stack || error.message || error));
+  } catch (_) {}
+  // Continuing after an uncaught exception or unhandled rejection can leave
+  // request state and in-memory authorization state inconsistent. Let the
+  // process manager restart this instance instead of serving from a bad state.
+  process.exitCode = 1;
+  setImmediate(() => process.exit(1));
+}
+
 process.on("unhandledRejection", (reason) => {
-  console.log("[Sandblast][unhandledRejection]", reason && (reason.stack || reason.message || reason));
+  sandblastFatalProcessError("unhandledRejection", reason);
 });
 
 process.on("uncaughtException", (err) => {
-  console.log("[Sandblast][uncaughtException]", err && (err.stack || err.message || err));
-  try {
-    if (err && String(err.message || "").includes("EADDRINUSE")) process.exit(1);
-  } catch (_) {}
+  sandblastFatalProcessError("uncaughtException", err);
 });
 
 function tryRequireMany(paths) {
@@ -571,11 +579,27 @@ try {
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", true);
+const SB_TRUST_PROXY_HOPS = (() => {
+  const raw = cleanText(process.env.SB_TRUST_PROXY_HOPS || "");
+  const fallback = process.env.NODE_ENV === "production" ? 1 : 0;
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 8 ? parsed : fallback;
+})();
+app.set("trust proxy", SB_TRUST_PROXY_HOPS);
 app.locals.musicTopMoments = [];
 app.locals.musicSources = [];
 app.locals.musicMeta = { ok: false, file: "", count: 0, loadedAt: 0, source: "empty", degraded: false };
 app.locals.nyxTtsEnvironment = NYX_TTS_ENV_STATUS;
+
+function trustedClientIp(req) {
+  return cleanText(
+    (req && req.ip) ||
+    (req && req.socket && req.socket.remoteAddress) ||
+    (req && req.connection && req.connection.remoteAddress) ||
+    "unknown"
+  ).slice(0, 160) || "unknown";
+}
 
 /* LINGOSENTINEL_PHASE8_PUBLIC_ASSETS_START */
 // Public browser-safe LingoSentinel asset mount.
@@ -941,11 +965,7 @@ function lingoSentinelIndexTranslateResolveAdapter() {
 
 function lingoSentinelIndexTranslateRateAllowed(req) {
   const nowMs = Date.now();
-  const ip = lingoSentinelIndexTranslateText(
-    (req && (req.ip || (req.headers && req.headers["x-forwarded-for"]))) || "unknown",
-    120
-  ) || "unknown";
-  const key = ip.split(",")[0].trim();
+  const key = lingoSentinelIndexTranslateText(trustedClientIp(req), 120) || "unknown";
   const current = lingoSentinelIndexTranslateRate.get(key);
 
   if (!current || nowMs >= current.resetAt) {
@@ -1932,18 +1952,10 @@ function nyxGuide789TraceId(req) {
 }
 
 function nyxGuide789ClientKey(req) {
-  const forwarded = nyxGuideSafeText(req && req.headers && req.headers["x-forwarded-for"], 200)
-    .split(",")[0]
-    .trim();
-  const remote = nyxGuideSafeText(
-    forwarded ||
-    (req && req.ip) ||
-    (req && req.socket && req.socket.remoteAddress) ||
-    "unknown",
-    120
-  );
-  const session = nyxGuideSafeText(req && req.headers && req.headers["x-sb-session-id"], 96);
-  return nyxGuide789Hash(`${remote}|${session || "anonymous"}`).slice(0, 24);
+  // Rate-limit by the trusted client IP. A caller-controlled session ID must
+  // not create a fresh bucket on every request.
+  const remote = nyxGuideSafeText(trustedClientIp(req), 120);
+  return nyxGuide789Hash(remote).slice(0, 24);
 }
 
 function nyxGuide789OriginAccepted(req) {
@@ -8550,6 +8562,7 @@ function applyCors(req, res) {
     "x-sb-marion-admin-console-token",
     "x-sb-marion-admin-session-token",
     "x-sb-marion-testing-bypass",
+    MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER,
     "x-sb-marion-admin-testing-bypass",
     "x-sb-marion-admin-escalation-token",
     "x-sb-marion-admin-escalation-secret",
@@ -8755,8 +8768,7 @@ const SANDBLAST_TV_ADMIN_AUTH = sandblastTvApplyAdminTokenEnvironmentBridge();
 
 function sandblastTvAuthDiagnosticAllowed(req) {
   const now = Date.now();
-  const forwarded = String(req && req.headers && req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  const key = cleanText(forwarded || req && req.ip || req && req.socket && req.socket.remoteAddress || "unknown", 160);
+  const key = trustedClientIp(req);
   let entry = sandblastTvAuthDiagnosticRate.get(key);
   if (!entry || now >= entry.resetAt) entry = { count: 0, resetAt: now + 60_000 };
   entry.count += 1;
@@ -9705,9 +9717,7 @@ async function sendContactEmailViaHttpApi(data, cfg) {
 }
 
 function contactClientKey(req) {
-  const forwarded = cleanText(req && req.headers && req.headers["x-forwarded-for"] || "");
-  const ip = cleanText((forwarded.split(",")[0] || "") || req.ip || (req.socket && req.socket.remoteAddress) || "unknown");
-  return ip || "unknown";
+  return trustedClientIp(req);
 }
 
 function checkContactRateLimit(req) {
@@ -19182,9 +19192,7 @@ const TTS_RATE_BUCKET_MAX = clamp(Number(process.env.SB_TTS_RATE_BUCKET_MAX || 5
 const ttsRateBuckets = new Map();
 
 function ttsClientRateKey(req) {
-  const cf = cleanText(req && req.headers && req.headers["cf-connecting-ip"] || "");
-  const forwarded = cleanText(req && req.headers && req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return cleanText(cf || req && req.ip || forwarded || req && req.socket && req.socket.remoteAddress || "unknown") || "unknown";
+  return trustedClientIp(req);
 }
 
 function enforceTtsRateLimit(req, res, next) {
@@ -21959,7 +21967,7 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
 // Private admin console control plane. This must mount before static handlers
 // and the /api not_found guard so the protected Webflow/admin interface does
 // not fall through to 404. Body/query tokens are intentionally ignored.
-const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.7-test-bypass-session-issuer";
+const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.8-session-and-test-bypass-hardening";
 const MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH = "Data/marion/runtime/MarionAdminConsoleGateway.js";
 const MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH = "./" + MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH;
 
@@ -21983,14 +21991,18 @@ const MARION_ADMIN_CONSOLE_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_AD
 
 const MARION_ADMIN_CONSOLE_REMOTE_TRUSTED_USER_VERSION = "marion.adminConsole.remoteTrustedUser/1.0-permission-boundary";
 // Phase 3/4 RBAC declarations are consolidated below in the route-contract block.
-const MARION_ADMIN_CONSOLE_SESSION_VERSION = "marion.adminConsole.session/1.0-short-lived-hardlock";
+const MARION_ADMIN_CONSOLE_SESSION_VERSION = "marion.adminConsole.session/1.1-bounded-idle";
 const MARION_ADMIN_CONSOLE_SESSION_HEADER = "x-sb-marion-admin-session-token";
 const MARION_ADMIN_CONSOLE_SESSION_TTL_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_TTL_MS", 15 * 60 * 1000, 60 * 1000, 60 * 60 * 1000);
-const MARION_ADMIN_CONSOLE_SESSION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_IDLE_MS", 5 * 60 * 1000, 30 * 1000, 30 * 60 * 1000);
+// Keep enough idle time for a human verification cycle while still enforcing
+// the separately bounded absolute session lifetime.
+const MARION_ADMIN_CONSOLE_SESSION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_IDLE_MS", 10 * 60 * 1000, 30 * 1000, 30 * 60 * 1000);
 const MARION_ADMIN_CONSOLE_SESSION_MAX = clampNumberEnv("SB_MARION_ADMIN_SESSION_MAX", 25, 1, 250);
-const MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION = "marion.adminConsole.testBypassSessionIssuer/1.0-env-gated-origin-bound";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION = "marion.adminConsole.testBypassSessionIssuer/1.1-secret-and-origin-bound";
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER = "x-sb-marion-testing-bypass";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER = "x-sb-marion-testing-bypass-token";
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED = process.env.SB_MARION_ADMIN_TEST_BYPASS === "true";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN = cleanText(process.env.SB_MARION_ADMIN_TEST_BYPASS_TOKEN || "");
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOW_NO_ORIGIN = process.env.SB_MARION_ADMIN_TEST_BYPASS_ALLOW_NO_ORIGIN === "true";
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOWED_ORIGINS = Object.freeze(
   String(process.env.SB_MARION_ADMIN_TEST_BYPASS_ORIGINS || [
@@ -22107,7 +22119,7 @@ function marionAdminConsoleTestingBypassRequested(req) {
 function marionAdminConsoleTestingBypassClientKey(req) {
   const origin = marionAdminConsoleRequestOrigin(req) || "no-origin";
   const fp = marionAdminConsoleSessionFingerprint(req);
-  const ip = clipText((req && (req.ip || req.headers && (req.headers["x-forwarded-for"] || req.headers["cf-connecting-ip"]))) || "", 120);
+  const ip = clipText(trustedClientIp(req), 120);
   return marionAdminConsoleSha256([origin, fp, ip].join("|"));
 }
 
@@ -22116,7 +22128,7 @@ function marionAdminConsoleTestingBypassRequestAuth(req) {
   if (!requested) {
     return {
       verified: false,
-      configured: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED,
+      configured: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED && MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN.length >= 32,
       provided: false,
       source: "none",
       reason: "testing_bypass_not_requested",
@@ -22131,6 +22143,30 @@ function marionAdminConsoleTestingBypassRequestAuth(req) {
       provided: true,
       source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
       reason: "testing_bypass_disabled",
+      testBypass: true,
+      testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+    };
+  }
+  if (MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN.length < 32) {
+    return {
+      verified: false,
+      configured: false,
+      provided: true,
+      source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+      reason: "testing_bypass_token_not_configured",
+      testBypass: true,
+      testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+    };
+  }
+  const headers = req && req.headers ? req.headers : {};
+  const suppliedToken = cleanText(headers[MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER] || "");
+  if (!suppliedToken || !timingSafeTextEqual(suppliedToken, MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN)) {
+    return {
+      verified: false,
+      configured: true,
+      provided: true,
+      source: MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER,
+      reason: suppliedToken ? "testing_bypass_token_invalid" : "testing_bypass_token_required",
       testBypass: true,
       testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
     };
@@ -22971,7 +23007,8 @@ function marionAdminConsoleSessionIssueRequestAuth(req) {
   // SESSION-ISSUE-HARDLOCK:
   // Check remote trusted auth first so the remote token can never be accidentally
   // promoted through the broader master-token candidate list. Testing bypass is
-  // server-issued only and stays gated by SB_MARION_ADMIN_TEST_BYPASS + origin.
+  // server-issued only and requires an enabled flag, a 32+ character secret, and
+  // an allowed Origin; Origin alone is not an authentication factor.
   const remote = marionAdminConsoleRemoteTrustedUserRequestAuth(req);
   if (remote.verified) return remote;
 
@@ -23061,12 +23098,22 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
   const configured = auth && auth.configured === true;
   const mfaBlocked = configured && auth && auth.mfaRequired === true && auth.mfaVerified !== true;
   const status = configured ? 403 : 503;
+  const errorCode = mfaBlocked ? "admin_mfa_required" : (configured ? "admin_token_required" : "admin_token_not_configured");
+  const message = mfaBlocked
+    ? "A valid Marion admin MFA token is required."
+    : (configured ? "A valid Marion admin token or session is required." : "Marion admin authentication is not configured on this server.");
   return res.status(status).json({
     ok: false,
+    error: errorCode,
+    message,
+    detail: message,
+    statusCode: status,
     service: "marion-admin-console",
     version: MARION_ADMIN_CONSOLE_INDEX_VERSION,
     stage: configured ? "admin_authorization_required" : "admin_token_not_configured",
-    reason: mfaBlocked ? "admin_mfa_required" : (configured ? "admin_token_required" : "admin_token_not_configured"),
+    reason: errorCode,
+    authSource: cleanText(auth && auth.source || ""),
+    authReason: cleanText(auth && (auth.testingBypassReason || auth.sessionReason || auth.reason) || ""),
     routeMounted: true,
     privateControlPlane: true,
     adminRequired: true,
@@ -23794,7 +23841,9 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
         useHeader: MARION_ADMIN_CONSOLE_SESSION_HEADER,
         clearMasterTokenFromBrowser: auth.testBypass !== true,
         storeSessionTokenInMemoryOnly: true,
-        testingBypassEnvRequired: auth.testBypass === true ? "SB_MARION_ADMIN_TEST_BYPASS=true" : undefined
+        testingBypassEnvRequired: auth.testBypass === true ? "SB_MARION_ADMIN_TEST_BYPASS=true" : undefined,
+        testingBypassTokenHeaderRequired: auth.testBypass === true ? MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER : undefined,
+        testingBypassTokenEnvRequired: auth.testBypass === true ? "SB_MARION_ADMIN_TEST_BYPASS_TOKEN (minimum 32 characters)" : undefined
       }
     }));
   } catch (err) {
@@ -25243,6 +25292,8 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
         version: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION,
         enabled: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED,
         header: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+        tokenHeader: MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER,
+        tokenConfigured: MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN.length >= 32,
         originAllowed: marionAdminConsoleTestingBypassOriginAllowed(req),
         requested: marionAdminConsoleTestingBypassRequested(req)
       }
@@ -28904,8 +28955,9 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
           if(!layer||typeof layer.handle!=="function")return;
           var txt=S(layer.route&&layer.route.path||layer.regexp||"");
           var tvLayer=/sandblast(?:[-_]?tv|tv)/i.test(txt);
+          var protectedAdminLayer=/marion/i.test(txt)&&/admin/i.test(txt)&&/(?:health|status|command|approve|deny|emergency|session|escalation)/i.test(txt);
           var marionLayer=/marion|runtime|conversation|command/i.test(txt)||(/admin/i.test(txt)&&!tvLayer);
-          if(marionLayer&&!tvLayer)layer.handle=patchExpress(layer.handle,txt);
+          if(marionLayer&&!tvLayer&&!protectedAdminLayer)layer.handle=patchExpress(layer.handle,txt);
         }catch(_){}
       });
     }
