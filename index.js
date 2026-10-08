@@ -10654,6 +10654,15 @@ const chatEngineMod = tryRequireMany([
   "./utils/chatEngine.js"
 ]);
 
+// Optional Neon-backed polish for Nyx's deterministic public knowledge lane.
+// Marion-owned conversations continue through MarionBridge unchanged.
+const nyxOpenAIMod = tryRequireMany([
+  "./Utils/nyxOpenAI.js",
+  "./Utils/nyxOpenAI",
+  "./utils/nyxOpenAI.js",
+  "./utils/nyxOpenAI"
+]);
+
 const universalTranslatorAdapterMod = tryRequireMany([
   "./Data/marion/runtime/UniversalTranslatorAdapter",
   "./Data/marion/runtime/UniversalTranslatorAdapter.js",
@@ -19257,6 +19266,143 @@ function buildConversationSafeErrorReply(norm, status, error, detail, extra) {
   return buildConversationNonFinalPacket(norm, status, error, detail, extra);
 }
 
+const NYX_NEON_PUBLIC_POLISH_DOMAINS = new Set([
+  "english",
+  "psychology",
+  "ai",
+  "finance",
+  "cyber",
+  "law"
+]);
+const NYX_NEON_POLISH_CACHE_TTL_MS = 10 * 60 * 1000;
+const NYX_NEON_POLISH_CACHE_MAX = 1000;
+const NYX_NEON_POLISH_RATE_WINDOW_MS = 60 * 1000;
+const NYX_NEON_POLISH_RATE_MAX = 10;
+const NYX_NEON_POLISH_GLOBAL_RATE_MAX = 30;
+const nyxNeonPolishCache = new Map();
+const nyxNeonPolishInFlight = new Map();
+const nyxNeonPolishRateBuckets = new Map();
+let nyxNeonPolishGlobalRateBucket = { startedAt: 0, count: 0 };
+
+function allowNyxNeonPolishRequest(req) {
+  const t = now();
+  const ip = cleanText(trustedClientIp(req) || "unknown") || "unknown";
+  let bucket = nyxNeonPolishRateBuckets.get(ip);
+  if (!bucket || t - bucket.startedAt >= NYX_NEON_POLISH_RATE_WINDOW_MS) {
+    bucket = { startedAt: t, count: 0 };
+  }
+  if (!nyxNeonPolishGlobalRateBucket || t - nyxNeonPolishGlobalRateBucket.startedAt >= NYX_NEON_POLISH_RATE_WINDOW_MS) {
+    nyxNeonPolishGlobalRateBucket = { startedAt: t, count: 0 };
+  }
+  if (bucket.count >= NYX_NEON_POLISH_RATE_MAX || nyxNeonPolishGlobalRateBucket.count >= NYX_NEON_POLISH_GLOBAL_RATE_MAX) return false;
+  bucket.count += 1;
+  nyxNeonPolishGlobalRateBucket.count += 1;
+  nyxNeonPolishRateBuckets.set(ip, bucket);
+
+  if (nyxNeonPolishRateBuckets.size > 5000) {
+    for (const [key, value] of nyxNeonPolishRateBuckets.entries()) {
+      if (!value || t - Number(value.startedAt || 0) >= NYX_NEON_POLISH_RATE_WINDOW_MS) {
+        nyxNeonPolishRateBuckets.delete(key);
+      }
+      if (nyxNeonPolishRateBuckets.size <= 4000) break;
+    }
+  }
+  return true;
+}
+
+function applyNyxNeonPolishedReply(response, polishedReply) {
+  const out = { ...response };
+  const replyFields = [
+    "reply", "text", "answer", "output", "response", "message",
+    "displayReply", "publicReply", "visibleReply", "finalReply",
+    "spokenText", "textDisplay", "textSpeak"
+  ];
+  for (const key of replyFields) out[key] = polishedReply;
+  out.payload = { ...(isObj(response.payload) ? response.payload : {}) };
+  out.finalEnvelope = { ...(isObj(response.finalEnvelope) ? response.finalEnvelope : {}) };
+  for (const key of ["reply", "text", "message", "displayReply", "spokenText", "textDisplay", "textSpeak"]) {
+    out.payload[key] = polishedReply;
+    out.finalEnvelope[key] = polishedReply;
+  }
+  out.meta = {
+    ...(isObj(response.meta) ? response.meta : {}),
+    nyxGatewayPolishApplied: true,
+    nyxGatewayAdapterVersion: cleanText(nyxOpenAIMod && nyxOpenAIMod.GATEWAY_ADAPTER_VERSION || "")
+  };
+  const hygienic = applyPublicReplyHygieneToResponse(out);
+  if (!isObj(hygienic) || cleanText(hygienic.reply || "") !== polishedReply) return response;
+  hygienic.meta = {
+    ...(isObj(hygienic.meta) ? hygienic.meta : {}),
+    nyxGatewayPolishApplied: true,
+    nyxGatewayAdapterVersion: cleanText(nyxOpenAIMod && nyxOpenAIMod.GATEWAY_ADAPTER_VERSION || "")
+  };
+  return hygienic;
+}
+
+async function polishNyxPublicKnowledgeFastPath(response, norm, decision, req) {
+  if (!isObj(response) || !isObj(norm) || !isObj(decision)) return response;
+  if (!isNyxPublicSurfaceRequest(norm) || norm.marionConversationRequired === true) return response;
+  if (cleanText(decision.routeType).toLowerCase() !== "knowledge") return response;
+  if (decision.actionRequired === true) return response;
+
+  const domain = cleanText(decision.knowledgeDomain || decision.domain || "").toLowerCase();
+  if (!NYX_NEON_PUBLIC_POLISH_DOMAINS.has(domain)) return response;
+  if (
+    !nyxOpenAIMod ||
+    typeof nyxOpenAIMod.generateNyxReply !== "function" ||
+    typeof nyxOpenAIMod.isGatewayConfigured !== "function" ||
+    !nyxOpenAIMod.isGatewayConfigured()
+  ) return response;
+
+  const baseReply = cleanText(response.reply || response.text || response.answer || "");
+  if (!baseReply) return response;
+  const userMessage = cleanText(norm.originalText || norm.rawUserText || norm.text || "");
+  const intent = cleanText(decision.intent || "domain_question");
+  const cacheKey = replyHash(`${domain}|${intent}|${userMessage}|${baseReply}`);
+  const t = now();
+  const cached = nyxNeonPolishCache.get(cacheKey);
+  if (cached && t < cached.expiresAt) {
+    if (!cached.reply || cached.reply === baseReply) return response;
+    const maximumCachedPolishLength = Math.min(1800, Math.max(600, baseReply.length * 2 + 120));
+    if (cached.reply.length > maximumCachedPolishLength) return response;
+    return applyNyxNeonPolishedReply(response, cached.reply);
+  }
+  if (cached) nyxNeonPolishCache.delete(cacheKey);
+
+  let sharedRequest = nyxNeonPolishInFlight.get(cacheKey);
+  if (!sharedRequest) {
+    if (!allowNyxNeonPolishRequest(req)) return response;
+    sharedRequest = Promise.resolve().then(() => nyxOpenAIMod.generateNyxReply({
+      domain,
+      intent,
+      userMessage,
+      baseMessage: baseReply,
+      boundaryContext: { role: "public", actor: "guest" }
+    })).catch(() => null);
+    nyxNeonPolishInFlight.set(cacheKey, sharedRequest);
+  }
+
+  try {
+    const generated = await sharedRequest;
+    const polishedReply = typeof generated === "string" ? generated.trim().slice(0, 4000) : "";
+    if (!polishedReply) return response;
+    const maximumPolishLength = Math.min(1800, Math.max(600, baseReply.length * 2 + 120));
+    if (polishedReply.length > maximumPolishLength) return response;
+
+    if (nyxNeonPolishCache.size >= NYX_NEON_POLISH_CACHE_MAX) {
+      const oldestKey = nyxNeonPolishCache.keys().next().value;
+      if (oldestKey) nyxNeonPolishCache.delete(oldestKey);
+    }
+    nyxNeonPolishCache.set(cacheKey, { reply: polishedReply, expiresAt: now() + NYX_NEON_POLISH_CACHE_TTL_MS });
+    return polishedReply === baseReply ? response : applyNyxNeonPolishedReply(response, polishedReply);
+  } catch (_) {
+    // This enhancement is optional. Keep the deterministic answer on failure.
+    return response;
+  } finally {
+    if (nyxNeonPolishInFlight.get(cacheKey) === sharedRequest) nyxNeonPolishInFlight.delete(cacheKey);
+  }
+}
+
 app.options(CONVERSATION_ROUTE_ALIASES, (req, res) => {
   hardenCors(req, res);
   return res.status(204).end();
@@ -19347,11 +19493,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   norm.marionConversationRequired = marionConversationRequired;
   const publicFastPathDecision = marionConversationRequired ? null : buildNyxPublicFastPathDecision(norm);
   if (publicFastPathDecision) {
-    const fastResponse = enforceNyxPublicKnowledgeAnswerOnlyR4(
+    let fastResponse = enforceNyxPublicKnowledgeAnswerOnlyR4(
       buildNyxPublicFastPathResponse(norm, sessionId, startedAt, publicFastPathDecision),
       norm,
       publicFastPathDecision
     );
+    fastResponse = await polishNyxPublicKnowledgeFastPath(fastResponse, norm, publicFastPathDecision, req);
     const fastReply = cleanText(fastResponse && (fastResponse.reply || fastResponse.text) || "");
     if (fastResponse && fastReply) {
       setTransportState(sessionId, { key: buildTransportKey(norm, norm.text, req), turnId: norm.turnId, reply: fastReply, replyHash: replyHash(fastReply), userHash: replyHash(norm.text), finalized: true, route: fastResponse.lane || norm.lane || "public_interface", authority: "nyx_public_fast_path", count: 1 });
