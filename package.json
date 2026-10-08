@@ -1,16 +1,17 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.16-nyx-voice-text-parity-continuity",
-  "description": "Sandblast backend with canonical utils and public/nyx path hardlocks, Marion circular-dependency cleanliness, Nyx voice/text parity, five-turn continuity, strict operational voice isolation, and a single explicit full aggregate certification entry point.",
+  "version": "1.0.17-neon-ai-gateway-public-polish",
+  "description": "Sandblast backend with Neon AI Gateway support for the deterministic public Nyx knowledge path, Marion final-authority preservation, Nyx voice/text parity, five-turn continuity, strict operational voice isolation, and aggregate certification.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
     "dev": "node --check index.js && npm run lint:sandblast-tv && node index.js",
     "verify": "npm run verify:full",
-    "verify:full": "npm run verify:aggregate-manifest && npm run lint:syntax && npm run verify:marion-critical && npm run verify:marion-admin-e2e && npm run verify:marion-phase-a-part1 && npm run test:marion-layering && npm run verify:marion-phase-b && npm run verify:marion-round6 && npm run verify:nyx-voice && npm run verify:sandblast-tv",
+    "verify:full": "npm run verify:aggregate-manifest && npm run lint:syntax && npm run verify:marion-critical && npm run verify:marion-admin-e2e && npm run verify:marion-phase-a && npm run test:marion-layering && npm run verify:marion-phase-b && npm run verify:marion-round6 && npm run verify:nyx-voice && npm run verify:sandblast-tv",
     "verify:aggregate-manifest": "node scripts/aggregate-certification-manifest.js",
     "lint:syntax": "node scripts/check-syntax.js",
+    "verify:neon-ai-gateway": "node --check index.js && node --check Utils/nyxOpenAI.js",
     "lint:nyx-voice-runtime": "node --check index.js && node --check utils/tts.js && node --check utils/ttsProvidersResemble.js && node --check utils/voiceRoute.js && node --check utils/nyxVoiceMount.js && node --check utils/chatEngine.js && node --check utils/stateSpine.js && node --check utils/nyx_state_controller.js && node --check Data/marion/runtime/composeMarionResponse.js && node --check Data/marion/runtime/marionBridge.js && node --check Data/marion/runtime/privateOperatorBoundaryLock.js && node --check Data/marion/runtime/publicIdentityQuestionRefinement.js && node --check Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js",
     "test:marion-circular-dependencies": "node scripts/marion-circular-dependency-certification.js",
     "test:marion-layering": "node tests/marion_layering_smoke_test.js",
@@ -57,7 +58,9 @@
     "check:nyx-tts-entry": "node -e \"const fs=require('fs');const cp=require('child_process');const file='utils/tts.js';if(!fs.existsSync(file)){console.error('Canonical Nyx TTS authority file not found: '+file);process.exit(1);}console.log('Nyx TTS authority: '+file);const result=cp.spawnSync(process.execPath,['--check',file],{stdio:'inherit'});if(result.error){console.error(result.error.message);process.exit(1);}process.exit(Number.isInteger(result.status)?result.status:1);\"",
     "test:nyx-voice-parity": "node tests/voice-text-parity-continuity-certification.js",
     "verify:nyx-voice-parity": "npm run lint:nyx-voice-runtime && npm run test:nyx-voice-boundary && npm run test:nyx-voice-parity",
-    "test:nyx-voice-boundary": "node tests/index-voice-operational-boundary-regression.js"
+    "test:nyx-voice-boundary": "node tests/index-voice-operational-boundary-regression.js",
+    "verify:marion-phase-a-part2": "node tests/marion/verify_phase_a_part2.js",
+    "verify:marion-phase-a": "npm run verify:marion-phase-a-part1 && npm run verify:marion-phase-a-part2"
   },
   "dependencies": {
     "ably": "^2.22.0",
@@ -70,6 +73,7 @@
     "gsap": "^3.14.2",
     "multer": "^2.0.2",
     "openai": "^4.104.0",
+    "pg": "^8.23.0",
     "rss-parser": "^3.13.0"
   },
   "engines": {
