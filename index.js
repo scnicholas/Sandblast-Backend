@@ -19279,10 +19279,29 @@ const NYX_NEON_POLISH_CACHE_MAX = 1000;
 const NYX_NEON_POLISH_RATE_WINDOW_MS = 60 * 1000;
 const NYX_NEON_POLISH_RATE_MAX = 10;
 const NYX_NEON_POLISH_GLOBAL_RATE_MAX = 30;
+const NYX_NEON_LOCAL_DIAGNOSTICS_ENABLED = cleanText(process.env.SB_NYX_GATEWAY_DIAGNOSTICS || "").toLowerCase() === "true";
 const nyxNeonPolishCache = new Map();
 const nyxNeonPolishInFlight = new Map();
 const nyxNeonPolishRateBuckets = new Map();
 let nyxNeonPolishGlobalRateBucket = { startedAt: 0, count: 0 };
+
+function withLocalNyxGatewayDiagnostics(response, req, status = {}) {
+  if (!NYX_NEON_LOCAL_DIAGNOSTICS_ENABLED || !isObj(response)) return response;
+  const remoteAddress = cleanText(req && req.socket && req.socket.remoteAddress || "");
+  if (!new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]).has(remoteAddress)) return response;
+  return {
+    ...response,
+    meta: {
+      ...(isObj(response.meta) ? response.meta : {}),
+      nyxGatewayAttempted: status.attempted === true,
+      nyxGatewayResponseReceived: status.responseReceived === true,
+      nyxGatewayPolishApplied: status.polishApplied === true,
+      nyxGatewayCacheHit: status.cacheHit === true,
+      nyxGatewayOutcome: cleanText(status.outcome || "unknown"),
+      nyxGatewayAdapterVersion: cleanText(nyxOpenAIMod && nyxOpenAIMod.GATEWAY_ADAPTER_VERSION || "")
+    }
+  };
+}
 
 function allowNyxNeonPolishRequest(req) {
   const t = now();
@@ -19341,37 +19360,37 @@ function applyNyxNeonPolishedReply(response, polishedReply) {
 
 async function polishNyxPublicKnowledgeFastPath(response, norm, decision, req) {
   if (!isObj(response) || !isObj(norm) || !isObj(decision)) return response;
-  if (!isNyxPublicSurfaceRequest(norm) || norm.marionConversationRequired === true) return response;
-  if (cleanText(decision.routeType).toLowerCase() !== "knowledge") return response;
-  if (decision.actionRequired === true) return response;
+  if (!isNyxPublicSurfaceRequest(norm) || norm.marionConversationRequired === true) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "not_public_knowledge" });
+  if (cleanText(decision.routeType).toLowerCase() !== "knowledge") return withLocalNyxGatewayDiagnostics(response, req, { outcome: "not_knowledge_route" });
+  if (decision.actionRequired === true) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "action_required" });
 
   const domain = cleanText(decision.knowledgeDomain || decision.domain || "").toLowerCase();
-  if (!NYX_NEON_PUBLIC_POLISH_DOMAINS.has(domain)) return response;
+  if (!NYX_NEON_PUBLIC_POLISH_DOMAINS.has(domain)) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "domain_not_enabled" });
   if (
     !nyxOpenAIMod ||
     typeof nyxOpenAIMod.generateNyxReply !== "function" ||
     typeof nyxOpenAIMod.isGatewayConfigured !== "function" ||
     !nyxOpenAIMod.isGatewayConfigured()
-  ) return response;
+  ) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "gateway_unconfigured" });
 
   const baseReply = cleanText(response.reply || response.text || response.answer || "");
-  if (!baseReply) return response;
+  if (!baseReply) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "empty_base_answer" });
   const userMessage = cleanText(norm.originalText || norm.rawUserText || norm.text || "");
   const intent = cleanText(decision.intent || "domain_question");
   const cacheKey = replyHash(`${domain}|${intent}|${userMessage}|${baseReply}`);
   const t = now();
   const cached = nyxNeonPolishCache.get(cacheKey);
   if (cached && t < cached.expiresAt) {
-    if (!cached.reply || cached.reply === baseReply) return response;
+    if (!cached.reply || cached.reply === baseReply) return withLocalNyxGatewayDiagnostics(response, req, { cacheHit: true, outcome: "cache_hit_unchanged" });
     const maximumCachedPolishLength = Math.min(1800, Math.max(600, baseReply.length * 2 + 120));
-    if (cached.reply.length > maximumCachedPolishLength) return response;
-    return applyNyxNeonPolishedReply(response, cached.reply);
+    if (cached.reply.length > maximumCachedPolishLength) return withLocalNyxGatewayDiagnostics(response, req, { cacheHit: true, outcome: "cache_hit_rejected_length" });
+    return withLocalNyxGatewayDiagnostics(applyNyxNeonPolishedReply(response, cached.reply), req, { cacheHit: true, polishApplied: true, outcome: "cache_hit_polished" });
   }
   if (cached) nyxNeonPolishCache.delete(cacheKey);
 
   let sharedRequest = nyxNeonPolishInFlight.get(cacheKey);
   if (!sharedRequest) {
-    if (!allowNyxNeonPolishRequest(req)) return response;
+    if (!allowNyxNeonPolishRequest(req)) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "rate_limited" });
     sharedRequest = Promise.resolve().then(() => nyxOpenAIMod.generateNyxReply({
       domain,
       intent,
@@ -19385,19 +19404,20 @@ async function polishNyxPublicKnowledgeFastPath(response, norm, decision, req) {
   try {
     const generated = await sharedRequest;
     const polishedReply = typeof generated === "string" ? generated.trim().slice(0, 4000) : "";
-    if (!polishedReply) return response;
+    if (!polishedReply) return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, outcome: "no_gateway_response" });
     const maximumPolishLength = Math.min(1800, Math.max(600, baseReply.length * 2 + 120));
-    if (polishedReply.length > maximumPolishLength) return response;
+    if (polishedReply.length > maximumPolishLength) return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, responseReceived: true, outcome: "response_rejected_length" });
 
     if (nyxNeonPolishCache.size >= NYX_NEON_POLISH_CACHE_MAX) {
       const oldestKey = nyxNeonPolishCache.keys().next().value;
       if (oldestKey) nyxNeonPolishCache.delete(oldestKey);
     }
     nyxNeonPolishCache.set(cacheKey, { reply: polishedReply, expiresAt: now() + NYX_NEON_POLISH_CACHE_TTL_MS });
-    return polishedReply === baseReply ? response : applyNyxNeonPolishedReply(response, polishedReply);
+    if (polishedReply === baseReply) return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, responseReceived: true, outcome: "response_unchanged" });
+    return withLocalNyxGatewayDiagnostics(applyNyxNeonPolishedReply(response, polishedReply), req, { attempted: true, responseReceived: true, polishApplied: true, outcome: "polish_applied" });
   } catch (_) {
     // This enhancement is optional. Keep the deterministic answer on failure.
-    return response;
+    return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, outcome: "request_failed" });
   } finally {
     if (nyxNeonPolishInFlight.get(cacheKey) === sharedRequest) nyxNeonPolishInFlight.delete(cacheKey);
   }
