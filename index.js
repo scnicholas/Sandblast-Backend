@@ -19313,14 +19313,14 @@ function allowNyxNeonPolishRequest(req) {
 function applyNyxNeonPolishedReply(response, polishedReply) {
   const out = { ...response };
   const replyFields = [
-    "reply", "text", "answer", "output", "response", "message",
+    "authoritativeReply", "reply", "text", "answer", "output", "response", "message",
     "displayReply", "publicReply", "visibleReply", "finalReply",
     "spokenText", "textDisplay", "textSpeak"
   ];
   for (const key of replyFields) out[key] = polishedReply;
   out.payload = { ...(isObj(response.payload) ? response.payload : {}) };
   out.finalEnvelope = { ...(isObj(response.finalEnvelope) ? response.finalEnvelope : {}) };
-  for (const key of ["reply", "text", "message", "displayReply", "spokenText", "textDisplay", "textSpeak"]) {
+  for (const key of ["authoritativeReply", "reply", "text", "message", "displayReply", "spokenText", "textDisplay", "textSpeak"]) {
     out.payload[key] = polishedReply;
     out.finalEnvelope[key] = polishedReply;
   }
