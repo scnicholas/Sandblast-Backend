@@ -11,6 +11,8 @@ const gatewayPath = path.join(root, 'Data/marion/runtime/MarionVoiceGateway.js')
 const adapterPath = path.join(root, 'Utils/nyxOpenAI.js');
 const bridgePath = path.join(root, 'Data/marion/runtime/marionBridge.js');
 const indexPath = path.join(root, 'index.js');
+const finalEnvelope = require(path.join(root, 'Data/marion/runtime/marionFinalEnvelope.js'));
+const loopGuard = require(path.join(root, 'Data/marion/runtime/marionLoopGuard.js'));
 
 const requiredStubs = {
   './MarionVoiceInputEnvelope': { createVoiceInputEnvelope: () => ({}) },
@@ -239,6 +241,88 @@ test('degraded or inconsistent bridge output is never promoted to Marion final',
   assert.equal(out.canEmit, false);
   assert.equal(out.reply, '');
   assert.equal(out.error, 'MARION_FINAL_AUTHORITY_REQUIRED');
+});
+
+test('final-envelope reply aliases are not mistaken for the user prompt', () => {
+  const reply = 'Cash flow improves when you invoice promptly, collect overdue balances, and time supplier payments to match expected receipts.';
+  const checked = finalEnvelope.validateFinalReply(reply, {
+    reply,
+    text: reply,
+    finalReply: reply,
+    replySignature: replyHash(reply),
+  });
+  assert.equal(checked.ok, true, checked.reasons.join(', '));
+
+  const echoed = finalEnvelope.validateFinalReply(reply, { prompt: reply });
+  assert.equal(echoed.ok, false);
+  assert.ok(echoed.reasons.includes('prompt_echo_reply_rejected'));
+});
+
+test('loop guard preserves the bridge packet, reply, and options arguments', () => {
+  const reply = 'Invoice promptly, follow up on overdue accounts, and schedule supplier payments around expected receipts.';
+  const allowed = loopGuard.applyLoopGuard({ prompt: 'How can I improve cash flow?' }, reply, { trustedFinal: true });
+  assert.equal(allowed.allowReply, true, allowed.reasons.join(', '));
+  assert.equal(allowed.sanitizedReply, reply);
+  assert.equal(allowed.reasons.includes('empty_reply_detected'), false);
+
+  const inactiveSignal = loopGuard.applyLoopGuard({
+    prompt: 'How can I improve cash flow?',
+    routing: { protectiveEscalation: { detected: false, reason: 'none', approvalRequired: false } },
+  }, reply, { trustedFinal: true });
+  assert.equal(inactiveSignal.allowReply, true, inactiveSignal.reasons.join(', '));
+  assert.equal(inactiveSignal.protectiveEscalation.active, undefined);
+
+  const repeated = loopGuard.applyLoopGuard({ state: { lastAssistantReply: reply } }, reply, { trustedFinal: true });
+  assert.equal(repeated.allowReply, false);
+  assert.ok(repeated.reasons.includes('exact_reply_repeat'));
+});
+
+test('bridge awaits the asynchronous final-envelope projection', async () => {
+  const bridge = require(bridgePath);
+  assert.equal(bridge.resolveRuntimeDependencies(true), true);
+  const reply = 'Here is a concise, current-turn response that preserves the requested answer.';
+  const finalized = await bridge._internal.wrapFinal({
+    normalized: {
+      ok: true,
+      userQuery: 'Give me one concise next step.',
+      turnId: 'runtime-bundle-turn',
+      sessionId: 'runtime-bundle-session',
+      domain: 'general',
+      original: {},
+    },
+    routed: {
+      ok: true,
+      intent: 'simple_chat',
+      domain: 'general',
+      marionIntent: { intent: 'simple_chat' },
+      routing: { intent: 'simple_chat', domain: 'general' },
+    },
+    contract: { ok: true, reply, text: reply, spokenText: reply, intent: 'simple_chat', domain: 'general' },
+    loopGuardResult: { ok: true, allowReply: true, forceRecovery: false, reasons: [] },
+    resolvedEmotionPacket: { ok: false, state: {} },
+  });
+  assert.equal(finalized.marionFinal, true);
+  assert.equal(finalized.finalEnvelope.reply, reply);
+  assert.equal(finalized.finalEnvelope.currentTurnBound, true);
+});
+
+test('a live public bridge final clears the Gateway signed-final gate', async () => {
+  const bridge = require(bridgePath);
+  const text = 'How can a small business improve cash flow? Give me three concise steps.';
+  const packet = await bridge.processWithMarion({
+    text,
+    userText: text,
+    userQuery: text,
+    sessionId: 'public-gateway-smoke',
+    turnId: 'public-gateway-smoke-turn',
+  });
+  const gatewayReply = await gateway.handleMarionAdminConversation(
+    { text },
+    serverOptions({ handleMarionAdminConversation: async () => packet }),
+  );
+  assert.equal(gatewayReply.ok, true, gatewayReply.error);
+  assert.equal(gatewayReply.marionFinal, true);
+  assert.equal(gatewayReply.reply, packet.reply);
 });
 
 test('public Neon polishing requires an explicit public boundary and omits raw user text', async () => {
