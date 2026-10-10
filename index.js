@@ -2667,6 +2667,9 @@ const NYX_VOICE_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceAuthorizationGate.js",
   "Data/marion/runtime/MarionVoiceSpeakerIdentity.js",
   "Data/marion/runtime/MarionVoiceSpeakerRegistry.js",
+  "Data/marion/runtime/MarionVoiceChallengeVerifier.js",
+  "Data/marion/runtime/MarionVoiceContinuityWindow.js",
+  "Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js",
   "Data/marion/runtime/MarionVoiceOutputPolicy.js",
   "Data/marion/runtime/MarionVoiceTelemetry.js",
   "Data/marion/runtime/MarionVoiceTranscriptNormalizer.js",
@@ -2696,6 +2699,37 @@ function nyxVoiceRequiredRuntimeDiagnostics() {
 
 function nyxVoiceRuntimeFilesReady() {
   return nyxVoiceRequiredRuntimeDiagnostics().every((item) => item.exists);
+}
+
+const NYX_VOICE_AUTHORITY_REQUIRED_RUNTIME_FILES = Object.freeze([
+  "Data/marion/runtime/MarionVoiceGateway.js",
+  "Data/marion/runtime/MarionVoiceInputEnvelope.js",
+  "Data/marion/runtime/MarionVoiceAuthorizationGate.js",
+  "Data/marion/runtime/MarionVoiceSpeakerIdentity.js",
+  "Data/marion/runtime/MarionVoiceSpeakerRegistry.js",
+  "Data/marion/runtime/MarionVoiceChallengeVerifier.js",
+  "Data/marion/runtime/MarionVoiceContinuityWindow.js",
+  "Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js",
+  "Data/marion/runtime/MarionVoiceOutputPolicy.js",
+  "Data/marion/runtime/MarionVoiceTelemetry.js",
+  "Data/marion/runtime/MarionVoiceTranscriptNormalizer.js"
+]);
+
+function nyxVoiceAuthorityRuntimeDiagnostics() {
+  return NYX_VOICE_AUTHORITY_REQUIRED_RUNTIME_FILES.map((relativePath) => {
+    const filePath = path.join(__dirname, relativePath);
+    let exists = false;
+    let bytes = 0;
+    try {
+      const stat = fs.statSync(filePath);
+      exists = stat.isFile();
+      bytes = exists ? stat.size : 0;
+    } catch (_) {
+      exists = false;
+      bytes = 0;
+    }
+    return { path: relativePath, exists, bytes };
+  });
 }
 
 function marionAdminVoiceEnvTokens() {
@@ -3908,6 +3942,38 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         adminVoiceDeliveryAllowed: false
       },
       meta: { traceId, latencyMs: now() - startedAt, adminOnlyVoiceDeliveryVersion: MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION }
+    });
+  }
+
+  const voiceAuthorityRuntime = nyxVoiceAuthorityRuntimeDiagnostics();
+  if (!voiceAuthorityRuntime.every((item) => item.exists)) {
+    return res.status(503).json({
+      ok: false,
+      final: false,
+      marionFinal: false,
+      canEmit: false,
+      reply: "Protected voice authorization is unavailable until its identity, challenge, and continuity modules are ready.",
+      text: "Protected voice authorization is unavailable until its identity, challenge, and continuity modules are ready.",
+      message: "Protected voice authorization is unavailable until its identity, challenge, and continuity modules are ready.",
+      publicAgent: "Nyx",
+      authority: "Marion",
+      inputChannel: "voice",
+      source: "voice",
+      error: "MARION_VOICE_AUTHORITY_RUNTIME_NOT_READY",
+      route: "/api/nyx/voice/transcript",
+      adminOnlyVoiceDelivery: true,
+      runtimeFilesReady: false,
+      runtimeFiles: voiceAuthorityRuntime,
+      voice: {
+        speakAllowed: false,
+        voiceMode: "silent",
+        reason: "MARION_VOICE_AUTHORITY_RUNTIME_NOT_READY",
+        spokenText: "",
+        audioStored: false,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed: false
+      },
+      meta: { traceId, latencyMs: now() - startedAt, noRawAudioStored: true, diagnosticsRedacted: true }
     });
   }
 
