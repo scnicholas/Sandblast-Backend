@@ -89,16 +89,25 @@ function guidanceForDomain(domain) {
 async function generateNyxReply({
   domain,
   intent,
-  userMessage,
   baseMessage,
   boundaryContext,
 } = {}) {
-  const role = safeString(boundaryContext && boundaryContext.role || "public", "public", 40).toLowerCase();
-  if (!["public", "guest", "anonymous"].includes(role)) return null;
+  const boundary = boundaryContext && typeof boundaryContext === "object" ? boundaryContext : null;
+  const role = safeString(boundary && boundary.role, "", 40).toLowerCase();
+  const scope = safeString(boundary && boundary.scope, "", 40).toLowerCase();
+  if (
+    !boundary ||
+    !["public", "guest", "anonymous"].includes(role) ||
+    scope !== "public" ||
+    boundary.publicSurfaceOnly !== true ||
+    boundary.privateAdminConversation === true ||
+    boundary.marionAdminConversation === true ||
+    boundary.authenticatedOperator === true ||
+    boundary.adminVerified === true
+  ) return null;
 
   const cleanDomain = safeString(domain || "general", "general", 80).toLowerCase();
   const cleanIntent = safeString(intent || "general", "general", 100);
-  const cleanUser = safeString(userMessage, "", MAX_USER_TEXT_CHARS);
   const cleanBase = safeString(baseMessage, "", MAX_BASE_TEXT_CHARS);
   if (!cleanBase) return null;
 
@@ -117,7 +126,6 @@ async function generateNyxReply({
 
   const userInstruction = JSON.stringify({
     intent: cleanIntent,
-    userMessage: cleanUser,
     baseAnswer: cleanBase,
     task: "Lightly improve clarity and tone without adding facts. Return only the revised answer text.",
   });
