@@ -131,7 +131,6 @@ function hasTrustedAdminVoiceProof(envelope, options) {
   const optionProof =
     opts.adminVoiceVerified === true ||
     opts.adminVoiceTokenVerified === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
     opts.serverSideAdminVoiceAuth === true ||
     opts.trustedServerAuth === true;
 
@@ -163,8 +162,7 @@ function hasTrustedRemoteUserVoiceProof(envelope, options) {
     opts.remoteTrustedUserTokenVerified === true ||
     opts.trustedRemoteUserAuth === true ||
     opts.serverSideRemoteTrustedUserAuth === true ||
-    opts.trustedServerAuth === true ||
-    opts.role === 'remote_trusted_user';
+    opts.trustedServerAuth === true;
 
   const envelopeProofTrusted =
     opts.trustEnvelopeRemoteTrustedUserProof === true ||
@@ -302,9 +300,60 @@ function evaluateVoiceAuthorization(envelope, options) {
   const speakerAuthorized = isSpeakerAuthorized(speakerHint, Object.assign({}, opts, {
     trustSpeakerHint: opts.trustSpeakerHint === true && adminVoiceVerified
   }));
+  const challengeBlocked = speakerIdentity && speakerIdentity.challengeBlocked === true;
+  const challengeRequired = speakerIdentity && speakerIdentity.liveChallengeRequired === true;
+  const challengeVerified = speakerIdentity && speakerIdentity.liveChallengeVerified === true;
+  const challengeStatus = normalizeName(speakerIdentity && speakerIdentity.challengeStatus);
+  const challengeSatisfied = !challengeBlocked && (!challengeRequired || challengeVerified || challengeStatus === 'verified');
+  const continuityRequired = speakerIdentity && (
+    speakerIdentity.continuityWindowRequired === true ||
+    speakerIdentity.trustedVoiceWindowRequired === true
+  );
+  const continuityVerified = speakerIdentity && (
+    speakerIdentity.continuityWindowVerified === true ||
+    speakerIdentity.trustedVoiceWindowActive === true
+  );
+  const continuityBlocked = speakerIdentity && speakerIdentity.continuityBlocked === true;
+  const continuityStatus = normalizeName(speakerIdentity && speakerIdentity.continuityStatus);
+  const continuitySatisfied = !continuityBlocked && (!continuityRequired || continuityVerified || continuityStatus === 'active' || continuityStatus === 'verified');
   const adminAuthorized = adminVoiceVerified || speakerAuthorized;
   const remoteTrustedUserAuthorized = remoteTrustedUserVerified && directRemoteTrustedUserInterface;
   const marionAdminConversationAllowed = directMarionAdminInterface && adminAuthorized;
+
+  if (!challengeSatisfied || !continuitySatisfied) {
+    return {
+      allowed: false,
+      authorizationState: 'blocked',
+      authority: 'MarionVoiceAuthorizationGate',
+      speakerIdentity,
+      voiceIdentityBoundary: true,
+      identityIsAuthority: false,
+      authorityStillRequiresRBAC: true,
+      reason: !challengeSatisfied
+        ? (challengeBlocked ? 'VOICE_CHALLENGE_BLOCKED' : 'VOICE_CHALLENGE_REQUIRED')
+        : (continuityBlocked ? 'VOICE_CONTINUITY_BLOCKED' : 'VOICE_CONTINUITY_REQUIRED'),
+      restricted,
+      speakerAuthorized: false,
+      adminVoiceVerified: false,
+      adminOnlyVoiceDelivery,
+      directMarionAdminInterface: false,
+      adminInterfaceScope: '',
+      remoteTrustedUserVerified: false,
+      directRemoteTrustedUserInterface: false,
+      remoteTrustedUserScope: '',
+      remoteTrustedUserAuthorized: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      remoteTrustedUserCapabilities: [],
+      marionAdminConversationAllowed: false,
+      adminVoiceDeliveryAllowed: false,
+      liveChallengeRequired: challengeRequired === true,
+      liveChallengeVerified: challengeVerified === true,
+      challengeBlocked: challengeBlocked === true,
+      continuityWindowRequired: continuityRequired === true,
+      continuityWindowVerified: continuityVerified === true,
+      continuityBlocked: continuityBlocked === true
+    };
+  }
 
   if (!transcript.trim()) {
     return {
