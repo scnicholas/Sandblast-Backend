@@ -36,14 +36,29 @@ const DEFAULT_FILES = Object.freeze({
 let contractCache = null;
 
 function safeReadJson(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (error) {
+    if (error && typeof error === 'object') error.contractFile = path.basename(filePath);
+    throw error;
+  }
+}
+
+function contractLoadFailure(error) {
+  const code = error && typeof error.code === 'string' ? error.code : 'INVALID_CONTRACT';
+  const file = error && typeof error.contractFile === 'string' ? error.contractFile : '';
+  return {
+    code,
+    detail: `${file || 'emotion_contract'}:${code === 'ENOENT' ? 'missing' : 'invalid'}`
+  };
 }
 
 function loadContracts(options = {}) {
-  const contractDir = options.contractDir || process.env.MARION_EMOTION_CONTRACT_DIR || DEFAULT_CONTRACT_DIR;
+  const contractDir = path.resolve(options.contractDir || process.env.MARION_EMOTION_CONTRACT_DIR || DEFAULT_CONTRACT_DIR);
   const files = { ...DEFAULT_FILES, ...(options.files || {}) };
-  if (contractCache && !options.forceReload && contractCache.contractDir === contractDir) return contractCache.contracts;
+  const cacheKey = `${contractDir}|${JSON.stringify(files)}`;
+  if (contractCache && !options.forceReload && contractCache.cacheKey === cacheKey) return contractCache.contracts;
 
   const contracts = {
     baseLabels: safeReadJson(path.join(contractDir, files.baseLabels)),
@@ -51,7 +66,7 @@ function loadContracts(options = {}) {
     analysisSchema: safeReadJson(path.join(contractDir, files.analysisSchema)),
     nuanceMap: safeReadJson(path.join(contractDir, files.nuanceMap))
   };
-  contractCache = { contractDir, contracts, loadedAt: new Date().toISOString() };
+  contractCache = { cacheKey, contractDir, contracts, loadedAt: new Date().toISOString() };
   return contracts;
 }
 
@@ -68,7 +83,8 @@ function getHealth(options = {}) {
       loaded_at: contractCache && contractCache.loadedAt
     };
   } catch (error) {
-    return { ok: false, runtime: 'marion-emotion-runtime', error: 'emotion_contract_load_failed', detail: error.message };
+    const failure = contractLoadFailure(error);
+    return { ok: false, runtime: 'marion-emotion-runtime', error: 'emotion_contract_load_failed', error_code: failure.code, detail: failure.detail };
   }
 }
 
@@ -257,7 +273,14 @@ function buildResolvedState(inputText, context = {}, options = {}) {
   };
 
   const carriedState = mergePreviousEmotionWhenNeeded(inputText, draftState, context);
-  const governed = governResolvedState(carriedState, { recentReplies: context.recentReplies || [] });
+  const governed = governResolvedState(carriedState, {
+    recentReplies: context.recentReplies || [],
+    inputSource: context.inputSource || context.source || 'text',
+    previousInputSource: context.previousInputSource || context.lastInputSource || '',
+    userText: inputText,
+    sessionId: context.sessionId || '',
+    turnId: context.turnId || ''
+  });
   return sanitizePlain(validateResolvedState(governed, contracts).state);
 }
 
@@ -276,9 +299,9 @@ function resolveEmotionState(inputText, context = {}, options = {}) {
       support: { tone: 'steady', followup: true, advice_level: 'low', timing_profile: { pause_before_response: false, response_length: 'short', followup_delay: 'light', pacing: 'natural' } },
       guard: { diagnosis_block: true, safe_to_continue: true, escalation_needed: false, detected_flags: [], action_mode: 'neutral_continue' },
       marion_handoff: { interpreter_summary: 'Fallback state generated; continue without emotional overreach.', nyx_expression_goal: 'Stay clear and steady.', response_constraints: ['no diagnosis', 'do not over-validate'], nyx_contract: { reply_mode: 'resolved_state_only', followup_cap: 1, pacing_source: 'support.timing_profile' } },
-      runtime_meta: { source: 'emotionRuntime.resolveEmotionState.fallback', error: error.message, generated_at: new Date().toISOString() }
+      runtime_meta: { source: 'emotionRuntime.resolveEmotionState.fallback', error: contractLoadFailure(error).detail, generated_at: new Date().toISOString() }
     };
-    return { ok: false, mode: 'resolved_state_only', error: 'emotion_runtime_failed', detail: error.message, state: fallback };
+    return { ok: false, mode: 'resolved_state_only', error: 'emotion_runtime_failed', detail: contractLoadFailure(error).detail, state: fallback };
   }
 }
 
