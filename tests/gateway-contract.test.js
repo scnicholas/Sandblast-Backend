@@ -325,6 +325,26 @@ test('a live public bridge final clears the Gateway signed-final gate', async ()
   assert.equal(gatewayReply.reply, packet.reply);
 });
 
+test('a private finance turn recovers from composer holding text and reaches the signed Voice Authority gate', async () => {
+  const bridge = require(bridgePath);
+  bridge.resolveRuntimeDependencies(true);
+  const text = 'How can a small business improve cash flow? Give me three concise steps.';
+  const out = await gateway.handleMarionAdminConversation({ text }, serverOptions(bridge));
+
+  assert.equal(out.ok, true, out.error);
+  assert.equal(out.final, true);
+  assert.equal(out.marionFinal, true);
+  assert.equal(out.canEmit, true);
+  assert.match(out.reply, /1\./);
+  assert.match(out.reply, /2\./);
+  assert.match(out.reply, /3\./);
+  assert.doesNotMatch(out.reply, /I’m here, Mac|tell me what you want to work through/i);
+  assert.equal(out.finalEnvelope.replySignature, replyHash(out.reply));
+  for (const alias of ['text', 'displayReply', 'visibleReply', 'finalReply', 'spokenText']) {
+    assert.equal(out[alias], out.reply, `${alias} must match the signed reply`);
+  }
+});
+
 test('public Neon polishing requires an explicit public boundary and omits raw user text', async () => {
   const oldEnv = {
     token: process.env.NEON_AI_GATEWAY_TOKEN,
