@@ -260,6 +260,21 @@ function validateStateDrift(input = {}) {
   };
 }
 
+function validateStateSpinePatch(input) {
+  if (!isPlainObject(input)) return undefined;
+  const rawSource = cleanString(input.inputSource, 'text', 20).toLowerCase();
+  return {
+    source: cleanString(input.source, 'emotionalGovernor', 80),
+    schema: input.schema === 'nyx.marion.stateSpine/1.7' ? input.schema : 'nyx.marion.stateSpine/1.7',
+    shouldAdvanceState: input.shouldAdvanceState === true,
+    inputSource: rawSource === 'voice' ? 'voice' : 'text',
+    turnHash: cleanString(input.turnHash, '', 16).replace(/[^a-f0-9]/gi, '').slice(0, 16),
+    micTextParity: input.micTextParity === true,
+    emotionalContinuitySafe: input.emotionalContinuitySafe === true,
+    sourceDrift: input.sourceDrift === true
+  };
+}
+
 function validateResolvedState(input = {}, contracts = {}) {
   const allowed = buildAllowedFromContracts(contracts);
   const state = isPlainObject(input) ? input : {};
@@ -298,7 +313,8 @@ function validateResolvedState(input = {}, contracts = {}) {
       support,
       guard,
       marion_handoff,
-      runtime_meta: safeJson(state.runtime_meta || {})
+      runtime_meta: safeJson(state.runtime_meta || {}),
+      state_spine_patch: validateStateSpinePatch(state.state_spine_patch)
     }
   };
 }
