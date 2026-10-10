@@ -306,10 +306,13 @@ function isDeepeningTurn(packet = {}) {
 
 function normalizeProtectiveEscalationCarry(value = {}) {
   const src = safeObj(value);
-  const purpose = oneLine(src.purpose || src.protectivePurpose || src.justification || src.reason || "").slice(0, 600);
+  const explicitPurpose = oneLine(src.purpose || src.protectivePurpose || src.justification || "");
+  const reason = oneLine(src.reason || "");
+  const noSignalReason = /^(?:none|no signal|not applicable|n\/?a|unknown)$/i.test(reason);
+  const purpose = (explicitPurpose || (noSignalReason ? "" : reason)).slice(0, 600);
   const burst = Number(src.maxBurstSeconds ?? src.burstSeconds ?? src.maxBurstDurationSeconds ?? 0);
   const cooldown = Number(src.minCooldownSeconds ?? src.cooldownSeconds ?? 0);
-  const active = !!(src.active || src.defensiveIntent || src.protectiveIntent || src.verifiedCommand || purpose);
+  const active = src.active === true || src.defensiveIntent === true || src.protectiveIntent === true || src.verifiedCommand === true || !!purpose;
   if (!active) return {};
   const boundedPolicy = !!(
     (!Number.isFinite(burst) || burst === 0 || burst <= 8) &&
@@ -701,8 +704,8 @@ function priority9FR2LoopNormalize(value=""){return normalizeText(value).replace
 function isPriority9FR2LayeredPromptText(value=""){const t=priority9FR2LoopNormalize(value);return /\b(priority\s*9f|9f\s*r2|domain hijack|domain fallback|six domain fallback|deep conversational stack|layered conversational|conversational stack|surface request|underlying intent|deeper intent|deeper task|operational risk|execution mode|next action|marion conversational architecture)\b/i.test(t)||(/\b(disjointed|deeper|layered|context|looping|loop|recovery|preserve|avoid|where to go next)\b/i.test(t)&&/\b(marion|conversation|conversational|intent|context|preserve|avoid|loop|looping|where to go next|next|understand)\b/i.test(t));}
 function isPriority9FR2DomainHijackLeakText(value=""){const t=priority9FR2LoopNormalize(value);return /\b(in psychology the focus is how people think feel learn decide and behave|good explanation connects the concept to real patterns triggers and outcomes|in english this means|this is a general reasoning question|the psychology domain|psychology domain|domain question|six domain|knowledge lane|route through the six domain layer)\b/i.test(t);}
 const __priority9FR2OriginalEvaluateLoop=evaluateLoop;
-evaluateLoop=function priority9FR2EvaluateLoop(fields={}){const base=__priority9FR2OriginalEvaluateLoop(fields);const f=safeObj(fields);const source=oneLine([f.prompt,f.userText,f.inputText,f.rawText,f.normalizedUserIntent,f.effectivePrompt].filter(Boolean).join(" "));const reply=oneLine([f.reply,f.publicReply,f.visibleReply,f.finalReply,f.text].filter(Boolean).join(" "));if(isPriority9FR2LayeredPromptText(source)&&isPriority9FR2DomainHijackLeakText(reply)){return {...safeObj(base),allowReply:false,loopDetected:true,forceRecovery:true,reason:"priority9f_r2_domain_hijack_suppressed",priority9FR2DomainHijackSuppression:true,domainHijackSuppressed:true,noUserFacingDiagnostics:true};}return base;};
-applyLoopGuard=function priority9FR2ApplyLoopGuard(fields={}){return evaluateLoop(fields);};
+evaluateLoop=function priority9FR2EvaluateLoop(packet={},candidateReply="",options={}){const base=__priority9FR2OriginalEvaluateLoop(packet,candidateReply,options);const f=safeObj(packet),o=safeObj(options);const source=oneLine([o.prompt,o.userText,f.prompt,f.userText,f.inputText,f.rawText,f.normalizedUserIntent,f.effectivePrompt].filter(Boolean).join(" "));const reply=oneLine([candidateReply,f.reply,f.publicReply,f.visibleReply,f.finalReply,f.text].filter(Boolean).join(" "));if(isPriority9FR2LayeredPromptText(source)&&isPriority9FR2DomainHijackLeakText(reply)){return {...safeObj(base),allowReply:false,loopDetected:true,forceRecovery:true,reason:"priority9f_r2_domain_hijack_suppressed",priority9FR2DomainHijackSuppression:true,domainHijackSuppressed:true,noUserFacingDiagnostics:true};}return base;};
+applyLoopGuard=function priority9FR2ApplyLoopGuard(packet={},candidateReply="",options={}){const result=evaluateLoop(packet,candidateReply,options);return {...safeObj(result),packetPatch:{stateStage:result.nextStateStage,loopCount:result.forceRecovery?getLoopCount(packet)+1:0,recoveryRequired:result.forceRecovery,lastLoopReasons:result.reasons,loopGuardVersion:VERSION,telemetryVisibilityVersion:TELEMETRY_VISIBILITY_VERSION,failureSignature:result.failureSignature,failureSignatureAudit:result.failureSignatureAudit,finalRenderTelemetryVersion:FINAL_RENDER_TELEMETRY_VERSION,finalRenderTelemetry:result.finalRenderTelemetry,protectiveEscalation:result.protectiveEscalation,protectiveEscalationActive:!!result.protectiveEscalationActive}};};
 module.exports.PRIORITY_9F_R2_LOOP_GUARD_DOMAIN_HIJACK_SUPPRESSION_VERSION=PRIORITY_9F_R2_LOOP_GUARD_DOMAIN_HIJACK_SUPPRESSION_VERSION;module.exports.isPriority9FR2LayeredPromptText=isPriority9FR2LayeredPromptText;module.exports.isPriority9FR2DomainHijackLeakText=isPriority9FR2DomainHijackLeakText;module.exports.evaluateLoop=evaluateLoop;module.exports.applyLoopGuard=applyLoopGuard;
 // PRIORITY_9F_R2_DOMAIN_HIJACK_SUPPRESSION_LOOP_GUARD_PATCH_END
 
