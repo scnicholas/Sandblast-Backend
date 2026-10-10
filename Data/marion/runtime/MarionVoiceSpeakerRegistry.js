@@ -1,413 +1,158 @@
 'use strict';
 
-/**
- * MarionVoiceSpeakerRegistry
- * Phase 5 speaker enrollment / registry control.
- *
- * This registry is metadata-only by design. It never accepts or stores raw audio,
- * voiceprints, tokens, cookies, authorization headers, or biometric payloads.
- * Speaker enrollment is evidence for the voice lane; it is not authority and it
- * never bypasses RBAC/session/escalation controls.
- */
-
+/** Metadata-only registry. Enrollment is administrative evidence, never authority. */
 const crypto = require('crypto');
+const VERSION = 'marion.voiceSpeakerRegistry/2.0-phase4-session-bound';
+const REGISTRY_STATES = Object.freeze({ UNKNOWN:'unknown', PENDING_ENROLLMENT:'pending_enrollment', TRUSTED_METADATA_ONLY:'trusted_metadata_only', REMOTE_TRUSTED_USER:'remote_trusted_user', OWNER_VERIFIED:'owner_verified', REVOKED:'revoked', BLOCKED:'blocked' });
+const ROLE_BINDINGS = Object.freeze({ OWNER:'owner', REMOTE_TRUSTED_USER:'remote_trusted_user', OBSERVER:'observer', BLOCKED:'blocked' });
+const MAX_PROFILES = boundedEnv('SB_MARION_VOICE_REGISTRY_MAX_PROFILES', 500, 1, 5000);
+const MAX_REQUESTS = boundedEnv('SB_MARION_VOICE_REGISTRY_MAX_REQUESTS', 500, 1, 5000);
+const profiles = new Map();
+const requests = new Map();
+const SECRET_KEY = /(?:token|secret|password|cookie|authorization|api[_-]?key|bearer|raw.?audio|audio|blob|buffer|voiceprint|biometric|credential|private[_-]?key)/i;
+const SECRET_TEXT = /(?:bearer\s+[a-z0-9._~+/-]+=*|(?:token|secret|password|api[_-]?key|session[_-]?token|authorization)\s*[:=]\s*)[^\s,"'}]+/gi;
 
-const VERSION = 'marion.voiceSpeakerRegistry/1.1-phase6-challenge-aware-registry';
-
-const REGISTRY_STATES = Object.freeze({
-  UNKNOWN: 'unknown',
-  PENDING_ENROLLMENT: 'pending_enrollment',
-  TRUSTED_METADATA_ONLY: 'trusted_metadata_only',
-  REMOTE_TRUSTED_USER: 'remote_trusted_user',
-  OWNER_VERIFIED: 'owner_verified',
-  REVOKED: 'revoked',
-  BLOCKED: 'blocked'
-});
-
-const ROLE_BINDINGS = Object.freeze({
-  OWNER: 'owner',
-  REMOTE_TRUSTED_USER: 'remote_trusted_user',
-  OBSERVER: 'observer',
-  BLOCKED: 'blocked'
-});
-
-const RAW_AUDIO_KEYS = Object.freeze([
-  'rawAudio', 'audio', 'audioBlob', 'blob', 'buffer', 'voiceprint',
-  'voicePrint', 'biometricTemplate', 'biometric', 'sample', 'samples'
-]);
-
-const SENSITIVE_KEY_RX = /token|secret|password|cookie|authorization|api[_-]?key|bearer|x-sb-|rawaudio|audio|blob|buffer|voiceprint|biometric/i;
-
-const speakerProfiles = new Map();
-const enrollmentRequests = new Map();
-
-function now() {
-  return Date.now();
+function boundedEnv(name, fallback, min, max) { const n = Number(process.env[name]); return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.floor(n))) : fallback; }
+function isObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+function own(o, k) { if (!isObject(o)) return undefined; try { const d = Object.getOwnPropertyDescriptor(o, k); return d && Object.prototype.hasOwnProperty.call(d, 'value') ? d.value : undefined; } catch (_) { return undefined; } }
+function safeText(v, max = 160) {
+  if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'boolean') return '';
+  return String(v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(SECRET_TEXT, '[redacted]').replace(/\s+/g, ' ').trim().slice(0, Math.max(1, Math.min(Number(max) || 160, 500)));
 }
-
-function iso(ts) {
-  const n = Number(ts || now());
-  return new Date(Number.isFinite(n) ? n : now()).toISOString();
-}
-
-function safeText(value, maxLength) {
-  const max = Number.isFinite(Number(maxLength)) ? Math.max(1, Math.min(Number(maxLength), 500)) : 160;
-  return String(value == null ? '' : value)
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max);
-}
-
-function normalizeSpeakerId(value) {
-  return safeText(value, 160)
-    .toLowerCase()
-    .replace(/[^a-z0-9._:@/-]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 120);
-}
-
-function generatedSpeakerId(seed) {
-  const base = safeText(seed || 'speaker', 160) || 'speaker';
-  return 'spk_' + crypto.createHash('sha256').update(base + '|' + now() + '|' + crypto.randomBytes(8).toString('hex')).digest('hex').slice(0, 24);
-}
-
-function registryId(prefix) {
-  return String(prefix || 'reg') + '_' + crypto.randomBytes(12).toString('hex');
-}
-
-function normalizeRoleBinding(value) {
-  const raw = safeText(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  if (raw === 'owner' || raw === 'admin' || raw === 'administrator') return ROLE_BINDINGS.OWNER;
-  if (raw === 'remote_trusted_user' || raw === 'remote_user' || raw === 'trusted_remote_user') return ROLE_BINDINGS.REMOTE_TRUSTED_USER;
-  if (raw === 'observer' || raw === 'viewer' || raw === 'read_only') return ROLE_BINDINGS.OBSERVER;
+function now() { return Date.now(); }
+function iso(ts) { const n = Number(ts); return new Date(Number.isFinite(n) ? n : now()).toISOString(); }
+function normalizeSpeakerId(v) { return safeText(v, 160).toLowerCase().replace(/[^a-z0-9._:@/-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 120); }
+function newSpeakerId() { return 'spk_' + crypto.randomBytes(18).toString('hex'); }
+function registryId(prefix) { return String(prefix || 'reg') + '_' + crypto.randomBytes(12).toString('hex'); }
+function normalizeRoleBinding(v) {
+  const s = safeText(v, 80).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  if (['owner','admin','administrator'].includes(s)) return ROLE_BINDINGS.OWNER;
+  if (['remote_trusted_user','remote_user','trusted_remote_user'].includes(s)) return ROLE_BINDINGS.REMOTE_TRUSTED_USER;
+  if (['observer','viewer','read_only'].includes(s)) return ROLE_BINDINGS.OBSERVER;
   return ROLE_BINDINGS.BLOCKED;
 }
-
-function stateForRole(role) {
-  const binding = normalizeRoleBinding(role);
-  if (binding === ROLE_BINDINGS.OWNER) return REGISTRY_STATES.OWNER_VERIFIED;
-  if (binding === ROLE_BINDINGS.REMOTE_TRUSTED_USER) return REGISTRY_STATES.REMOTE_TRUSTED_USER;
-  if (binding === ROLE_BINDINGS.OBSERVER) return REGISTRY_STATES.TRUSTED_METADATA_ONLY;
-  return REGISTRY_STATES.BLOCKED;
+function normalizeState(v) { const s = safeText(v, 80).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''); return Object.values(REGISTRY_STATES).includes(s) ? s : REGISTRY_STATES.UNKNOWN; }
+function stateForRole(role) { const r = normalizeRoleBinding(role); return r === ROLE_BINDINGS.OWNER ? REGISTRY_STATES.OWNER_VERIFIED : r === ROLE_BINDINGS.REMOTE_TRUSTED_USER ? REGISTRY_STATES.REMOTE_TRUSTED_USER : r === ROLE_BINDINGS.OBSERVER ? REGISTRY_STATES.TRUSTED_METADATA_ONLY : REGISTRY_STATES.BLOCKED; }
+function contextRole(ctx) { return normalizeRoleBinding(own(ctx, 'role') || own(ctx, 'sessionRole') || own(ctx, 'adminRole')); }
+function hasVerifiedOwnerSession(ctx) {
+  return isObject(ctx) && contextRole(ctx) === ROLE_BINDINGS.OWNER && own(ctx, 'adminVerified') === true && own(ctx, 'sessionVerified') === true && !!safeText(own(ctx, 'sessionId'), 160);
 }
-
-function normalizeState(value) {
-  const raw = safeText(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  return Object.values(REGISTRY_STATES).includes(raw) ? raw : REGISTRY_STATES.UNKNOWN;
-}
-
-function contextRole(context) {
-  const ctx = context && typeof context === 'object' ? context : {};
-  return normalizeRoleBinding(ctx.role || ctx.sessionRole || ctx.adminRole || '');
-}
-
-function isOwnerContext(context) {
-  return contextRole(context) === ROLE_BINDINGS.OWNER || (context && context.ownerVerified === true) || (context && context.adminVerified === true && context.role === 'owner');
-}
-
-function isAdminLikeContext(context) {
-  return isOwnerContext(context) || (context && context.adminVerified === true && contextRole(context) !== ROLE_BINDINGS.BLOCKED);
-}
-
-function sanitizeMetadata(value, depth) {
-  const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
-  if (level > 3) return '[max_depth]';
-  if (value == null) return value;
-  if (typeof value === 'string') return SENSITIVE_KEY_RX.test(value) ? '[redacted]' : safeText(value, 300);
-  if (typeof value === 'number' || typeof value === 'boolean') return value;
-  if (Array.isArray(value)) return value.slice(0, 12).map((item) => sanitizeMetadata(item, level + 1));
-  if (typeof value === 'object') {
-    const out = {};
-    Object.keys(value).slice(0, 24).forEach((key) => {
-      if (SENSITIVE_KEY_RX.test(key) || RAW_AUDIO_KEYS.includes(key)) return;
-      out[key] = sanitizeMetadata(value[key], level + 1);
-    });
+function sanitizeMetadata(value, depth = 0, seen = new WeakSet()) {
+  if (value == null || typeof value === 'boolean') return value;
+  if (typeof value === 'string') return safeText(value, 240);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'object' || depth >= 4 || seen.has(value)) return undefined;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    const out = [];
+    for (let i = 0; i < Math.min(value.length, 20); i += 1) { const d = Object.getOwnPropertyDescriptor(value, String(i)); if (d && 'value' in d) { const x = sanitizeMetadata(d.value, depth + 1, seen); if (x !== undefined) out.push(x); } }
     return out;
   }
-  return String(value);
+  const out = {};
+  let ds; try { ds = Object.getOwnPropertyDescriptors(value); } catch (_) { return out; }
+  for (const key of Object.keys(ds).slice(0, 32)) {
+    if (SECRET_KEY.test(key)) continue;
+    const d = ds[key]; if (!d || !Object.prototype.hasOwnProperty.call(d, 'value')) continue;
+    const x = sanitizeMetadata(d.value, depth + 1, seen); if (x !== undefined) out[key.slice(0, 80)] = x;
+  }
+  return out;
 }
-
-function firstSpeakerCandidate(input) {
-  const src = input && typeof input === 'object' ? input : {};
-  return normalizeSpeakerId(src.speakerId || src.detectedSpeakerId || src.claimedSpeaker || src.speakerHint || src.displayName || src.name || '');
+function speakerIdFrom(input, allowLabel = false) {
+  const keys = allowLabel ? ['speakerId','detectedSpeakerId','claimedSpeaker','speakerHint','displayName','name'] : ['speakerId','detectedSpeakerId'];
+  for (const k of keys) { const id = normalizeSpeakerId(own(input, k)); if (id) return id; }
+  return '';
 }
-
-function publicProfile(profile) {
-  if (!profile) return null;
+function capabilitiesForRole(role) { const r = normalizeRoleBinding(role); return r === ROLE_BINDINGS.OWNER ? ['voice.private.submit','voice.private.receive','speaker.registry.owner'] : r === ROLE_BINDINGS.REMOTE_TRUSTED_USER ? ['voice.private.submit','voice.private.receive'] : r === ROLE_BINDINGS.OBSERVER ? ['status.read'] : []; }
+function channelsForRole(role) { const r = normalizeRoleBinding(role); return r === ROLE_BINDINGS.OWNER ? ['marion_admin_voice','lingosentinel_private_voice'] : r === ROLE_BINDINGS.REMOTE_TRUSTED_USER ? ['remote_trusted_voice','lingosentinel_remote_trusted_voice'] : r === ROLE_BINDINGS.OBSERVER ? ['observer_status'] : []; }
+function publicProfile(p) {
+  if (!p) return null;
   return {
-    speakerId: profile.speakerId,
-    displayName: profile.displayName,
-    roleBinding: profile.roleBinding,
-    enrollmentStatus: profile.enrollmentStatus,
-    voiceProfileStatus: profile.voiceProfileStatus,
-    allowedChannels: Array.isArray(profile.allowedChannels) ? profile.allowedChannels.slice(0, 12) : [],
-    allowedCapabilities: Array.isArray(profile.allowedCapabilities) ? profile.allowedCapabilities.slice(0, 24) : [],
-    createdAt: profile.createdAt,
-    updatedAt: profile.updatedAt,
-    lastVerifiedAt: profile.lastVerifiedAt || null,
-    revokedAt: profile.revokedAt || null,
-    riskFlags: Array.isArray(profile.riskFlags) ? profile.riskFlags.slice(0, 12) : [],
-    rawAudioStored: false,
-    audioStored: false,
-    voiceprintStored: false,
-    profileMetadataOnly: true,
-    identityIsAuthority: false,
-    authorityStillRequiresRBAC: true,
-    liveChallengeRequired: true,
-    challengeVerificationRequired: true,
-    challengePreventsReplay: true,
-    challengeIsAuthority: false,
-    spoofResistanceBoundary: true
+    speakerId:p.speakerId, displayName:p.displayName, roleBinding:p.roleBinding, enrollmentStatus:p.enrollmentStatus,
+    voiceProfileStatus:p.voiceProfileStatus, allowedChannels:p.allowedChannels.slice(0,12), allowedCapabilities:p.allowedCapabilities.slice(0,24),
+    createdAt:p.createdAt, updatedAt:p.updatedAt, lastVerifiedAt:p.lastVerifiedAt || null, revokedAt:p.revokedAt || null,
+    riskFlags:p.riskFlags.slice(0,12), rawAudioStored:false, audioStored:false, voiceprintStored:false,
+    profileMetadataOnly:true, identityIsAuthority:false, authorityStillRequiresRBAC:true,
+    liveChallengeRequired:true, challengeVerificationRequired:true, challengePreventsReplay:true, challengeIsAuthority:false
   };
 }
-
-function publicRequest(request) {
-  if (!request) return null;
-  return {
-    requestId: request.requestId,
-    speakerId: request.speakerId,
-    displayName: request.displayName,
-    requestedRoleBinding: request.requestedRoleBinding,
-    enrollmentStatus: request.enrollmentStatus,
-    createdAt: request.createdAt,
-    updatedAt: request.updatedAt,
-    decidedAt: request.decidedAt || null,
-    decidedByRole: request.decidedByRole || '',
-    reason: request.reason || '',
-    rawAudioStored: false,
-    audioStored: false,
-    voiceprintStored: false,
-    profileMetadataOnly: true,
-    identityIsAuthority: false,
-    authorityStillRequiresRBAC: true,
-    liveChallengeRequired: true,
-    challengeVerificationRequired: true,
-    challengePreventsReplay: true,
-    challengeIsAuthority: false,
-    spoofResistanceBoundary: true
-  };
+function publicRequest(r) {
+  if (!r) return null;
+  return { requestId:r.requestId, speakerId:r.speakerId, displayName:r.displayName, requestedRoleBinding:r.requestedRoleBinding,
+    enrollmentStatus:r.enrollmentStatus, createdAt:r.createdAt, updatedAt:r.updatedAt, decidedAt:r.decidedAt || null,
+    decidedByRole:r.decidedByRole || '', reason:r.reason || '', rawAudioStored:false, audioStored:false, voiceprintStored:false,
+    profileMetadataOnly:true, identityIsAuthority:false, authorityStillRequiresRBAC:true,
+    liveChallengeRequired:true, challengeVerificationRequired:true, challengePreventsReplay:true, challengeIsAuthority:false };
 }
-
-function capabilitiesForRole(role) {
-  const binding = normalizeRoleBinding(role);
-  if (binding === ROLE_BINDINGS.OWNER) return ['voice.private.submit', 'voice.private.receive', 'speaker.registry.owner'];
-  if (binding === ROLE_BINDINGS.REMOTE_TRUSTED_USER) return ['voice.private.submit', 'voice.private.receive'];
-  if (binding === ROLE_BINDINGS.OBSERVER) return ['status.read'];
-  return [];
-}
-
-function channelsForRole(role) {
-  const binding = normalizeRoleBinding(role);
-  if (binding === ROLE_BINDINGS.OWNER) return ['marion_admin_voice', 'lingosentinel_private_voice'];
-  if (binding === ROLE_BINDINGS.REMOTE_TRUSTED_USER) return ['remote_trusted_voice', 'lingosentinel_remote_trusted_voice'];
-  if (binding === ROLE_BINDINGS.OBSERVER) return ['observer_status'];
-  return [];
-}
-
 function health() {
-  return {
-    ok: true,
-    service: 'marion-voice-speaker-registry',
-    version: VERSION,
-    phase: 'phase6_challenge_aware_speaker_registry',
-    routeMounted: true,
-    metadataOnly: true,
-    rawAudioStored: false,
-    audioStored: false,
-    voiceprintStored: false,
-    identityIsAuthority: false,
-    authorityStillRequiresRBAC: true,
-    liveChallengeRequired: true,
-    challengeVerificationRequired: true,
-    challengePreventsReplay: true,
-    challengeIsAuthority: false,
-    supportedStates: Object.values(REGISTRY_STATES),
-    supportedRoles: Object.values(ROLE_BINDINGS),
-    counts: {
-      profiles: speakerProfiles.size,
-      pendingRequests: Array.from(enrollmentRequests.values()).filter((item) => item.enrollmentStatus === REGISTRY_STATES.PENDING_ENROLLMENT).length,
-      requests: enrollmentRequests.size
-    }
-  };
+  return { ok:true, service:'marion-voice-speaker-registry', version:VERSION, routeMounted:true, metadataOnly:true,
+    storageMode:'process_memory', persistent:false, rawAudioStored:false, audioStored:false, voiceprintStored:false,
+    identityIsAuthority:false, authorityStillRequiresRBAC:true, liveChallengeRequired:true, challengeVerificationRequired:true,
+    challengePreventsReplay:true, challengeIsAuthority:false, supportedStates:Object.values(REGISTRY_STATES),
+    supportedRoles:Object.values(ROLE_BINDINGS), limits:{ profiles:MAX_PROFILES, requests:MAX_REQUESTS },
+    counts:{ profiles:profiles.size, pendingRequests:Array.from(requests.values()).filter(x => x.enrollmentStatus === REGISTRY_STATES.PENDING_ENROLLMENT).length, requests:requests.size } };
 }
-
 function requestEnrollment(input, context) {
-  if (!isOwnerContext(context)) {
-    return { ok: false, statusCode: 403, stage: 'speaker_registry_enrollment_owner_required', reason: 'owner_session_required_for_enrollment_request', registry: health() };
-  }
-  const src = input && typeof input === 'object' ? input : {};
-  const displayName = safeText(src.displayName || src.name || src.claimedSpeaker || src.speakerHint || '', 160);
-  const speakerId = firstSpeakerCandidate(src) || generatedSpeakerId(displayName || 'speaker');
-  const requestedRoleBinding = normalizeRoleBinding(src.roleBinding || src.requestedRoleBinding || src.role || ROLE_BINDINGS.OBSERVER);
-  if (requestedRoleBinding === ROLE_BINDINGS.BLOCKED) {
-    return { ok: false, statusCode: 400, stage: 'speaker_registry_invalid_role', reason: 'speaker_role_binding_required', speakerId, registry: health() };
-  }
-  const existing = speakerProfiles.get(speakerId);
-  if (existing && existing.enrollmentStatus !== REGISTRY_STATES.REVOKED && existing.enrollmentStatus !== REGISTRY_STATES.BLOCKED) {
-    return { ok: false, statusCode: 409, stage: 'speaker_registry_profile_exists', reason: 'speaker_already_registered', speaker: publicProfile(existing), registry: health() };
-  }
+  if (!hasVerifiedOwnerSession(context)) return { ok:false,statusCode:403,stage:'speaker_registry_enrollment_owner_required',reason:'verified_owner_session_required',registry:health() };
+  const src = isObject(input) ? input : {};
+  const displayName = safeText(own(src,'displayName') || own(src,'name') || own(src,'claimedSpeaker') || '', 120);
+  const speakerId = speakerIdFrom(src, true) || newSpeakerId();
+  const role = normalizeRoleBinding(own(src,'roleBinding') || own(src,'requestedRoleBinding') || own(src,'role') || ROLE_BINDINGS.OBSERVER);
+  if (role === ROLE_BINDINGS.BLOCKED) return { ok:false,statusCode:400,stage:'speaker_registry_invalid_role',reason:'speaker_role_binding_required',registry:health() };
+  const old = profiles.get(speakerId);
+  if (old && ![REGISTRY_STATES.REVOKED,REGISTRY_STATES.BLOCKED].includes(old.enrollmentStatus)) return { ok:false,statusCode:409,stage:'speaker_registry_profile_exists',reason:'speaker_already_registered',speaker:publicProfile(old),registry:health() };
+  if (requests.size >= MAX_REQUESTS) return { ok:false,statusCode:429,stage:'speaker_registry_capacity_reached',reason:'enrollment_request_capacity_reached',registry:health() };
   const t = now();
-  const request = {
-    requestId: registryId('ser'),
-    speakerId,
-    displayName,
-    requestedRoleBinding,
-    enrollmentStatus: REGISTRY_STATES.PENDING_ENROLLMENT,
-    createdAt: iso(t),
-    updatedAt: iso(t),
-    requestedByRole: contextRole(context),
-    reason: safeText(src.reason || src.note || '', 240),
-    metadata: sanitizeMetadata(src.metadata || src.profile || {}),
-    rawAudioStored: false,
-    audioStored: false,
-    voiceprintStored: false,
-    profileMetadataOnly: true,
-    liveChallengeRequired: true,
-    challengeVerificationRequired: true,
-    challengePreventsReplay: true,
-    challengeIsAuthority: false
-  };
-  enrollmentRequests.set(request.requestId, request);
-  return { ok: true, statusCode: 201, stage: 'speaker_registry_enrollment_requested', request: publicRequest(request), registry: health() };
+  const req = { requestId:registryId('ser'),speakerId,displayName,requestedRoleBinding:role,enrollmentStatus:REGISTRY_STATES.PENDING_ENROLLMENT,
+    createdAt:iso(t),updatedAt:iso(t),requestedByRole:contextRole(context),reason:safeText(own(src,'reason') || own(src,'note') || '',200),
+    metadata:sanitizeMetadata(own(src,'metadata') || own(src,'profile') || {}),rawAudioStored:false,audioStored:false,voiceprintStored:false,profileMetadataOnly:true };
+  requests.set(req.requestId, req);
+  return { ok:true,statusCode:201,stage:'speaker_registry_enrollment_requested',request:publicRequest(req),registry:health() };
 }
-
 function approveEnrollment(input, context) {
-  if (!isOwnerContext(context)) {
-    return { ok: false, statusCode: 403, stage: 'speaker_registry_approval_owner_required', reason: 'owner_session_required_for_enrollment_approval', registry: health() };
-  }
-  const src = input && typeof input === 'object' ? input : {};
-  const requestId = safeText(src.requestId || src.enrollmentRequestId || '', 120);
-  const request = enrollmentRequests.get(requestId);
-  if (!request || request.enrollmentStatus !== REGISTRY_STATES.PENDING_ENROLLMENT) {
-    return { ok: false, statusCode: 404, stage: 'speaker_registry_request_not_found', reason: 'pending_enrollment_request_not_found', requestId, registry: health() };
-  }
-  const roleBinding = normalizeRoleBinding(src.roleBinding || src.approvedRoleBinding || request.requestedRoleBinding);
-  if (roleBinding === ROLE_BINDINGS.BLOCKED) {
-    return { ok: false, statusCode: 400, stage: 'speaker_registry_invalid_approval_role', reason: 'approved_role_binding_required', request: publicRequest(request), registry: health() };
-  }
+  if (!hasVerifiedOwnerSession(context)) return { ok:false,statusCode:403,stage:'speaker_registry_approval_owner_required',reason:'verified_owner_session_required',registry:health() };
+  const id = safeText(own(input,'requestId') || own(input,'enrollmentRequestId') || '',120);
+  const req = requests.get(id);
+  if (!req || req.enrollmentStatus !== REGISTRY_STATES.PENDING_ENROLLMENT) return { ok:false,statusCode:404,stage:'speaker_registry_request_not_found',reason:'pending_enrollment_request_not_found',registry:health() };
+  const role = normalizeRoleBinding(own(input,'roleBinding') || own(input,'approvedRoleBinding') || req.requestedRoleBinding);
+  if (role === ROLE_BINDINGS.BLOCKED) return { ok:false,statusCode:400,stage:'speaker_registry_invalid_approval_role',reason:'approved_role_binding_required',request:publicRequest(req),registry:health() };
+  if (!profiles.has(req.speakerId) && profiles.size >= MAX_PROFILES) return { ok:false,statusCode:429,stage:'speaker_registry_capacity_reached',reason:'speaker_profile_capacity_reached',registry:health() };
   const t = now();
-  const profile = {
-    speakerId: request.speakerId,
-    displayName: safeText(src.displayName || request.displayName || request.speakerId, 160),
-    roleBinding,
-    enrollmentStatus: stateForRole(roleBinding),
-    voiceProfileStatus: 'metadata_only',
-    allowedChannels: channelsForRole(roleBinding),
-    allowedCapabilities: capabilitiesForRole(roleBinding),
-    createdAt: request.createdAt,
-    updatedAt: iso(t),
-    lastVerifiedAt: iso(t),
-    revokedAt: null,
-    riskFlags: [],
-    metadata: sanitizeMetadata(request.metadata || {}),
-    rawAudioStored: false,
-    audioStored: false,
-    voiceprintStored: false,
-    profileMetadataOnly: true,
-    liveChallengeRequired: true,
-    challengeVerificationRequired: true,
-    challengePreventsReplay: true,
-    challengeIsAuthority: false
-  };
-  request.enrollmentStatus = 'approved';
-  request.decidedAt = iso(t);
-  request.updatedAt = iso(t);
-  request.decidedByRole = contextRole(context);
-  speakerProfiles.set(profile.speakerId, profile);
-  enrollmentRequests.set(request.requestId, request);
-  return { ok: true, statusCode: 200, stage: 'speaker_registry_enrollment_approved', request: publicRequest(request), speaker: publicProfile(profile), registry: health() };
+  const p = { speakerId:req.speakerId,displayName:safeText(own(input,'displayName') || req.displayName || req.speakerId,120),roleBinding:role,
+    enrollmentStatus:stateForRole(role),voiceProfileStatus:'metadata_only',allowedChannels:channelsForRole(role),allowedCapabilities:capabilitiesForRole(role),
+    createdAt:req.createdAt,updatedAt:iso(t),lastVerifiedAt:iso(t),revokedAt:null,riskFlags:[],metadata:sanitizeMetadata(req.metadata),
+    rawAudioStored:false,audioStored:false,voiceprintStored:false,profileMetadataOnly:true };
+  req.enrollmentStatus='approved'; req.decidedAt=iso(t); req.updatedAt=iso(t); req.decidedByRole=contextRole(context);
+  profiles.set(p.speakerId,p); requests.set(req.requestId,req);
+  return { ok:true,statusCode:200,stage:'speaker_registry_enrollment_approved',request:publicRequest(req),speaker:publicProfile(p),registry:health() };
 }
-
-function denyEnrollment(input, context) {
-  if (!isOwnerContext(context)) {
-    return { ok: false, statusCode: 403, stage: 'speaker_registry_denial_owner_required', reason: 'owner_session_required_for_enrollment_denial', registry: health() };
-  }
-  const src = input && typeof input === 'object' ? input : {};
-  const requestId = safeText(src.requestId || src.enrollmentRequestId || '', 120);
-  const request = enrollmentRequests.get(requestId);
-  if (!request || request.enrollmentStatus !== REGISTRY_STATES.PENDING_ENROLLMENT) {
-    return { ok: false, statusCode: 404, stage: 'speaker_registry_request_not_found', reason: 'pending_enrollment_request_not_found', requestId, registry: health() };
-  }
-  const t = now();
-  request.enrollmentStatus = 'denied';
-  request.decidedAt = iso(t);
-  request.updatedAt = iso(t);
-  request.decidedByRole = contextRole(context);
-  request.reason = safeText(src.reason || request.reason || 'denied_by_owner', 240);
-  enrollmentRequests.set(request.requestId, request);
-  return { ok: true, statusCode: 200, stage: 'speaker_registry_enrollment_denied', request: publicRequest(request), registry: health() };
+function updateRequestDecision(input, context, decision) {
+  if (!hasVerifiedOwnerSession(context)) return { ok:false,statusCode:403,stage:`speaker_registry_${decision}_owner_required`,reason:'verified_owner_session_required',registry:health() };
+  const id = safeText(own(input,'requestId') || own(input,'enrollmentRequestId') || '',120);
+  const req = requests.get(id);
+  if (!req || req.enrollmentStatus !== REGISTRY_STATES.PENDING_ENROLLMENT) return { ok:false,statusCode:404,stage:'speaker_registry_request_not_found',reason:'pending_enrollment_request_not_found',registry:health() };
+  const t=now(); req.enrollmentStatus=decision === 'denied' ? 'denied' : 'cancelled'; req.decidedAt=iso(t); req.updatedAt=iso(t); req.decidedByRole=contextRole(context);
+  req.reason=safeText(own(input,'reason') || req.reason || decision,200); requests.set(req.requestId,req);
+  return { ok:true,statusCode:200,stage:`speaker_registry_enrollment_${decision}`,request:publicRequest(req),registry:health() };
 }
-
+function denyEnrollment(input, context) { return updateRequestDecision(input,context,'denied'); }
 function revokeSpeaker(input, context) {
-  if (!isOwnerContext(context)) {
-    return { ok: false, statusCode: 403, stage: 'speaker_registry_revoke_owner_required', reason: 'owner_session_required_for_speaker_revoke', registry: health() };
-  }
-  const src = input && typeof input === 'object' ? input : {};
-  const speakerId = firstSpeakerCandidate(src);
-  const profile = speakerProfiles.get(speakerId);
-  if (!profile) {
-    return { ok: false, statusCode: 404, stage: 'speaker_registry_speaker_not_found', reason: 'speaker_profile_not_found', speakerId, registry: health() };
-  }
-  const t = now();
-  profile.enrollmentStatus = REGISTRY_STATES.REVOKED;
-  profile.voiceProfileStatus = 'revoked';
-  profile.revokedAt = iso(t);
-  profile.updatedAt = iso(t);
-  profile.riskFlags = Array.from(new Set([...(Array.isArray(profile.riskFlags) ? profile.riskFlags : []), 'revoked']));
-  speakerProfiles.set(profile.speakerId, profile);
-  return { ok: true, statusCode: 200, stage: 'speaker_registry_speaker_revoked', speaker: publicProfile(profile), registry: health() };
+  if (!hasVerifiedOwnerSession(context)) return { ok:false,statusCode:403,stage:'speaker_registry_revoke_owner_required',reason:'verified_owner_session_required',registry:health() };
+  const speakerId=speakerIdFrom(input,false), p=profiles.get(speakerId);
+  if (!p) return { ok:false,statusCode:404,stage:'speaker_registry_speaker_not_found',reason:'speaker_profile_not_found',registry:health() };
+  const t=now(); p.enrollmentStatus=REGISTRY_STATES.REVOKED; p.voiceProfileStatus='revoked'; p.revokedAt=iso(t); p.updatedAt=iso(t); p.riskFlags=Array.from(new Set([...p.riskFlags,'revoked']));
+  return { ok:true,statusCode:200,stage:'speaker_registry_speaker_revoked',speaker:publicProfile(p),registry:health() };
 }
-
 function checkSpeaker(input) {
-  const speakerId = firstSpeakerCandidate(input);
-  if (!speakerId) {
-    return { ok: true, statusCode: 200, stage: 'speaker_registry_unknown', matched: false, enrollmentStatus: REGISTRY_STATES.UNKNOWN, speaker: null, registry: health() };
-  }
-  const profile = speakerProfiles.get(speakerId) || null;
-  if (!profile) {
-    return { ok: true, statusCode: 200, stage: 'speaker_registry_unknown', matched: false, speakerId, enrollmentStatus: REGISTRY_STATES.UNKNOWN, speaker: null, registry: health() };
-  }
-  const blocked = profile.enrollmentStatus === REGISTRY_STATES.REVOKED || profile.enrollmentStatus === REGISTRY_STATES.BLOCKED;
-  return {
-    ok: true,
-    statusCode: 200,
-    stage: blocked ? 'speaker_registry_blocked' : 'speaker_registry_matched',
-    matched: true,
-    speakerId: profile.speakerId,
-    enrollmentStatus: profile.enrollmentStatus,
-    roleBinding: profile.roleBinding,
-    blocked,
-    liveChallengeRequired: !blocked,
-    challengeVerificationRequired: !blocked,
-    challengePreventsReplay: true,
-    challengeIsAuthority: false,
-    speaker: publicProfile(profile),
-    registry: health()
-  };
+  const id=speakerIdFrom(input,false);
+  if (!id) return { ok:true,statusCode:200,stage:'speaker_registry_unknown',matched:false,enrollmentStatus:REGISTRY_STATES.UNKNOWN,speaker:null,registry:health() };
+  const p=profiles.get(id);
+  if (!p) return { ok:true,statusCode:200,stage:'speaker_registry_unknown',matched:false,speakerId:id,enrollmentStatus:REGISTRY_STATES.UNKNOWN,speaker:null,registry:health() };
+  const blocked=[REGISTRY_STATES.REVOKED,REGISTRY_STATES.BLOCKED].includes(p.enrollmentStatus);
+  return { ok:true,statusCode:200,stage:blocked?'speaker_registry_blocked':'speaker_registry_matched',matched:!blocked,speakerId:p.speakerId,
+    enrollmentStatus:p.enrollmentStatus,roleBinding:p.roleBinding,blocked,liveChallengeRequired:true,challengeVerificationRequired:true,
+    challengePreventsReplay:true,challengeIsAuthority:false,speaker:publicProfile(p),registry:health() };
 }
+function clearRegistryForTests() { profiles.clear(); requests.clear(); return health(); }
 
-function clearRegistryForTests() {
-  speakerProfiles.clear();
-  enrollmentRequests.clear();
-  return health();
-}
-
-module.exports = {
-  VERSION,
-  REGISTRY_STATES,
-  ROLE_BINDINGS,
-  health,
-  requestEnrollment,
-  approveEnrollment,
-  denyEnrollment,
-  revokeSpeaker,
-  checkSpeaker,
-  publicProfile,
-  publicRequest,
-  normalizeSpeakerId,
-  normalizeRoleBinding,
-  normalizeState,
-  sanitizeMetadata,
-  clearRegistryForTests
-};
+module.exports = { VERSION,REGISTRY_STATES,ROLE_BINDINGS,health,requestEnrollment,approveEnrollment,denyEnrollment,revokeSpeaker,checkSpeaker,
+  publicProfile,publicRequest,normalizeSpeakerId,normalizeRoleBinding,normalizeState,sanitizeMetadata,clearRegistryForTests };
