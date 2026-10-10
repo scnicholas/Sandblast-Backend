@@ -17,6 +17,26 @@ const REVIEW_RECORD_KEYS = new Set([
 ]);
 const schemaReadyByPool = new WeakMap();
 
+function normalizeAuditEvent(event) {
+  let serialized;
+  try {
+    serialized = JSON.stringify(event);
+  } catch (_) {
+    throw new TypeError("audit_event_not_json_serializable");
+  }
+  if (typeof serialized !== "string") throw new TypeError("audit_event_not_json_serializable");
+  let normalized;
+  try {
+    normalized = JSON.parse(serialized);
+  } catch (_) {
+    throw new TypeError("audit_event_not_json_serializable");
+  }
+  if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) {
+    throw new TypeError("invalid_learning_audit_event");
+  }
+  return normalized;
+}
+
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   if (value && typeof value === "object") {
@@ -321,9 +341,10 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     const state = stateResult.rows[0];
     const sequence = Number(state.sequence) + 1;
     const previousHash = state.event_hash;
-    const eventHash = auditHash(previousHash, sequence, event);
+    const normalizedEvent = normalizeAuditEvent(event);
+    const eventHash = auditHash(previousHash, sequence, normalizedEvent);
     await client.query("INSERT INTO marion_learning_audit (sequence, previous_hash, event, event_hash) VALUES ($1, $2, $3::jsonb, $4)",
-      [sequence, previousHash, JSON.stringify(event), eventHash]);
+      [sequence, previousHash, JSON.stringify(normalizedEvent), eventHash]);
     await client.query("UPDATE marion_learning_audit_state SET sequence = $1, event_hash = $2 WHERE singleton = TRUE", [sequence, eventHash]);
   }
 
