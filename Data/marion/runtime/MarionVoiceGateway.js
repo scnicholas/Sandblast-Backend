@@ -79,6 +79,14 @@ const continuityWindowMod = (() => {
   }
 })();
 
+const voiceParityHardlockMod = (() => {
+  try {
+    return require('./voiceTextParityIdentityDriftHardlock.js');
+  } catch (_) {
+    return null;
+  }
+})();
+
 function projectVoiceMode(rawMode, speakAllowed, spokenText) {
   if (speakAllowed !== true || !safeText(spokenText)) return 'silent';
   const mode = safeText(rawMode || '').toLowerCase();
@@ -199,6 +207,50 @@ function hasOptionAdminVoiceProof(options) {
     opts.serverSideAdminVoiceAuth === true ||
     opts.serverSideAdminAuth === true ||
     opts.trustedServerAuth === true;
+}
+
+function voiceAuthorityDependenciesReady() {
+  return Boolean(
+    speakerIdentityMod && typeof speakerIdentityMod.resolveVoiceSpeakerIdentity === 'function' &&
+    typeof speakerIdentityMod.applyVoiceSpeakerIdentityEnvelope === 'function' &&
+    challengeVerifierMod && typeof challengeVerifierMod.checkChallenge === 'function' &&
+    continuityWindowMod && typeof continuityWindowMod.checkContinuityWindow === 'function' &&
+    voiceParityHardlockMod && typeof voiceParityHardlockMod.projectResult === 'function' &&
+    typeof voiceParityHardlockMod.projectAuthorizationResult === 'function'
+  );
+}
+
+function voiceAuthorityRuntimeUnavailableResponse() {
+  const reply = 'Protected voice authorization is unavailable until its identity, challenge, continuity, and parity modules are ready.';
+  return {
+    ok: false,
+    final: false,
+    marionFinal: false,
+    canEmit: false,
+    blocked: true,
+    reply,
+    text: reply,
+    message: reply,
+    publicAgent: 'Nyx',
+    authority: 'Marion',
+    inputChannel: 'voice',
+    source: 'voice',
+    error: 'MARION_VOICE_AUTHORITY_RUNTIME_NOT_READY',
+    adminOnlyVoiceDelivery: true,
+    transcriptOnly: true,
+    noRawAudioStored: true,
+    audioStored: false,
+    voice: {
+      speakAllowed: false,
+      voiceMode: 'silent',
+      reason: 'MARION_VOICE_AUTHORITY_RUNTIME_NOT_READY',
+      spokenText: '',
+      adminOnlyVoiceDelivery: true,
+      adminVoiceDeliveryAllowed: false,
+      audioStored: false,
+      noRawAudioStored: true
+    }
+  };
 }
 
 function safeErrorCode(error, fallback = 'MARION_BRIDGE_ERROR') {
@@ -592,6 +644,7 @@ function makeNyxBoundaryResponse(response, voiceEnvelope, telemetry, outputPolic
 }
 
 async function handleVoiceTranscript(input, options) {
+  if (!voiceAuthorityDependenciesReady()) return voiceAuthorityRuntimeUnavailableResponse();
   const opts = options && typeof options === 'object' ? options : {};
   const telemetryEvents = [];
   const inputObj = input && typeof input === 'object' ? input : {};
@@ -822,6 +875,60 @@ async function handleVoiceTranscript(input, options) {
     telemetryEvents.push(createVoiceTelemetryEvent('voice.marion.bridge.failed', envelope, {
       error: bridgeResponse.error
     }));
+  }
+
+  // Voice is a private emission surface. Never promote bridge text directly to
+  // speech unless the same Marion current-turn signature gate used by the text
+  // path certifies the complete final packet.
+  const certifiedVoiceFinal = certifiedMarionFinal(bridgeResponse);
+  if (!certifiedVoiceFinal) {
+    telemetryEvents.push(createVoiceTelemetryEvent('voice.marion.final.rejected', envelope, {
+      error: 'MARION_FINAL_AUTHORITY_REQUIRED'
+    }));
+    const blockedEnvelope = Object.assign({}, envelope, {
+      authorizationState: 'blocked',
+      adminVoiceVerified: false,
+      adminVoiceDeliveryAllowed: false,
+      remoteTrustedUserVerified: false,
+      remoteTrustedVoiceDeliveryAllowed: false
+    });
+    const blockedPolicy = applyVoiceOutputPolicy({
+      ok: false,
+      final: false,
+      marionFinal: false,
+      blocked: true,
+      canEmit: false,
+      reply: 'I heard you, but the protected voice reply could not be verified.'
+    }, {
+      adminOnlyVoiceDelivery: true,
+      adminVoiceVerified: false,
+      adminVoiceDeliveryAllowed: false,
+      remoteTrustedUserVerified: false,
+      remoteTrustedVoiceDeliveryAllowed: false,
+      forceSilent: true
+    });
+    const blockedResult = makeNyxBoundaryResponse(
+      blockedPolicy,
+      blockedEnvelope,
+      telemetryEvents,
+      blockedPolicy.voice,
+      opts
+    );
+    return Object.assign({}, blockedResult, {
+      ok: false,
+      final: false,
+      marionFinal: false,
+      canEmit: false,
+      error: 'MARION_FINAL_AUTHORITY_REQUIRED',
+      voice: Object.assign({}, blockedResult.voice || {}, {
+        speakAllowed: false,
+        spokenText: '',
+        textToSynth: '',
+        voiceMode: 'silent',
+        adminVoiceDeliveryAllowed: false,
+        remoteTrustedVoiceDeliveryAllowed: false
+      })
+    });
   }
 
   const withPolicy = applyVoiceOutputPolicy(bridgeResponse, Object.assign({}, opts.output || opts, {
@@ -1365,7 +1472,10 @@ module.exports = {
   speechSyncEnvelopeMod,
   speakerIdentityMod,
   challengeVerifierMod,
-  continuityWindowMod
+  continuityWindowMod,
+  voiceParityHardlockMod,
+  voiceAuthorityDependenciesReady,
+  voiceAuthorityRuntimeUnavailableResponse
 };
 
 
