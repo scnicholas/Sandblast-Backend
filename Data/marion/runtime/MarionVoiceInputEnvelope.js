@@ -2,52 +2,73 @@
 
 /**
  * MarionVoiceInputEnvelope
- * Compatibility layer added during surgical autopsy package v1.
- * Purpose: make the voice gateway loadable and provide a stable, sanitized
- * transcript envelope before authorization, normalization, Marion routing, and output policy.
- *
- * Privacy rule: transcript only. Raw audio, blobs, buffers, voiceprints, tokens,
- * cookies, and authorization headers are never copied into the envelope.
+ * Projects voice input into a bounded transcript-only envelope.
+ * Client metadata is allowlisted; credentials, audio and arbitrary objects do
+ * not cross this boundary.
  */
 
-const VERSION = 'marion.voiceInputEnvelope/1.0-package-v1';
-
+const VERSION = 'marion.voiceInputEnvelope/1.1-bounded-metadata';
 const SENSITIVE_KEY_RX = /token|secret|password|cookie|authorization|bearer|api[_-]?key|rawaudio|audio|blob|buffer|voiceprint|biometric/i;
-const RAW_AUDIO_KEYS = new Set(['rawAudio', 'audio', 'audioBlob', 'blob', 'buffer', 'voiceprint', 'voicePrint', 'biometricTemplate', 'biometric', 'sample', 'samples']);
+const META_KEYS = new Set(['provider', 'client', 'codec', 'contentType', 'language', 'source']);
+
+function ownValue(object, key) {
+  if (!object || typeof object !== 'object') return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+    return descriptor && Object.prototype.hasOwnProperty.call(descriptor, 'value') ? descriptor.value : undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
+function safeScalar(value) {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
 
 function safeText(value, maxLength) {
-  const max = Number.isFinite(Number(maxLength)) ? Math.max(1, Math.min(Number(maxLength), 4000)) : 1000;
-  return String(value == null ? '' : value)
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, max);
+  const maxNum = Number(maxLength);
+  const max = Number.isFinite(maxNum) ? Math.max(1, Math.min(maxNum, 4000)) : 1000;
+  if (value == null || !safeScalar(value)) return '';
+  let text;
+  try { text = String(value); } catch (_) { return ''; }
+  return text.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
 function safeId(value, maxLength) {
-  return safeText(value, maxLength || 120).replace(/[^a-zA-Z0-9._:@/-]+/g, '_').replace(/^_+|_+$/g, '');
+  const text = safeText(value, maxLength || 120);
+  if (!text || SENSITIVE_KEY_RX.test(text)) return '';
+  return text.replace(/[^a-zA-Z0-9._:@/-]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 function pickFirst() {
   for (let i = 0; i < arguments.length; i += 1) {
-    const v = arguments[i];
-    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    const value = arguments[i];
+    if (safeScalar(value) && String(value).trim() !== '') return value;
   }
   return '';
 }
 
-function stripSensitiveObject(value, depth) {
-  if (!value || typeof value !== 'object') return value;
-  if (depth > 2) return '[clamped]';
-  if (Array.isArray(value)) return value.slice(0, 20).map((item) => stripSensitiveObject(item, depth + 1));
-  const out = {};
-  Object.keys(value).forEach((key) => {
-    if (RAW_AUDIO_KEYS.has(key) || SENSITIVE_KEY_RX.test(key)) return;
-    const v = value[key];
-    if (typeof v === 'function') return;
-    if (typeof v === 'object' && v !== null) out[key] = stripSensitiveObject(v, depth + 1);
-    else out[key] = typeof v === 'string' ? safeText(v, 500) : v;
-  });
+function finiteUnit(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : null;
+}
+
+function sanitizeMetadata(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const out = Object.create(null);
+  let count = 0;
+  for (const key of META_KEYS) {
+    if (count >= META_KEYS.size) break;
+    const item = ownValue(source, key);
+    if (typeof item !== 'string' && typeof item !== 'number' && typeof item !== 'boolean') continue;
+    if (SENSITIVE_KEY_RX.test(key)) continue;
+    const text = safeText(item, 80);
+    if (!text || SENSITIVE_KEY_RX.test(text)) continue;
+    out[key] = text;
+    count += 1;
+  }
   return out;
 }
 
@@ -63,47 +84,53 @@ function inferIntent(transcript, explicitIntent) {
 function createVoiceInputEnvelope(input, options) {
   const src = input && typeof input === 'object' ? input : { transcript: input };
   const opts = options && typeof options === 'object' ? options : {};
-  const transcript = safeText(pickFirst(src.transcript, src.text, src.message, src.query, src.userQuery, src.input), 4000);
-  const originalTranscript = safeText(pickFirst(src.originalTranscript, src.rawTranscript, transcript), 4000);
-  const now = new Date().toISOString();
-  const rawMeta = stripSensitiveObject(src.rawMeta || src.meta || {}, 0) || {};
+  const transcript = safeText(pickFirst(
+    ownValue(src, 'transcript'), ownValue(src, 'text'), ownValue(src, 'message'),
+    ownValue(src, 'query'), ownValue(src, 'userQuery'), ownValue(src, 'input')
+  ), 4000);
+  const originalTranscript = safeText(pickFirst(
+    ownValue(src, 'originalTranscript'), ownValue(src, 'rawTranscript'), transcript
+  ), 4000);
+  const rawMeta = sanitizeMetadata(ownValue(src, 'rawMeta') || ownValue(src, 'meta'));
+  const confidence = finiteUnit(ownValue(src, 'confidence'));
+  const speakerConfidence = finiteUnit(ownValue(src, 'speakerConfidence'));
 
   return {
     version: VERSION,
     voiceInputEnvelope: true,
     inputChannel: 'voice',
-    source: safeText(pickFirst(src.source, opts.source, 'voice'), 80),
+    source: safeText(pickFirst(ownValue(src, 'source'), ownValue(opts, 'source'), 'voice'), 80),
     transcript,
     originalTranscript,
     transcriptLength: transcript.length,
-    transcriptHashHint: transcript ? String(transcript.length) + ':' + String(transcript.charCodeAt(0) || 0) + ':' + String(transcript.charCodeAt(transcript.length - 1) || 0) : '',
-    locale: safeText(pickFirst(src.locale, opts.locale, 'en-CA'), 20),
-    confidence: Number.isFinite(Number(src.confidence)) ? Math.max(0, Math.min(1, Number(src.confidence))) : null,
-    userIntentHint: inferIntent(transcript, src.userIntentHint || src.intent),
-    requestId: safeId(pickFirst(src.requestId, opts.requestId), 120),
-    turnId: safeId(pickFirst(src.turnId, opts.turnId), 120),
-    sessionId: safeId(pickFirst(src.sessionId, src.sid, opts.sessionId), 160),
-    speakerHint: safeText(pickFirst(src.speakerHint, src.claimedSpeaker, src.speaker, src.user), 160),
-    claimedSpeaker: safeText(pickFirst(src.claimedSpeaker, src.speaker, src.user), 160),
-    detectedSpeakerId: safeId(pickFirst(src.detectedSpeakerId, src.speakerId), 120),
-    speakerConfidence: Number.isFinite(Number(src.speakerConfidence)) ? Math.max(0, Math.min(1, Number(src.speakerConfidence))) : null,
-    voiceMatchStatus: safeText(src.voiceMatchStatus, 80),
-    sessionRole: safeText(pickFirst(src.sessionRole, opts.sessionRole, opts.role), 80),
-    directMarionAdminInterface: src.directMarionAdminInterface === true || opts.directMarionAdminInterface === true,
-    marionAdminConversation: src.marionAdminConversation === true || opts.marionAdminConversation === true,
-    adminInterfaceScope: safeText(pickFirst(src.adminInterfaceScope, opts.adminInterfaceScope), 100),
-    deliveryChannel: safeText(pickFirst(src.deliveryChannel, opts.deliveryChannel), 100),
-    publicAgent: safeText(pickFirst(src.publicAgent, opts.publicAgent, 'Nyx'), 40),
+    transcriptHashHint: transcript ? `${transcript.length}:${transcript.charCodeAt(0) || 0}:${transcript.charCodeAt(transcript.length - 1) || 0}` : '',
+    locale: safeText(pickFirst(ownValue(src, 'locale'), ownValue(opts, 'locale'), 'en-CA'), 20),
+    confidence,
+    userIntentHint: inferIntent(transcript, pickFirst(ownValue(src, 'userIntentHint'), ownValue(src, 'intent'))),
+    requestId: safeId(pickFirst(ownValue(src, 'requestId'), ownValue(opts, 'requestId')), 120),
+    turnId: safeId(pickFirst(ownValue(src, 'turnId'), ownValue(opts, 'turnId')), 120),
+    sessionId: safeId(pickFirst(ownValue(src, 'sessionId'), ownValue(src, 'sid'), ownValue(opts, 'sessionId')), 160),
+    speakerHint: safeText(pickFirst(ownValue(src, 'speakerHint'), ownValue(src, 'claimedSpeaker'), ownValue(src, 'speaker'), ownValue(src, 'user')), 160),
+    claimedSpeaker: safeText(pickFirst(ownValue(src, 'claimedSpeaker'), ownValue(src, 'speaker'), ownValue(src, 'user')), 160),
+    detectedSpeakerId: safeId(pickFirst(ownValue(src, 'detectedSpeakerId'), ownValue(src, 'speakerId')), 120),
+    speakerConfidence,
+    voiceMatchStatus: safeText(ownValue(src, 'voiceMatchStatus'), 80),
+    sessionRole: safeText(pickFirst(ownValue(src, 'sessionRole'), ownValue(opts, 'sessionRole'), ownValue(opts, 'role')), 80),
+    directMarionAdminInterface: ownValue(src, 'directMarionAdminInterface') === true || ownValue(opts, 'directMarionAdminInterface') === true,
+    marionAdminConversation: ownValue(src, 'marionAdminConversation') === true || ownValue(opts, 'marionAdminConversation') === true,
+    adminInterfaceScope: safeText(pickFirst(ownValue(src, 'adminInterfaceScope'), ownValue(opts, 'adminInterfaceScope')), 100),
+    deliveryChannel: safeText(pickFirst(ownValue(src, 'deliveryChannel'), ownValue(opts, 'deliveryChannel')), 100),
+    publicAgent: safeText(pickFirst(ownValue(src, 'publicAgent'), ownValue(opts, 'publicAgent'), 'Nyx'), 40),
     authority: 'Marion',
-    privateDelivery: src.privateDelivery === true || opts.privateDelivery === true,
-    privateVoiceDelivery: src.privateVoiceDelivery === true || opts.privateVoiceDelivery === true,
-    adminOnlyVoiceDelivery: src.adminOnlyVoiceDelivery !== false,
-    adminVoiceVerified: src.adminVoiceVerified === true || opts.adminVoiceVerified === true,
-    adminVoiceDeliveryAllowed: src.adminVoiceDeliveryAllowed === true || opts.adminVoiceDeliveryAllowed === true,
-    remoteTrustedUserVerified: src.remoteTrustedUserVerified === true || opts.remoteTrustedUserVerified === true,
-    remoteTrustedVoiceDeliveryAllowed: src.remoteTrustedVoiceDeliveryAllowed === true || opts.remoteTrustedVoiceDeliveryAllowed === true,
+    privateDelivery: ownValue(src, 'privateDelivery') === true || ownValue(opts, 'privateDelivery') === true,
+    privateVoiceDelivery: ownValue(src, 'privateVoiceDelivery') === true || ownValue(opts, 'privateVoiceDelivery') === true,
+    adminOnlyVoiceDelivery: true,
+    adminVoiceVerified: ownValue(src, 'adminVoiceVerified') === true || ownValue(opts, 'adminVoiceVerified') === true,
+    adminVoiceDeliveryAllowed: ownValue(src, 'adminVoiceDeliveryAllowed') === true || ownValue(opts, 'adminVoiceDeliveryAllowed') === true,
+    remoteTrustedUserVerified: ownValue(src, 'remoteTrustedUserVerified') === true || ownValue(opts, 'remoteTrustedUserVerified') === true,
+    remoteTrustedVoiceDeliveryAllowed: ownValue(src, 'remoteTrustedVoiceDeliveryAllowed') === true || ownValue(opts, 'remoteTrustedVoiceDeliveryAllowed') === true,
     rawMeta,
-    createdAt: now,
+    createdAt: new Date().toISOString(),
     transcriptOnly: true,
     rawAudioStored: false,
     audioStored: false,
@@ -111,9 +138,4 @@ function createVoiceInputEnvelope(input, options) {
   };
 }
 
-module.exports = {
-  VERSION,
-  createVoiceInputEnvelope,
-  safeText,
-  inferIntent
-};
+module.exports = { VERSION, createVoiceInputEnvelope, safeText, inferIntent, sanitizeMetadata };
