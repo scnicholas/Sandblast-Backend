@@ -1,6 +1,6 @@
 {
   "name": "sandblast-backend",
-  "version": "1.0.17-neon-ai-gateway-public-polish",
+  "version": "1.0.18-neon-storage-integrity",
   "description": "Sandblast backend with Neon AI Gateway support for the deterministic public Nyx knowledge path, Marion final-authority preservation, Nyx voice/text parity, five-turn continuity, strict operational voice isolation, and aggregate certification.",
   "main": "index.js",
   "type": "commonjs",
@@ -8,7 +8,7 @@
     "start": "node index.js",
     "dev": "node --check index.js && npm run lint:sandblast-tv && node index.js",
     "verify": "npm run verify:full",
-    "verify:full": "npm run verify:aggregate-manifest && npm run lint:syntax && npm run verify:marion-critical && npm run verify:marion-admin-e2e && npm run verify:marion-phase-a && npm run test:marion-layering && npm run verify:marion-phase-b && npm run verify:marion-round6 && npm run verify:nyx-voice && npm run verify:sandblast-tv",
+    "verify:full": "npm run verify:aggregate-manifest && npm run lint:syntax && npm run test:marion-neon-contract && npm run verify:marion-critical && npm run verify:marion-admin-e2e && npm run verify:marion-phase-a && npm run test:marion-layering && npm run verify:marion-phase-b && npm run verify:marion-round6 && npm run verify:nyx-voice && npm run verify:sandblast-tv",
     "verify:aggregate-manifest": "node scripts/aggregate-certification-manifest.js",
     "lint:syntax": "node scripts/check-syntax.js",
     "verify:neon-ai-gateway": "node --check index.js && node --check Utils/nyxOpenAI.js",
@@ -60,7 +60,8 @@
     "verify:nyx-voice-parity": "npm run lint:nyx-voice-runtime && npm run test:nyx-voice-boundary && npm run test:nyx-voice-parity",
     "test:nyx-voice-boundary": "node tests/index-voice-operational-boundary-regression.js",
     "verify:marion-phase-a-part2": "node tests/marion/verify_phase_a_part2.js",
-    "verify:marion-phase-a": "npm run verify:marion-phase-a-part1 && npm run verify:marion-phase-a-part2"
+    "verify:marion-phase-a": "npm run verify:marion-phase-a-part1 && npm run verify:marion-phase-a-part2",
+    "test:marion-neon-contract": "node tests/marion-neon-contract.test.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
