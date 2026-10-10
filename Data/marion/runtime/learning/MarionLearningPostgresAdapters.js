@@ -17,32 +17,34 @@ const REVIEW_RECORD_KEYS = new Set([
 ]);
 const schemaReadyByPool = new WeakMap();
 
-function normalizeAuditEvent(event) {
-  let serialized;
-  try {
-    serialized = JSON.stringify(event);
-  } catch (_) {
-    throw new TypeError("audit_event_not_json_serializable");
-  }
-  if (typeof serialized !== "string") throw new TypeError("audit_event_not_json_serializable");
-  let normalized;
-  try {
-    normalized = JSON.parse(serialized);
-  } catch (_) {
-    throw new TypeError("audit_event_not_json_serializable");
-  }
-  if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) {
-    throw new TypeError("invalid_learning_audit_event");
-  }
-  return normalized;
-}
-
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   if (value && typeof value === "object") {
     return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
   }
   return JSON.stringify(value);
+}
+
+function serializeSafeRecord(value, maxBytes = 65536, errorCode = "invalid_learning_record") {
+  const checked = Policy.validateSafeRecord(value, maxBytes);
+  if (!checked.ok) throw new TypeError(`${errorCode}:${checked.reason}`);
+  return checked.serialized;
+}
+
+function validateStoredRecord(value, maxBytes = 65536) {
+  const checked = Policy.validateSafeRecord(value, maxBytes);
+  if (!checked.ok) throw new Error("stored_learning_record_invalid");
+  return value;
+}
+
+function validateRegistryKey(key) {
+  return typeof key === "string" && ID_RE.test(key);
+}
+
+function validateStoredReviewRecord(value) {
+  validateStoredRecord(value);
+  if (!isValidReviewRecord(value)) throw new Error("stored_learning_review_invalid");
+  return value;
 }
 
 function auditHash(previousHash, sequence, event) {
@@ -94,41 +96,41 @@ async function ensureSchema(pool) {
   let pending = schemaReadyByPool.get(pool);
   if (!pending) {
     pending = (async () => {
-      await pool.query(`CREATE TABLE IF NOT EXISTS marion_learning_signals (
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_signals (
         id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         signal JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS marion_learning_proposals (
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_proposals (
         proposal_id TEXT PRIMARY KEY,
         record JSONB NOT NULL,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS marion_learning_manifest_registrations (
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_manifest_registrations (
         key_hash CHAR(64) PRIMARY KEY,
         record JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS marion_learning_manifest_revocations (
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_manifest_revocations (
         key_hash CHAR(64) PRIMARY KEY,
         record JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS marion_learning_audit_state (
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_audit_state (
         singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
         sequence BIGINT NOT NULL,
         event_hash TEXT NOT NULL
       )`);
-      await pool.query(`INSERT INTO marion_learning_audit_state (singleton, sequence, event_hash)
+      await pool.query(`INSERT INTO public.marion_learning_audit_state (singleton, sequence, event_hash)
         VALUES (TRUE, 0, 'GENESIS') ON CONFLICT (singleton) DO NOTHING`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS marion_learning_audit (
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_audit (
         sequence BIGINT PRIMARY KEY,
         previous_hash TEXT NOT NULL,
         event JSONB NOT NULL,
         event_hash TEXT NOT NULL UNIQUE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
-      await pool.query(`CREATE TABLE IF NOT EXISTS marion_learning_fixture_reviews (
+      await pool.query(`CREATE TABLE IF NOT EXISTS public.marion_learning_fixture_reviews (
         review_ref TEXT PRIMARY KEY,
         record JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -148,13 +150,13 @@ async function readSchemaPresence(pool) {
     throw new TypeError("a PostgreSQL Pool is required");
   }
   const result = await pool.query(`SELECT
-    to_regclass('marion_learning_signals') IS NOT NULL AS signals_exists,
-    to_regclass('marion_learning_proposals') IS NOT NULL AS proposals_exists,
-    to_regclass('marion_learning_manifest_registrations') IS NOT NULL AS registrations_exists,
-    to_regclass('marion_learning_manifest_revocations') IS NOT NULL AS revocations_exists,
-    to_regclass('marion_learning_audit_state') IS NOT NULL AS audit_state_exists,
-    to_regclass('marion_learning_audit') IS NOT NULL AS audit_exists,
-    to_regclass('marion_learning_fixture_reviews') IS NOT NULL AS reviews_exists`);
+    to_regclass('public.marion_learning_signals') IS NOT NULL AS signals_exists,
+    to_regclass('public.marion_learning_proposals') IS NOT NULL AS proposals_exists,
+    to_regclass('public.marion_learning_manifest_registrations') IS NOT NULL AS registrations_exists,
+    to_regclass('public.marion_learning_manifest_revocations') IS NOT NULL AS revocations_exists,
+    to_regclass('public.marion_learning_audit_state') IS NOT NULL AS audit_state_exists,
+    to_regclass('public.marion_learning_audit') IS NOT NULL AS audit_exists,
+    to_regclass('public.marion_learning_fixture_reviews') IS NOT NULL AS reviews_exists`);
   return result && Array.isArray(result.rows) ? result.rows[0] || null : null;
 }
 
@@ -179,23 +181,52 @@ async function assertSchema(pool) {
 }
 
 async function verifyAuditChain(pool) {
-  const stateResult = await pool.query(
-    "SELECT sequence, event_hash FROM marion_learning_audit_state WHERE singleton = TRUE"
-  );
-  if (stateResult.rowCount !== 1) return false;
-  let sequence = 0;
-  let previousHash = "GENESIS";
-  const rows = await pool.query(
-    "SELECT sequence, previous_hash, event, event_hash FROM marion_learning_audit ORDER BY sequence ASC"
-  );
-  for (const row of rows.rows) {
-    sequence += 1;
-    const expectedHash = auditHash(previousHash, sequence, row.event);
-    if (Number(row.sequence) !== sequence || row.previous_hash !== previousHash || row.event_hash !== expectedHash) return false;
-    previousHash = expectedHash;
+  if (!pool || typeof pool.connect !== "function") return false;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const stateResult = await client.query(
+      "SELECT sequence, event_hash FROM public.marion_learning_audit_state WHERE singleton = TRUE"
+    );
+    if (!stateResult.rows || stateResult.rows.length !== 1) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    let sequence = 0n;
+    let previousHash = "GENESIS";
+    const pageSize = 500;
+    while (true) {
+      const page = await client.query(
+        "SELECT sequence, previous_hash, event, event_hash FROM public.marion_learning_audit WHERE sequence > $1 ORDER BY sequence ASC LIMIT $2",
+        [sequence.toString(), pageSize]
+      );
+      const rows = page && Array.isArray(page.rows) ? page.rows : [];
+      for (const row of rows) {
+        const safeEvent = Policy.validateSafeRecord(row.event, 16384);
+        if (!safeEvent.ok) {
+          await client.query("ROLLBACK");
+          return false;
+        }
+        sequence += 1n;
+        const expectedHash = auditHash(previousHash, sequence, JSON.parse(safeEvent.serialized));
+        if (BigInt(row.sequence) !== sequence || row.previous_hash !== previousHash || row.event_hash !== expectedHash) {
+          await client.query("ROLLBACK");
+          return false;
+        }
+        previousHash = expectedHash;
+      }
+      if (rows.length < pageSize) break;
+    }
+    const state = stateResult.rows[0];
+    const valid = BigInt(state.sequence) === sequence && state.event_hash === previousHash;
+    await client.query(valid ? "COMMIT" : "ROLLBACK");
+    return valid;
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch (_) {}
+    throw error;
+  } finally {
+    client.release();
   }
-  const state = stateResult.rows[0];
-  return Number(state.sequence) === sequence && state.event_hash === previousHash;
 }
 
 async function probeMarionLearningPostgres(pool) {
@@ -214,7 +245,7 @@ async function probeMarionLearningPostgres(pool) {
     if (!reviewStoreReady) {
       return { ready: false, coreReady: true, reviewStoreReady: false, storage: "postgresql", reason: "review_store_schema_missing" };
     }
-    await pool.query("SELECT review_ref, record FROM marion_learning_fixture_reviews LIMIT 0");
+    await pool.query("SELECT review_ref, record FROM public.marion_learning_fixture_reviews LIMIT 0");
     return { ready: true, coreReady: true, reviewStoreReady: true, storage: "postgresql", reason: "evaluation_storage_ready" };
   } catch (_) {
     return { ready: false, coreReady: false, reviewStoreReady: false, storage: "postgresql", reason: "postgres_probe_failed" };
@@ -234,7 +265,7 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const checked = Policy.validateSignal(signal);
       if (!checked.ok) throw new TypeError(`invalid_learning_signal:${checked.reason}`);
       await assertSchema(pool);
-      await pool.query("INSERT INTO marion_learning_signals (signal) VALUES ($1::jsonb)", [JSON.stringify(checked.signal)]);
+      await pool.query("INSERT INTO public.marion_learning_signals (signal) VALUES ($1::jsonb)", [JSON.stringify(checked.signal)]);
     }
   });
 
@@ -243,54 +274,62 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const key = String(id || "");
       if (!ID_RE.test(key)) return null;
       await assertSchema(pool);
-      const result = await pool.query("SELECT record FROM marion_learning_proposals WHERE proposal_id = $1", [key]);
-      return result.rowCount ? result.rows[0].record : null;
+      const result = await pool.query("SELECT record FROM public.marion_learning_proposals WHERE proposal_id = $1", [key]);
+      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
     },
     async set(id, record) {
       const key = String(id || "");
       if (!ID_RE.test(key) || !record || typeof record !== "object" || Array.isArray(record)) {
         throw new TypeError("invalid_learning_proposal");
       }
+      const serialized = serializeSafeRecord(record, 65536, "invalid_learning_proposal");
       await assertSchema(pool);
-      await pool.query(`INSERT INTO marion_learning_proposals (proposal_id, record)
+      await pool.query(`INSERT INTO public.marion_learning_proposals (proposal_id, record)
         VALUES ($1, $2::jsonb) ON CONFLICT (proposal_id) DO UPDATE
-        SET record = EXCLUDED.record, updated_at = NOW()`, [key, JSON.stringify(record)]);
+        SET record = EXCLUDED.record, updated_at = NOW()`, [key, serialized]);
     }
   });
 
   const manifestRegistryStore = Object.freeze({
     async get(key) {
+      if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
-      const result = await pool.query("SELECT record FROM marion_learning_manifest_registrations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? result.rows[0].record : null;
+      const result = await pool.query("SELECT record FROM public.marion_learning_manifest_registrations WHERE key_hash = $1", [hashKey(key)]);
+      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
     },
     async putIfAbsent(key, record) {
-      if (typeof key !== "string" || !record || record.status !== "approved" || !Array.isArray(record.caseIds)) {
+      if (!validateRegistryKey(key) || !record || record.status !== "approved" || !Array.isArray(record.caseIds)) {
         throw new TypeError("invalid_manifest_registration");
       }
+      const serialized = serializeSafeRecord(record, 65536, "invalid_manifest_registration");
       await assertSchema(pool);
-      const result = await pool.query(`INSERT INTO marion_learning_manifest_registrations (key_hash, record)
-        VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [hashKey(key), JSON.stringify(record)]);
+      const result = await pool.query(`INSERT INTO public.marion_learning_manifest_registrations (key_hash, record)
+        VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [hashKey(key), serialized]);
       return result.rowCount === 1;
     },
     async getRevocation(key) {
+      if (!validateRegistryKey(key)) return null;
       await assertSchema(pool);
-      const result = await pool.query("SELECT record FROM marion_learning_manifest_revocations WHERE key_hash = $1", [hashKey(key)]);
-      return result.rowCount ? result.rows[0].record : null;
+      const result = await pool.query("SELECT record FROM public.marion_learning_manifest_revocations WHERE key_hash = $1", [hashKey(key)]);
+      return result.rowCount ? validateStoredRecord(result.rows[0].record) : null;
     },
     async putRevocationIfAbsent(key, record) {
-      if (typeof key !== "string" || !record || record.status !== "revoked") throw new TypeError("invalid_manifest_revocation");
+      if (!validateRegistryKey(key) || !record || record.status !== "revoked") throw new TypeError("invalid_manifest_revocation");
+      const serialized = serializeSafeRecord(record, 65536, "invalid_manifest_revocation");
       await assertSchema(pool);
-      const result = await pool.query(`INSERT INTO marion_learning_manifest_revocations (key_hash, record)
-        VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [hashKey(key), JSON.stringify(record)]);
+      const result = await pool.query(`INSERT INTO public.marion_learning_manifest_revocations (key_hash, record)
+        VALUES ($1, $2::jsonb) ON CONFLICT (key_hash) DO NOTHING RETURNING key_hash`, [hashKey(key), serialized]);
       return result.rowCount === 1;
     },
     async listApproved(scope) {
+      if (scope !== undefined && scope !== null && !REVIEW_SCOPES.has(scope)) {
+        throw new TypeError("invalid_manifest_scope");
+      }
       await assertSchema(pool);
-      const result = await pool.query(`SELECT record FROM marion_learning_manifest_registrations
+      const result = await pool.query(`SELECT record FROM public.marion_learning_manifest_registrations
         WHERE record->>'status' = 'approved' AND ($1::text IS NULL OR record->>'scope' = $1)
         ORDER BY created_at ASC`, [scope || null]);
-      return result.rows.map(row => row.record);
+      return result.rows.map(row => validateStoredRecord(row.record));
     }
   });
 
@@ -299,10 +338,10 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
     if (!ID_RE.test(key)) return null;
     await assertSchema(pool);
     const result = await pool.query(
-      "SELECT record FROM marion_learning_fixture_reviews WHERE review_ref = $1",
+      "SELECT record FROM public.marion_learning_fixture_reviews WHERE review_ref = $1",
       [key]
     );
-    return result.rowCount ? result.rows[0].record : null;
+    return result.rowCount ? validateStoredReviewRecord(result.rows[0].record) : null;
   }
 
   // The signed review is immutable, durable, and audited in the same database
@@ -316,9 +355,10 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        const inserted = await client.query(`INSERT INTO marion_learning_fixture_reviews (review_ref, record)
+        const serialized = serializeSafeRecord(record, 65536, "invalid_signed_fixture_review");
+        const inserted = await client.query(`INSERT INTO public.marion_learning_fixture_reviews (review_ref, record)
           VALUES ($1, $2::jsonb) ON CONFLICT (review_ref) DO NOTHING RETURNING review_ref`,
-          [record.reviewRef, JSON.stringify(record)]);
+          [record.reviewRef, serialized]);
         if (inserted.rowCount !== 1) {
           await client.query("ROLLBACK");
           return false;
@@ -336,25 +376,25 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
   });
 
   async function appendAuditWithClient(client, event) {
-    const stateResult = await client.query("SELECT sequence, event_hash FROM marion_learning_audit_state WHERE singleton = TRUE FOR UPDATE");
+    const stateResult = await client.query("SELECT sequence, event_hash FROM public.marion_learning_audit_state WHERE singleton = TRUE FOR UPDATE");
     if (stateResult.rowCount !== 1) throw new Error("learning_audit_state_missing");
     const state = stateResult.rows[0];
-    const sequence = Number(state.sequence) + 1;
+    const sequence = BigInt(state.sequence) + 1n;
     const previousHash = state.event_hash;
-    const normalizedEvent = normalizeAuditEvent(event);
-    const eventHash = auditHash(previousHash, sequence, normalizedEvent);
-    await client.query("INSERT INTO marion_learning_audit (sequence, previous_hash, event, event_hash) VALUES ($1, $2, $3::jsonb, $4)",
-      [sequence, previousHash, JSON.stringify(normalizedEvent), eventHash]);
-    await client.query("UPDATE marion_learning_audit_state SET sequence = $1, event_hash = $2 WHERE singleton = TRUE", [sequence, eventHash]);
+    const eventHash = auditHash(previousHash, sequence, event);
+    await client.query("INSERT INTO public.marion_learning_audit (sequence, previous_hash, event, event_hash) VALUES ($1, $2, $3::jsonb, $4)",
+      [sequence.toString(), previousHash, JSON.stringify(event), eventHash]);
+    await client.query("UPDATE public.marion_learning_audit_state SET sequence = $1, event_hash = $2 WHERE singleton = TRUE", [sequence.toString(), eventHash]);
   }
 
   async function durableAuditAppend(event) {
-    if (!event || typeof event !== "object" || Array.isArray(event)) throw new TypeError("invalid_learning_audit_event");
+    const serialized = serializeSafeRecord(event, 16384, "invalid_learning_audit_event");
+    const safeEvent = JSON.parse(serialized);
     await assertSchema(pool);
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await appendAuditWithClient(client, event);
+      await appendAuditWithClient(client, safeEvent);
       await client.query("COMMIT");
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch (_) {}
