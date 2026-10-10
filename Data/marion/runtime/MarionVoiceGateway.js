@@ -195,9 +195,9 @@ function hasOptionAdminVoiceProof(options) {
   const opts = options && typeof options === 'object' ? options : {};
   return opts.adminVoiceVerified === true ||
     opts.adminVoiceTokenVerified === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
     opts.adminVerified === true ||
     opts.serverSideAdminVoiceAuth === true ||
+    opts.serverSideAdminAuth === true ||
     opts.trustedServerAuth === true;
 }
 
@@ -857,7 +857,7 @@ async function callAdminTextBridge(bridge, payload, context) {
     };
   }
 
-  const candidates = [
+  const handler = [
     bridge.handleMarionAdminConversation,
     bridge.handleAdminConversation,
     bridge.handleMarionAdminText,
@@ -871,9 +871,9 @@ async function callAdminTextBridge(bridge, payload, context) {
     bridge.process,
     bridge.compose,
     bridge.default
-  ].filter((fn) => typeof fn === 'function');
+  ].find((fn) => typeof fn === 'function');
 
-  if (candidates.length === 0) {
+  if (!handler) {
     return {
       ok: false,
       reply: 'Marion admin text was received, but MarionBridge does not expose a compatible text handler.',
@@ -881,100 +881,153 @@ async function callAdminTextBridge(bridge, payload, context) {
     };
   }
 
-  let lastError = null;
-  for (const fn of candidates) {
-    try {
-      const result = await fn(payload, context);
-      const text = firstReplyText(result) || directReplyText(result);
-      if (result && typeof result === 'object' && (result.ok !== false || text)) return result;
-      if (text) return { ok: true, reply: text, text, message: text };
-      lastError = new Error('MARION_TEXT_BRIDGE_EMPTY_RESULT');
-    } catch (err) {
-      lastError = err;
+  // A bridge handler may have committed turn state before it returns an empty
+  // or failed packet. Never try aliases after that call: aliases can point to
+  // the same stateful handler and would duplicate a turn.
+  return handler.call(bridge, payload, context);
+}
+
+function marionReplyHash(value) {
+  const source = safeText(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  let hash = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    hash = ((hash << 5) - hash) + source.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(hash >>> 0);
+}
+
+function certifiedMarionFinal(packet) {
+  const base = packet && typeof packet === 'object' ? packet : {};
+  const envelope = base.finalEnvelope && typeof base.finalEnvelope === 'object' ? base.finalEnvelope : {};
+  const payload = base.payload && typeof base.payload === 'object' ? base.payload : {};
+  const meta = base.meta && typeof base.meta === 'object' ? base.meta : {};
+  const reply = safeText(envelope.authoritativeReply || envelope.reply || envelope.finalReply || envelope.text || '');
+  const signature = safeText(envelope.signature || envelope.marionFinalSignature || envelope.finalSignature || '');
+  const semanticAuthority = safeText(base.semanticAuthority || envelope.semanticAuthority || meta.semanticAuthority || '').toLowerCase();
+  const currentTurnBound = base.currentTurnBound === true || envelope.currentTurnBound === true || meta.currentTurnBound === true;
+  const replySignature = safeText(envelope.replySignature || base.replySignature || '');
+  const nativeSignature = safeText(envelope.signature || '');
+  const nativeFinalSignature = safeText(envelope.marionFinalSignature || envelope.finalSignature || '');
+  const nativeRequiredSignature = safeText(envelope.requiredSignature || '');
+  const nativeSignatureParts = nativeSignature.match(/^MARION::FINAL::(.+)::CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24::([0-9]+)$/);
+  const nativeComposerSignatureValid = Boolean(
+    nativeSignatureParts &&
+    nativeFinalSignature === nativeSignature &&
+    nativeRequiredSignature === 'CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24' &&
+    safeText(envelope.authority) === 'marionFinalEnvelope' &&
+    safeText(envelope.contractVersion) === 'nyx.marion.final/1.0' &&
+    nativeSignature === `MARION::FINAL::${nativeSignatureParts[1]}::CHATENGINE_COORDINATOR_ONLY_ACTIVE_2026_04_24::${marionReplyHash([
+      reply,
+      safeText(envelope.intent),
+      safeText(envelope.domain),
+      safeText(envelope.turnId)
+    ].join('|'))}`
+  );
+  const recognizedSignature = signature === 'MARION_FINAL_AUTHORITY' || nativeComposerSignatureValid;
+  const topLevelReplies = [base.authoritativeReply, base.reply, base.text, base.message, base.displayReply, base.visibleReply, base.finalReply]
+    .map(safeText)
+    .filter(Boolean);
+  const envelopeReplies = [envelope.authoritativeReply, envelope.reply, envelope.text, envelope.displayReply, envelope.visibleReply, envelope.finalReply]
+    .map(safeText)
+    .filter(Boolean);
+  const payloadReplies = [payload.authoritativeReply, payload.reply, payload.text, payload.message, payload.displayReply, payload.visibleReply, payload.finalReply]
+    .map(safeText)
+    .filter(Boolean);
+
+  if (
+    base.ok !== true || base.final !== true || base.marionFinal !== true ||
+    envelope.final !== true || envelope.marionFinal !== true ||
+    base.canEmit === false || envelope.canEmit === false || payload.canEmit === false ||
+    base.blocked === true || envelope.blocked === true || payload.blocked === true ||
+    base.awaitingMarion === true || envelope.awaitingMarion === true || payload.awaitingMarion === true ||
+    base.degraded === true || envelope.degraded === true || payload.degraded === true ||
+    base.requiresRetry === true || envelope.requiresRetry === true || payload.requiresRetry === true ||
+    base.recoverySuggested === true || envelope.recoverySuggested === true || payload.recoverySuggested === true ||
+    !currentTurnBound || semanticAuthority !== 'marion' ||
+    !recognizedSignature || !reply ||
+    replySignature !== marionReplyHash(reply) ||
+    topLevelReplies.some((candidate) => candidate !== reply) ||
+    envelopeReplies.some((candidate) => candidate !== reply) ||
+    payloadReplies.some((candidate) => candidate !== reply)
+  ) return null;
+
+  return { reply, envelope, payload };
+}
+
+function rejectedMarionTextResponse(reason = 'MARION_FINAL_AUTHORITY_REQUIRED', statusCode = 502) {
+  const empty = {
+    authoritativeReply: '', reply: '', text: '', message: '', displayReply: '',
+    visibleReply: '', finalReply: '', answer: '', output: '', response: '', spokenText: ''
+  };
+  return {
+    ok: false,
+    statusCode,
+    final: false,
+    marionFinal: false,
+    handled: true,
+    blocked: true,
+    canEmit: false,
+    awaitingMarion: false,
+    requiresRetry: false,
+    suppressUserFacingReply: true,
+    ...empty,
+    error: reason,
+    payload: { ...empty, final: false, marionFinal: false, canEmit: false },
+    finalEnvelope: {
+      ...empty,
+      final: false,
+      marionFinal: false,
+      canEmit: false,
+      currentTurnBound: false,
+      semanticAuthority: 'awaiting_marion',
+      signature: ''
+    },
+    meta: { noUserFacingDiagnostics: true, finalAuthorityRejected: true }
+  };
+}
+
+function attachAdminVisibleReplyAliases(packet, reply) {
+  const proof = certifiedMarionFinal(packet);
+  const requestedReply = safeText(reply);
+  if (!proof || !requestedReply || proof.reply !== requestedReply) {
+    return rejectedMarionTextResponse('MARION_FINAL_AUTHORITY_REQUIRED');
+  }
+
+  const base = packet && typeof packet === 'object' ? packet : {};
+  const aliases = {
+    authoritativeReply: requestedReply, reply: requestedReply, text: requestedReply,
+    message: requestedReply, displayReply: requestedReply, publicReply: requestedReply,
+    visibleReply: requestedReply, finalReply: requestedReply, answer: requestedReply,
+    output: requestedReply, response: requestedReply, spokenText: requestedReply
+  };
+  return {
+    ...base,
+    ...aliases,
+    replySignature: marionReplyHash(requestedReply),
+    payload: { ...proof.payload, ...aliases },
+    finalEnvelope: {
+      ...proof.envelope,
+      ...aliases,
+      replySignature: marionReplyHash(requestedReply)
     }
-  }
-  throw lastError || new Error('MARION_TEXT_BRIDGE_NO_RESULT');
-}
-
-const MARION_ADMIN_TEXT_MEMORY={lastTopic:'',lastPrompt:'',lastReply:'',updatedAt:0};
-function rememberAdminTextTurn(prompt,reply){
-  const p=safeText(prompt),r=safeText(reply),t=(p+' '+r).toLowerCase();if(!p&&!r)return;
-  if(/\bbreak a leg\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic='break a leg';
-  else if(/\bspill the beans\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic='spill the beans';
-  else if(/\bbless your heart\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic='bless your heart';
-  else if(/\bi[’']?m fine\b/.test(t))MARION_ADMIN_TEXT_MEMORY.lastTopic="I'm fine";
-  MARION_ADMIN_TEXT_MEMORY.lastPrompt=p;MARION_ADMIN_TEXT_MEMORY.lastReply=r;MARION_ADMIN_TEXT_MEMORY.updatedAt=Date.now();
-}
-function resolveAdminFollowupReference(prompt){
-  const t=safeText(prompt).toLowerCase(),m=MARION_ADMIN_TEXT_MEMORY,topic=safeText(m.lastTopic).toLowerCase();
-  const fresh=Date.now()-(Number(m.updatedAt)||0)<20*60*1000;
-  const follow=/\b(that|it|this|the phrase|instead of good luck|why would someone say)\b/.test(t);
-  return fresh&&follow?topic:'';
-}
-function buildAdminTextDeterministicReply(prompt) {
-  const t=safeText(prompt).toLowerCase(); if(!t)return '';
-  const ref=resolveAdminFollowupReference(prompt);
-  if(/\b(?:hello|hi|hey)\s+marion\b|^\s*(?:hello|hi|hey)\s*$/i.test(t))return 'Hello Mac. Marion admin text is active. Send the next test prompt.';
-  if(/\bi[’']?m fine\b/.test(t)||ref==="i'm fine")return '“I’m fine” can be literal, but behaviourally it can signal masking, avoidance, or a wish to end the topic. Read it through tone, timing, stress, and visible behaviour.';
-  if(/\bbreak a leg\b/.test(t)||ref==='break a leg')return /business meeting|work meeting|professional/i.test(t)?'In a business meeting, “break a leg” can work only if the setting is informal or performance-like, such as before a pitch or presentation. In a formal business context, “good luck” or “you’ll do well” is clearer and safer.':(/instead of good luck|why would|why say/i.test(t)?'Someone says “break a leg” instead of “good luck” because theatre culture treats direct good-luck wishes as unlucky. The phrase became a ritualized, indirect way to encourage someone before a performance.':'Literally, “break a leg” means to injure a leg. Culturally, it is a superstition-based idiom for wishing good luck, especially before a performance.');
-  if(/\bbless your heart\b/.test(t)||ref==='bless your heart')return '“Bless your heart” can mean sincere sympathy or polite criticism. In Southern American usage, tone and relationship decide whether it signals care, pity, or disapproval.';
-  if(/\bspill the beans\b/.test(t)||ref==='spill the beans')return /why would|instead/i.test(t)?'Someone may say “spill the beans” when a secret, surprise, or private plan gets revealed earlier than intended. The phrase softens the accusation by making the disclosure sound informal rather than severe.':'“Spill the beans” means to reveal information that was meant to stay secret. Literally it suggests dropping beans; idiomatically, it means exposing a secret or surprise too early.';
-  if(/\bwhy would someone say that instead of good luck\b/.test(t)||/\binstead of good luck\b/.test(t))return 'They would say it as an indirect good-luck wish, usually because the earlier phrase was “break a leg.” In theatre culture, saying “good luck” directly is considered unlucky, so “break a leg” became the safer ritual phrase.';
-  return '';
-}
-
-
-function isAdminTextBadPublicReply(value){
-  return /protected text bridge, but the bridge failed during processing|protected voice bridge|bridge did not return a visible final reply|no clean public reply field|runtime packet, but no clean public reply|^\s*\[?403\]?/i.test(safeText(value));
-}
-function firstAdminPublicReply(value, prompt, depth, seen){
-  if(!value)return '';
-  if(typeof value==='string'){
-    const t=safeText(value);
-    return t&&!isAdminTextBadPublicReply(t)?t:'';
-  }
-  if(typeof value!=='object')return '';
-  const level=Number.isFinite(Number(depth))?Number(depth):0;
-  if(level>8)return '';
-  const visited=seen instanceof Set?seen:new Set();
-  if(visited.has(value))return '';
-  visited.add(value);
-  const keys=['publicReply','visibleReply','finalReply','reply','displayReply','text','answer','output','response','message','spokenText','final','finalEnvelope','payload','result','data','packet','marionFinal','envelope','synthesis','meta'];
-  for(const key of keys){
-    const v=value[key];
-    if(typeof v==='string'){
-      const t=safeText(v);
-      if(t&&!isAdminTextBadPublicReply(t))return t;
-    }else if(v&&typeof v==='object'){
-      const found=firstAdminPublicReply(v,prompt,level+1,visited);
-      if(found)return found;
-    }
-  }
-  for(const key of Object.keys(value)){
-    if(keys.includes(key))continue;
-    const found=firstAdminPublicReply(value[key],prompt,level+1,visited);
-    if(found)return found;
-  }
-  return '';
-}
-function attachAdminVisibleReplyAliases(packet, reply){
-  const out=packet&&typeof packet==='object'?packet:{};
-  const r=safeText(reply);
-  if(!r)return out;
-  out.ok=true;out.reply=r;out.text=r;out.message=r;out.displayReply=r;out.publicReply=r;out.visibleReply=r;out.finalReply=r;
-  out.answer=r;out.output=r;out.response=r;out.spokenText=r;out.final=true;out.marionFinal=true;out.canEmit=true;out.publicSurfaceClean=true;
-  out.payload=Object.assign({},out.payload||{},{reply:r,text:r,message:r,displayReply:r,publicReply:r,visibleReply:r,finalReply:r,answer:r,output:r,response:r,spokenText:r});
-  out.finalEnvelope=Object.assign({},out.finalEnvelope||{},{reply:r,text:r,message:r,displayReply:r,publicReply:r,visibleReply:r,finalReply:r,answer:r,output:r,response:r,spokenText:r,final:true,marionFinal:true,canEmit:true});
-  return out;
+  };
 }
 
 function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
-  const base = response && typeof response === 'object' ? response : { reply: safeText(response) };
+  if (adminVerified !== true) {
+    return rejectedMarionTextResponse('MARION_ADMIN_AUTH_REQUIRED', 403);
+  }
+
+  const base = response && typeof response === 'object' ? response : {};
+  const proof = certifiedMarionFinal(base);
+  if (!proof) return rejectedMarionTextResponse('MARION_FINAL_AUTHORITY_REQUIRED');
+
   const p = payload && typeof payload === 'object' ? payload : {};
-  const prompt = safeText(p.text || p.message || p.query || p.input || '');
   const payloadVoice = p.voice && typeof p.voice === 'object' ? p.voice : {};
   const baseVoice = base.voice && typeof base.voice === 'object' ? base.voice : {};
-  const adminVoiceAllowed = adminVerified === true && (
+  const reply = proof.reply;
+  const adminVoiceAllowed = (
     p.adminVoiceDeliveryAllowed === true ||
     p.adminVoiceRuntimeApproval === true ||
     payloadVoice.adminVoiceDeliveryAllowed === true ||
@@ -982,32 +1035,52 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
     base.adminVoiceDeliveryAllowed === true ||
     baseVoice.adminVoiceDeliveryAllowed === true
   );
-  const rawReply = firstAdminPublicReply(base, prompt) || firstReplyText(base) || directReplyText(base);
-  const badReply = isAdminTextBadPublicReply(rawReply);
-  const deterministic = buildAdminTextDeterministicReply(prompt);
-  const reply = (!badReply && rawReply) || deterministic || adminVoiceOutputProjectionFallback(prompt, p) || '';
-  const out=attachAdminVisibleReplyAliases(Object.assign({}, base, {
-    ok: base.ok !== false && Boolean(reply),
-    reply,
-    text: reply,
-    message: reply,
-    displayReply: reply,
-    publicReply: reply,
-    visibleReply: reply,
-    finalReply: reply,
-    spokenText: adminVoiceAllowed ? reply : reply,
-    speechText: adminVoiceAllowed ? reply : "",
+  const trusted = attachAdminVisibleReplyAliases(base, reply);
+  const voice = Object.assign({}, baseVoice, {
+    active: adminVoiceAllowed,
+    inputChannel: 'text',
+    source: 'text',
+    textConsoleVoiceBypass: !adminVoiceAllowed,
+    adminOnlyVoiceDelivery: true,
+    adminVoiceDeliveryAllowed: adminVoiceAllowed,
+    speakAllowed: adminVoiceAllowed,
+    voiceMode: adminVoiceAllowed ? 'voice' : 'silent',
+    rawVoiceMode: adminVoiceAllowed ? 'voice' : 'silent',
+    projectedVoiceMode: adminVoiceAllowed ? 'voice' : 'silent',
+    spokenText: adminVoiceAllowed ? reply : '',
+    speechText: adminVoiceAllowed ? reply : '',
+    privateVoiceDelivery: adminVoiceAllowed,
+    audioStored: false,
+    rawAudioStored: false,
+    noRawAudioStored: true,
+    speechSyncEnabled: adminVoiceAllowed && Boolean(reply),
+    privateVoiceReceiveReady: adminVoiceAllowed && Boolean(reply),
+    deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
+    capability: adminVoiceAllowed ? 'voice.private.receive' : ''
+  });
+
+  return Object.assign({}, trusted, {
+    ok: true,
+    final: true,
+    marionFinal: true,
+    handled: true,
+    canEmit: true,
+    awaitingMarion: false,
+    blocked: false,
+    suppressUserFacingReply: false,
     route: '/api/marion/admin/conversation',
     source: 'marion-admin-interface',
     inputChannel: 'text',
-    publicAgent: adminVerified && base.ok !== false ? 'Marion' : 'Nyx',
+    publicAgent: 'Marion',
+    surfaceAgent: 'Marion',
     authority: 'Marion',
-    directMarionAdminInterface: adminVerified && base.ok !== false,
-    marionAdminConversationAllowed: adminVerified && base.ok !== false,
+    directMarionAdminInterface: true,
+    marionAdminConversation: true,
+    marionAdminConversationAllowed: true,
     adminInterfaceScope: 'marion_admin_conversation',
     publicUsersCanAddressMarion: false,
-    privateTextDelivery: adminVerified && base.ok !== false,
-    privateDelivery: adminVerified && base.ok !== false,
+    privateTextDelivery: true,
+    privateDelivery: true,
     privateVoiceDelivery: adminVoiceAllowed,
     deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
     transcriptOnly: true,
@@ -1016,44 +1089,8 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
     audioStored: false,
     adminOnlyVoiceDelivery: true,
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
-    adminVoiceRuntimeApproval: p.adminVoiceRuntimeApproval === true || payloadVoice.adminVoiceRuntimeApproval === true,
     textConsoleVoiceBypass: !adminVoiceAllowed,
-    voice: Object.assign({}, baseVoice, {
-      active: adminVoiceAllowed,
-      inputChannel: 'text',
-      source: 'text',
-      textConsoleVoiceBypass: !adminVoiceAllowed,
-      adminOnlyVoiceDelivery: true,
-      adminVoiceDeliveryAllowed: adminVoiceAllowed,
-      adminVoiceRuntimeApproval: p.adminVoiceRuntimeApproval === true || payloadVoice.adminVoiceRuntimeApproval === true,
-      speakAllowed: adminVoiceAllowed && Boolean(reply),
-      voiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
-      rawVoiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
-      projectedVoiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
-      spokenText: adminVoiceAllowed ? reply : '',
-      speechText: adminVoiceAllowed ? reply : '',
-      privateVoiceDelivery: adminVoiceAllowed,
-      audioStored: false,
-      rawAudioStored: false,
-      noRawAudioStored: true,
-      speechSyncEnabled: adminVoiceAllowed && Boolean(reply),
-      speechSync: {
-        enabled: adminVoiceAllowed && Boolean(reply),
-        frontendReady: adminVoiceAllowed && Boolean(reply),
-        privateVoiceReceiveReady: adminVoiceAllowed && Boolean(reply),
-        version: 'marion.adminPrivateVoiceReceive.gateway/1.0',
-        deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : '',
-        capability: adminVoiceAllowed ? 'voice.private.receive' : '',
-        avatarSpeechState: adminVoiceAllowed && reply ? 'ready' : 'silent',
-        audioStored: false,
-        rawAudioStored: false,
-        noRawAudioStored: true,
-        transcriptOnly: true
-      },
-      privateVoiceReceiveReady: adminVoiceAllowed && Boolean(reply),
-      deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
-      capability: adminVoiceAllowed ? 'voice.private.receive' : ''
-    }),
+    voice,
     privateVoiceReceive: {
       ok: adminVoiceAllowed && Boolean(reply),
       version: 'marion.adminPrivateVoiceReceive.gateway/1.0',
@@ -1062,8 +1099,6 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
       deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
       speakAllowed: adminVoiceAllowed && Boolean(reply),
       voiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
-      projectedVoiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
-      rawVoiceMode: adminVoiceAllowed && reply ? 'voice' : 'silent',
       spokenText: adminVoiceAllowed ? reply : '',
       speechText: adminVoiceAllowed ? reply : '',
       speechSyncEnabled: adminVoiceAllowed && Boolean(reply),
@@ -1081,9 +1116,7 @@ function normalizeAdminTextBridgeResponse(response, payload, adminVerified) {
       inputChannel: 'text',
       noUserFacingDiagnostics: true
     })
-  }), reply);
-  rememberAdminTextTurn(prompt,reply);
-  return out;
+  });
 }
 
 // MARION_ADMIN_TEXT_CONSOLE_BYPASS_PATCH_END
@@ -1094,28 +1127,26 @@ async function handleMarionAdminConversation(input, options) {
     opts.adminVerified === true ||
     opts.adminVoiceVerified === true ||
     opts.adminVoiceTokenVerified === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
     opts.serverSideAdminVoiceAuth === true ||
+    opts.serverSideAdminAuth === true ||
     opts.trustedServerAuth === true ||
     hasOptionAdminVoiceProof(opts.authorization || {}) ||
     hasOptionAdminVoiceProof(opts.output || {});
 
+  if (!adminVerified) return rejectedMarionTextResponse('MARION_ADMIN_AUTH_REQUIRED', 403);
+
   const payload = input && typeof input === 'object' ? input : { text: String(input || '') };
   const text = safeText(payload.text || payload.message || payload.query || payload.input || payload.transcript || '');
+  if (!text) return rejectedMarionTextResponse('MARION_ADMIN_TEXT_REQUIRED', 400);
   const payloadVoice = payload.voice && typeof payload.voice === 'object' ? payload.voice : {};
-  const contextVoice = opts.voice && typeof opts.voice === 'object' ? opts.voice : {};
-  const adminVoiceAllowed = adminVerified === true && (
-    payload.adminVoiceDeliveryAllowed === true ||
-    payload.adminVoiceRuntimeApproval === true ||
-    payloadVoice.adminVoiceDeliveryAllowed === true ||
-    payloadVoice.adminVoiceRuntimeApproval === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
-    opts.adminVoiceRuntimeApproval === true ||
-    contextVoice.adminVoiceDeliveryAllowed === true ||
-    hasOptionAdminVoiceProof(opts.output || {}) ||
-    hasOptionAdminVoiceProof(opts.authorization || {})
-  );
-  const bridge = loadMarionBridge();
+  const adminVoiceAllowed = adminVerified === true &&
+    opts.adminVoiceDeliveryAllowed === true &&
+    opts.adminVoiceRuntimeApproval === true &&
+    (opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
+      hasOptionAdminVoiceProof(opts.authorization || {}) || hasOptionAdminVoiceProof(opts.output || {}));
+  const bridge = opts.bridge || loadMarionBridge();
+  const trustedPartition = safeText(opts.partitionKey || opts.memoryPartition || '');
+  const trustedSessionId = safeText(opts.sessionId || '');
 
   const bridgePayload = Object.assign({}, payload, {
     text,
@@ -1131,11 +1162,32 @@ async function handleMarionAdminConversation(input, options) {
     privateTextDelivery: true,
     privateDelivery: true,
     privateVoiceDelivery: adminVoiceAllowed,
+    authenticatedOperator: true,
+    adminVerified: true,
+    verified: true,
+    serverSideAdminAuth: true,
+    trustedServerAuth: true,
+    sessionVerified: opts.sessionVerified === true || (opts.authorization && opts.authorization.sessionVerified === true),
+    operatorPersonalization: true,
+    allowPersonalName: true,
+    allowOperatorMemory: true,
+    sessionId: trustedSessionId,
+    partitionKey: trustedPartition,
+    memoryPartition: trustedPartition,
+    privateRuntimeContext: opts.privateRuntimeContext && typeof opts.privateRuntimeContext === 'object'
+      ? opts.privateRuntimeContext
+      : {},
     deliveryChannel: adminVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
     adminOnlyTextDelivery: true,
     adminOnlyVoiceDelivery: true,
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
-    adminVoiceRuntimeApproval: payload.adminVoiceRuntimeApproval === true || opts.adminVoiceRuntimeApproval === true,
+    adminVoiceRuntimeApproval: adminVoiceAllowed,
+    serverSideAdminAuth: true,
+    trustedServerAuth: true,
+    authenticatedOperator: true,
+    sessionVerified: opts.sessionVerified === true || (opts.authorization && opts.authorization.sessionVerified === true),
+    partitionKey: trustedPartition,
+    memoryPartition: trustedPartition,
     publicUsersCanAddressMarion: false,
     voice: Object.assign({}, payload.voice || {}, {
       active: adminVoiceAllowed,
@@ -1146,11 +1198,33 @@ async function handleMarionAdminConversation(input, options) {
       noRawAudioStored: true,
       privateVoiceDelivery: adminVoiceAllowed,
       adminVoiceDeliveryAllowed: adminVoiceAllowed,
-      adminVoiceRuntimeApproval: payload.adminVoiceRuntimeApproval === true || opts.adminVoiceRuntimeApproval === true,
+      adminVoiceRuntimeApproval: adminVoiceAllowed,
       speakAllowed: adminVoiceAllowed,
       voiceMode: adminVoiceAllowed ? 'voice' : 'silent',
       speechSyncEnabled: adminVoiceAllowed
     })
+  });
+  [
+    'auth', 'authorization', 'token', 'adminToken', 'runtimeToken', 'headers',
+    'authenticatedOperator', 'adminVerified', 'verified', 'serverSideAdminAuth',
+    'trustedServerAuth', 'sessionVerified', 'operatorPersonalization', 'allowPersonalName',
+    'allowOperatorMemory', 'privateRuntimeContext', 'partitionKey', 'memoryPartition'
+  ].forEach((key) => { delete bridgePayload[key]; });
+  Object.assign(bridgePayload, {
+    authenticatedOperator: true,
+    adminVerified: true,
+    verified: true,
+    serverSideAdminAuth: true,
+    trustedServerAuth: true,
+    sessionVerified: opts.sessionVerified === true || (opts.authorization && opts.authorization.sessionVerified === true),
+    operatorPersonalization: true,
+    allowPersonalName: true,
+    allowOperatorMemory: true,
+    privateRuntimeContext: opts.privateRuntimeContext && typeof opts.privateRuntimeContext === 'object'
+      ? opts.privateRuntimeContext
+      : {},
+    partitionKey: trustedPartition,
+    memoryPartition: trustedPartition
   });
 
   const bridgeContext = Object.assign({}, opts.context || {}, {
@@ -1168,8 +1242,11 @@ async function handleMarionAdminConversation(input, options) {
     adminOnlyTextDelivery: true,
     adminOnlyVoiceDelivery: true,
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
-    adminVoiceRuntimeApproval: payload.adminVoiceRuntimeApproval === true || opts.adminVoiceRuntimeApproval === true,
+    adminVoiceRuntimeApproval: adminVoiceAllowed,
     adminVerified,
+    serverSideAdminAuth: adminVerified,
+    trustedServerAuth: adminVerified,
+    authenticatedOperator: adminVerified,
     adminVoiceVerified: adminVoiceAllowed,
     adminVoiceDeliveryAllowed: adminVoiceAllowed,
     publicUsersCanAddressMarion: false,
@@ -1186,28 +1263,15 @@ async function handleMarionAdminConversation(input, options) {
       speechSyncEnabled: adminVoiceAllowed
     }
   });
+  ['auth', 'authorization', 'token', 'adminToken', 'runtimeToken', 'headers'].forEach((key) => {
+    delete bridgeContext[key];
+  });
 
   try {
     const response = await callAdminTextBridge(bridge, bridgePayload, bridgeContext);
     return normalizeAdminTextBridgeResponse(response, bridgePayload, adminVerified);
-  } catch (error) {
-    const deterministic = buildAdminTextDeterministicReply(text);
-    const reply = deterministic || 'Marion admin text reached the protected text bridge, but the bridge failed during processing.';
-    return normalizeAdminTextBridgeResponse({
-      ok: Boolean(deterministic),
-      reply,
-      text: reply,
-      message: reply,
-      publicReply: reply,
-      visibleReply: reply,
-      finalReply: reply,
-      error: safeErrorCode(error, 'MARION_TEXT_BRIDGE_ERROR'),
-      diagnostics: {
-        textBridgeFailed: true,
-        errorCode: safeErrorCode(error, 'MARION_TEXT_BRIDGE_ERROR'),
-        noUserFacingDiagnostics: true
-      }
-    }, bridgePayload, adminVerified);
+  } catch (_) {
+    return rejectedMarionTextResponse('MARION_TEXT_BRIDGE_FAILED');
   }
 }
 
@@ -1217,7 +1281,6 @@ async function handleLingoSentinelPrivateVoiceDelivery(input, options) {
     opts.adminVerified === true ||
     opts.adminVoiceVerified === true ||
     opts.adminVoiceTokenVerified === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
     hasOptionAdminVoiceProof(opts.authorization || {}) ||
     hasOptionAdminVoiceProof(opts.output || {});
 
@@ -1348,37 +1411,17 @@ function marionPersonalityR2VoiceGreetingReply(prompt) {
   return `${opener} I’m here with you. Marion is staying private to you, carrying the thread, and keeping the tone professional, protective, and human. What should we tighten next?`;
 }
 function marionPersonalityR2StrictAdminVoiceProof(input, options) {
-  const payload = input && typeof input === 'object' ? input : {};
   const opts = options && typeof options === 'object' ? options : {};
-  const payloadVoice = payload.voice && typeof payload.voice === 'object' ? payload.voice : {};
   const output = opts.output && typeof opts.output === 'object' ? opts.output : {};
   const authorization = opts.authorization && typeof opts.authorization === 'object' ? opts.authorization : {};
   const context = opts.context && typeof opts.context === 'object' ? opts.context : {};
-  const contextVoice = context.voice && typeof context.voice === 'object' ? context.voice : {};
-  return payload.adminVoiceRuntimeApproval === true ||
-    payload.adminVoiceDeliveryAllowed === true ||
-    payload.adminVoiceVerified === true ||
-    payload.adminVoiceTokenVerified === true ||
-    payloadVoice.adminVoiceRuntimeApproval === true ||
-    payloadVoice.adminVoiceDeliveryAllowed === true ||
-    opts.adminVoiceRuntimeApproval === true ||
-    opts.adminVoiceDeliveryAllowed === true ||
-    opts.adminVoiceVerified === true ||
-    opts.adminVoiceTokenVerified === true ||
-    output.adminVoiceRuntimeApproval === true ||
-    output.adminVoiceDeliveryAllowed === true ||
-    output.adminVoiceVerified === true ||
-    output.adminVoiceTokenVerified === true ||
-    authorization.adminVoiceRuntimeApproval === true ||
-    authorization.adminVoiceDeliveryAllowed === true ||
-    authorization.adminVoiceVerified === true ||
-    authorization.adminVoiceTokenVerified === true ||
-    context.adminVoiceRuntimeApproval === true ||
-    context.adminVoiceDeliveryAllowed === true ||
-    context.adminVoiceVerified === true ||
-    context.adminVoiceTokenVerified === true ||
-    contextVoice.adminVoiceRuntimeApproval === true ||
-    contextVoice.adminVoiceDeliveryAllowed === true;
+  const approval = opts.adminVoiceRuntimeApproval === true || output.adminVoiceRuntimeApproval === true || authorization.adminVoiceRuntimeApproval === true;
+  const delivery = opts.adminVoiceDeliveryAllowed === true || output.adminVoiceDeliveryAllowed === true || authorization.adminVoiceDeliveryAllowed === true;
+  const verified = opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
+    output.adminVoiceVerified === true || output.adminVoiceTokenVerified === true ||
+    authorization.adminVoiceVerified === true || authorization.adminVoiceTokenVerified === true ||
+    authorization.serverSideAdminVoiceAuth === true || context.adminVoiceVerified === true || context.adminVoiceTokenVerified === true;
+  return approval && delivery && verified;
 }
 function marionPersonalityR2VoiceDiagnosticAllowed(prompt) {
   return /\b(diagnostic mode|debug mode|explain the priority|show the priority|what priority|priority\s+[0-9a-z]|trace|runtime diagnostic)\b/i.test(marionPersonalityR2VoiceText(prompt));
@@ -1414,30 +1457,31 @@ function marionPersonalityR2VoiceSanitize(reply, prompt) {
   return text;
 }
 function marionPersonalityR2VoiceApply(packet, prompt, input, options) {
-  const out = packet && typeof packet === 'object' ? packet : { reply: marionPersonalityR2VoiceText(packet) };
-  const current = firstReplyText(out) || directReplyText(out) || out.reply || '';
-  const shaped = marionPersonalityR2VoiceGreetingReply(prompt) || marionPersonalityR2VoiceSanitize(current, prompt) || 'I’m with you, Mac. Marion stayed protected, but that turn did not produce a clean response. Send the exact target and I’ll keep it tight.';
-  ['reply', 'text', 'message', 'displayReply', 'publicReply', 'visibleReply', 'finalReply', 'answer', 'output', 'response'].forEach((key) => { out[key] = shaped; });
-  out.payload = Object.assign({}, out.payload && typeof out.payload === 'object' ? out.payload : {}, { reply: shaped, text: shaped, message: shaped, displayReply: shaped, publicReply: shaped, visibleReply: shaped, finalReply: shaped });
-  out.finalEnvelope = Object.assign({}, out.finalEnvelope && typeof out.finalEnvelope === 'object' ? out.finalEnvelope : {}, { reply: shaped, text: shaped, message: shaped, displayReply: shaped, publicReply: shaped, visibleReply: shaped, finalReply: shaped, final: true, marionFinal: true });
+  const out = packet && typeof packet === 'object' ? packet : {};
+  const proof = certifiedMarionFinal(out);
+  if (!proof) return out;
+
+  // This layer may project voice-delivery metadata, but it cannot rewrite a
+  // signed Marion reply or manufacture a final envelope after the bridge.
+  const reply = proof.reply;
   const strictVoiceAllowed = marionPersonalityR2StrictAdminVoiceProof(input, options) === true;
   const voice = out.voice && typeof out.voice === 'object' ? out.voice : {};
   out.voice = Object.assign({}, voice, {
     adminOnlyVoiceDelivery: true,
     adminVoiceDeliveryAllowed: strictVoiceAllowed,
-    adminVoiceRuntimeApproval: strictVoiceAllowed && (voice.adminVoiceRuntimeApproval === true || (input && input.adminVoiceRuntimeApproval === true)),
-    speakAllowed: strictVoiceAllowed && Boolean(shaped),
-    voiceMode: strictVoiceAllowed && shaped ? 'voice' : 'silent',
-    rawVoiceMode: strictVoiceAllowed && shaped ? 'voice' : 'silent',
-    projectedVoiceMode: strictVoiceAllowed && shaped ? 'voice' : 'silent',
-    spokenText: strictVoiceAllowed ? shaped : '',
-    speechText: strictVoiceAllowed ? shaped : '',
+    adminVoiceRuntimeApproval: strictVoiceAllowed,
+    speakAllowed: strictVoiceAllowed && Boolean(reply),
+    voiceMode: strictVoiceAllowed && reply ? 'voice' : 'silent',
+    rawVoiceMode: strictVoiceAllowed && reply ? 'voice' : 'silent',
+    projectedVoiceMode: strictVoiceAllowed && reply ? 'voice' : 'silent',
+    spokenText: strictVoiceAllowed ? reply : '',
+    speechText: strictVoiceAllowed ? reply : '',
     privateVoiceDelivery: strictVoiceAllowed,
     deliveryChannel: strictVoiceAllowed ? 'marion_admin_private_voice' : 'marion_admin_interface',
     audioStored: false,
     rawAudioStored: false,
     noRawAudioStored: true,
-    speechSyncEnabled: strictVoiceAllowed && Boolean(shaped)
+    speechSyncEnabled: strictVoiceAllowed && Boolean(reply)
   });
   out.privateVoiceDelivery = strictVoiceAllowed;
   out.adminVoiceDeliveryAllowed = strictVoiceAllowed;
@@ -1460,6 +1504,7 @@ function marionPersonalityR2VoiceApply(packet, prompt, input, options) {
   });
   return out;
 }
+
 try {
   if (typeof buildAdminTextDeterministicReply === 'function' && !buildAdminTextDeterministicReply.__marionPersonalityPriorityR2Patched) {
     const __marionPersonalityR2OriginalBuildAdminTextDeterministicReply = buildAdminTextDeterministicReply;
