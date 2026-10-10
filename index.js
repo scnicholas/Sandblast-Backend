@@ -3984,6 +3984,14 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
     MarionVoiceGateway = null;
   }
 
+  const voiceSessionVerified = adminVoiceAuth.verified === true && adminVoiceAuth.sessionVerified === true;
+  const voiceSessionId = voiceSessionVerified
+    ? cleanText(adminVoiceAuth.sessionId || (adminVoiceAuth.session && adminVoiceAuth.session.id) || "")
+    : "";
+  const voiceSessionRole = adminVoiceAuth.verified === true
+    ? (cleanText(adminVoiceAuth.role || (adminVoiceAuth.session && adminVoiceAuth.session.role) || "") || "owner")
+    : "blocked";
+
   if (!MarionVoiceGateway || typeof MarionVoiceGateway.handleVoiceTranscript !== "function") {
     return res.status(503).json({
       ok: false,
@@ -4031,9 +4039,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       speakerConfidence: body.speakerConfidence,
       voiceMatchStatus: cleanText(body.voiceMatchStatus || ""),
       voiceProfileEnrolled: body.voiceProfileEnrolled === true,
-      sessionRole: adminVoiceAuth.verified ? "owner" : "blocked",
+      sessionRole: voiceSessionRole,
       requestTrustedSpeakerHint: adminVoiceAuth.verified === true,
-      sessionId: cleanText(body.sessionId || "public"),
+      sessionId: voiceSessionId,
       requestId: traceId,
       userAgent: cleanText(req.headers["user-agent"] || ""),
       client: cleanText(body.client || "web"),
@@ -4048,9 +4056,14 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         adminOnlyVoiceDelivery: true,
         allowConversationalWhenUnknown: false,
         trustSpeakerHint: adminVoiceAuth.verified,
+        adminVerified: adminVoiceAuth.verified === true,
         adminVoiceVerified: adminVoiceAuth.verified,
         adminVoiceTokenVerified: adminVoiceAuth.verified,
-        adminVoiceDeliveryAllowed: adminVoiceAuth.verified
+        serverSideAdminVoiceAuth: adminVoiceAuth.verified === true,
+        adminVoiceDeliveryAllowed: adminVoiceAuth.verified,
+        sessionVerified: voiceSessionVerified && !!voiceSessionId,
+        sessionId: voiceSessionId,
+        role: voiceSessionRole
       },
       output: {
         adminOnlyVoiceDelivery: true,
@@ -4060,7 +4073,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         forceSilent: !adminVoiceAuth.verified
       },
       context: {
-        sessionId: cleanText(body.sessionId || "public"),
+        sessionVerified: voiceSessionVerified && !!voiceSessionId,
+        sessionId: voiceSessionId,
+        role: voiceSessionRole,
         requestId: traceId,
         inputChannel: "voice",
         source: "voice",
