@@ -18,10 +18,14 @@ function cleanString(value, limit = 120) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
 }
 
-function containsBlockedKeys(value, depth = 0) {
-  if (!value || typeof value !== "object" || depth > 5) return false;
+function containsBlockedKeys(value, depth = 0, seen = new WeakSet()) {
+  if (!value || typeof value !== "object") return false;
+  // Fail closed when the payload is too deeply nested or cyclic. A depth cap
+  // must never silently turn off the sensitive-field scan below that point.
+  if (depth > 5 || seen.has(value)) return true;
+  seen.add(value);
   for (const [key, nested] of Object.entries(value)) {
-    if (BLOCKED_KEYS.has(key) || containsBlockedKeys(nested, depth + 1)) return true;
+    if (BLOCKED_KEYS.has(key) || containsBlockedKeys(nested, depth + 1, seen)) return true;
   }
   return false;
 }
@@ -33,7 +37,10 @@ function validateSignal(input) {
   const signalClass = cleanString(src.signalClass, 40);
   const scope = cleanString(src.scope, 40);
   const sourceSubsystem = cleanString(src.sourceSubsystem, 60);
-  const outcomeScore = Number(src.outcomeScore);
+  const rawOutcomeScore = src.outcomeScore;
+  const scoreProvided = typeof rawOutcomeScore === "number" ||
+    (typeof rawOutcomeScore === "string" && rawOutcomeScore.trim() !== "");
+  const outcomeScore = scoreProvided ? Number(rawOutcomeScore) : NaN;
   if (!signalId || !ALLOWED_SIGNAL_CLASSES.includes(signalClass) || !ALLOWED_SCOPES.includes(scope) || !sourceSubsystem || !Number.isFinite(outcomeScore) || outcomeScore < 0 || outcomeScore > 1) {
     return { ok: false, reason: PROTECTED_SCOPES.includes(scope) ? "protected_scope" : "invalid_signal" };
   }
