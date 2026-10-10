@@ -63,8 +63,7 @@ function normalizeText(value) {
 function normalizeInputSource(value) {
   const raw = normalizeText(value);
   if (/voice|speech|mic|audio|headset/.test(raw)) return 'voice';
-  if (/text|typed|keyboard|manual/.test(raw)) return 'text';
-  return raw || 'text';
+  return 'text';
 }
 
 function hashContinuityText(value) {
@@ -109,20 +108,11 @@ function normalizeGovernedShape(next) {
   next.guard = isObj(next.guard) ? next.guard : {};
   next.marion_handoff = isObj(next.marion_handoff) ? next.marion_handoff : {};
   next.marion_handoff.response_constraints = Array.isArray(next.marion_handoff.response_constraints) ? next.marion_handoff.response_constraints : [];
-  next.state_spine_patch = {
-    source: 'emotionalGovernor',
-    schema: 'nyx.marion.stateSpine/1.7',
-    shouldAdvanceState: true,
-    inputSource,
-    turnHash,
-    micTextParity: true,
-    emotionalContinuitySafe: true,
-    sourceDrift
-  };
   return next;
 }
 
 function governResolvedState(state = {}, context = {}) {
+  context = isObj(context) ? context : {};
   const next = normalizeGovernedShape(cloneJson(state));
   const intensity = clamp01(next.emotion && next.emotion.intensity, 0.25);
   const confidence = clamp01(next.emotion && next.emotion.confidence, 0.5);
