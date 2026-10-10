@@ -4794,6 +4794,17 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         visibleToUsers: false
       }
     }, {
+      adminVerified: auth.verified === true,
+      serverSideAdminAuth: auth.verified === true,
+      trustedServerAuth: auth.verified === true,
+      sessionVerified: auth.sessionVerified === true,
+      sessionId: cleanText(auth.sessionId || privatePartitionKey),
+      partitionKey: privatePartitionKey,
+      memoryPartition: privatePartitionKey,
+      adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
+      adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true,
+      adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
+      adminVoiceRuntimeApproval: adminVoiceRuntimeAuth.verified === true && adminVoiceRuntimeAuth.adminVoiceRuntimeApproval === true,
       authorization: {
         adminOnlyVoiceDelivery: true,
         allowConversationalWhenUnknown: false,
@@ -19394,9 +19405,13 @@ async function polishNyxPublicKnowledgeFastPath(response, norm, decision, req) {
     sharedRequest = Promise.resolve().then(() => nyxOpenAIMod.generateNyxReply({
       domain,
       intent,
-      userMessage,
       baseMessage: baseReply,
-      boundaryContext: { role: "public", actor: "guest" }
+      boundaryContext: {
+        role: "public",
+        actor: "guest",
+        scope: "public",
+        publicSurfaceOnly: true
+      }
     })).catch(() => null);
     nyxNeonPolishInFlight.set(cacheKey, sharedRequest);
   }
