@@ -166,6 +166,7 @@ test('Phase A and B reject incomplete envelope proofs while their validators are
   assert.equal(prepared.nuanceCurrentTurnVerified, undefined);
   assert.equal(prepared.nuanceCorrectionOverride, undefined);
   assert.equal(prepared.currentTurnNuanceOverride, undefined);
+  assert.equal(prepared.staleEmotionMustYield, undefined);
   assert.equal(prepared.staleNuanceRejected, true);
 
   const phaseB = {
@@ -183,7 +184,79 @@ test('Phase A and B reject incomplete envelope proofs while their validators are
   assert.equal(preparedPhaseB.phaseBNuanceCurrentTurnVerified, undefined);
   assert.equal(preparedPhaseB.phaseBCorrectionOverride, undefined);
   assert.equal(preparedPhaseB.currentTurnNuanceOverride, undefined);
+  assert.equal(preparedPhaseB.staleEmotionMustYield, undefined);
+  assert.equal(preparedPhaseB.stalePragmaticIntentMustYield, undefined);
   assert.equal(preparedPhaseB.stalePhaseBNuanceRejected, true);
+});
+
+test('nested private Phase A/B claims fail closed after all prepareInput wrappers', () => {
+  const nestedA = currentTurn.prepareInput({
+    privateAdminConversation: true,
+    turnId: 'nested-a',
+    payload: {
+      nuanceContext: { contract: 'nyx.marion.nuance.phaseA/1.0', phase: 'A', turnId: 'nested-a' },
+      nuanceCurrentTurnVerified: true,
+      nuanceCorrectionOverride: true,
+      currentTurnNuanceOverride: true,
+      staleEmotionMustYield: true,
+    },
+  });
+  assert.equal(nestedA.payload.nuanceContext, undefined);
+  assert.equal(nestedA.payload.nuanceCurrentTurnVerified, undefined);
+  assert.equal(nestedA.payload.nuanceCorrectionOverride, undefined);
+  assert.equal(nestedA.payload.currentTurnNuanceOverride, undefined);
+  assert.equal(nestedA.payload.staleEmotionMustYield, undefined);
+  assert.equal(nestedA.staleNuanceRejected, true);
+
+  const nestedB = currentTurn.prepareInput({
+    privateAdminConversation: true,
+    turnId: 'nested-b',
+    payload: {
+      phaseBNuance: { contract: 'nyx.marion.nuance.phaseB/1.0', phase: 'B', turnId: 'nested-b' },
+      phaseBNuanceCurrentTurnVerified: true,
+      phaseBCorrectionOverride: true,
+      phaseBPrimaryPragmaticIntent: 'direct_correction',
+      currentTurnNuanceOverride: true,
+      staleEmotionMustYield: true,
+      stalePragmaticIntentMustYield: true,
+    },
+  });
+  assert.equal(nestedB.payload.phaseBNuance, undefined);
+  assert.equal(nestedB.payload.phaseBNuanceCurrentTurnVerified, undefined);
+  assert.equal(nestedB.payload.phaseBCorrectionOverride, undefined);
+  assert.equal(nestedB.payload.phaseBPrimaryPragmaticIntent, undefined);
+  assert.equal(nestedB.payload.currentTurnNuanceOverride, undefined);
+  assert.equal(nestedB.payload.staleEmotionMustYield, undefined);
+  assert.equal(nestedB.payload.stalePragmaticIntentMustYield, undefined);
+  assert.equal(nestedB.stalePhaseBNuanceRejected, true);
+});
+
+test('private turns without Phase A proof do not retain orphan override flags or false Phase A rejection markers', () => {
+  const prepared = currentTurn.prepareInput({
+    privateAdminConversation: true,
+    turnId: 'plain-private-turn',
+    text: 'A regular private turn.',
+    currentTurnNuanceOverride: true,
+    staleEmotionMustYield: true,
+  });
+  assert.equal(prepared.currentTurnNuanceOverride, undefined);
+  assert.equal(prepared.staleEmotionMustYield, undefined);
+  assert.equal(prepared.staleNuanceRejected, true);
+  assert.equal(prepared.staleNuanceRejectedReason, 'orphan_authority_flag');
+});
+
+test('Phase B context in the generic nuanceContext slot is not mistaken for Phase A', () => {
+  const prepared = currentTurn.prepareInput({
+    privateAdminConversation: true,
+    turnId: 'generic-b-turn',
+    nuanceContext: { contract: 'nyx.marion.nuance.phaseB/1.0', phase: 'B', turnId: 'generic-b-turn' },
+    phaseBNuanceCurrentTurnVerified: true,
+    currentTurnNuanceOverride: true,
+  });
+  assert.equal(prepared.nuanceContext, undefined);
+  assert.equal(prepared.staleNuanceRejected, undefined);
+  assert.equal(prepared.currentTurnNuanceOverride, undefined);
+  assert.equal(prepared.stalePhaseBNuanceRejected, true);
 });
 
 test('public requests remain outside private Phase B nuance projection', () => {
