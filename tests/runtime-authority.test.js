@@ -145,7 +145,7 @@ test('emotion contract cache distinguishes file maps and health does not expose 
   assert.doesNotMatch(health.detail, /\/(?:workspace|tmp)\//);
 });
 
-test('Phase A and B nuance fail closed without their envelope validators', () => {
+test('Phase A and B reject incomplete envelope proofs while their validators are available', () => {
   const input = {
     privateAdminConversation: true,
     turnId: 'turn-a',
@@ -158,8 +158,9 @@ test('Phase A and B nuance fail closed without their envelope validators', () =>
     nuanceCorrectionOverride: true,
   };
 
-  assert.equal(currentTurn.validateNuanceForCurrentTurn(input).ok, false);
-  assert.equal(currentTurn.validateNuanceForCurrentTurn(input).verifierReady, false);
+  const phaseAValidation = currentTurn.validateNuanceForCurrentTurn(input);
+  assert.equal(phaseAValidation.ok, false, 'Missing or invalid Phase A envelope proof must be rejected.');
+  assert.equal(phaseAValidation.verifierReady, true, 'The Phase A validator module is loaded and available.');
   const prepared = currentTurn.prepareInput(input);
   assert.equal(prepared.nuanceCurrentTurnVerified, undefined);
   assert.equal(prepared.nuanceCorrectionOverride, undefined);
@@ -171,8 +172,9 @@ test('Phase A and B nuance fail closed without their envelope validators', () =>
     turnId: 'turn-b',
     phaseBNuance: { contract: 'nyx.marion.nuance.phaseB/1.0', phase: 'B', turnId: 'turn-b' },
   };
-  assert.equal(currentTurn.validatePhaseBNuanceForCurrentTurn(phaseB).ok, false);
-  assert.equal(currentTurn.validatePhaseBNuanceForCurrentTurn(phaseB).verifierReady, false);
+  const phaseBValidation = currentTurn.validatePhaseBNuanceForCurrentTurn(phaseB);
+  assert.equal(phaseBValidation.ok, false, 'Missing or invalid Phase B envelope proof must be rejected.');
+  assert.equal(phaseBValidation.verifierReady, true, 'The Phase B validator module is loaded and available.');
 });
 
 test('public requests remain outside private Phase B nuance projection', () => {
