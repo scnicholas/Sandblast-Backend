@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 
 const root = path.resolve(__dirname, '..');
-const widgetPath = path.join(root, 'public/Sandblast-Nyx-Widget-Fixed.html');
+const widgetPath = path.join(root, 'public/nyx/Sandblast-Nyx-Widget-Fixed.html');
 const html = fs.readFileSync(widgetPath, 'utf8');
 
 function responseGate() {
