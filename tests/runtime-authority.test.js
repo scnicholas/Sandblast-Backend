@@ -156,6 +156,7 @@ test('Phase A and B reject incomplete envelope proofs while their validators are
     },
     nuanceCurrentTurnVerified: true,
     nuanceCorrectionOverride: true,
+    currentTurnNuanceOverride: true,
   };
 
   const phaseAValidation = currentTurn.validateNuanceForCurrentTurn(input);
@@ -171,10 +172,16 @@ test('Phase A and B reject incomplete envelope proofs while their validators are
     privateAdminConversation: true,
     turnId: 'turn-b',
     phaseBNuance: { contract: 'nyx.marion.nuance.phaseB/1.0', phase: 'B', turnId: 'turn-b' },
+    phaseBNuanceCurrentTurnVerified: true,
+    phaseBCorrectionOverride: true,
   };
   const phaseBValidation = currentTurn.validatePhaseBNuanceForCurrentTurn(phaseB);
   assert.equal(phaseBValidation.ok, false, 'Missing or invalid Phase B envelope proof must be rejected.');
   assert.equal(phaseBValidation.verifierReady, true, 'The Phase B validator module is loaded and available.');
+  const preparedPhaseB = currentTurn.prepareInput(phaseB);
+  assert.equal(preparedPhaseB.phaseBNuanceCurrentTurnVerified, undefined);
+  assert.equal(preparedPhaseB.phaseBCorrectionOverride, undefined);
+  assert.equal(preparedPhaseB.stalePhaseBNuanceRejected, true);
 });
 
 test('public requests remain outside private Phase B nuance projection', () => {
