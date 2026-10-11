@@ -174,6 +174,7 @@ test('Phase A and B reject incomplete envelope proofs while their validators are
     phaseBNuance: { contract: 'nyx.marion.nuance.phaseB/1.0', phase: 'B', turnId: 'turn-b' },
     phaseBNuanceCurrentTurnVerified: true,
     phaseBCorrectionOverride: true,
+    currentTurnNuanceOverride: true,
   };
   const phaseBValidation = currentTurn.validatePhaseBNuanceForCurrentTurn(phaseB);
   assert.equal(phaseBValidation.ok, false, 'Missing or invalid Phase B envelope proof must be rejected.');
@@ -181,6 +182,7 @@ test('Phase A and B reject incomplete envelope proofs while their validators are
   const preparedPhaseB = currentTurn.prepareInput(phaseB);
   assert.equal(preparedPhaseB.phaseBNuanceCurrentTurnVerified, undefined);
   assert.equal(preparedPhaseB.phaseBCorrectionOverride, undefined);
+  assert.equal(preparedPhaseB.currentTurnNuanceOverride, undefined);
   assert.equal(preparedPhaseB.stalePhaseBNuanceRejected, true);
 });
 
