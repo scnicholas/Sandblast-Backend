@@ -1181,9 +1181,14 @@ module.exports = {
   function validNuance(n,turnId){const x=obj(n);if(x.contract!==PHASE_A_CONTRACT||x.phase!=="A"||!turnId||!x.turnId||clean(x.turnId,160)!==turnId)return false;if(!envelope||typeof envelope.validateMarionNuanceEnvelope!=="function")return false;try{return envelope.validateMarionNuanceEnvelope(x).ok===true;}catch(_){return false;}}
   function sanitizeInput(raw){
     const input=obj(raw);if(typeof api.isPrivateMarionContext==="function"&&!api.isPrivateMarionContext(input))return input;
-    const turnId=turnIdOf(input),nuance=obj(input.nuanceContext||input.phaseANuance),valid=validNuance(nuance,turnId);
+    const turnId=turnIdOf(input),rawNuanceContext=obj(input.nuanceContext),phaseANuance=obj(input.phaseANuance);
+    const genericIsPhaseB=rawNuanceContext.contract==="nyx.marion.nuance.phaseB/1.0"&&rawNuanceContext.phase==="B";
+    const nuance=Object.keys(phaseANuance).length?phaseANuance:(genericIsPhaseB?{}:rawNuanceContext);
+    const phaseAClaimed=Object.keys(phaseANuance).length>0||(!genericIsPhaseB&&Object.keys(rawNuanceContext).length>0)||["nuanceCurrentTurnVerified","nuanceInteractionState","nuanceCorrectionOverride","nuanceCurrentTurnIntegrationVersion","internalNuanceTurnId"].some(key=>input[key]===true||(key==="internalNuanceTurnId"&&!!input[key]));
+    if(!phaseAClaimed)return input;
+    const valid=validNuance(nuance,turnId);
     let out={...input};
-    if(!valid){delete out.nuanceContext;delete out.phaseANuance;delete out.nuanceStatePatch;delete out.nuanceCurrentTurnVerified;delete out.nuanceInteractionState;delete out.nuanceCorrectionOverride;delete out.currentTurnNuanceOverride;delete out.staleEmotionMustYield;out.staleNuanceRejected=true;out.staleNuanceRejectedReason="turn_or_contract_or_verifier_mismatch";}
+    if(!valid){if(!genericIsPhaseB)delete out.nuanceContext;delete out.phaseANuance;delete out.nuanceStatePatch;delete out.nuanceCurrentTurnVerified;delete out.nuanceInteractionState;delete out.nuanceCorrectionOverride;delete out.nuanceCurrentTurnIntegrationVersion;delete out.internalNuanceTurnId;delete out.currentTurnNuanceOverride;delete out.staleEmotionMustYield;out.staleNuanceRejected=true;out.staleNuanceRejectedReason="turn_or_contract_or_verifier_mismatch";}
     else{
       const l24=obj(nuance.layer24),state=clean(l24.currentState,60),flags=obj(l24.controlFlags),correction=flags.correctionOverride===true||["correction","disagreement","clarification"].includes(state);
       out.nuanceContext=nuance;out.phaseANuance=nuance;out.nuanceCurrentTurnVerified=true;out.nuanceInteractionState=state;out.nuanceCorrectionOverride=correction;
@@ -1198,7 +1203,7 @@ module.exports = {
     return out;
   }
   const originalPrepare=api.prepareInput;
-  if(typeof originalPrepare==="function")api.prepareInput=function(value){return sanitizeInput(originalPrepare.call(this,value));};
+  if(typeof originalPrepare==="function")api.prepareInput=function(value){const prepared=originalPrepare.call(this,value);return prepared&&typeof prepared.then==="function"?prepared.then(sanitizeInput):sanitizeInput(prepared);};
   const originalArgs=api.prepareArgumentList;
   if(typeof originalArgs==="function")api.prepareArgumentList=function(argsLike){const result=obj(originalArgs.call(this,argsLike)),args=Array.isArray(result.args)?result.args.slice():Array.from(argsLike||[]);let index=-1;for(let i=0;i<args.length;i++){if(obj(args[i]).privateAdminConversation===true||obj(args[i]).marionAdminConversation===true||obj(args[i]).directMarionAdminInterface===true){index=i;break;}}if(index>=0)args[index]=api.prepareInput(args[index]);return{...result,args,input:index>=0?args[index]:result.input};};
   function wrapResult(fn){if(typeof fn!=="function")return fn;return function(result,input){const out=fn.apply(this,arguments);const attach=value=>{if(!value||typeof value!=="object")return value;const prepared=sanitizeInput(input),nuance=obj(prepared.nuanceContext);if(!Object.keys(nuance).length)return value;const l24=obj(nuance.layer24);return{...value,nuanceCurrentTurnVerified:true,nuanceInteractionState:clean(l24.currentState,60),nuanceCorrectionOverride:obj(l24.controlFlags).correctionOverride===true,internalNuanceTurnId:clean(nuance.turnId,160),meta:{...obj(value.meta),nuanceCurrentTurnIntegrationVersion:PATCH_VERSION,nuanceCurrentTurnVerified:true,staleNuanceRejected:false}};};return out&&typeof out.then==="function"?out.then(attach):attach(out);};}
@@ -1229,8 +1234,8 @@ module.exports = {
   let envelope=null;try{envelope=require("./nuance/marionNuancePhaseBEnvelope.js");}catch(_){envelope=null;}
   function idOf(v){const x=obj(v),b=obj(x.body),p=obj(x.payload),m=obj(x.meta);return clean(x.turnId||x.currentTurnId||b.turnId||p.turnId||m.turnId,160);}
   function valid(b,id){const x=obj(b);if(x.contract!==PHASE_B_CONTRACT||x.phase!=="B"||!id||!x.turnId||clean(x.turnId,160)!==id)return false;if(!envelope||typeof envelope.validatePhaseBEnvelope!=="function")return false;try{return envelope.validatePhaseBEnvelope(x).ok===true;}catch(_){return false;}}
-  function sanitize(raw){const input=obj(raw);if(typeof api.isPrivateMarionContext==="function"&&!api.isPrivateMarionContext(input))return input;const b=phaseB(input),id=idOf(input);if(!Object.keys(b).length)return input;if(!valid(b,id)){const out={...input};delete out.phaseBNuance;delete out.nuancePhaseBContext;delete out.phaseBStatePatch;delete out.phaseBNuanceCurrentTurnVerified;delete out.phaseBPrimaryStance;delete out.phaseBPrimaryPragmaticIntent;delete out.phaseBCorrectionOverride;delete out.nuanceHardStopLayer;delete out.stalePragmaticIntentMustYield;out.stalePhaseBNuanceRejected=true;out.stalePhaseBNuanceRejectedReason="turn_or_contract_or_verifier_mismatch";return out;}const s=summary(b),p=obj(b.layer26),a=phaseAFrom(b),l24=obj(a.layer24),correction=["correction","disagreement","clarification"].includes(clean(l24.currentState,60))||["direct_correction","indirect_correction","explicit_disagreement","polite_disagreement"].includes(clean(p.primaryPragmaticIntent,120));let out={...input,phaseBNuance:b,nuancePhaseBContext:b,phaseBNuanceCurrentTurnVerified:true,phaseBPrimaryStance:s.primaryStance,phaseBPrimaryPragmaticIntent:s.primaryPragmaticIntent,phaseBCorrectionOverride:correction,literalIntentPreserved:s.literalIntentPreserved,nuanceHardStopLayer:HARD_STOP_LAYER};if(correction){const pm=obj(out.previousMemory),ns=obj(pm.nuanceState),scrub={...ns,emotionalCandidate:"",emotionalConfidence:0,emotionalCueTtlTurns:0,pragmaticIntent:"",pragmaticIntentConfidence:0,pragmaticIntentTtlTurns:0};out.previousMemory={...pm,nuanceState:scrub};out.staleEmotionMustYield=true;out.stalePragmaticIntentMustYield=true;out.currentTurnNuanceOverride=true;}return out;}
-  const original=api.prepareInput;if(typeof original==="function")api.prepareInput=function(v){return sanitize(original.call(this,v));};
+  function sanitize(raw){const input=obj(raw);if(typeof api.isPrivateMarionContext==="function"&&!api.isPrivateMarionContext(input))return input;const b=phaseB(input),id=idOf(input);if(!Object.keys(b).length)return input;if(!valid(b,id)){const out={...input};delete out.phaseBNuance;delete out.nuancePhaseBContext;delete out.phaseBContext;delete out.phaseBStatePatch;delete out.phaseBNuanceCurrentTurnVerified;delete out.phaseBPrimaryStance;delete out.phaseBPrimaryPragmaticIntent;delete out.phaseBCorrectionOverride;delete out.literalIntentPreserved;delete out.nuanceHardStopLayer;delete out.stalePragmaticIntentMustYield;let preservePhaseACorrection=false;try{preservePhaseACorrection=typeof api.validateNuanceForCurrentTurn==="function"&&api.validateNuanceForCurrentTurn(input).ok===true&&input.nuanceCorrectionOverride===true;}catch(_){}if(!preservePhaseACorrection){delete out.currentTurnNuanceOverride;delete out.staleEmotionMustYield;}out.stalePhaseBNuanceRejected=true;out.stalePhaseBNuanceRejectedReason="turn_or_contract_or_verifier_mismatch";return out;}const s=summary(b),p=obj(b.layer26),a=phaseAFrom(b),l24=obj(a.layer24),correction=["correction","disagreement","clarification"].includes(clean(l24.currentState,60))||["direct_correction","indirect_correction","explicit_disagreement","polite_disagreement"].includes(clean(p.primaryPragmaticIntent,120));let out={...input,phaseBNuance:b,nuancePhaseBContext:b,phaseBNuanceCurrentTurnVerified:true,phaseBPrimaryStance:s.primaryStance,phaseBPrimaryPragmaticIntent:s.primaryPragmaticIntent,phaseBCorrectionOverride:correction,literalIntentPreserved:s.literalIntentPreserved,nuanceHardStopLayer:HARD_STOP_LAYER};if(correction){const pm=obj(out.previousMemory),ns=obj(pm.nuanceState),scrub={...ns,emotionalCandidate:"",emotionalConfidence:0,emotionalCueTtlTurns:0,pragmaticIntent:"",pragmaticIntentConfidence:0,pragmaticIntentTtlTurns:0};out.previousMemory={...pm,nuanceState:scrub};out.staleEmotionMustYield=true;out.stalePragmaticIntentMustYield=true;out.currentTurnNuanceOverride=true;}return out;}
+  const original=api.prepareInput;if(typeof original==="function")api.prepareInput=function(v){const prepared=original.call(this,v);return prepared&&typeof prepared.then==="function"?prepared.then(sanitize):sanitize(prepared);};
   api.validatePhaseBNuanceForCurrentTurn=function(input){const b=phaseB(input),id=idOf(input);return{ok:valid(b,id),verifierReady:!!(envelope&&typeof envelope.validatePhaseBEnvelope==="function"),turnId:id,nuanceTurnId:clean(b.turnId,160),contract:PHASE_B_CONTRACT,literalIntentPreserved:summary(b).literalIntentPreserved};};
 
   api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
@@ -1238,3 +1243,66 @@ module.exports = {
   api.__marionNuancePhaseBCurrentTurnIntegrationV1=true;
 })();
 /* MARION_NUANCE_PHASE_B_CurrentTurnIntegration_V1_END */
+
+/* MARION_NUANCE_POST_PREPARE_FAIL_CLOSED_V3_START */
+(function marionNuancePostPrepareFailClosedV3(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePostPrepareFailClosedV3)return;
+  const PHASE_A="nyx.marion.nuance.phaseA/1.0";
+  const PHASE_B="nyx.marion.nuance.phaseB/1.0";
+  const NESTED=["body","payload","session","meta"];
+  const A_FLAGS=["nuanceCurrentTurnVerified","nuanceInteractionState","nuanceCorrectionOverride","nuanceCurrentTurnIntegrationVersion","internalNuanceTurnId"];
+  const B_FLAGS=["phaseBNuanceCurrentTurnVerified","phaseBPrimaryStance","phaseBPrimaryPragmaticIntent","phaseBCorrectionOverride","literalIntentPreserved","nuanceHardStopLayer","stalePragmaticIntentMustYield"];
+  const A_KEYS=["phaseANuance","nuanceStatePatch",...A_FLAGS];
+  const B_KEYS=["phaseBNuance","nuancePhaseBContext","phaseBContext","phaseBStatePatch",...B_FLAGS];
+  const COMMON_KEYS=["currentTurnNuanceOverride","staleEmotionMustYield"];
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function roots(v){const x=obj(v);return [x,...NESTED.map(k=>obj(x[k]))];}
+  function own(v,k){return Object.prototype.hasOwnProperty.call(v,k);}
+  function nonempty(v){return Object.keys(obj(v)).length>0;}
+  function turnId(v,candidate){const x=obj(v),b=obj(x.body),p=obj(x.payload),s=obj(x.session),m=obj(x.meta);return x.turnId||x.currentTurnId||b.turnId||p.turnId||s.turnId||m.turnId||obj(candidate).turnId||"";}
+  function phaseBShape(n){const x=obj(n);return x.contract===PHASE_B&&x.phase==="B";}
+  function findA(v){for(const r of roots(v)){if(own(r,"phaseANuance")&&nonempty(r.phaseANuance))return{value:obj(r.phaseANuance),key:"phaseANuance"};if(own(r,"nuanceContext")&&nonempty(r.nuanceContext)&&!phaseBShape(r.nuanceContext))return{value:obj(r.nuanceContext),key:"nuanceContext"};}return null;}
+  function findB(v){for(const r of roots(v)){for(const k of ["phaseBNuance","nuancePhaseBContext","phaseBContext"]){if(own(r,k)&&nonempty(r[k]))return{value:obj(r[k]),key:k};}if(own(r,"nuanceContext")&&nonempty(r.nuanceContext)&&phaseBShape(r.nuanceContext))return{value:obj(r.nuanceContext),key:"nuanceContext"};}return null;}
+  function anyFlag(v,keys){return roots(v).some(r=>keys.some(k=>r[k]===true||(k==="internalNuanceTurnId"&&typeof r[k]==="string"&&r[k].length>0)));}
+  function validate(name,v,candidate,key){if(!candidate)return false;try{const id=turnId(v,candidate.value),normalized={...obj(v),turnId:id};normalized[key]=candidate.value;if(key==="nuanceContext")normalized.phaseANuance=candidate.value;return typeof api[name]==="function"&&obj(api[name](normalized)).ok===true;}catch(_){return false;}}
+  function correctionA(n){const l=obj(obj(n).layer24),state=String(l.currentState||"").toLowerCase(),f=obj(l.controlFlags);return f.correctionOverride===true||["correction","disagreement","clarification"].includes(state);}
+  function correctionB(n){const b=obj(n),a=obj(b.phaseA),l=obj(a.layer24),p=obj(b.layer26),state=String(l.currentState||"").toLowerCase(),intent=String(p.primaryPragmaticIntent||"").toLowerCase();return ["correction","disagreement","clarification"].includes(state)||["direct_correction","indirect_correction","explicit_disagreement","polite_disagreement"].includes(intent);}
+  function inspect(raw){
+    let isPrivate=false;try{isPrivate=typeof api.isPrivateMarionContext==="function"&&api.isPrivateMarionContext(raw)===true;}catch(_){}
+    if(!isPrivate)return{private:false};
+    const a=findA(raw),b=findB(raw),aClaimed=!!a||anyFlag(raw,A_FLAGS),bClaimed=!!b||anyFlag(raw,B_FLAGS);
+    const aValid=aClaimed&&validate("validateNuanceForCurrentTurn",raw,a,"nuanceContext");
+    const bValid=bClaimed&&validate("validatePhaseBNuanceForCurrentTurn",raw,b,"phaseBNuance");
+    return{private:true,a,b,aClaimed,bClaimed,aValid,bValid,allowCommon:(aValid&&correctionA(a&&a.value))||(bValid&&correctionB(b&&b.value)),allowPragmatic:bValid&&correctionB(b&&b.value),orphanShared:anyFlag(raw,[...COMMON_KEYS,"stalePragmaticIntentMustYield"])&&!aClaimed&&!bClaimed};
+  }
+  function stripA(node,state){
+    for(const k of A_KEYS)delete node[k];
+    if(own(node,"nuanceContext")){const n=obj(node.nuanceContext);if(!(phaseBShape(n)&&state.bValid))delete node.nuanceContext;}
+  }
+  function stripB(node,state){
+    for(const k of B_KEYS)delete node[k];
+    if(own(node,"nuanceContext")){const n=obj(node.nuanceContext);if(!(n.contract===PHASE_A&&n.phase==="A"&&state.aValid))delete node.nuanceContext;}
+  }
+  function finish(value,state){
+    if(!state.private||!value||typeof value!=="object"||Array.isArray(value))return value;
+    const source=obj(value),out={...source};
+    function cleanNode(node){
+      if(state.aClaimed&&!state.aValid)stripA(node,state);
+      if(state.bClaimed&&!state.bValid)stripB(node,state);
+      if(!state.allowCommon)for(const k of COMMON_KEYS)delete node[k];
+      if(!state.allowPragmatic)delete node.stalePragmaticIntentMustYield;
+    }
+    cleanNode(out);
+    for(const key of NESTED){const child=obj(source[key]);if(Object.keys(child).length){const clean={...child};cleanNode(clean);out[key]=clean;}}
+    if(state.aClaimed&&!state.aValid){out.staleNuanceRejected=true;out.staleNuanceRejectedReason="turn_or_contract_or_verifier_mismatch";}else if(state.orphanShared){out.staleNuanceRejected=true;out.staleNuanceRejectedReason="orphan_authority_flag";}else{delete out.staleNuanceRejected;delete out.staleNuanceRejectedReason;}
+    if(state.bClaimed&&!state.bValid){out.stalePhaseBNuanceRejected=true;out.stalePhaseBNuanceRejectedReason="turn_or_contract_or_verifier_mismatch";}else{delete out.stalePhaseBNuanceRejected;delete out.stalePhaseBNuanceRejectedReason;}
+    return out;
+  }
+  const original=api.prepareInput;
+  if(typeof original==="function")api.prepareInput=function(){const raw=arguments[0],state=inspect(raw),result=original.apply(this,arguments);return result&&typeof result.then==="function"?result.then(value=>finish(value,state)):finish(result,state);};
+  api.__marionNuancePostPrepareFailClosedV3=true;
+})();
+/* MARION_NUANCE_POST_PREPARE_FAIL_CLOSED_V3_END */
+
