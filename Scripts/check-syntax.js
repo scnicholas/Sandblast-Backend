@@ -16,23 +16,30 @@ const MAX_DIAGNOSTIC_CHARS = 12_000;
 
 function usage() {
   return [
-    "Usage: node check-syntax.js [--root <directory>] [--help]",
+    "Usage: node check-syntax.js [--root <directory>] [--include-backups] [--help]",
     "",
     "Checks .js, .mjs, and .cjs files recursively with the current Node.js parser.",
     "By default, uses the nearest directory containing package.json or .git;",
     "if none is found, it uses the parent directory of this script.",
-    "Directories named .git and node_modules are skipped.",
+    "Directories named .git and node_modules are skipped. Directories beginning",
+    "with backup-, backup_, or backup. are skipped unless --include-backups is set.",
   ].join("\n");
 }
 
 function parseArguments(argv) {
   let root = null;
+  let includeBackups = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
 
     if (argument === "--help" || argument === "-h") {
-      return { help: true, root: null };
+      return { help: true, root: null, includeBackups: false };
+    }
+
+    if (argument === "--include-backups") {
+      includeBackups = true;
+      continue;
     }
 
     if (argument === "--root") {
@@ -51,7 +58,7 @@ function parseArguments(argv) {
     throw new Error(`Unknown argument: ${argument}\n\n${usage()}`);
   }
 
-  return { help: false, root };
+  return { help: false, root, includeBackups };
 }
 
 function hasProjectMarker(directory) {
@@ -83,8 +90,13 @@ function compareNames(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function collectSourceFiles(root, files, scanErrors) {
+function isBackupDirectory(name) {
+  return /^backup(?:[-_.])/.test(name.toLowerCase());
+}
+
+function collectSourceFiles(root, files, scanErrors, includeBackups) {
   const pendingDirectories = [root];
+  let skippedBackupDirectories = 0;
 
   while (pendingDirectories.length > 0) {
     const directory = pendingDirectories.pop();
@@ -99,6 +111,10 @@ function collectSourceFiles(root, files, scanErrors) {
     entries.sort((left, right) => compareNames(left.name, right.name));
     for (const entry of entries) {
       if (entry.isDirectory() && IGNORED_DIRECTORIES.has(entry.name)) continue;
+      if (entry.isDirectory() && !includeBackups && isBackupDirectory(entry.name)) {
+        skippedBackupDirectories += 1;
+        continue;
+      }
 
       const fullPath = path.join(directory, entry.name);
       if (entry.isDirectory()) {
@@ -112,6 +128,8 @@ function collectSourceFiles(root, files, scanErrors) {
       }
     }
   }
+
+  return skippedBackupDirectories;
 }
 
 function displayPath(root, filePath) {
@@ -172,7 +190,7 @@ function run() {
 
   const files = [];
   const scanErrors = [];
-  collectSourceFiles(root, files, scanErrors);
+  const skippedBackupDirectories = collectSourceFiles(root, files, scanErrors, options.includeBackups);
   files.sort((left, right) => compareNames(displayPath(root, left), displayPath(root, right)));
 
   for (const item of scanErrors) {
@@ -206,7 +224,10 @@ function run() {
     return 1;
   }
 
-  process.stdout.write(`PASS syntax check: ${files.length} source file(s).\n`);
+  const backupNote = skippedBackupDirectories > 0
+    ? `; skipped ${skippedBackupDirectories} backup director${skippedBackupDirectories === 1 ? "y" : "ies"}`
+    : "";
+  process.stdout.write(`PASS syntax check: ${files.length} source file(s)${backupNote}.\n`);
   return 0;
 }
 
