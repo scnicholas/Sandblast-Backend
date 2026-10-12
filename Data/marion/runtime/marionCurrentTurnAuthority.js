@@ -222,7 +222,7 @@ function technicalTargetFrom(obj) {
     obj.technicalTarget, obj.regressionTarget, obj.targetFile, obj.targetPath);
 }
 
-function candidateFromObject(obj, source = "", index = 0, currentText = "") {
+function candidateFromObject(obj, source = "", index = 0, currentText = "", inheritedSessionId = "") {
   if (!isObj(obj)) return null;
   const userText = objectText(obj, USER_KEYS);
   const assistantReply = objectText(obj, REPLY_KEYS);
@@ -258,7 +258,7 @@ function candidateFromObject(obj, source = "", index = 0, currentText = "") {
     score,
     timestamp: ts,
     turnId: firstText(obj.turnId, obj.sourceTurnId, obj.id),
-    sessionId: firstText(obj.sessionId, obj.conversationId),
+    sessionId: firstText(obj.sessionId, obj.conversationId, inheritedSessionId),
     domain,
     intent: firstText(obj.intent, isObj(obj.routing) ? obj.routing.intent : ""),
     userText: bounded(userText, 1800),
@@ -278,8 +278,8 @@ function candidateFromObject(obj, source = "", index = 0, currentText = "") {
 
 function collectCandidates(input) {
   const current = extractCurrentText(input);
-  const roots = [];
   const src = isObj(input) ? input : {};
+  const roots = [{ value: src, path: "input" }];
   for (const rootName of ["previousMemory","memory","turnMemory","state","conversationState","session","meta","payload","body","commandPacket"]) {
     const root = safeGet(src, rootName);
     if (isObj(root)) roots.push({ value: root, path: rootName });
@@ -287,14 +287,15 @@ function collectCandidates(input) {
   const candidates = [];
   const seen = new WeakSet();
   let seq = 0;
-  function walk(value, path, depth) {
+  function walk(value, path, depth, inheritedSessionId = "") {
     if (!isObj(value) || depth > MAX_DEPTH) return;
     try { if (seen.has(value)) return; seen.add(value); } catch (_) { return; }
-    const direct = candidateFromObject(value, path, seq++, current);
+    const sessionId = firstText(safeGet(value, "sessionId"), safeGet(value, "conversationId"), inheritedSessionId);
+    const direct = candidateFromObject(value, path, seq++, current, sessionId);
     if (direct) candidates.push(direct);
     for (const key of TURN_CONTAINER_KEYS) {
       const child = safeGet(value, key);
-      if (isObj(child)) walk(child, `${path}.${key}`, depth + 1);
+      if (isObj(child)) walk(child, `${path}.${key}`, depth + 1, sessionId);
     }
     for (const key of ARRAY_KEYS) {
       const arr = safeGet(value, key);
@@ -303,15 +304,30 @@ function collectCandidates(input) {
       for (let i = start; i < arr.length; i += 1) {
         const item = arr[i];
         if (isObj(item)) {
-          const c = candidateFromObject(item, `${path}.${key}[${i}]`, seq++ + i, current);
+          const c = candidateFromObject(item, `${path}.${key}[${i}]`, seq++ + i, current, sessionId);
           if (c) candidates.push(c);
-          walk(item, `${path}.${key}[${i}]`, depth + 1);
+          walk(item, `${path}.${key}[${i}]`, depth + 1, sessionId);
         }
       }
     }
   }
-  roots.forEach((r) => walk(r.value, r.path, 0));
+  roots.forEach((r) => walk(r.value, r.path, 0, sessionIdFrom(src)));
   return candidates;
+}
+
+function sessionIdFrom(input) {
+  const src = isObj(input) ? input : {};
+  const body = isObj(safeGet(src, "body")) ? src.body : {};
+  const payload = isObj(safeGet(src, "payload")) ? src.payload : {};
+  const session = isObj(safeGet(src, "session")) ? src.session : {};
+  const meta = isObj(safeGet(src, "meta")) ? src.meta : {};
+  return firstText(
+    safeGet(src, "sessionId"), safeGet(src, "conversationId"),
+    safeGet(session, "sessionId"), safeGet(session, "id"),
+    safeGet(body, "sessionId"), safeGet(body, "conversationId"),
+    safeGet(payload, "sessionId"), safeGet(payload, "conversationId"),
+    safeGet(meta, "sessionId"), safeGet(meta, "conversationId")
+  );
 }
 
 
@@ -415,7 +431,9 @@ function extractContinuationAnchor(input) {
   if (!isPrivateMarionContext(input) || isIsolatedTurn(input)) return null;
   const current = classifyCurrentTurn(input);
   if (!current.shortFollowup) return null;
-  const candidates = collectCandidates(input).filter((c) => c && (c.userText || c.topic) && isSubstantiveAnchor(c));
+  const currentSessionId = sessionIdFrom(input);
+  const candidates = collectCandidates(input).filter((c) => c && (c.userText || c.topic) && isSubstantiveAnchor(c) &&
+    (!currentSessionId || !c.sessionId || c.sessionId === currentSessionId));
   if (!candidates.length) return null;
   candidates.sort((a, b) => {
     if (a.timestamp && b.timestamp && a.timestamp !== b.timestamp) return b.timestamp - a.timestamp;
@@ -1305,4 +1323,3 @@ module.exports = {
   api.__marionNuancePostPrepareFailClosedV3=true;
 })();
 /* MARION_NUANCE_POST_PREPARE_FAIL_CLOSED_V3_END */
-
