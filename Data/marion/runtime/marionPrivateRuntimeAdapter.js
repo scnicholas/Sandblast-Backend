@@ -16,8 +16,8 @@
 const path = require("path");
 const conversationLayers = (() => { try { return require("./conversation/marionConversationLayerRegistry.js"); } catch (_) { return null; } })();
 
-const VERSION = "marion.privateRuntime.adapter/17.0-strategic-flow-layers-15-16-17";
-const CONTRACT = "nyx.marion.privateRuntime/17.0";
+const VERSION = "marion.privateRuntime.adapter/20.0-completion-flow-layers-18-19-20";
+const CONTRACT = "nyx.marion.privateRuntime/20.0";
 const MAX_SESSIONS = 256;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const sessionContinuity = new Map();
@@ -185,6 +185,28 @@ function domainReplyMismatch(reply = "", domain = "general") {
   if (domain && domain !== "general") return genericNonSubstantiveReply(text);
   return false;
 }
+function subjectAnchor(subject = "") {
+  const anchor = safeText(subject)
+    .replace(/^(?:do\s+)?(?:a\s+)?surgical\s+autopsy\s+(?:on|of)\s+/i, "")
+    .replace(/^(?:the|a|an)\s+/i, "")
+    .replace(/[.!?]+$/g, "")
+    .trim();
+  const words = anchor.match(/[a-z0-9]+(?:[._/-][a-z0-9]+)*/gi) || [];
+  // Short topic labels work as exact anchors; long prompts often need paraphrasing.
+  return words.length > 0 && words.length <= 8 ? anchor : "";
+}
+function subjectReplyMismatch(reply = "", subject = "") {
+  const anchor = subjectAnchor(subject);
+  return !!anchor && !safeText(reply).toLowerCase().includes(anchor.toLowerCase());
+}
+function progressionReplyMismatch(reply = "", domain = "general", subject = "") {
+  return domainReplyMismatch(reply, domain) || subjectReplyMismatch(reply, subject);
+}
+function anchorReplyToSubject(reply = "", subject = "") {
+  const out = safeText(reply), anchor = subjectAnchor(subject);
+  if (!out || !anchor || !subjectReplyMismatch(out, subject)) return out;
+  return `For ${anchor}: ${out}`;
+}
 
 function recoveryReply(prompt, domain, state = {}) {
   const kind = followupKind(prompt), subject = firstText(state.activeSubject, state.lastSubstantivePrompt, "the active routing repair");
@@ -228,6 +250,7 @@ function normalizeInput(input = {}, context = {}) {
     conversationFlowState: obj(state.conversationFlowState),
     outcomeFlowState: obj(state.outcomeFlowState || obj(state.conversationFlowState).outcomeFlow),
     strategicFlowState: obj(state.strategicFlowState || obj(state.conversationFlowState).strategicFlow),
+    completionFlowState: obj(state.completionFlowState || obj(state.conversationFlowState).completionFlow),
     followUpDepth: Number(state.followUpDepth || 0),
     privateRuntimeContinuity: { version: CONTRACT, activeDomain: firstText(state.activeDomain, expectedDomain), activeSubject, progressionStage: firstText(state.progressionStage), followUpDepth: Number(state.followUpDepth || 0) }
   };
@@ -276,17 +299,18 @@ function updateContinuity(input, result, reply) {
       activeDomain: firstText(prior.activeDomain, obj(flowState).activeDomain),
       activeSubject: firstText(prior.activeSubject, obj(flowState).activeSubject),
       progressionStage: "social", followUpDepth: 0, lastUserText: input.prompt, lastReply: reply,
-      memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) },
+      memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) },
       conversationFlowState: flowState,
       outcomeFlowState: obj(flowState.outcomeFlow),
-      strategicFlowState: obj(flowState.strategicFlow)
+      strategicFlowState: obj(flowState.strategicFlow),
+      completionFlowState: obj(flowState.completionFlow)
     });
     return;
   }
   const domain = firstText(ctx.expectedDomain, resultDomain(result), ctx.activeDomain);
   const substantive = !!domain && domain !== "general";
   if (!substantive) {
-    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) }, conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) });
+    setSession(sessionId, { lastUserText: input.prompt, lastReply: reply, memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) }, conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) });
     return;
   }
   const flowDirection = firstText(obj(input.conversationFlow).direction);
@@ -299,10 +323,11 @@ function updateContinuity(input, result, reply) {
     lastReply: reply,
     progressionStage: firstText(ctx.progressionStage, "analysis"),
     followUpDepth: Number(ctx.followUpDepth || 0),
-    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow) },
+    memoryPatch: { ...obj(result.memoryPatch || result.sessionPatch), conversationFlowState: flowState, outcomeFlowState: obj(flowState.outcomeFlow), strategicFlowState: obj(flowState.strategicFlow), completionFlowState: obj(flowState.completionFlow) },
     conversationFlowState: flowState,
     outcomeFlowState: obj(flowState.outcomeFlow),
-    strategicFlowState: obj(flowState.strategicFlow)
+    strategicFlowState: obj(flowState.strategicFlow),
+    completionFlowState: obj(flowState.completionFlow)
   });
 }
 function finalPacket(normalized, result, reply, stage, reason = "", degraded = false, attempts = []) {
@@ -318,9 +343,11 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
   const outcomeFlowState = obj(conversationFlowState.outcomeFlow);
   const strategicFlow = obj(conversationFlow.strategicFlow);
   const strategicFlowState = obj(conversationFlowState.strategicFlow);
+  const completionFlow = obj(conversationFlow.completionFlow);
+  const completionFlowState = obj(conversationFlowState.completionFlow);
   const memoryPatch = {
     ...obj(result.memoryPatch || result.sessionPatch),
-    conversationFlowState, outcomeFlowState, strategicFlowState,
+    conversationFlowState, outcomeFlowState, strategicFlowState, completionFlowState,
     activeDomain: domain === "general" ? "" : domain,
     activeSubject: domain === "general" ? "" : firstText(obj(normalized.privateRuntimeContext).activeSubject),
     lastUserText: normalized.prompt,
@@ -334,15 +361,15 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
     payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
     finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
-    conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
-    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, automaticExecutionAllowed: false }
+    conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), completionFlow, completionFlowState, crossDomainContext: obj(conversationFlow.crossDomainContext), goalRealignment: obj(conversationFlow.goalRealignment), decisionClosure: obj(conversationFlow.decisionClosure), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
+    meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, completionMetadataPrivate: true, hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false }
   };
   return {
     ok: true, statusCode: 200, stage, reason, degraded, recovered: degraded,
     reply, publicReply: reply, visibleReply: reply, displayReply: reply, directReply: reply, finalReply: reply,
     response: reply, text: reply, message: reply, spokenText: firstText(resultPacket.spokenText, reply), speechText: firstText(resultPacket.speechText, resultPacket.spokenText, reply),
     result: resultPacket, adapterVersion: VERSION, contract: CONTRACT, bridgeStatus: getStatus(), bridgeAttempts: attempts,
-    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, strategicFlow, strategicFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
+    privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, strategicFlow, strategicFlowState, completionFlow, completionFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
     responseFinalized: true
   };
 }
@@ -392,9 +419,12 @@ async function invokePrivateRuntime(input = {}, context = {}) {
 
   const expectedDomain = obj(normalized.privateRuntimeContext).expectedDomain || "general";
   const progressionOverride = isContextualFollowup(prompt) && !!obj(normalized.privateRuntimeContext).activeSubject && expectedDomain !== "general";
-  const semanticMismatch = !reply || runtimeFailureReply(reply) || domainReplyMismatch(reply, expectedDomain) || (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
+  const activeSubject = firstText(obj(normalized.privateRuntimeContext).activeSubject, obj(normalized.conversationFlow).activeSubject);
+  const semanticMismatch = !reply || runtimeFailureReply(reply) ||
+    (progressionOverride ? progressionReplyMismatch(reply, expectedDomain, activeSubject) : domainReplyMismatch(reply, expectedDomain)) ||
+    (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
   if (progressionOverride && semanticMismatch) {
-    reply = recoveryReply(prompt, expectedDomain, state);
+    reply = anchorReplyToSubject(recoveryReply(prompt, expectedDomain, state), activeSubject);
     result = obj(result);
     attempts.push({ kind: "progression_recovery", ok: true, domain: expectedDomain, reason: reason || "recognized_followup_bridge_reply_unusable" });
   } else if (semanticMismatch) {
@@ -425,7 +455,7 @@ function getStatus() {
     sessionCount: sessionContinuity.size,
     circularSafe: true, indexIndependent: true, chatEngineIndependent: true, gatewayIndependent: true,
     neverReturnsRecoverable502: true,
-    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowReady: !!(conversationLayers && conversationLayers.strategicCoordinator), strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17], automaticExecutionAllowed: false
+    conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowReady: !!(conversationLayers && conversationLayers.strategicCoordinator), strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowReady: !!(conversationLayers && conversationLayers.completionCoordinator), completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false
   };
 }
 function resetSession(sessionId) { clearSession(safeText(sessionId)); return true; }
@@ -440,5 +470,73 @@ Object.assign(module.exports, {
   getStatus,
   resetSession,
   conversationLayers,
-  _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, reconcileReplyToConversationFlow, sessionContinuity }
+  _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, subjectAnchor, subjectReplyMismatch, progressionReplyMismatch, anchorReplyToSubject, reconcileReplyToConversationFlow, sessionContinuity }
 });
+
+/* MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_INTEGRATION_V2_START */
+(function marionNuancePhaseAPrivateRuntimeIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAPrivateRuntimeIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.privateRuntimeIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=24;
+  let coordinator=null,envelope=null,currentTurn=null;
+  try{coordinator=require("./nuance/marionNuancePhaseACoordinator.js");}catch(_){coordinator=null;}
+  try{envelope=require("./nuance/marionNuanceEnvelope.js");}catch(_){envelope=null;}
+  try{currentTurn=require("./marionCurrentTurnAuthority.js");}catch(_){currentTurn=null;}
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=180){if(typeof v==="string")return v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);return"";}
+  function previousState(v){const s=obj(v),pm=obj(s.previousMemory),ss=obj(pm.stateSpine),session=obj(s.sessionState);return obj(s.nuanceState||s.previousNuanceState||ss.nuanceState||pm.nuanceState||session.nuanceState);}
+  function prepare(raw){
+    let input=obj(raw);if(currentTurn&&typeof currentTurn.prepareInput==="function"){try{input=obj(currentTurn.prepareInput(input));}catch(_){}}
+    if(!coordinator)return input;
+    const existing=obj(input.nuanceContext||input.phaseANuance),turnId=clean(input.turnId||input.currentTurnId,160);let valid=existing.contract===PHASE_A_CONTRACT&&(!turnId||!existing.turnId||clean(existing.turnId,160)===turnId);
+    try{if(valid&&envelope&&typeof envelope.validateMarionNuanceEnvelope==="function")valid=envelope.validateMarionNuanceEnvelope(existing).ok===true;}catch(_){valid=false;}
+    let nuance=existing;if(!valid){try{const run=coordinator.safeAnalyzeMarionNuancePhaseA||coordinator.analyzeMarionNuancePhaseA||coordinator.run;nuance=obj(run.call(coordinator,input,{turnId,previousNuanceState:previousState(input)}));}catch(_){nuance={};}}
+    const statePatch=obj(obj(nuance.carryPolicy).approvedStatePatch);
+    return Object.keys(nuance).length?{...input,nuanceContext:nuance,phaseANuance:nuance,nuanceStatePatch:statePatch,nuanceAnalysisAuthority:"marionNuancePhaseACoordinator",nuanceAnalysisPerformed:true,nuanceHardStopLayer:HARD_STOP_LAYER}:input;
+  }
+  function summary(n){try{return envelope&&typeof envelope.projectInternalNuanceSummary==="function"?obj(envelope.projectInternalNuanceSummary(n)):{};}catch(_){return{};}}
+  function scrubRawNuance(value,depth=0,stack=new WeakSet()){
+    if(value==null||typeof value!=="object")return value;
+    if(obj(value).contract===PHASE_A_CONTRACT&&(obj(value).layer21||obj(value).layer22||obj(value).layer23||obj(value).layer24))return summary(value);
+    if(depth>8)return"[truncated_depth]";
+    try{if(stack.has(value))return"[circular]";stack.add(value);}catch(_){}
+    if(Array.isArray(value)){
+      const list=value.slice(0,100).map(item=>scrubRawNuance(item,depth+1,stack));
+      try{stack.delete(value);}catch(_){}
+      return list;
+    }
+    const out={};
+    for(const key of Object.keys(value)){
+      if(key==="nuanceContext"||key==="phaseANuance"||key==="rawNuanceEvidence"||key==="emotionalEvidence")continue;
+      if(key==="evidence"&&obj(value).interpretation==="candidate_conversational_state")continue;
+      out[key]=scrubRawNuance(value[key],depth+1,stack);
+    }
+    try{stack.delete(value);}catch(_){}
+    return out;
+  }
+  function attach(raw,input){
+    if(!raw||typeof raw!=="object")return raw;
+    const out={...raw},nuance=obj(input.nuanceContext),internal=summary(nuance),statePatch=obj(input.nuanceStatePatch||obj(nuance.carryPolicy).approvedStatePatch);if(!Object.keys(nuance).length)return out;
+    out.internalNuance=internal;out.nuanceStatePatch=statePatch;out.nuanceContract=PHASE_A_CONTRACT;
+    const result=obj(out.result);
+    out.result={...result,internalNuance:internal,nuanceStatePatch:statePatch,memoryPatch:{...obj(result.memoryPatch),nuanceState:statePatch,internalNuance:internal},sessionPatch:{...obj(result.sessionPatch),nuanceState:statePatch,internalNuance:internal},finalEnvelope:{...obj(result.finalEnvelope),internalNuance:internal,nuanceStatePatch:statePatch,nuanceContract:PHASE_A_CONTRACT,nuanceInternalOnly:true},meta:{...obj(result.meta),nuancePrivateRuntimeIntegrationVersion:PATCH_VERSION,nuanceHardStopLayer:HARD_STOP_LAYER,conversationLayers:[9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24],rawNuanceEvidenceExposed:false}};
+    out.meta={...obj(out.meta),nuancePrivateRuntimeIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceHardStopLayer:HARD_STOP_LAYER,rawNuanceEvidenceExposed:false};
+    return scrubRawNuance(out);
+  }
+  const original=api.invokePrivateRuntime||api.handleMarionAdminTextRuntime;
+  if(typeof original==="function"){
+    const wrapped=async function(input={},context={}){const prepared=prepare({...obj(input),privateAdminConversation:true,marionAdminConversation:true,directMarionAdminInterface:true,scope:"private_admin"});const out=await Promise.resolve(original.call(this,prepared,context));return attach(out,prepared);};
+    wrapped.__marionNuancePhaseAPrivateRuntimeIntegrationV2=true;
+    for(const name of["invokePrivateRuntime","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation"]){api[name]=wrapped;}
+  }
+  const oldStatus=api.getStatus;
+  api.getStatus=function(){const status=typeof oldStatus==="function"?obj(oldStatus.call(this)):{};let health={ok:false};try{health=coordinator&&typeof coordinator.moduleHealth==="function"?coordinator.moduleHealth():health;}catch(_){}return{...status,version:clean(status.version,200)||api.VERSION,nuancePrivateRuntimeIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceReady:health.ok===true,nuanceHealth:health,conversationLayers:[9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24],hardStopLayer:HARD_STOP_LAYER,additionalLayerRecommended:false,automaticExecutionAllowed:false,rawNuanceEvidenceExposed:false,culturalIdentityInferenceAllowed:false};};
+  api.MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseAPrivateRuntimeIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_INTEGRATION_V2_END */
