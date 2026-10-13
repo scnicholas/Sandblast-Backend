@@ -185,6 +185,28 @@ function domainReplyMismatch(reply = "", domain = "general") {
   if (domain && domain !== "general") return genericNonSubstantiveReply(text);
   return false;
 }
+function subjectAnchor(subject = "") {
+  const anchor = safeText(subject)
+    .replace(/^(?:do\s+)?(?:a\s+)?surgical\s+autopsy\s+(?:on|of)\s+/i, "")
+    .replace(/^(?:the|a|an)\s+/i, "")
+    .replace(/[.!?]+$/g, "")
+    .trim();
+  const words = anchor.match(/[a-z0-9]+(?:[._/-][a-z0-9]+)*/gi) || [];
+  // Short topic labels work as exact anchors; long prompts often need paraphrasing.
+  return words.length > 0 && words.length <= 8 ? anchor : "";
+}
+function subjectReplyMismatch(reply = "", subject = "") {
+  const anchor = subjectAnchor(subject);
+  return !!anchor && !safeText(reply).toLowerCase().includes(anchor.toLowerCase());
+}
+function progressionReplyMismatch(reply = "", domain = "general", subject = "") {
+  return domainReplyMismatch(reply, domain) || subjectReplyMismatch(reply, subject);
+}
+function anchorReplyToSubject(reply = "", subject = "") {
+  const out = safeText(reply), anchor = subjectAnchor(subject);
+  if (!out || !anchor || !subjectReplyMismatch(out, subject)) return out;
+  return `For ${anchor}: ${out}`;
+}
 
 function recoveryReply(prompt, domain, state = {}) {
   const kind = followupKind(prompt), subject = firstText(state.activeSubject, state.lastSubstantivePrompt, "the active routing repair");
@@ -397,9 +419,12 @@ async function invokePrivateRuntime(input = {}, context = {}) {
 
   const expectedDomain = obj(normalized.privateRuntimeContext).expectedDomain || "general";
   const progressionOverride = isContextualFollowup(prompt) && !!obj(normalized.privateRuntimeContext).activeSubject && expectedDomain !== "general";
-  const semanticMismatch = !reply || runtimeFailureReply(reply) || domainReplyMismatch(reply, expectedDomain) || (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
+  const activeSubject = firstText(obj(normalized.privateRuntimeContext).activeSubject, obj(normalized.conversationFlow).activeSubject);
+  const semanticMismatch = !reply || runtimeFailureReply(reply) ||
+    (progressionOverride ? progressionReplyMismatch(reply, expectedDomain, activeSubject) : domainReplyMismatch(reply, expectedDomain)) ||
+    (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
   if (progressionOverride && semanticMismatch) {
-    reply = recoveryReply(prompt, expectedDomain, state);
+    reply = anchorReplyToSubject(recoveryReply(prompt, expectedDomain, state), activeSubject);
     result = obj(result);
     attempts.push({ kind: "progression_recovery", ok: true, domain: expectedDomain, reason: reason || "recognized_followup_bridge_reply_unusable" });
   } else if (semanticMismatch) {
@@ -445,7 +470,7 @@ Object.assign(module.exports, {
   getStatus,
   resetSession,
   conversationLayers,
-  _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, reconcileReplyToConversationFlow, sessionContinuity }
+  _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, subjectAnchor, subjectReplyMismatch, progressionReplyMismatch, anchorReplyToSubject, reconcileReplyToConversationFlow, sessionContinuity }
 });
 
 /* MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_INTEGRATION_V2_START */
