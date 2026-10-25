@@ -25256,6 +25256,28 @@ function marionAdminBuildPrivateVoiceReceivePacket(reply, voiceProjection, speec
 // MARION_ADMIN_PRIVATE_VOICE_RECEIVE_V1_END
 
 
+/* MARION_NEON_PRIVATE_GATEWAY_SESSION_BINDING_V1_START */
+const marionNeonPrivateTickets = new Map();
+function marionNeonConfigureTrustedBridge(bridge) {
+  if (!bridge || typeof bridge.configureMarionNeonAdvisory !== "function") return false;
+  return bridge.configureMarionNeonAdvisory({
+    verifySession(packet) {
+      const ticket = packet && packet.__marionNeonPrivateTicket;
+      if (typeof ticket !== "string" || !ticket) return null;
+      const record = marionNeonPrivateTickets.get(ticket);
+      // Single-use verification, including rejection paths.
+      marionNeonPrivateTickets.delete(ticket);
+      if (!record || Date.now() > record.expiresAt ||
+          record.sessionId !== packet.sessionId ||
+          packet.privateAdminConversation !== true ||
+          packet.marionAdminConversation !== true) return null;
+      return { source: "server-verified-session", authorized: true,
+        scope: "private_admin", audience: "owner", sessionId: record.sessionId };
+    }
+  });
+}
+/* MARION_NEON_PRIVATE_GATEWAY_SESSION_BINDING_V1_END */
+
 async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval = {}) {
   const prompt = marionAdminTextRuntimeExtractPrompt(body);
   const bridgeStatus = marionAdminTextRuntimeBridgeStatus();
@@ -25339,7 +25361,28 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     typeof bridgeStatus.mod.ask === "function" ? bridgeStatus.mod.ask :
     bridgeStatus.mod.route;
 
-  const packet = await Promise.resolve(fn(input, context));
+  // This route is already guarded by index.js authentication AND runtime permission.
+  // Do not construct tickets from request-body admin booleans.
+  const allowedNeon = process.env.SB_MARION_NEON_PRIVATE_ADVISORY === "true" &&
+    auth && auth.verified === true && auth.sessionVerified === true &&
+    cleanText(auth.sessionId || "").length >= 8 &&
+    cleanText(auth.role || "").toLowerCase() === "owner" &&
+    marionNeonConfigureTrustedBridge(bridgeStatus.mod);
+  let marionNeonTicket = "";
+  if (allowedNeon) {
+    marionNeonTicket = crypto.randomBytes(24).toString("hex");
+    marionNeonPrivateTickets.set(marionNeonTicket, {
+      sessionId: cleanText(auth.sessionId), expiresAt: Date.now() + 15000
+    });
+    input.__marionNeonPrivateTicket = marionNeonTicket;
+    input.privateAdminConversation = true;
+  }
+  let packet;
+  try { packet = await Promise.resolve(fn(input, context)); }
+  finally {
+    if (marionNeonTicket) marionNeonPrivateTickets.delete(marionNeonTicket);
+    delete input.__marionNeonPrivateTicket;
+  }
   const rawPacketReply = priority9JR1BAdminVisibleReply(marionAdminTextRuntimeReplyFromPacket(packet, prompt, input), prompt) || priority9JR1BAdminVisibleReply(packet, prompt) || "";
   const packetReply = marionAdminSubstantiveReplyGuard(rawPacketReply, prompt, packet);
   const approvedReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
