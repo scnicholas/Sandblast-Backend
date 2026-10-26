@@ -4452,3 +4452,68 @@ const c=new WeakMap;for(const n of["routeMarionIntent","route","run","default","
   api.__marionRouteResultConsistencyR15=true;
 })();
 /* MARION_ROUTE_RESULT_CONSISTENCY_R15_END */
+
+
+/* MARION_RADIO_STRATEGY_CURRENT_TURN_R16_START
+ * Fix the reproduced misroute: an infrastructure migration/strategy question
+ * about Sandblast Radio was being classified as music_query (and sometimes
+ * contextual_directive), producing a cyber/workflow lane reply downstream.
+ * This modifies routing metadata only; it never composes or authorizes replies.
+ */
+(function marionRadioStrategyCurrentTurnR16(){
+  "use strict";
+  const api = module.exports;
+  if (!api || api.__marionRadioStrategyCurrentTurnR16) return;
+  const V = "nyx.marion.radioStrategyCurrentTurn/1.0";
+  const O = v => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  const T = v => typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "";
+  function question(input) {
+    const x = O(input), b = O(x.body), p = O(x.payload), t = O(x.turn);
+    return T(x.rawUserText || x.userText || x.prompt || x.text || x.query ||
+      (typeof x.message === "string" ? x.message : "") ||
+      b.rawUserText || b.userText || b.prompt || b.text ||
+      p.rawUserText || p.userText || p.prompt || p.text || t.userText || t.text);
+  }
+  function strategyIntent(text) {
+    if (!text || !/\b(?:radio|streaming|broadcast|stream)\b/i.test(text)) return false;
+    if (!/\b(?:migrat(?:e|ion|ing)|mov(?:e|ing)|transition|switch(?:ing)?|independent|infrastructure|self[- ]host(?:ed|ing)?|own streaming|br\s*logic|brlogic)\b/i.test(text)) return false;
+    return /\b(?:evaluat(?:e|ion)|analys[ei]s?|analy[sz]e|strateg(?:y|ic)|advantages?|risks?|priorit(?:y|ies|ize)|recommend|implementation sequence|phased|migration plan|trade[- ]offs?|business|technical|costs?|ownership|reliability|comparison)\b/i.test(text);
+  }
+  function fix(input, result) {
+    const text = question(input);
+    if (!strategyIntent(text) || !result || typeof result !== "object") return result;
+    const x = O(result), routing = O(x.routing), intent = O(x.marionIntent);
+    const confidence = { ...O(routing.domainConfidence), version: "nyx.marion.domainConfidence/1.1", confidence: 0.99,
+      band: "high", confidenceBand: "high", ambiguous: false, routeLocked: true,
+      primaryDomain: "business", selectedDomain: "business", knowledgeDomain: "",
+      secondaryDomains: [], reason: "current_radio_infrastructure_strategy", noCrossDomainBleed: true };
+    return {
+      ...x, intent: "business_strategy", domain: "business", primaryDomain: "business", selectedDomain: "business",
+      knowledgeDomain: "", answerMode: "strategic_analysis", substantiveAnswerRequired: true,
+      currentTurnAuthority: true, terminalReply: "", continuityTerminal: false,
+      marionIntent: { ...intent, activate: true, intent: "business_strategy", domain: "business", knowledgeDomain: "",
+        subIntent: "infrastructure_migration_strategy", confidence: 0.99, reason: "current_radio_infrastructure_strategy",
+        rawTurnText: text, turnText: text, effectivePrompt: text, normalizedUserIntent: text,
+        currentTurnAuthority: true, substantiveAnswerRequired: true },
+      routing: { ...routing, intent: "business_strategy", domain: "business", primaryDomain: "business",
+        selectedDomain: "business", knowledgeDomain: "", secondaryDomains: [], mode: "strategy", depth: "strategic",
+        preferredStyle: "strategic_direct", answerMode: "strategic_analysis", routeLocked: true,
+        domainConfidence: confidence, currentTurnAuthority: true, substantiveAnswerRequired: true,
+        effectivePrompt: text, normalizedUserIntent: text, reason: "current_radio_infrastructure_strategy",
+        continuityTerminal: false, terminalReply: "", noCrossDomainBleed: true },
+      meta: { ...O(x.meta), radioStrategyCurrentTurnVersion: V, currentTurnAuthority: true,
+        noUserFacingDiagnostics: true }
+    };
+  }
+  for (const name of ["routeMarionIntent", "routeMarion", "route", "run", "handle", "default", "classifyIntent", "classify"]) {
+    const fn = api[name];
+    if (typeof fn !== "function") continue;
+    api[name] = function(...args) {
+      const r = fn.apply(this, args);
+      return r && typeof r.then === "function" ? r.then(v => fix(args[0], v)) : fix(args[0], r);
+    };
+  }
+  api.MARION_RADIO_STRATEGY_CURRENT_TURN_VERSION = V;
+  api.__marionRadioStrategyCurrentTurnR16 = true;
+})();
+/* MARION_RADIO_STRATEGY_CURRENT_TURN_R16_END */
