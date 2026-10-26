@@ -579,7 +579,7 @@ class MarionAdminConsoleGateway {
 
   async authorizeSession(request = {}, context = {}) {
     const ctx = safeObj(context);
-    if (ctx.adminVerified === true || request.adminVerified === true || safeObj(request.metadata).adminVerified === true) {
+    if (ctx.adminVerified === true && (ctx.sessionVerified === true || ctx.verified === true)) {
       return { allowed: true, reason: "index_admin_verified" };
     }
 
@@ -593,8 +593,8 @@ class MarionAdminConsoleGateway {
     }
 
     return {
-      allowed: Boolean(request.session && request.session.admin === true),
-      reason: "fallback_session_check"
+      allowed: false,
+      reason: "verified_server_session_required"
     };
   }
 
@@ -4245,7 +4245,7 @@ try {
   function T(v,max=6000){const s=marionSafeCleanText(v);return s.length>max?s.slice(0,max):s}
   function first(){for(let i=0;i<arguments.length;i++){const v=T(arguments[i]);if(v)return v}return""}
   function promptOf(input){const x=O(input),p=O(x.payload),c=O(x.command);return first(x.prompt,x.userText,x.rawUserText,x.query,x.text,x.message,x.input,x.commandText,c.prompt,c.text,c.message,p.prompt,p.userText,p.query,p.text,p.message)}
-  function authorized(input,context){const x=O(input),c=O(context);return c.adminVerified===true||c.sessionVerified===true||c.trustedServerAuth===true||c.authenticatedOperator===true||x.adminVerified===true||x.sessionVerified===true||x.passwordFreeTestChat===true||x.directMarionAdminInterface===true&&x.scope==="private_admin"}
+  function authorized(input,context){const x=O(input),c=O(context);return c.adminVerified===true&&(c.sessionVerified===true||c.verified===true)}
   function bridgeCandidates(){return[path.join(__dirname,"marionBridge.js"),path.join(__dirname,"marionBridge")];}
   function resolveBridge(force=false){if(!force&&cachedHandler)return cachedHandler;cachedBridge=null;cachedHandler=null;let error="bridge_unavailable";for(const candidate of bridgeCandidates()){try{const resolved=require.resolve(candidate);const mod=require(resolved);const fn=mod&&(typeof mod.processWithMarion==="function"?mod.processWithMarion:typeof mod.handleMarionAdminConversation==="function"?mod.handleMarionAdminConversation:typeof mod.handle==="function"?mod.handle:typeof mod.ask==="function"?mod.ask:null);if(typeof fn==="function"){cachedBridge=mod;cachedHandler=fn.bind(mod);lastResolution={ok:true,at:Date.now(),resolvedPath:resolved,version:T(mod.VERSION),handler:fn.name||"anonymous"};return cachedHandler}error="canonical_handler_missing"}catch(err){error=T(err&&(err.message||err.code||err.name),500)}}lastResolution={ok:false,at:Date.now(),error};return null}
   function normalize(packet,input){const p=O(packet),payload=O(p.payload),f=O(p.finalEnvelope),reply=first(p.directReply,p.visibleReply,p.displayReply,p.finalReply,p.reply,p.answer,p.response,p.text,p.message,f.finalReply,f.reply,f.text,payload.reply,payload.text);const ok=!!reply&&p.ok!==false;return{...p,ok,statusCode:ok?200:Number(p.statusCode)||503,stage:T(p.stage,180)|| (ok?"private_marion_runtime_complete":"private_marion_reply_missing"),version:V,scope:"private_admin",audience:"admin",authority:"Marion",surfaceAgent:"Marion",publicSurfaceOnly:false,authenticatedOperator:true,operatorPersonalization:true,memoryPartition:"private:marion-admin",publicFallbackBlocked:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,response:reply,text:reply,message:reply,spokenText:first(p.spokenText,reply),speechText:first(p.speechText,reply),responseFinalized:true,final:ok,marionFinal:ok,handled:true,awaitingMarion:false,payload:{...payload,reply,text:reply,message:reply,final:ok,marionFinal:ok},finalEnvelope:{...f,reply,text:reply,answer:reply,response:reply,message:reply,final:ok,marionFinal:ok,handled:true,requiresRetry:!ok,recoverySuggested:!ok},meta:{...O(p.meta),version:V,canonicalBridge:true,bridgeResolution:lastResolution,promptAccepted:!!promptOf(input),jsonSafe:true,noCircularRuntimePacket:true}}}
@@ -4263,7 +4263,7 @@ try {
 (function(){
   "use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;let adapter=null,error="";
   function get(force){if(!force&&adapter&&typeof adapter.invokePrivateRuntime==="function")return adapter;try{const m=require("./marionPrivateRuntimeAdapter.js");if(!m||typeof m.invokePrivateRuntime!=="function")throw new Error("private_runtime_adapter_handler_missing");adapter=m;error="";return adapter}catch(e){adapter=null;error=String(e&& (e.code||e.message||e.name)||"adapter_unavailable");return null}}
-  async function runtime(input={},context={}){const src=input&&typeof input==="object"?input:{},ctx=context&&typeof context==="object"?context:{};const verified=ctx.adminVerified===true||ctx.verified===true||src.adminVerified===true||src.verified===true;if(!verified)return{ok:false,statusCode:401,stage:"private_runtime_authorization_required",reason:"verified_operator_required",reply:"",responseFinalized:true};let a=get(false);if(!a){await new Promise(r=>setImmediate(r));a=get(true)}if(!a)return{ok:false,statusCode:503,stage:"private_runtime_adapter_unavailable",reason:error,reply:"",responseFinalized:true};return a.invokePrivateRuntime(src,Object.assign({},ctx,{adminVerified:true,verified:true,sessionVerified:ctx.sessionVerified===true||src.sessionVerified===true}))}
+  async function runtime(input={},context={}){const src=input&&typeof input==="object"?input:{},ctx=context&&typeof context==="object"?context:{};const verified=ctx.adminVerified===true&&(ctx.sessionVerified===true||ctx.verified===true);if(!verified)return{ok:false,statusCode:401,stage:"private_runtime_authorization_required",reason:"verified_operator_required",reply:"",responseFinalized:true};let a=get(false);if(!a){await new Promise(r=>setImmediate(r));a=get(true)}if(!a)return{ok:false,statusCode:503,stage:"private_runtime_adapter_unavailable",reason:error,reply:"",responseFinalized:true};return a.invokePrivateRuntime(src,Object.assign({},ctx,{adminVerified:true,verified:true,sessionVerified:ctx.sessionVerified===true||src.sessionVerified===true}))}
   ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api[n]=runtime});
   if(api.defaultGateway&&typeof api.defaultGateway==="object")["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api.defaultGateway[n]=runtime});
   if(typeof api.MarionAdminConsoleGateway==="function")["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api.MarionAdminConsoleGateway.prototype[n]=runtime;api.MarionAdminConsoleGateway[n]=runtime});
