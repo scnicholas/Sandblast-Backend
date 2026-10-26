@@ -431,6 +431,18 @@ async function invokePrivateRuntime(input = {}, context = {}) {
     attempts.push({ kind: "canonical_bridge", ok: false, reason });
   }
 
+  const runtimeTrace = {
+    version: "marion.privateRuntime.adapterTrace/1.0",
+    bridgeAttempted: !!bridge,
+    bridgeReturnedReply: !!reply,
+    bridgeDomain: resultDomain(result).slice(0, 40),
+    knownWrongTaskReply: wrongTaskReply(reply, prompt),
+    expectedDomain: obj(normalized.privateRuntimeContext).expectedDomain || "general",
+    reasonCode: reason ? "bridge_error" : "none"
+  };
+  if (process.env.SB_MARION_PRIVATE_TRACE === "true") {
+    try { console.info("[Sandblast][marion-adapter-trace]", { stage: "bridge_result", ...runtimeTrace }); } catch (_) {}
+  }
   const expectedDomain = obj(normalized.privateRuntimeContext).expectedDomain || "general";
   const progressionOverride = isContextualFollowup(prompt) && !!obj(normalized.privateRuntimeContext).activeSubject && expectedDomain !== "general";
   const activeSubject = firstText(obj(normalized.privateRuntimeContext).activeSubject, obj(normalized.conversationFlow).activeSubject);
@@ -450,6 +462,7 @@ async function invokePrivateRuntime(input = {}, context = {}) {
   }
 
   const packet = finalPacket(normalized, result, reply, degraded ? "private_runtime_recovered" : "private_runtime_complete", reason, degraded, attempts);
+  packet.diagnosticTrace = { ...runtimeTrace, recovered: degraded, finalReplyKind: wrongTaskReply(reply, prompt) ? "known_wrong_task" : reply ? "reply" : "empty" };
   updateContinuity(normalized, packet.result, reply);
   return packet;
 }
