@@ -92,8 +92,22 @@ function explicitLegal(value = "") {
 function deriveSubject(value = "") {
   return safeText(value).replace(/^(?:do\s+)?(?:a\s+)?surgical\s+autopsy\s+(?:on|of)\s+/i, "").replace(/[.!?]+$/g, "").slice(0, 320);
 }
+function explicitBusinessStrategy(value = "") {
+  const text = safeText(value);
+  return /\b(?:strategic|strategy|advantages|risks|priorit(?:y|ies)|recommend|migration|migrating|business plan|commercial|streaming infrastructure)\b/i.test(text) &&
+    /\b(?:radio|station|streaming|infrastructure|business|revenue|advertis|migration|migrating|BR Logic|Sandblast)\b/i.test(text);
+}
+function wrongTaskReply(reply = "", prompt = "") {
+  const text = safeText(reply);
+  if (!text) return true;
+  if (/\b(?:I have the thread\. Give me the exact file or prompt target|keep the next update surgical|Give me the exact target and I will answer directly|Start with the route-precedence chain)\b/i.test(text)) return true;
+  if (explicitBusinessStrategy(prompt) &&
+      /\b(?:exact file|prompt target|next update surgical|route-precedence|technical thread|current.turn domain|final envelope|diagnostic packet)\b/i.test(text)) return true;
+  return false;
+}
 function classifyExpectedDomain(prompt, cached = {}) {
   if (isGreeting(prompt)) return "general";
+  if (explicitBusinessStrategy(prompt)) return "business";
   if (explicitTechnical(prompt)) return "technical";
   if (explicitLegal(prompt)) return "law";
   if ((isContextualFollowup(prompt) || isOutcomeFlowTurn(prompt)) && cached.activeDomain) return safeText(cached.activeDomain).toLowerCase();
@@ -182,6 +196,7 @@ function domainReplyMismatch(reply = "", domain = "general") {
   if (!text) return true;
   if (domain === "technical") return genericNonSubstantiveReply(text) || !/\b(?:route|routing|domain|state|composer|envelope|runtime|code|module|handler|validation|implementation|repair|technical|javascript|packet|precedence|session|bridge|commitment|outcome|baseline|complete|remaining|blocked|deferred)\b/i.test(text);
   if (domain === "law") return genericNonSubstantiveReply(text) || !/\b(?:contract|legal|jurisdiction|clause|liability|obligation|termination|dispute|deadline|law)\b/i.test(text);
+  if (domain === "business") return genericNonSubstantiveReply(text) || /\b(?:exact file|prompt target|surgical update|route-precedence|technical thread)\b/i.test(text);
   if (domain && domain !== "general") return genericNonSubstantiveReply(text);
   return false;
 }
@@ -224,8 +239,7 @@ function recoveryReply(prompt, domain, state = {}) {
     return "Start with the route-precedence chain. Confirm the explicit current prompt is classified before historical state is merged, and assert that the selected domain cannot be replaced before the final reply is emitted.";
   }
   if (domain === "business") {
-    if (kind) return "For this business branch, assess the commercial consequence, affected audience, revenue or trust exposure, operational dependency, and the smallest reversible response. Then return to the primary technical thread with the business constraint recorded rather than replacing it.";
-    return "The principal business risk is not only the defect itself; it is loss of trust, interrupted conversion, repeated engineering cost, and uncertainty about whether Marion can be relied upon in production. Bound the impact, identify the affected users and revenue path, and choose the smallest reversible correction.";
+    return "I received your business-strategy question, but the private reasoning path did not produce a verified, relevant answer. I cannot responsibly present a generic development-workflow fallback as the analysis. Please check the Marion bridge and Neon advisory diagnostics.";
   }
   if (domain === "law") {
     if (kind) return "Continue by identifying the governing jurisdiction, the exact clause or obligation at issue, the parties’ duties, termination and liability language, dispute-resolution terms, and deadlines. This is general legal information, not legal advice.";
@@ -241,7 +255,7 @@ function normalizeInput(input = {}, context = {}) {
   const state = reset ? {} : getSession(sessionId);
   const expectedDomain = classifyExpectedDomain(prompt, state);
   const continuation = (isContextualFollowup(prompt) || isOutcomeFlowTurn(prompt)) && !!state.activeSubject && !isGreeting(prompt);
-  const activeSubject = explicitTechnical(prompt) || explicitLegal(prompt) ? deriveSubject(prompt) : firstText(state.activeSubject, state.lastSubstantivePrompt);
+  const activeSubject = (expectedDomain !== "general" && !continuation) ? deriveSubject(prompt) : firstText(state.activeSubject, state.lastSubstantivePrompt);
   const previousMemory = {
     ...obj(source.previousMemory), ...obj(state.memoryPatch),
     activeDomain: firstText(state.activeDomain, expectedDomain === "general" ? "" : expectedDomain),
@@ -357,10 +371,10 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
   const resultPacket = {
     ...obj(result), ok: true, statusCode: 200, final: true, marionFinal: true, handled: true, awaitingMarion: false, canEmit: true,
     reply, text: reply, answer: reply, output: reply, response: reply, message: reply, displayReply: reply, visibleReply: reply, directReply: reply, finalReply: reply,
-    spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain,
+    spokenText: reply, intent, domain, primaryDomain: domain, selectedDomain: domain,
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
     payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
-    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
+    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: reply, intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
     conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), completionFlow, completionFlowState, crossDomainContext: obj(conversationFlow.crossDomainContext), goalRealignment: obj(conversationFlow.goalRealignment), decisionClosure: obj(conversationFlow.decisionClosure), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
     meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, completionMetadataPrivate: true, hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false }
   };
@@ -421,6 +435,7 @@ async function invokePrivateRuntime(input = {}, context = {}) {
   const progressionOverride = isContextualFollowup(prompt) && !!obj(normalized.privateRuntimeContext).activeSubject && expectedDomain !== "general";
   const activeSubject = firstText(obj(normalized.privateRuntimeContext).activeSubject, obj(normalized.conversationFlow).activeSubject);
   const semanticMismatch = !reply || runtimeFailureReply(reply) ||
+    wrongTaskReply(reply, prompt) ||
     (progressionOverride ? progressionReplyMismatch(reply, expectedDomain, activeSubject) : domainReplyMismatch(reply, expectedDomain)) ||
     (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
   if (progressionOverride && semanticMismatch) {
@@ -470,7 +485,7 @@ Object.assign(module.exports, {
   getStatus,
   resetSession,
   conversationLayers,
-  _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, subjectAnchor, subjectReplyMismatch, progressionReplyMismatch, anchorReplyToSubject, reconcileReplyToConversationFlow, sessionContinuity }
+  _internal: { wrongTaskReply, explicitBusinessStrategy, classifyExpectedDomain, promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, subjectAnchor, subjectReplyMismatch, progressionReplyMismatch, anchorReplyToSubject, reconcileReplyToConversationFlow, sessionContinuity }
 });
 
 /* MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_INTEGRATION_V2_START */
