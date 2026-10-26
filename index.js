@@ -4413,6 +4413,13 @@ function marionAdminSubstantivePrompt(prompt) {
   return !/^(?:hi|hello|hey|good (?:morning|afternoon|evening)|marion|are you there|still there)[\s.!?]*$/i.test(text);
 }
 
+function marionAdminInvalidPrivateFinal(value) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /\bi have the thread\.\s*give me the exact file or prompt target\b/i.test(text) ||
+    /\bkeep the next update surgical\b/i.test(text) ||
+    /\bgive me the exact file or prompt target\b/i.test(text);
+}
+
 function marionAdminHoldingReply(value) {
   const text = cleanText(value || "");
   if (!text) return false;
@@ -4428,7 +4435,7 @@ function marionAdminSubstantiveReplyGuard(value, prompt, runtime) {
   if (!reply) {
     return marionAdminLookupRequest(prompt) ? MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY : "";
   }
-  if (marionAdminSubstantivePrompt(prompt) && marionAdminHoldingReply(reply)) {
+  if (marionAdminSubstantivePrompt(prompt) && (marionAdminHoldingReply(reply) || marionAdminInvalidPrivateFinal(reply))) {
     return marionAdminLookupRequest(prompt) ? MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY : "";
   }
   return reply;
@@ -25006,7 +25013,7 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
   ];
   for (const value of candidates) {
     const candidateText = marionAdminRuntimeStrictText(value, "", 12000);
-    if (!candidateText) continue;
+    if (!candidateText || (marionAdminSubstantivePrompt(promptText) && marionAdminInvalidPrivateFinal(candidateText))) continue;
     const raw = marionAdminProjectionCleanReply(candidateText);
     if (!raw) continue;
     const cleaned = stripUserVisibleDebugLeak(raw);
@@ -25014,8 +25021,8 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
     if (finalReply && !hasUserVisibleDebugLeak(finalReply) && !isPromptEchoReply(finalReply, norm) && !isExcessExpressionReply(finalReply)) return finalReply;
   }
   const deep = marionAdminDeepVisibleReplyCandidate(packet, promptText, source);
-  if (deep && !isPromptEchoReply(deep, norm) && !isExcessExpressionReply(deep)) return deep;
-  return deterministicAdminKnowledgeReply(norm) || marionAdminVoiceConfirmationFallbackReply(promptText, source) || "";
+  if (deep && !(marionAdminSubstantivePrompt(promptText) && marionAdminInvalidPrivateFinal(deep)) && !isPromptEchoReply(deep, norm) && !isExcessExpressionReply(deep)) return deep;
+  return marionAdminSubstantivePrompt(promptText) ? "" : (deterministicAdminKnowledgeReply(norm) || marionAdminVoiceConfirmationFallbackReply(promptText, source) || "");
 }
 
 
@@ -25294,6 +25301,25 @@ function marionNeonConfigureTrustedBridge(bridge) {
 }
 /* MARION_NEON_PRIVATE_GATEWAY_SESSION_BINDING_V1_END */
 
+/* MARION_PRIVATE_RUNTIME_REDACTED_TRACE_V1: stage-only diagnostics; never log prompts or secrets. */
+const MARION_PRIVATE_RUNTIME_TRACE_VERSION = "marion.privateRuntime.redactedTrace/1.0";
+function marionPrivateRuntimeTrace(traceId, stage, fields = {}) {
+  const record = {
+    traceId: typeof traceId === "string" ? traceId.slice(0, 120) : "",
+    stage,
+    ...fields
+  };
+  try { console.info("[Sandblast][marion-private-runtime-trace]", record); } catch (_) {}
+  return record;
+}
+function marionPrivateRuntimeReplyKind(reply) {
+  if (typeof reply !== "string" || !reply.trim()) return "empty";
+  if (marionAdminInvalidPrivateFinal(reply)) return "known_fallback";
+  if (/\bcyber lane active\b/i.test(reply) && /\bprotect identity, access, secrets\b/i.test(reply)) return "cyber_placeholder";
+  if (marionAdminHoldingReply(reply)) return "holding_reply";
+  return "candidate";
+}
+
 async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval = {}) {
   const prompt = marionAdminTextRuntimeExtractPrompt(body);
   const bridgeStatus = marionAdminTextRuntimeBridgeStatus();
@@ -25304,6 +25330,8 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     return { ok: false, statusCode: 503, stage: "marion_runtime_bridge_unavailable", reason: bridgeStatus.reason || "marion_bridge_unavailable", bridgeStatus };
   }
 
+  const startedRuntimeAt = Date.now();
+  marionPrivateRuntimeTrace(traceId, "entry", { authenticated: auth && auth.verified === true, sessionVerified: auth && auth.sessionVerified === true, bridgeAvailable: true });
   const privateIdentity = marionAdminPrivateRuntimeIdentity(body, auth, traceId);
   const input = {
     ...safeObj(body),
@@ -25393,16 +25421,45 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     input.__marionNeonPrivateTicket = marionNeonTicket;
     input.privateAdminConversation = true;
   }
+  marionPrivateRuntimeTrace(traceId, "before_bridge", {
+    handler: typeof bridgeStatus.mod.handleMarionAdminConversation === "function" ? "handleMarionAdminConversation" :
+      typeof bridgeStatus.mod.processWithMarion === "function" ? "processWithMarion" : "alternate",
+    neonEligible: !!allowedNeon,
+    bridgeVersion: typeof bridgeStatus.mod.VERSION === "string" ? bridgeStatus.mod.VERSION.slice(0, 120) : ""
+  });
   let packet;
   try { packet = await Promise.resolve(fn(input, context)); }
+  catch (error) {
+    marionPrivateRuntimeTrace(traceId, "bridge_exception", { errorType: error && typeof error.code === "string" ? error.code.slice(0, 80) : error && typeof error.name === "string" ? error.name.slice(0, 80) : "unknown" });
+    throw error;
+  }
   finally {
     if (marionNeonTicket) marionNeonPrivateTickets.delete(marionNeonTicket);
     delete input.__marionNeonPrivateTicket;
   }
-  const rawPacketReply = priority9JR1BAdminVisibleReply(marionAdminTextRuntimeReplyFromPacket(packet, prompt, input), prompt) || priority9JR1BAdminVisibleReply(packet, prompt) || "";
+  const bridgeReply = marionAdminConversationSafeReply(packet, prompt);
+  marionPrivateRuntimeTrace(traceId, "after_bridge", {
+    durationMs: Date.now() - startedRuntimeAt,
+    packetOk: packet && packet.ok === true,
+    packetStage: packet && typeof packet.stage === "string" ? packet.stage.slice(0, 100) : "",
+    bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply),
+    hasNeonAdvisory: !!(packet && (packet.neonModelAdvisory || (packet.result && packet.result.neonModelAdvisory))),
+    packetDomain: packet && typeof packet.primaryDomain === "string" ? packet.primaryDomain.slice(0, 60) : ""
+  });
+  const selectedPacketReply = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
+  const rawPacketReply = selectedPacketReply ||
+    (marionAdminSubstantivePrompt(prompt) ? "" : (priority9JR1BAdminVisibleReply(packet, prompt) || ""));
   const packetReply = marionAdminSubstantiveReplyGuard(rawPacketReply, prompt, packet);
   const approvedReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
-  const reply = marionAdminSubstantiveReplyGuard(approvedReply, prompt, packet);
+  const candidateFinalReply = marionAdminSubstantiveReplyGuard(approvedReply, prompt, packet);
+  const reply = marionAdminSubstantivePrompt(prompt) && marionPrivateRuntimeReplyKind(candidateFinalReply) !== "candidate" ? "" : candidateFinalReply;
+  marionPrivateRuntimeTrace(traceId, "after_reply_selection", {
+    durationMs: Date.now() - startedRuntimeAt,
+    selectedKind: marionPrivateRuntimeReplyKind(selectedPacketReply),
+    finalKind: marionPrivateRuntimeReplyKind(reply),
+    fallbackRejected: !!selectedPacketReply && !reply,
+    neonEligible: !!allowedNeon
+  });
   const voiceProjection = marionAdminProjectVoiceEnvelope(reply, input, { stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing" });
   const speechSync = marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input);
   voiceProjection.speechSync = speechSync;
@@ -25435,6 +25492,9 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     speechSyncEnabled: voiceProjection.speechSyncEnabled === true,
     projectedVoiceMode: voiceProjection.projectedVoiceMode || voiceProjection.voiceMode || "silent",
     rawVoiceMode: voiceProjection.rawVoiceMode || "silent",
+    diagnosticTrace: { version: MARION_PRIVATE_RUNTIME_TRACE_VERSION, bridgeInvoked: true, elapsedMs: Date.now() - startedRuntimeAt,
+      neonEligible: !!allowedNeon, finalKind: marionPrivateRuntimeReplyKind(reply),
+      bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply) },
     result: marionAdminConsoleRedacted(packet),
     bridgeStatus: marionAdminBridgeStatusProjection(bridgeStatus),
     ...privateIdentity,
@@ -25464,7 +25524,8 @@ async function handleMarionAdminTextRuntime(req, res) {
     runtimeFailureStage = "response_projection";
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
     const runtimePrompt = marionAdminTextRuntimeExtractPrompt(body);
-    const reply = priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || priority9JR1BAdminVisibleReply(runtime, runtimePrompt) || "";
+    const reply = runtime.ok === true && !marionAdminInvalidPrivateFinal(runtime.reply)
+      ? (priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || "") : "";
     const bridgeStatus = marionAdminBridgeStatusProjection(runtime.bridgeStatus);
     return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
