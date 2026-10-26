@@ -25013,15 +25013,19 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
   ];
   for (const value of candidates) {
     const candidateText = marionAdminRuntimeStrictText(value, "", 12000);
-    if (!candidateText || (marionAdminSubstantivePrompt(promptText) && marionAdminInvalidPrivateFinal(candidateText))) continue;
+    if (!candidateText || (marionAdminSubstantivePrompt(promptText) &&
+        (marionAdminInvalidPrivateFinal(candidateText) || marionAdminHoldingReply(candidateText)))) continue;
     const raw = marionAdminProjectionCleanReply(candidateText);
     if (!raw) continue;
     const cleaned = stripUserVisibleDebugLeak(raw);
     const finalReply = finalizeRenderableReply(cleaned, norm, "marion_admin_runtime_reply_selection", "admin_runtime_packet_candidate");
-    if (finalReply && !hasUserVisibleDebugLeak(finalReply) && !isPromptEchoReply(finalReply, norm) && !isExcessExpressionReply(finalReply)) return finalReply;
+    if (finalReply && !(marionAdminSubstantivePrompt(promptText) && marionAdminHoldingReply(finalReply)) &&
+        !hasUserVisibleDebugLeak(finalReply) && !isPromptEchoReply(finalReply, norm) && !isExcessExpressionReply(finalReply)) return finalReply;
   }
   const deep = marionAdminDeepVisibleReplyCandidate(packet, promptText, source);
-  if (deep && !(marionAdminSubstantivePrompt(promptText) && marionAdminInvalidPrivateFinal(deep)) && !isPromptEchoReply(deep, norm) && !isExcessExpressionReply(deep)) return deep;
+  if (deep && !(marionAdminSubstantivePrompt(promptText) &&
+      (marionAdminInvalidPrivateFinal(deep) || marionAdminHoldingReply(deep))) &&
+      !isPromptEchoReply(deep, norm) && !isExcessExpressionReply(deep)) return deep;
   return marionAdminSubstantivePrompt(promptText) ? "" : (deterministicAdminKnowledgeReply(norm) || marionAdminVoiceConfirmationFallbackReply(promptText, source) || "");
 }
 
@@ -25407,11 +25411,30 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
 
   // This route is already guarded by index.js authentication AND runtime permission.
   // Do not construct tickets from request-body admin booleans.
-  const allowedNeon = process.env.SB_MARION_NEON_PRIVATE_ADVISORY === "true" &&
-    auth && auth.verified === true && auth.sessionVerified === true &&
-    cleanText(auth.sessionId || "").length >= 8 &&
-    cleanText(auth.role || "").toLowerCase() === "owner" &&
-    marionNeonConfigureTrustedBridge(bridgeStatus.mod);
+  // Private Neon is opt-in and requires server-verified owner session authority.
+  // Never promote input/body flags or an ordinary admin token into owner authority.
+  const neonFlagEnabled = process.env.SB_MARION_NEON_PRIVATE_ADVISORY === "true";
+  const neonSessionVerified = !!(auth && auth.verified === true && auth.sessionVerified === true);
+  const neonSessionIdValid = !!(auth && cleanText(auth.sessionId || "").length >= 8);
+  const neonOwnerRole = !!(auth && cleanText(auth.role || "").toLowerCase() === "owner");
+  const neonBridgeSupported = typeof bridgeStatus.mod.configureMarionNeonAdvisory === "function";
+  const neonGatewayConfigured = !!(cleanText(process.env.NEON_AI_GATEWAY_BASE_URL || "") &&
+    cleanText(process.env.NEON_AI_GATEWAY_TOKEN || ""));
+  let neonBridgeConfigured = false;
+  if (neonFlagEnabled && neonSessionVerified && neonSessionIdValid && neonOwnerRole &&
+      neonBridgeSupported && neonGatewayConfigured) {
+    try { neonBridgeConfigured = !!marionNeonConfigureTrustedBridge(bridgeStatus.mod); }
+    catch (_) { neonBridgeConfigured = false; }
+  }
+  const allowedNeon = neonFlagEnabled && neonSessionVerified && neonSessionIdValid &&
+    neonOwnerRole && neonBridgeSupported && neonGatewayConfigured && neonBridgeConfigured;
+  // Diagnostic booleans only: never print credentials, session IDs, or tickets.
+  marionPrivateRuntimeTrace(traceId, "neon_authorization", {
+    featureEnabled: neonFlagEnabled, verifiedSession: neonSessionVerified,
+    validSessionId: neonSessionIdValid, ownerRole: neonOwnerRole,
+    bridgeSupported: neonBridgeSupported, gatewayConfigured: neonGatewayConfigured,
+    bridgeConfigured: neonBridgeConfigured, eligible: allowedNeon
+  });
   let marionNeonTicket = "";
   if (allowedNeon) {
     marionNeonTicket = crypto.randomBytes(24).toString("hex");
@@ -25447,7 +25470,8 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     packetDomain: packet && typeof packet.primaryDomain === "string" ? packet.primaryDomain.slice(0, 60) : ""
   });
   const selectedPacketReply = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
-  const rawPacketReply = selectedPacketReply ||
+  const rawPacketReply = (marionAdminSubstantivePrompt(prompt) &&
+    marionPrivateRuntimeReplyKind(selectedPacketReply) !== "candidate" ? "" : selectedPacketReply) ||
     (marionAdminSubstantivePrompt(prompt) ? "" : (priority9JR1BAdminVisibleReply(packet, prompt) || ""));
   const packetReply = marionAdminSubstantiveReplyGuard(rawPacketReply, prompt, packet);
   const approvedReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
@@ -25493,7 +25517,9 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     projectedVoiceMode: voiceProjection.projectedVoiceMode || voiceProjection.voiceMode || "silent",
     rawVoiceMode: voiceProjection.rawVoiceMode || "silent",
     diagnosticTrace: { version: MARION_PRIVATE_RUNTIME_TRACE_VERSION, bridgeInvoked: true, elapsedMs: Date.now() - startedRuntimeAt,
-      neonEligible: !!allowedNeon, finalKind: marionPrivateRuntimeReplyKind(reply),
+      neonEligible: !!allowedNeon, neonFeatureEnabled: neonFlagEnabled,
+      neonBridgeSupported, neonGatewayConfigured, neonOwnerRole,
+      neonSessionVerified, finalKind: marionPrivateRuntimeReplyKind(reply),
       bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply) },
     result: marionAdminConsoleRedacted(packet),
     bridgeStatus: marionAdminBridgeStatusProjection(bridgeStatus),
