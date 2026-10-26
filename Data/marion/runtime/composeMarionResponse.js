@@ -319,8 +319,7 @@ const VERSION = "MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY
  */
 function marionNeonAdvisoryEvidence(input) {
   if (!input || typeof input !== "object" ||
-      input.neonModelAdvisoryUntrusted !== true ||
-      input.neonModelAdvisorySource !== "private_neon_gateway" ||
+      input.neonAdvisoryUntrusted !== true ||
       input.privateAdminConversation !== true ||
       typeof input.neonModelAdvisory !== "string") return null;
   const content = input.neonModelAdvisory.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 4500);
@@ -11480,3 +11479,100 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
   api.__marionSelfLearningFinalContractV1 = true;
 })();
 /* MARION_SELF_LEARNING_FINAL_CONTRACT_V1_END */
+
+
+/* MARION_PRIVATE_NEON_SUBSTANTIVE_COMPOSER_V2_START
+ * Receives advisory evidence only from the private bridge's normalized composer
+ * input. This is UNTRUSTED model text, not permission or execution authority.
+ * Preserve the canonical composer contract and do not disclose advisory text in
+ * telemetry. The index/bridge own authentication and one-use verification.
+ */
+(function marionPrivateNeonSubstantiveComposerV2() {
+  "use strict";
+  const api = module.exports;
+  if (!api || api.__marionPrivateNeonSubstantiveComposerV2) return;
+  const original = api.composeMarionResponse;
+  if (typeof original !== "function") return;
+  const VERSION = "marion.privateNeon.substantiveComposer/2.0";
+  function object(v) { return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+  function text(v, max = 4500) {
+    return typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max) : "";
+  }
+  function prompt(input) {
+    const x = object(input);
+    return text(x.rawUserText || x.userQuery || x.prompt || x.text, 3500);
+  }
+  function privateEvidence(input) {
+    const x = object(input);
+    // No raw client advisory, Nyx, or public request may opt into this path.
+    // The bridge exclusively sets these fields after consuming a server ticket;
+    // this function is not independently an authentication boundary.
+    if (x.privateAdminConversation !== true || x.marionAdminConversation !== true ||
+        x.neonAdvisoryUntrusted !== true || x.publicSurfaceOnly === true ||
+        x.surfaceAgent !== "Marion") return "";
+    return text(x.neonModelAdvisory,4500);
+  }
+  function substantiveQuestion(q) {
+    return q.length > 45 && !/^(?:hello|hi|hey|good morning|good afternoon|good evening|thanks|thank you)[!. ]*$/i.test(q);
+  }
+  function placeholder(reply) {
+    const r = text(reply,6000);
+    return !r ||
+      /\b(?:tell me what you want to work through|do you want to continue the social response pass|do you want to keep testing the greeting lane|i(?:'|’)?ll keep the response focused and practical|i(?:'|’)?ll keep the conversation natural|i(?:'|’)?m here,? mac|what would you like to work through|send me the next (?:question|target)|tell me what you want to tackle|what would you like me to focus on|share the relevant context and any constraints|tell me what you want to work on)\b/i.test(r) ||
+      /\b(?:this turn did not complete|that response did not complete|i have not substituted an unrelated answer)\b/i.test(r);
+  }
+  function safeAdvisory(advisory, q) {
+    const a = text(advisory);
+    if (a.length < 100 || a.length > 4500 || a === q) return "";
+    // Do not promote tool instructions, secrets, or apparent internal policy
+    // changes from an untrusted upstream advisory into Marion's answer.
+    if (/\b(?:ignore (?:all |the )?(?:previous|prior|system|developer) instructions|system prompt|developer message|send (?:your|the) (?:token|password|secret|api key)|https?:\/\/\S*\b(?:token|key|secret)=)\b/i.test(a)) return "";
+    if (/(?:^|\s)(?:role\s*:\s*(?:system|developer)|<\|im_start\|>|\[INST\])/i.test(a)) return "";
+    return a;
+  }
+  function selectedText(packet) {
+    const p=object(packet),f=object(p.finalEnvelope);
+    return text(p.authoritativeReply || p.finalReply || p.directReply || p.reply || p.text || f.authoritativeReply || f.reply || "", 6500);
+  }
+  function harmonize(packet, reply) {
+    const p=object(packet), old=selectedText(p), f=object(p.finalEnvelope), pay=object(p.payload);
+    // This changes reply CONTENT only, never claims additional authority.
+    // The bridge's existing wrapFinal creates/signs the terminal envelope.
+    const sig=hashText(reply);
+    const aliases={authoritativeReply:reply,finalReply:reply,directReply:reply,visibleReply:reply,displayReply:reply,publicReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,speechText:reply,replySignature:sig};
+    const memory=object(p.memoryPatch), session=object(p.sessionPatch);
+    return {...p,...aliases,
+      payload:{...pay,...aliases},
+      finalEnvelope:{...f,...aliases},
+      memoryPatch:{...memory,lastAssistantReply:reply,replySignature:sig},
+      sessionPatch:{...session,lastAssistantReply:reply,replySignature:sig},
+      meta:{...object(p.meta),privateNeonAdvisoryConsidered:true,privateNeonAdvisoryUsed:true,privateNeonAdvisoryVersion:VERSION},
+      diagnostics:{...object(p.diagnostics),privateNeonAdvisoryConsidered:true,privateNeonAdvisoryUsed:true,privateNeonAdvisoryVersion:VERSION}
+    };
+  }
+  function reconcile(output, routed, input) {
+    const evidence=privateEvidence(input);
+    if (!evidence) return output;
+    const q=prompt(input);
+    if (!substantiveQuestion(q)) return output;
+    const p=object(output);
+    if (p.ok === false || p.blocked === true || p.awaitingMarion === true) return output;
+    const existing=selectedText(output);
+    if (!placeholder(existing)) return output;
+    const candidate=safeAdvisory(evidence,q);
+    if (!candidate) return output;
+    return harmonize(output,candidate);
+  }
+  const wrapper = function marionComposeWithPrivateNeonAdvisory(routed={},input={}) {
+    const out=original.apply(this,arguments);
+    return out && typeof out.then === "function" ? out.then(v=>reconcile(v,routed,input)) : reconcile(out,routed,input);
+  };
+  // The bridge asks for composeMarionResponse. Do not wrap unrelated exports,
+  // avoiding another layer of recursion in this already-deep composer.
+  api.composeMarionResponse=wrapper;
+  api.run=wrapper;
+  api.default=wrapper;
+  api.MARION_PRIVATE_NEON_SUBSTANTIVE_COMPOSER_VERSION=VERSION;
+  api.__marionPrivateNeonSubstantiveComposerV2=true;
+})();
+/* MARION_PRIVATE_NEON_SUBSTANTIVE_COMPOSER_V2_END */
