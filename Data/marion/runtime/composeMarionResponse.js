@@ -8274,7 +8274,7 @@ try{
     if (/^(?:next\s+steps?|what(?:'|’)?s\s+next|what\s+next|then\s+what)\??$/i.test(safeText(prompt).replace(/[.!]+$/,""))) {
       return "Next steps: test this batch in PowerShell, confirm the five-file chain loads, run one legal prompt, one cyber prompt, and one follow-up prompt, then move upward only after the current layer passes.";
     }
-    if (isBadVisibleReply(currentReply)) return "I have the thread. Give me the exact file or prompt target and I will keep the next update surgical.";
+    if (isBadVisibleReply(currentReply)) return "I received your request, but the response generator did not produce a usable answer. Please check private runtime diagnostics.";
     return "";
   }
   function isBadVisibleReply(value){
@@ -8303,7 +8303,7 @@ try{
         .replace(/,\s*Mac\b/gi, "")
         .replace(/\bMac[,—-]\s*/gi, "");
     }
-    if (isBadVisibleReply(text)) return replyForPrompt(prompt || "", text) || "I have the thread. Give me the exact target and I will answer directly.";
+    if (isBadVisibleReply(text)) return replyForPrompt(prompt || "", text) || "I received your request, but the response generator did not produce a usable answer. Please check private runtime diagnostics.";
     return text;
   }
   function getVisibleKeys(){ return ["reply","visibleReply","publicReply","displayReply","answer","text","message","final","spokenText","finalReply","output","response","directReply"]; }
