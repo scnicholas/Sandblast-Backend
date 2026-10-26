@@ -24032,14 +24032,17 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
   hardenConversationNoStore(res);
   const body = safeObj(req && req.body);
   const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionadminsession"));
+  let issueStage = "request_auth";
 
   try {
     const auth = marionAdminConsoleSessionIssueRequestAuth(req);
     if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
 
+    issueStage = "permission";
     const permission = marionAdminConsolePermissionDecision(auth, "session.issue");
     if (!permission.allowed) return marionAdminConsolePermissionDenied(res, "session.issue", traceId, auth, permission);
 
+    issueStage = "role_resolution";
     const requestedRole = marionAdminConsoleRequestedSessionRole(req, body);
     const roleDecision = marionAdminConsoleResolveSessionRole(auth, requestedRole || auth.role);
     if (!roleDecision.allowed) {
@@ -24055,6 +24058,7 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
       }));
     }
 
+    issueStage = "session_creation";
     const issued = marionAdminConsoleCreateSession(req, auth, roleDecision.role);
     const publicSession = safeObj(issued && issued.publicSession);
     const sessionRole = publicSession.role || marionAdminConsoleAuthRole(auth);
@@ -24062,6 +24066,7 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
       ? publicSession.capabilities
       : marionAdminConsoleCapabilitiesForRole(sessionRole);
 
+    issueStage = "response_projection";
     return res.status(200).json(marionAdminConsoleSessionBaseResponse("session.issue", traceId, {
       ...auth,
       sessionVerified: true,
@@ -24110,7 +24115,13 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
       }
     }));
   } catch (err) {
-    return res.status(500).json(marionAdminConsoleSessionBaseResponse("session.issue", traceId, {
+    // Diagnostic is deliberately stage-only: never log credentials, request headers,
+    // serialized request bodies or session bearer material.
+    try { console.error("[Sandblast][marion-admin-session-issue]", {
+      traceId, stage: issueStage,
+      errorType: err && typeof err.name === "string" ? err.name.slice(0, 60) : "Error"
+    }); } catch (_) {}
+    try { return res.status(500).json(marionAdminConsoleSessionBaseResponse("session.issue", traceId, {
       verified: false,
       configured: marionAdminConsoleEnvTokens().length > 0 || marionAdminConsoleRoleTokenEntries().length > 0,
       provided: true,
@@ -24125,11 +24136,16 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
     }, {
       ok: false,
       stage: "admin_session_issue_exception",
+      failureStage: issueStage,
       reason: cleanText(err && (err.code || err.message) || "session_issue_exception").slice(0, 160),
       responseFinalized: true,
       sessionIssued: false,
       hotfix: "MARION_SESSION_ISSUE_RESPONSE_FINALIZATION_HOTFIX_V1 + MARION_ASYNC_TOPLEVEL_BOOT_HOTFIX_V1"
-    }));
+    })); } catch (_) {
+      return res.status(500).json({ ok: false, error: "server_error",
+        stage: "admin_session_issue_exception", failureStage: issueStage,
+        detail: "Private administrator session issuance failed.", traceId });
+    }
   }
 }
 
