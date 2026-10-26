@@ -4133,8 +4133,30 @@ try {
     let reply=replyOf(packet);const rejected=generic(reply);if(!reply||rejected)reply=deterministic(p);return compact(reply,p,{bridgeInvoked,genericReplyRejected:rejected});
   }
   const exp=typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"?module.exports:null;if(!exp)return;
-  const oldCommand=typeof exp.handleCommand==="function"?exp.handleCommand:null;
-  async function terminalCommand(input,context){const p=promptOf(input);const raw=T(p).toLowerCase();const operational=/\b(?:approve|deny|emergency|shutdown|restart|deploy|publish|delete|disable|enable|status|diagnostic|health|config|runtime command)\b/.test(raw);if(p&&!operational)return terminalRuntime(input,context);if(oldCommand)return oldCommand(input,context);return {ok:false,statusCode:501,stage:"admin_command_handler_unavailable",version:V,scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,reply:""}}
+  // Retain the original prototype implementation BEFORE replacing instance/export aliases.
+  // An exported handleCommand delegate calls defaultGateway.handleCommand dynamically;
+  // saving that delegate would recurse into terminalCommand after the aliases change.
+  const originalCommandMethod = typeof MarionAdminConsoleGateway === "function" &&
+    MarionAdminConsoleGateway.prototype &&
+    typeof MarionAdminConsoleGateway.prototype.handleCommand === "function"
+      ? MarionAdminConsoleGateway.prototype.handleCommand : null;
+  async function terminalCommand(input,context){
+    const p=promptOf(input);
+    const raw=T(p).toLowerCase();
+    const operational=/\b(?:approve|deny|emergency|shutdown|restart|deploy|publish|delete|disable|enable|status|diagnostic|health|config|runtime command)\b/.test(raw);
+    if(p&&!operational)return terminalRuntime(input,context);
+    if(originalCommandMethod && exp.defaultGateway){
+      // Preserve the original authorization, safe-mode, approval and audit path.
+      const response = await originalCommandMethod.call(exp.defaultGateway,input,context);
+      // Later personality/projection wrappers must not turn an HTTP error into ok:true.
+      if(response && typeof response === "object") {
+        const code = Number(response.statusCode || response.status || 0);
+        if(Number.isFinite(code) && code >= 400) return {...response,ok:false};
+      }
+      return response;
+    }
+    return {ok:false,statusCode:503,stage:"admin_command_handler_unavailable",version:V,scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,reply:""};
+  }
   ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{exp[n]=terminalRuntime});
   ["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand"].forEach(n=>{exp[n]=terminalCommand});
   if(exp.defaultGateway&&typeof exp.defaultGateway==="object"){["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{exp.defaultGateway[n]=terminalRuntime});["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand"].forEach(n=>{exp.defaultGateway[n]=terminalCommand})}
