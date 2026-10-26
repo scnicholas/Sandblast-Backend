@@ -3383,3 +3383,86 @@ function classifyRound3CognitiveResilience(prompt=""){
   api.__marionBridgeFinalPublicKnowledgeHandoffR7=true;
 })();
 /* MARION_BRIDGE_FINAL_PUBLIC_KNOWLEDGE_HANDOFF_R7_END */
+
+/* MARION_PRIVATE_NEON_TRUSTED_ADVISORY_V1_START
+ * Server-bound session ticket verification is supplied only by index.js.
+ * Never infer private authorization from client flags or conversation text.
+ * This boundary is appended after existing bridge export wrappers.
+ */
+(function installMarionPrivateNeonAdvisory() {
+  const api = module.exports;
+  if (!api || api.__marionPrivateNeonAdvisoryV1) return;
+  let verifiedSessionResolver = null;
+  const MAX_ADVISORY_CHARS = 4500;
+  const MAX_PROMPT_CHARS = 3500;
+  function own(v, k) { try { return v && Object.prototype.hasOwnProperty.call(v,k) ? v[k] : undefined; } catch (_) { return undefined; } }
+  function obj(v) { return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; }
+  function text(v, max) { return typeof v === 'string' ? v.trim().slice(0,max) : ''; }
+  function promptFrom(input) { const v=obj(input), b=obj(v.body), p=obj(v.payload); return text(v.rawUserText||v.userQuery||v.prompt||v.text||b.prompt||b.text||p.prompt||p.text, MAX_PROMPT_CHARS); }
+  function isPrivate(input) {
+    const v=obj(input);
+    return v.privateAdminConversation === true && v.marionAdminConversation === true;
+  }
+  function verify(input) {
+    if (!isPrivate(input) || typeof verifiedSessionResolver !== 'function') return null;
+    let session = null;
+    try { session = verifiedSessionResolver(input); } catch (_) { return null; }
+    const s = obj(session);
+    if (s.source !== 'server-verified-session' || s.authorized !== true ||
+        s.scope !== 'private_admin' || s.audience !== 'owner' ||
+        typeof s.sessionId !== 'string' || s.sessionId.length < 8 || s.sessionId.length > 256) return null;
+    return Object.freeze({ source:'server-verified-session', authorized:true, scope:'private_admin', audience:'owner', sessionId:s.sessionId });
+  }
+  function configureMarionNeonAdvisory(options) {
+    const opts = obj(options);
+    if (typeof own(opts,'verifySession') !== 'function') return false;
+    verifiedSessionResolver = opts.verifySession;
+    return true;
+  }
+  function loadAdvisory() {
+    try {
+      const mod = require('../../../Utils/marionNeonIntelligence.js');
+      return mod && typeof mod.requestIntelligence === 'function' ? mod : null;
+    } catch (_) { return null; }
+  }
+  const prior = api.handleMarionAdminConversation;
+  if (typeof prior !== 'function') return;
+  api.handleMarionAdminConversation = async function marionAdminWithVerifiedNeon(input) {
+    const v = obj(input);
+    const session = verify(v);
+    // Verified tickets are consumed by the index-owned callback, once per turn.
+    // Never forward the ticket or a credential to a model or final response.
+    const cleanInput = {...v};
+    delete cleanInput.__marionNeonPrivateTicket;
+    let modelUsed = false, advisoryStatus = 'ineligible';
+    if (session && process.env.SB_MARION_NEON_PRIVATE_ADVISORY === 'true') {
+      const mod = loadAdvisory();
+      const prompt = promptFrom(v);
+      if (mod && prompt) {
+        let result;
+        try { result = await mod.requestIntelligence({ prompt, activeDomain:text(v.requestedDomain||v.domain||'general',80), session }); }
+        catch (_) { result = {ok:false,reason:'adapter_exception'}; }
+        if (result && result.ok === true && text(result.advisory,MAX_ADVISORY_CHARS)) {
+          // Internal, non-authoritative evidence for the existing composer/bridge.
+          cleanInput.neonModelAdvisory = text(result.advisory,MAX_ADVISORY_CHARS);
+          cleanInput.marionNeonAdvisory = cleanInput.neonModelAdvisory;
+          modelUsed = true;
+          advisoryStatus = 'available';
+        } else advisoryStatus = text(result && result.reason,60)||'unavailable';
+      } else advisoryStatus = mod ? 'empty_prompt':'adapter_unavailable';
+    }
+    const response = await prior.call(this, cleanInput);
+    // Diagnostic-only metadata. No advisory text, session ID or token is returned.
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      const out = {...response};
+      out.neonModelAdvisory = { available:modelUsed, usedAsFinalAuthority:false, reason:advisoryStatus };
+      out.diagnostics = { ...obj(response.diagnostics), privateNeonAdvisoryAvailable:modelUsed, privateNeonAdvisoryStatus:advisoryStatus };
+      return out;
+    }
+    return response;
+  };
+  api.configureMarionNeonAdvisory = configureMarionNeonAdvisory;
+  api.MARION_PRIVATE_NEON_ADVISORY_VERSION = 'marion.bridge.trustedPrivateNeonAdvisory/1.0';
+  api.__marionPrivateNeonAdvisoryV1 = true;
+})();
+/* MARION_PRIVATE_NEON_TRUSTED_ADVISORY_V1_END */
