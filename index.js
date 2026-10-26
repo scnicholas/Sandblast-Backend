@@ -1,5 +1,9 @@
 "use strict";
 
+// NYX-VOICE-TEXT-PARITY-TRANSPORT-ISOLATION-V1: keep canonical Nyx/TTS synthesis JSON outside global conversation projection.
+// NYX-VOICE-OPERATIONAL-HEALTH-ISOLATION-V1: keep machine-readable Nyx/TTS health contracts outside global conversation projection.
+// NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./utils before all final not_found guards.
+
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: public media discovery bypasses all R18C law projection and response-edge mutation.
 // NYX-PUBLIC-MEDIA-RESPONSE-CONTRACT-R5.1: preserve explicit answer-only action metadata through final public projection.
 // NYX-MEDIA-CATALOG-RETRIEVAL-R6: read growing movie/cartoon manifests dynamically and answer with live titles.
@@ -19,7 +23,7 @@
 /**
  * Sandblast Backend â€” index.js
  *
- * index.js v2.18.11sb NYX-GUIDE-SHELL-R1 + NYX-TTS-CONFIG-ALIAS-BRIDGE-R13 + RESPONSE-INTEGRITY-HARDLOCK
+ * index.js v2.18.88sb INDEX-MARION-FINAL-TRUST-COHESION-R88 + MARION-LEARNING-SETUP-REDACTED-DIAGNOSTICS-V1 + CHAT-TURN-SINGLEFLIGHT-DEDUP-R1 + MARION-NYX-BRIDGE-COHESION-V1 + MARION-NUANCE-PHASE-A-DIAGNOSTIC-BOUNDARY-V1 + MARION-ADMIN-RUNTIME-PRIMITIVE-HARDLOCK-V2.1 + NYX-GUIDE-SHELL-R1 + NYX-TTS-CONFIG-ALIAS-BRIDGE-R13 + RESPONSE-INTEGRITY-HARDLOCK
  * ------------------------------------------------------------
  * PURPOSE
  * - Tightened backend shell
@@ -41,6 +45,23 @@ const fs = require("fs");
 const crypto = require("crypto");
 const os = require("os");
 
+// Load local environment before application modules capture process.env values.
+try {
+  const dotenv = require("dotenv");
+  if (dotenv && typeof dotenv.config === "function") dotenv.config();
+} catch (_) {
+  try {
+    const dotenv = require("./node_modules/dotenv");
+    if (dotenv && typeof dotenv.config === "function") dotenv.config();
+  } catch (_) {}
+}
+
+const marionAdminRuntimeSafety = (() => {
+  try { return require("./Data/marion/runtime/marionAdminRuntimeSafety.js"); }
+  catch (_) { return null; }
+})();
+const MARION_ADMIN_RUNTIME_SAFETY_VERSION = marionAdminRuntimeSafety && marionAdminRuntimeSafety.VERSION || "marion.adminRuntimeSafety/2.1-inline-fallback";
+
 let compression = null;
 try {
   compression = require("compression");
@@ -48,8 +69,8 @@ try {
   compression = null;
 }
 
-const INDEX_VERSION = "NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK";
-const PUBLIC_INDEX_VERSION = "NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1";
+const INDEX_VERSION = "INDEX-MARION-FINAL-TRUST-COHESION-R88 + CHAT-TURN-SINGLEFLIGHT-DEDUP-R1 + MARION-NYX-BRIDGE-COHESION-V1 + MARION-NUANCE-PHASE-A-DIAGNOSTIC-BOUNDARY-V1 + MARION-ADMIN-RUNTIME-PRIMITIVE-HARDLOCK-V2.1 + MARION-PRIVATE-IDENTITY-HARDLOCK-V2.1 + NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + index.js v2.18.44sb PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + INDEX-CONFLICT-MARKER-PURGE-RENDER-HARDLOCK + NYX-VOICE-DEPLOYMENT-PARITY-README-V13 + NYX-VOICE-GET-HEALTH-ALIAS-V13 + NYX-VOICE-ECHO-SUPPRESSION-HARDLOCK-V13 + NYX-VOICE-TRANSCRIPT-ROUTE + INDEX-FINAL-PROMOTION-REASSERTION-HARDLOCK + LONGTURN-CONTINUITY-RECOVERY-EXPANSION + INDEX-AUTHORITY-SANITIZATION-REPLY-SALVAGE-HARDLOCK + LONGTURN-SHORT-FOLLOWUP-AUTHORITY-RECOVERY + CONTINUITY-INTENT-OVERRIDE-HARDLOCK + CONTINUITY-EFFECTIVE-PROMPT-HANDOFF-HARDLOCK + SHORT-FOLLOWUP-CONTINUITY-HANDOFF-HARDLOCK + TTS-SPOKENTEXT-CONTAMINATION-HARDLOCK + PUBLIC-FINAL-PROJECTION-HARDLOCK + SIX-DOMAIN-MARION-COMPOSER-PROMOTION-HOTFIX + STALE-CACHE-REPLAY-PURGE + BLANK-FINAL-SUPPRESSION + LAST-MILE-PROGRESSION-EMISSION-PURGE + PROGRESSION-SOURCE-KILL-HARDLOCK + PUBLIC-SURFACE-LEAK-HARDLOCK + LOOP-SUPPRESSION-FUTURE-HARDLOCK + NYX-MARION-LOOP-GOVERNOR-CAPACITY-SEPARATION + MARION-LINGOSENTINEL-GATEWAY-LIVE-PATH + DIRECT-TRANSLATION-TARGET-EN-REVERSE-LOCK + DIRECT-TRANSLATION-COMMAND-LOCK + LINGOSENTINEL-MULTILINGUAL-TRIGGER-LOCK + PRIMITIVE-REPLY-SUPPRESSION + LINGOSENTINEL-GREETING-PRECEDENCE-LOCK + PUBLIC-CONTROL-PHRASE-HARDLOCK + FINAL-JSON-PUBLIC-REPLY-HYGIENE-HARDLOCK + NYX-PUBLIC-AGENT-ALIAS-LOCK + LANGUAGESPHERE-FINAL-SURFACE-PASSTHROUGH + LANGUAGESPHERE-PHASE5-API-MIDDLEWARE-INTEGRATION + CLARIFIER-LOOP-HARDLOCK + LANGUAGESPHERE-STALE-CARRY-BYPASS + LANGUAGESPHERE-INDEX-BRIDGE + DOMAIN-RETRIEVER-ACTIVE-PATH-COHESION + INDEX-TELEMETRY-FAILURE-SIGNATURE-AUDIT + OUTER-SCHEDULER-PRE-ROUTER-TECHNICAL-BYPASS + FINAL-RUNTIME-TELEMETRY + DOMAIN-BOOTSTRAP-ISOLATION-DIAGNOSTICS + CHAT-LOOP-PHRASE-HARDLOCK-AUTHORITY-COHESION + MARION-FINAL-ENVELOPE-EXTRACTION-V35 + CONVERSATION-FINALIZATION-GUARD + SUPPORT-HOLD-DEAUTHORITY + TURN-ID-DEDUP + MARION-LIVE-HANDOFF-VERIFY + MARION-AUTHORITY-LOCK + MARION-CONTRACT-HARDENED + MIXER-VOICE-PRESERVE + NEWSCANADA-CACHE-FIRST-CONTRACT + NEWSCANADA-CACHE-PATH-HARDENED + NEWSCANADA-CACHE-DATA-CAPS-COMPAT + NEWSCANADA-WP-REST-PRIMARY + NEWSCANADA-RSS-BACKEND-ONLY + NEWSCANADA-RSS-PARSER-HARDENED + NEWSCANADA-RSS-CANDIDATE-FEEDS + NEWSCANADA-RSS-HTML-FALLBACK + NEWSCANADA-RSS-DIAGNOSTICS-HARDENED + NEWSCANADA-RSS-SERVICE-MODULARIZED + NEWSCANADA-MANUAL-RSS-ROUTE-MOUNT + NEWSCANADA-COMPAT-ALIASES + NEWSCANADA-AUTO-INGEST-SWITCH + ROUTE-DIAGNOSTIC-HINTS + NEWSCANADA-LIVE-TRACE + NEWSCANADA-STRICT-ROUTE-GATE + NEWSCANADA-RSS-TRUTH-ROUTE-BYPASS + NEWSCANADA-EDITORS-TRUTH-FIRST + NEWSCANADA-TIMEOUT-CHAIN-UNWRAPPED + NEWSCANADA-RSS-FIRST-EXECUTION + MUSIC-BRIDGE-STRICT-CONTRACT + OPS-DIAGNOSTIC-HARDENING + SUPPORT-OVERRIDE-CONTRACT + NEWSCANADA-DIRECT-TRUTH-ROUTE-V12 + NEWSCANADA-SERVICE-BYPASS-HARDLOCK + MUSIC-BOOTSTRAP-RESTORED + FEED-COMPAT-HARDENED-V14 + NEWSCANADA-INLINE-DIRECT-ROUTE-V15 + NEWSCANADA-CONTRACT-CACHE-BRIDGE-V16 + NEWSCANADA-TRANSPORT-HARDENING-V17 + MARION-REPLY-FIRST-V18 + CONVERSATION-ORIGIN-BYPASS-V19 + ENGINE-INPUT-REPLY-SURFACING-V20 + MARION-INTENT-PASSTHROUGH-V21 + MARION-DATA-RUNTIME-ROUTER-V22 + CHAT-ROUTE-ALIAS-HARDLOCK-V23 + CHAT-HANDSHAKE-DIAGNOSTICS-V24 + MARION-FINAL-SIGNATURE-COMPAT-V25 + FINAL-ENVELOPE-WRAPPER-COMPAT-V26 + MARION-CALL-BRIDGE-FINALIZE-V27 + LOOP-RECOVERY-ESCAPE-V29 + LOOP-GATE-V30 + TRANSPORT-ONLY-MARION-FINAL-ENVELOPE-V31 + ROGUE-FALLBACK-PURGE-V32 + MARION-BRIDGE-RUNTIME-FIX-V33 + CHAT-POST-502-PURGE-V34 + MARION-EMOTION-RUNTIME-HEALTH-V37 + CHAT-TRANSPORT-FINAL-ENVELOPE-PASSTHROUGH-V38 + FALSE-FINAL-PURGE-V39 + RUNTIME-COHESION-FINAL-AUTHORITY-V40 + CONVERSATION-QUALITY-TRANSPORT-PRESERVE-V41 + PACKET-STATE-BRIDGE-V42 + NYX-DATA-PACKET-PATH-V43 + INDEX-CONFLICT-REPAIR-V44 + PACKET-PRECLASSIFY-BRIDGE-V45 + PACKET-FALLBACK-SAFE-EMIT-V46 + FINAL-AUTHORITY-TRUTH-V47 + PACKET-GREETING-FINAL-SELECTION-GUARD-V48 + PACKET-HANDSHAKE-BYPASS-FOR-SUBSTANTIVE-MARION-TURNS-V49 + FINAL-ENVELOPE-REPLY-PROMOTION-V50 + FINAL-VISIBLE-REPLY-AGREEMENT-V51 + CBCRSS-BACKEND-BRIDGE-V1 + LAST-MILE-PRIMITIVE-REPLY-GUARD-V52 + FINAL-RENDER-TELEMETRY-HARDLOCK + INDEX-LAST-MILE-CONTINUATION-FALLBACK-PURGE + LINGOSENTINEL-GATEWAY-INDEX-PASSTHROUGH + LINGOSENTINEL-SUBSCRIBE-TOKEN-ROUTE-MOUNT + LINGOSENTINEL-WEBFLOW-CORS-HARDLOCK + LINGOSENTINEL-ALERT-SCANNER-INDEX-CARRY + PARALLEL-LANE-PASSTHROUGH + RELEASE-READINESS-ROLLBACK-SAFETY + NEWSCANADA-EDITORS-PICKS-EXPORT-LOADER-FIX + INVALID-PUBLIC-REPLY-LAST-MILE-RECOVERY + DETERMINISTIC-ORIGINAL-PROMPT-RECOVERY + LINGOSENTINEL-CONTROLLED-PRIVATE-ROOM-DIRECT-ABLY-FALLBACK-V2 + LINGOSENTINEL-START-CONTACT-ROUTE-V11-HTTP-EMAIL-API-FIRST-HARDLOCK + MARION-LEARNING-OFFLINE-COMPOSER-REGISTRY-R1 + MARION-LEARNING-SETUP-REDACTED-DIAGNOSTICS-V1";
+const PUBLIC_INDEX_VERSION = "INDEX-MARION-FINAL-TRUST-COHESION-R88 + CHAT-TURN-SINGLEFLIGHT-DEDUP-R1 + MARION-NYX-BRIDGE-COHESION-V1 + MARION-ADMIN-RUNTIME-PRIMITIVE-HARDLOCK-V2.1 + MARION-PRIVATE-IDENTITY-HARDLOCK-V2.1 + NYX-GUIDE-SHELL-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + index.js v2.18.83sb PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V2 + PUBLIC-SEMANTIC-REPLAY-OVERRIDE-V1 + PUBLIC-CONTINUITY-HANDOFF-REPAIR-V1 + PUBLIC-NYX-FINAL-PROJECTION-REPAIR-V1 + MARION-REFERENCEERROR-TRIAD-HARDENING-V2 + NEWS-RSS-STRAY-TRANSPORT-STATE-PURGE + MARION-REFERENCEERROR-TRIAD-HARDENING-V1 + MARION-ADMIN-TEST-BYPASS-SESSION-ISSUER-V1 + MARION-ADMIN-RUNTIME-SESSION-AUTH-BRIDGE-V1 + MARION-RUNTIME-REFERENCE-TRACE-V1 + MARION-ADMIN-INTERFACE-RUNTIME-ACTIVE + MARION-ADMIN-TEXT-RUNTIME-HANDLER + LINGOSENTINEL-PHASE8-PUBLIC-ASSET-MOUNT-HARDLOCK + LINGOSENTINEL-SPONTANEITY-50LANG-MOUNT + LINGOSENTINEL-WEBFLOW-PUBLIC-TRANSLATION-CORS-V1 + LINGOSENTINEL-PHASE2E-LIVE-ABLY-ROUNDTRIP-CLIENT-RECEIVE + RENDER-BOOT-SAFE-LINGOSENTINEL-ROUTE-MOUNT-HARDLOCK + MARION-ADMIN-ROUTE-CONTRACT-REPAIR-V1 + MARION-REMOTE-TRUSTED-USER-BOUNDARY-V1 + MARION-VOICE-SPEAKER-IDENTITY-BOUNDARY-V1 + MARION-ADMIN-AUTH-ROLE-RUNTIME-HOTFIX-V1 + MARION-SESSION-ISSUE-RESPONSE-FINALIZATION-HOTFIX-V1 + MARION-ASYNC-TOPLEVEL-BOOT-HOTFIX-V1 + MARION-VOICE-SPEAKER-REGISTRY-CONTROL-V1 + MARION-VOICE-CHALLENGE-VERIFICATION-V1 + MARION-VOICE-CONTINUITY-WINDOW-V1 + MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1 + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-LEARNING-SETUP-REDACTED-DIAGNOSTICS-V1";
 const SERVER_BOOT_AT = Date.now();
 const PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION = "nyx.marion.priority4.transportMounting/1.1-transport-once-mount";
 const MARION_RELEASE_READINESS_CONFIG = Object.freeze({
@@ -73,6 +94,12 @@ const LINGOSENTINEL_PHASE2B_USER_BOUNDARY_VERSION = "nyx.lingosentinel.index.pha
 const LINGOSENTINEL_PHASE2D_CHANNEL_NAMESPACE_VERSION = "nyx.lingosentinel.index.phase2dChannelNamespaceRoundtrip/2.0";
 const LINGOSENTINEL_PHASE2E_LIVE_ROUNDTRIP_VERSION = "nyx.lingosentinel.index.phase2eLiveAblyRoundtrip/2.0";
 const LINGOSENTINEL_CHANNEL_NAMESPACE = "lingosentinel";
+const LINGOSENTINEL_LAYERS_1_2_CRITICAL_VERSION = "nyx.lingosentinel.layers1_2Critical/1.0-runtime-health-token-policy";
+const LINGOSENTINEL_LAYERS_3_4_CRITICAL_VERSION = "nyx.lingosentinel.layers3_4Critical/1.0-room-registry-connection-lifecycle";
+const LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION = "nyx.lingosentinel.layers5_7Critical/1.0-canonical-message-english-relay";
+const LINGOSENTINEL_LAYERS_8_10_CRITICAL_VERSION = "nyx.lingosentinel.layers8_10Critical/1.0-delivery-integrity-recovery";
+const LINGOSENTINEL_LAYERS_11_12_PUBLIC_VERSION = "nyx.lingosentinel.layers11_12Public/1.0-dual-text-context-controls";
+const LINGOSENTINEL_ENGLISH_RELAY_ONLY = String(process.env.LINGOSENTINEL_ENGLISH_RELAY_ONLY || "true").toLowerCase() !== "false";
 
 const INDEX_FAILURE_SIGNATURES = Object.freeze({
   NONE: "none",
@@ -253,15 +280,23 @@ const HARDENING_CONSTANTS = Object.freeze({
   AVATAR_MAX_BASENAME_CHARS: clampNumberEnv("SB_AVATAR_MAX_BASENAME_CHARS", 180, 16, 255)
 });
 
+function sandblastFatalProcessError(kind, error) {
+  try {
+    console.error(`[Sandblast][${kind}]`, error && (error.stack || error.message || error));
+  } catch (_) {}
+  // Continuing after an uncaught exception or unhandled rejection can leave
+  // request state and in-memory authorization state inconsistent. Let the
+  // process manager restart this instance instead of serving from a bad state.
+  process.exitCode = 1;
+  setImmediate(() => process.exit(1));
+}
+
 process.on("unhandledRejection", (reason) => {
-  console.log("[Sandblast][unhandledRejection]", reason && (reason.stack || reason.message || reason));
+  sandblastFatalProcessError("unhandledRejection", reason);
 });
 
 process.on("uncaughtException", (err) => {
-  console.log("[Sandblast][uncaughtException]", err && (err.stack || err.message || err));
-  try {
-    if (err && String(err.message || "").includes("EADDRINUSE")) process.exit(1);
-  } catch (_) {}
+  sandblastFatalProcessError("uncaughtException", err);
 });
 
 function tryRequireMany(paths) {
@@ -429,11 +464,6 @@ function mountLingoSentinelTranslationRoutesOnce(appInstance, label) {
   return result;
 }
 
-const envLoader = tryRequireMany(["dotenv", "./node_modules/dotenv"]);
-if (envLoader && typeof envLoader.config === "function") {
-  try { envLoader.config(); } catch (_) {}
-}
-
 const NYX_TTS_CONFIG_BRIDGE_VERSION = "nyx.tts.indexConfigAliasBridge/1.0-r13";
 const NYX_TTS_DEFAULT_SYNTH_URL = "https://f.cluster.resemble.ai/synthesize";
 const NYX_TTS_DEFAULT_STREAM_URL = "https://f.cluster.resemble.ai/stream";
@@ -549,19 +579,50 @@ try {
 
 const app = express();
 app.disable("x-powered-by");
-app.set("trust proxy", true);
+const SB_TRUST_PROXY_HOPS = (() => {
+  const raw = cleanText(process.env.SB_TRUST_PROXY_HOPS || "");
+  const fallback = process.env.NODE_ENV === "production" ? 1 : 0;
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 8 ? parsed : fallback;
+})();
+app.set("trust proxy", SB_TRUST_PROXY_HOPS);
 app.locals.musicTopMoments = [];
 app.locals.musicSources = [];
 app.locals.musicMeta = { ok: false, file: "", count: 0, loadedAt: 0, source: "empty", degraded: false };
 app.locals.nyxTtsEnvironment = NYX_TTS_ENV_STATUS;
 
+function trustedClientIp(req) {
+  return cleanText(
+    (req && req.ip) ||
+    (req && req.socket && req.socket.remoteAddress) ||
+    (req && req.connection && req.connection.remoteAddress) ||
+    "unknown"
+  ).slice(0, 160) || "unknown";
+}
+
 /* LINGOSENTINEL_PHASE8_PUBLIC_ASSETS_START */
 // Public browser-safe LingoSentinel asset mount.
-// Serves ONLY the three frontend JS files under /public/lingosentinel.
+// Serves ONLY the eighteen approved frontend JS files under /public/lingosentinel.
 // This must stay before fallback/not_found routes. Internal routes and tokens are not exposed.
 const LINGOSENTINEL_PUBLIC_ASSET_DIR = path.join(__dirname, "public", "lingosentinel");
 const LINGOSENTINEL_PUBLIC_ASSET_FILES = Object.freeze([
   "lingosentinel-public-translation-client.js",
+  "lingosentinel-public-realtime-client.js",
+  "lingosentinel-public-message-client.js",
+  "lingosentinel-public-message-receiver.js",
+  "lingosentinel-message-render-policy.js",
+  "lingosentinel-widget-conversation-controller.js",
+  "lingosentinel-public-delivery-client.js",
+  "lingosentinel-widget-message-state-controller.js",
+  "lingosentinel-public-message-integrity.js",
+  "lingosentinel-public-recovery-client.js",
+  "lingosentinel-widget-conversation-recovery.js",
+  "lingosentinel-public-language-preferences.js",
+  "lingosentinel-widget-translation-confidence.js",
+  "lingosentinel-public-translation-result-client.js",
+  "lingosentinel-widget-dual-text-controller.js",
+  "lingosentinel-widget-language-controller.js",
   "lingosentinel-widget-translation-bridge.js",
   "lingosentinel-widget-integration-hook.js"
 ]);
@@ -640,6 +701,14 @@ const LINGOSENTINEL_PUBLIC_CORS_ROUTES = Object.freeze([
   /^\/api\/lingosentinel\/languages\/?$/i,
   /^\/api\/lingosentinel\/translation\/health\/?$/i,
   /^\/api\/lingosentinel\/token(?:\/health)?\/?$/i,
+  /^\/api\/lingosentinel\/(?:runtime\/health|layer1\/health|layers5-7\/health|layers\/1-12\/health)\/?$/i,
+  /^\/api\/lingosentinel\/rooms(?:\/[^/?]+(?:\/(?:join|leave|participants|authorize|language-preferences))?)?\/?$/i,
+  /^\/api\/lingosentinel\/connections(?:\/(?:register|state|disconnect|health|[^/?]+))?\/?$/i,
+  /^\/api\/lingosentinel\/messages(?:\/health|\/[^/?]+\/(?:delivered|read|state|translate|translations(?:\/[^/?]+)?))?\/?$/i,
+  /^\/api\/lingosentinel\/translation-runtime\/health\/?$/i,
+  /^\/api\/lingosentinel\/delivery\/health\/?$/i,
+  /^\/api\/lingosentinel\/rooms\/[^/?]+\/(?:messages(?:\/recent)?|recovery)\/?$/i,
+  /^\/api\/lingosentinel\/recovery\/health\/?$/i,
   /^\/api\/lingosentinel\/(?:ably\/readiness|readiness)\/?$/i,
   /^\/api\/lingosentinel\/(?:publish|link)\/?$/i,
   /^\/api\/lingosentinel\/(?:phase2b|roundtrip)\/health\/?$/i
@@ -697,6 +766,8 @@ function applyLingoSentinelPublicCors(req, res) {
     "x-requested-with",
     "x-sb-trace-id",
     "x-sb-widget-token",
+    "x-request-id",
+    "x-lingosentinel-membership",
     ...(reqHeaders ? reqHeaders.split(",").map((item) => item.trim()).filter(Boolean) : [])
   ]));
   if (origin && lingoSentinelPublicCorsOriginAllowed(origin)) {
@@ -719,15 +790,583 @@ app.use((req, res, next) => {
 });
 /* LINGOSENTINEL_WEBFLOW_PUBLIC_TRANSLATION_CORS_END */
 
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+
+
+/* LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_V1_START
+ * Surgical public /api/lingosentinel/translate continuity guard.
+ *
+ * The canonical modular LingoSentinel translation routes remain intact below.
+ * This guard handles the public translation request only when a compatible
+ * existing translator adapter is available. If it cannot translate, next()
+ * preserves the established modular Spontaneity/Public-Boundary fallback.
+ *
+ * Utility translation only: no Marion-final authority, private route, memory,
+ * credential, or provider secret is exposed here.
+ */
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION =
+  "nyx.lingosentinel.publicTranslateIndexGuard/1.0";
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH =
+  "/api/lingosentinel/translate";
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_HEALTH_PATH =
+  "/api/lingosentinel/translate/index-health";
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED =
+  !/^(?:0|false|off|disabled)$/i.test(
+    String(process.env.LINGOSENTINEL_INDEX_TRANSLATE_GUARD_ENABLED || "true").trim()
+  );
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_TIMEOUT_MS =
+  clampNumberEnv("LINGOSENTINEL_INDEX_TRANSLATE_TIMEOUT_MS", 15000, 1500, 90000);
+
+const LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_RATE_PER_MINUTE =
+  clampNumberEnv("LINGOSENTINEL_INDEX_TRANSLATE_RATE_PER_MINUTE", 60, 10, 600);
+
+const lingoSentinelIndexTranslateRate = new Map();
+let lingoSentinelIndexTranslateAdapterCache = null;
+let lingoSentinelIndexTranslateLastError = "";
+let lingoSentinelIndexTranslateLastSuccessAt = 0;
+
+function lingoSentinelIndexTranslateText(value, max = 4000) {
+  return String(value == null ? "" : value)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function lingoSentinelIndexTranslateLanguage(value, fallback = "") {
+  const raw = lingoSentinelIndexTranslateText(value, 24).toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "auto" || raw === "detect" || raw === "unknown") return "auto";
+  const match = raw.match(/^[a-z]{2,3}(?:[-_][a-z]{2,4})?/i);
+  return match ? match[0].split(/[-_]/)[0].toLowerCase() : fallback;
+}
+
+function lingoSentinelIndexTranslateFirstText(...values) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const text = lingoSentinelIndexTranslateText(value, 6000);
+    if (text) return text;
+  }
+  return "";
+}
+
+function lingoSentinelIndexTranslateExtract(result) {
+  if (typeof result === "string") {
+    return lingoSentinelIndexTranslateText(result, 6000);
+  }
+
+  const out = result && typeof result === "object" && !Array.isArray(result)
+    ? result
+    : {};
+  const payload = out.payload && typeof out.payload === "object" && !Array.isArray(out.payload)
+    ? out.payload
+    : {};
+  const message = out.message && typeof out.message === "object" && !Array.isArray(out.message)
+    ? out.message
+    : {};
+  const finalEnvelope =
+    out.finalEnvelope && typeof out.finalEnvelope === "object" && !Array.isArray(out.finalEnvelope)
+      ? out.finalEnvelope
+      : {};
+  const translated =
+    out.translation && typeof out.translation === "object" && !Array.isArray(out.translation)
+      ? out.translation
+      : {};
+
+  return lingoSentinelIndexTranslateFirstText(
+    out.translatedText,
+    out.targetText,
+    out.translated,
+    out.translation,
+    out.text,
+    out.reply,
+    out.final,
+    message.translatedText,
+    message.targetText,
+    message.translation,
+    payload.translatedText,
+    payload.targetText,
+    payload.translation,
+    payload.text,
+    payload.reply,
+    translated.translatedText,
+    translated.targetText,
+    translated.text,
+    finalEnvelope.translatedText,
+    finalEnvelope.text,
+    finalEnvelope.reply
+  );
+}
+
+function lingoSentinelIndexTranslateResolveAdapter() {
+  if (
+    lingoSentinelIndexTranslateAdapterCache &&
+    lingoSentinelIndexTranslateAdapterCache.mod
+  ) {
+    return lingoSentinelIndexTranslateAdapterCache;
+  }
+
+  const candidates = [
+    "./Data/marion/runtime/UniversalTranslatorAdapter",
+    "./Data/marion/runtime/UniversalTranslatorAdapter.js",
+    "./UniversalTranslatorAdapter",
+    "./UniversalTranslatorAdapter.js",
+    "./utils/UniversalTranslatorAdapter",
+    "./utils/UniversalTranslatorAdapter.js",
+    "./Utils/UniversalTranslatorAdapter",
+    "./Utils/UniversalTranslatorAdapter.js"
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const loaded = require(candidate);
+      const mod =
+        loaded && typeof loaded === "object" && loaded.default
+          ? loaded.default
+          : loaded;
+
+      if (
+        typeof mod === "function" ||
+        (
+          mod &&
+          typeof mod === "object" &&
+          (
+            typeof mod.translateText === "function" ||
+            typeof mod.translate === "function" ||
+            typeof mod.applyUniversalTranslation === "function"
+          )
+        )
+      ) {
+        lingoSentinelIndexTranslateAdapterCache = {
+          mod,
+          candidate,
+          method:
+            typeof mod === "function"
+              ? "function"
+              : typeof mod.translateText === "function"
+                ? "translateText"
+                : typeof mod.translate === "function"
+                  ? "translate"
+                  : "applyUniversalTranslation"
+        };
+        return lingoSentinelIndexTranslateAdapterCache;
+      }
+    } catch (_) {}
+  }
+
+  return { mod: null, candidate: "", method: "" };
+}
+
+function lingoSentinelIndexTranslateRateAllowed(req) {
+  const nowMs = Date.now();
+  const key = lingoSentinelIndexTranslateText(trustedClientIp(req), 120) || "unknown";
+  const current = lingoSentinelIndexTranslateRate.get(key);
+
+  if (!current || nowMs >= current.resetAt) {
+    lingoSentinelIndexTranslateRate.set(key, {
+      count: 1,
+      resetAt: nowMs + 60000
+    });
+    return { allowed: true, resetAt: nowMs + 60000 };
+  }
+
+  if (current.count >= LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_RATE_PER_MINUTE) {
+    return { allowed: false, resetAt: current.resetAt };
+  }
+
+  current.count += 1;
+
+  if (lingoSentinelIndexTranslateRate.size > 2000) {
+    for (const [mapKey, item] of lingoSentinelIndexTranslateRate) {
+      if (!item || nowMs >= item.resetAt) {
+        lingoSentinelIndexTranslateRate.delete(mapKey);
+      }
+      if (lingoSentinelIndexTranslateRate.size <= 1500) break;
+    }
+  }
+
+  return { allowed: true, resetAt: current.resetAt };
+}
+
+async function lingoSentinelIndexTranslateInvoke(adapter, text, options) {
+  const mod = adapter && adapter.mod;
+  if (!mod) return null;
+
+  const translationOptions = {
+    sourceLanguage: options.sourceLanguage,
+    targetLanguage: options.targetLanguage,
+    domain: "translation",
+    context: "lingosentinel-public-translate",
+    cultureContext: options.cultureContext,
+    protectedTerms: Array.isArray(options.protectedTerms)
+      ? options.protectedTerms.slice(0, 40)
+      : []
+  };
+
+  let work;
+
+  if (typeof mod === "function") {
+    work = Promise.resolve(mod(text, translationOptions));
+  } else if (typeof mod.translateText === "function") {
+    work = Promise.resolve(mod.translateText(text, translationOptions));
+  } else if (typeof mod.translate === "function") {
+    work = Promise.resolve(mod.translate(text, translationOptions));
+  } else if (typeof mod.applyUniversalTranslation === "function") {
+    work = Promise.resolve(
+      mod.applyUniversalTranslation(
+        {
+          reply: text,
+          text,
+          final: text,
+          finalEnvelope: {
+            reply: text,
+            text,
+            displayReply: text,
+            final: true,
+            marionFinal: false,
+            authority: "lingosentinel-public-translate"
+          }
+        },
+        translationOptions
+      )
+    );
+  } else {
+    return null;
+  }
+
+  let timer = null;
+  try {
+    return await Promise.race([
+      work,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const err = new Error("lingosentinel_index_translate_timeout");
+          err.code = "ETIMEDOUT";
+          reject(err);
+        }, LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_TIMEOUT_MS);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+app.get(LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_HEALTH_PATH, (req, res) => {
+  applyLingoSentinelPublicCors(req, res);
+  res.setHeader("Cache-Control", "no-store");
+
+  const origin = String((req.headers && req.headers.origin) || "").trim();
+  if (origin && !lingoSentinelPublicCorsOriginAllowed(origin)) {
+    return res.status(403).json({
+      ok: false,
+      error: "origin_not_allowed",
+      service: "lingosentinel-public-translate-index-guard",
+      version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+    });
+  }
+
+  const adapter = lingoSentinelIndexTranslateResolveAdapter();
+
+  return res.status(200).json({
+    ok: true,
+    service: "lingosentinel-public-translate-index-guard",
+    version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+    enabled: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED,
+    routeMounted: true,
+    route: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH,
+    adapterReady: !!adapter.mod,
+    adapterCandidate: adapter.candidate || "",
+    adapterMethod: adapter.method || "",
+    modularFallbackPreserved: true,
+    marionFinalAuthorityClaimed: false,
+    lastSuccessAt: lingoSentinelIndexTranslateLastSuccessAt || 0,
+    lastError: lingoSentinelIndexTranslateLastError || "",
+    diagnosticsRedacted: true,
+    t: Date.now()
+  });
+});
+
+app.post(
+  LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH,
+  async (req, res, next) => {
+    if (!LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED) {
+      return next();
+    }
+
+    applyLingoSentinelPublicCors(req, res);
+    res.setHeader("Cache-Control", "no-store");
+
+    const origin = String((req.headers && req.headers.origin) || "").trim();
+    if (origin && !lingoSentinelPublicCorsOriginAllowed(origin)) {
+      return res.status(403).json({
+        ok: false,
+        error: "origin_not_allowed",
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    const rate = lingoSentinelIndexTranslateRateAllowed(req);
+    if (!rate.allowed) {
+      return res.status(429).json({
+        ok: false,
+        error: "translation_rate_limited",
+        retryAfterMs: Math.max(0, rate.resetAt - Date.now()),
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    const body =
+      req.body && typeof req.body === "object" && !Array.isArray(req.body)
+        ? req.body
+        : {};
+
+    const text = lingoSentinelIndexTranslateText(
+      body.text ||
+      body.message ||
+      body.query ||
+      body.sourceText,
+      4000
+    );
+
+    const sourceLanguage = lingoSentinelIndexTranslateLanguage(
+      body.sourceLanguage ||
+      body.sourceLang ||
+      body.source ||
+      "auto",
+      "auto"
+    );
+
+    const targetLanguage = lingoSentinelIndexTranslateLanguage(
+      body.targetLanguage ||
+      body.targetLang ||
+      body.target ||
+      "",
+      ""
+    );
+
+    const cultureContext = lingoSentinelIndexTranslateText(
+      body.cultureContext ||
+      body.culture ||
+      "general",
+      120
+    ) || "general";
+
+    const requestId = lingoSentinelIndexTranslateText(
+      body.requestId ||
+      body.messageId ||
+      req.headers["x-request-id"] ||
+      req.sbTraceId ||
+      `ls-${Date.now().toString(36)}`,
+      128
+    );
+
+    if (!text) {
+      return res.status(400).json({
+        ok: false,
+        error: "text_required",
+        requestId,
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    if (!targetLanguage || targetLanguage === "auto") {
+      return res.status(400).json({
+        ok: false,
+        error: "target_language_required",
+        requestId,
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION
+      });
+    }
+
+    if (sourceLanguage !== "auto" && sourceLanguage === targetLanguage) {
+      lingoSentinelIndexTranslateLastSuccessAt = Date.now();
+      lingoSentinelIndexTranslateLastError = "";
+
+      return res.status(200).json({
+        ok: true,
+        translatedText: text,
+        translation: text,
+        targetText: text,
+        sourceLanguage,
+        targetLanguage,
+        cultureContext,
+        requestId,
+        applied: false,
+        identityTranslation: true,
+        provider: "identity",
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+        marionFinal: false,
+        message: {
+          translatedText: text,
+          sourceLanguage,
+          targetLanguage
+        }
+      });
+    }
+
+    const adapter = lingoSentinelIndexTranslateResolveAdapter();
+    if (!adapter.mod) {
+      lingoSentinelIndexTranslateLastError = "translation_adapter_unavailable";
+      return next();
+    }
+
+    try {
+      const result = await lingoSentinelIndexTranslateInvoke(
+        adapter,
+        text,
+        {
+          sourceLanguage,
+          targetLanguage,
+          cultureContext,
+          protectedTerms: Array.isArray(body.protectedTerms)
+            ? body.protectedTerms
+            : []
+        }
+      );
+
+      const translatedText = lingoSentinelIndexTranslateExtract(result);
+
+      if (!translatedText) {
+        lingoSentinelIndexTranslateLastError = "translation_result_empty";
+        return next();
+      }
+
+      lingoSentinelIndexTranslateLastSuccessAt = Date.now();
+      lingoSentinelIndexTranslateLastError = "";
+
+      return res.status(200).json({
+        ok: true,
+        translatedText,
+        translation: translatedText,
+        targetText: translatedText,
+        sourceLanguage,
+        targetLanguage,
+        cultureContext,
+        requestId,
+        applied: translatedText !== text,
+        provider: adapter.candidate || "UniversalTranslatorAdapter",
+        adapterMethod: adapter.method || "",
+        service: "lingosentinel-public-translate-index-guard",
+        version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+        modularFallbackPreserved: true,
+        marionFinal: false,
+        message: {
+          translatedText,
+          sourceLanguage,
+          targetLanguage
+        }
+      });
+    } catch (error) {
+      lingoSentinelIndexTranslateLastError =
+        lingoSentinelIndexTranslateText(
+          (error && (error.code || error.message || error)) ||
+          "translation_adapter_failed",
+          160
+        ) || "translation_adapter_failed";
+
+      return next();
+    }
+  }
+);
+
+app.locals.lingoSentinelPublicTranslateIndexGuard = Object.freeze({
+  mounted: true,
+  enabled: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_ENABLED,
+  route: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_PATH,
+  healthRoute: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_HEALTH_PATH,
+  version: LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_VERSION,
+  modularFallbackPreserved: true,
+  marionFinalAuthorityClaimed: false
+});
+/* LINGOSENTINEL_PUBLIC_TRANSLATE_INDEX_GUARD_V1_END */
+
+/* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_START
+ * Canonical Nyx voice routes are mounted directly on the root Express app.
+ * The existing index-owned /api/tts and /tts routes remain authoritative;
+ * therefore compatibility TTS registration is explicitly disabled here.
+ * This block must remain after body parsers and before every final 404 guard.
+ */
+const NYX_VOICE_UTILS_EARLY_MOUNT_VERSION =
+  "nyx.voice.indexEarlyMount/1.0-utils-path-hardlock";
+
+function mountNyxVoiceUtilsEarly(appInstance) {
+  const status = {
+    ok: false,
+    mounted: false,
+    version: NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
+    requestedPath: "./utils/nyxVoiceMount.js",
+    resolvedPath: "",
+    moduleRoot: "utils",
+    pathHardlock: true,
+    canonicalVoiceRoute: "/api/nyx/voice",
+    canonicalHealthRoute: "/api/nyx/voice/health",
+    compatibilityTtsOwnedByIndex: true,
+    mountedAt: 0,
+    error: ""
+  };
+
+  try {
+    const requestedPath = "./utils/nyxVoiceMount.js";
+    const resolvedPath = require.resolve(requestedPath);
+    const loaded = require(resolvedPath);
+    const mount =
+      typeof loaded === "function"
+        ? loaded
+        : loaded && typeof loaded.mountNyxVoice === "function"
+          ? loaded.mountNyxVoice
+          : null;
+
+    if (!mount) {
+      throw new TypeError(
+        "utils/nyxVoiceMount.js does not export mountNyxVoice(app, options)."
+      );
+    }
+
+    mount(appInstance, {
+      canonicalVoiceRoutes: true,
+      compatibilityTtsRoutes: false,
+      canonicalHealthRoutes: true,
+      compatibilityHealthRoutes: false
+    });
+
+    status.ok = true;
+    status.mounted = true;
+    status.resolvedPath = path.relative(__dirname, resolvedPath).replace(/\\/g, "/");
+    status.mountVersion = String(loaded.VERSION || "");
+    status.mountedAt = Date.now();
+  } catch (error) {
+    status.error = String(
+      (error && (error.code || error.message || error)) ||
+        "nyx_voice_utils_mount_failed"
+    ).slice(0, 500);
+    console.error("[Sandblast][nyx-voice-utils-early-mount]", status.error);
+  }
+
+  appInstance.locals = appInstance.locals || {};
+  appInstance.locals.nyxVoiceUtilsMount = Object.freeze({ ...status });
+  return appInstance.locals.nyxVoiceUtilsMount;
+}
+
+const NYX_VOICE_UTILS_MOUNT_STATUS = mountNyxVoiceUtilsEarly(app);
+/* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_END */
 
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_START
  * This specific public router must be registered before the generic /api
  * not_found guard near the end of the route table.
  */
 try {
-  const nyxEcosystemRoute = require("./Utils/nyxEcosystemRoute.js");
+  const nyxEcosystemRoute = require("./utils/nyxEcosystemRoute.js");
   app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
   app.locals.nyxEcosystemSpine = {
     mounted: true,
@@ -746,6 +1385,190 @@ try {
 }
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_END */
 
+/* SANDBLAST_ECOSYSTEM_BASELINE_1_0_ROUTE_MOUNT_START
+ * Additive Baseline 1.0 health/manifest boundary.
+ *
+ * Surgical constraints:
+ * - does NOT register, replace, or remount Ecosystem Phases 1-5;
+ * - uses the existing guarded module-loader discipline;
+ * - fails open at process boot if the optional baseline module is absent;
+ * - mounts before the final generic /api not_found guard;
+ * - records one immutable mount result in app.locals.
+ */
+const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_VERSION =
+  "sandblast.ecosystem.baselineRouteMount/1.0-index-surgical";
+
+const SANDBLAST_ECOSYSTEM_BASELINE_MOUNT_PATH =
+  "/api/marion/ecosystem";
+
+const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_REQUIRE_CANDIDATES = Object.freeze([
+  "./Data/marion/runtime/ecosystem/MarionEcosystemBaselineRoute",
+  "./Data/marion/runtime/ecosystem/MarionEcosystemBaselineRoute.js"
+]);
+
+function mountSandblastEcosystemBaselineRouteOnce(appInstance) {
+  const status = {
+    ok: false,
+    mounted: false,
+    alreadyMounted: false,
+    degraded: false,
+    version: SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_VERSION,
+    mountPath: SANDBLAST_ECOSYSTEM_BASELINE_MOUNT_PATH,
+    requestedPath: "",
+    resolvedPath: "",
+    moduleVersion: "",
+    mountedAt: 0,
+    error: ""
+  };
+
+  if (!appInstance || typeof appInstance.use !== "function") {
+    status.degraded = true;
+    status.error = "express_app_unavailable";
+    return Object.freeze(status);
+  }
+
+  appInstance.locals = appInstance.locals || {};
+
+  if (appInstance.locals.__sandblastEcosystemBaselineRouteMounted) {
+    const previous = appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+    return Object.freeze({
+      ...status,
+      ok: previous.ok === true,
+      mounted: false,
+      alreadyMounted: true,
+      degraded: previous.degraded === true,
+      requestedPath: previous.requestedPath || "",
+      resolvedPath: previous.resolvedPath || "",
+      moduleVersion: previous.moduleVersion || "",
+      mountedAt: Number(previous.mountedAt || 0),
+      error: previous.error || ""
+    });
+  }
+
+  const loaded = tryRequireManyWithStatus(
+    SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_REQUIRE_CANDIDATES
+  );
+
+  if (!loaded || loaded.ok !== true || !loaded.mod) {
+    status.degraded = true;
+    status.error = "baseline_route_module_unavailable";
+    status.requestedPath = loaded && loaded.requested || "";
+    status.resolvedPath = loaded && loaded.resolvedPath || "";
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    console.warn("[Sandblast][ecosystem-baseline-route]", {
+      ok: false,
+      mounted: false,
+      degraded: true,
+      version: status.version,
+      mountPath: status.mountPath,
+      error: status.error
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  }
+
+  const baselineRouter =
+    typeof loaded.mod === "function"
+      ? loaded.mod
+      : loaded.mod && typeof loaded.mod.router === "function"
+        ? loaded.mod.router
+        : null;
+
+  if (!baselineRouter) {
+    status.degraded = true;
+    status.requestedPath = loaded.requested || "";
+    status.resolvedPath = loaded.resolvedPath || "";
+    status.moduleVersion = cleanText(loaded.version || loaded.mod.VERSION || "");
+    status.error = "baseline_route_export_invalid";
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    console.warn("[Sandblast][ecosystem-baseline-route]", {
+      ok: false,
+      mounted: false,
+      degraded: true,
+      version: status.version,
+      mountPath: status.mountPath,
+      error: status.error
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  }
+
+  try {
+    appInstance.use(
+      SANDBLAST_ECOSYSTEM_BASELINE_MOUNT_PATH,
+      baselineRouter
+    );
+
+    status.ok = true;
+    status.mounted = true;
+    status.requestedPath = loaded.requested || "";
+    status.resolvedPath = loaded.resolvedPath || "";
+    status.moduleVersion = cleanText(
+      loaded.version ||
+      loaded.mod.VERSION ||
+      baselineRouter.VERSION ||
+      ""
+    );
+    status.mountedAt = Date.now();
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    appInstance.locals.sandblastEcosystemBaseline =
+      appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+
+    console.log("[Sandblast][ecosystem-baseline-route]", {
+      ok: true,
+      mounted: true,
+      version: status.version,
+      moduleVersion: status.moduleVersion || "unknown",
+      mountPath: status.mountPath
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  } catch (error) {
+    status.degraded = true;
+    status.requestedPath = loaded.requested || "";
+    status.resolvedPath = loaded.resolvedPath || "";
+    status.moduleVersion = cleanText(
+      loaded.version ||
+      loaded.mod.VERSION ||
+      baselineRouter.VERSION ||
+      ""
+    );
+    status.error = cleanText(
+      error && (error.code || error.message || error) ||
+      "baseline_route_mount_failed"
+    ).slice(0, 300);
+
+    appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
+      Object.freeze({ ...status });
+
+    console.error("[Sandblast][ecosystem-baseline-route]", {
+      ok: false,
+      mounted: false,
+      degraded: true,
+      version: status.version,
+      mountPath: status.mountPath,
+      error: status.error
+    });
+
+    return appInstance.locals.__sandblastEcosystemBaselineRouteMounted;
+  }
+}
+
+const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS =
+  mountSandblastEcosystemBaselineRouteOnce(app);
+
+/* SANDBLAST_ECOSYSTEM_BASELINE_1_0_ROUTE_MOUNT_END */
+
+
 /* NYX_GUIDE_ORCHESTRATION_STEPS_1_2_3_R2_START
  * Public, non-authoritative guide configuration boundary.
  * This layer exposes UI capability metadata only. It never composes replies,
@@ -763,13 +1586,13 @@ const NYX_GUIDE_HEALTH_PATHS = Object.freeze([
 ]);
 const NYX_GUIDE_RUNTIME_FILES = Object.freeze([
   "sitebridge.js",
-  "Utils/chatEngine.js",
-  "Utils/domainRouter.js",
-  "Utils/stateSpine.js",
-  "Routes/voiceRoute.js",
+  "utils/chatEngine.js",
+  "utils/domainRouter.js",
+  "utils/stateSpine.js",
+  "utils/voiceRoute.js",
   "Data/marion/runtime/composeMarionResponse.js",
   "Data/marion/runtime/DomainConcierge.js",
-  "Data/marion/runtime/nyx_state_controller.js",
+  "utils/nyx_state_controller.js",
   "Data/marion/runtime/NyxAnimationEngineAdapter.js",
   "Data/marion/runtime/NyxSpeechTimingAdapter.js",
   "Data/marion/runtime/NyxEmotionMotionBridge.js"
@@ -920,7 +1743,9 @@ function buildNyxGuidePublicConfig(req) {
     routes: {
       chat: "/api/chat",
       tts: "/api/tts",
-      voice: "/api/voice",
+      ttsHealth: "/api/tts/health",
+      voice: "/api/nyx/voice",
+      voiceHealth: "/api/nyx/voice/health",
       guideHealth: "/api/nyx/guide/health",
       actionsSchema: "/api/nyx/guide/actions/schema",
       actionsValidate: "/api/nyx/guide/actions/validate",
@@ -1127,18 +1952,10 @@ function nyxGuide789TraceId(req) {
 }
 
 function nyxGuide789ClientKey(req) {
-  const forwarded = nyxGuideSafeText(req && req.headers && req.headers["x-forwarded-for"], 200)
-    .split(",")[0]
-    .trim();
-  const remote = nyxGuideSafeText(
-    forwarded ||
-    (req && req.ip) ||
-    (req && req.socket && req.socket.remoteAddress) ||
-    "unknown",
-    120
-  );
-  const session = nyxGuideSafeText(req && req.headers && req.headers["x-sb-session-id"], 96);
-  return nyxGuide789Hash(`${remote}|${session || "anonymous"}`).slice(0, 24);
+  // Rate-limit by the trusted client IP. A caller-controlled session ID must
+  // not create a fresh bucket on every request.
+  const remote = nyxGuideSafeText(trustedClientIp(req), 120);
+  return nyxGuide789Hash(remote).slice(0, 24);
 }
 
 function nyxGuide789OriginAccepted(req) {
@@ -1692,13 +2509,13 @@ app.locals.nyxGuideSteps789 = {
   function preflight(req,res){const trace=nyxGuide789TraceId(req);headers(req,res,trace);if(!nyxGuide789OriginAccepted(req)){res.status(403).json({ok:false,error:"origin_not_allowed",traceId:trace,diagnosticsRedacted:true});return null;}if(!FEATURES.enabled||FEATURES.rollbackSafeMode){res.status(503).json({ok:false,error:"guide_steps_10_12_disabled",rollbackSafeMode:FEATURES.rollbackSafeMode,traceId:trace,diagnosticsRedacted:true});return null;}if(!nyxGuide789RequestBodyWithinLimit(req)){res.status(413).json({ok:false,error:"guide_payload_too_large",traceId:trace,diagnosticsRedacted:true});return null;}const rate=nyxGuide789RateCheck(req,res,NYX_GUIDE_789_RATE_LIMIT);if(!rate.allowed){res.status(429).json({ok:false,error:"guide_rate_limited",retryAfterMs:Math.max(0,rate.resetAt-Date.now()),traceId:trace,diagnosticsRedacted:true});return null;}return{traceId:trace};}
   function guardedLoad(paths){let error="";for(const p of paths){try{const mod=require(p);if(mod)return{ok:true,path:p,mod};}catch(e){error=text(e&&e.code||e&&e.message,80);}}return{ok:false,path:"",mod:null,error};}
   const moduleChecks=Object.freeze({
-    stateSpine:guardedLoad(["./Utils/stateSpine.js","./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
-    voiceRoute:guardedLoad(["./Routes/voiceRoute.js","./routes/voiceRoute.js"]),
-    chatEngine:guardedLoad(["./Utils/chatEngine.js","./utils/chatEngine.js"]),
+    stateSpine:guardedLoad(["./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
+    voiceRoute:guardedLoad(["./utils/voiceRoute.js"]),
+    chatEngine:guardedLoad(["./utils/chatEngine.js"]),
     domainRouter:guardedLoad(["./Utils/domainRouter.js","./utils/domainRouter.js"]),
     domainConcierge:guardedLoad(["./DomainConcierge.js","./Data/marion/runtime/DomainConcierge.js"]),
     intentRouter:guardedLoad(["./marionIntentRouter.js","./Data/marion/runtime/marionIntentRouter.js"]),
-    stateController:guardedLoad(["./nyx_state_controller.js","./Data/marion/runtime/nyx_state_controller.js"])
+    stateController:guardedLoad(["./utils/nyx_state_controller.js"])
   });
   function moduleReady(name,check){if(!check.ok)return false;const m=check.mod,keys=Object.keys(m||{});if(name==="stateSpine")return keys.includes("normalizeNyxGuideExecutionState")||keys.includes("NYX_GUIDE_STEPS_10_11_12_STATE_VERSION");if(name==="voiceRoute")return !!(m.NYX_GUIDE_STEPS_10_11_12_VOICE_VERSION||m.normalizeGuideExecutionBoundary);if(name==="chatEngine")return !!(m.NYX_GUIDE_STEPS_10_11_12_CHAT_VERSION||m.attachNyxGuideExecutionBoundary);if(name==="domainRouter")return !!(m.NYX_GUIDE_STEPS_10_11_12_ROUTER_VERSION||m.attachNyxGuideRouteBoundary);if(name==="domainConcierge")return !!(m.NYX_GUIDE_STEPS_10_11_12_CONCIERGE_VERSION||m.buildNyxGuideExecutionBoundary);if(name==="intentRouter")return !!(m.NYX_GUIDE_STEPS_10_11_12_INTENT_VERSION||m.attachNyxGuideIntentExecution);if(name==="stateController")return !!(m.NYX_GUIDE_STEPS_10_11_12_CONTROLLER_VERSION||m.prototype&&m.prototype.beginGuideAction);return false;}
   function readiness(){const bridge=nyxGuide789Bridge();const bridgeReady=!!(bridge&&typeof bridge.buildGuideActionPlan==="function"&&typeof bridge.buildContinuityEnvelope==="function"&&typeof bridge.sanitizeNyxGuideTelemetryEvent==="function");const modules={};let moduleCount=0;for(const [name,check] of Object.entries(moduleChecks)){const ready=moduleReady(name,check);modules[name]={loaded:check.ok,ready,path:check.path||"",errorCode:check.ok?"":check.error||"unavailable"};if(ready)moduleCount+=1;}const featuresReady=FEATURES.enabled&&FEATURES.execution&&FEATURES.stateValidation&&FEATURES.releaseGate&&!FEATURES.rollbackSafeMode;const releaseReady=featuresReady&&bridgeReady&&moduleCount===Object.keys(moduleChecks).length;return{releaseReady,featuresReady,bridgeReady,moduleCount,moduleTotal:Object.keys(moduleChecks).length,modules};}
@@ -1794,17 +2611,30 @@ try {
 // V1.3 hardens the projection layer against transcript echo promotion.
 const NYX_VOICE_TRANSCRIPT_ROUTE_VERSION = "nyx.voiceTranscriptRoute/1.9-phase4-speaker-identity-boundary";
 const MARION_ADMIN_ONLY_VOICE_DELIVERY_VERSION = "marion.adminOnlyVoiceDelivery/1.0";
-const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.0-phase1b-admin-interface-gate";
+const MARION_ADMIN_CONVERSATION_ROUTE_VERSION = "marion.adminConversationRoute/1.6-review-store-migration-diagnostics";
 
 const MARION_ADMIN_CONVERSATION_ROUTES = Object.freeze([
   "/api/marion/admin/conversation",
-  "/marion/admin/conversation"
+  "/marion/admin/conversation",
+  "/api/private/marion/admin/conversation",
+  "/private/marion/admin/conversation"
 ]);
 
 const MARION_ADMIN_CONVERSATION_HEALTH_ROUTES = Object.freeze([
   "/api/marion/admin/conversation/health",
-  "/marion/admin/conversation/health"
+  "/marion/admin/conversation/health",
+  "/api/private/marion/admin/conversation/health",
+  "/private/marion/admin/conversation/health"
 ]);
+
+const MARION_LEARNING_ADMIN_ROUTES = Object.freeze({
+  available: ["/api/private/marion/learning/manifests/available", "/private/marion/learning/manifests/available"],
+  approved: ["/api/private/marion/learning/manifests/approved", "/private/marion/learning/manifests/approved"],
+  reviewIssue: ["/api/private/marion/learning/reviews/issue", "/private/marion/learning/reviews/issue"],
+  approve: ["/api/private/marion/learning/manifests/approve", "/private/marion/learning/manifests/approve"],
+  revoke: ["/api/private/marion/learning/manifests/revoke", "/private/marion/learning/manifests/revoke"],
+  evaluate: ["/api/private/marion/learning/evaluate", "/private/marion/learning/evaluate"]
+});
 
 const MARION_ADMIN_CONVERSATION_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceGateway.js",
@@ -1837,6 +2667,9 @@ const NYX_VOICE_REQUIRED_RUNTIME_FILES = Object.freeze([
   "Data/marion/runtime/MarionVoiceAuthorizationGate.js",
   "Data/marion/runtime/MarionVoiceSpeakerIdentity.js",
   "Data/marion/runtime/MarionVoiceSpeakerRegistry.js",
+  "Data/marion/runtime/MarionVoiceChallengeVerifier.js",
+  "Data/marion/runtime/MarionVoiceContinuityWindow.js",
+  "Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js",
   "Data/marion/runtime/MarionVoiceOutputPolicy.js",
   "Data/marion/runtime/MarionVoiceTelemetry.js",
   "Data/marion/runtime/MarionVoiceTranscriptNormalizer.js",
@@ -1866,6 +2699,37 @@ function nyxVoiceRequiredRuntimeDiagnostics() {
 
 function nyxVoiceRuntimeFilesReady() {
   return nyxVoiceRequiredRuntimeDiagnostics().every((item) => item.exists);
+}
+
+const NYX_VOICE_AUTHORITY_REQUIRED_RUNTIME_FILES = Object.freeze([
+  "Data/marion/runtime/MarionVoiceGateway.js",
+  "Data/marion/runtime/MarionVoiceInputEnvelope.js",
+  "Data/marion/runtime/MarionVoiceAuthorizationGate.js",
+  "Data/marion/runtime/MarionVoiceSpeakerIdentity.js",
+  "Data/marion/runtime/MarionVoiceSpeakerRegistry.js",
+  "Data/marion/runtime/MarionVoiceChallengeVerifier.js",
+  "Data/marion/runtime/MarionVoiceContinuityWindow.js",
+  "Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js",
+  "Data/marion/runtime/MarionVoiceOutputPolicy.js",
+  "Data/marion/runtime/MarionVoiceTelemetry.js",
+  "Data/marion/runtime/MarionVoiceTranscriptNormalizer.js"
+]);
+
+function nyxVoiceAuthorityRuntimeDiagnostics() {
+  return NYX_VOICE_AUTHORITY_REQUIRED_RUNTIME_FILES.map((relativePath) => {
+    const filePath = path.join(__dirname, relativePath);
+    let exists = false;
+    let bytes = 0;
+    try {
+      const stat = fs.statSync(filePath);
+      exists = stat.isFile();
+      bytes = exists ? stat.size : 0;
+    } catch (_) {
+      exists = false;
+      bytes = 0;
+    }
+    return { path: relativePath, exists, bytes };
+  });
 }
 
 function marionAdminVoiceEnvTokens() {
@@ -1957,14 +2821,13 @@ function marionAdminVoiceRequestAuth(req, body) {
 }
 
 function marionAdminConversationEnvTokens() {
+  // Text administration accepts only conversation/admin credentials.
+  // Voice credentials remain capability-scoped and cannot unlock text access.
   return [
     process.env.SB_MARION_ADMIN_CONVERSATION_TOKEN,
     process.env.SB_MARION_ADMIN_TOKEN,
     process.env.MARION_ADMIN_CONVERSATION_TOKEN,
-    process.env.MARION_ADMIN_TOKEN,
-    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
-    process.env.SB_ADMIN_VOICE_TOKEN,
-    process.env.MARION_ADMIN_VOICE_TOKEN
+    process.env.MARION_ADMIN_TOKEN
   ].map((item) => String(item || "").trim()).filter(Boolean);
 }
 
@@ -1978,7 +2841,7 @@ function marionAdminConversationRequestAuth(req) {
           : cleanText(session.role || "");
         return {
           verified: true,
-          configured: marionAdminConversationEnvTokens().length > 0,
+          configured: true,
           provided: true,
           source: "x-sb-marion-admin-session-token",
           sessionVerified: true,
@@ -1987,7 +2850,9 @@ function marionAdminConversationRequestAuth(req) {
           session: session.session,
           role,
           capabilities: session.capabilities || (typeof marionAdminConsoleCapabilitiesForRole === "function" ? marionAdminConsoleCapabilitiesForRole(role) : []),
-          authMode: "admin_console_session"
+          authMode: session.authMode || "admin_console_session",
+          testBypass: session.testBypass === true,
+          testingBypass: session.testingBypass === true
         };
       }
     }
@@ -1997,8 +2862,7 @@ function marionAdminConversationRequestAuth(req) {
   const candidates = [
     { source: "x-sb-marion-admin-conversation-token", value: headers["x-sb-marion-admin-conversation-token"] },
     { source: "x-sb-marion-admin-token", value: headers["x-sb-marion-admin-token"] },
-    { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
-    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] }
+    { source: "x-marion-admin-token", value: headers["x-marion-admin-token"] }
   ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
 
   for (const candidate of candidates) {
@@ -2029,6 +2893,485 @@ function marionAdminConversationRuntimeDiagnostics() {
 
 function marionAdminConversationRuntimeReady() {
   return marionAdminConversationRuntimeDiagnostics().every((item) => item.exists);
+}
+
+// Production learning/review records use Postgres because Render Free does not
+// provide a persistent local disk. This diagnostic never exposes credentials.
+function marionLearningStorageConfiguration() {
+  const enabled = String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() === "true";
+  const evaluationEnabled = String(process.env.SB_MARION_LEARNING_EVALUATION_ENABLED || "").toLowerCase() === "true";
+  const runtimeEnabled = enabled || evaluationEnabled;
+  let configured = false;
+  let reason = !runtimeEnabled ? "learning_disabled" : "database_url_missing_or_invalid";
+  if (typeof process.env.DATABASE_URL === "string" && /^postgres(?:ql)?:\/\//i.test(process.env.DATABASE_URL)) {
+    try {
+      const parsed = new URL(process.env.DATABASE_URL);
+      const database = decodeURIComponent(parsed.pathname.replace(/^\/+|\/+$/g, ""));
+      const evaluationTarget = parsed.hostname.toLowerCase() === "ep-falling-violet-b5js6sve-pooler.c-7.us-east-2.aws.neon.tech" && database === "neondb";
+      configured = !evaluationEnabled || evaluationTarget;
+      reason = !runtimeEnabled ? "learning_disabled" : !configured ? "evaluation_database_not_allowlisted" :
+        enabled ? "database_schema_check_required" : "evaluation_runtime_schema_check_required";
+    } catch (_) {
+      configured = false;
+      reason = "database_url_missing_or_invalid";
+    }
+  }
+  return Object.freeze({ storage: "postgresql", configured, enabled, evaluationEnabled, runtimeEnabled, ready: false, reason });
+}
+
+// Storage readiness is populated by the read-only Postgres schema probe during
+// server startup. Keep configuration separate from verified runtime state so
+// health does not claim the schema is ready before that probe completes.
+function marionLearningStorageReadiness() {
+  const config = marionLearningStorageConfiguration();
+  if (!config.runtimeEnabled || !config.configured) return config;
+  const probe = app.locals && app.locals.marionLearningPostgresReadiness;
+  if (!probe || probe.checked !== true) {
+    return Object.freeze({ ...config, ready: false, reason: "evaluation_runtime_schema_check_pending" });
+  }
+  const reason = /^[a-z0-9_]+$/i.test(String(probe.reason || ""))
+    ? String(probe.reason)
+    : "evaluation_runtime_schema_check_failed";
+  return Object.freeze({ ...config, ready: probe.ready === true, reason });
+}
+
+function recordMarionLearningStorageReadiness(ready, reason) {
+  app.locals = app.locals || {};
+  const safeReason = /^[a-z0-9_]+$/i.test(String(reason || ""))
+    ? String(reason)
+    : "evaluation_runtime_schema_check_failed";
+  const state = Object.freeze({ checked: true, ready: ready === true, reason: safeReason, checkedAt: Date.now() });
+  app.locals.marionLearningPostgresReadiness = state;
+  return state;
+}
+
+// Schema changes are deliberately separate from server startup. This guarded,
+// one-time command is locked to the confirmed Marion evaluation database.
+const MARION_LEARNING_EVAL_SCHEMA_INIT_COMMAND = "--initialize-marion-learning-eval-schema";
+const MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION = "marion-learning-eval";
+const MARION_LEARNING_EVAL_DATABASE = "neondb";
+const MARION_LEARNING_EVAL_HOSTS = new Set([
+  "ep-falling-violet-b5js6sve-pooler.c-7.us-east-2.aws.neon.tech"
+]);
+
+function marionLearningSchemaInitError(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+function validateMarionLearningEvalSchemaInitTarget({
+  databaseUrl = process.env.DATABASE_URL,
+  confirmation = process.env.SB_MARION_LEARNING_SCHEMA_INIT_CONFIRM,
+  selfLearningEnabled = process.env.SB_MARION_SELF_LEARNING_ENABLED
+} = {}) {
+  if (confirmation !== MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION) {
+    throw marionLearningSchemaInitError("explicit_evaluation_branch_confirmation_required");
+  }
+  if (String(selfLearningEnabled || "").toLowerCase() === "true") {
+    throw marionLearningSchemaInitError("disable_self_learning_before_schema_initialization");
+  }
+  if (typeof databaseUrl !== "string" || databaseUrl.length === 0) {
+    throw marionLearningSchemaInitError("database_url_missing");
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(databaseUrl);
+  } catch (_) {
+    throw marionLearningSchemaInitError("database_url_invalid");
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
+    throw marionLearningSchemaInitError("database_url_not_postgresql");
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (!MARION_LEARNING_EVAL_HOSTS.has(host)) {
+    throw marionLearningSchemaInitError("database_endpoint_not_allowlisted_for_evaluation");
+  }
+
+  let database = "";
+  try {
+    database = decodeURIComponent(parsed.pathname.replace(/^\/+|\/+$/g, ""));
+  } catch (_) {
+    throw marionLearningSchemaInitError("database_name_invalid");
+  }
+  if (database !== MARION_LEARNING_EVAL_DATABASE) {
+    throw marionLearningSchemaInitError("database_name_not_allowlisted_for_evaluation");
+  }
+  return Object.freeze({ database, host });
+}
+
+async function marionLearningAuditBootstrapState(pool, adapter) {
+  const existence = await pool.query(`SELECT
+    to_regclass('public.marion_learning_audit') IS NOT NULL AS audit_exists,
+    to_regclass('public.marion_learning_audit_state') IS NOT NULL AS state_exists`);
+  const tables = existence && existence.rows && existence.rows[0];
+  if (!tables) throw marionLearningSchemaInitError("audit_preflight_failed");
+  if (tables.audit_exists !== tables.state_exists) {
+    throw marionLearningSchemaInitError("partial_audit_schema_refused");
+  }
+  if (!tables.audit_exists) return "empty_schema";
+
+  const counts = await pool.query(`SELECT
+    (SELECT COUNT(*)::text FROM public.marion_learning_audit) AS audit_rows,
+    (SELECT COUNT(*)::text FROM public.marion_learning_audit_state) AS state_rows,
+    (SELECT sequence::text FROM public.marion_learning_audit_state WHERE singleton = TRUE) AS state_sequence,
+    (SELECT event_hash FROM public.marion_learning_audit_state WHERE singleton = TRUE) AS state_hash`);
+  const row = counts && counts.rows && counts.rows[0];
+  if (!row) throw marionLearningSchemaInitError("audit_preflight_failed");
+
+  if (row.audit_rows === "0" && row.state_rows === "0") return "empty_audit_store";
+  if (row.audit_rows === "0" && row.state_rows === "1" &&
+      row.state_sequence === "0" && row.state_hash === "GENESIS") {
+    const health = await adapter.probeMarionLearningPostgres(pool);
+    if (health && health.ready === true) return "already_initialized";
+    if (health && health.coreReady === true && health.reviewStoreReady === false) return "review_store_migration_required";
+    return "bootstrap_present_schema_incomplete";
+  }
+
+  const health = await adapter.probeMarionLearningPostgres(pool);
+  if (health && health.ready === true) return "already_initialized";
+  if (health && health.coreReady === true && health.reviewStoreReady === false) return "review_store_migration_required";
+  throw marionLearningSchemaInitError("nonempty_or_inconsistent_audit_store_refused");
+}
+
+async function initializeMarionLearningEvalSchema() {
+  const target = validateMarionLearningEvalSchemaInitTarget();
+  let Pool;
+  try {
+    ({ Pool } = require("pg"));
+  } catch (_) {
+    throw marionLearningSchemaInitError("postgres_dependency_missing");
+  }
+
+  const adapter = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+  if (typeof adapter.initializeMarionLearningPostgresSchema !== "function" ||
+      typeof adapter.probeMarionLearningPostgres !== "function") {
+    throw marionLearningSchemaInitError("explicit_schema_initializer_unavailable");
+  }
+
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 1,
+    connectionTimeoutMillis: 8000,
+    idleTimeoutMillis: 5000,
+    ssl: { rejectUnauthorized: true }
+  });
+  try {
+    const state = await marionLearningAuditBootstrapState(pool, adapter);
+    if (state === "already_initialized") {
+      console.log(JSON.stringify({ status: "already_initialized", branch: MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION, database: target.database }));
+      return;
+    }
+    await adapter.initializeMarionLearningPostgresSchema(pool);
+    const health = await adapter.probeMarionLearningPostgres(pool);
+    if (!health || health.ready !== true) {
+      throw marionLearningSchemaInitError("post_initialization_health_probe_failed");
+    }
+    console.log(JSON.stringify({
+      status: state === "review_store_migration_required" ? "review_store_migrated_and_verified" : "initialized_and_verified",
+      branch: MARION_LEARNING_EVAL_SCHEMA_INIT_CONFIRMATION,
+      database: target.database
+    }));
+  } finally {
+    await pool.end().catch(() => {});
+  }
+}
+
+function getMarionLearningPostgresPool() {
+  const config = marionLearningStorageConfiguration();
+  if (!config.configured || !config.runtimeEnabled) return null;
+  app.locals = app.locals || {};
+  if (app.locals.marionLearningPgPool) return app.locals.marionLearningPgPool;
+  const pg = require("pg");
+  const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 3,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    ssl: { rejectUnauthorized: true }
+  });
+  if (typeof pool.on === "function") pool.on("error", () => {
+    console.warn("[Sandblast][marion-learning-postgres]", { status: "idle_connection_error" });
+  });
+  app.locals.marionLearningPgPool = pool;
+  return pool;
+}
+
+function marionLearningOfflineHandlersReady() {
+  const registry = app.locals && app.locals.marionLearningOfflineVersions;
+  if (!(registry instanceof Map) || registry.size === 0) return false;
+  for (const [version, entry] of registry.entries()) {
+    if (!entry || entry.version !== version || entry.mode !== "offline" ||
+        typeof entry.runOffline !== "function" || !Array.isArray(entry.bindings) || entry.bindings.length === 0 ||
+        entry.bindings.some((binding) => !binding ||
+          typeof binding.datasetId !== "string" || typeof binding.datasetVersion !== "string" ||
+          !["retrieval", "routing", "response_style"].includes(binding.scope))) return false;
+  }
+  return true;
+}
+
+function registerMarionLearningOfflineComposerVersions() {
+  app.locals = app.locals || {};
+  if (app.locals.marionLearningOfflineComposerRegistrationAttempted === true) {
+    return app.locals.marionLearningOfflineComposerRegistration || { ok: false, reason: "offline_registration_unavailable" };
+  }
+  app.locals.marionLearningOfflineComposerRegistrationAttempted = true;
+  try {
+    const registry = app.locals.marionLearningOfflineVersions;
+    const manifestSource = app.locals.marionLearningManifestSource;
+    const fixtureStore = app.locals.marionLearningFixtureStore;
+    const composer = require("./Data/marion/runtime/composeMarionResponse.js");
+    const offlineComposerVersions = require("./Data/marion/runtime/learning/MarionLearningOfflineComposerVersions.js");
+    const result = offlineComposerVersions.registerMarionLearningOfflineComposerVersions({
+      versionRegistry: registry,
+      manifestSource,
+      fixtureStore,
+      composer
+    });
+    app.locals.marionLearningOfflineComposerRegistration = result;
+    return result;
+  } catch (_) {
+    const result = Object.freeze({ ok: false, reason: "offline_composer_registration_failed" });
+    app.locals.marionLearningOfflineComposerRegistration = result;
+    return result;
+  }
+}
+
+function marionLearningOfflineEvaluationStatus() {
+  const ready = marionLearningOfflineHandlersReady();
+  const registration = app.locals && app.locals.marionLearningOfflineComposerRegistration;
+  return Object.freeze({
+    ready,
+    reason: ready ? "ready" :
+      registration && /^[a-z0-9_]+$/i.test(String(registration.reason || ""))
+        ? String(registration.reason)
+        : "offline_evaluation_handlers_not_registered"
+  });
+}
+
+// Convert setup exceptions into a small, non-sensitive diagnostic code. Never
+// return or log the original message: database drivers can include connection
+// details in their errors.
+function marionLearningSetupDiagnosticReason(error) {
+  const message = String(error && error.message || "");
+  const code = String(error && error.code || "");
+  if (/Cannot find module ['\"]pg['\"]/.test(message)) return "postgres_dependency_missing";
+  if (code === "ERR_REQUIRE_ESM") return "learning_dependency_module_format_invalid";
+  if (/Cannot find module/.test(message) || code === "MODULE_NOT_FOUND") return "learning_dependency_module_missing";
+
+  const exactReasons = new Map([
+    ["a PostgreSQL Pool is required", "postgres_pool_invalid"],
+    ["offline resolveVersion, loadFixture, and scorer functions are required", "offline_evaluation_dependencies_invalid"],
+    ["offline resolver, fixture loader, and scorer functions are required", "offline_evaluation_dependencies_invalid"],
+    ["private durable signalStore.appendSignal is required", "signal_store_contract_invalid"],
+    ["private durable proposalStore.get/set is required", "proposal_store_contract_invalid"],
+    ["private durable durableAuditAppend is required", "durable_audit_append_invalid"],
+    ["trusted manifestSource.load/list is required", "manifest_source_contract_invalid"],
+    ["private durable manifestRegistryStore with revocation support is required", "manifest_registry_store_contract_invalid"],
+    ["trusted fixture-set verifier, review verifier, and review issuer are required", "fixture_review_hooks_invalid"],
+    ["owner_fixture_review_workflow_unavailable", "owner_fixture_review_workflow_unavailable"],
+    ["Gateway learning registration hook is unavailable", "gateway_learning_registration_hook_unavailable"],
+    ["resolveVersion, loadFixture, scoreFixture, and registry authorizeEvaluation are required", "offline_runner_contract_invalid"],
+    ["private durable registrationStore and revocation methods are required", "manifest_registry_store_contract_invalid"],
+    ["trusted fixture-set verifier and fixture-review issue/verify callbacks are required", "fixture_review_hooks_invalid"],
+    ["durable auditStore.append is required", "durable_audit_store_contract_invalid"],
+    ["signalAdapter.record is required", "signal_adapter_contract_invalid"],
+    ["evaluator.evaluate is required", "evaluator_contract_invalid"],
+    ["approvalGate methods are required", "approval_gate_contract_invalid"],
+    ["trusted manifestRegistry methods are required", "manifest_registry_contract_invalid"],
+    ["registered Marion learning runtime manifest methods are required", "admin_learning_handlers_contract_invalid"],
+    ["server middleware owner-context resolver is required", "owner_context_resolver_missing"],
+    ["fixture directory must be an absolute path", "fixture_directory_invalid"],
+    ["manifest directory must be an absolute path", "manifest_directory_invalid"]
+  ]);
+  if (exactReasons.has(message)) return exactReasons.get(message);
+  if (/^(ENOENT|EACCES|EPERM|EISDIR|ENOTDIR)$/.test(code)) return "learning_filesystem_setup_failed";
+  if (error instanceof TypeError) return "learning_runtime_contract_invalid";
+  return "learning_runtime_setup_failed";
+}
+
+// Backend startup is fail-closed: durable private stores, packaged fixtures,
+// an allowlisted offline resolver, and a trusted review verifier are required.
+function ensureMarionLearningRuntime() {
+  app.locals = app.locals || {};
+  const storageConfig = marionLearningStorageConfiguration();
+  if (!storageConfig.runtimeEnabled) {
+    return { ready: false, status: "disabled" };
+  }
+  if (!storageConfig.configured) return { ready: false, status: storageConfig.reason };
+  const current = app.locals.marionLearningBackend;
+  if (current && current.runtime) {
+    registerMarionLearningOfflineComposerVersions();
+    if (app.locals.marionLearningAdminHandlers && typeof app.locals.marionLearningAdminHandlers.issueReview === "function") {
+      delete app.locals.marionLearningSetupDiagnostic;
+      return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
+    }
+    try {
+      const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
+      app.locals.marionLearningAdminHandlers = admin.createMarionLearningAdminHandlers({
+        runtime: current.runtime,
+        getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
+      });
+      delete app.locals.marionLearningSetupDiagnostic;
+      return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
+    } catch (_) {
+      return { ready: false, status: "learning_admin_handlers_unavailable" };
+    }
+  }
+  try {
+    const learningRoot = path.join(__dirname, "Data/marion/runtime/learning");
+    const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "fixture_store"));
+    const fixtureModule = require("./Data/marion/runtime/learning/MarionLearningFixtureStore.js");
+    const fixtureStore = fixtureModule.createMarionLearningFixtureStore({ directory: fixtureDirectory });
+    const contract = require("./Data/marion/runtime/learning/MarionLearningFixtureContract.js");
+    const manifestModule = require("./Data/marion/runtime/learning/MarionLearningManifestRegistry.js");
+    const manifestSource = manifestModule.createFileManifestSource({ directory: path.join(learningRoot, "manifests") });
+    app.locals.marionLearningFixtureStore = fixtureStore;
+    app.locals.marionLearningManifestSource = manifestSource;
+    app.locals.marionLearningOfflineVersions = app.locals.marionLearningOfflineVersions instanceof Map
+      ? app.locals.marionLearningOfflineVersions : new Map();
+    const pgPool = getMarionLearningPostgresPool();
+    if (!pgPool) return { ready: false, status: "database_url_missing_or_invalid" };
+    const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+    let trust = app.locals.marionLearningTrust;
+    let adapters = app.locals.marionLearningAdapters;
+    if (!adapters) {
+      adapters = adapterModule.createMarionLearningPostgresAdapters({
+        pool: pgPool,
+        resolveVersion: (...args) => {
+          if (!trust || typeof trust.resolveVersion !== "function") throw new Error("offline_resolver_not_ready");
+          return trust.resolveVersion(...args);
+        },
+        loadFixture: fixtureStore.loadFixture,
+        scoreFixture: contract.scoreFixture
+      });
+      app.locals.marionLearningAdapters = adapters;
+    }
+    if (!trust) {
+      const trustedHooks = require("./Data/marion/runtime/learning/MarionLearningTrustedHooks.js");
+      const offlineVersions = app.locals.marionLearningOfflineVersions instanceof Map
+        ? app.locals.marionLearningOfflineVersions : new Map();
+      app.locals.marionLearningOfflineVersions = offlineVersions;
+      trust = trustedHooks.createMarionLearningTrustedHooks({
+        versionRegistry: offlineVersions,
+        reviewStore: adapters.reviewStore,
+        reviewHmacKey: process.env.SB_MARION_LEARNING_REVIEW_HMAC_KEY
+      });
+      app.locals.marionLearningTrust = trust;
+    }
+    if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function" ||
+        typeof trust.issueFixtureReview !== "function") {
+      return { ready: false, status: "trusted_resolver_or_review_issuer_missing" };
+    }
+    if (trust.configured === false) {
+      const configReason = /^[a-z0-9_]+$/i.test(String(trust.configurationReason || ""))
+        ? String(trust.configurationReason)
+        : "review_trust_config_missing";
+      return { ready: false, status: configReason };
+    }
+    const setup = require("./Data/marion/runtime/learning/MarionLearningBackendSetup.js");
+    const backend = setup.createAndRegisterMarionLearningBackend({
+      ...adapters,
+      manifestSource,
+      verifyFixtureSet: fixtureStore.verifyFixtureSet,
+      verifyFixtureReview: trust.verifyFixtureReview,
+      issueFixtureReview: trust.issueFixtureReview,
+      offlineEvaluationReady: () => marionLearningOfflineHandlersReady(),
+      captureEnabled: storageConfig.enabled,
+      gateway: require("./Data/marion/runtime/MarionVoiceGateway.js")
+    });
+    const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
+    app.locals.marionLearningBackend = backend;
+    app.locals.marionLearningAdminHandlers = admin.createMarionLearningAdminHandlers({
+      runtime: backend.runtime,
+      getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
+    });
+    registerMarionLearningOfflineComposerVersions();
+    delete app.locals.marionLearningSetupDiagnostic;
+    return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
+  } catch (error) {
+    const message = String(error && error.message || "");
+    const status = /Cannot find module ['\"]pg/.test(message) ? "postgres_dependency_missing" : "postgres_learning_setup_failed";
+    const diagnosticReason = marionLearningSetupDiagnosticReason(error);
+    app.locals.marionLearningSetupDiagnostic = diagnosticReason;
+    if (app.locals.marionLearningLastLoggedSetupDiagnostic !== diagnosticReason) {
+      console.warn("[Sandblast][marion-learning-runtime]", {
+        status: "setup_failed",
+        reason: diagnosticReason
+      });
+      app.locals.marionLearningLastLoggedSetupDiagnostic = diagnosticReason;
+    }
+    return { ready: false, status, diagnosticReason };
+  }
+}
+
+function marionLearningVerifiedOwnerContext(req) {
+  const auth = marionAdminConsoleRequestAuth(req);
+  const sessionId = cleanText(auth && (auth.sessionId || (auth.session && auth.session.id)) || "");
+  if (!auth || auth.verified !== true || auth.sessionVerified !== true ||
+      marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER || !sessionId ||
+      auth.testBypass === true || auth.testingBypass === true) return null;
+  const actorId = `owner:${crypto.createHash("sha256").update(sessionId).digest("hex").slice(0, 24)}`;
+  return Object.freeze({ authenticated: true, role: "owner", actorId, verifiedBy: "server_middleware" });
+}
+
+function marionLearningContextFor(req, body, auth) {
+  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") return null;
+  const source = isObj(body) ? body : {};
+  const identity = isObj(auth) ? auth : {};
+  const signalInput = isObj(source.marionLearningSignal) ? source.marionLearningSignal : {};
+  const score = Number(signalInput.outcomeScore);
+  const allowedClasses = ["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"];
+  const allowedScopes = ["retrieval", "routing", "response_style"];
+  const sessionId = cleanText(identity.sessionId || (identity.session && identity.session.id) || "");
+  if (source.marionLearningConsent !== true || identity.verified !== true ||
+      identity.sessionVerified !== true || identity.testBypass === true || identity.testingBypass === true ||
+      cleanText(identity.role || "") !== "owner" || !sessionId ||
+      !Number.isFinite(score) || score < 0 || score > 1 ||
+      !allowedClasses.includes(cleanText(signalInput.signalClass)) ||
+      !allowedScopes.includes(cleanText(signalInput.scope))) return null;
+
+  return Object.freeze({
+    authenticated: true,
+    ownerAuthenticated: true,
+    role: "owner",
+    verifiedBy: "server_middleware",
+    actorId: `owner:${crypto.createHash("sha256").update(sessionId).digest("hex").slice(0, 24)}`,
+    learningConsent: true,
+    signal: Object.freeze({
+      signalId: `mls_${crypto.randomBytes(16).toString("hex")}`,
+      signalClass: cleanText(signalInput.signalClass),
+      scope: cleanText(signalInput.scope),
+      sourceSubsystem: "marion_admin_conversation",
+      outcomeScore: score,
+      occurredAt: new Date().toISOString()
+    })
+  });
+}
+
+async function captureAcceptedMarionLearningFinal(result, learningContext) {
+  if (String(process.env.SB_MARION_SELF_LEARNING_ENABLED || "").toLowerCase() !== "true") return;
+  const backend = app.locals && app.locals.marionLearningBackend;
+  if (!backend || !backend.runtime || typeof backend.runtime.captureFinalOutcome !== "function" || !learningContext) return;
+  try {
+    const composer = require("./Data/marion/runtime/composeMarionResponse.js");
+    if (!composer || typeof composer.isAcceptedMarionLearningFinal !== "function" ||
+        composer.isAcceptedMarionLearningFinal(result) !== true) return;
+    const signal = learningContext.signal || {};
+    await backend.runtime.captureFinalOutcome({
+      finalAccepted: true,
+      learningConsent: true,
+      signalId: signal.signalId,
+      signalClass: signal.signalClass,
+      scope: signal.scope,
+      sourceSubsystem: signal.sourceSubsystem,
+      outcomeScore: signal.outcomeScore,
+      occurredAt: signal.occurredAt
+    });
+  } catch (_) {
+    // Learning persistence must never suppress or alter Marion's response.
+  }
 }
 
 function marionAdminRedactText(value) {
@@ -2115,7 +3458,7 @@ function marionAdminRuntimeSafeFallbackReply(prompt, err) {
   const norm = { prompt, text: prompt, message: prompt, userText: prompt, rawUserText: prompt };
   const deterministic = deterministicAdminKnowledgeReply(norm);
   if (deterministic) return deterministic;
-  const detail = cleanText(err && (err.message || err) || "");
+  const detail = marionAdminRuntimeSafeErrorText(err, "runtime_error", 800);
   if (/\bdomain\s+routing\b|\bdomain\s+router\b/i.test(prompt || detail)) {
     return "Domain routing is Marionâ€™s triage layer. It reads the userâ€™s intent, selects the best knowledge lane, and sends the turn to that lane so the response comes from the right context instead of a generic fallback.";
   }
@@ -2226,15 +3569,21 @@ function marionAdminDeepVisibleReplyCandidate(value, prompt, source, depth, seen
 /* PRIORITY_9J_R1B_ADMIN_VISIBLE_EXTRACTION_HELPER_START */
 function priority9JR1BAdminVisibleReply(value, prompt) {
   const promptText = cleanText(prompt || "");
-  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
-  if (forced && !/^\s*\[object object\]\s*$/i.test(forced)) return forced;
   const deep = marionAdminDeepVisibleReplyCandidate(value, promptText, {}, 0, new Set());
-  if (deep && !/^\s*\[object object\]\s*$/i.test(deep)) return deep;
+  if (deep && !/^\s*\[object object\]\s*$/i.test(deep)) {
+    return marionAdminSubstantiveReplyGuard(deep, promptText, value);
+  }
   if (typeof value === "string") {
     const clean = marionAdminProjectionCleanReply(value);
-    if (clean && !/^\s*\[object object\]\s*$/i.test(clean)) return clean;
+    if (clean && !/^\s*\[object object\]\s*$/i.test(clean)) {
+      return marionAdminSubstantiveReplyGuard(clean, promptText, value);
+    }
   }
-  return "";
+  const forced = (typeof priority9JR1AReplyFor === "function" && promptText) ? priority9JR1AReplyFor(promptText) : "";
+  if (forced && !/^\s*\[object object\]\s*$/i.test(forced) && !marionAdminHoldingReply(forced)) {
+    return marionAdminSubstantiveReplyGuard(forced, promptText, value);
+  }
+  return marionAdminCapabilityReplyFor(promptText) || "";
 }
 /* PRIORITY_9J_R1B_ADMIN_VISIBLE_EXTRACTION_HELPER_END */
 
@@ -2596,12 +3945,52 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
     });
   }
 
+  const voiceAuthorityRuntime = nyxVoiceAuthorityRuntimeDiagnostics();
+  if (!voiceAuthorityRuntime.every((item) => item.exists)) {
+    return res.status(503).json({
+      ok: false,
+      final: false,
+      marionFinal: false,
+      canEmit: false,
+      reply: "Protected voice authorization is unavailable until its identity, challenge, and continuity modules are ready.",
+      text: "Protected voice authorization is unavailable until its identity, challenge, and continuity modules are ready.",
+      message: "Protected voice authorization is unavailable until its identity, challenge, and continuity modules are ready.",
+      publicAgent: "Nyx",
+      authority: "Marion",
+      inputChannel: "voice",
+      source: "voice",
+      error: "MARION_VOICE_AUTHORITY_RUNTIME_NOT_READY",
+      route: "/api/nyx/voice/transcript",
+      adminOnlyVoiceDelivery: true,
+      runtimeFilesReady: false,
+      runtimeFiles: voiceAuthorityRuntime,
+      voice: {
+        speakAllowed: false,
+        voiceMode: "silent",
+        reason: "MARION_VOICE_AUTHORITY_RUNTIME_NOT_READY",
+        spokenText: "",
+        audioStored: false,
+        adminOnlyVoiceDelivery: true,
+        adminVoiceDeliveryAllowed: false
+      },
+      meta: { traceId, latencyMs: now() - startedAt, noRawAudioStored: true, diagnosticsRedacted: true }
+    });
+  }
+
   let MarionVoiceGateway = null;
   try {
     MarionVoiceGateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
   } catch (err) {
     MarionVoiceGateway = null;
   }
+
+  const voiceSessionVerified = adminVoiceAuth.verified === true && adminVoiceAuth.sessionVerified === true;
+  const voiceSessionId = voiceSessionVerified
+    ? cleanText(adminVoiceAuth.sessionId || (adminVoiceAuth.session && adminVoiceAuth.session.id) || "")
+    : "";
+  const voiceSessionRole = adminVoiceAuth.verified === true
+    ? (cleanText(adminVoiceAuth.role || (adminVoiceAuth.session && adminVoiceAuth.session.role) || "") || "owner")
+    : "blocked";
 
   if (!MarionVoiceGateway || typeof MarionVoiceGateway.handleVoiceTranscript !== "function") {
     return res.status(503).json({
@@ -2650,9 +4039,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       speakerConfidence: body.speakerConfidence,
       voiceMatchStatus: cleanText(body.voiceMatchStatus || ""),
       voiceProfileEnrolled: body.voiceProfileEnrolled === true,
-      sessionRole: adminVoiceAuth.verified ? "owner" : "blocked",
+      sessionRole: voiceSessionRole,
       requestTrustedSpeakerHint: adminVoiceAuth.verified === true,
-      sessionId: cleanText(body.sessionId || "public"),
+      sessionId: voiceSessionId,
       requestId: traceId,
       userAgent: cleanText(req.headers["user-agent"] || ""),
       client: cleanText(body.client || "web"),
@@ -2667,9 +4056,14 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         adminOnlyVoiceDelivery: true,
         allowConversationalWhenUnknown: false,
         trustSpeakerHint: adminVoiceAuth.verified,
+        adminVerified: adminVoiceAuth.verified === true,
         adminVoiceVerified: adminVoiceAuth.verified,
         adminVoiceTokenVerified: adminVoiceAuth.verified,
-        adminVoiceDeliveryAllowed: adminVoiceAuth.verified
+        serverSideAdminVoiceAuth: adminVoiceAuth.verified === true,
+        adminVoiceDeliveryAllowed: adminVoiceAuth.verified,
+        sessionVerified: voiceSessionVerified && !!voiceSessionId,
+        sessionId: voiceSessionId,
+        role: voiceSessionRole
       },
       output: {
         adminOnlyVoiceDelivery: true,
@@ -2679,7 +4073,9 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
         forceSilent: !adminVoiceAuth.verified
       },
       context: {
-        sessionId: cleanText(body.sessionId || "public"),
+        sessionVerified: voiceSessionVerified && !!voiceSessionId,
+        sessionId: voiceSessionId,
+        role: voiceSessionRole,
         requestId: traceId,
         inputChannel: "voice",
         source: "voice",
@@ -2731,7 +4127,7 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
       };
 
     return res.status(packet && packet.ok === false ? 202 : 200).json({
-      ok: !(packet && packet.ok === false),
+      ok: exactResponseLiteral ? true : !(packet && packet.ok === false),
       final: true,
       handled: true,
       reply,
@@ -2854,6 +4250,192 @@ app.post(NYX_VOICE_TRANSCRIPT_ROUTES, async (req, res) => {
   }
 });
 
+
+/* MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_START */
+const MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION = "marion.adminExactResponseIdentityHardlock/2.0";
+const MARION_ADMIN_EXACT_RESPONSE_MAX_CHARS = 512;
+
+function marionAdminExactResponseLiteral(value) {
+  const prompt = String(value == null ? "" : value)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!prompt || prompt.length > 12000) return "";
+
+  const patterns = [
+    /\b(?:please\s+)?reply\s+with\s+exactly\s*:\s*(.+)$/i,
+    /\b(?:please\s+)?respond\s+exactly(?:\s+with)?\s*:\s*(.+)$/i,
+    /\b(?:please\s+)?return\s+only\s*:\s*(.+)$/i,
+    /\b(?:please\s+)?reply\s+only\s*:\s*(.+)$/i,
+    /^(?:please\s+)?reply\s+with\s+exactly\s+(.+)$/i,
+    /^(?:please\s+)?respond\s+exactly(?:\s+with)?\s+(.+)$/i,
+    /^(?:please\s+)?return\s+only\s+(.+)$/i,
+    /^(?:please\s+)?reply\s+only\s+(.+)$/i
+  ];
+
+  let literal = "";
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    if (match && match[1]) {
+      literal = String(match[1]).trim();
+      break;
+    }
+  }
+  if (!literal) return "";
+
+  const first = literal[0];
+  const last = literal[literal.length - 1];
+  if (literal.length >= 2 && ((first === '"' && last === '"') || (first === "'" && last === "'") || (first === "`" && last === "`"))) {
+    literal = literal.slice(1, -1).trim();
+  }
+
+  literal = literal
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!literal || literal.length > MARION_ADMIN_EXACT_RESPONSE_MAX_CHARS) return "";
+  return literal;
+}
+
+function marionAdminPrivatePartitionKey(body, auth) {
+  const source = isObj(body) ? body : {};
+  const authObj = isObj(auth) ? auth : {};
+  const raw = cleanText(
+    authObj.sessionId ||
+    (authObj.session && authObj.session.id) ||
+    source.sessionId ||
+    source.conversationId ||
+    "marion-admin"
+  );
+  const safe = String(raw || "marion-admin")
+    .replace(/[^a-zA-Z0-9._:-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "") || "marion-admin";
+  return `private:admin:${safe}`;
+}
+
+function marionAdminExactResponsePacket(literal, body, auth, traceId) {
+  const reply = marionAdminRedactText(literal);
+  const partitionKey = marionAdminPrivatePartitionKey(body, auth);
+  const finalEnvelope = {
+    contract: "nyx.marion.final/1.0",
+    signature: "MARION_FINAL_AUTHORITY",
+    final: true,
+    marionFinal: true,
+    canEmit: true,
+    handled: true,
+    reply,
+    finalReply: reply,
+    displayReply: reply,
+    visibleReply: reply,
+    directReply: reply,
+    text: reply,
+    message: reply,
+    spokenText: reply,
+    replyAuthority: "exact_instruction",
+    authority: "Marion",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
+    audience: "owner",
+    scope: "private_admin",
+    publicSurfaceOnly: false,
+    publicFallbackBlocked: true,
+    privateAdminConversation: true,
+    authenticatedOperator: true,
+    memoryPartition: partitionKey,
+    partitionKey
+  };
+  return {
+    ok: true,
+    final: true,
+    marionFinal: true,
+    handled: true,
+    canEmit: true,
+    reply,
+    text: reply,
+    message: reply,
+    displayReply: reply,
+    visibleReply: reply,
+    directReply: reply,
+    finalReply: reply,
+    spokenText: reply,
+    speechText: reply,
+    answer: reply,
+    replyAuthority: "exact_instruction",
+    exactResponseRequested: true,
+    exactResponsePreserved: true,
+    exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+    authority: "Marion",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
+    audience: "owner",
+    scope: "private_admin",
+    publicSurfaceOnly: false,
+    publicFallbackBlocked: true,
+    privateAdminConversation: true,
+    marionAdminConversation: true,
+    marionAdminConversationAllowed: true,
+    adminConversationAllowed: true,
+    authenticatedOperator: true,
+    operatorPersonalization: true,
+    allowPersonalName: true,
+    allowOperatorMemory: true,
+    memoryPartition: partitionKey,
+    partitionKey,
+    traceId: cleanText(traceId || ""),
+    finalEnvelope
+  };
+}
+/* MARION_ADMIN_EXACT_RESPONSE_IDENTITY_HARDLOCK_V2_END */
+
+/* MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_V3_START */
+const MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION = "marion.adminSubstantiveResponseHardlock/3.0";
+const MARION_ADMIN_CAPABILITY_REPLY = "I can help you analyze information, plan projects, make decisions, track priorities, and coordinate work across the Sandblast ecosystem. I can also preserve private operational context, identify risks, and turn the current objective into a practical next action.";
+const MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY = "I do not have a verified retrieval result for that request yet. I can continue once the requested source or live retrieval path is available.";
+
+function marionAdminCapabilityReplyFor(prompt) {
+  const text = cleanText(prompt || "").toLowerCase();
+  if (!text) return "";
+  return /\b(?:what can you do|what can you help me (?:do|accomplish)|how can you help me|explain what you can help me accomplish|show me your capabilities|your capabilities|private administrative assistant|administrative assistant)\b/i.test(text)
+    ? MARION_ADMIN_CAPABILITY_REPLY
+    : "";
+}
+
+function marionAdminLookupRequest(prompt) {
+  const text = cleanText(prompt || "").toLowerCase();
+  return /\b(?:search(?: online| the web)?|look up|check online|browse|verify online|find (?:a|the|current|latest)|pull up|retrieve|research|investigate|source-check)\b/i.test(text);
+}
+
+function marionAdminSubstantivePrompt(prompt) {
+  const text = cleanText(prompt || "");
+  if (!text || text.length < 18) return false;
+  return !/^(?:hi|hello|hey|good (?:morning|afternoon|evening)|marion|are you there|still there)[\s.!?]*$/i.test(text);
+}
+
+function marionAdminHoldingReply(value) {
+  const text = cleanText(value || "");
+  if (!text) return false;
+  return /\b(?:hang tight|hold on a moment|give me a breath|separate the signal from the noise|bring it back clean|take a clean look|taking the clean path|i(?:'|’)?ll check it carefully|keep the answer practical|do you want the (?:quick read|risk|safest next move) first|where do you want to go next|tell me what you want to work through|the turn stayed protected|keep the visible reply human|keep the reply natural and grounded|response did not complete cleanly|turn did not complete cleanly|have not substituted an unrelated answer|private runtime is unavailable|final envelope missing|could not complete a substantive response)\b/i.test(text);
+}
+
+function marionAdminSubstantiveReplyGuard(value, prompt, runtime) {
+  const exact = marionAdminExactResponseLiteral(prompt);
+  if (exact) return exact;
+  const capability = marionAdminCapabilityReplyFor(prompt);
+  if (capability) return capability;
+  const reply = marionAdminProjectionCleanReply(value);
+  if (!reply) {
+    return marionAdminLookupRequest(prompt) ? MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY : "";
+  }
+  if (marionAdminSubstantivePrompt(prompt) && marionAdminHoldingReply(reply)) {
+    return marionAdminLookupRequest(prompt) ? MARION_ADMIN_LOOKUP_UNAVAILABLE_REPLY : "";
+  }
+  return reply;
+}
+/* MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_V3_END */
+
+
 // MARION-ADMIN-CONVERSATION-ROUTE-PHASE1B:
 // Private admin-only Marion conversation route. Public users still communicate
 // through Nyx. This route is locked to verified server-side/admin headers and
@@ -2865,9 +4447,25 @@ app.options([...MARION_ADMIN_CONVERSATION_ROUTES, ...MARION_ADMIN_CONVERSATION_H
   return res.status(204).end();
 });
 
-app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
+app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
+  const marionLearning = ensureMarionLearningRuntime();
+  const storageProbePromise = app.locals && app.locals.marionLearningPostgresReadinessPromise;
+  if (storageProbePromise && typeof storageProbePromise.then === "function") {
+    try { await storageProbePromise; } catch (_) {}
+  }
+  const learningStorage = marionLearningStorageReadiness();
+  const offlineEvaluationStatus = marionLearningOfflineEvaluationStatus();
+  const offlineHandlersReady = offlineEvaluationStatus.ready;
+  const offlineEvaluationReady = marionLearning.ready && learningStorage.ready && offlineHandlersReady;
+  const offlineEvaluationReason = offlineEvaluationReady
+    ? "ready"
+    : !learningStorage.ready
+      ? learningStorage.reason
+      : !marionLearning.ready
+        ? String(marionLearning.diagnosticReason || app.locals.marionLearningSetupDiagnostic || marionLearning.status || "marion_learning_runtime_not_ready")
+        : offlineEvaluationStatus.reason;
 
   let MarionVoiceGateway = null;
   try {
@@ -2883,10 +4481,38 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
     routeOrder: "early",
     canonicalPostRoute: "/api/marion/admin/conversation",
     canonicalHealthRoute: "/api/marion/admin/conversation/health",
+    routeAliases: {
+      post: [...MARION_ADMIN_CONVERSATION_ROUTES],
+      health: [...MARION_ADMIN_CONVERSATION_HEALTH_ROUTES]
+    },
+    authContract: {
+      sessionHeader: "x-sb-marion-admin-session-token",
+      compatibilitySessionHeader: "x-marion-admin-session-token",
+      conversationHeaders: ["x-sb-marion-admin-conversation-token", "x-sb-marion-admin-token", "x-marion-admin-token"],
+      voiceCredentialsAcceptedForText: false,
+      bodyOrQueryCredentialsAccepted: false,
+      secretsExposed: false
+    },
     acceptsAdminConversation: true,
     publicUsersMayAddressMarion: false,
     publicUsersSpeakThrough: "Nyx",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
     authority: "Marion",
+    exactResponseContract: {
+      enabled: true,
+      authenticatedPrivateOnly: true,
+      maxChars: MARION_ADMIN_EXACT_RESPONSE_MAX_CHARS,
+      version: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION
+    },
+    substantiveResponseContract: {
+      enabled: true,
+      authenticatedPrivateOnly: true,
+      holdingRepliesFinal: false,
+      capabilityReplyDeterministic: true,
+      lookupStatusTransparent: true,
+      version: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION
+    },
     privateAdminConversation: true,
     adminTokenConfigured: marionAdminConversationEnvTokens().length > 0,
     transcriptOnly: true,
@@ -2901,6 +4527,19 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
       hasVoiceHandler: !!(MarionVoiceGateway && typeof MarionVoiceGateway.handleVoiceTranscript === "function"),
       version: cleanText(MarionVoiceGateway && MarionVoiceGateway.VERSION || "")
     },
+    selfLearning: {
+      enabled: learningStorage.enabled,
+      evaluationEnabled: learningStorage.evaluationEnabled,
+      offlineEvaluationReady,
+      offlineEvaluationReason,
+      setupDiagnostic: marionLearning.diagnosticReason || app.locals.marionLearningSetupDiagnostic || null,
+      status: marionLearning.status,
+      storage: learningStorage,
+      requiresExplicitOwnerConsent: true,
+      requiresDurableAdapters: true,
+      liveActivationEnabled: false,
+      rawConversationStored: false
+    },
     lingoSentinel: {
       silentOversight: true,
       userToUserBoundary: true,
@@ -2912,6 +4551,52 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, (req, res) => {
   });
 });
 
+function marionLearningAdminEndpoint(handlerName, action, mutation = false) {
+  return async (req, res) => {
+    hardenCors(req, res);
+    hardenConversationNoStore(res);
+    const traceId = cleanText(req.headers["x-sb-trace-id"] || `marion_learning_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    const auth = marionAdminConsoleRequestAuth(req);
+    if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
+    if (marionAdminConsoleAuthRole(auth) !== MARION_ADMIN_CONSOLE_ROLES.OWNER ||
+        auth.sessionVerified !== true || auth.testBypass === true || auth.testingBypass === true) {
+      return res.status(403).json({ ok: false, reason: "verified_owner_session_required", traceId });
+    }
+    if (!marionAdminConsoleCapabilityAllowed(auth, action)) return marionAdminConsoleCapabilityDenied(res, traceId, auth, action);
+    const status = ensureMarionLearningRuntime();
+    const handlers = app.locals && app.locals.marionLearningAdminHandlers;
+    if (!status.ready || !handlers || typeof handlers[handlerName] !== "function") {
+      return res.status(503).json({ ok: false, reason: status.status || "learning_admin_unavailable", traceId });
+    }
+    if (handlerName === "evaluate" && !marionLearningOfflineHandlersReady()) {
+      const offlineStatus = marionLearningOfflineEvaluationStatus();
+      return res.status(503).json({ ok: false, reason: offlineStatus.reason, traceId });
+    }
+    try {
+      const storage = app.locals && app.locals.marionLearningAdapters;
+      if (!storage || typeof storage.healthProbe !== "function" || !(await storage.healthProbe()).ready) {
+        return res.status(503).json({ ok: false, reason: "learning_postgres_schema_or_connection_not_ready", traceId });
+      }
+      const result = await handlers[handlerName](req);
+      return res.status(result.status).json({ ...result.body, traceId });
+    } catch (_) {
+      return res.status(503).json({ ok: false, reason: "learning_registry_unavailable", traceId });
+    }
+  };
+}
+
+app.options(Object.values(MARION_LEARNING_ADMIN_ROUTES).flat(), (req, res) => {
+  hardenCors(req, res);
+  hardenConversationNoStore(res);
+  return res.status(204).end();
+});
+app.get(MARION_LEARNING_ADMIN_ROUTES.available, marionLearningAdminEndpoint("listAvailable", "learning.manifest.read"));
+app.get(MARION_LEARNING_ADMIN_ROUTES.approved, marionLearningAdminEndpoint("listApproved", "learning.manifest.read"));
+app.post(MARION_LEARNING_ADMIN_ROUTES.reviewIssue, marionLearningAdminEndpoint("issueReview", "learning.manifest.approve", true));
+app.post(MARION_LEARNING_ADMIN_ROUTES.approve, marionLearningAdminEndpoint("approve", "learning.manifest.approve", true));
+app.post(MARION_LEARNING_ADMIN_ROUTES.revoke, marionLearningAdminEndpoint("revoke", "learning.manifest.revoke", true));
+app.post(MARION_LEARNING_ADMIN_ROUTES.evaluate, marionLearningAdminEndpoint("evaluate", "learning.manifest.evaluate", true));
+
 app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   hardenCors(req, res);
   hardenConversationNoStore(res);
@@ -2922,14 +4607,15 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   const auth = marionAdminConversationRequestAuth(req);
 
   if (!auth.verified) {
-    return res.status(403).json({
+    return res.status(auth.configured === true ? 403 : 503).json({
       ok: false,
       final: true,
       handled: true,
       reply: "Marion admin conversation is locked.",
       text: "Marion admin conversation is locked.",
       message: "Marion admin conversation is locked.",
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -2959,6 +4645,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
   }
 
   const prompt = cleanText(body.transcript || body.message || body.text || body.prompt || body.query || "");
+  ensureMarionLearningRuntime();
+  const marionLearningContext = marionLearningContextFor(req, body, auth);
+  const exactResponseLiteral = marionAdminExactResponseLiteral(prompt);
+  const capabilityReply = marionAdminCapabilityReplyFor(prompt);
+  const privatePartitionKey = marionAdminPrivatePartitionKey(body, auth);
   const adminVoiceRuntimeAuth = marionAdminVoiceRequestAuth(req, { ...body, requestId: cleanText(body.voiceApprovalRequestId || body.approvalRequestId || body.approvalId || body.requestId || traceId) });
   if (!prompt) {
     return res.status(400).json({
@@ -2968,7 +4659,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       reply: "Marion admin conversation requires a usable message.",
       text: "Marion admin conversation requires a usable message.",
       message: "Marion admin conversation requires a usable message.",
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -2983,11 +4675,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
     });
   }
 
+  const runtimeHandlerHint = cleanText(req.headers["x-sb-marion-runtime-handler"] || body.runtimeHandler || "").toLowerCase();
   const wantsTextRuntime =
-    cleanText(req.headers["x-sb-marion-runtime-handler"] || "").toLowerCase().includes("admin") ||
-    body.directMarionAdminInterface === true ||
-    body.marionAdminConversation === true ||
-    cleanText(body.inputChannel || "").toLowerCase() === "text";
+    runtimeHandlerHint !== "voice_gateway" &&
+    runtimeHandlerHint !== "legacy_voice_gateway" &&
+    body.useVoiceGateway !== true;
 
   if (wantsTextRuntime && typeof invokeMarionAdminTextRuntime === "function") {
     try {
@@ -2998,7 +4690,9 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         text: prompt,
         userText: prompt,
         audience: "operator",
-        surfaceAgent: "marion",
+        publicAgent: "Nyx",
+        surfaceAgent: "Marion",
+        authority: "Marion",
         publicSurfaceOnly: false,
         privateAdminConversation: true,
         marionAdminConversation: true,
@@ -3018,10 +4712,17 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true,
         adminVoiceApprovalRequestId: cleanText(adminVoiceRuntimeAuth.approvalRequestId || ""),
         singleUtterance: adminVoiceRuntimeAuth.singleUtterance !== false,
-        maxSeconds: Number(adminVoiceRuntimeAuth.maxSeconds || 3) || 3
+        maxSeconds: Number(adminVoiceRuntimeAuth.maxSeconds || 3) || 3,
+        exactResponseRequested: !!exactResponseLiteral,
+        exactResponseLiteral,
+        exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+        memoryPartition: privatePartitionKey,
+        partitionKey: privatePartitionKey
       }, auth, traceId)
-      const runtimeReply = marionAdminConversationSafeReply(runtime, prompt);
-      if (runtime && runtime.ok && runtimeReply) {
+      const runtimeReplyCandidate = exactResponseLiteral || capabilityReply || marionAdminConversationSafeReply(runtime, prompt);
+      const runtimeReply = exactResponseLiteral || capabilityReply || marionAdminSubstantiveReplyGuard(runtimeReplyCandidate, prompt, runtime);
+      if (runtime && runtimeReply && (runtime.ok || !!exactResponseLiteral || !!capabilityReply)) {
+        await captureAcceptedMarionLearningFinal(runtime, marionLearningContext);
         return res.status(200).json({
           ok: true,
           final: true,
@@ -3030,7 +4731,12 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
           text: runtimeReply,
           message: runtimeReply,
           displayReply: runtimeReply,
-          publicAgent: "Marion",
+          visibleReply: runtimeReply,
+          directReply: runtimeReply,
+          finalReply: runtimeReply,
+          answer: runtimeReply,
+          publicAgent: "Nyx",
+          surfaceAgent: "Marion",
           authority: "Marion",
           inputChannel: "admin_text",
           source: "marion_admin_conversation",
@@ -3039,6 +4745,21 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
           privateAdminConversation: true,
           marionAdminConversation: true,
           adminConversationAllowed: true,
+          publicSurfaceOnly: false,
+          publicFallbackBlocked: true,
+          authenticatedOperator: true,
+          operatorPersonalization: true,
+          allowPersonalName: true,
+          allowOperatorMemory: true,
+          authSource: auth.source,
+          memoryPartition: privatePartitionKey,
+          partitionKey: privatePartitionKey,
+          replyAuthority: exactResponseLiteral ? "exact_instruction" : cleanText(runtime.replyAuthority || "marion_final"),
+          exactResponseRequested: !!exactResponseLiteral,
+          exactResponsePreserved: !!exactResponseLiteral,
+          exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
+          substantiveResponseGuarded: true,
+          substantiveResponseVersion: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION,
           runtimeHandlerMounted: true,
           runtimeHandlerStage: cleanText(runtime.stage || "marion_runtime_handler_invoked"),
           transcriptOnly: true,
@@ -3081,7 +4802,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       reply: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
       text: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
       message: "Marion admin conversation route is mounted, but the private admin gateway handler is not available yet.",
-      publicAgent: "Marion",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -3109,7 +4831,7 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       provider: cleanText(body.provider || "marion-admin-interface"),
       speakerHint: cleanText(body.speakerHint || body.speaker || "Mac"),
       audience: "operator",
-      surfaceAgent: "marion",
+      surfaceAgent: "Marion",
       publicSurfaceOnly: false,
       privateAdminConversation: true,
       marionAdminConversation: true,
@@ -3141,6 +4863,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       adminVoiceAuthSource: adminVoiceRuntimeAuth.verified === true ? adminVoiceRuntimeAuth.source : auth.source,
       singleUtterance: adminVoiceRuntimeAuth.singleUtterance !== false,
       maxSeconds: Number(adminVoiceRuntimeAuth.maxSeconds || 3) || 3,
+      exactResponseRequested: !!exactResponseLiteral,
+      exactResponseLiteral,
+      exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+      memoryPartition: privatePartitionKey,
+      partitionKey: privatePartitionKey,
       lingoSentinel: {
         silentOversight: true,
         userToUserBoundary: true,
@@ -3148,6 +4875,17 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         visibleToUsers: false
       }
     }, {
+      adminVerified: auth.verified === true,
+      serverSideAdminAuth: auth.verified === true,
+      trustedServerAuth: auth.verified === true,
+      sessionVerified: auth.sessionVerified === true,
+      sessionId: cleanText(auth.sessionId || privatePartitionKey),
+      partitionKey: privatePartitionKey,
+      memoryPartition: privatePartitionKey,
+      adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
+      adminVoiceTokenVerified: adminVoiceRuntimeAuth.verified === true,
+      adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
+      adminVoiceRuntimeApproval: adminVoiceRuntimeAuth.verified === true && adminVoiceRuntimeAuth.adminVoiceRuntimeApproval === true,
       authorization: {
         adminOnlyVoiceDelivery: true,
         allowConversationalWhenUnknown: false,
@@ -3166,16 +4904,18 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         forceSilent: adminVoiceRuntimeAuth.verified !== true,
         privateAdminConversation: true
       },
+      marionLearningContext,
       context: {
         sessionId: cleanText(body.sessionId || "marion-admin"),
         requestId: traceId,
         inputChannel: "admin",
         source: "marion_admin_conversation",
-        publicAgent: "Marion",
+        publicAgent: "Nyx",
+        surfaceAgent: "Marion",
         authority: "Marion",
         userFacingAgent: "Marion",
         audience: "operator",
-        surfaceAgent: "marion",
+        surfaceAgent: "Marion",
         publicSurfaceOnly: false,
         authenticatedOperator: true,
         operatorPersonalization: true,
@@ -3188,6 +4928,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
         privateAdminConversation: true,
         marionAdminConversation: true,
         adminConversationAllowed: true,
+        exactResponseRequested: !!exactResponseLiteral,
+        exactResponseLiteral,
+        exactResponseVersion: MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION,
+        memoryPartition: privatePartitionKey,
+        partitionKey: privatePartitionKey,
         adminVoiceVerified: adminVoiceRuntimeAuth.verified === true,
         adminVoiceDeliveryAllowed: adminVoiceRuntimeAuth.verified === true,
         lingoSentinel: {
@@ -3199,8 +4944,35 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       }
     });
 
-    const reply = marionAdminConversationSafeReply(packet, prompt);
-    const statusCode = packet && packet.ok === false ? 202 : 200;
+    const replyCandidate = exactResponseLiteral || capabilityReply || marionAdminConversationSafeReply(packet, prompt);
+    const reply = exactResponseLiteral || capabilityReply || marionAdminSubstantiveReplyGuard(replyCandidate, prompt, packet);
+    if (!reply) {
+      return res.status(502).json({
+        ok: false,
+        final: false,
+        handled: true,
+        canEmit: false,
+        reply: "Marion could not complete a substantive response for this turn.",
+        text: "Marion could not complete a substantive response for this turn.",
+        message: "Marion could not complete a substantive response for this turn.",
+        publicAgent: "Nyx",
+        surfaceAgent: "Marion",
+        authority: "Marion",
+        privateAdminConversation: true,
+        adminConversationAllowed: true,
+        publicSurfaceOnly: false,
+        publicFallbackBlocked: true,
+        authenticatedOperator: true,
+        authSource: auth.source,
+        memoryPartition: privatePartitionKey,
+        partitionKey: privatePartitionKey,
+        error: "MARION_SUBSTANTIVE_RESPONSE_MISSING",
+        replyAuthority: "awaiting_composer_final",
+        substantiveResponseVersion: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION,
+        meta: { traceId, latencyMs: now() - startedAt, version: MARION_ADMIN_CONVERSATION_ROUTE_VERSION, diagnosticsRedacted: true }
+      });
+    }
+    const statusCode = exactResponseLiteral ? 200 : (packet && packet.ok === false ? 202 : 200);
     const voice = isObj(packet && packet.voice) ? packet.voice : {};
     const voiceEnvelope = isObj(packet && packet.voiceEnvelope) ? packet.voiceEnvelope : {};
     const lingo = isObj(packet && packet.lingoSentinel) ? packet.lingoSentinel : {};
@@ -3213,7 +4985,12 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       text: reply,
       message: reply,
       displayReply: reply,
-      publicAgent: "Marion",
+      visibleReply: reply,
+      directReply: reply,
+      finalReply: reply,
+      answer: reply,
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -3222,6 +4999,21 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       privateAdminConversation: true,
       marionAdminConversation: true,
       adminConversationAllowed: true,
+      publicSurfaceOnly: false,
+      publicFallbackBlocked: true,
+      authenticatedOperator: true,
+      operatorPersonalization: true,
+      allowPersonalName: true,
+      allowOperatorMemory: true,
+      authSource: auth.source,
+      memoryPartition: privatePartitionKey,
+      partitionKey: privatePartitionKey,
+      replyAuthority: exactResponseLiteral ? "exact_instruction" : cleanText(packet && packet.replyAuthority || "marion_final"),
+      exactResponseRequested: !!exactResponseLiteral,
+      exactResponsePreserved: !!exactResponseLiteral,
+      exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
+      substantiveResponseGuarded: true,
+      substantiveResponseVersion: MARION_ADMIN_SUBSTANTIVE_RESPONSE_HARDLOCK_VERSION,
       transcriptOnly: true,
       audioStored: false,
       noRawAudioStored: true,
@@ -3275,7 +5067,8 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
     });
   } catch (err) {
     const signature = marionAdminRuntimeErrorSignature(err);
-    const fallbackReply = marionAdminRuntimeSafeFallbackReply(prompt, err);
+    const fallbackCandidate = exactResponseLiteral || capabilityReply || marionAdminRuntimeSafeFallbackReply(prompt, err);
+    const fallbackReply = exactResponseLiteral || capabilityReply || marionAdminSubstantiveReplyGuard(fallbackCandidate, prompt, err);
     const recovered = !!fallbackReply;
     return res.status(recovered ? 200 : 500).json({
       ok: recovered,
@@ -3285,7 +5078,11 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       text: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       message: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
       displayReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
-      publicAgent: "Marion",
+      visibleReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      directReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      finalReply: fallbackReply || "Marion admin conversation failed before Marion could finish the turn.",
+      publicAgent: "Nyx",
+      surfaceAgent: "Marion",
       authority: "Marion",
       inputChannel: "admin",
       source: "marion_admin_conversation",
@@ -3296,6 +5093,16 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       detail: recovered ? "diagnostics_redacted" : marionAdminRedactText(err && (err.message || err) || "route_failed").slice(0, 160),
       privateAdminConversation: true,
       adminConversationAllowed: true,
+      publicSurfaceOnly: false,
+      publicFallbackBlocked: true,
+      authenticatedOperator: true,
+      authSource: auth.source,
+      memoryPartition: privatePartitionKey,
+      partitionKey: privatePartitionKey,
+      replyAuthority: exactResponseLiteral ? "exact_instruction" : "recovery_final",
+      exactResponseRequested: !!exactResponseLiteral,
+      exactResponsePreserved: !!exactResponseLiteral,
+      exactResponseVersion: exactResponseLiteral ? MARION_ADMIN_EXACT_RESPONSE_HARDLOCK_VERSION : "",
       transcriptOnly: true,
       audioStored: false,
       noRawAudioStored: true,
@@ -3743,8 +5550,25 @@ function avatarConfigPayload() {
 }
 
 function safeStr(v) {
-
-  return typeof v === "string" ? v : v == null ? "" : String(v);
+  if (typeof v === "string") return v;
+  if (v == null) return "";
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "bigint") {
+    try { return String(v); } catch (_) { return ""; }
+  }
+  let errorLike = false;
+  try { errorLike = v instanceof Error; } catch (_) { errorLike = false; }
+  if (errorLike) {
+    try {
+      if (typeof v.message === "string" && v.message) return v.message;
+      if (typeof v.name === "string" && v.name) return v.name;
+    } catch (_) {}
+  }
+  try {
+    const converted = String(v);
+    return typeof converted === "string" ? converted : "";
+  } catch (_) {
+    return "";
+  }
 }
 
 function now() {
@@ -3765,7 +5589,8 @@ function uniq(arr) {
 }
 
 function isObj(v) {
-  return !!v && typeof v === "object" && !Array.isArray(v);
+  if (!v || typeof v !== "object") return false;
+  try { return !Array.isArray(v); } catch (_) { return false; }
 }
 
 function safeObj(v) {
@@ -4059,7 +5884,7 @@ function buildPublicProjectionRecoveryResponse(norm = {}, reason = "public_proje
     final: true,
     finalized: true,
     handled: true,
-    marionFinal: true,
+    marionFinal: false,
     awaitingMarion: false,
     suppressUserFacingReply: false,
     emit: true,
@@ -4069,7 +5894,7 @@ function buildPublicProjectionRecoveryResponse(norm = {}, reason = "public_proje
     sessionLane: cleanText(n.lane || safeObj(packet).sessionLane || "general") || "general",
     requestId: cleanText(safeObj(packet).requestId || makeTraceId("req")),
     traceId: cleanText(safeObj(packet).traceId || n.traceId || makeTraceId("chat")),
-    authority: "marionFinalEnvelope",
+    authority: "nyx_public_projection_recovery",
     meta: {
       ...(isObj(safeObj(packet).meta) ? safeObj(packet).meta : {}),
       publicNyxFinalProjectionRepair: true,
@@ -4104,7 +5929,7 @@ function buildPublicProjectionRecoveryResponse(norm = {}, reason = "public_proje
     textDisplay: recoveredReply,
     final: true,
     finalized: true,
-    marionFinal: true,
+    marionFinal: false,
     handled: true,
     emit: true,
     blocked: false,
@@ -4119,10 +5944,10 @@ function buildPublicProjectionRecoveryResponse(norm = {}, reason = "public_proje
     spokenText: recoveredReply,
     final: true,
     finalized: true,
-    marionFinal: true,
+    marionFinal: false,
     handled: true,
-    authority: "marionFinalEnvelope",
-    contractVersion: "nyx.marion.final/1.0",
+    authority: "nyx_public_projection_recovery",
+    contractVersion: "nyx.public.recovery/1.0",
     qualityPass: true,
     publicNyxFinalProjectionRepair: true
   };
@@ -4440,37 +6265,45 @@ function buildPublicVoiceSurfaceFromReply(safeReply, voiceRoute) {
 function forcePublicReply(packet, reply, metaPatch) {
   const safeReply = cleanReplyForUser(reply);
   const out = isObj(packet) ? { ...packet } : { ok: true };
+  const preserveMarionFinal = isTrustedMarionSemanticFinalPacket(out);
   if (!safeReply || isPrimitivePlaceholderReplyValue(safeReply) || hasUserVisibleDebugLeak(safeReply) || isPublicWorkflowStateLeak(safeReply)) return {
     ...out,
     ok: false,
     final: false,
+    finalized: false,
     handled: true,
+    marionFinal: false,
     awaitingMarion: true,
     suppressUserFacingReply: true,
     emit: false,
     blocked: true,
+    canEmit: false,
+    authoritativeReply: "",
     reply: "",
     text: "",
     answer: "",
     output: "",
     response: "",
     displayReply: "",
-    payload: { ...safeObj(out.payload), reply: "", text: "", message: "", final: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true },
-    finalEnvelope: { ...safeObj(out.finalEnvelope), reply: "", text: "", displayReply: "", final: false, marionFinal: false, handled: true }
+    short: "",
+    payload: { ...safeObj(out.payload), authoritativeReply: "", reply: "", text: "", message: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true, canEmit: false },
+    finalEnvelope: { ...safeObj(out.finalEnvelope), authoritativeReply: "", reply: "", text: "", displayReply: "", final: false, marionFinal: false, handled: true, canEmit: false }
   };
   const spokenText = cleanVoiceTextForPublicReply(out.spokenText || out.textSpeak || safeObj(out.speech).textSpeak || safeReply, safeReply);
   out.ok = out.ok !== false;
   out.final = true;
   out.finalized = true;
   out.handled = true;
-  out.marionFinal = true;
+  out.marionFinal = preserveMarionFinal;
   out.awaitingMarion = false;
   out.suppressUserFacingReply = false;
   out.emit = true;
   out.blocked = false;
+  out.canEmit = true;
+  out.authoritativeReply = preserveMarionFinal ? safeReply : cleanText(out.authoritativeReply || "");
   out.reply = safeReply;
   out.text = safeReply;
-  out.short = safeReply;
+  out.short = "";
   out.answer = safeReply;
   out.output = safeReply;
   out.response = safeReply;
@@ -4480,6 +6313,7 @@ function forcePublicReply(packet, reply, metaPatch) {
   out.textDisplay = safeReply;
   out.payload = {
     ...safeObj(out.payload),
+    authoritativeReply: preserveMarionFinal ? safeReply : cleanText(safeObj(out.payload).authoritativeReply || ""),
     reply: safeReply,
     text: safeReply,
     message: safeReply,
@@ -4492,24 +6326,28 @@ function forcePublicReply(packet, reply, metaPatch) {
     textDisplay: safeReply,
     final: true,
     finalized: true,
+    marionFinal: preserveMarionFinal,
     handled: true,
     emit: true,
     blocked: false,
     suppressUserFacingReply: false,
-    awaitingMarion: false
+    awaitingMarion: false,
+    canEmit: true
   };
   out.finalEnvelope = {
     ...safeObj(out.finalEnvelope),
+    authoritativeReply: preserveMarionFinal ? safeReply : cleanText(safeObj(out.finalEnvelope).authoritativeReply || ""),
     reply: safeReply,
     text: safeReply,
     displayReply: safeReply,
     spokenText,
     final: true,
     finalized: true,
-    marionFinal: true,
+    marionFinal: preserveMarionFinal,
     handled: true,
-    authority: "marionFinalEnvelope",
-    contractVersion: "nyx.marion.final/1.0",
+    canEmit: true,
+    authority: preserveMarionFinal ? "marionFinalEnvelope" : cleanText(safeObj(out.finalEnvelope).authority || "nyx_public_projection"),
+    contractVersion: preserveMarionFinal ? "nyx.marion.final/1.0" : "nyx.public.projection/1.0",
     qualityPass: true
   };
   const publicVoiceSurface = buildPublicVoiceSurfaceFromReply(safeReply, safeObj(out.playback).route || safeObj(out.payload).voiceRoute || out.voiceRoute || "");
@@ -4520,6 +6358,7 @@ function forcePublicReply(packet, reply, metaPatch) {
     ...safeObj(out.meta),
     ...safeObj(metaPatch),
     lastMilePrimitiveReplyGuard: true,
+    marionAuthorityPreserved: preserveMarionFinal,
     noUserFacingDiagnostics: true
   };
   return out;
@@ -4866,8 +6705,11 @@ function buildPublicChatResponse(packet, reply) {
     ""
   );
 
+  const sourceMarionFinal = src.marionFinal === true || finalEnvelope.marionFinal === true || payload.marionFinal === true;
   const semanticContinuityOverride = buildPublicContinuitySemanticOverrideReply(src, safeReply);
-  if (semanticContinuityOverride) safeReply = semanticContinuityOverride;
+  // Preserve a real Marion final. Deterministic continuity repair is a fallback,
+  // not a higher semantic authority than Marion.
+  if (semanticContinuityOverride && !sourceMarionFinal) safeReply = semanticContinuityOverride;
 
   // PUBLIC-FINAL-PROJECTION-HARDLOCK:
   // The /api/chat public response must never expose runtime/advisory objects
@@ -4912,8 +6754,8 @@ function buildPublicChatResponse(packet, reply) {
     safeReply
   );
 
-  const marionFinal = src.marionFinal === true || finalEnvelope.marionFinal === true || payload.marionFinal === true;
-  const authority = marionFinal ? "marionFinalEnvelope" : cleanText(finalEnvelope.authority || src.authority || "marion");
+  const marionFinal = sourceMarionFinal;
+  const authority = marionFinal ? "marionFinalEnvelope" : cleanText(finalEnvelope.authority || src.authority || "nyx_public_fallback");
   const requestId = cleanText(src.requestId || payload.requestId || "") || undefined;
   const sessionId = cleanText(src.sessionId || payload.sessionId || "") || undefined;
   const traceId = cleanText(src.traceId || payload.traceId || "") || undefined;
@@ -4922,6 +6764,16 @@ function buildPublicChatResponse(packet, reply) {
   const voiceRoute = cleanPublicVoiceRoute(src.voiceRoute || payload.voiceRoute || playbackSrc.route || "");
   const publicVoiceSurface = buildPublicVoiceSurfaceFromReply(safeReply, voiceRoute);
   const publicRouteContractR5 = resolveNyxPublicRouteContractR5(src);
+  const sourceAttestation = safeObj(src.marionAttestation);
+  const marionRoute = cleanText(src.marionRoute || (marionFinal ? "marion-primary" : (sourceAttestation.routed === true ? "marion-routed-postprocessed" : "nyx-local-fallback"))) || "nyx-local-fallback";
+  const marionAttestation = {
+    version: cleanText(sourceAttestation.version || NYX_MARION_BRIDGE_COHESION_VERSION) || NYX_MARION_BRIDGE_COHESION_VERSION,
+    required: sourceAttestation.required === true,
+    routed: sourceAttestation.routed === true || marionFinal,
+    authorityReplyObserved: sourceAttestation.authorityReplyObserved === true || marionFinal,
+    final: marionFinal,
+    diagnosticsRedacted: true
+  };
 
   const response = {
     ok: src.ok !== false,
@@ -4946,7 +6798,9 @@ function buildPublicChatResponse(packet, reply) {
     spokenText,
     textSpeak,
 
-    source: "marion",
+    source: marionFinal ? "marion" : "nyx_public_fallback",
+    marionRoute,
+    marionAttestation,
     authority,
     requestId,
     sessionId,
@@ -5017,22 +6871,66 @@ function buildPublicChatResponse(packet, reply) {
 }
 
 function applyPublicReplyHygieneToResponse(packet) {
-  if (!isObj(packet)) return { ok: false, final: false, reply: "", text: "" };
+  if (!isObj(packet)) return { ok: false, final: false, marionFinal: false, reply: "", text: "" };
+  const payload = safeObj(packet.payload);
+  const finalEnvelope = safeObj(packet.finalEnvelope);
+  const meta = safeObj(packet.meta);
+  const marionRequired = packet.marionRequired === true || packet.requireMarionFinal === true ||
+    payload.marionRequired === true || payload.requireMarionFinal === true ||
+    meta.marionRequired === true || meta.requireMarionFinal === true ||
+    cleanText(meta.semanticAuthority || "").toLowerCase() === "marion_required";
+  const trustedMarionFinal = isTrustedMarionSemanticFinalPacket(packet);
+
+  if ((marionRequired || packet.awaitingMarion === true) && !trustedMarionFinal) {
+    return {
+      ...packet,
+      ok: false,
+      final: false,
+      finalized: false,
+      marionFinal: false,
+      handled: true,
+      awaitingMarion: true,
+      suppressUserFacingReply: true,
+      emit: false,
+      blocked: true,
+      canEmit: false,
+      authoritativeReply: "",
+      reply: "",
+      text: "",
+      short: "",
+      answer: "",
+      output: "",
+      response: "",
+      message: "",
+      displayReply: "",
+      publicReply: "",
+      visibleReply: "",
+      finalReply: "",
+      spokenText: "",
+      payload: { ...payload, authoritativeReply: "", reply: "", text: "", message: "", final: false, finalized: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true, canEmit: false },
+      finalEnvelope: { ...finalEnvelope, authoritativeReply: "", reply: "", text: "", displayReply: "", final: false, finalized: false, marionFinal: false, handled: true, canEmit: false, authority: "none" },
+      meta: { ...meta, semanticAuthority: "marion_required", replyAuthority: "none", noUserFacingDiagnostics: true }
+    };
+  }
+
   const reply = cleanReplyForUser(
+    (trustedMarionFinal ? getMarionAuthorityReply(packet) : "") ||
+    packet.authoritativeReply ||
+    finalEnvelope.authoritativeReply ||
+    payload.authoritativeReply ||
     packet.displayReply ||
     packet.reply ||
     packet.response ||
     packet.text ||
     packet.answer ||
-    safeObj(packet.payload).displayReply ||
-    safeObj(packet.payload).reply ||
-    safeObj(packet.finalEnvelope).displayReply ||
-    safeObj(packet.finalEnvelope).reply ||
+    payload.displayReply ||
+    payload.reply ||
+    finalEnvelope.displayReply ||
+    finalEnvelope.reply ||
     ""
   );
   if (reply) return buildPublicChatResponse(packet, reply);
-  // Progression/pass-fail/validation fallback emission is intentionally disabled
-  // in index.js; only Marion may author that lane.
+
   const lingoSentinelAnswer = buildLingoSentinelPublicAnswerFromPacket(packet);
   if (lingoSentinelAnswer) return buildPublicChatResponse(packet, lingoSentinelAnswer);
   const lastMileRecovery = buildLastMileRecoveryReply(packet);
@@ -5042,19 +6940,24 @@ function applyPublicReplyHygieneToResponse(packet) {
   return {
     ok: false,
     final: false,
+    finalized: false,
+    marionFinal: false,
     handled: true,
     awaitingMarion: true,
     suppressUserFacingReply: true,
     emit: false,
     blocked: true,
+    canEmit: false,
+    authoritativeReply: "",
     reply: "",
     text: "",
+    short: "",
     answer: "",
     output: "",
     response: "",
     displayReply: "",
-    payload: { reply: "", text: "", message: "", final: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true },
-    finalEnvelope: { reply: "", text: "", displayReply: "", final: false, marionFinal: false, handled: true }
+    payload: { authoritativeReply: "", reply: "", text: "", message: "", final: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true, canEmit: false },
+    finalEnvelope: { authoritativeReply: "", reply: "", text: "", displayReply: "", final: false, marionFinal: false, handled: true, canEmit: false }
   };
 }
 
@@ -5177,89 +7080,82 @@ function objectContainsFreshMarionSignature(value, depth) {
   return false;
 }
 
-function hasFreshMarionFinalEnvelope(value) {
-  if (marionFinalEnvelopeMod && typeof marionFinalEnvelopeMod.isMarionFinalEnvelope === "function") {
-    try {
-      if (marionFinalEnvelopeMod.isMarionFinalEnvelope(value)) return true;
-      if (isObj(value) && marionFinalEnvelopeMod.isMarionFinalEnvelope(value.finalEnvelope)) return true;
-    } catch (_) {}
-  }
+function isTrustedMarionSemanticFinalPacket(value) {
   const src = isObj(value) ? value : {};
-  const packet = isObj(src.packet) ? src.packet : {};
-  const packetMeta = isObj(packet.meta) ? packet.meta : {};
-  const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
-  const meta = isObj(src.meta) ? src.meta : {};
-  const diagnostics = isObj(src.diagnostics) ? src.diagnostics : {};
   const payload = isObj(src.payload) ? src.payload : {};
   const finalEnvelope = isObj(src.finalEnvelope) ? src.finalEnvelope : {};
-  const bridge = isObj(src.bridge) ? src.bridge : {};
   const result = isObj(src.result) ? src.result : {};
-  const resultMeta = isObj(result.meta) ? result.meta : {};
   const resultPayload = isObj(result.payload) ? result.payload : {};
-  const resultPacket = isObj(result.packet) ? result.packet : {};
-  const resultPacketMeta = isObj(resultPacket.meta) ? resultPacket.meta : {};
+  const resultEnvelope = isObj(result.finalEnvelope) ? result.finalEnvelope : {};
+  const meta = isObj(src.meta) ? src.meta : {};
+  const resultMeta = isObj(result.meta) ? result.meta : {};
 
-  const freshSignature = objectContainsFreshMarionSignature(src, 0);
-  const finalish = !!(
-    src.final === true ||
+  const marionFinal = !!(
     src.marionFinal === true ||
-    src.handled === true ||
-    src.marionHandled === true ||
-    src.usedBridge === true ||
-    src.hardlockCompatible === true ||
-    meta.final === true ||
-    meta.marionFinal === true ||
-    meta.handled === true ||
-    meta.hardlockCompatible === true ||
-    packet.final === true ||
-    packet.marionFinal === true ||
-    packet.handled === true ||
-    packetMeta.final === true ||
-    packetMeta.marionFinal === true ||
-    packetMeta.handled === true ||
-    packetMeta.hardlockCompatible === true ||
-    synthesis.final === true ||
-    synthesis.marionFinal === true ||
-    payload.final === true ||
     payload.marionFinal === true ||
-    payload.handled === true ||
-    payload.hardlockCompatible === true ||
-    finalEnvelope.final === true ||
     finalEnvelope.marionFinal === true ||
-    finalEnvelope.handled === true ||
-    !!cleanText(finalEnvelope.reply || finalEnvelope.text || finalEnvelope.spokenText || "") ||
-    bridge.final === true ||
-    bridge.marionFinal === true ||
-    bridge.handled === true ||
-    result.final === true ||
     result.marionFinal === true ||
-    result.handled === true ||
-    result.marionHandled === true ||
-    resultMeta.final === true ||
-    resultMeta.marionFinal === true ||
-    resultMeta.handled === true ||
-    resultMeta.hardlockCompatible === true ||
-    resultPayload.final === true ||
     resultPayload.marionFinal === true ||
-    resultPayload.handled === true ||
-    resultPacket.final === true ||
-    resultPacket.marionFinal === true ||
-    resultPacket.handled === true ||
-    resultPacketMeta.final === true ||
-    resultPacketMeta.marionFinal === true ||
-    resultPacketMeta.handled === true
+    resultEnvelope.marionFinal === true
   );
+  const final = !!(
+    src.final === true ||
+    payload.final === true ||
+    finalEnvelope.final === true ||
+    result.final === true ||
+    resultPayload.final === true ||
+    resultEnvelope.final === true
+  );
+  if (!marionFinal || !final) return false;
 
-  if (finalish && freshSignature) return true;
+  if (
+    src.ok === false ||
+    src.blocked === true || payload.blocked === true || finalEnvelope.blocked === true ||
+    src.awaitingMarion === true || payload.awaitingMarion === true || finalEnvelope.awaitingMarion === true ||
+    src.suppressUserFacingReply === true || payload.suppressUserFacingReply === true || finalEnvelope.suppressUserFacingReply === true ||
+    src.canEmit === false || payload.canEmit === false || finalEnvelope.canEmit === false ||
+    src.emit === false || payload.emit === false || finalEnvelope.emit === false
+  ) return false;
 
-  // Compatibility guard: some bridge wrappers expose the Marion final signature
-  // at the wrapper/result layer before mirroring final flags to the wrapper.
-  // Accept only successful bridge-shaped packets with a valid Marion final signature.
-  if (freshSignature && src.ok !== false && (src.usedBridge === true || isObj(src.result) || isObj(src.packet) || isObj(src.payload) || isObj(src.meta))) {
-    return true;
+  const semanticAuthority = cleanText(
+    src.semanticAuthority ||
+    meta.semanticAuthority ||
+    finalEnvelope.semanticAuthority ||
+    result.semanticAuthority ||
+    resultMeta.semanticAuthority ||
+    resultEnvelope.semanticAuthority ||
+    ""
+  ).toLowerCase();
+  const route = cleanText(src.marionRoute || result.marionRoute || meta.marionRoute || "").toLowerCase();
+  const authority = cleanText(finalEnvelope.authority || resultEnvelope.authority || meta.replyAuthority || "").toLowerCase();
+  const authorityConfirmed =
+    route === "marion-primary" ||
+    semanticAuthority === "marion" ||
+    /marionfinalenvelope|marion_bridge|composer_final/.test(authority);
+  if (!authorityConfirmed) return false;
+
+  const reply = cleanReplyForUser(getMarionAuthorityReply(src));
+  if (!reply ||
+      isBlockedLoopingSupportReply(reply) ||
+      isConversationDiagnosticFallbackReply(reply) ||
+      isInternalMarionBlockerReply(reply) ||
+      hasUserVisibleDebugLeak(reply) ||
+      isPublicWorkflowStateLeak(reply)) return false;
+
+  return true;
+}
+
+function hasFreshMarionFinalEnvelope(value) {
+  if (!isObj(value)) return false;
+  if (marionFinalEnvelopeMod && typeof marionFinalEnvelopeMod.isMarionFinalEnvelope === "function") {
+    try {
+      const moduleAccepted =
+        marionFinalEnvelopeMod.isMarionFinalEnvelope(value) === true ||
+        marionFinalEnvelopeMod.isMarionFinalEnvelope(value.finalEnvelope) === true;
+      if (moduleAccepted && isTrustedMarionSemanticFinalPacket(value)) return true;
+    } catch (_) {}
   }
-
-  return false;
+  return isTrustedMarionSemanticFinalPacket(value);
 }
 
 function buildLoopReplyBlockedReplacement(norm, authority) {
@@ -5375,13 +7271,13 @@ function canonicalTechnicalTargetFromText(text = "") {
     blockScheduleInterception: true,
     outerSchedulerBypass: true
   });
-  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "Utils/chatEngine.js", "transport");
+  if (/\b(chat\s*engine|chatengine)\b/i.test(t)) return mk("chatEngine", "ChatEngine", "chatEngine.js", "utils/chatEngine.js", "transport");
   if (/\b(marion\s*bridge|marionbridge)\b/i.test(t)) return mk("marionBridge", "MarionBridge", "marionBridge.js", "Data/marion/runtime/marionBridge.js", "bridge");
   if (/\b(compose\s*marion\s*response|composemarionresponse|composer)\b/i.test(t)) return mk("composeMarionResponse", "ComposeMarionResponse", "composeMarionResponse.js", "Data/marion/runtime/composeMarionResponse.js", "composer");
-  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "Utils/stateSpine.js", "state");
+  if (/\b(state\s*spine|statespine|state-spine)\b/i.test(t)) return mk("stateSpine", "StateSpine", "stateSpine.js", "utils/stateSpine.js", "state");
   if (/\b(marion\s*intent\s*router|intent\s*router|marionintentrouter)\b/i.test(t)) return mk("marionIntentRouter", "MarionIntentRouter", "marionIntentRouter.js", "Data/marion/runtime/marionIntentRouter.js", "router");
   if (/\b(command\s*normalizer|marion\s*command\s*normalizer|marioncommandnormalizer)\b/i.test(t)) return mk("marionCommandNormalizer", "MarionCommandNormalizer", "marionCommandNormalizer.js", "Data/marion/runtime/marionCommandNormalizer.js", "normalizer");
-  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "Utils/domainRouter.js", "router");
+  if (/\b(domain\s*router|domainrouter)\b/i.test(t)) return mk("domainRouter", "DomainRouter", "domainRouter.js", "utils/domainRouter.js", "router");
   if (/\b(domain\s*registry|marion\s*domain\s*registry|mariondomainregistry)\b/i.test(t)) return mk("marionDomainRegistry", "MarionDomainRegistry", "marionDomainRegistry.js", "Data/marion/runtime/marionDomainRegistry.js", "registry");
   if (/\b(index\.js|index\s*js|server\s*route|api\/chat|\/api\/chat)\b/i.test(t)) return mk("index", "index.js", "index.js", "index.js", "outer_transport");
   return {};
@@ -5960,13 +7856,20 @@ function enforceNyxPublicKnowledgeAnswerOnlyR4(value, norm = {}, decision = null
   out.domainConcierge = clearNode(out.domainConcierge);
   out.sessionPatch = clearNode(out.sessionPatch);
   const preferred = cleanText(inferred.reply || "");
-  const existing = cleanText(out.publicReply || out.visibleReply || out.finalReply || out.reply || out.text || out.answer || out.response || out.message || out.payload.reply || out.finalEnvelope.reply || "");
+  const trustedMarionFinal = out.marionFinal === true || safeObj(out.finalEnvelope).marionFinal === true || safeObj(out.payload).marionFinal === true;
+  const authoritative = trustedMarionFinal ? cleanText(getMarionAuthorityReply(out)) : "";
+  const existing = cleanText(authoritative || out.authoritativeReply || safeObj(out.finalEnvelope).authoritativeReply || safeObj(out.payload).authoritativeReply || out.publicReply || out.visibleReply || out.finalReply || out.reply || out.text || out.answer || out.response || out.message || out.payload.reply || out.finalEnvelope.reply || "");
   const unsafe = !existing || /\b(?:that route is unavailable|route unavailable|action validation|navigation route unavailable|priority 9f|social response pass|system noise out of view)\b/i.test(existing);
-  const reply = preferred || (unsafe ? "I can answer that as an informational knowledge question without opening a navigation route." : existing);
+  // MARION-NYX-BRIDGE-COHESION-V2: trusted Marion semantic authority outranks
+  // compatibility/public aliases. Deterministic knowledge fallback is only used
+  // when no trusted Marion authority reply survived the bridge.
+  const reply = trustedMarionFinal && authoritative
+    ? authoritative
+    : (trustedMarionFinal && existing && !unsafe ? existing : (preferred || (unsafe ? "I can answer that as an informational knowledge question without opening a navigation route." : existing)));
   if (reply) {
-    for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) out[key] = reply;
+    for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) out[key] = reply;
     for (const target of [out.payload, out.finalEnvelope]) {
-      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) target[key] = reply;
+      for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText","textSpeak","textDisplay"]) target[key] = reply;
       target.final = true;
       target.handled = true;
       target.emit = true;
@@ -6751,6 +8654,7 @@ function applyCors(req, res) {
     "x-sb-marion-admin-console-token",
     "x-sb-marion-admin-session-token",
     "x-sb-marion-testing-bypass",
+    MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER,
     "x-sb-marion-admin-testing-bypass",
     "x-sb-marion-admin-escalation-token",
     "x-sb-marion-admin-escalation-secret",
@@ -6788,7 +8692,7 @@ function applyCors(req, res) {
 
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.header("Access-Control-Allow-Headers", allowHeaders.join(", "));
-  res.header("Access-Control-Expose-Headers", "x-sb-trace-id");
+  res.header("Access-Control-Expose-Headers", "x-sb-trace-id, x-sb-marion-route, x-sb-marion-final, x-sb-marion-chat-ready");
   return origin;
 }
 
@@ -6956,8 +8860,7 @@ const SANDBLAST_TV_ADMIN_AUTH = sandblastTvApplyAdminTokenEnvironmentBridge();
 
 function sandblastTvAuthDiagnosticAllowed(req) {
   const now = Date.now();
-  const forwarded = String(req && req.headers && req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  const key = cleanText(forwarded || req && req.ip || req && req.socket && req.socket.remoteAddress || "unknown", 160);
+  const key = trustedClientIp(req);
   let entry = sandblastTvAuthDiagnosticRate.get(key);
   if (!entry || now >= entry.resetAt) entry = { count: 0, resetAt: now + 60_000 };
   entry.count += 1;
@@ -7906,9 +9809,7 @@ async function sendContactEmailViaHttpApi(data, cfg) {
 }
 
 function contactClientKey(req) {
-  const forwarded = cleanText(req && req.headers && req.headers["x-forwarded-for"] || "");
-  const ip = cleanText((forwarded.split(",")[0] || "") || req.ip || (req.socket && req.socket.remoteAddress) || "unknown");
-  return ip || "unknown";
+  return trustedClientIp(req);
 }
 
 function checkContactRateLimit(req) {
@@ -8841,14 +10742,17 @@ app.use((req, res, next) => {
 });
 
 const chatEngineMod = tryRequireMany([
-  "./chatEngine",
-  "./chatEngine.js",
-  "./ChatEngine",
-  "./ChatEngine.js",
   "./utils/chatEngine",
-  "./utils/chatEngine.js",
-  "./Utils/chatEngine",
-  "./Utils/chatEngine.js"
+  "./utils/chatEngine.js"
+]);
+
+// Optional Neon-backed polish for Nyx's deterministic public knowledge lane.
+// Marion-owned conversations continue through MarionBridge unchanged.
+const nyxOpenAIMod = tryRequireMany([
+  "./Utils/nyxOpenAI.js",
+  "./Utils/nyxOpenAI",
+  "./utils/nyxOpenAI.js",
+  "./utils/nyxOpenAI"
 ]);
 
 const universalTranslatorAdapterMod = tryRequireMany([
@@ -8881,29 +10785,11 @@ const supportResponseMod = tryRequireMany([
 ]);
 
 const voiceRouteMod = tryRequireMany([
-  "./voiceRoute",
-  "./voiceRoute.js",
-  "./Routes/voiceRoute",
-  "./Routes/voiceRoute.js",
-  "./routes/voiceRoute",
-  "./routes/voiceRoute.js",
-  "./utils/voiceRoute",
-  "./utils/voiceRoute.js",
-  "./Utils/voiceRoute",
-  "./Utils/voiceRoute.js"
+  "./utils/voiceRoute.js"
 ]);
 
 const ttsLoadStatus = tryRequireManyWithStatus([
-  "./Utils/tts",
-  "./Utils/tts.js",
-  "./utils/tts",
-  "./utils/tts.js",
-  "./Routes/tts",
-  "./Routes/tts.js",
-  "./routes/tts",
-  "./routes/tts.js",
-  "./tts",
-  "./tts.js"
+  "./utils/tts.js"
 ]);
 const ttsMod = ttsLoadStatus.mod;
 try {
@@ -9000,6 +10886,56 @@ const lingoSentinelSubscribeTokenRoutesMod = tryRequireMany([
   "./runtime/LingoSentinel/LingoSentinelSubscribeTokenRoute.js"
 ]);
 
+const lingoSentinelRuntimeHealthRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelRuntimeHealth",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelRuntimeHealth.js",
+  "./Data/marion/runtime/LingoSentinelRuntimeHealth",
+  "./Data/marion/runtime/LingoSentinelRuntimeHealth.js"
+]);
+
+const lingoSentinelRoomRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelRoomRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelRoomRoute.js",
+  "./Data/marion/runtime/LingoSentinelRoomRoute",
+  "./Data/marion/runtime/LingoSentinelRoomRoute.js"
+]);
+
+const lingoSentinelConnectionRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelConnectionRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelConnectionRoute.js",
+  "./Data/marion/runtime/LingoSentinelConnectionRoute",
+  "./Data/marion/runtime/LingoSentinelConnectionRoute.js"
+]);
+
+const lingoSentinelMessageRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelMessageRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelMessageRoute.js",
+  "./Data/marion/runtime/LingoSentinelMessageRoute",
+  "./Data/marion/runtime/LingoSentinelMessageRoute.js"
+]);
+
+const lingoSentinelDeliveryRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelDeliveryRoute.js",
+  "./Data/marion/runtime/LingoSentinelDeliveryRoute",
+  "./Data/marion/runtime/LingoSentinelDeliveryRoute.js"
+]);
+
+const lingoSentinelRecoveryRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelRecoveryRoute.js",
+  "./Data/marion/runtime/LingoSentinelRecoveryRoute",
+  "./Data/marion/runtime/LingoSentinelRecoveryRoute.js"
+]);
+
+
+const lingoSentinelTranslationResultRoutesMod = tryRequireMany([
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelTranslationResultRoute",
+  "./Data/marion/runtime/LingoSentinel/LingoSentinelTranslationResultRoute.js",
+  "./Data/marion/runtime/LingoSentinelTranslationResultRoute",
+  "./Data/marion/runtime/LingoSentinelTranslationResultRoute.js"
+]);
+
 const lingoSentinelEngineMod = tryRequireMany([
   "./Data/marion/runtime/LingoSentinel/LingoSentinelEngine",
   "./Data/marion/runtime/LingoSentinel/LingoSentinelEngine.js",
@@ -9088,6 +11024,135 @@ function mountLingoSentinelSubscribeTokenRoute(appRef, mod) {
     console.log("[Sandblast][LingoSentinel] subscribe_token_route_register_failed", {
       error: cleanText(err && (err.message || err) || "register_failed")
     });
+    return false;
+  }
+}
+
+function mountLingoSentinelRuntimeHealthRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) {
+    appRef.use("/api/lingosentinel", router);
+    return true;
+  }
+  const register =
+    (typeof mod.registerLingoSentinelRuntimeHealth === "function" && mod.registerLingoSentinelRuntimeHealth) ||
+    (typeof mod.mountLingoSentinelRuntimeHealth === "function" && mod.mountLingoSentinelRuntimeHealth) ||
+    (typeof mod.register === "function" && mod.register) ||
+    (typeof mod.mount === "function" && mod.mount) ||
+    (typeof mod.default === "function" && mod.default);
+  if (typeof register !== "function") return false;
+  try {
+    register(appRef, {
+      basePath: "/api/lingosentinel",
+      healthPath: "/api/lingosentinel/runtime/health",
+      version: LINGOSENTINEL_LAYERS_1_2_CRITICAL_VERSION
+    });
+    return true;
+  } catch (err) {
+    console.log("[Sandblast][LingoSentinel] runtime_health_route_register_failed", {
+      error: cleanText(err && (err.message || err) || "register_failed")
+    });
+    return false;
+  }
+}
+
+function mountLingoSentinelRoomRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) {
+    appRef.use("/api/lingosentinel", router);
+    return true;
+  }
+  const register =
+    (typeof mod.registerLingoSentinelRoomRoute === "function" && mod.registerLingoSentinelRoomRoute) ||
+    (typeof mod.mountLingoSentinelRoomRoute === "function" && mod.mountLingoSentinelRoomRoute) ||
+    (typeof mod.register === "function" && mod.register) ||
+    (typeof mod.mount === "function" && mod.mount) ||
+    (typeof mod.default === "function" && mod.default);
+  if (typeof register !== "function") return false;
+  try {
+    register(appRef, { basePath: "/api/lingosentinel", version: LINGOSENTINEL_LAYERS_3_4_CRITICAL_VERSION });
+    return true;
+  } catch (err) {
+    console.log("[Sandblast][LingoSentinel] room_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") });
+    return false;
+  }
+}
+
+function mountLingoSentinelMessageRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) {
+    appRef.use("/api/lingosentinel", router);
+    return true;
+  }
+  const register =
+    (typeof mod.registerLingoSentinelMessageRoute === "function" && mod.registerLingoSentinelMessageRoute) ||
+    (typeof mod.mountLingoSentinelMessageRoute === "function" && mod.mountLingoSentinelMessageRoute) ||
+    (typeof mod.register === "function" && mod.register) ||
+    (typeof mod.mount === "function" && mod.mount) ||
+    (typeof mod.default === "function" && mod.default);
+  if (typeof register !== "function") return false;
+  try {
+    register(appRef, { basePath: "/api/lingosentinel", version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION });
+    return true;
+  } catch (err) {
+    console.log("[Sandblast][LingoSentinel] message_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") });
+    return false;
+  }
+}
+
+function mountLingoSentinelDeliveryRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) { appRef.use("/api/lingosentinel", router); return true; }
+  const register = mod.registerLingoSentinelDeliveryRoute || mod.mountLingoSentinelDeliveryRoute || mod.register || mod.mount || mod.default;
+  if (typeof register !== "function") return false;
+  try { register(appRef, { basePath: "/api/lingosentinel", version: LINGOSENTINEL_LAYERS_8_10_CRITICAL_VERSION }); return true; }
+  catch (err) { console.log("[Sandblast][LingoSentinel] delivery_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") }); return false; }
+}
+
+function mountLingoSentinelRecoveryRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) { appRef.use("/api/lingosentinel", router); return true; }
+  const register = mod.registerLingoSentinelRecoveryRoute || mod.mountLingoSentinelRecoveryRoute || mod.register || mod.mount || mod.default;
+  if (typeof register !== "function") return false;
+  try { register(appRef, { basePath: "/api/lingosentinel", version: LINGOSENTINEL_LAYERS_8_10_CRITICAL_VERSION }); return true; }
+  catch (err) { console.log("[Sandblast][LingoSentinel] recovery_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") }); return false; }
+}
+
+
+function mountLingoSentinelTranslationResultRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) { appRef.use("/api/lingosentinel", router); return true; }
+  const register = mod.registerLingoSentinelTranslationResultRoute || mod.mountLingoSentinelTranslationResultRoute || mod.register || mod.mount || mod.default;
+  if (typeof register !== "function") return false;
+  try { register(appRef, { basePath: "/api/lingosentinel", version: LINGOSENTINEL_LAYERS_11_12_PUBLIC_VERSION }); return true; }
+  catch (err) { console.log("[Sandblast][LingoSentinel] translation_result_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") }); return false; }
+}
+
+function mountLingoSentinelConnectionRoute(appRef, mod) {
+  if (!appRef || !mod) return false;
+  const router = resolveExpressRouterFromModule(mod);
+  if (router) {
+    appRef.use("/api/lingosentinel", router);
+    return true;
+  }
+  const register =
+    (typeof mod.registerLingoSentinelConnectionRoute === "function" && mod.registerLingoSentinelConnectionRoute) ||
+    (typeof mod.mountLingoSentinelConnectionRoute === "function" && mod.mountLingoSentinelConnectionRoute) ||
+    (typeof mod.register === "function" && mod.register) ||
+    (typeof mod.mount === "function" && mod.mount) ||
+    (typeof mod.default === "function" && mod.default);
+  if (typeof register !== "function") return false;
+  try {
+    register(appRef, { basePath: "/api/lingosentinel", version: LINGOSENTINEL_LAYERS_3_4_CRITICAL_VERSION });
+    return true;
+  } catch (err) {
+    console.log("[Sandblast][LingoSentinel] connection_route_register_failed", { error: cleanText(err && (err.message || err) || "register_failed") });
     return false;
   }
 }
@@ -9230,13 +11295,16 @@ const marionEmotionRuntimeMod = tryRequireMany([
   "./Data/marion/runtime/emotion/emotionRuntime.js"
 ]);
 
+// Marion Nuance Phase A is diagnostic-only at index scope.
+// Layers 21-24 execute inside the conversation registry/Marion runtime, never in transport.
+const marionNuancePhaseACoordinatorMod = tryRequireMany([
+  "./Data/marion/runtime/nuance/marionNuancePhaseACoordinator",
+  "./Data/marion/runtime/nuance/marionNuancePhaseACoordinator.js"
+]);
+
 const stateSpineMod = tryRequireMany([
-  "./stateSpine",
-  "./stateSpine.js",
   "./utils/stateSpine",
-  "./utils/stateSpine.js",
-  "./Utils/stateSpine",
-  "./Utils/stateSpine.js"
+  "./utils/stateSpine.js"
 ]);
 
 const nyxPackRuntimeAdapterMod = tryRequireMany([
@@ -9889,8 +11957,49 @@ function getMarionEmotionRuntimeHealth() {
   }
 }
 
+
+function getMarionNuancePhaseAHealth() {
+  if (!marionNuancePhaseACoordinatorMod || typeof marionNuancePhaseACoordinatorMod.moduleHealth !== "function") {
+    return {
+      ok: false,
+      runtime: "marion-nuance-phase-a",
+      contract: "nyx.marion.nuance.phaseA/1.0",
+      hardStopLayer: 24,
+      error: "nuance_phase_a_unavailable",
+      indexRole: "diagnostic_only",
+      transportOnly: true
+    };
+  }
+  try {
+    const health = marionNuancePhaseACoordinatorMod.moduleHealth();
+    return {
+      ...safeObj(health),
+      ok: !!(health && health.ok !== false),
+      runtime: "marion-nuance-phase-a",
+      contract: "nyx.marion.nuance.phaseA/1.0",
+      hardStopLayer: 24,
+      indexRole: "diagnostic_only",
+      transportOnly: true,
+      culturalInferenceAllowed: false,
+      psychologicalDiagnosisAllowed: false
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      runtime: "marion-nuance-phase-a",
+      contract: "nyx.marion.nuance.phaseA/1.0",
+      hardStopLayer: 24,
+      error: "nuance_phase_a_health_failed",
+      detail: cleanText(err && err.message || "nuance_phase_a_health_failed"),
+      indexRole: "diagnostic_only",
+      transportOnly: true
+    };
+  }
+}
+
 function getMarionRuntimeDiagnostics() {
   const emotionHealth = getMarionEmotionRuntimeHealth();
+  const nuancePhaseAHealth = getMarionNuancePhaseAHealth();
   return {
     marionBridgeLoaded: !!marionBridgeMod,
     marionBridgeKeys: marionBridgeMod && typeof marionBridgeMod === "object" ? Object.keys(marionBridgeMod).slice(0, 20) : [],
@@ -9909,6 +12018,11 @@ function getMarionRuntimeDiagnostics() {
     marionEmotionRuntimeHasHealth: !!(marionEmotionRuntimeMod && typeof marionEmotionRuntimeMod.getHealth === "function"),
     marionEmotionRuntimeMode: "resolved_state_only",
     marionEmotionRuntimeHealth: emotionHealth,
+    marionNuancePhaseALoaded: !!marionNuancePhaseACoordinatorMod,
+    marionNuancePhaseAHasHealth: !!(marionNuancePhaseACoordinatorMod && typeof marionNuancePhaseACoordinatorMod.moduleHealth === "function"),
+    marionNuancePhaseAHealth: nuancePhaseAHealth,
+    marionNuancePhaseAIndexRole: "diagnostic_only",
+    marionNuancePhaseAHardStopLayer: 24,
     chatEngineVersion: cleanText(chatEngineMod && chatEngineMod.VERSION || ""),
     stateSpineVersion: cleanText(stateSpineMod && stateSpineMod.SPINE_VERSION || ""),
     nyxPackRuntimeAdapterLoaded: !!nyxPackRuntimeAdapterMod,
@@ -11784,11 +13898,58 @@ function isConversationRoutePath(req) {
 }
 
 
+const NYX_MARION_BRIDGE_COHESION_VERSION = "nyx.marion.publicBridgeCohesion/1.0";
+
+function getMarionBridgeRuntimeCapability() {
+  const mod = marionBridgeMod;
+  const methods = ["createMarionBridge", "maybeResolve", "processWithMarion", "route", "ask", "handle", "default"];
+  if (typeof mod === "function") return { ready: true, handler: "module_function" };
+  if (!mod) return { ready: false, handler: "" };
+  for (const name of methods) {
+    if (typeof mod[name] === "function") return { ready: true, handler: name };
+  }
+  return { ready: false, handler: "" };
+}
+
+function requestFlagFromNorm(norm = {}, key) {
+  const n = isObj(norm) ? norm : {};
+  const body = isObj(n.body) ? n.body : {};
+  const payload = isObj(n.payload) ? n.payload : {};
+  const client = isObj(n.client) ? n.client : {};
+  const options = isObj(body.options) ? body.options : (isObj(payload.options) ? payload.options : {});
+  return [n[key], body[key], payload[key], client[key], options[key]].some(isTruthyRequestFlag);
+}
+
+function shouldRequireMarionConversation(norm = {}) {
+  const n = isObj(norm) ? norm : {};
+  if (requestFlagFromNorm(n, "requireMarionFinal") || requestFlagFromNorm(n, "marionRequired")) return true;
+  // Public /api/chat is Marion-first by default. Local deterministic chat answers are
+  // now an explicit opt-in compatibility mode, never an implicit semantic authority.
+  if (isNyxPublicSurfaceRequest(n)) return !requestFlagFromNorm(n, "allowNyxLocalFastPath");
+  return false;
+}
+
+function applyMarionConversationAttestation(res, status = {}) {
+  if (!res || typeof res.setHeader !== "function") return;
+  const runtime = getPublicMarionRuntimeSummary();
+  const route = cleanText(status.route || (status.final === true ? "marion-primary" : (status.routed === true ? "marion-routed" : "marion-unverified"))) || "marion-unverified";
+  try {
+    res.setHeader("X-SB-Marion-Route", route);
+    res.setHeader("X-SB-Marion-Final", status.final === true ? "1" : "0");
+    res.setHeader("X-SB-Marion-Chat-Ready", runtime.chatReady ? "1" : "0");
+  } catch (_) {}
+}
+
 function getPublicMarionRuntimeSummary() {
-  const bridgeReady = !!(marionBridgeMod && (typeof marionBridgeMod.route === "function" || typeof marionBridgeMod.handle === "function" || typeof marionBridgeMod.processWithMarion === "function" || typeof marionBridgeMod.default === "function"));
+  const bridge = getMarionBridgeRuntimeCapability();
   return {
-    ready: bridgeReady,
-    chatReady: !!chatEngineMod,
+    ready: bridge.ready,
+    chatReady: bridge.ready,
+    bridgeHandlerReady: bridge.ready,
+    legacyChatEngineReady: !!chatEngineMod,
+    conversationAuthority: "marion_bridge",
+    bridgeCohesionVersion: NYX_MARION_BRIDGE_COHESION_VERSION,
+    chatReadyBasis: "marion_bridge_handler_callable",
     lingoSentinelReady: !!lingoSentinelGatewayMod,
     diagnosticsRedacted: true
   };
@@ -13723,6 +15884,10 @@ function normalizePayload(req) {
     clearSession: shouldResetConversationFromRequest(req, body, payload),
     staleCarryBypass: false,
     languageSphereDirectTranslation: false,
+    requireMarionFinal: isTruthyRequestFlag(body.requireMarionFinal) || isTruthyRequestFlag(payload.requireMarionFinal),
+    marionRequired: isTruthyRequestFlag(body.marionRequired) || isTruthyRequestFlag(payload.marionRequired),
+    requireCleanPublicReply: isTruthyRequestFlag(body.requireCleanPublicReply) || isTruthyRequestFlag(payload.requireCleanPublicReply),
+    allowNyxLocalFastPath: isTruthyRequestFlag(body.allowNyxLocalFastPath) || isTruthyRequestFlag(payload.allowNyxLocalFastPath),
     client: isObj(body.client) ? body.client : {}
   };
 }
@@ -14035,6 +16200,19 @@ function buildTransportKey(ctx, text, req) {
     safeStr(ctx?.year || ""),
     msg
   ].join("|");
+}
+
+async function waitForSettledTransportState(sessionId, turnId, transportKey, timeoutMs) {
+  const deadline = now() + Math.max(250, Number(timeoutMs || 0));
+  while (now() < deadline) {
+    const state = getTransportState(sessionId);
+    const sameTurn = cleanText(state.turnId || "") === cleanText(turnId || "");
+    const sameKey = !transportKey || state.key === transportKey;
+    if (sameTurn && sameKey && state.finalized === true && cleanText(state.reply || "")) return state;
+    if (sameTurn && sameKey && state.finalized === false && (state.failed === true || state.blocked === true)) return state;
+    await new Promise((resolve) => setTimeout(resolve, 35));
+  }
+  return null;
 }
 
 function detectLoop(sessionId, reply, userText, opts) {
@@ -14422,11 +16600,39 @@ function buildLoggingSpine(trace) {
   };
 }
 
+const MARION_DOMAIN_RESPONSE_OBJECT_RENDER_GUARD_VERSION =
+  "nyx.marion.domainResponseObjectRenderGuard/1.0";
+
+function scalarMarionReplyCandidate(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function nestedMarionResponseReplyCandidate(value) {
+  const responseObject = isObj(value) ? value : {};
+  const responsePayload = isObj(responseObject.payload) ? responseObject.payload : {};
+
+  return (
+    responseObject.reply ||
+    responseObject.visibleReply ||
+    responseObject.displayReply ||
+    responseObject.answer ||
+    responseObject.text ||
+    responseObject.message ||
+    responseObject.output ||
+    responsePayload.reply ||
+    responsePayload.answer ||
+    responsePayload.text ||
+    responsePayload.message ||
+    ""
+  );
+}
+
 function getMarionAuthorityReply(marion) {
   if (!isObj(marion)) return "";
   const finalEnvelope = isObj(marion.finalEnvelope) ? marion.finalEnvelope : {};
   const payload = isObj(marion.payload) ? marion.payload : {};
   const packet = isObj(marion.packet) ? marion.packet : {};
+  const nestedResponseReply = nestedMarionResponseReplyCandidate(marion.response);
   const synthesis = isObj(packet.synthesis) ? packet.synthesis : {};
   const contract = isObj(marion.contract) ? marion.contract : {};
   const result = isObj(marion.result) ? marion.result : {};
@@ -14435,11 +16641,25 @@ function getMarionAuthorityReply(marion) {
   const resultPacket = isObj(result.packet) ? result.packet : {};
   const resultSynthesis = isObj(resultPacket.synthesis) ? resultPacket.synthesis : {};
   const reply = cleanReplyForUser(
+    finalEnvelope.authoritativeReply ||
+    marion.authoritativeReply ||
+    payload.authoritativeReply ||
+    resultFinalEnvelope.authoritativeReply ||
+    result.authoritativeReply ||
+    resultPayload.authoritativeReply ||
+    finalEnvelope.finalReply ||
+    finalEnvelope.directReply ||
+    finalEnvelope.publicReply ||
+    finalEnvelope.visibleReply ||
     finalEnvelope.reply ||
     finalEnvelope.text ||
     finalEnvelope.displayReply ||
     finalEnvelope.spokenText ||
-    marion.response ||
+    scalarMarionReplyCandidate(marion.response) ||
+    marion.finalReply ||
+    marion.directReply ||
+    marion.publicReply ||
+    marion.visibleReply ||
     marion.reply ||
     marion.text ||
     marion.output ||
@@ -14487,6 +16707,7 @@ function getMarionAuthorityReply(marion) {
     resultSynthesis.text ||
     resultSynthesis.output ||
     resultSynthesis.answer ||
+    nestedResponseReply ||
     ""
   );
   return isConversationDiagnosticFallbackReply(reply) ? "" : reply;
@@ -14568,6 +16789,26 @@ function normalizeMarionBridgeResult(raw, input) {
 
   const reply = getMarionAuthorityReply(base) || getMarionAuthorityReply(src) || getMarionAuthorityReply(result);
   if (!reply || base.ok === false || src.ok === false) return raw;
+
+  // MARION-NYX-BRIDGE-COHESION-V2:
+  // The index may normalize an existing Marion final, but it must not manufacture
+  // Marion-final authority from a non-empty compatibility reply alone.
+  const baseFinalEnvelope = isObj(base.finalEnvelope) ? base.finalEnvelope : {};
+  const basePayload = isObj(base.payload) ? base.payload : {};
+  const baseMeta = isObj(base.meta) ? base.meta : {};
+  const resultEnvelope = isObj(result.finalEnvelope) ? result.finalEnvelope : {};
+  const incomingSemanticAuthority = cleanText(
+    base.semanticAuthority ||
+    baseMeta.semanticAuthority ||
+    baseFinalEnvelope.semanticAuthority ||
+    result.semanticAuthority ||
+    (isObj(result.meta) ? result.meta.semanticAuthority : "")
+  ).toLowerCase();
+  const incomingFinalEvidence =
+    isTrustedMarionSemanticFinalPacket(base) ||
+    isTrustedMarionSemanticFinalPacket(src) ||
+    isTrustedMarionSemanticFinalPacket(result);
+  if (!incomingFinalEvidence) return raw;
 
   // Critical loop hardlock discipline:
   // Do not let the index normalizer mint a fresh Marion signature for a known stale support phrase.
@@ -14663,6 +16904,7 @@ function normalizeMarionBridgeResult(raw, input) {
 
   const payload = {
     ...existingPayload,
+    authoritativeReply: reply,
     reply,
     text: reply,
     answer: reply,
@@ -14695,6 +16937,7 @@ function normalizeMarionBridgeResult(raw, input) {
     },
     synthesis: {
       ...existingSynthesis,
+      authoritativeReply: reply,
       reply,
       text: reply,
       answer: reply,
@@ -14734,6 +16977,7 @@ function normalizeMarionBridgeResult(raw, input) {
     marionFinal: true,
     marionHandled: true,
     usedBridge: base.usedBridge !== false,
+    authoritativeReply: reply,
     reply,
     text: reply,
     answer: reply,
@@ -14748,6 +16992,7 @@ function normalizeMarionBridgeResult(raw, input) {
     hardlockCompatible: true,
     finalEnvelope: {
       ...(isObj(base.finalEnvelope) ? base.finalEnvelope : {}),
+      authoritativeReply: reply,
       reply,
       text: reply,
       displayReply: reply,
@@ -16976,6 +19221,23 @@ app.get(["/api/marion/emotion/health", "/api/marion/emotion/health/"], (req, res
   });
 });
 
+app.get(["/api/marion/nuance/health", "/api/marion/nuance/health/"], (req, res) => {
+  applyCors(req, res);
+  const health = getMarionNuancePhaseAHealth();
+  return res.status(health && health.ok ? 200 : 503).json({
+    ok: !!(health && health.ok),
+    service: "marion-nuance-phase-a",
+    ready: !!(health && health.ok),
+    contract: "nyx.marion.nuance.phaseA/1.0",
+    hardStopLayer: 24,
+    diagnosticsRedacted: true,
+    culturalInferenceAllowed: false,
+    psychologicalDiagnosisAllowed: false,
+    version: PUBLIC_INDEX_VERSION,
+    traceId: cleanText(req.sbTraceId || req.headers["x-sb-trace-id"] || makeTraceId("nuancehealth"))
+  });
+});
+
 app.get("/health", (req, res) => {
   applyCors(req, res);
   return res.status(200).json(buildPublicHealthPayload(req));
@@ -17031,9 +19293,7 @@ const TTS_RATE_BUCKET_MAX = clamp(Number(process.env.SB_TTS_RATE_BUCKET_MAX || 5
 const ttsRateBuckets = new Map();
 
 function ttsClientRateKey(req) {
-  const cf = cleanText(req && req.headers && req.headers["cf-connecting-ip"] || "");
-  const forwarded = cleanText(req && req.headers && req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return cleanText(cf || req && req.ip || forwarded || req && req.socket && req.socket.remoteAddress || "unknown") || "unknown";
+  return trustedClientIp(req);
 }
 
 function enforceTtsRateLimit(req, res, next) {
@@ -17096,6 +19356,167 @@ const CONVERSATION_ROUTE_ALIASES = ["/api/chat", "/api/chat/", "/chat", "/chat/"
 
 function buildConversationSafeErrorReply(norm, status, error, detail, extra) {
   return buildConversationNonFinalPacket(norm, status, error, detail, extra);
+}
+
+const NYX_NEON_PUBLIC_POLISH_DOMAINS = new Set([
+  "english",
+  "psychology",
+  "ai",
+  "finance",
+  "cyber",
+  "law"
+]);
+const NYX_NEON_POLISH_CACHE_TTL_MS = 10 * 60 * 1000;
+const NYX_NEON_POLISH_CACHE_MAX = 1000;
+const NYX_NEON_POLISH_RATE_WINDOW_MS = 60 * 1000;
+const NYX_NEON_POLISH_RATE_MAX = 10;
+const NYX_NEON_POLISH_GLOBAL_RATE_MAX = 30;
+const NYX_NEON_LOCAL_DIAGNOSTICS_ENABLED = cleanText(process.env.SB_NYX_GATEWAY_DIAGNOSTICS || "").toLowerCase() === "true";
+const nyxNeonPolishCache = new Map();
+const nyxNeonPolishInFlight = new Map();
+const nyxNeonPolishRateBuckets = new Map();
+let nyxNeonPolishGlobalRateBucket = { startedAt: 0, count: 0 };
+
+function withLocalNyxGatewayDiagnostics(response, req, status = {}) {
+  if (!NYX_NEON_LOCAL_DIAGNOSTICS_ENABLED || !isObj(response)) return response;
+  const remoteAddress = cleanText(req && req.socket && req.socket.remoteAddress || "");
+  if (!new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]).has(remoteAddress)) return response;
+  return {
+    ...response,
+    meta: {
+      ...(isObj(response.meta) ? response.meta : {}),
+      nyxGatewayAttempted: status.attempted === true,
+      nyxGatewayResponseReceived: status.responseReceived === true,
+      nyxGatewayPolishApplied: status.polishApplied === true,
+      nyxGatewayCacheHit: status.cacheHit === true,
+      nyxGatewayOutcome: cleanText(status.outcome || "unknown"),
+      nyxGatewayAdapterVersion: cleanText(nyxOpenAIMod && nyxOpenAIMod.GATEWAY_ADAPTER_VERSION || "")
+    }
+  };
+}
+
+function allowNyxNeonPolishRequest(req) {
+  const t = now();
+  const ip = cleanText(trustedClientIp(req) || "unknown") || "unknown";
+  let bucket = nyxNeonPolishRateBuckets.get(ip);
+  if (!bucket || t - bucket.startedAt >= NYX_NEON_POLISH_RATE_WINDOW_MS) {
+    bucket = { startedAt: t, count: 0 };
+  }
+  if (!nyxNeonPolishGlobalRateBucket || t - nyxNeonPolishGlobalRateBucket.startedAt >= NYX_NEON_POLISH_RATE_WINDOW_MS) {
+    nyxNeonPolishGlobalRateBucket = { startedAt: t, count: 0 };
+  }
+  if (bucket.count >= NYX_NEON_POLISH_RATE_MAX || nyxNeonPolishGlobalRateBucket.count >= NYX_NEON_POLISH_GLOBAL_RATE_MAX) return false;
+  bucket.count += 1;
+  nyxNeonPolishGlobalRateBucket.count += 1;
+  nyxNeonPolishRateBuckets.set(ip, bucket);
+
+  if (nyxNeonPolishRateBuckets.size > 5000) {
+    for (const [key, value] of nyxNeonPolishRateBuckets.entries()) {
+      if (!value || t - Number(value.startedAt || 0) >= NYX_NEON_POLISH_RATE_WINDOW_MS) {
+        nyxNeonPolishRateBuckets.delete(key);
+      }
+      if (nyxNeonPolishRateBuckets.size <= 4000) break;
+    }
+  }
+  return true;
+}
+
+function applyNyxNeonPolishedReply(response, polishedReply) {
+  const out = { ...response };
+  const replyFields = [
+    "authoritativeReply", "reply", "text", "answer", "output", "response", "message",
+    "displayReply", "publicReply", "visibleReply", "finalReply",
+    "spokenText", "textDisplay", "textSpeak"
+  ];
+  for (const key of replyFields) out[key] = polishedReply;
+  out.payload = { ...(isObj(response.payload) ? response.payload : {}) };
+  out.finalEnvelope = { ...(isObj(response.finalEnvelope) ? response.finalEnvelope : {}) };
+  for (const key of ["authoritativeReply", "reply", "text", "message", "displayReply", "spokenText", "textDisplay", "textSpeak"]) {
+    out.payload[key] = polishedReply;
+    out.finalEnvelope[key] = polishedReply;
+  }
+  out.meta = {
+    ...(isObj(response.meta) ? response.meta : {}),
+    nyxGatewayPolishApplied: true,
+    nyxGatewayAdapterVersion: cleanText(nyxOpenAIMod && nyxOpenAIMod.GATEWAY_ADAPTER_VERSION || "")
+  };
+  const hygienic = applyPublicReplyHygieneToResponse(out);
+  if (!isObj(hygienic) || cleanText(hygienic.reply || "") !== polishedReply) return response;
+  hygienic.meta = {
+    ...(isObj(hygienic.meta) ? hygienic.meta : {}),
+    nyxGatewayPolishApplied: true,
+    nyxGatewayAdapterVersion: cleanText(nyxOpenAIMod && nyxOpenAIMod.GATEWAY_ADAPTER_VERSION || "")
+  };
+  return hygienic;
+}
+
+async function polishNyxPublicKnowledgeFastPath(response, norm, decision, req) {
+  if (!isObj(response) || !isObj(norm) || !isObj(decision)) return response;
+  if (!isNyxPublicSurfaceRequest(norm) || norm.marionConversationRequired === true) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "not_public_knowledge" });
+  if (cleanText(decision.routeType).toLowerCase() !== "knowledge") return withLocalNyxGatewayDiagnostics(response, req, { outcome: "not_knowledge_route" });
+  if (decision.actionRequired === true) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "action_required" });
+
+  const domain = cleanText(decision.knowledgeDomain || decision.domain || "").toLowerCase();
+  if (!NYX_NEON_PUBLIC_POLISH_DOMAINS.has(domain)) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "domain_not_enabled" });
+  if (
+    !nyxOpenAIMod ||
+    typeof nyxOpenAIMod.generateNyxReply !== "function" ||
+    typeof nyxOpenAIMod.isGatewayConfigured !== "function" ||
+    !nyxOpenAIMod.isGatewayConfigured()
+  ) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "gateway_unconfigured" });
+
+  const baseReply = cleanText(response.reply || response.text || response.answer || "");
+  if (!baseReply) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "empty_base_answer" });
+  const userMessage = cleanText(norm.originalText || norm.rawUserText || norm.text || "");
+  const intent = cleanText(decision.intent || "domain_question");
+  const cacheKey = replyHash(`${domain}|${intent}|${userMessage}|${baseReply}`);
+  const t = now();
+  const cached = nyxNeonPolishCache.get(cacheKey);
+  if (cached && t < cached.expiresAt) {
+    if (!cached.reply || cached.reply === baseReply) return withLocalNyxGatewayDiagnostics(response, req, { cacheHit: true, outcome: "cache_hit_unchanged" });
+    const maximumCachedPolishLength = Math.min(1800, Math.max(600, baseReply.length * 2 + 120));
+    if (cached.reply.length > maximumCachedPolishLength) return withLocalNyxGatewayDiagnostics(response, req, { cacheHit: true, outcome: "cache_hit_rejected_length" });
+    return withLocalNyxGatewayDiagnostics(applyNyxNeonPolishedReply(response, cached.reply), req, { cacheHit: true, polishApplied: true, outcome: "cache_hit_polished" });
+  }
+  if (cached) nyxNeonPolishCache.delete(cacheKey);
+
+  let sharedRequest = nyxNeonPolishInFlight.get(cacheKey);
+  if (!sharedRequest) {
+    if (!allowNyxNeonPolishRequest(req)) return withLocalNyxGatewayDiagnostics(response, req, { outcome: "rate_limited" });
+    sharedRequest = Promise.resolve().then(() => nyxOpenAIMod.generateNyxReply({
+      domain,
+      intent,
+      baseMessage: baseReply,
+      boundaryContext: {
+        role: "public",
+        actor: "guest",
+        scope: "public",
+        publicSurfaceOnly: true
+      }
+    })).catch(() => null);
+    nyxNeonPolishInFlight.set(cacheKey, sharedRequest);
+  }
+
+  try {
+    const generated = await sharedRequest;
+    const polishedReply = typeof generated === "string" ? generated.trim().slice(0, 4000) : "";
+    if (!polishedReply) return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, outcome: "no_gateway_response" });
+    const maximumPolishLength = Math.min(1800, Math.max(600, baseReply.length * 2 + 120));
+    if (polishedReply.length > maximumPolishLength) return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, responseReceived: true, outcome: "response_rejected_length" });
+
+    if (nyxNeonPolishCache.size >= NYX_NEON_POLISH_CACHE_MAX) {
+      const oldestKey = nyxNeonPolishCache.keys().next().value;
+      if (oldestKey) nyxNeonPolishCache.delete(oldestKey);
+    }
+    nyxNeonPolishCache.set(cacheKey, { reply: polishedReply, expiresAt: now() + NYX_NEON_POLISH_CACHE_TTL_MS });
+    if (polishedReply === baseReply) return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, responseReceived: true, outcome: "response_unchanged" });
+    return withLocalNyxGatewayDiagnostics(applyNyxNeonPolishedReply(response, polishedReply), req, { attempted: true, responseReceived: true, polishApplied: true, outcome: "polish_applied" });
+  } catch (_) {
+    // This enhancement is optional. Keep the deterministic answer on failure.
+    return withLocalNyxGatewayDiagnostics(response, req, { attempted: true, outcome: "request_failed" });
+  } finally {
+    if (nyxNeonPolishInFlight.get(cacheKey) === sharedRequest) nyxNeonPolishInFlight.delete(cacheKey);
+  }
 }
 
 app.options(CONVERSATION_ROUTE_ALIASES, (req, res) => {
@@ -17184,18 +19605,22 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     });
   }
 
-  const publicFastPathDecision = buildNyxPublicFastPathDecision(norm);
+  const marionConversationRequired = shouldRequireMarionConversation(norm);
+  norm.marionConversationRequired = marionConversationRequired;
+  const publicFastPathDecision = marionConversationRequired ? null : buildNyxPublicFastPathDecision(norm);
   if (publicFastPathDecision) {
-    const fastResponse = enforceNyxPublicKnowledgeAnswerOnlyR4(
+    let fastResponse = enforceNyxPublicKnowledgeAnswerOnlyR4(
       buildNyxPublicFastPathResponse(norm, sessionId, startedAt, publicFastPathDecision),
       norm,
       publicFastPathDecision
     );
+    fastResponse = await polishNyxPublicKnowledgeFastPath(fastResponse, norm, publicFastPathDecision, req);
     const fastReply = cleanText(fastResponse && (fastResponse.reply || fastResponse.text) || "");
     if (fastResponse && fastReply) {
       setTransportState(sessionId, { key: buildTransportKey(norm, norm.text, req), turnId: norm.turnId, reply: fastReply, replyHash: replyHash(fastReply), userHash: replyHash(norm.text), finalized: true, route: fastResponse.lane || norm.lane || "public_interface", authority: "nyx_public_fast_path", count: 1 });
       setLastTurn(sessionId, { replyHash: replyHash(fastReply), userHash: replyHash(norm.text), lane: fastResponse.lane || norm.lane || "public_interface", replyAuthority: "nyx_public_fast_path", turnId: norm.turnId, route: fastResponse.lane || norm.lane || "public_interface", finalized: true, userText: cleanText(norm.originalText || norm.rawUserText || norm.text), resolvedUserText: cleanText(norm.text), reply: fastReply, topic: cleanText(publicFastPathDecision.target || publicFastPathDecision.intent || "sandblast") });
       res.setHeader("Server-Timing", `nyx_fast;dur=${Math.max(0, now() - startedAt)}`);
+      applyMarionConversationAttestation(res, { route: "nyx-local-fast-path", routed: false, final: false });
       res.setHeader("X-SB-Nyx-Path", "public-fast");
       return res.status(200).json(fastResponse);
     }
@@ -17219,7 +19644,29 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   const transportKey = buildTransportKey(norm, norm.text, req);
-  const transportState = getTransportState(sessionId);
+  let transportState = getTransportState(sessionId);
+  const sameTurnInFlight = cleanText(transportState.turnId || "") === cleanText(norm.turnId || "") &&
+    transportState.finalized !== true && transportState.key === transportKey;
+  if (sameTurnInFlight && !norm.resetConversation && !norm.staleCarryBypass) {
+    const settled = await waitForSettledTransportState(
+      sessionId,
+      norm.turnId,
+      transportKey,
+      Math.min(CFG.publicRequestTimeoutMs + 900, 7000)
+    );
+    if (settled && settled.finalized === true && cleanText(settled.reply || "")) {
+      transportState = settled;
+    } else {
+      const duplicatePending = buildConversationSafeErrorReply(norm, 200, "duplicate_turn_in_flight", "An identical turn is already being processed.", {
+        duplicateTurnInFlight: true,
+        suppressUserFacingReply: true,
+        latencyMs: now() - startedAt
+      });
+      applyMarionConversationAttestation(res, { route: "marion-duplicate-inflight", routed: true, final: false });
+      res.setHeader("X-SB-Nyx-Path", "duplicate-inflight");
+      return res.status(200).json(applyPublicReplyHygieneToResponse(duplicatePending));
+    }
+  }
   const transportAgeMs = startedAt - Number(transportState.at || 0);
   const sameTurnTransportReplay = cleanText(transportState.turnId || "") === cleanText(norm.turnId || "");
   const recentFinalDuplicateSubmit = transportState.finalized === true && !!cleanText(transportState.reply || "") && transportAgeMs >= 0 && transportAgeMs < CFG.duplicateSubmitWindowMs;
@@ -17229,18 +19676,25 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     transportAgeMs < CFG.transportReplayCacheMs;
   if (priorTransportReplay && !norm.resetConversation && !norm.staleCarryBypass) {
     const cachedReply = finalizeRenderableReply(transportState.reply || priorTurn && priorTurn.reply || "", norm, "transport_replay_cache", "cached_reply_guard");
-    if (isBlockedLoopingSupportReply(cachedReply) || hasUserVisibleDebugLeak(cachedReply) || isPublicWorkflowStateLeak(cachedReply) || isLastMileProgressionIntentText(norm.text)) {
+    const cachedMarionFinal = transportState.marionFinal === true || /^marion(?:_|$)/i.test(cleanText(transportState.authority || priorTurn && priorTurn.replyAuthority || ""));
+    if (marionConversationRequired && !cachedMarionFinal) {
+      setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", replayCachePurged: true, nonMarionReplayRejected: true });
+    } else if (isBlockedLoopingSupportReply(cachedReply) || hasUserVisibleDebugLeak(cachedReply) || isPublicWorkflowStateLeak(cachedReply) || isLastMileProgressionIntentText(norm.text)) {
       setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", loopReplyBlocked: true, replayCachePurged: true });
     } else if (cachedReply) {
       const cached = normalizeReplyEnvelope({
         ok: true,
+        authoritativeReply: cachedMarionFinal ? cachedReply : "",
         reply: cachedReply,
-        payload: { reply: cachedReply },
+        payload: { authoritativeReply: cachedMarionFinal ? cachedReply : "", reply: cachedReply },
+        finalEnvelope: { authoritativeReply: cachedMarionFinal ? cachedReply : "", reply: cachedReply, final: true, marionFinal: cachedMarionFinal },
         lane: norm.lane || "general",
         laneId: norm.lane || "general",
         sessionLane: norm.lane || "general",
         requestId: makeTraceId("req"),
         traceId: norm.traceId,
+        marionFinal: cachedMarionFinal,
+        marionRoute: cachedMarionFinal ? "marion-replay-cache" : "nyx-replay-cache",
         meta: { replyAuthority: cleanText(transportState.authority || priorTurn && priorTurn.replyAuthority || "transport_replay_cache") }
       }, cachedReply, {
         v: PUBLIC_INDEX_VERSION,
@@ -17254,6 +19708,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         latencyMs: now() - startedAt
       });
       cached.voiceRoute = normalizeVoiceRouteResponse(attachVoiceRoute({ reply: cachedReply }).voiceRoute);
+      applyMarionConversationAttestation(res, { route: cachedMarionFinal ? "marion-replay-cache" : "nyx-replay-cache", routed: cachedMarionFinal, final: cachedMarionFinal });
+      res.setHeader("X-SB-Nyx-Path", cachedMarionFinal ? "marion-replay-cache" : "nyx-replay-cache");
       return res.status(200).json(applyPublicReplyHygieneToResponse(cached));
     }
   }
@@ -17289,7 +19745,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
   applyContinuityEffectivePromptToNorm(norm, "index.after-language-sphere-normalization");
 
-  if (norm.languageSphereDirectTranslation === true) {
+  if (norm.languageSphereDirectTranslation === true && !marionConversationRequired) {
     const directLanguageSphereResponse = await buildLanguageSphereDirectTranslationResponse(norm, sessionId, startedAt);
     if (directLanguageSphereResponse && cleanText(directLanguageSphereResponse.reply || directLanguageSphereResponse.text || "")) {
       const directReply = cleanText(directLanguageSphereResponse.reply || directLanguageSphereResponse.text || "");
@@ -17363,6 +19819,20 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     resolvedQuestion: cleanText(norm.resolvedQuestion || norm.continuityResolvedText || ""),
     resolvedPrompt: cleanText(norm.resolvedPrompt || norm.continuityResolvedText || ""),
     publicUserQuery: effectiveMarionText,
+    conversationId: cleanText(norm.body && norm.body.conversationId || norm.payload && norm.payload.conversationId || sessionId),
+    clientSessionId: cleanText(norm.body && norm.body.clientSessionId || norm.payload && norm.payload.clientSessionId || sessionId),
+    history: Array.isArray(norm.body && norm.body.history) ? norm.body.history.slice(-12) : (Array.isArray(norm.payload && norm.payload.history) ? norm.payload.history.slice(-12) : []),
+    lastAssistantReply: cleanText(norm.body && norm.body.lastAssistantReply || norm.payload && norm.payload.lastAssistantReply || priorTurn && priorTurn.reply || ""),
+    guideContext: isObj(norm.body && norm.body.guideContext) ? norm.body.guideContext : (isObj(norm.payload && norm.payload.guideContext) ? norm.payload.guideContext : {}),
+    audience: cleanText(norm.body && norm.body.audience || norm.payload && norm.payload.audience || (isNyxPublicSurfaceRequest(norm) ? "public" : "")),
+    surfaceAgent: cleanText(norm.body && norm.body.surfaceAgent || norm.payload && norm.payload.surfaceAgent || "nyx") || "nyx",
+    presentationProfile: cleanText(norm.body && norm.body.presentationProfile || norm.payload && norm.payload.presentationProfile || ""),
+    publicSurfaceOnly: nestedPublicFlag(norm, "publicSurfaceOnly") || isNyxPublicSurfaceRequest(norm),
+    publicIdentityLock: nestedPublicFlag(norm, "publicIdentityLock") || isNyxPublicSurfaceRequest(norm),
+    revealBackendAgent: false,
+    requireMarionFinal: !!marionConversationRequired,
+    marionRequired: !!marionConversationRequired,
+    requireCleanPublicReply: norm.requireCleanPublicReply !== false,
     lane: norm.lane,
     year: norm.year,
     mode: norm.mode,
@@ -17384,6 +19854,16 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       continuityResolvedOriginalText: cleanText(norm.continuityResolvedOriginalText || ""),
       continuityTopic: cleanText(norm.continuityTopic || ""),
       shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved,
+      requireMarionFinal: !!marionConversationRequired,
+      marionRequired: !!marionConversationRequired,
+      requireCleanPublicReply: norm.requireCleanPublicReply !== false,
+      publicSurfaceOnly: nestedPublicFlag(norm, "publicSurfaceOnly") || isNyxPublicSurfaceRequest(norm),
+      publicIdentityLock: nestedPublicFlag(norm, "publicIdentityLock") || isNyxPublicSurfaceRequest(norm),
+      revealBackendAgent: false,
+      surfaceAgent: cleanText(norm.body && norm.body.surfaceAgent || norm.payload && norm.payload.surfaceAgent || "nyx") || "nyx",
+      audience: cleanText(norm.body && norm.body.audience || norm.payload && norm.payload.audience || (isNyxPublicSurfaceRequest(norm) ? "public" : "")),
+      history: Array.isArray(norm.body && norm.body.history) ? norm.body.history.slice(-12) : (Array.isArray(norm.payload && norm.payload.history) ? norm.payload.history.slice(-12) : []),
+      lastAssistantReply: cleanText(norm.body && norm.body.lastAssistantReply || norm.payload && norm.payload.lastAssistantReply || priorTurn && priorTurn.reply || ""),
       packetPreclassification: isObj(norm.packetPreclassification) ? norm.packetPreclassification : undefined
     },
     source: norm.source,
@@ -17490,6 +19970,13 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       resetConversation: !!norm.resetConversation,
       staleCarryBypass: !!norm.staleCarryBypass,
       languageSphereDirectTranslation: !!norm.languageSphereDirectTranslation,
+      marionConversationRequired: !!marionConversationRequired,
+      requireMarionFinal: !!marionConversationRequired,
+      marionRequired: !!marionConversationRequired,
+      requireCleanPublicReply: norm.requireCleanPublicReply !== false,
+      publicSurfaceOnly: nestedPublicFlag(norm, "publicSurfaceOnly") || isNyxPublicSurfaceRequest(norm),
+      publicIdentityLock: nestedPublicFlag(norm, "publicIdentityLock") || isNyxPublicSurfaceRequest(norm),
+      revealBackendAgent: false,
       shortFollowupContinuityResolved: !!norm.shortFollowupContinuityResolved,
       effectivePrompt: effectiveMarionText,
       finalPrompt: effectiveMarionText,
@@ -17543,18 +20030,23 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     const timeoutResponse = buildNyxPublicTimeoutResponse(norm, sessionId, startedAt, errorDetail);
     const timeoutReply = cleanText(timeoutResponse && (timeoutResponse.reply || timeoutResponse.text) || "");
     setTransportState(sessionId, { key: "", turnId: norm.turnId, reply: timeoutReply, replyHash: replyHash(timeoutReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "public_interface", authority: "nyx_public_timeout", count: 1, timedOut: true });
+    timeoutResponse.marionFinal = false;
+    timeoutResponse.marionRoute = "marion-timeout";
+    timeoutResponse.marionAttestation = { version: NYX_MARION_BRIDGE_COHESION_VERSION, required: !!marionConversationRequired, routed: false, authorityReplyObserved: false, final: false, diagnosticsRedacted: true };
+    applyMarionConversationAttestation(res, { route: "marion-timeout", routed: false, final: false });
     res.setHeader("Server-Timing", `nyx_timeout;dur=${Math.max(0, now() - startedAt)}`);
     res.setHeader("X-SB-Nyx-Path", "public-timeout");
     return res.status(200).json(timeoutResponse);
   }
   const marionReply = getMarionAuthorityReply(marion);
   const marionHasFreshEnvelope = hasFreshMarionFinalEnvelope(marion);
+  const marionTrustedFinal = isTrustedMarionSemanticFinalPacket(marion);
   const marionReplyBlocked = isBlockedLoopingSupportReply(marionReply);
   if (marionReplyBlocked) {
     loopReplyWasBlocked = true;
     console.log("[Sandblast][chatRoute:blockedLoopReply]", { traceId: norm.traceId, authority: "marion_bridge", requiredSignature: REQUIRED_CHAT_ENGINE_SIGNATURE, normalized: !!(marion && marion.hardlockCompatible), hasFreshEnvelope: marionHasFreshEnvelope });
   }
-  if (marion && marionReply && !marionReplyBlocked && (marion.ok !== false || marionReply)) {
+  if (marion && marionReply && !marionReplyBlocked && marionTrustedFinal && marion.ok !== false) {
     selected = isObj(marion) ? { ...marion } : { ok: true, reply: marionReply };
     selected.ok = true;
     selected.final = true;
@@ -17570,17 +20062,18 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     selected.finalEnvelope = { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply: marionReply, text: marionReply, displayReply: marionReply, spokenText: marionReply, final: true, marionFinal: true, handled: true };
     selected.meta = {
       ...(isObj(selected.meta) ? selected.meta : {}),
-      replyAuthority: marionHasFreshEnvelope ? "marion_bridge" : "marion_bridge_legacy_reply",
+      replyAuthority: "marion_bridge",
       semanticAuthority: "marion",
-      finalEnvelopeCompatAccepted: !marionHasFreshEnvelope,
-      indexAcceptedMarionReplyWithoutFreshEnvelope: !marionHasFreshEnvelope,
+      finalEnvelopeCompatAccepted: false,
+      indexAcceptedMarionReplyWithoutFreshEnvelope: false,
+      marionSemanticFinalVerified: true,
       noHttp502: true
     };
     selected = normalizeMarionBridgeResult(selected, marionInput) || selected;
     selected.bridge = marion;
-    authority = marionHasFreshEnvelope ? "marion_bridge" : "marion_bridge_legacy_reply";
+    authority = "marion_bridge";
   } else {
-    errorDetail = cleanText(errorDetail || (marionReplyBlocked ? "marion_loop_reply_blocked" : "marion_final_envelope_missing"));
+    errorDetail = cleanText(errorDetail || (marionReplyBlocked ? "marion_loop_reply_blocked" : (marionReply && !marionTrustedFinal ? "marion_semantic_final_unverified" : "marion_final_envelope_missing")));
     console.log("[Sandblast][chatRoute:transport_only_no_engine_fallback]", {
       traceId: norm.traceId,
       marionReturned: !!marion,
@@ -17593,7 +20086,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     errorDetail = cleanText(errorDetail || "marion_loop_reply_blocked_transport_only");
   }
 
-  if (!selected && isObj(prePacketBridge) && prePacketBridge.ok !== false && cleanText(prePacketBridge.reply || "")) {
+  if (!selected && !marionConversationRequired && isObj(prePacketBridge) && prePacketBridge.ok !== false && cleanText(prePacketBridge.reply || "")) {
     const packetSelected = buildPacketBridgeFallbackSelected(norm, prePacketBridge);
     if (packetSelected) {
       selected = packetSelected;
@@ -17613,7 +20106,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
 
-  if (!selected) {
+  if (!selected && !marionConversationRequired) {
     const sixDomainRecoveredReply = buildDeterministicLastMilePublicReplyFromText([
       norm.text,
       norm.originalText,
@@ -17629,7 +20122,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         final: true,
         finalized: true,
         handled: true,
-        marionFinal: true,
+        marionFinal: false,
         emit: true,
         blocked: false,
         suppressUserFacingReply: false,
@@ -17640,16 +20133,16 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
         output: sixDomainRecoveredReply,
         response: sixDomainRecoveredReply,
         spokenText: sixDomainRecoveredReply,
-        payload: { reply: sixDomainRecoveredReply, text: sixDomainRecoveredReply, message: sixDomainRecoveredReply, spokenText: sixDomainRecoveredReply, final: true, marionFinal: true },
-        finalEnvelope: { contract: "nyx.marion.final/1.0", signature: "MARION_FINAL_AUTHORITY", reply: sixDomainRecoveredReply, text: sixDomainRecoveredReply, displayReply: sixDomainRecoveredReply, spokenText: sixDomainRecoveredReply, final: true, marionFinal: true, handled: true, qualityPass: true },
-        meta: { v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "marion_six_domain_public_knowledge_recovery", semanticAuthority: "marion", noHttp502: true, sixDomainPublicKnowledgeRecovered: true }
+        payload: { reply: sixDomainRecoveredReply, text: sixDomainRecoveredReply, message: sixDomainRecoveredReply, spokenText: sixDomainRecoveredReply, final: true, marionFinal: false },
+        finalEnvelope: { contract: "nyx.public.deterministic/1.0", reply: sixDomainRecoveredReply, text: sixDomainRecoveredReply, displayReply: sixDomainRecoveredReply, spokenText: sixDomainRecoveredReply, final: true, marionFinal: false, handled: true, qualityPass: true },
+        meta: { v: PUBLIC_INDEX_VERSION, t: now(), replyAuthority: "nyx_six_domain_public_knowledge_recovery", semanticAuthority: "nyx", noHttp502: true, sixDomainPublicKnowledgeRecovered: true }
       };
-      authority = "marion_six_domain_public_knowledge_recovery";
+      authority = "nyx_six_domain_public_knowledge_recovery";
       errorDetail = "";
     }
   }
 
-  if (!selected) {
+  if (!selected && !marionConversationRequired) {
     const projectionRecovery = buildPublicProjectionRecoveryResponse(norm, "conversation_authority_empty_public_projection_recovery", { traceId: norm.traceId, lane: norm.lane || "general" });
     if (projectionRecovery) {
       const projectionReply = cleanReplyForUser(projectionRecovery.reply || projectionRecovery.text || projectionRecovery.displayReply || "");
@@ -17672,6 +20165,46 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     return res.status(200).json(applyPublicReplyHygieneToResponse(safe));
   }
 
+  if (!selected && marionConversationRequired) {
+    const safe = buildConversationSafeErrorReply(norm, 200, "marion_required_final_unavailable", cleanText(errorDetail || "Marion did not return a clean final reply for this turn."), {
+      marionBridgePresent: !!marionBridgeMod,
+      marionBridgeReady: getPublicMarionRuntimeSummary().chatReady,
+      marionReturned: !!marion,
+      marionAuthorityReplyObserved: !!getMarionAuthorityReply(marion),
+      marionSemanticFinalVerified: false,
+      requireMarionFinal: true,
+      marionRequired: true,
+      suppressUserFacingReply: true,
+      latencyMs: now() - startedAt
+    });
+    safe.ok = false;
+    safe.final = false;
+    safe.finalized = false;
+    safe.handled = true;
+    safe.marionFinal = false;
+    safe.awaitingMarion = true;
+    safe.suppressUserFacingReply = true;
+    safe.emit = false;
+    safe.blocked = true;
+    safe.canEmit = false;
+    for (const key of ["authoritativeReply","reply","text","short","answer","output","response","message","displayReply","publicReply","visibleReply","finalReply","spokenText","textSpeak","textDisplay"]) safe[key] = "";
+    safe.payload = { ...(isObj(safe.payload) ? safe.payload : {}), authoritativeReply: "", reply: "", text: "", message: "", final: false, finalized: false, marionFinal: false, awaitingMarion: true, suppressUserFacingReply: true, emit: false, blocked: true, canEmit: false };
+    safe.finalEnvelope = { ...(isObj(safe.finalEnvelope) ? safe.finalEnvelope : {}), authoritativeReply: "", reply: "", text: "", displayReply: "", final: false, finalized: false, marionFinal: false, handled: true, canEmit: false, authority: "none", contractVersion: "nyx.marion.required/1.1" };
+    safe.marionRoute = "marion-required-no-final";
+    safe.marionAttestation = {
+      version: NYX_MARION_BRIDGE_COHESION_VERSION,
+      required: true,
+      routed: !!marion,
+      authorityReplyObserved: !!getMarionAuthorityReply(marion),
+      final: false,
+      diagnosticsRedacted: true
+    };
+    applyMarionConversationAttestation(res, { route: "marion-required-no-final", routed: !!marion, final: false });
+    res.setHeader("X-SB-Nyx-Path", "marion-required-no-final");
+    setTransportState(sessionId, { key: "", turnId: norm.turnId, userHash: replyHash(norm.text), count: 0, finalized: false, route: norm.lane || "general", authority: "none", marionRequired: true, blocked: true, failed: true });
+    return res.status(200).json(applyPublicReplyHygieneToResponse(safe));
+  }
+
   let reply = finalizeRenderableReply(
     getMarionAuthorityReply(selected) ||
     getMarionAuthorityReply(marion) ||
@@ -17690,7 +20223,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     "final_route_guard"
   );
   const continuityIntentOverrideReply = buildContinuityIntentOverrideReply(norm, reply);
-  if (continuityIntentOverrideReply) {
+  if (continuityIntentOverrideReply && !marionConversationRequired) {
     reply = finalizeRenderableReply(continuityIntentOverrideReply, norm, authority, "continuity_intent_override_hardlock");
     selected = forcePublicReply(selected, reply, {
       continuityIntentOverrideHardlock: true,
@@ -17739,7 +20272,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   }
 
   const longTurnContinuityRecoveryReply = buildLongTurnContinuityRecoveryReply(norm, priorTurn, reply);
-  if (longTurnContinuityRecoveryReply) {
+  if (longTurnContinuityRecoveryReply && !marionConversationRequired) {
     reply = finalizeRenderableReply(longTurnContinuityRecoveryReply, norm, authority, "longturn_short_followup_authority_recovery");
     selected = forcePublicReply(selected, reply, {
       longTurnContinuityRecovery: true,
@@ -17768,7 +20301,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     };
   }
   const publicContinuitySemanticOverrideReply = buildPublicContinuitySemanticOverrideReply(selected, reply, norm);
-  if (publicContinuitySemanticOverrideReply) {
+  if (publicContinuitySemanticOverrideReply && !marionConversationRequired) {
     reply = finalizeRenderableReply(publicContinuitySemanticOverrideReply, norm, authority || "public_continuity_handoff_semantic_override", "public_continuity_handoff_semantic_override_v2");
     selected = forcePublicReply(selected, reply, {
       publicContinuityHandoffRepairV2: true,
@@ -17802,7 +20335,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       buildContinuityIntentOverrideReply(norm, "") ||
       buildDeterministicLastMilePublicReplyFromText(salvagePrompt)
     );
-    if (salvageReply) {
+    if (salvageReply && !marionConversationRequired) {
       reply = finalizeRenderableReply(salvageReply, norm, authority || "index_authority_sanitization_reply_salvage", "index_authority_sanitization_reply_salvage");
       selected = forcePublicReply(selected, reply, {
         indexAuthoritySanitizationReplySalvage: true,
@@ -17829,7 +20362,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     }
   }
   if (!cleanText(reply)) {
-    const projectionRecovery = buildPublicProjectionRecoveryResponse(norm, "trusted_marion_final_reply_missing_after_sanitization_public_projection_recovery", selected || {});
+    const projectionRecovery = marionConversationRequired ? null : buildPublicProjectionRecoveryResponse(norm, "trusted_marion_final_reply_missing_after_sanitization_public_projection_recovery", selected || {});
     if (projectionRecovery) {
       const projectionReply = cleanReplyForUser(projectionRecovery.reply || projectionRecovery.text || projectionRecovery.displayReply || "");
       setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply: projectionReply, replyHash: replyHash(projectionReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: "public_nyx_projection_recovery", count: 1 });
@@ -17925,11 +20458,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     latencyMs: now() - startedAt
   });
   const trustedFinalForOutput = !!cleanText(reply) && !isConversationDiagnosticFallbackReply(reply) && !isBlockedLoopingSupportReply(reply) && !isPublicWorkflowStateLeak(reply);
+  const verifiedMarionFinalForOutput = isTrustedMarionSemanticFinalPacket(selected) || isTrustedMarionSemanticFinalPacket(marion);
   selected.ok = trustedFinalForOutput && selected.ok !== false;
   selected.final = trustedFinalForOutput;
   selected.finalized = trustedFinalForOutput;
   selected.handled = true;
-  selected.marionFinal = trustedFinalForOutput && (selected.marionFinal !== false || authority === "marion_bridge" || authority === "marion_bridge_legacy_reply" || authority === "marion_six_domain_public_knowledge_recovery" || authority === "index_authority_sanitization_reply_salvage");
+  selected.marionFinal = trustedFinalForOutput && verifiedMarionFinalForOutput;
   selected.awaitingMarion = !trustedFinalForOutput;
   selected.suppressUserFacingReply = !trustedFinalForOutput;
   selected.emit = trustedFinalForOutput;
@@ -17987,7 +20521,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   // safety gates inspect selected.awaitingMarion/blocked and accidentally emit
   // a blank authority packet.
   const cleanReplyAfterPacketBridge = cleanReplyForUser(reply);
-  if (cleanReplyAfterPacketBridge && !hasUserVisibleDebugLeak(cleanReplyAfterPacketBridge) && !isPublicWorkflowStateLeak(cleanReplyAfterPacketBridge) && !isBlockedLoopingSupportReply(cleanReplyAfterPacketBridge)) {
+  const verifiedMarionFinalAfterPacketBridge = isTrustedMarionSemanticFinalPacket(selected) || isTrustedMarionSemanticFinalPacket(marion);
+  if (verifiedMarionFinalAfterPacketBridge && cleanReplyAfterPacketBridge && !hasUserVisibleDebugLeak(cleanReplyAfterPacketBridge) && !isPublicWorkflowStateLeak(cleanReplyAfterPacketBridge) && !isBlockedLoopingSupportReply(cleanReplyAfterPacketBridge)) {
     reply = finalizeRenderableReply(cleanReplyAfterPacketBridge, norm, authority || "marion_bridge", "index_final_promotion_reassertion_hardlock");
     selected = forcePublicReply(selected, reply, {
       indexFinalPromotionReassertionHardlock: true,
@@ -18097,7 +20632,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     isObj(selected.body) ? selected.body.message : ""
   ].map(cleanText).filter(Boolean).join(" ");
 
-  const lastMileRecoveredReply = (
+  const lastMileRecoveredReply = !marionConversationRequired && (
     isInvalidPublicReplyRecoveryText(reply) ||
     isInvalidPublicReplyRecoveryText(selected.reply) ||
     isInvalidPublicReplyRecoveryText(selected.text) ||
@@ -18112,7 +20647,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     selected.final = true;
     selected.finalized = true;
     selected.handled = true;
-    selected.marionFinal = selected.marionFinal !== false;
+    selected.marionFinal = false;
     selected.awaitingMarion = false;
     selected.suppressUserFacingReply = false;
     selected.emit = true;
@@ -18143,7 +20678,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       final: true,
       finalized: true,
       handled: true,
-      marionFinal: true,
+      marionFinal: false,
       emit: true,
       blocked: false,
       suppressUserFacingReply: false,
@@ -18156,7 +20691,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
       displayReply: reply,
       spokenText: reply,
       final: true,
-      marionFinal: true,
+      marionFinal: false,
       handled: true,
       qualityPass: true,
       deterministicOriginalPromptRecovery: true
@@ -18164,6 +20699,8 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     selected.meta = {
       ...(isObj(selected.meta) ? selected.meta : {}),
       deterministicOriginalPromptRecovery: true,
+      replyAuthority: "nyx_deterministic_original_prompt_recovery",
+      semanticAuthority: "nyx",
       noUserFacingDiagnostics: true,
       lastMileRecoverySourceHash: replyHash(lastMileRecoverySource)
     };
@@ -18204,7 +20741,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
   });
 
   if (!cleanReplyForUser(reply) || hasUserVisibleDebugLeak(reply) || isPublicWorkflowStateLeak(reply) || isBlockedLoopingSupportReply(reply)) {
-    const projectionRecovery = buildPublicProjectionRecoveryResponse(norm, "unsafe_final_reply_purged_public_projection_recovery", selected || {});
+    const projectionRecovery = marionConversationRequired ? null : buildPublicProjectionRecoveryResponse(norm, "unsafe_final_reply_purged_public_projection_recovery", selected || {});
     if (projectionRecovery) {
       const projectionReply = cleanReplyForUser(projectionRecovery.reply || projectionRecovery.text || projectionRecovery.displayReply || "");
       setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply: projectionReply, replyHash: replyHash(projectionReply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority: "public_nyx_projection_recovery", count: 1 });
@@ -18227,7 +20764,7 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     lastAuthority: authority,
     loopBreakApplied: false
   });
-  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply, replyHash: replyHash(reply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority, count: 1 });
+  setTransportState(sessionId, { key: transportKey, turnId: norm.turnId, reply, replyHash: replyHash(reply), userHash: replyHash(norm.text), finalized: true, route: norm.lane || "general", authority, marionFinal: !!selected.marionFinal, marionRoute: selected.marionFinal ? "marion-primary" : (!!getMarionAuthorityReply(marion) ? "marion-routed-postprocessed" : "nyx-local-compat"), count: 1 });
   setLastTurn(sessionId, {
     replyHash: replyHash(reply),
     userHash: replyHash(norm.text),
@@ -18271,14 +20808,24 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     ok: selected.ok !== false,
     final: true,
     marionFinal: !!selected.marionFinal,
+    marionRoute: selected.marionFinal && !!getMarionAuthorityReply(marion) ? "marion-primary" : (!!getMarionAuthorityReply(marion) ? "marion-routed-postprocessed" : (marionConversationRequired ? "marion-required-no-final" : "nyx-local-compat")),
+    marionAttestation: {
+      version: NYX_MARION_BRIDGE_COHESION_VERSION,
+      required: !!marionConversationRequired,
+      routed: !!marion,
+      authorityReplyObserved: !!getMarionAuthorityReply(marion),
+      final: !!selected.marionFinal,
+      diagnosticsRedacted: true
+    },
     handled: true,
     awaitingMarion: false,
     suppressUserFacingReply: false,
     emit: true,
     blocked: false,
+    authoritativeReply: reply,
     reply,
     text: reply,
-    short: reply,
+    short: "",
     answer: reply,
     output: reply,
     response: reply,
@@ -18288,11 +20835,12 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     originalUserText: cleanText(norm.originalText || norm.rawUserText || norm.text || ""),
     spokenText: cleanText(speech && speech.textSpeak || reply || ""),
     detail: cleanText(selected.payload && (selected.payload.detail || selected.payload.longReply || selected.payload.payloadText) || reply || ""),
-    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: !!selected.marionFinal, handled: true, authority: selected.marionFinal ? "marionFinalEnvelope" : cleanText(authority || "packet_or_transport_final"), contractVersion: selected.marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0", finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION, runtimeTelemetry },
+    finalEnvelope: { ...(isObj(selected.finalEnvelope) ? selected.finalEnvelope : {}), authoritativeReply: reply, reply, text: reply, displayReply: reply, spokenText: cleanText(speech && speech.textSpeak || reply || ""), final: true, marionFinal: !!selected.marionFinal, handled: true, authority: selected.marionFinal ? "marionFinalEnvelope" : cleanText(authority || "packet_or_transport_final"), contractVersion: selected.marionFinal ? "nyx.marion.final/1.0" : "nyx.packet.bridge/1.0", finalRuntimeTelemetryVersion: FINAL_RUNTIME_TELEMETRY_VERSION, runtimeTelemetry },
     textSpeak: cleanText(speech && speech.textSpeak || reply || ""),
     textDisplay: cleanText(speech && speech.textDisplay || reply || ""),
     payload: {
       ...(isObj(selected.payload) ? selected.payload : {}),
+      authoritativeReply: reply,
       reply,
       text: reply,
       message: reply,
@@ -18412,8 +20960,14 @@ app.post(CONVERSATION_ROUTE_ALIASES, enforceToken, async (req, res) => {
     voiceRoute: selected.voiceRoute || undefined
   });
   const finalPublicResponse = enforceNyxPublicKnowledgeAnswerOnlyR4(publicResponse, norm, null);
+  const marionRoute = cleanText(finalPublicResponse && finalPublicResponse.marionRoute || (selected.marionFinal ? "marion-primary" : "marion-routed-postprocessed"));
+  applyMarionConversationAttestation(res, {
+    route: marionRoute,
+    routed: !!marion,
+    final: !!selected.marionFinal
+  });
   res.setHeader("Server-Timing", `nyx_total;dur=${Math.max(0, now() - startedAt)}`);
-  res.setHeader("X-SB-Nyx-Path", "marion-final");
+  res.setHeader("X-SB-Nyx-Path", selected.marionFinal ? "marion-final" : "marion-routed");
   res.setHeader("X-SB-Nyx-Backend-Ms", String(Math.max(0, now() - startedAt)));
   return res.status(200).json(finalPublicResponse);
   } catch (err) {
@@ -18486,6 +21040,27 @@ if (newsCanadaRoutes && boolEnv("SB_ENABLE_NEWSCANADA_EXTERNAL_ROUTES", false)) 
   });
 }
 
+if (LINGOSENTINEL_ENGLISH_RELAY_ONLY) {
+  app.post("/api/lingosentinel", (req, res) => {
+    return res.status(409).json({
+      ok: false,
+      error: "direct_public_publish_disabled",
+      messageRoute: "/api/lingosentinel/messages",
+      backendMessagePublishAuthority: true,
+      version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION
+    });
+  });
+  app.use(["/api/lingosentinel/publish", "/api/lingosentinel/link"], (req, res, next) => {
+    if (req.method !== "POST") return next();
+    return res.status(409).json({
+      ok: false,
+      error: "direct_public_publish_disabled",
+      messageRoute: "/api/lingosentinel/messages",
+      backendMessagePublishAuthority: true,
+      version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION
+    });
+  });
+}
 const lingoSentinelPublishMounted = mountLingoSentinelPublishRoute(app, lingoSentinelPublishRoutesMod);
 console.log("[Sandblast][LingoSentinel] publish_route_" + (lingoSentinelPublishMounted ? "mounted" : "unavailable"), {
   api: "/api/lingosentinel",
@@ -18503,6 +21078,61 @@ console.log("[Sandblast][LingoSentinel] subscribe_token_route_" + (lingoSentinel
   ablyConfigured: !!(process.env.ABLY_API_KEY || process.env.ABLY_ROOT_API_KEY),
   clientId: cleanText(process.env.LINGOSENTINEL_CLIENT_ID || "marion-lingosentinel-engine"),
   router: !!lingoSentinelSubscribeTokenMounted
+});
+
+const lingoSentinelRuntimeHealthMounted = mountLingoSentinelRuntimeHealthRoute(app, lingoSentinelRuntimeHealthRoutesMod);
+console.log("[Sandblast][LingoSentinel] runtime_health_route_" + (lingoSentinelRuntimeHealthMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel",
+  health: "/api/lingosentinel/runtime/health",
+  layer1Health: "/api/lingosentinel/layer1/health",
+  version: LINGOSENTINEL_LAYERS_1_2_CRITICAL_VERSION,
+  router: !!lingoSentinelRuntimeHealthMounted
+});
+
+const lingoSentinelRoomRouteMounted = mountLingoSentinelRoomRoute(app, lingoSentinelRoomRoutesMod);
+console.log("[Sandblast][LingoSentinel] room_route_" + (lingoSentinelRoomRouteMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel",
+  rooms: "/api/lingosentinel/rooms",
+  version: LINGOSENTINEL_LAYERS_3_4_CRITICAL_VERSION,
+  router: !!lingoSentinelRoomRouteMounted
+});
+
+const lingoSentinelConnectionRouteMounted = mountLingoSentinelConnectionRoute(app, lingoSentinelConnectionRoutesMod);
+console.log("[Sandblast][LingoSentinel] connection_route_" + (lingoSentinelConnectionRouteMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel",
+  connections: "/api/lingosentinel/connections",
+  version: LINGOSENTINEL_LAYERS_3_4_CRITICAL_VERSION,
+  router: !!lingoSentinelConnectionRouteMounted
+});
+
+const lingoSentinelMessageRouteMounted = mountLingoSentinelMessageRoute(app, lingoSentinelMessageRoutesMod);
+console.log("[Sandblast][LingoSentinel] message_route_" + (lingoSentinelMessageRouteMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel",
+  messages: "/api/lingosentinel/messages",
+  health: "/api/lingosentinel/messages/health",
+  englishRelayOnly: LINGOSENTINEL_ENGLISH_RELAY_ONLY,
+  version: LINGOSENTINEL_LAYERS_5_7_CRITICAL_VERSION,
+  router: !!lingoSentinelMessageRouteMounted
+});
+
+const lingoSentinelDeliveryRouteMounted = mountLingoSentinelDeliveryRoute(app, lingoSentinelDeliveryRoutesMod);
+console.log("[Sandblast][LingoSentinel] delivery_route_" + (lingoSentinelDeliveryRouteMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel", delivery: "/api/lingosentinel/delivery/health",
+  version: LINGOSENTINEL_LAYERS_8_10_CRITICAL_VERSION, router: !!lingoSentinelDeliveryRouteMounted
+});
+
+const lingoSentinelRecoveryRouteMounted = mountLingoSentinelRecoveryRoute(app, lingoSentinelRecoveryRoutesMod);
+console.log("[Sandblast][LingoSentinel] recovery_route_" + (lingoSentinelRecoveryRouteMounted ? "mounted" : "unavailable"), {
+  api: "/api/lingosentinel", recovery: "/api/lingosentinel/recovery/health",
+  version: LINGOSENTINEL_LAYERS_8_10_CRITICAL_VERSION, router: !!lingoSentinelRecoveryRouteMounted
+});
+
+
+const lingoSentinelTranslationResultRouteMounted = mountLingoSentinelTranslationResultRoute(app, lingoSentinelTranslationResultRoutesMod);
+console.log("[Sandblast][LingoSentinel] translation_result_route_" + (lingoSentinelTranslationResultRouteMounted ? "mounted" : "pending_backend_data_stage"), {
+  api: "/api/lingosentinel", translations: "/api/lingosentinel/messages/:messageId/translations",
+  health: "/api/lingosentinel/translation-runtime/health",
+  version: LINGOSENTINEL_LAYERS_11_12_PUBLIC_VERSION, router: !!lingoSentinelTranslationResultRouteMounted
 });
 
 function hasLingoSentinelAblyKeyConfigured() {
@@ -19600,7 +22230,7 @@ app.post("/api/lingosentinel/private/marion/text", async (req, res) => {
 // Private admin console control plane. This must mount before static handlers
 // and the /api not_found guard so the protected Webflow/admin interface does
 // not fall through to 404. Body/query tokens are intentionally ignored.
-const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.7-test-bypass-session-issuer";
+const MARION_ADMIN_CONSOLE_INDEX_VERSION = "marion.adminConsole.indexGateway/1.8-session-and-test-bypass-hardening";
 const MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH = "Data/marion/runtime/MarionAdminConsoleGateway.js";
 const MARION_ADMIN_CONSOLE_GATEWAY_REQUIRE_PATH = "./" + MARION_ADMIN_CONSOLE_GATEWAY_RELATIVE_PATH;
 
@@ -19624,14 +22254,18 @@ const MARION_ADMIN_CONSOLE_ALL_ROUTES = Object.freeze(uniq(Object.keys(MARION_AD
 
 const MARION_ADMIN_CONSOLE_REMOTE_TRUSTED_USER_VERSION = "marion.adminConsole.remoteTrustedUser/1.0-permission-boundary";
 // Phase 3/4 RBAC declarations are consolidated below in the route-contract block.
-const MARION_ADMIN_CONSOLE_SESSION_VERSION = "marion.adminConsole.session/1.0-short-lived-hardlock";
+const MARION_ADMIN_CONSOLE_SESSION_VERSION = "marion.adminConsole.session/1.1-bounded-idle";
 const MARION_ADMIN_CONSOLE_SESSION_HEADER = "x-sb-marion-admin-session-token";
 const MARION_ADMIN_CONSOLE_SESSION_TTL_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_TTL_MS", 15 * 60 * 1000, 60 * 1000, 60 * 60 * 1000);
-const MARION_ADMIN_CONSOLE_SESSION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_IDLE_MS", 5 * 60 * 1000, 30 * 1000, 30 * 60 * 1000);
+// Keep enough idle time for a human verification cycle while still enforcing
+// the separately bounded absolute session lifetime.
+const MARION_ADMIN_CONSOLE_SESSION_IDLE_MS = clampNumberEnv("SB_MARION_ADMIN_SESSION_IDLE_MS", 10 * 60 * 1000, 30 * 1000, 30 * 60 * 1000);
 const MARION_ADMIN_CONSOLE_SESSION_MAX = clampNumberEnv("SB_MARION_ADMIN_SESSION_MAX", 25, 1, 250);
-const MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION = "marion.adminConsole.testBypassSessionIssuer/1.0-env-gated-origin-bound";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION = "marion.adminConsole.testBypassSessionIssuer/1.1-secret-and-origin-bound";
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER = "x-sb-marion-testing-bypass";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER = "x-sb-marion-testing-bypass-token";
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED = process.env.SB_MARION_ADMIN_TEST_BYPASS === "true";
+const MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN = cleanText(process.env.SB_MARION_ADMIN_TEST_BYPASS_TOKEN || "");
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOW_NO_ORIGIN = process.env.SB_MARION_ADMIN_TEST_BYPASS_ALLOW_NO_ORIGIN === "true";
 const MARION_ADMIN_CONSOLE_TEST_BYPASS_ALLOWED_ORIGINS = Object.freeze(
   String(process.env.SB_MARION_ADMIN_TEST_BYPASS_ORIGINS || [
@@ -19748,7 +22382,7 @@ function marionAdminConsoleTestingBypassRequested(req) {
 function marionAdminConsoleTestingBypassClientKey(req) {
   const origin = marionAdminConsoleRequestOrigin(req) || "no-origin";
   const fp = marionAdminConsoleSessionFingerprint(req);
-  const ip = clipText((req && (req.ip || req.headers && (req.headers["x-forwarded-for"] || req.headers["cf-connecting-ip"]))) || "", 120);
+  const ip = clipText(trustedClientIp(req), 120);
   return marionAdminConsoleSha256([origin, fp, ip].join("|"));
 }
 
@@ -19757,7 +22391,7 @@ function marionAdminConsoleTestingBypassRequestAuth(req) {
   if (!requested) {
     return {
       verified: false,
-      configured: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED,
+      configured: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED && MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN.length >= 32,
       provided: false,
       source: "none",
       reason: "testing_bypass_not_requested",
@@ -19772,6 +22406,30 @@ function marionAdminConsoleTestingBypassRequestAuth(req) {
       provided: true,
       source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
       reason: "testing_bypass_disabled",
+      testBypass: true,
+      testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+    };
+  }
+  if (MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN.length < 32) {
+    return {
+      verified: false,
+      configured: false,
+      provided: true,
+      source: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+      reason: "testing_bypass_token_not_configured",
+      testBypass: true,
+      testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
+    };
+  }
+  const headers = req && req.headers ? req.headers : {};
+  const suppliedToken = cleanText(headers[MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER] || "");
+  if (!suppliedToken || !timingSafeTextEqual(suppliedToken, MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN)) {
+    return {
+      verified: false,
+      configured: true,
+      provided: true,
+      source: MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER,
+      reason: suppliedToken ? "testing_bypass_token_invalid" : "testing_bypass_token_required",
       testBypass: true,
       testBypassVersion: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION
     };
@@ -20225,7 +22883,7 @@ const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
   OBSERVER: "observer",
   BLOCKED: "blocked"
 });
-const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "runtime", "conversation.text", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke", "voice.continuity.open", "voice.continuity.revoke"]);
+const MARION_ADMIN_CONSOLE_MUTATION_ACTIONS = Object.freeze(["command", "runtime", "conversation.text", "approve", "deny", "emergency", "speaker.registry.request", "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke", "voice.challenge.issue", "voice.challenge.revoke", "voice.continuity.open", "voice.continuity.revoke", "learning.manifest.approve", "learning.manifest.revoke", "learning.manifest.evaluate"]);
 const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   health: "status.read",
   status: "status.read",
@@ -20254,7 +22912,11 @@ const MARION_ADMIN_CONSOLE_ACTION_CAPABILITIES = Object.freeze({
   "voice.continuity.health": "voice.continuity.read",
   "voice.continuity.open": "voice.continuity.open",
   "voice.continuity.check": "voice.continuity.check",
-  "voice.continuity.revoke": "voice.continuity.revoke"
+  "voice.continuity.revoke": "voice.continuity.revoke",
+  "learning.manifest.read": "learning.manifest.read",
+  "learning.manifest.approve": "learning.manifest.approve",
+  "learning.manifest.revoke": "learning.manifest.revoke",
+  "learning.manifest.evaluate": "learning.manifest.evaluate"
 });
 const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
   owner: Object.freeze([
@@ -20265,7 +22927,8 @@ const MARION_ADMIN_CONSOLE_ROLE_CAPABILITIES = Object.freeze({
     "speaker.registry.read", "speaker.registry.check", "speaker.registry.request",
     "speaker.registry.approve", "speaker.registry.deny", "speaker.registry.revoke",
     "voice.challenge.read", "voice.challenge.issue", "voice.challenge.check", "voice.challenge.revoke",
-    "voice.continuity.read", "voice.continuity.open", "voice.continuity.check", "voice.continuity.revoke"
+    "voice.continuity.read", "voice.continuity.open", "voice.continuity.check", "voice.continuity.revoke",
+    "learning.manifest.read", "learning.manifest.approve", "learning.manifest.revoke", "learning.manifest.evaluate"
   ]),
   admin_operator: Object.freeze([
     "status.read", "command.submit", "command.approve", "command.deny",
@@ -20523,9 +23186,15 @@ function marionAdminConsoleMasterRequestAuth(req) {
       break;
     }
   }
-  const mfaCandidate = cleanText(headers["x-sb-marion-admin-mfa-token"] || headers["x-sb-marion-admin-console-mfa-token"] || headers["x-marion-admin-mfa-token"] || "");
+  const mfaCandidates = uniq([
+    headers["x-sb-marion-admin-mfa-token"],
+    headers["x-sb-marion-admin-console-mfa-token"],
+    headers["x-marion-admin-mfa-token"]
+  ].map((item) => cleanText(item || "")).filter(Boolean));
   const mfaRequired = mfaTokens.length > 0;
-  const mfaVerified = !mfaRequired || mfaTokens.some((token) => timingSafeTextEqual(mfaCandidate, token));
+  const mfaVerified = !mfaRequired || mfaCandidates.some((candidate) =>
+    mfaTokens.some((token) => timingSafeTextEqual(candidate, token))
+  );
   const verified = !!verifiedCandidate && mfaVerified;
   const role = verified ? verifiedRole : MARION_ADMIN_CONSOLE_ROLES.BLOCKED;
   const capabilities = verified ? marionAdminConsoleCapabilitiesForRole(role) : [];
@@ -20537,7 +23206,7 @@ function marionAdminConsoleMasterRequestAuth(req) {
     provided: candidates.length > 0,
     source: verifiedCandidate ? verifiedCandidate.source : (candidates.length ? "invalid" : "none"),
     mfaRequired,
-    mfaProvided: !!mfaCandidate,
+    mfaProvided: mfaCandidates.length > 0,
     mfaVerified,
     sessionVerified: false,
     sessionProvided: false,
@@ -20601,7 +23270,8 @@ function marionAdminConsoleSessionIssueRequestAuth(req) {
   // SESSION-ISSUE-HARDLOCK:
   // Check remote trusted auth first so the remote token can never be accidentally
   // promoted through the broader master-token candidate list. Testing bypass is
-  // server-issued only and stays gated by SB_MARION_ADMIN_TEST_BYPASS + origin.
+  // server-issued only and requires an enabled flag, a 32+ character secret, and
+  // an allowed Origin; Origin alone is not an authentication factor.
   const remote = marionAdminConsoleRemoteTrustedUserRequestAuth(req);
   if (remote.verified) return remote;
 
@@ -20691,12 +23361,22 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
   const configured = auth && auth.configured === true;
   const mfaBlocked = configured && auth && auth.mfaRequired === true && auth.mfaVerified !== true;
   const status = configured ? 403 : 503;
+  const errorCode = mfaBlocked ? "admin_mfa_required" : (configured ? "admin_token_required" : "admin_token_not_configured");
+  const message = mfaBlocked
+    ? "A valid Marion admin MFA token is required."
+    : (configured ? "A valid Marion admin token or session is required." : "Marion admin authentication is not configured on this server.");
   return res.status(status).json({
     ok: false,
+    error: errorCode,
+    message,
+    detail: message,
+    statusCode: status,
     service: "marion-admin-console",
     version: MARION_ADMIN_CONSOLE_INDEX_VERSION,
     stage: configured ? "admin_authorization_required" : "admin_token_not_configured",
-    reason: mfaBlocked ? "admin_mfa_required" : (configured ? "admin_token_required" : "admin_token_not_configured"),
+    reason: errorCode,
+    authSource: cleanText(auth && auth.source || ""),
+    authReason: cleanText(auth && (auth.testingBypassReason || auth.sessionReason || auth.reason) || ""),
     routeMounted: true,
     privateControlPlane: true,
     adminRequired: true,
@@ -20715,6 +23395,7 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     remoteTrustedUserBoundary: !!(auth && auth.remoteTrustedUserBoundary),
     mfaRequired: !!(auth && auth.mfaRequired),
     mfaProvided: !!(auth && auth.mfaProvided),
+    mfaVerified: !!(auth && auth.mfaVerified),
     publicSurface: "Nyx",
     authority: "Marion",
     diagnosticsRedacted: true,
@@ -20753,6 +23434,9 @@ function marionAdminConsoleGatewayStatus() {
 }
 
 function marionAdminConsoleRedacted(value, depth, seen) {
+  if (marionAdminRuntimeSafety && typeof marionAdminRuntimeSafety.safeSerializable === "function") {
+    return marionAdminRuntimeSafety.safeSerializable(value, { maxDepth: 7, maxKeys: 80, maxArray: 40, maxString: 2400 });
+  }
   const level = Number.isFinite(Number(depth)) ? Number(depth) : 0;
   if (level > 6) return "[truncated]";
   if (value == null) return value;
@@ -20761,18 +23445,40 @@ function marionAdminConsoleRedacted(value, depth, seen) {
       .replace(/(Bearer\s+)[A-Za-z0-9._~+\-/]+=*/gi, "$1[redacted]")
       .replace(/([?&](?:token|key|secret|password)=)[^&\s]+/gi, "$1[redacted]"), 2400);
   }
+  if (typeof value === "bigint") return safeStr(value);
+  if (typeof value === "function" || typeof value === "symbol") return "[unsupported]";
   if (typeof value !== "object") return value;
+  if (value instanceof Error) {
+    return {
+      name: cleanText(value.name || "Error"),
+      message: cleanText(value.message || "runtime_error").slice(0, 2400)
+    };
+  }
   const visited = seen instanceof Set ? seen : new Set();
-  if (visited.has(value)) return "[circular]";
-  visited.add(value);
-  if (Array.isArray(value)) return value.slice(0, 40).map((item) => marionAdminConsoleRedacted(item, level + 1, visited));
+  try {
+    if (visited.has(value)) return "[circular]";
+    visited.add(value);
+  } catch (_) {
+    return "[unreadable]";
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 40).map((item) => {
+      try { return marionAdminConsoleRedacted(item, level + 1, visited); }
+      catch (_) { return "[unreadable]"; }
+    });
+  }
+  let keys = [];
+  try { keys = Object.keys(value).slice(0, 80); }
+  catch (_) { return "[unreadable]"; }
   const out = {};
-  for (const key of Object.keys(value).slice(0, 80)) {
-    if (/(?:token|secret|password|api[_-]?key|authorization|cookie|session|credential)/i.test(key)) {
+  for (const key of keys) {
+    if (/(?:token|secret|password|api[_-]?key|authorization|cookie|session|credential|private[_-]?key)/i.test(key)) {
       out[key] = "[redacted]";
-    } else {
-      out[key] = marionAdminConsoleRedacted(value[key], level + 1, visited);
+      continue;
     }
+    let item;
+    try { item = value[key]; } catch (_) { item = "[unreadable]"; }
+    out[key] = marionAdminConsoleRedacted(item, level + 1, visited);
   }
   return out;
 }
@@ -21326,14 +24032,17 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
   hardenConversationNoStore(res);
   const body = safeObj(req && req.body);
   const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionadminsession"));
+  let issueStage = "request_auth";
 
   try {
     const auth = marionAdminConsoleSessionIssueRequestAuth(req);
     if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
 
+    issueStage = "permission";
     const permission = marionAdminConsolePermissionDecision(auth, "session.issue");
     if (!permission.allowed) return marionAdminConsolePermissionDenied(res, "session.issue", traceId, auth, permission);
 
+    issueStage = "role_resolution";
     const requestedRole = marionAdminConsoleRequestedSessionRole(req, body);
     const roleDecision = marionAdminConsoleResolveSessionRole(auth, requestedRole || auth.role);
     if (!roleDecision.allowed) {
@@ -21349,6 +24058,7 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
       }));
     }
 
+    issueStage = "session_creation";
     const issued = marionAdminConsoleCreateSession(req, auth, roleDecision.role);
     const publicSession = safeObj(issued && issued.publicSession);
     const sessionRole = publicSession.role || marionAdminConsoleAuthRole(auth);
@@ -21356,6 +24066,7 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
       ? publicSession.capabilities
       : marionAdminConsoleCapabilitiesForRole(sessionRole);
 
+    issueStage = "response_projection";
     return res.status(200).json(marionAdminConsoleSessionBaseResponse("session.issue", traceId, {
       ...auth,
       sessionVerified: true,
@@ -21398,11 +24109,19 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
         useHeader: MARION_ADMIN_CONSOLE_SESSION_HEADER,
         clearMasterTokenFromBrowser: auth.testBypass !== true,
         storeSessionTokenInMemoryOnly: true,
-        testingBypassEnvRequired: auth.testBypass === true ? "SB_MARION_ADMIN_TEST_BYPASS=true" : undefined
+        testingBypassEnvRequired: auth.testBypass === true ? "SB_MARION_ADMIN_TEST_BYPASS=true" : undefined,
+        testingBypassTokenHeaderRequired: auth.testBypass === true ? MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER : undefined,
+        testingBypassTokenEnvRequired: auth.testBypass === true ? "SB_MARION_ADMIN_TEST_BYPASS_TOKEN (minimum 32 characters)" : undefined
       }
     }));
   } catch (err) {
-    return res.status(500).json(marionAdminConsoleSessionBaseResponse("session.issue", traceId, {
+    // Diagnostic is deliberately stage-only: never log credentials, request headers,
+    // serialized request bodies or session bearer material.
+    try { console.error("[Sandblast][marion-admin-session-issue]", {
+      traceId, stage: issueStage,
+      errorType: err && typeof err.name === "string" ? err.name.slice(0, 60) : "Error"
+    }); } catch (_) {}
+    try { return res.status(500).json(marionAdminConsoleSessionBaseResponse("session.issue", traceId, {
       verified: false,
       configured: marionAdminConsoleEnvTokens().length > 0 || marionAdminConsoleRoleTokenEntries().length > 0,
       provided: true,
@@ -21417,11 +24136,16 @@ async function handleMarionAdminConsoleSessionIssue(req, res) {
     }, {
       ok: false,
       stage: "admin_session_issue_exception",
+      failureStage: issueStage,
       reason: cleanText(err && (err.code || err.message) || "session_issue_exception").slice(0, 160),
       responseFinalized: true,
       sessionIssued: false,
       hotfix: "MARION_SESSION_ISSUE_RESPONSE_FINALIZATION_HOTFIX_V1 + MARION_ASYNC_TOPLEVEL_BOOT_HOTFIX_V1"
-    }));
+    })); } catch (_) {
+      return res.status(500).json({ ok: false, error: "server_error",
+        stage: "admin_session_issue_exception", failureStage: issueStage,
+        detail: "Private administrator session issuance failed.", traceId });
+    }
   }
 }
 
@@ -22133,26 +24857,99 @@ app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.enrollDeny, async (req, res) => ha
 app.post(MARION_VOICE_SPEAKER_REGISTRY_ROUTES.revoke, async (req, res) => handleMarionVoiceSpeakerRegistry(req, res, "revoke"));
 
 
+// MARION-ADMIN-RUNTIME-PRIMITIVE-HARDLOCK-V2:
+// Private runtime text fields are primitive-only. Objects are traversed for known
+// string fields or redacted for diagnostics; they are never coerced into visible text.
+function marionAdminRuntimeStrictText(value, fallback = "", max = 12000) {
+  if (marionAdminRuntimeSafety && typeof marionAdminRuntimeSafety.cleanText === "function") {
+    return marionAdminRuntimeSafety.cleanText(value, fallback, max);
+  }
+  if (value == null) return cleanText(fallback).slice(0, max);
+  if (typeof value === "string") return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    try { return String(value).replace(/\s+/g, " ").trim().slice(0, max); } catch (_) { return cleanText(fallback).slice(0, max); }
+  }
+  return cleanText(fallback).slice(0, max);
+}
+
+function marionAdminRuntimeFirstText(values, max = 12000) {
+  if (marionAdminRuntimeSafety && typeof marionAdminRuntimeSafety.firstText === "function") {
+    return marionAdminRuntimeSafety.firstText(values, max);
+  }
+  for (const value of Array.isArray(values) ? values : []) {
+    const text = marionAdminRuntimeStrictText(value, "", max);
+    if (text) return text;
+  }
+  return "";
+}
+
+function marionAdminRuntimeSafeErrorText(err, fallback = "runtime_error", max = 800) {
+  if (marionAdminRuntimeSafety && typeof marionAdminRuntimeSafety.errorText === "function") {
+    return marionAdminRuntimeSafety.errorText(err, fallback, max);
+  }
+  try {
+    const message = marionAdminRuntimeStrictText(err && err.message, "", max);
+    if (message) return message;
+  } catch (_) {}
+  try {
+    const name = marionAdminRuntimeStrictText(err && err.name, "", 120);
+    if (name) return name;
+  } catch (_) {}
+  return marionAdminRuntimeStrictText(fallback, "runtime_error", max);
+}
+
+function marionAdminPrivateRuntimeIdentity(body, auth, traceId) {
+  if (marionAdminRuntimeSafety && typeof marionAdminRuntimeSafety.privateRuntimeIdentity === "function") {
+    return marionAdminRuntimeSafety.privateRuntimeIdentity(safeObj(body), safeObj(auth), traceId);
+  }
+  const sessionId = marionAdminRuntimeFirstText([auth && auth.sessionId, body && body.sessionId, body && body.conversationId, traceId], 160) || "anonymous";
+  const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._:-]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "") || "anonymous";
+  const partitionKey = `private:admin:${safeSessionId}`;
+  return {
+    scope: "private_admin", audience: "owner", answerClass: "marion_admin_conversation",
+    surfaceAgent: "Marion", authority: "Marion", publicAgent: "Nyx",
+    publicSurfaceOnly: false, publicFallbackBlocked: true, privateAdminConversation: true,
+    privateControlPlane: true, adminOnly: true, directMarionAdminInterface: true,
+    marionAdminConversation: true, marionAdminConversationAllowed: true,
+    authenticatedOperator: !!(auth && auth.verified), operatorPersonalization: !!(auth && auth.verified),
+    allowPersonalName: !!(auth && auth.verified), allowOperatorMemory: !!(auth && auth.verified),
+    memoryPartition: partitionKey, partitionKey,
+    privateRuntimeContext: { version: MARION_ADMIN_RUNTIME_SAFETY_VERSION, scope: "private_admin", audience: "owner", traceId: marionAdminRuntimeStrictText(traceId, "", 240), partitionKey }
+  };
+}
+
+function marionAdminBridgeStatusProjection(status) {
+  const source = safeObj(status);
+  return {
+    available: source.available === true,
+    requested: marionAdminRuntimeStrictText(source.requested, "", 240),
+    resolvedPath: marionAdminRuntimeStrictText(source.resolvedPath, "", 1000),
+    version: marionAdminRuntimeStrictText(source.version, "", 2000),
+    handler: marionAdminRuntimeStrictText(source.handler, "", 160),
+    reason: marionAdminRuntimeStrictText(source.reason, "", 240)
+  };
+}
+
 // MARION-ADMIN-TEXT-RUNTIME-HANDLER-V1:
 // Private admin-only text conversation bridge for the Marion console.
 // This keeps the existing admin control plane intact while routing conversational
 // text to MarionBridge/ChatEngine through Marion's final-authority pipeline.
-const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/1.0-session-rbac-bridge";
+const MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION = "marion.adminTextRuntimeHandler/2.1-route-alias-private-identity-hardlock";
 const MARION_ADMIN_TEXT_RUNTIME_ROUTES = Object.freeze([
   "/api/private/marion/admin/runtime",
   "/private/marion/admin/runtime",
   "/api/private/marion/runtime",
-  "/private/marion/runtime"
+  "/private/marion/runtime",
+  "/api/marion/admin/runtime",
+  "/marion/admin/runtime"
 ]);
 
 function marionAdminTextRuntimeBridgeStatus() {
   const candidates = [
-    "./marionBridge.js",
-    "./marionBridge",
     "./Data/marion/runtime/marionBridge.js",
     "./Data/marion/runtime/marionBridge",
-    "./Utils/marionBridge.js",
-    "./Utils/marionBridge"
+    "./marionBridge.js",
+    "./marionBridge"
   ];
   for (const candidate of candidates) {
     try {
@@ -22164,7 +24961,7 @@ function marionAdminTextRuntimeBridgeStatus() {
           mod,
           requested: candidate,
           resolvedPath: resolved,
-          version: cleanText(mod.VERSION || ""),
+          version: marionAdminRuntimeStrictText(mod.VERSION, "", 2000),
           handler:
             typeof mod.handleMarionAdminConversation === "function" ? "handleMarionAdminConversation" :
             typeof mod.processWithMarion === "function" ? "processWithMarion" :
@@ -22187,9 +24984,10 @@ function marionAdminTextRuntimeBridgeStatus() {
 }
 
 function marionAdminTextRuntimeExtractPrompt(body) {
-  return cleanText(
-    body && (body.prompt || body.message || body.text || body.query || body.userText || body.input || body.commandText || "")
-  ).slice(0, 6000);
+  const source = safeObj(body);
+  return marionAdminRuntimeFirstText([
+    source.prompt, source.message, source.text, source.query, source.userText, source.input, source.commandText
+  ], 6000);
 }
 
 function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
@@ -22199,8 +24997,6 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
   const finalEnvelope = safeObj(src.finalEnvelope || payload.finalEnvelope || result.finalEnvelope);
   const synthesis = safeObj(src.synthesis || payload.synthesis || result.synthesis);
   const norm = { prompt: promptText, userText: promptText, rawUserText: promptText, text: promptText, message: promptText };
-  const priority9JR1BDirectReply = priority9JR1BAdminVisibleReply("", promptText);
-  if (priority9JR1BDirectReply) return priority9JR1BDirectReply;
   const candidates = [
     finalEnvelope.final, finalEnvelope.finalAnswer, finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.message, finalEnvelope.spokenText,
     synthesis.final, synthesis.finalAnswer, synthesis.finalReply, synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.displayReply, synthesis.answer, synthesis.output, synthesis.response, synthesis.text, synthesis.message, synthesis.spokenText,
@@ -22209,7 +25005,9 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
     src.final, src.finalAnswer, src.finalReply, src.reply, src.publicReply, src.visibleReply, src.displayReply, src.answer, src.output, src.response, src.text, src.message
   ];
   for (const value of candidates) {
-    const raw = marionAdminProjectionCleanReply(value || "");
+    const candidateText = marionAdminRuntimeStrictText(value, "", 12000);
+    if (!candidateText) continue;
+    const raw = marionAdminProjectionCleanReply(candidateText);
     if (!raw) continue;
     const cleaned = stripUserVisibleDebugLeak(raw);
     const finalReply = finalizeRenderableReply(cleaned, norm, "marion_admin_runtime_reply_selection", "admin_runtime_packet_candidate");
@@ -22269,9 +25067,9 @@ function marionAdminTextRuntimeRequestAuth(req) {
 }
 
 function marionAdminRuntimeErrorSignature(err) {
-  const name = cleanText(err && err.name || "");
-  const message = cleanText(err && (err.message || err) || "");
-  const stack = cleanText(err && err.stack || "");
+  const name = marionAdminRuntimeStrictText(err && err.name, "", 120);
+  const message = marionAdminRuntimeSafeErrorText(err, "runtime_error", 800);
+  const stack = marionAdminRuntimeStrictText(err && err.stack, "", 4000);
   const joined = `${name} ${message} ${stack}`;
   if (/\bReferenceError\b|\bis not defined\b|\bcannot access .* before initialization\b/i.test(joined)) return "reference_error";
   if (/auth|forbidden|unauthori[sz]ed|token|permission|capability|session/i.test(joined)) return "runtime_auth_or_permission_error";
@@ -22281,7 +25079,7 @@ function marionAdminRuntimeErrorSignature(err) {
 }
 
 function marionAdminRuntimeErrorPublicDetail(err) {
-  return marionAdminRedactText(err && (err.message || err) || "runtime_error").slice(0, 240);
+  return marionAdminRedactText(marionAdminRuntimeSafeErrorText(err, "runtime_error", 240)).slice(0, 240);
 }
 
 
@@ -22474,6 +25272,28 @@ function marionAdminBuildPrivateVoiceReceivePacket(reply, voiceProjection, speec
 // MARION_ADMIN_PRIVATE_VOICE_RECEIVE_V1_END
 
 
+/* MARION_NEON_PRIVATE_GATEWAY_SESSION_BINDING_V1_START */
+const marionNeonPrivateTickets = new Map();
+function marionNeonConfigureTrustedBridge(bridge) {
+  if (!bridge || typeof bridge.configureMarionNeonAdvisory !== "function") return false;
+  return bridge.configureMarionNeonAdvisory({
+    verifySession(packet) {
+      const ticket = packet && packet.__marionNeonPrivateTicket;
+      if (typeof ticket !== "string" || !ticket) return null;
+      const record = marionNeonPrivateTickets.get(ticket);
+      // Single-use verification, including rejection paths.
+      marionNeonPrivateTickets.delete(ticket);
+      if (!record || Date.now() > record.expiresAt ||
+          record.sessionId !== packet.sessionId ||
+          packet.privateAdminConversation !== true ||
+          packet.marionAdminConversation !== true) return null;
+      return { source: "server-verified-session", authorized: true,
+        scope: "private_admin", audience: "owner", sessionId: record.sessionId };
+    }
+  });
+}
+/* MARION_NEON_PRIVATE_GATEWAY_SESSION_BINDING_V1_END */
+
 async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval = {}) {
   const prompt = marionAdminTextRuntimeExtractPrompt(body);
   const bridgeStatus = marionAdminTextRuntimeBridgeStatus();
@@ -22484,8 +25304,10 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     return { ok: false, statusCode: 503, stage: "marion_runtime_bridge_unavailable", reason: bridgeStatus.reason || "marion_bridge_unavailable", bridgeStatus };
   }
 
+  const privateIdentity = marionAdminPrivateRuntimeIdentity(body, auth, traceId);
   const input = {
     ...safeObj(body),
+    ...privateIdentity,
     prompt,
     message: prompt,
     text: prompt,
@@ -22494,7 +25316,8 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     rawUserText: prompt,
     inputChannel: "text",
     source: "marion-admin-console",
-    publicAgent: "Marion",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
     authority: "Marion",
     directMarionAdminInterface: true,
     marionAdminConversation: true,
@@ -22524,13 +25347,15 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     traceId
   };
   const context = {
+    ...privateIdentity,
     traceId,
     adminVerified: !!(auth && auth.verified),
     adminRole: cleanText(auth && auth.role || ""),
     sessionVerified: !!(auth && auth.sessionVerified),
     inputChannel: "text",
     source: "marion-admin-console",
-    publicAgent: "Marion",
+    publicAgent: "Nyx",
+    surfaceAgent: "Marion",
     authority: "Marion",
     directMarionAdminInterface: true,
     marionAdminConversation: true,
@@ -22552,9 +25377,32 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     typeof bridgeStatus.mod.ask === "function" ? bridgeStatus.mod.ask :
     bridgeStatus.mod.route;
 
-  const packet = await Promise.resolve(fn(input, context));
-  const packetReply = priority9JR1BAdminVisibleReply(marionAdminTextRuntimeReplyFromPacket(packet, prompt, input), prompt) || priority9JR1BAdminVisibleReply(packet, prompt) || "";
-  const reply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
+  // This route is already guarded by index.js authentication AND runtime permission.
+  // Do not construct tickets from request-body admin booleans.
+  const allowedNeon = process.env.SB_MARION_NEON_PRIVATE_ADVISORY === "true" &&
+    auth && auth.verified === true && auth.sessionVerified === true &&
+    cleanText(auth.sessionId || "").length >= 8 &&
+    cleanText(auth.role || "").toLowerCase() === "owner" &&
+    marionNeonConfigureTrustedBridge(bridgeStatus.mod);
+  let marionNeonTicket = "";
+  if (allowedNeon) {
+    marionNeonTicket = crypto.randomBytes(24).toString("hex");
+    marionNeonPrivateTickets.set(marionNeonTicket, {
+      sessionId: cleanText(auth.sessionId), expiresAt: Date.now() + 15000
+    });
+    input.__marionNeonPrivateTicket = marionNeonTicket;
+    input.privateAdminConversation = true;
+  }
+  let packet;
+  try { packet = await Promise.resolve(fn(input, context)); }
+  finally {
+    if (marionNeonTicket) marionNeonPrivateTickets.delete(marionNeonTicket);
+    delete input.__marionNeonPrivateTicket;
+  }
+  const rawPacketReply = priority9JR1BAdminVisibleReply(marionAdminTextRuntimeReplyFromPacket(packet, prompt, input), prompt) || priority9JR1BAdminVisibleReply(packet, prompt) || "";
+  const packetReply = marionAdminSubstantiveReplyGuard(rawPacketReply, prompt, packet);
+  const approvedReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
+  const reply = marionAdminSubstantiveReplyGuard(approvedReply, prompt, packet);
   const voiceProjection = marionAdminProjectVoiceEnvelope(reply, input, { stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing" });
   const speechSync = marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input);
   voiceProjection.speechSync = speechSync;
@@ -22567,7 +25415,7 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     ok: !!reply,
     statusCode: reply ? 200 : 502,
     stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing",
-    reason: reply ? "" : "clean_public_reply_missing",
+    reason: reply ? "" : "clean_private_reply_missing",
     reply,
     publicReply: reply,
     visibleReply: reply,
@@ -22587,8 +25435,10 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     speechSyncEnabled: voiceProjection.speechSyncEnabled === true,
     projectedVoiceMode: voiceProjection.projectedVoiceMode || voiceProjection.voiceMode || "silent",
     rawVoiceMode: voiceProjection.rawVoiceMode || "silent",
-    result: packet,
-    bridgeStatus
+    result: marionAdminConsoleRedacted(packet),
+    bridgeStatus: marionAdminBridgeStatusProjection(bridgeStatus),
+    ...privateIdentity,
+    runtimeSafetyVersion: MARION_ADMIN_RUNTIME_SAFETY_VERSION
   };
 }
 
@@ -22596,34 +25446,42 @@ async function handleMarionAdminTextRuntime(req, res) {
   applyCors(req, res);
   hardenConversationNoStore(res);
   const body = safeObj(req && req.body);
-  const traceId = cleanText((req && req.sbTraceId) || body.traceId || makeTraceId("marionruntime"));
+  const traceId = marionAdminRuntimeFirstText([(req && req.sbTraceId), body.traceId, makeTraceId("marionruntime")], 240);
   const auth = marionAdminTextRuntimeRequestAuth(req);
+  const privateIdentity = marionAdminPrivateRuntimeIdentity(body, auth, traceId);
   if (!auth.verified) return marionAdminConsoleAuthRequired(res, traceId, auth);
   const permission = marionAdminConsolePermissionDecision(auth, "runtime", { requireSession: true });
   if (!permission.allowed) {
     return marionAdminConsolePermissionDenied(res, "runtime", traceId, auth, permission);
   }
 
+  let runtimeFailureStage = "route_enter";
   try {
+    runtimeFailureStage = "voice_approval";
     const voiceApproval = marionAdminRuntimePrivateVoiceApproval(req, body, auth);
+    runtimeFailureStage = "runtime_invocation";
     const runtime = await invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval);
+    runtimeFailureStage = "response_projection";
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
     const runtimePrompt = marionAdminTextRuntimeExtractPrompt(body);
     const reply = priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || priority9JR1BAdminVisibleReply(runtime, runtimePrompt) || "";
+    const bridgeStatus = marionAdminBridgeStatusProjection(runtime.bridgeStatus);
     return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+      ...privateIdentity,
       ok: !!runtime.ok,
-      stage: cleanText(runtime.stage || ""),
-      reason: cleanText(runtime.reason || ""),
+      stage: marionAdminRuntimeStrictText(runtime.stage, "", 240),
+      reason: marionAdminRuntimeStrictText(runtime.reason, "", 240),
       routeMounted: true,
       runtimeHandlerMounted: true,
       runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
-      authBridge: cleanText(auth.runtimeAuthBridge || ""),
+      runtimeSafetyVersion: MARION_ADMIN_RUNTIME_SAFETY_VERSION,
+      authBridge: marionAdminRuntimeStrictText(auth.runtimeAuthBridge, "", 240),
       runtimeSessionBridge: auth.runtimeSessionBridge === true,
       runtimeRequiredCapability: marionAdminConsoleActionCapability("runtime"),
       gatewayReady: true,
-      bridgeReady: !!(runtime.bridgeStatus && runtime.bridgeStatus.available),
-      bridgeHandler: cleanText(runtime.bridgeStatus && runtime.bridgeStatus.handler || ""),
-      bridgeVersion: cleanText(runtime.bridgeStatus && runtime.bridgeStatus.version || ""),
+      bridgeReady: bridgeStatus.available === true,
+      bridgeHandler: bridgeStatus.handler,
+      bridgeVersion: bridgeStatus.version,
       reply,
       response: reply,
       text: reply,
@@ -22637,8 +25495,8 @@ async function handleMarionAdminTextRuntime(req, res) {
       speakAllowed: runtime.speakAllowed === true,
       adminVoiceDeliveryAllowed: runtime.adminVoiceDeliveryAllowed === true,
       speechSyncEnabled: runtime.speechSyncEnabled === true,
-      projectedVoiceMode: cleanText(runtime.projectedVoiceMode || "silent"),
-      rawVoiceMode: cleanText(runtime.rawVoiceMode || "silent"),
+      projectedVoiceMode: marionAdminRuntimeStrictText(runtime.projectedVoiceMode, "silent", 40),
+      rawVoiceMode: marionAdminRuntimeStrictText(runtime.rawVoiceMode, "silent", 40),
       result: marionAdminConsoleRedacted(runtime.result || {}),
       responseFinalized: true
     }));
@@ -22648,16 +25506,23 @@ async function handleMarionAdminTextRuntime(req, res) {
     const referenceError = signature === "reference_error";
     const fallbackReply = marionAdminRuntimeSafeFallbackReply(prompt, err);
     const statusCode = fallbackReply ? 200 : (referenceError ? 500 : 502);
+    const safeDetail = marionAdminRuntimeSafeErrorText(err, "runtime_error", 240);
+    try {
+      console.error("[MARION_ADMIN_RUNTIME_FAILURE]", { traceId, stage: runtimeFailureStage, signature, detail: safeDetail });
+    } catch (_) {}
     return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+      ...privateIdentity,
       ok: !!fallbackReply,
       stage: referenceError ? (fallbackReply ? "marion_runtime_reference_error_recovered" : "marion_runtime_reference_error") : (fallbackReply ? "marion_runtime_handler_exception_recovered" : "marion_runtime_handler_exception"),
       reason: fallbackReply ? "" : (referenceError ? marionAdminRuntimeErrorPublicDetail(err) : "marion_runtime_exception_suppressed"),
+      runtimeFailureStage,
       runtimeErrorSignature: signature,
       referenceError,
       routeMounted: true,
       runtimeHandlerMounted: true,
       runtimeHandlerVersion: MARION_ADMIN_TEXT_RUNTIME_HANDLER_VERSION,
-      authBridge: cleanText(auth.runtimeAuthBridge || ""),
+      runtimeSafetyVersion: MARION_ADMIN_RUNTIME_SAFETY_VERSION,
+      authBridge: marionAdminRuntimeStrictText(auth.runtimeAuthBridge, "", 240),
       runtimeSessionBridge: auth.runtimeSessionBridge === true,
       runtimeRequiredCapability: marionAdminConsoleActionCapability("runtime"),
       reply: fallbackReply || "",
@@ -22680,6 +25545,35 @@ app.options(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
   applyCors(req, res);
   hardenConversationNoStore(res);
   return res.status(204).end();
+});
+app.get(MARION_ADMIN_TEXT_RUNTIME_ROUTES, (req, res) => {
+  applyCors(req, res);
+  hardenConversationNoStore(res);
+  const traceId = marionAdminRuntimeFirstText([(req && req.sbTraceId), makeTraceId("marionruntime")], 240);
+  return res.status(405).json({
+    ok: false,
+    error: "method_not_allowed",
+    detail: "Marion admin runtime accepts POST requests only.",
+    allowedMethods: ["POST", "OPTIONS"],
+    routeAliases: [...MARION_ADMIN_TEXT_RUNTIME_ROUTES],
+    authContract: {
+      requiredSessionHeader: MARION_ADMIN_CONSOLE_SESSION_HEADER,
+      compatibilitySessionHeader: "x-marion-admin-session-token",
+      sessionRequiredForRuntime: true,
+      publicFallbackBlocked: true,
+      secretsExposed: false
+    },
+    routeMounted: true,
+    privateControlPlane: true,
+    scope: "private_admin",
+    audience: "owner",
+    answerClass: "marion_admin_conversation",
+    surfaceAgent: "Marion",
+    publicSurfaceOnly: false,
+    publicFallbackBlocked: true,
+    traceId,
+    runtimeSafetyVersion: MARION_ADMIN_RUNTIME_SAFETY_VERSION
+  });
 });
 app.post(MARION_ADMIN_TEXT_RUNTIME_ROUTES, async (req, res) => handleMarionAdminTextRuntime(req, res));
 
@@ -22720,6 +25614,8 @@ app.get(MARION_ADMIN_CONSOLE_ROUTES.health, (req, res) => {
         version: MARION_ADMIN_CONSOLE_TEST_BYPASS_VERSION,
         enabled: MARION_ADMIN_CONSOLE_TEST_BYPASS_ENABLED,
         header: MARION_ADMIN_CONSOLE_TEST_BYPASS_HEADER,
+        tokenHeader: MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN_HEADER,
+        tokenConfigured: MARION_ADMIN_CONSOLE_TEST_BYPASS_TOKEN.length >= 32,
         originAllowed: marionAdminConsoleTestingBypassOriginAllowed(req),
         requested: marionAdminConsoleTestingBypassRequested(req)
       }
@@ -23196,6 +26092,105 @@ let server = null;
 
 function startSandblastServer(port = PORT) {
   if (server && typeof server.close === "function") return server;
+  const learningStorage = marionLearningStorageConfiguration();
+  let learningSetup = { ready: false, status: learningStorage.reason };
+  if (learningStorage.runtimeEnabled) learningSetup = ensureMarionLearningRuntime();
+  let storageProbe = null;
+  let databaseProbeSetupStatus = "not_configured";
+  if (learningStorage.configured) {
+    try {
+      const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+      if (learningStorage.runtimeEnabled) {
+        const pgPool = getMarionLearningPostgresPool();
+        if (!pgPool) throw new Error("postgres_pool_unavailable");
+        storageProbe = () => adapterModule.probeMarionLearningPostgres(pgPool);
+      } else {
+        // Probe database reachability independently without enabling learning or evaluation.
+        const { Pool } = require("pg");
+        const diagnosticPool = new Pool({
+          connectionString: process.env.DATABASE_URL,
+          max: 1,
+          idleTimeoutMillis: 5000,
+          connectionTimeoutMillis: 5000,
+          ssl: { rejectUnauthorized: true }
+        });
+        if (typeof diagnosticPool.on === "function") diagnosticPool.on("error", () => {
+          console.warn("[Sandblast][marion-learning-postgres]", { status: "diagnostic_connection_error" });
+        });
+        storageProbe = async () => {
+          try {
+            return await adapterModule.probeMarionLearningPostgres(diagnosticPool);
+          } finally {
+            await diagnosticPool.end().catch(() => {});
+          }
+        };
+      }
+      databaseProbeSetupStatus = "ready_to_probe";
+    } catch (error) {
+      const message = String(error && error.message || "");
+      databaseProbeSetupStatus = /Cannot find module ['\"]pg/.test(message)
+        ? "postgres_dependency_missing"
+        : "postgres_adapter_unavailable";
+      if (learningStorage.runtimeEnabled) {
+        learningSetup = { ready: false, status: databaseProbeSetupStatus };
+      }
+    }
+  }
+  app.locals = app.locals || {};
+  if (learningStorage.runtimeEnabled && learningStorage.configured) {
+    app.locals.marionLearningPostgresReadiness = Object.freeze({
+      checked: false,
+      ready: false,
+      reason: "evaluation_runtime_schema_check_pending"
+    });
+  }
+  const storageReadinessPromise = Promise.resolve()
+    .then(() => typeof storageProbe === "function" ? storageProbe() : null)
+    .then(result => {
+      const databaseReady = !!(result && result.ready === true);
+      const readinessReason = databaseReady
+        ? "evaluation_storage_ready"
+        : result && /^[a-z0-9_]+$/i.test(String(result.reason || ""))
+          ? String(result.reason)
+          : typeof storageProbe === "function"
+            ? "evaluation_runtime_schema_check_required"
+            : databaseProbeSetupStatus === "postgres_dependency_missing"
+              ? "postgres_dependency_missing"
+              : databaseProbeSetupStatus === "postgres_adapter_unavailable"
+                ? "postgres_adapter_unavailable"
+                : "evaluation_runtime_schema_check_unavailable";
+      const readiness = recordMarionLearningStorageReadiness(databaseReady, readinessReason);
+      console.log("[Sandblast][marion-learning-postgres]", {
+        configured: learningStorage.configured,
+        databaseProbeRan: typeof storageProbe === "function",
+        databaseReady,
+        databaseProbeStatus: typeof storageProbe === "function"
+          ? databaseReady ? "ready" : "not_ready"
+          : databaseProbeSetupStatus,
+        readinessReason: readiness.reason,
+        learningEnabled: learningStorage.enabled,
+        evaluationEnabled: learningStorage.evaluationEnabled,
+        runtimeStatus: learningSetup.status,
+        liveActivationEnabled: false
+      });
+      return readiness;
+    })
+    .catch(() => {
+      const readiness = recordMarionLearningStorageReadiness(false, "evaluation_runtime_schema_check_failed");
+      console.log("[Sandblast][marion-learning-postgres]", {
+        configured: learningStorage.configured,
+        databaseProbeRan: typeof storageProbe === "function",
+        databaseReady: false,
+        databaseProbeStatus: "failed",
+        readinessReason: readiness.reason,
+        learningEnabled: learningStorage.enabled,
+        evaluationEnabled: learningStorage.evaluationEnabled,
+        runtimeStatus: learningSetup.status,
+        liveActivationEnabled: false
+      });
+      return readiness;
+    });
+  app.locals.marionLearningPostgresReadinessPromise = storageReadinessPromise;
   server = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
     try {
@@ -23206,6 +26201,19 @@ function startSandblastServer(port = PORT) {
       });
     } catch (_) {}
     try {
+      console.log("[Sandblast][nyx-voice-utils-mount]", {
+        ok: NYX_VOICE_UTILS_MOUNT_STATUS.ok === true,
+        mounted: NYX_VOICE_UTILS_MOUNT_STATUS.mounted === true,
+        requestedPath: NYX_VOICE_UTILS_MOUNT_STATUS.requestedPath,
+        resolvedPath: NYX_VOICE_UTILS_MOUNT_STATUS.resolvedPath,
+        moduleRoot: NYX_VOICE_UTILS_MOUNT_STATUS.moduleRoot,
+        canonicalVoiceRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalVoiceRoute,
+        canonicalHealthRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalHealthRoute,
+        compatibilityTtsOwnedByIndex: true,
+        error: NYX_VOICE_UTILS_MOUNT_STATUS.error || ""
+      });
+    } catch (_) {}
+    try {
       const emotionHealth = getMarionEmotionRuntimeHealth();
       console.log("[Sandblast][marion-emotion-runtime]", {
         ok: !!emotionHealth.ok,
@@ -23213,12 +26221,32 @@ function startSandblastServer(port = PORT) {
         mode: "resolved_state_only",
         route: "/api/marion/emotion/health"
       });
+      const nuanceHealth = getMarionNuancePhaseAHealth();
+      console.log("[Sandblast][marion-nuance-phase-a]", {
+        ok: !!nuanceHealth.ok,
+        loaded: !!marionNuancePhaseACoordinatorMod,
+        mode: "diagnostic_only_at_index",
+        hardStopLayer: 24,
+        route: "/api/marion/nuance/health"
+      });
     } catch (_) {}
   });
   return server;
 }
 
-if (require.main === module || process.env.SB_INDEX_AUTO_LISTEN === "true") {
+const marionLearningSchemaInitRequested = require.main === module &&
+  process.argv.slice(2).includes(MARION_LEARNING_EVAL_SCHEMA_INIT_COMMAND);
+if (marionLearningSchemaInitRequested) {
+  initializeMarionLearningEvalSchema().then(() => {
+    process.exit(0);
+  }).catch((error) => {
+    const code = error && /^[a-z0-9_]+$/i.test(String(error.code || ""))
+      ? String(error.code)
+      : "initialization_failed";
+    console.error(JSON.stringify({ status: "failed", code }));
+    process.exit(1);
+  });
+} else if (require.main === module || process.env.SB_INDEX_AUTO_LISTEN === "true") {
   startSandblastServer(PORT);
 }
 
@@ -23245,9 +26273,22 @@ module.exports = {
   app,
   server,
   startSandblastServer,
+  MARION_LEARNING_EVAL_SCHEMA_INIT_COMMAND,
+  validateMarionLearningEvalSchemaInitTarget,
+  marionLearningAuditBootstrapState,
+  initializeMarionLearningEvalSchema,
   gracefulShutdown,
   PORT,
   INDEX_VERSION,
+  MARION_DOMAIN_RESPONSE_OBJECT_RENDER_GUARD_VERSION,
+  scalarMarionReplyCandidate,
+  nestedMarionResponseReplyCandidate,
+  SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_VERSION,
+  SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS,
+  mountSandblastEcosystemBaselineRouteOnce,
+  NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
+  NYX_VOICE_UTILS_MOUNT_STATUS,
+  mountNyxVoiceUtilsEarly,
   PRIORITY4_TRANSPORT_MOUNTING_PATCH_VERSION,
   NYX_VOICE_TRANSCRIPT_ROUTE_VERSION,
   SANDBLAST_TV_SCHEDULER_ROUTE_VERSION,
@@ -23427,7 +26468,7 @@ module.exports.PRIORITY_9F_R3_INDEX_ALT_PROMPT_ECHO_SUPPRESSION_VERSION=PRIORITY
 
 // PRIORITY_9F_R4_CONTINUATION_CARRY_ENFORCEMENT_INDEX_PATCH_START
 const PRIORITY_9F_R4_INDEX_CONTINUATION_CARRY_VERSION = "nyx.marion.priority9fR4.continuationCarry.index/1.0";
-function priority9FR4IndexStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function priority9FR4IndexStr(value){return cleanText(value);}
 function priority9FR4IndexNorm(value){return priority9FR4IndexStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9FR4IndexIsShortContinuation(value){const n=priority9FR4IndexNorm(value);return /^(next steps?|continue|carry on|proceed|run that again|run it again|do that again|do it again|same thing|what now|whats next|what s next|next)$/.test(n);}
 function priority9FR4IndexIsCarryInstruction(value){const t=priority9FR4IndexNorm(value);return /\b(priority 9f r4|priority9f r4|9f r4|continuation carry|last accepted lane|stay inside the 9f|inside the 9f conversational stack|9f conversational stack lane|short continuation|next steps continue run that again what now)\b/.test(t);}
@@ -23454,8 +26495,8 @@ module.exports.PRIORITY_9F_R4_INDEX_CONTINUATION_CARRY_VERSION=PRIORITY_9F_R4_IN
 // PRIORITY_9G_DEEP_CONTINUITY_MEMORY_INDEX_PATCH_START
 const PRIORITY_9G_DEEP_CONTINUITY_MEMORY_INDEX_VERSION="PRIORITY-9G-DEEP-CONTINUITY-MEMORY-INDEX/1.0";
 
-function priority9GNorm(value){return String(value==null?"":value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-function priority9GStr(value){return String(value==null?"":value).replace(/\s+/g," ").trim();}
+function priority9GNorm(value){return cleanText(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
+function priority9GStr(value){return cleanText(value);}
 function priority9GObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9GCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||9000);}catch(_){return "";}}
 function priority9GIsShortFollowup(value){const t=priority9GNorm(value);return /^(next steps?|continue|carry on|keep going|proceed|run that again|run it again|do that again|do it again|same thing|repeat that|repeat the process|one more time|rerun that|rerun it|what now|whats next|what s next|where are we|where do we go next|next)$/.test(t);}
@@ -23548,7 +26589,7 @@ module.exports.PRIORITY_9G_DEEP_CONTINUITY_MEMORY_INDEX_VERSION=PRIORITY_9G_DEEP
 
 const PRIORITY_9H_LONG_FORM_CONTINUITY_VERSION = "nyx.marion.priority9h.longFormContinuityStressDriftGuard/1.0";
 const PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION = "nyx.marion.priority9i.adaptiveSituationalPrecheck/0.1";
-function priority9HStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function priority9HStr(value){return cleanText(value);}
 function priority9HObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9HNorm(value){return priority9HStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9HCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||16000);}catch(_){return priority9HStr(value).slice(0,limit||16000);}}
@@ -23661,7 +26702,7 @@ module.exports.PRIORITY_9I_ADAPTIVE_SITUATIONAL_PRECHECK_VERSION=PRIORITY_9I_ADA
 // PRIORITY_9I_9J_SEQUENCE_INDEX_PATCH_START
 var PRIORITY_9I_ADAPTIVE_SITUATIONAL_REASONING_VERSION_FULL = "nyx.marion.priority9i.adaptiveSituationalReasoningContextPressure/1.0";
 var PRIORITY_9J_PROACTIVE_OPERATIONAL_GUIDANCE_VERSION_FULL = "nyx.marion.priority9j.proactiveOperationalGuidanceNextMoveAuthority/1.0";
-function priority9IJStr(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function priority9IJStr(value){return cleanText(value);}
 function priority9IJObj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function priority9IJNorm(value){return priority9IJStr(value).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
 function priority9IJCollect(value,limit){try{return JSON.stringify(value||{}).slice(0,limit||22000);}catch(_){return priority9IJStr(value).slice(0,limit||22000);}}
@@ -23709,7 +26750,7 @@ module.exports._internal={...(module.exports._internal||{}),priority9IJIs9IActiv
 var PRIORITY_9I_R2_PRESSURE_SPECIFIC_ANSWER_SHAPING_VERSION = "nyx.marion.priority9i.r2.pressureSpecificAnswerShaping/1.0";
 
 function priority9IR2OneLine(value) {
-  return value == null ? "" : String(value).replace(/\s+/g, " ").trim();
+  return marionAdminRuntimeStrictText(value, "", 12000);
 }
 function priority9IR2Obj(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -23935,7 +26976,7 @@ module.exports.PRIORITY_9I_R2_PRESSURE_SPECIFIC_ANSWER_SHAPING_PATCH = true;
 const PRIORITY_9J_R1_DECISION_SPECIFIC_AUTHORITY_VERSION = "PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX";
 
 function priority9JR1SafeStr(value) {
-  return value == null ? "" : String(value).replace(/\s+/g, " ").trim();
+  return marionAdminRuntimeStrictText(value, "", 12000);
 }
 
 function priority9JR1Lower(value) {
@@ -24151,7 +27192,7 @@ priority9JR1PatchExports(["handleMarionAdminTextRuntime", "invokeMarionAdminText
 
 /* PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_START */
 const PRIORITY_9J_R1A_RUNTIME_DECISION_SPECIFIC_FINAL_OVERRIDE_VERSION = "PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE";
-function priority9JR1ASafeStr(value) { return value == null ? "" : String(value).replace(/\s+/g, " ").trim(); }
+function priority9JR1ASafeStr(value) { return cleanText(value); }
 function priority9JR1ALower(value) { return priority9JR1ASafeStr(value).toLowerCase(); }
 function priority9JR1AObj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function priority9JR1AFirstText(values) {
@@ -24530,7 +27571,7 @@ priority9JR1BPatchExports(["composeMarionResponse", "compose", "buildReply", "ro
  */
 const MARION_PERSONALITY_PRIORITY_R2_INDEX_VERSION = "nyx.marion.personalityPriorityR2.indexGateway/1.0";
 function marionPersonalityR2IndexText(value) {
-  return String(value == null ? "" : value).replace(/\s+/g, " ").trim();
+  return marionAdminRuntimeStrictText(value, "", 12000);
 }
 function marionPersonalityR2IndexLower(value) {
   return marionPersonalityR2IndexText(value).toLowerCase();
@@ -24694,7 +27735,7 @@ const MARION_PERSONALITY_GREETING_R4_TRAITS = Object.freeze({
     clientPersonaExpansion: "future client-facing modes stay subordinate to Mac's private Marion authority"
   })
 });
-function marionR4Text(value) { return String(value == null ? "" : value).replace(/\s+/g, " ").trim(); }
+function marionR4Text(value) { return cleanText(value); }
 function marionR4Lower(value) { return marionR4Text(value).toLowerCase(); }
 function marionR4Obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function marionR4PromptKeyValue(obj) {
@@ -25003,7 +28044,7 @@ const MARION_PERSONALITY_SOCIAL_CHECKIN_R5_COMPONENTS = Object.freeze({
   voiceNaturalization: "voice outputs use readable number/email phrasing and avoid robotic support phrases",
   humorCalibration: "light humor is allowed only when it sharpens rapport and does not reduce authority"
 });
-function marionR5Text(value) { return String(value == null ? "" : value).replace(/\s+/g, " ").trim(); }
+function marionR5Text(value) { return cleanText(value); }
 function marionR5Lower(value) { return marionR5Text(value).toLowerCase(); }
 function marionR5Obj(value) { return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
 function marionR5FirstText() { for (var i = 0; i < arguments.length; i += 1) { var t = marionR5Text(arguments[i]); if (t) return t; } return ""; }
@@ -25274,7 +28315,7 @@ var MARION_R6_FUTURE_COMPONENTS = Object.freeze({
   realWorldTransitionVoice: "observation becomes plain-language meaning, risk, and one next move",
   antiMaintenanceManualFilter: "runtime scaffolding informs Marion but never speaks as Marion"
 });
-function marionR6Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function marionR6Str(value){return cleanText(value);}
 function marionR6Lower(value){return marionR6Str(value).toLowerCase();}
 function marionR6Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR6Array(value){return Array.isArray(value)?value:[];}
@@ -25369,7 +28410,7 @@ var MARION_R7_FUTURE_PERSONALITY_COMPONENTS = Object.freeze({
   oneQuestionDiscipline: "Marion asks only one focused forward-moving question unless Mac explicitly asks for options",
   voiceNaturalization: "voice output avoids robotic service phrasing and keeps number/email readout policy available downstream"
 });
-function marionR7Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function marionR7Str(value){return cleanText(value);}
 function marionR7Lower(value){return marionR7Str(value).toLowerCase();}
 function marionR7Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR7Array(value){return Array.isArray(value)?value:[];}
@@ -25545,7 +28586,7 @@ var MARION_R89_COMPONENTS = Object.freeze({
   realWorldObservationTranslationReady: true,
   futureNodeExpansion: ["greeting","social_checkin","presence_check","repair_opening","lookup_pause","information_gathering","observation_translation","planning","closing"]
 });
-function marionR89Str(value){return value==null?"":String(value).replace(/\s+/g," ").trim();}
+function marionR89Str(value){return cleanText(value);}
 function marionR89Lower(value){return marionR89Str(value).toLowerCase();}
 function marionR89Obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
 function marionR89Array(value){return Array.isArray(value)?value:[];}
@@ -25987,7 +29028,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 (function(){
   "use strict";
   var VERSION="MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13";
-  function s(v){return v==null?"":String(v).replace(/\s+/g," ").trim();}
+  function s(v){return cleanText(v);}
   function l(v){return s(v).toLowerCase();}
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
   function arr(v){return Array.isArray(v)?v:[];}
@@ -26024,7 +29065,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
     return [pick(open),pick(mid),pick(q)].filter(Boolean).join(" ");
   }
   function packet(prompt,reason){var k=node(prompt);var r=reply(prompt,k);return {ok:true,final:true,handled:true,responseFinalized:true,stage:"marion_presence_route_boundary_r12",reason:"",failopenReason:reason||"presence_route_timeout_boundary",source:"marion_presence_route_boundary_r12",guardian:"marion",guardianMode:"marion",directReply:r,visibleReply:r,finalReply:r,publicReply:r,displayReply:r,reply:r,response:r,text:r,message:r,spokenText:r,speechText:r,noUserFacingDiagnostics:true,adminStatusTranscriptSuppressed:true,conversationalLayeringActive:true,presenceRouteBoundaryR12:{version:VERSION,active:true,node:k,timeoutBoundary:true,suppressAndReplace:true,deepeningLayer:true},diagnostics:{userVisible:false,diagnosticOnly:true,failopenReason:reason||"presence_route_timeout_boundary"},meta:{conversationNode:k,presenceRouteBoundaryR12:true,deepeningLayerR13:true,oneQuestionMax:true}};}
-  function apply(target,prompt,reason){var p=s(prompt)||extract(target);var k=node(p);var vis=readVisible(target);var must=k!=="standard"||!vis||BAD.test(vis)||WEAK.test(vis); if(typeof target==="string")return must?reply(p,k):target; if(!target||typeof target!=="object")return must?packet(p,reason):target; var out=Array.isArray(target)?target.slice():Object.assign({},target); if(must){var pk=packet(p,reason);VISIBLE.forEach(function(key){out[key]=pk[key]||pk.directReply;});out.ok=true;out.final=true;out.handled=true;out.responseFinalized=true;out.noUserFacingDiagnostics=true;out.adminStatusTranscriptSuppressed=true;out.conversationalLayeringActive=true;out.presenceRouteBoundaryR12=pk.presenceRouteBoundaryR12;out.diagnostics=Object.assign({},obj(out.diagnostics),pk.diagnostics);out.meta=Object.assign({},obj(out.meta),pk.meta);if(out.finalEnvelope&&typeof out.finalEnvelope==="object")VISIBLE.forEach(function(key){out.finalEnvelope[key]=pk.directReply;});if(out.payload&&typeof out.payload==="object")VISIBLE.forEach(function(key){out.payload[key]=pk.directReply;});}
+  function apply(target,prompt,reason){var p=s(prompt)||extract(target);var k=node(p);var vis=readVisible(target);var must=k!=="standard"||!vis; if(typeof target==="string")return must?reply(p,k):target; if(!target||typeof target!=="object")return must?packet(p,reason):target; var out=Array.isArray(target)?target.slice():Object.assign({},target); if(must){var pk=packet(p,reason);VISIBLE.forEach(function(key){out[key]=pk[key]||pk.directReply;});out.ok=true;out.final=true;out.handled=true;out.responseFinalized=true;out.noUserFacingDiagnostics=true;out.adminStatusTranscriptSuppressed=true;out.conversationalLayeringActive=true;out.presenceRouteBoundaryR12=pk.presenceRouteBoundaryR12;out.diagnostics=Object.assign({},obj(out.diagnostics),pk.diagnostics);out.meta=Object.assign({},obj(out.meta),pk.meta);if(out.finalEnvelope&&typeof out.finalEnvelope==="object")VISIBLE.forEach(function(key){out.finalEnvelope[key]=pk.directReply;});if(out.payload&&typeof out.payload==="object")VISIBLE.forEach(function(key){out.payload[key]=pk.directReply;});}
     return out;}
   function promptFromArgs(args,res){for(var i=0;i<args.length;i++){var g=extract(args[i]);if(g)return g;}return extract(res);}
   function wrap(fn,name){if(typeof fn!=="function"||fn.__marionPresenceRouteBoundaryR12)return fn;var wrapped=function(){var self=this,args=Array.prototype.slice.call(arguments),p=promptFromArgs(args),k=node(p),light=k!=="standard"&&k!=="unknown";try{var out=fn.apply(self,args);if(out&&typeof out.then==="function"){if(light){return Promise.race([out.then(function(v){return apply(v,p,"resolved_shape");}).catch(function(){return packet(p,"promise_exception_failopen");}),new Promise(function(resolve){setTimeout(function(){resolve(packet(p,"promise_timeout_failopen"));},1400);})]);}return out.then(function(v){return apply(v,p,"resolved_shape");});}return apply(out,p,"sync_shape");}catch(e){if(light)return packet(p,"throw_failopen");throw e;}};try{Object.keys(fn).forEach(function(k){wrapped[k]=fn[k];});}catch(_){}wrapped.__marionPresenceRouteBoundaryR12=true;return wrapped;}
@@ -26105,7 +29146,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 (function(){
   "use strict";
   var VERSION="nyx.marion.toneNaturalizationR15/1.0";
-  function S(v){return v==null?"":String(v).replace(/\s+/g," ").trim();}
+  function S(v){return cleanText(v);}
   function L(v){return S(v).toLowerCase().replace(/[’]/g,"'");}
   function O(v){return !!v&&typeof v==="object"&&!Array.isArray(v);}
   function A(v){return Array.isArray(v)?v:[];}
@@ -26236,8 +29277,9 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
           if(!layer||typeof layer.handle!=="function")return;
           var txt=S(layer.route&&layer.route.path||layer.regexp||"");
           var tvLayer=/sandblast(?:[-_]?tv|tv)/i.test(txt);
+          var protectedAdminLayer=/marion/i.test(txt)&&/admin/i.test(txt)&&/(?:health|status|command|approve|deny|emergency|session|escalation)/i.test(txt);
           var marionLayer=/marion|runtime|conversation|command/i.test(txt)||(/admin/i.test(txt)&&!tvLayer);
-          if(marionLayer&&!tvLayer)layer.handle=patchExpress(layer.handle,txt);
+          if(marionLayer&&!tvLayer&&!protectedAdminLayer)layer.handle=patchExpress(layer.handle,txt);
         }catch(_){}
       });
     }
@@ -26254,7 +29296,7 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 (function(){
   try {
     const V = "nyx.marion.r18c.fullStackRegression/1.0";
-    function T(v, max){ let s = v == null ? "" : String(v).replace(/\s+/g," ").trim(); if(max && s.length > max) s = s.slice(0, max - 1).trim() + "…"; return s; }
+    function T(v, max){ let s = cleanText(v); if(max && s.length > max) s = s.slice(0, max - 1).trim() + "…"; return s; }
     function O(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
     function A(v){ return Array.isArray(v) ? v : []; }
     function lower(v){ return T(v, 4000).toLowerCase(); }
@@ -26447,31 +29489,121 @@ if(typeof handleMarionAdminTextRuntime==="function"&&!handleMarionAdminTextRunti
 })();
 /* R18C_FULL_STACK_INDEX_TRANSPORT_GUARD_END */
 
-/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V3_START
- * Hard namespace isolation for machine-readable Sandblast TV and NYX
- * ecosystem operational JSON. Prevents global Marion/NYX conversation,
- * identity and voice projectors from mutating these API contracts.
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_START
+ * Hard namespace isolation for machine-readable Sandblast TV, Nyx ecosystem,
+ * Nyx voice/TTS synthesis, and operational-health JSON.
+ *
+ * Voice synthesis responses must remain outside every global Marion/Nyx
+ * conversation, identity, memory and reply projector. Otherwise visible text,
+ * spoken text and audio metadata can be mutated after the canonical voice route
+ * has already established parity.
  */
-function isNyxEcosystemOperationalResponseV1(req) {
-  const requestPath = String(
+const OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_VERSION =
+  "nyx.operationalResponseProjectionBoundary/5.0-voice-text-parity-isolation";
+
+const NYX_OPERATIONAL_HEALTH_PATHS_V1 = Object.freeze([
+  "/api/nyx/voice/health",
+  "/nyx/voice/health",
+  "/api/tts/health",
+  "/tts/health",
+  "/api/nyx/voice/transcript/health",
+  "/nyx/voice/transcript/health",
+  "/api/nyx/guide/health",
+  "/nyx/guide/health",
+  "/api/nyx/guide/release/health",
+  "/nyx/guide/release/health"
+]);
+
+const NYX_OPERATIONAL_VOICE_PATHS_V2 = Object.freeze([
+  "/api/nyx/voice",
+  "/nyx/voice",
+  "/api/tts",
+  "/tts"
+]);
+
+function normalizeOperationalResponsePathV5(req) {
+  const raw = String(
     (req && (req.originalUrl || req.url || req.path)) || ""
-  ).split("?")[0].toLowerCase();
+  )
+    .split("?")[0]
+    .trim()
+    .toLowerCase();
+
+  if (!raw) return "";
+  return raw.length > 1 ? raw.replace(/\/+$/g, "") : raw;
+}
+
+function isNyxOperationalHealthResponseV1(req) {
+  return NYX_OPERATIONAL_HEALTH_PATHS_V1.includes(
+    normalizeOperationalResponsePathV5(req)
+  );
+}
+
+function isNyxOperationalVoiceResponseV2(req) {
+  return NYX_OPERATIONAL_VOICE_PATHS_V2.includes(
+    normalizeOperationalResponsePathV5(req)
+  );
+}
+
+function isNyxEcosystemOperationalResponseV1(req) {
+  const requestPath = normalizeOperationalResponsePathV5(req);
 
   return requestPath === "/api/nyx/ecosystem" ||
     requestPath.startsWith("/api/nyx/ecosystem/");
 }
 
 function isSandblastTvOperationalResponseV2(req) {
-  const requestPath = String(
-    (req && (req.originalUrl || req.url || req.path)) || ""
-  ).split("?")[0].toLowerCase();
+  const requestPath = normalizeOperationalResponsePathV5(req);
 
   const sandblastTvOperational = requestPath === "/api/sandblast-tv/v1" ||
     requestPath.startsWith("/api/sandblast-tv/v1/");
 
-  return sandblastTvOperational || isNyxEcosystemOperationalResponseV1(req);
+  return sandblastTvOperational ||
+    isNyxEcosystemOperationalResponseV1(req) ||
+    isNyxOperationalHealthResponseV1(req) ||
+    isNyxOperationalVoiceResponseV2(req);
 }
-/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V3_END */
+
+const MARION_PRIVATE_CONTROL_PLANE_PREFIXES = Object.freeze([
+  "/api/private/marion",
+  "/private/marion",
+  "/api/marion/admin",
+  "/marion/admin",
+  "/api/lingosentinel/private/marion"
+]);
+
+// Public conversation projectors must never rewrite private Marion control-plane
+// responses, especially authorization failures and machine-readable admin APIs.
+function isMarionPrivateControlPlaneRequest(req) {
+  const requestPath = normalizeOperationalResponsePathV5(req);
+  return MARION_PRIVATE_CONTROL_PLANE_PREFIXES.some((prefix) =>
+    requestPath === prefix || requestPath.startsWith(`${prefix}/`)
+  );
+}
+
+function isGlobalResponseProjectionBypass(req) {
+  return isSandblastTvOperationalResponseV2(req) || isMarionPrivateControlPlaneRequest(req);
+}
+
+try {
+  app.locals = app.locals || {};
+  app.locals.operationalResponseProjectionBoundary = Object.freeze({
+    version: OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_VERSION,
+    active: true,
+    voiceHealthIsolation: true,
+    voiceSynthesisIsolation: true,
+    voiceTextParityIsolation: true,
+    protectedHealthPaths: NYX_OPERATIONAL_HEALTH_PATHS_V1,
+    protectedVoicePaths: NYX_OPERATIONAL_VOICE_PATHS_V2
+  });
+  module.exports.OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_VERSION =
+    OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_VERSION;
+  module.exports.NYX_OPERATIONAL_HEALTH_PATHS =
+    NYX_OPERATIONAL_HEALTH_PATHS_V1;
+  module.exports.NYX_OPERATIONAL_VOICE_PATHS =
+    NYX_OPERATIONAL_VOICE_PATHS_V2;
+} catch (_) {}
+/* OPERATIONAL_RESPONSE_PROJECTION_BOUNDARY_V5_END */
 
 /* R18C_LIVE_HANDLER_REPAIR_START */
 (function(){
@@ -26483,7 +29615,7 @@ function isSandblastTvOperationalResponseV2(req) {
   module.exports.MARION_R18C_LIVE_HANDLER_REPAIR_VERSION = V;
 
   function T(v, max){
-    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+    const s = marionAdminRuntimeStrictText(v, "", max || 12000);
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -26781,7 +29913,7 @@ function isSandblastTvOperationalResponseV2(req) {
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractText({ req: req, body: O(req.body), payload: O(req.body) });
@@ -26792,7 +29924,7 @@ function isSandblastTvOperationalResponseV2(req) {
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractText({ req: req, body: O(req.body), payload: O(req.body) });
@@ -26833,7 +29965,7 @@ function isSandblastTvOperationalResponseV2(req) {
   module.exports.MARION_R18C_FINAL_ANSWER_MATERIALIZER_VERSION = V;
 
   function T(v, max){
-    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+    const s = marionAdminRuntimeStrictText(v, "", max || 12000);
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -27133,10 +30265,19 @@ function isSandblastTvOperationalResponseV2(req) {
   function ensureFinalEnvelope(obj, reply, p){
     if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
     if (!obj.finalEnvelope || typeof obj.finalEnvelope !== "object" || Array.isArray(obj.finalEnvelope)) obj.finalEnvelope = {};
+    const trustedMarionFinal = obj.marionFinal === true || obj.finalEnvelope.marionFinal === true;
     setReplyFields(obj.finalEnvelope, reply, p);
-    obj.finalEnvelope.contract = obj.finalEnvelope.contract || obj.finalEnvelope.contractVersion || "nyx.marion.final/1.0";
-    obj.finalEnvelope.finalSignature = obj.finalEnvelope.finalSignature || "MARION_FINAL_AUTHORITY";
-    obj.finalEnvelope.source = obj.finalEnvelope.source || "marion";
+    obj.finalEnvelope.marionFinal = trustedMarionFinal;
+    obj.finalEnvelope.contract = trustedMarionFinal
+      ? (obj.finalEnvelope.contract || obj.finalEnvelope.contractVersion || "nyx.marion.final/1.0")
+      : "nyx.public.legal.materializer/1.0";
+    if (trustedMarionFinal) {
+      obj.finalEnvelope.finalSignature = obj.finalEnvelope.finalSignature || "MARION_FINAL_AUTHORITY";
+      obj.finalEnvelope.source = obj.finalEnvelope.source || "marion";
+    } else {
+      delete obj.finalEnvelope.finalSignature;
+      obj.finalEnvelope.source = "nyx_legal_materializer";
+    }
     obj.finalEnvelope.visibleReplyMaterialized = true;
     obj.finalEnvelope.r18CFinalMaterializerPrecedenceRepair = true;
     return obj;
@@ -27184,10 +30325,12 @@ function isSandblastTvOperationalResponseV2(req) {
     if (!p.active) return packet;
     const fixed = apply(packet, { prompt: prompt });
     const reply = isSubstantiveLawAnswer(extractReply(fixed), p) ? extractReply(fixed) : materialize(prompt, p);
+    const trustedMarionFinal = !!(fixed && typeof fixed === "object" && (fixed.marionFinal === true || (fixed.finalEnvelope && fixed.finalEnvelope.marionFinal === true)));
     return {
       ok: true,
-      guardian: "marion",
-      guardianMode: "marion",
+      marionFinal: trustedMarionFinal,
+      guardian: trustedMarionFinal ? "marion" : "nyx",
+      guardianMode: trustedMarionFinal ? "marion" : "nyx_public_legal_materializer",
       reply: reply,
       directReply: reply,
       publicReply: reply,
@@ -27197,9 +30340,10 @@ function isSandblastTvOperationalResponseV2(req) {
       text: reply,
       message: reply,
       finalEnvelope: {
-        contract: "nyx.marion.final/1.0",
-        finalSignature: "MARION_FINAL_AUTHORITY",
-        source: "marion",
+        contract: trustedMarionFinal ? "nyx.marion.final/1.0" : "nyx.public.legal.materializer/1.0",
+        ...(trustedMarionFinal ? { finalSignature: "MARION_FINAL_AUTHORITY" } : {}),
+        source: trustedMarionFinal ? "marion" : "nyx_legal_materializer",
+        marionFinal: trustedMarionFinal,
         reply: reply,
         directReply: reply,
         publicReply: reply,
@@ -27225,9 +30369,10 @@ function isSandblastTvOperationalResponseV2(req) {
     };
   }
   function isUserChatRoute(req){
-    const url = L(firstText(req && req.originalUrl, req && req.url, req && req.path));
-    if (!url) return true;
-    return /\/api\/chat\b|\/chat\b|\/marion\b|\/admin\b/i.test(url);
+    const url = L(firstText(req && req.originalUrl, req && req.url, req && req.path))
+      .split("?")[0]
+      .replace(/\/+$/g, "");
+    return url === "/api/chat" || url === "/chat" || url === "/respond";
   }
   function wrap(name){
     const old = module.exports[name];
@@ -27260,7 +30405,7 @@ function isSandblastTvOperationalResponseV2(req) {
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -27274,7 +30419,7 @@ function isSandblastTvOperationalResponseV2(req) {
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -27319,7 +30464,7 @@ function isSandblastTvOperationalResponseV2(req) {
   module.exports.__r18cReplyQueueParityRepairPatched = true;
 
   function T(v, max){
-    const s = v == null ? "" : String(v).replace(/\s+/g, " ").trim();
+    const s = marionAdminRuntimeStrictText(v, "", max || 12000);
     if (!max || s.length <= max) return s;
     return s.slice(0, Math.max(0, max - 1)).trim() + "…";
   }
@@ -27469,6 +30614,8 @@ function isSandblastTvOperationalResponseV2(req) {
     };
   }
   function repairObject(packet, reply, prompt){
+    const existingEnvelope = O(packet.finalEnvelope);
+    const trustedMarionFinal = packet.marionFinal === true || existingEnvelope.marionFinal === true;
     setReplyAliases(packet, reply);
     setDomainTechnical(packet);
     tag(packet, "displayReply", prompt);
@@ -27487,16 +30634,25 @@ function isSandblastTvOperationalResponseV2(req) {
 
     if (env && Object.keys(env).length) {
       setReplyAliases(env, reply);
-      env.contract = env.contract || env.contractVersion || "nyx.marion.final/1.0";
-      env.finalSignature = env.finalSignature || "MARION_FINAL_AUTHORITY";
-      env.source = env.source || "marion";
+      env.marionFinal = trustedMarionFinal;
+      env.contract = trustedMarionFinal
+        ? (env.contract || env.contractVersion || "nyx.marion.final/1.0")
+        : (env.contract || env.contractVersion || "nyx.public.technical.parity/1.0");
+      if (trustedMarionFinal) {
+        env.finalSignature = env.finalSignature || "MARION_FINAL_AUTHORITY";
+        env.source = env.source || "marion";
+      } else {
+        delete env.finalSignature;
+        env.source = env.source && env.source !== "marion" ? env.source : "nyx_technical_parity";
+      }
       env.replyQueueParityAligned = true;
       env.r18CReplyQueueParityRepair = true;
     } else {
       packet.finalEnvelope = {
-        contract: "nyx.marion.final/1.0",
-        finalSignature: "MARION_FINAL_AUTHORITY",
-        source: "marion",
+        contract: trustedMarionFinal ? "nyx.marion.final/1.0" : "nyx.public.technical.parity/1.0",
+        ...(trustedMarionFinal ? { finalSignature: "MARION_FINAL_AUTHORITY" } : {}),
+        source: trustedMarionFinal ? "marion" : "nyx_technical_parity",
+        marionFinal: trustedMarionFinal,
         reply: reply,
         directReply: reply,
         publicReply: reply,
@@ -27575,7 +30731,7 @@ function isSandblastTvOperationalResponseV2(req) {
       const oldSend = express.response.send;
       if (typeof oldJson === "function") {
         express.response.json = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldJson.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -27586,7 +30742,7 @@ function isSandblastTvOperationalResponseV2(req) {
       }
       if (typeof oldSend === "function") {
         express.response.send = function(body){
-          if (isSandblastTvOperationalResponseV2(this && this.req)) return oldSend.call(this, body);
+          if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
           try {
             const req = O(this && this.req);
             const prompt = extractPrompt({ req: req, body: O(req.body), payload: O(req.body) });
@@ -27653,16 +30809,42 @@ function isSandblastTvOperationalResponseV2(req) {
 /* PUBLIC_SURFACE_IDENTITY_LOCK_PHASE1_START */
 (function(){
   "use strict";
-  const V="nyx.publicSurfaceIdentityLock.indexTransport/1.0";
+  const V="nyx.publicSurfaceIdentityLock.indexTransport/1.1-marion-final-preserve";
   let lock=null;try{lock=require("./Data/marion/runtime/publicSurfaceIdentityLock.js");}catch(_err){lock=null;}
   if(!lock||!lock.projectPublicPayload)return;
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function text(v){return cleanText(v||"");}
+  function reqText(req){const b=obj(req&&req.body),p=obj(b.payload);return text(b.rawUserText||b.userText||b.text||b.message||b.query||p.rawUserText||p.userText||p.text||p.message||p.query);}
+  function pathOf(req){return text(req&&(req.originalUrl||req.path||req.url)||"").toLowerCase().split("?")[0].replace(/\/+$/g,"");}
+  function isConversationHealth(req){const p=pathOf(req),m=text(req&&req.method||"GET").toUpperCase();return m==="GET"&&(p==="/api/chat"||p==="/chat"||p==="/respond");}
+  function isIdentityQuestion(req){const t=reqText(req).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();return /^(?:who are you|what are you|what is your name|tell me who you are|who is nyx|who is nix|are you marion|is this marion)$/.test(t);}
+  function firstReply(body){const b=obj(body),p=obj(b.payload),f=obj(b.finalEnvelope);return text(b.publicReply||b.visibleReply||b.finalReply||b.displayReply||b.reply||b.text||b.answer||b.response||b.message||p.publicReply||p.visibleReply||p.finalReply||p.displayReply||p.reply||p.text||p.answer||p.message||f.publicReply||f.visibleReply||f.finalReply||f.displayReply||f.reply||f.text||f.answer);}
+  function isTrustedMarionFinal(body){return isTrustedMarionSemanticFinalPacket(obj(body));}
+  function genericIdentityReply(value){return /^(?:hi[,. ]+)?i['’]?m nyx\b.{0,100}\bpublic sandblast (?:assistant|guide)\b/i.test(text(value));}
+  function safeSubstantiveReply(value){const t=text(value);return !!t&&!hasUserVisibleDebugLeak(t)&&!isPublicWorkflowStateLeak(t)&&!genericIdentityReply(t);}
+  function preserveTrustedFinal(before,after,req){
+    if(isIdentityQuestion(req))return after;
+    const original=firstReply(before),projected=firstReply(after);
+    if(!isTrustedMarionFinal(before)||!safeSubstantiveReply(original)||!genericIdentityReply(projected))return after;
+    const out=forcePublicReply(obj(after),original,{publicIdentityLockGenericOverrideSuppressed:true,publicIdentityLockVersion:V,noUserFacingDiagnostics:true});
+    out.marionFinal=true;out.final=true;out.finalized=true;out.handled=true;out.awaitingMarion=false;out.emit=true;out.blocked=false;
+    out.marionRoute=text(obj(before).marionRoute||"marion-primary")||"marion-primary";
+    out.marionAttestation={...obj(obj(before).marionAttestation),version:NYX_MARION_BRIDGE_COHESION_VERSION,routed:true,authorityReplyObserved:true,final:true,diagnosticsRedacted:true};
+    out.payload={...obj(out.payload),marionFinal:true,final:true,finalized:true,handled:true};
+    out.finalEnvelope={...obj(out.finalEnvelope),marionFinal:true,final:true,finalized:true,handled:true,reply:original,text:original,displayReply:original};
+    return out;
+  }
   try{
     if(typeof express!=="undefined"&&express&&express.response&&!express.response.__nyxPublicSurfaceIdentityLockPatched){
       const oldJson=express.response.json;
       const oldSend=express.response.send;
       function isPublic(req){try{return lock.isPublicSurfaceContext({body:req&&req.body,headers:req&&req.headers,source:req&&req.body&&req.body.source,ui:req&&req.body&&req.body.ui,client:req&&req.body&&req.body.client});}catch(_err){return false;}}
-      express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{if(isPublic(this&&this.req))body=lock.projectPublicPayload(body,{body:this.req.body,headers:this.req.headers});}catch(_err){}return oldJson.call(this,body);};
-      express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{if(isPublic(this&&this.req)){if(body&&typeof body==="object")body=lock.projectPublicPayload(body,{body:this.req.body,headers:this.req.headers});else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(lock.projectPublicPayload(JSON.parse(s),{body:this.req.body,headers:this.req.headers}));}catch(_parseErr){}}}}}catch(_err){}return oldSend.call(this,body);};
+      function project(req,body){
+        if(isConversationHealth(req))return body;
+        try{const projected=lock.projectPublicPayload(body,{body:req&&req.body,headers:req&&req.headers});return preserveTrustedFinal(body,projected,req);}catch(_err){return body;}
+      }
+      express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{if(isPublic(this&&this.req))body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
+      express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(isPublic(this&&this.req)){if(body&&typeof body==="object")body=project(this&&this.req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(this&&this.req,JSON.parse(s)));}catch(_parseErr){}}}}}catch(_err){}return oldSend.call(this,body);};
       express.response.__nyxPublicSurfaceIdentityLockPatched=true;
     }
   }catch(_err){}
@@ -27699,8 +30881,8 @@ function isSandblastTvOperationalResponseV2(req) {
   let lock=null;try{lock=require("./Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
   if(!lock||!lock.projectResult||typeof express==="undefined"||!express.response||express.response.__phase3dVoiceTextParityHardlock)return;
   const oldJson=express.response.json; const oldSend=express.response.send;
-  express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
-  express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
+  express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
+  express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
   express.response.__phase3dVoiceTextParityHardlock=true;
   try{module.exports=Object.assign(module.exports||{},{PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_VERSION:V});}catch(_){}
 }catch(_){}})();
@@ -27728,7 +30910,7 @@ try {
   const VERSION = "nyx.index.publicKnowledgeNavigationResponseHardlock/4.0";
   function isObj(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function obj(value){ return isObj(value) ? value : {}; }
-  function clean(value, max = 4000){ return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
+  function clean(value, max = 4000){ return marionAdminRuntimeStrictText(value, "", max); }
   function lower(value){ return clean(value).toLowerCase(); }
   function normalize(value){ return lower(value).replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim(); }
   function requestText(req){
@@ -27769,7 +30951,16 @@ try {
       if (/\bconsideration\b/.test(t)) return "In contract law, consideration is the value exchanged between parties, such as money, services, a promise, or another bargained-for benefit. The exact rule depends on the jurisdiction, so this is general legal information, not legal advice.";
       return "I can provide general legal information and identify common risk categories, but the answer depends on the jurisdiction and facts. For high-impact decisions, a qualified lawyer should review the specific situation.";
     }
-    if (info.domain === "finance") return /\bcash flow\b/.test(t) ? "A business can improve cash flow by invoicing faster, collecting receivables sooner, reducing unnecessary expenses, renegotiating payment terms, managing inventory carefully, reviewing pricing and margins, and maintaining a rolling cash-flow forecast." : "Financial performance usually improves through tighter cash-flow forecasting, pricing and margin review, expense control, faster receivables, and disciplined working-capital management.";
+    if (info.domain === "finance") {
+      if (/\bcash flow\b/.test(t)) {
+        if (/\b(?:what is|define|meaning of|explain)\b/.test(t)) return "Cash flow is the movement of money into and out of a business over a period of time. Healthy cash flow means the business can pay expenses, manage timing gaps, and keep operating without constant pressure.";
+        if (/\b(?:why|importance|important)\b/.test(t)) return "Cash flow matters because a business needs money available when bills are due. A business can be profitable on paper and still struggle if customers pay after payroll, rent, or suppliers are due.";
+        if (/\b(?:example|for instance)\b/.test(t)) return "For example, a business may invoice a customer today but wait 30 days to be paid. If rent and payroll are due this week, the delay creates a cash-flow gap even if the sale is profitable.";
+        if (/\b(?:how|ways?|steps?)\b.{0,70}\b(?:improve|strengthen|manage)\b/.test(t) || /\bimprove cash flow\b/.test(t)) return "A business can improve cash flow by invoicing faster, collecting receivables sooner, reducing unnecessary expenses, renegotiating payment terms, managing inventory carefully, reviewing pricing and margins, and maintaining a rolling cash-flow forecast.";
+        return "Cash flow is the movement of money into and out of a business over a period of time. Healthy cash flow means the business can pay expenses, manage timing gaps, and keep operating without constant pressure.";
+      }
+      return "Financial performance usually improves through tighter cash-flow forecasting, pricing and margin review, expense control, faster receivables, and disciplined working-capital management.";
+    }
     if (info.domain === "cyber") return /\bleast privilege\b/.test(t) ? "Least privilege means giving each user, service, or system only the access required to perform its current task—and no more. It limits damage from mistakes, compromised accounts, and unauthorized activity." : "A sound cybersecurity approach starts with least privilege, multi-factor authentication, patching, secure backups, monitoring, incident-response planning, and staff awareness.";
     if (info.domain === "ai") return "Artificial intelligence is software designed to perform tasks that normally require human intelligence, such as understanding language, recognizing patterns, making predictions, and generating content. Modern AI systems learn statistical relationships from data rather than thinking like a person.";
     if (info.domain === "psychology") return "A cognitive bias is a predictable mental shortcut that can distort judgment. Biases help the brain make decisions quickly, but they can also cause systematic errors in how people interpret evidence, risk, and other people.";
@@ -27778,7 +30969,9 @@ try {
   }
   function firstReply(body){
     const b = obj(body), p = obj(b.payload), f = obj(b.finalEnvelope);
-    return clean(b.publicReply || b.visibleReply || b.finalReply || b.reply || b.text || b.answer || b.output || b.response || b.message ||
+    const trusted = b.marionFinal === true || f.marionFinal === true || p.marionFinal === true || lower(b.marionRoute) === "marion-primary";
+    const authority = trusted ? clean(b.authoritativeReply || f.authoritativeReply || p.authoritativeReply || "") : "";
+    return clean(authority || b.publicReply || b.visibleReply || b.finalReply || b.reply || b.text || b.answer || b.output || b.response || b.message ||
       p.publicReply || p.visibleReply || p.finalReply || p.reply || p.text || p.answer || p.message ||
       f.publicReply || f.visibleReply || f.finalReply || f.reply || f.text || f.answer);
   }
@@ -27804,11 +30997,13 @@ try {
     out.domainConcierge = clearNode({...obj(out.domainConcierge)}, info.domain);
     out.sessionPatch = clearNode({...obj(out.sessionPatch)}, info.domain);
     let reply = firstReply(out);
-    if (badReply(reply)) reply = fallback(info);
+    const required = obj(out.marionAttestation).required === true || out.requireMarionFinal === true || out.marionRequired === true || out.payload.requireMarionFinal === true || out.payload.marionRequired === true;
+    const hasTrustedAuthority = (out.marionFinal === true || out.finalEnvelope.marionFinal === true || out.payload.marionFinal === true) && !!clean(out.authoritativeReply || out.finalEnvelope.authoritativeReply || out.payload.authoritativeReply || "");
+    if (badReply(reply) && !(required && !hasTrustedAuthority)) reply = fallback(info);
     if (reply) {
-      for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) out[key] = reply;
+      for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) out[key] = reply;
       for (const target of [out.payload, out.finalEnvelope]) {
-        for (const key of ["reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) target[key] = reply;
+        for (const key of ["authoritativeReply","reply","publicReply","visibleReply","finalReply","text","answer","output","response","message","displayReply","spokenText"]) target[key] = reply;
         target.final = true; target.handled = true;
       }
       out.ok = out.ok !== false; out.final = true; out.handled = true; out.emit = true; out.blocked = false; out.awaitingMarion = false; out.suppressUserFacingReply = false;
@@ -27823,14 +31018,14 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldJson.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
         try { const info = classify(this && this.req); if (info) body = project(body, info); } catch (_) {}
         return oldJson.call(this, body);
       };
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldSend.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classify(this && this.req);
           if (info) {
@@ -27849,7 +31044,7 @@ try {
 
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classify(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
@@ -27883,7 +31078,7 @@ try {
   const VERSION = NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_R5_VERSION;
   function isObjR5(value){ return !!value && typeof value === "object" && !Array.isArray(value); }
   function objR5(value){ return isObjR5(value) ? value : {}; }
-  function cleanR5(value, max = 4000){ return String(value == null ? "" : value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); }
+  function cleanR5(value, max = 4000){ return marionAdminRuntimeStrictText(value, "", max); }
   function normalizeR5(value){ return cleanR5(value).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim(); }
   function requestTextR5(req){
     const body = objR5(req && req.body), payload = objR5(body.payload), meta = objR5(body.meta);
@@ -28048,7 +31243,7 @@ try {
     const oldEnd = express.response.end;
     if (typeof oldJson === "function") {
       express.response.json = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldJson.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldJson.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) body = projectR5(body, info);
@@ -28058,7 +31253,7 @@ try {
     }
     if (typeof oldSend === "function") {
       express.response.send = function(body){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldSend.call(this, body);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldSend.call(this, body);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info) {
@@ -28076,7 +31271,7 @@ try {
     }
     if (typeof oldEnd === "function") {
       express.response.end = function(chunk, encoding, callback){
-        if (isNyxEcosystemOperationalResponseV1(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
+        if (isGlobalResponseProjectionBypass(this && this.req)) return oldEnd.call(this, chunk, encoding, callback);
         try {
           const info = classifyMediaDiscoveryR5(this && this.req);
           if (info && (typeof chunk === "string" || (typeof Buffer !== "undefined" && Buffer.isBuffer(chunk)))) {
@@ -28104,3 +31299,227 @@ try {
   } catch (_) {}
 })();
 /* NYX_PUBLIC_MEDIA_RESPONSE_CONTRACT_HARDLOCK_R5_1_END */
+
+/* MARION_NUANCE_PHASE_B_INDEX_DIAGNOSTIC_BOUNDARY_V1_START */
+(function marionNuancePhaseBIndexDiagnosticBoundaryV1(){
+  "use strict";
+  const PHASE_B_CONTRACT="nyx.marion.nuance.phaseB/1.0";
+  const PHASE_B_STATE_CONTRACT="nyx.marion.nuanceState.phaseB/1.0";
+  const HARD_STOP_LAYER=26;
+  const VERSION="nyx.marion.nuance.phaseB.indexDiagnosticBoundary/1.0";
+
+  function obj(value){return value&&typeof value==="object"&&!Array.isArray(value)?value:{};}
+  function clean(value,max=180){
+    try{return String(value==null?"":value).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);}
+    catch(_){return"";}
+  }
+  function load(pathname){try{return require(pathname);}catch(_){return null;}}
+
+  const coordinator=load("./Data/marion/runtime/nuance/marionNuancePhaseBCoordinator.js");
+  const envelope=load("./Data/marion/runtime/nuance/marionNuancePhaseBEnvelope.js");
+  const chatEngine=load("./utils/chatEngine.js");
+  const stateSpine=load("./utils/stateSpine.js");
+
+  function moduleStatus(moduleValue){
+    const moduleObject=obj(moduleValue);
+    return {
+      available:!!moduleValue,
+      version:clean(moduleObject.VERSION||moduleObject.SPINE_VERSION||""),
+      contract:clean(moduleObject.CONTRACT||moduleObject.MARION_NUANCE_PHASE_B_CONTRACT||""),
+      hardStopLayer:Number(moduleObject.HARD_STOP_LAYER||moduleObject.MARION_LAYER_HARD_STOP||0)||0
+    };
+  }
+
+  function getMarionNuancePhaseBHealth(){
+    let coordinatorHealth={};
+    try{
+      coordinatorHealth=coordinator&&typeof coordinator.moduleHealth==="function"
+        ?obj(coordinator.moduleHealth())
+        :{};
+    }catch(_){coordinatorHealth={};}
+
+    const modules={
+      coordinator:moduleStatus(coordinator),
+      envelope:moduleStatus(envelope),
+      chatEngine:moduleStatus(chatEngine),
+      stateSpine:moduleStatus(stateSpine)
+    };
+
+    const requiredReady=modules.coordinator.available&&modules.envelope.available&&
+      modules.chatEngine.available&&modules.stateSpine.available;
+
+    return {
+      ok:requiredReady,
+      version:VERSION,
+      contract:PHASE_B_CONTRACT,
+      stateContract:PHASE_B_STATE_CONTRACT,
+      hardStopLayer:HARD_STOP_LAYER,
+      completionDecisionLayer:20,
+      phaseAHardStopLayer:24,
+      diagnosticOnly:true,
+      semanticAnalysisPerformed:false,
+      routeAuthorityChanged:false,
+      replyAuthorityChanged:false,
+      singlePhaseBAnalysisAuthority:true,
+      phaseACalledOnce:true,
+      literalIntentPreserved:true,
+      rawMarkerEvidenceExposed:false,
+      publicNuanceProjectionAllowed:false,
+      automaticExecutionAllowed:false,
+      modules,
+      coordinatorHealth:{
+        ok:coordinatorHealth.ok===true,
+        phase:clean(coordinatorHealth.phase||"B"),
+        hardStopLayer:Number(coordinatorHealth.hardStopLayer||HARD_STOP_LAYER),
+        failOpenToPhaseA:coordinatorHealth.failOpenToPhaseA!==false
+      }
+    };
+  }
+
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+    if(api){
+      api.MARION_NUANCE_PHASE_B_INDEX_VERSION=VERSION;
+      api.MARION_NUANCE_PHASE_B_CONTRACT=PHASE_B_CONTRACT;
+      api.MARION_NUANCE_PHASE_B_STATE_CONTRACT=PHASE_B_STATE_CONTRACT;
+      api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+      api.MARION_NUANCE_PHASE_B_DIAGNOSTIC_ONLY=true;
+      api.getMarionNuancePhaseBHealth=getMarionNuancePhaseBHealth;
+    }
+  }catch(_){}
+
+  try{
+    if(typeof app!=="undefined"&&app&&typeof app.get==="function"){
+      app.locals=app.locals||{};
+      if(!app.locals.__marionNuancePhaseBHealthRouteV1){
+        app.locals.__marionNuancePhaseBHealthRouteV1=true;
+        app.get("/api/marion/nuance/phase-b/health",function(_req,res){
+          const health=getMarionNuancePhaseBHealth();
+          return res.status(health.ok?200:503).json(health);
+        });
+      }
+    }
+  }catch(_){}
+})();
+/* MARION_NUANCE_PHASE_B_INDEX_DIAGNOSTIC_BOUNDARY_V1_END */
+
+
+/* MARION_LAYERS_27_28_INDEX_REGISTRY_V1_START */
+(function marionLayers2728IndexRegistryV1(){
+  "use strict";
+  const VERSION="nyx.marion.layers27_28.indexRegistry/1.0";let cognition=null;
+  try{cognition=require("./Data/marion/runtime/index.js");}catch(_){cognition=null;}
+  const status={ok:!!cognition,version:VERSION,hardStopLayer:28,layers:[27,28],composerModified:false,bridgeOwnedInvocation:true,replyAuthorityPreserved:true,executionAuthorized:false};
+  try{if(typeof app!=="undefined"&&app&&app.locals)app.locals.marionCognition={module:cognition,status};}catch(_){}
+  try{if(module&&module.exports&&typeof module.exports==="object"){module.exports.marionCognition=cognition;module.exports.getMarionLayers2728Status=()=>status;}}catch(_){}
+})();
+/* MARION_LAYERS_27_28_INDEX_REGISTRY_V1_END */
+
+
+/* MARION_NYX_INDEX_FINAL_AUTHORITY_HARDLOCK_R87_START
+ * Last-mile public chat protection.
+ * For a verified Marion final, preserve Marion's authoritative semantic reply
+ * across every public/transport alias after all legacy response projectors.
+ * This layer does not create knowledge, does not expose Marion privately, and
+ * does not affect media, TTS, LingoSentinel utility, or admin/private routes.
+ */
+(function marionNyxIndexFinalAuthorityHardlockR87(){
+  "use strict";
+  const VERSION = "nyx.index.marionFinalAuthorityHardlock/88.0";
+  function O(v){ return v && typeof v === "object" && !Array.isArray(v) ? v : {}; }
+  function T(v, max=12000){ try { return String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max); } catch (_) { return ""; } }
+  function pathOf(req){ return T(req && (req.originalUrl || req.path || req.url) || "", 500).toLowerCase().split("?")[0]; }
+  function isPublicChat(req){
+    const p=pathOf(req);
+    if(!(p==="/api/chat"||p==="/api/chat/"||p==="/chat"||p==="/chat/"||p==="/respond"||p==="/respond/"))return false;
+    const b=O(req&&req.body),q=O(b.payload),m=O(b.meta);
+    const audience=T(b.audience||q.audience||m.audience,80).toLowerCase();
+    const scope=T(b.scope||q.scope||m.scope,80).toLowerCase();
+    if(audience==="owner"||scope==="private_admin"||b.privateAdminConversation===true||q.privateAdminConversation===true)return false;
+    return audience==="public"||b.publicSurfaceOnly===true||b.publicIdentityLock===true||q.publicSurfaceOnly===true||q.publicIdentityLock===true||T(b.lane||q.lane||m.lane,80).toLowerCase()==="public_interface";
+  }
+  function generic(v){
+    const t=T(v).toLowerCase();
+    return !t ||
+      /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t) ||
+      /\b(?:that route is unavailable|route unavailable|couldn[’']?t complete that answer cleanly|send the next target|what are we working on|give me the exact target|i[’']?m here,? mac)\b/i.test(t);
+  }
+  function trusted(x){
+    return isTrustedMarionSemanticFinalPacket(O(x));
+  }
+  function pick(x){
+    const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope),rp=O(r.payload);
+    const list=[
+      o.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,
+      f.finalReply,f.directReply,f.publicReply,f.visibleReply,f.reply,
+      p.finalReply,p.directReply,p.publicReply,p.visibleReply,p.reply,
+      o.finalReply,o.directReply,o.publicReply,o.visibleReply,o.displayReply,o.reply,o.answer,o.output,o.response,o.text,o.message,
+      rf.finalReply,rf.reply,rp.finalReply,rp.reply,r.finalReply,r.reply
+    ];
+    for(const v of list){const t=T(v);if(t&&!generic(t))return t}
+    return "";
+  }
+  function project(value){
+    if(!value||typeof value!=="object"||Array.isArray(value)||!trusted(value))return value;
+    const reply=pick(value);
+    if(!reply)return value;
+    const o={...value},p={...O(o.payload)},f={...O(o.finalEnvelope)};
+    const keys=["authoritativeReply","reply","publicReply","visibleReply","finalReply","directReply","displayReply","text","answer","output","response","message"];
+    for(const k of keys){o[k]=reply;p[k]=reply;f[k]=reply}
+    o.spokenText=T(o.spokenText||reply)||reply;o.textDisplay=reply;
+    p.spokenText=T(p.spokenText||o.spokenText||reply)||reply;p.textDisplay=reply;
+    f.spokenText=T(f.spokenText||o.spokenText||reply)||reply;
+    o.ok=o.ok!==false;o.final=true;o.marionFinal=true;o.handled=true;o.emit=true;o.canEmit=true;o.blocked=false;o.awaitingMarion=false;o.suppressUserFacingReply=false;
+    p.final=true;p.marionFinal=true;p.handled=true;p.emit=true;p.canEmit=true;p.blocked=false;p.awaitingMarion=false;p.suppressUserFacingReply=false;
+    f.final=true;f.marionFinal=true;f.handled=true;f.canEmit=true;f.currentTurnBound=true;f.semanticAuthority="marion";f.displayAuthority="nyx";
+    o.payload=p;o.finalEnvelope=f;o.semanticAuthority="marion";o.displayAuthority="nyx";
+    o.meta={...O(o.meta),semanticAuthority:"marion",displayAuthority:"nyx",indexFinalAuthorityHardlockVersion:VERSION,currentTurnBound:true,noUserFacingDiagnostics:true};
+    return o;
+  }
+  try{
+    if(typeof express==="undefined"||!express||!express.response||express.response.__marionNyxIndexFinalAuthorityHardlockR87)return;
+    const oldJson=express.response.json,oldSend=express.response.send,oldEnd=express.response.end;
+    if(typeof oldJson==="function")express.response.json=function(body){
+      try{
+        if(isPublicChat(this&&this.req)){
+          body=project(body);
+          if(trusted(body)){
+            this.setHeader("X-SB-Index-Final-Authority","1");
+            this.setHeader("X-SB-Index-Final-Authority-Version",VERSION);
+          }
+        }
+      }catch(_){}
+      return oldJson.call(this,body);
+    };
+    if(typeof oldSend==="function")express.response.send=function(body){
+      try{
+        if(isPublicChat(this&&this.req)){
+          if(O(body)===body)body=project(body);
+          else if(typeof body==="string"){
+            const s=body.trim();
+            if(s&&s[0]==="{"){try{body=JSON.stringify(project(JSON.parse(s)))}catch(_){}}
+          }
+        }
+      }catch(_){}
+      return oldSend.call(this,body);
+    };
+    if(typeof oldEnd==="function")express.response.end=function(chunk,encoding,callback){
+      try{
+        if(isPublicChat(this&&this.req)&&(typeof chunk==="string"||(typeof Buffer!=="undefined"&&Buffer.isBuffer(chunk)))){
+          const isBuf=typeof Buffer!=="undefined"&&Buffer.isBuffer(chunk),raw=isBuf?chunk.toString(typeof encoding==="string"?encoding:"utf8"):chunk,s=String(raw||"").trim();
+          if(s&&s[0]==="{"){
+            try{
+              const next=JSON.stringify(project(JSON.parse(s)));
+              chunk=isBuf?Buffer.from(next,typeof encoding==="string"?encoding:"utf8"):next;
+              try{this.setHeader("Content-Length",typeof Buffer!=="undefined"?Buffer.byteLength(next):next.length)}catch(_){}
+            }catch(_){}
+          }
+        }
+      }catch(_){}
+      return oldEnd.call(this,chunk,encoding,callback);
+    };
+    express.response.__marionNyxIndexFinalAuthorityHardlockR87=true;
+    try{module.exports.MARION_NYX_INDEX_FINAL_AUTHORITY_HARDLOCK_VERSION=VERSION}catch(_){}
+  }catch(_){}
+})();
+/* MARION_NYX_INDEX_FINAL_AUTHORITY_HARDLOCK_R87_END */
