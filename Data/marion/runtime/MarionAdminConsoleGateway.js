@@ -579,7 +579,7 @@ class MarionAdminConsoleGateway {
 
   async authorizeSession(request = {}, context = {}) {
     const ctx = safeObj(context);
-    if (ctx.adminVerified === true || request.adminVerified === true || safeObj(request.metadata).adminVerified === true) {
+    if (ctx.adminVerified === true && (ctx.sessionVerified === true || ctx.verified === true)) {
       return { allowed: true, reason: "index_admin_verified" };
     }
 
@@ -593,8 +593,8 @@ class MarionAdminConsoleGateway {
     }
 
     return {
-      allowed: Boolean(request.session && request.session.admin === true),
-      reason: "fallback_session_check"
+      allowed: false,
+      reason: "verified_server_session_required"
     };
   }
 
@@ -4133,8 +4133,30 @@ try {
     let reply=replyOf(packet);const rejected=generic(reply);if(!reply||rejected)reply=deterministic(p);return compact(reply,p,{bridgeInvoked,genericReplyRejected:rejected});
   }
   const exp=typeof module!=="undefined"&&module.exports&&typeof module.exports==="object"?module.exports:null;if(!exp)return;
-  const oldCommand=typeof exp.handleCommand==="function"?exp.handleCommand:null;
-  async function terminalCommand(input,context){const p=promptOf(input);const raw=T(p).toLowerCase();const operational=/\b(?:approve|deny|emergency|shutdown|restart|deploy|publish|delete|disable|enable|status|diagnostic|health|config|runtime command)\b/.test(raw);if(p&&!operational)return terminalRuntime(input,context);if(oldCommand)return oldCommand(input,context);return {ok:false,statusCode:501,stage:"admin_command_handler_unavailable",version:V,scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,reply:""}}
+  // Retain the original prototype implementation BEFORE replacing instance/export aliases.
+  // An exported handleCommand delegate calls defaultGateway.handleCommand dynamically;
+  // saving that delegate would recurse into terminalCommand after the aliases change.
+  const originalCommandMethod = typeof MarionAdminConsoleGateway === "function" &&
+    MarionAdminConsoleGateway.prototype &&
+    typeof MarionAdminConsoleGateway.prototype.handleCommand === "function"
+      ? MarionAdminConsoleGateway.prototype.handleCommand : null;
+  async function terminalCommand(input,context){
+    const p=promptOf(input);
+    const raw=T(p).toLowerCase();
+    const operational=/\b(?:approve|deny|emergency|shutdown|restart|deploy|publish|delete|disable|enable|status|diagnostic|health|config|runtime command)\b/.test(raw);
+    if(p&&!operational)return terminalRuntime(input,context);
+    if(originalCommandMethod && exp.defaultGateway){
+      // Preserve the original authorization, safe-mode, approval and audit path.
+      const response = await originalCommandMethod.call(exp.defaultGateway,input,context);
+      // Later personality/projection wrappers must not turn an HTTP error into ok:true.
+      if(response && typeof response === "object") {
+        const code = Number(response.statusCode || response.status || 0);
+        if(Number.isFinite(code) && code >= 400) return {...response,ok:false};
+      }
+      return response;
+    }
+    return {ok:false,statusCode:503,stage:"admin_command_handler_unavailable",version:V,scope:"private_admin",surfaceAgent:"Marion",publicFallbackBlocked:true,reply:""};
+  }
   ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{exp[n]=terminalRuntime});
   ["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand"].forEach(n=>{exp[n]=terminalCommand});
   if(exp.defaultGateway&&typeof exp.defaultGateway==="object"){["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{exp.defaultGateway[n]=terminalRuntime});["handleCommand","dispatchCommand","routeCommand","command","handleAdminCommand"].forEach(n=>{exp.defaultGateway[n]=terminalCommand})}
@@ -4245,7 +4267,7 @@ try {
   function T(v,max=6000){const s=marionSafeCleanText(v);return s.length>max?s.slice(0,max):s}
   function first(){for(let i=0;i<arguments.length;i++){const v=T(arguments[i]);if(v)return v}return""}
   function promptOf(input){const x=O(input),p=O(x.payload),c=O(x.command);return first(x.prompt,x.userText,x.rawUserText,x.query,x.text,x.message,x.input,x.commandText,c.prompt,c.text,c.message,p.prompt,p.userText,p.query,p.text,p.message)}
-  function authorized(input,context){const x=O(input),c=O(context);return c.adminVerified===true||c.sessionVerified===true||c.trustedServerAuth===true||c.authenticatedOperator===true||x.adminVerified===true||x.sessionVerified===true||x.passwordFreeTestChat===true||x.directMarionAdminInterface===true&&x.scope==="private_admin"}
+  function authorized(input,context){const x=O(input),c=O(context);return c.adminVerified===true&&(c.sessionVerified===true||c.verified===true)}
   function bridgeCandidates(){return[path.join(__dirname,"marionBridge.js"),path.join(__dirname,"marionBridge")];}
   function resolveBridge(force=false){if(!force&&cachedHandler)return cachedHandler;cachedBridge=null;cachedHandler=null;let error="bridge_unavailable";for(const candidate of bridgeCandidates()){try{const resolved=require.resolve(candidate);const mod=require(resolved);const fn=mod&&(typeof mod.processWithMarion==="function"?mod.processWithMarion:typeof mod.handleMarionAdminConversation==="function"?mod.handleMarionAdminConversation:typeof mod.handle==="function"?mod.handle:typeof mod.ask==="function"?mod.ask:null);if(typeof fn==="function"){cachedBridge=mod;cachedHandler=fn.bind(mod);lastResolution={ok:true,at:Date.now(),resolvedPath:resolved,version:T(mod.VERSION),handler:fn.name||"anonymous"};return cachedHandler}error="canonical_handler_missing"}catch(err){error=T(err&&(err.message||err.code||err.name),500)}}lastResolution={ok:false,at:Date.now(),error};return null}
   function normalize(packet,input){const p=O(packet),payload=O(p.payload),f=O(p.finalEnvelope),reply=first(p.directReply,p.visibleReply,p.displayReply,p.finalReply,p.reply,p.answer,p.response,p.text,p.message,f.finalReply,f.reply,f.text,payload.reply,payload.text);const ok=!!reply&&p.ok!==false;return{...p,ok,statusCode:ok?200:Number(p.statusCode)||503,stage:T(p.stage,180)|| (ok?"private_marion_runtime_complete":"private_marion_reply_missing"),version:V,scope:"private_admin",audience:"admin",authority:"Marion",surfaceAgent:"Marion",publicSurfaceOnly:false,authenticatedOperator:true,operatorPersonalization:true,memoryPartition:"private:marion-admin",publicFallbackBlocked:true,reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,response:reply,text:reply,message:reply,spokenText:first(p.spokenText,reply),speechText:first(p.speechText,reply),responseFinalized:true,final:ok,marionFinal:ok,handled:true,awaitingMarion:false,payload:{...payload,reply,text:reply,message:reply,final:ok,marionFinal:ok},finalEnvelope:{...f,reply,text:reply,answer:reply,response:reply,message:reply,final:ok,marionFinal:ok,handled:true,requiresRetry:!ok,recoverySuggested:!ok},meta:{...O(p.meta),version:V,canonicalBridge:true,bridgeResolution:lastResolution,promptAccepted:!!promptOf(input),jsonSafe:true,noCircularRuntimePacket:true}}}
@@ -4263,10 +4285,74 @@ try {
 (function(){
   "use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;let adapter=null,error="";
   function get(force){if(!force&&adapter&&typeof adapter.invokePrivateRuntime==="function")return adapter;try{const m=require("./marionPrivateRuntimeAdapter.js");if(!m||typeof m.invokePrivateRuntime!=="function")throw new Error("private_runtime_adapter_handler_missing");adapter=m;error="";return adapter}catch(e){adapter=null;error=String(e&& (e.code||e.message||e.name)||"adapter_unavailable");return null}}
-  async function runtime(input={},context={}){const src=input&&typeof input==="object"?input:{},ctx=context&&typeof context==="object"?context:{};const verified=ctx.adminVerified===true||ctx.verified===true||src.adminVerified===true||src.verified===true;if(!verified)return{ok:false,statusCode:401,stage:"private_runtime_authorization_required",reason:"verified_operator_required",reply:"",responseFinalized:true};let a=get(false);if(!a){await new Promise(r=>setImmediate(r));a=get(true)}if(!a)return{ok:false,statusCode:503,stage:"private_runtime_adapter_unavailable",reason:error,reply:"",responseFinalized:true};return a.invokePrivateRuntime(src,Object.assign({},ctx,{adminVerified:true,verified:true,sessionVerified:ctx.sessionVerified===true||src.sessionVerified===true}))}
+  async function runtime(input={},context={}){const src=input&&typeof input==="object"?input:{},ctx=context&&typeof context==="object"?context:{};const verified=ctx.adminVerified===true&&(ctx.sessionVerified===true||ctx.verified===true);if(!verified)return{ok:false,statusCode:401,stage:"private_runtime_authorization_required",reason:"verified_operator_required",reply:"",responseFinalized:true};let a=get(false);if(!a){await new Promise(r=>setImmediate(r));a=get(true)}if(!a)return{ok:false,statusCode:503,stage:"private_runtime_adapter_unavailable",reason:error,reply:"",responseFinalized:true};return a.invokePrivateRuntime(src,Object.assign({},ctx,{adminVerified:true,verified:true,sessionVerified:ctx.sessionVerified===true||src.sessionVerified===true}))}
   ["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api[n]=runtime});
   if(api.defaultGateway&&typeof api.defaultGateway==="object")["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api.defaultGateway[n]=runtime});
   if(typeof api.MarionAdminConsoleGateway==="function")["handleMarionAdminTextRuntime","handleAdminConversation","invokeMarionAdminTextRuntime","handleTextRuntime"].forEach(n=>{api.MarionAdminConsoleGateway.prototype[n]=runtime;api.MarionAdminConsoleGateway[n]=runtime});
   api.MARION_UNIFIED_PRIVATE_RUNTIME_GATEWAY_VERSION="nyx.marion.privateRuntime.gateway/8.0";api.getPrivateRuntimeAdapterStatus=()=>{const a=get(false);return a&&typeof a.getStatus==="function"?a.getStatus():{available:false,error}};
 })();
 /* MARION_UNIFIED_PRIVATE_RUNTIME_GATEWAY_V8_END */
+
+
+/* MARION_ADMIN_GATEWAY_PRIVATE_BOUNDARY_HARDENING_V9_START
+ * Route-level session validation is primary; guard privileged gateway entry points
+ * against accidental direct invocation without verified server context.
+ * No Neon credentials, advisory text, or session tickets are logged or promoted here.
+ */
+(function marionAdminGatewayPrivateBoundaryV9() {
+  "use strict";
+  const api = module.exports;
+  const proto = MarionAdminConsoleGateway.prototype;
+  const protectedMethods = ["handleApprove", "handleDeny", "handleEmergency", "releaseSafeMode"];
+  const aliases = {
+    handleApprove: ["handleApprove", "approve", "handleApproval", "approveCommand"],
+    handleDeny: ["handleDeny", "deny", "handleDenial", "denyCommand"],
+    handleEmergency: ["handleEmergency", "emergency", "triggerEmergency", "enterSafeMode", "safeMode"],
+    releaseSafeMode: ["releaseSafeMode"]
+  };
+  function verified(ctx) {
+    return !!ctx && ctx.adminVerified === true &&
+      (ctx.sessionVerified === true || ctx.verified === true);
+  }
+  function denied() {
+    return { ok: false, status: 401, statusCode: 401,
+      stage: "verified_admin_session_required", scope: "private_admin",
+      publicFallbackBlocked: true, reply: "" };
+  }
+  for (const name of protectedMethods) {
+    const original = proto[name];
+    if (typeof original !== "function") continue;
+    const guarded = async function (input = {}, context = {}) {
+      if (!verified(context)) return denied();
+      try { return await original.call(this, input, context); }
+      catch (error) {
+        return { ok: false, status: 500, statusCode: 500,
+          stage: "admin_gateway_action_failed", scope: "private_admin",
+          publicFallbackBlocked: true, reply: "" };
+      }
+    };
+    proto[name] = guarded;
+    for (const alias of aliases[name]) {
+      // Preserve the stable CommonJS export object used by circular consumers.
+      if (alias !== "releaseSafeMode") api[alias] = (input, ctx) => guarded.call(api.defaultGateway, input, ctx);
+      MarionAdminConsoleGateway[alias] = (input, ctx) => guarded.call(api.defaultGateway, input, ctx);
+    }
+  }
+  // executeCommand historically manufactured adminVerified:true for callers;
+  // never permit this bypass as a public instance entry point.
+  const originalExecuteCommand = proto.executeCommand;
+  if (typeof originalExecuteCommand === "function") {
+    proto.executeCommand = async function (_input = {}, _risk, _startedAt, context = {}) {
+      if (!verified(context)) return denied();
+      return originalExecuteCommand.call(this, _input, _risk, _startedAt);
+    };
+  }
+  // Emergency helper must not manufacture authorization or an emergency confirmation.
+  proto.emergencyDisable = async function(input = {}, context = {}) {
+    if (!verified(context)) return denied();
+    return this.handleEmergency(input, context);
+  };
+  api.MARION_ADMIN_GATEWAY_PRIVATE_BOUNDARY_HARDENING_VERSION =
+    "marion.adminGateway.privateBoundary/9.0";
+})();
+/* MARION_ADMIN_GATEWAY_PRIVATE_BOUNDARY_HARDENING_V9_END */

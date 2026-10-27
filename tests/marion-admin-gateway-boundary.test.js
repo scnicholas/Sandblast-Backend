@@ -1,0 +1,12 @@
+'use strict';
+const test=require('node:test'); const assert=require('node:assert/strict');
+const g=require('../Data/marion/runtime/MarionAdminConsoleGateway.js');
+const auth={adminVerified:true,sessionVerified:true,verified:true,sessionId:'test-session-123'};
+test('exports remain intact and JS loads',()=>{assert.equal(typeof g.handleCommand,'function'); assert.equal(typeof g.handleMarionAdminTextRuntime,'function');});
+test('operational status command does not recursively overflow',async()=>{const r=await g.handleCommand({command:'status'},auth); assert.equal(r.ok,true); assert.equal(r.stage,'command_status_completed');});
+test('unverified approve denied',async()=>{let r=await g.handleApprove({approvalId:'x'},{});assert.equal(r.statusCode,401);assert.equal(r.ok,false);});
+test('unverified deny denied',async()=>{let r=await g.handleDeny({approvalId:'x'},{});assert.equal(r.statusCode,401);});
+test('unverified emergency denied even with confirmation',async()=>{let r=await g.handleEmergency({confirmation:'CONFIRM_MARION_EMERGENCY'},{});assert.equal(r.statusCode,401);assert.equal(g.defaultGateway.safeMode,false);});
+test('verified emergency without confirmation remains locked',async()=>{let r=await g.handleEmergency({},auth);assert.equal(r.statusCode,400);assert.equal(g.defaultGateway.safeMode,false);});
+test('direct executeCommand cannot manufacture verified session',async()=>{let r=await g.defaultGateway.executeCommand({command:'deploy'});assert.equal(r.statusCode,401);});
+test('emergencyDisable does not forge authorization or confirmation',async()=>{let r=await g.defaultGateway.emergencyDisable({},auth);assert.equal(r.statusCode,400);assert.equal(g.defaultGateway.safeMode,false);});
