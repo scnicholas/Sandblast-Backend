@@ -2907,10 +2907,9 @@ function marionLearningStorageConfiguration() {
     try {
       const parsed = new URL(process.env.DATABASE_URL);
       const database = decodeURIComponent(parsed.pathname.replace(/^\/+|\/+$/g, ""));
-      // Normal runtime may use any explicitly configured PostgreSQL endpoint.
-      // The destructive/DDL evaluation initializer retains its own strict allowlist.
-      configured = Boolean(parsed.hostname && database && parsed.username);
-      reason = !runtimeEnabled ? "learning_disabled" : !configured ? "database_url_missing_or_invalid" :
+      const evaluationTarget = parsed.hostname.toLowerCase() === "ep-falling-violet-b5js6sve-pooler.c-7.us-east-2.aws.neon.tech" && database === "neondb"; // Schema initialization only.
+      configured = true; // Connectivity is independent of the one-time schema initializer allowlist.
+      reason = !runtimeEnabled ? "learning_disabled" : !configured ? "evaluation_database_not_allowlisted" :
         enabled ? "database_schema_check_required" : "evaluation_runtime_schema_check_required";
     } catch (_) {
       configured = false;
@@ -26230,10 +26229,23 @@ function startSandblastServer(port = PORT) {
       }
       databaseProbeSetupStatus = "ready_to_probe";
     } catch (error) {
-      const message = String(error && error.message || "");
-      databaseProbeSetupStatus = /Cannot find module ['\"]pg/.test(message)
+      // Diagnose module-resolution failures without emitting filesystem details or secrets.
+      const missingTarget = typeof error?.message === "string" && /Cannot find module ['\"]([^'\"]+)/.exec(error.message);
+      const missingName = missingTarget ? missingTarget[1] : "";
+      databaseProbeSetupStatus = missingName === "pg"
         ? "postgres_dependency_missing"
-        : "postgres_adapter_unavailable";
+        : /MarionLearningPolicy/.test(missingName)
+          ? "postgres_learning_policy_missing"
+          : /MarionLearningPostgresAdapters/.test(missingName)
+            ? "postgres_adapter_file_missing"
+            : missingName ? "postgres_adapter_transitive_dependency_missing"
+              : error && error.code === "ERR_REQUIRE_ESM" ? "postgres_adapter_module_format_error"
+                : "postgres_adapter_load_failed";
+      console.warn("[Sandblast][marion-learning-postgres-setup]", {
+        status: databaseProbeSetupStatus,
+        code: /^[A-Z0-9_]+$/.test(String(error && error.code || "")) ? error.code : "LOAD_ERROR",
+        hint: "Run node scripts/marion-neon-preflight.js; inspect repository learning/ dependencies."
+      });
       if (learningStorage.runtimeEnabled) {
         learningSetup = { ready: false, status: databaseProbeSetupStatus };
       }
@@ -26259,8 +26271,8 @@ function startSandblastServer(port = PORT) {
             ? "evaluation_runtime_schema_check_required"
             : databaseProbeSetupStatus === "postgres_dependency_missing"
               ? "postgres_dependency_missing"
-              : databaseProbeSetupStatus === "postgres_adapter_unavailable"
-                ? "postgres_adapter_unavailable"
+              : databaseProbeSetupStatus !== "not_configured"
+                ? databaseProbeSetupStatus
                 : "evaluation_runtime_schema_check_unavailable";
       const readiness = recordMarionLearningStorageReadiness(databaseReady, readinessReason);
       console.log("[Sandblast][marion-learning-postgres]", {
@@ -26358,23 +26370,19 @@ function gracefulShutdown(signal) {
   if (marionShutdownStarted) return;
   marionShutdownStarted = true;
   console.log(`[Sandblast][shutdown] ${signal}`);
-  const forceExit = setTimeout(() => process.exit(1), 8000);
+  const forceExit = setTimeout(() => process.exit(1), 5000);
   if (typeof forceExit.unref === "function") forceExit.unref();
-  (async () => {
-    try {
-      if (server && typeof server.close === "function") {
-        await new Promise(resolve => server.close(() => resolve()));
-      }
-      const pool = app.locals && app.locals.marionLearningPgPool;
-      if (pool && typeof pool.end === "function") {
-        await pool.end();
-        app.locals.marionLearningPgPool = null;
-      }
-      process.exit(0);
-    } catch (_) {
-      process.exit(1);
+  const closePool = async () => {
+    const pool = app.locals && app.locals.marionLearningPgPool;
+    if (pool && typeof pool.end === "function") {
+      try { await pool.end(); } catch (_) { console.warn("[Sandblast][marion-learning-postgres]", { status: "pool_close_failed" }); }
     }
-  })();
+  };
+  const finish = () => closePool().then(() => process.exit(0)).catch(() => process.exit(1));
+  try {
+    if (server && typeof server.close === "function") server.close(finish);
+    else void finish();
+  } catch (_) { void finish(); }
 }
 
 if (require.main === module || process.env.SB_INDEX_ATTACH_SIGNAL_HANDLERS === "true") {
