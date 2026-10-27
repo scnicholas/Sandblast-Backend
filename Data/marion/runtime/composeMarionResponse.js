@@ -10197,7 +10197,7 @@ try{
       return"I can help identify general contract risks, but the governing jurisdiction and the actual document language matter. Start with the parties, obligations, termination rights, liability limits, dispute-resolution clause, and any deadlines. This is general legal information, not legal advice.";
     }
     if(kind)return"There is not yet a substantive topic active in this session. Tell me what you want to continue or deepen.";
-    return"What would you like me to focus on? Share the relevant context and any constraints, and I’ll give you a direct response.";
+    return"The private reasoning path did not produce a verified response for this question. Please check Marion’s advisory and final-response diagnostics before treating this turn as completed.";
   }
   function normalize(result,input,prompt,domain){
     const r=obj(result),existing=extract(r),invalid=!existing||runtimeLeak(existing)||(prompt.length>24&&genericPresence(existing))||(domain==="technical"&&legalFallback(existing));

@@ -155,7 +155,7 @@ function extractReply(result) {
   if (typeof result === "string") return safeText(result);
   const source = obj(result), payload = obj(source.payload), nested = obj(source.result), envelope = obj(source.finalEnvelope || payload.finalEnvelope || nested.finalEnvelope), synthesis = obj(source.synthesis || payload.synthesis || nested.synthesis);
   const candidates = [
-    source.directReply, source.visibleReply, source.displayReply, source.finalReply, source.publicReply,
+    source.authoritativeReply, obj(source.finalEnvelope).authoritativeReply, source.finalReply, source.directReply, source.visibleReply, source.displayReply, source.publicReply,
     source.reply, source.answer, source.output, source.response, source.text, source.message, source.spokenText,
     envelope.directReply, envelope.visibleReply, envelope.displayReply, envelope.finalReply, envelope.publicReply,
     envelope.reply, envelope.answer, envelope.output, envelope.response, envelope.text, envelope.message, envelope.spokenText,
@@ -371,17 +371,17 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
   };
   const resultPacket = {
     ...obj(result), ok: true, statusCode: 200, final: true, marionFinal: true, handled: true, awaitingMarion: false, canEmit: true,
-    reply, text: reply, answer: reply, output: reply, response: reply, message: reply, displayReply: reply, visibleReply: reply, directReply: reply, finalReply: reply,
+    reply, authoritativeReply: reply, publicReply: reply, text: reply, answer: reply, output: reply, response: reply, message: reply, displayReply: reply, visibleReply: reply, directReply: reply, finalReply: reply,
     spokenText: reply, intent, domain, primaryDomain: domain, selectedDomain: domain,
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
-    payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
-    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: reply, intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
+    payload: { ...obj(result.payload), authoritativeReply: reply, directReply: reply, visibleReply: reply, displayReply: reply, finalReply: reply, reply, text: reply, message: reply, final: true, marionFinal: true },
+    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, authoritativeReply: reply, directReply: reply, visibleReply: reply, displayReply: reply, finalReply: reply, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: reply, intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
     conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), completionFlow, completionFlowState, crossDomainContext: obj(conversationFlow.crossDomainContext), goalRealignment: obj(conversationFlow.goalRealignment), decisionClosure: obj(conversationFlow.decisionClosure), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
     meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, completionMetadataPrivate: true, hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false }
   };
   return {
     ok: true, statusCode: 200, stage, reason, degraded, recovered: degraded,
-    reply, publicReply: reply, visibleReply: reply, displayReply: reply, directReply: reply, finalReply: reply,
+    reply, authoritativeReply: reply, publicReply: reply, visibleReply: reply, displayReply: reply, directReply: reply, finalReply: reply,
     response: reply, text: reply, message: reply, spokenText: firstText(resultPacket.spokenText, reply), speechText: firstText(resultPacket.speechText, resultPacket.spokenText, reply),
     result: resultPacket, adapterVersion: VERSION, contract: CONTRACT, bridgeStatus: getStatus(), bridgeAttempts: attempts,
     privateRuntimeContext: normalized.privateRuntimeContext, conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, strategicFlow, strategicFlowState, completionFlow, completionFlowState, sessionId: normalized.sessionId, conversationId: normalized.conversationId, turnId: normalized.turnId,
@@ -450,11 +450,12 @@ async function invokePrivateRuntime(input = {}, context = {}) {
   const expectedDomain = obj(normalized.privateRuntimeContext).expectedDomain || "general";
   const progressionOverride = isContextualFollowup(prompt) && !!obj(normalized.privateRuntimeContext).activeSubject && expectedDomain !== "general";
   const activeSubject = firstText(obj(normalized.privateRuntimeContext).activeSubject, obj(normalized.conversationFlow).activeSubject);
-  const semanticMismatch = !reply || runtimeFailureReply(reply) ||
+  const semanticMismatch = !reply || (prompt.length > 45 && genericNonSubstantiveReply(reply)) || runtimeFailureReply(reply) ||
     wrongTaskReply(reply, prompt) ||
     (progressionOverride ? progressionReplyMismatch(reply, expectedDomain, activeSubject) : domainReplyMismatch(reply, expectedDomain)) ||
     (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
   if (progressionOverride && semanticMismatch) {
+    degraded = true;
     reply = anchorReplyToSubject(recoveryReply(prompt, expectedDomain, state), activeSubject);
     result = obj(result);
     attempts.push({ kind: "progression_recovery", ok: true, domain: expectedDomain, reason: reason || "recognized_followup_bridge_reply_unusable" });
