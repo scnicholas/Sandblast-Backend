@@ -3384,85 +3384,80 @@ function classifyRound3CognitiveResilience(prompt=""){
 })();
 /* MARION_BRIDGE_FINAL_PUBLIC_KNOWLEDGE_HANDOFF_R7_END */
 
-/* MARION_PRIVATE_NEON_TRUSTED_ADVISORY_V1_START
- * Server-bound session ticket verification is supplied only by index.js.
- * Never infer private authorization from client flags or conversation text.
- * This boundary is appended after existing bridge export wrappers.
+/* MARION_PRIVATE_NEON_TRUSTED_ADVISORY_V2_START
+ * Server-owned, one-use session verification. Never authorize from request flags.
+ * Preserve public bridge and existing composer/guardian authority.
  */
-(function installMarionPrivateNeonAdvisory() {
+(function installMarionPrivateNeonAdvisoryV2() {
   const api = module.exports;
-  if (!api || api.__marionPrivateNeonAdvisoryV1) return;
-  let verifiedSessionResolver = null;
+  if (!api || api.__marionPrivateNeonAdvisoryV2) return;
   const MAX_ADVISORY_CHARS = 4500;
   const MAX_PROMPT_CHARS = 3500;
-  function own(v, k) { try { return v && Object.prototype.hasOwnProperty.call(v,k) ? v[k] : undefined; } catch (_) { return undefined; } }
+  let verifiedSessionResolver = null;
   function obj(v) { return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; }
-  function text(v, max) { return typeof v === 'string' ? v.trim().slice(0,max) : ''; }
-  function promptFrom(input) { const v=obj(input), b=obj(v.body), p=obj(v.payload); return text(v.rawUserText||v.userQuery||v.prompt||v.text||b.prompt||b.text||p.prompt||p.text, MAX_PROMPT_CHARS); }
-  function isPrivate(input) {
-    const v=obj(input);
-    return v.privateAdminConversation === true && v.marionAdminConversation === true;
-  }
-  function verify(input) {
-    if (!isPrivate(input) || typeof verifiedSessionResolver !== 'function') return null;
-    let session = null;
-    try { session = verifiedSessionResolver(input); } catch (_) { return null; }
-    const s = obj(session);
-    if (s.source !== 'server-verified-session' || s.authorized !== true ||
-        s.scope !== 'private_admin' || s.audience !== 'owner' ||
-        typeof s.sessionId !== 'string' || s.sessionId.length < 8 || s.sessionId.length > 256) return null;
-    return Object.freeze({ source:'server-verified-session', authorized:true, scope:'private_admin', audience:'owner', sessionId:s.sessionId });
+  function str(v,max) { return typeof v === 'string' ? v.trim().slice(0,max) : ''; }
+  function promptOf(v) { const x=obj(v),b=obj(x.body),p=obj(x.payload); return str(x.rawUserText||x.userQuery||x.prompt||x.text||b.prompt||b.text||p.prompt||p.text,MAX_PROMPT_CHARS); }
+  function verify(v) {
+    if (v.privateAdminConversation !== true || v.marionAdminConversation !== true || typeof verifiedSessionResolver !== 'function') return null;
+    let auth; try { auth=verifiedSessionResolver(v); } catch (_) { return null; }
+    const s=obj(auth), id=str(s.sessionId,257);
+    if (s.source!=='server-verified-session' || s.authorized!==true || s.scope!=='private_admin' || s.audience!=='owner' || id.length<8 || id.length>256) return null;
+    if (typeof v.sessionId==='string' && v.sessionId && v.sessionId!==id) return null;
+    return Object.freeze({source:'server-verified-session',authorized:true,scope:'private_admin',audience:'owner',sessionId:id});
   }
   function configureMarionNeonAdvisory(options) {
-    const opts = obj(options);
-    if (typeof own(opts,'verifySession') !== 'function') return false;
-    verifiedSessionResolver = opts.verifySession;
+    const resolver=obj(options).verifySession;
+    if (typeof resolver!=='function') return false;
+    verifiedSessionResolver=resolver;
     return true;
   }
   function loadAdvisory() {
-    try {
-      const mod = require('../../../Utils/marionNeonIntelligence.js');
-      return mod && typeof mod.requestIntelligence === 'function' ? mod : null;
-    } catch (_) { return null; }
+    try { const mod=require('../../../Utils/marionNeonIntelligence.js'); return mod && typeof mod.requestIntelligence==='function'?mod:null; }
+    catch (_) { return null; }
   }
-  const prior = api.handleMarionAdminConversation;
-  if (typeof prior !== 'function') return;
-  api.handleMarionAdminConversation = async function marionAdminWithVerifiedNeon(input) {
-    const v = obj(input);
-    const session = verify(v);
-    // Verified tickets are consumed by the index-owned callback, once per turn.
-    // Never forward the ticket or a credential to a model or final response.
-    const cleanInput = {...v};
-    delete cleanInput.__marionNeonPrivateTicket;
-    let modelUsed = false, advisoryStatus = 'ineligible';
-    if (session && process.env.SB_MARION_NEON_PRIVATE_ADVISORY === 'true') {
-      const mod = loadAdvisory();
-      const prompt = promptFrom(v);
+  const upstream=api.handleMarionAdminConversation;
+  if (typeof upstream!=='function') return;
+  async function marionAdminWithVerifiedNeon(input,context) {
+    const v=obj(input);
+    // Verification consumes the ticket via the server callback before any model call.
+    const session=verify(v);
+    const prepared={...v};
+    delete prepared.__marionNeonPrivateTicket;
+    delete prepared.neonModelAdvisory;
+    delete prepared.marionNeonAdvisory;
+    let available=false, status='ineligible';
+    if (session && process.env.SB_MARION_NEON_PRIVATE_ADVISORY==='true') {
+      const mod=loadAdvisory(),prompt=promptOf(v);
       if (mod && prompt) {
-        let result;
-        try { result = await mod.requestIntelligence({ prompt, activeDomain:text(v.requestedDomain||v.domain||'general',80), session }); }
-        catch (_) { result = {ok:false,reason:'adapter_exception'}; }
-        if (result && result.ok === true && text(result.advisory,MAX_ADVISORY_CHARS)) {
-          // Internal, non-authoritative evidence for the existing composer/bridge.
-          cleanInput.neonModelAdvisory = text(result.advisory,MAX_ADVISORY_CHARS);
-          cleanInput.marionNeonAdvisory = cleanInput.neonModelAdvisory;
-          modelUsed = true;
-          advisoryStatus = 'available';
-        } else advisoryStatus = text(result && result.reason,60)||'unavailable';
-      } else advisoryStatus = mod ? 'empty_prompt':'adapter_unavailable';
-    }
-    const response = await prior.call(this, cleanInput);
-    // Diagnostic-only metadata. No advisory text, session ID or token is returned.
-    if (response && typeof response === 'object' && !Array.isArray(response)) {
-      const out = {...response};
-      out.neonModelAdvisory = { available:modelUsed, usedAsFinalAuthority:false, reason:advisoryStatus };
-      out.diagnostics = { ...obj(response.diagnostics), privateNeonAdvisoryAvailable:modelUsed, privateNeonAdvisoryStatus:advisoryStatus };
-      return out;
-    }
-    return response;
+        let advisoryResult;
+        try { advisoryResult=await mod.requestIntelligence({prompt,activeDomain:str(v.requestedDomain||v.domain||'general',80),session}); }
+        catch (_) { advisoryResult={ok:false,reason:'adapter_exception'}; }
+        const advisory=advisoryResult && advisoryResult.ok===true ? str(advisoryResult.advisory,MAX_ADVISORY_CHARS) : '';
+        if (advisory) {
+          prepared.neonModelAdvisory=advisory;
+          prepared.marionNeonAdvisory=advisory;
+          available=true;
+          status='available';
+        } else status='advisory_unavailable';
+      } else status=mod?'empty_prompt':'adapter_unavailable';
+    } else if (session) status='feature_disabled';
+    // Do not pass server session credentials to the downstream composer.
+    const response=await upstream.call(this,prepared,context);
+    if (!response || typeof response!=='object' || Array.isArray(response)) return response;
+    const out={...response};
+    out.neonModelAdvisory={available,usedAsFinalAuthority:false,reason:status};
+    out.diagnostics={...obj(response.diagnostics),privateNeonAdvisoryAvailable:available,privateNeonAdvisoryStatus:status};
+    return out;
+  }
+  // All private aliases and factory instances must use one canonical Neon-capable handler.
+  for (const name of ['handleMarionAdminConversation','handleMarionAdminTextRuntime','handleAdminConversation','invokeMarionAdminTextRuntime','handleTextRuntime']) api[name]=marionAdminWithVerifiedNeon;
+  const previousFactory=typeof api.createMarionBridge==='function'?api.createMarionBridge:null;
+  if (previousFactory) api.createMarionBridge=function createNeonAwareMarionBridge() {
+    const base=obj(previousFactory.apply(this,arguments));
+    return {...base,handleMarionAdminConversation:marionAdminWithVerifiedNeon,handleMarionAdminTextRuntime:marionAdminWithVerifiedNeon,handleAdminConversation:marionAdminWithVerifiedNeon,invokeMarionAdminTextRuntime:marionAdminWithVerifiedNeon,handleTextRuntime:marionAdminWithVerifiedNeon};
   };
-  api.configureMarionNeonAdvisory = configureMarionNeonAdvisory;
-  api.MARION_PRIVATE_NEON_ADVISORY_VERSION = 'marion.bridge.trustedPrivateNeonAdvisory/1.0';
-  api.__marionPrivateNeonAdvisoryV1 = true;
+  api.configureMarionNeonAdvisory=configureMarionNeonAdvisory;
+  api.MARION_PRIVATE_NEON_ADVISORY_VERSION='marion.bridge.trustedPrivateNeonAdvisory/2.0';
+  api.__marionPrivateNeonAdvisoryV2=true;
 })();
-/* MARION_PRIVATE_NEON_TRUSTED_ADVISORY_V1_END */
+/* MARION_PRIVATE_NEON_TRUSTED_ADVISORY_V2_END */
