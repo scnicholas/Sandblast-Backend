@@ -51,7 +51,8 @@ function promptOf(input = {}) {
 }
 function sessionIdOf(input = {}, context = {}) {
   const source = obj(input), ctx = obj(context), session = obj(source.session);
-  return firstText(source.sessionId, source.conversationId, session.sessionId, ctx.sessionId, ctx.conversationId, "private-marion");
+  // Prefer server session binding; never share one global continuity bucket across owners.
+   return firstText(ctx.sessionId, ctx.conversationId, source.sessionId, session.sessionId, source.conversationId);
 }
 function isGreeting(value = "") { return /^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))(?:\s*,?\s*marion)?[.!?]*$/i.test(safeText(value)); }
 function followupKind(value = "") {
@@ -92,8 +93,22 @@ function explicitLegal(value = "") {
 function deriveSubject(value = "") {
   return safeText(value).replace(/^(?:do\s+)?(?:a\s+)?surgical\s+autopsy\s+(?:on|of)\s+/i, "").replace(/[.!?]+$/g, "").slice(0, 320);
 }
+function explicitBusinessStrategy(value = "") {
+  const text = safeText(value);
+  return /\b(?:strategic|strategy|advantages|risks|priorit(?:y|ies)|recommend|migration|migrating|business plan|commercial|streaming infrastructure)\b/i.test(text) &&
+    /\b(?:radio|station|streaming|infrastructure|business|revenue|advertis|migration|migrating|BR Logic|Sandblast)\b/i.test(text);
+}
+function wrongTaskReply(reply = "", prompt = "") {
+  const text = safeText(reply);
+  if (!text) return true;
+  if (/\b(?:I have the thread\. Give me the exact file or prompt target|keep the next update surgical|Give me the exact target and I will answer directly|Start with the route-precedence chain)\b/i.test(text)) return true;
+  if (explicitBusinessStrategy(prompt) &&
+      /\b(?:exact file|prompt target|next update surgical|route-precedence|technical thread|current.turn domain|final envelope|diagnostic packet)\b/i.test(text)) return true;
+  return false;
+}
 function classifyExpectedDomain(prompt, cached = {}) {
   if (isGreeting(prompt)) return "general";
+  if (explicitBusinessStrategy(prompt)) return "business";
   if (explicitTechnical(prompt)) return "technical";
   if (explicitLegal(prompt)) return "law";
   if ((isContextualFollowup(prompt) || isOutcomeFlowTurn(prompt)) && cached.activeDomain) return safeText(cached.activeDomain).toLowerCase();
@@ -112,7 +127,7 @@ function setSession(id, patch) { if (!id) return; sessionContinuity.set(id, { ..
 function clearSession(id) { if (id) sessionContinuity.delete(id); }
 
 function loadBridge(force = false) {
-  if (!force && cachedBridge && typeof cachedBridge.processWithMarion === "function") return cachedBridge;
+  if (!force && cachedBridge && typeof cachedBridge.handleMarionAdminConversation === "function") return cachedBridge;
   bridgeLoadAttempts += 1;
   const candidates = [
     path.join(__dirname, "marionBridge.js"),
@@ -124,7 +139,7 @@ function loadBridge(force = false) {
       const resolved = require.resolve(candidate);
       if (force && require.cache[resolved]) delete require.cache[resolved];
       const mod = require(resolved);
-      if (!mod || typeof mod.processWithMarion !== "function") throw Object.assign(new Error("canonical_processWithMarion_missing"), { code: "CANONICAL_HANDLER_MISSING" });
+      if (!mod || typeof mod.handleMarionAdminConversation !== "function") throw Object.assign(new Error("private_neon_conversation_handler_missing"), { code: "PRIVATE_NEON_HANDLER_MISSING" });
       cachedBridge = mod;
       cachedBridgePath = resolved;
       lastBridgeError = "";
@@ -182,6 +197,7 @@ function domainReplyMismatch(reply = "", domain = "general") {
   if (!text) return true;
   if (domain === "technical") return genericNonSubstantiveReply(text) || !/\b(?:route|routing|domain|state|composer|envelope|runtime|code|module|handler|validation|implementation|repair|technical|javascript|packet|precedence|session|bridge|commitment|outcome|baseline|complete|remaining|blocked|deferred)\b/i.test(text);
   if (domain === "law") return genericNonSubstantiveReply(text) || !/\b(?:contract|legal|jurisdiction|clause|liability|obligation|termination|dispute|deadline|law)\b/i.test(text);
+  if (domain === "business") return genericNonSubstantiveReply(text) || /\b(?:exact file|prompt target|surgical update|route-precedence|technical thread)\b/i.test(text);
   if (domain && domain !== "general") return genericNonSubstantiveReply(text);
   return false;
 }
@@ -224,8 +240,7 @@ function recoveryReply(prompt, domain, state = {}) {
     return "Start with the route-precedence chain. Confirm the explicit current prompt is classified before historical state is merged, and assert that the selected domain cannot be replaced before the final reply is emitted.";
   }
   if (domain === "business") {
-    if (kind) return "For this business branch, assess the commercial consequence, affected audience, revenue or trust exposure, operational dependency, and the smallest reversible response. Then return to the primary technical thread with the business constraint recorded rather than replacing it.";
-    return "The principal business risk is not only the defect itself; it is loss of trust, interrupted conversion, repeated engineering cost, and uncertainty about whether Marion can be relied upon in production. Bound the impact, identify the affected users and revenue path, and choose the smallest reversible correction.";
+    return "I received your business-strategy question, but the private reasoning path did not produce a verified, relevant answer. I cannot responsibly present a generic development-workflow fallback as the analysis. Please check the Marion bridge and Neon advisory diagnostics.";
   }
   if (domain === "law") {
     if (kind) return "Continue by identifying the governing jurisdiction, the exact clause or obligation at issue, the parties’ duties, termination and liability language, dispute-resolution terms, and deadlines. This is general legal information, not legal advice.";
@@ -241,7 +256,7 @@ function normalizeInput(input = {}, context = {}) {
   const state = reset ? {} : getSession(sessionId);
   const expectedDomain = classifyExpectedDomain(prompt, state);
   const continuation = (isContextualFollowup(prompt) || isOutcomeFlowTurn(prompt)) && !!state.activeSubject && !isGreeting(prompt);
-  const activeSubject = explicitTechnical(prompt) || explicitLegal(prompt) ? deriveSubject(prompt) : firstText(state.activeSubject, state.lastSubstantivePrompt);
+  const activeSubject = (expectedDomain !== "general" && !continuation) ? deriveSubject(prompt) : firstText(state.activeSubject, state.lastSubstantivePrompt);
   const previousMemory = {
     ...obj(source.previousMemory), ...obj(state.memoryPatch),
     activeDomain: firstText(state.activeDomain, expectedDomain === "general" ? "" : expectedDomain),
@@ -357,10 +372,10 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
   const resultPacket = {
     ...obj(result), ok: true, statusCode: 200, final: true, marionFinal: true, handled: true, awaitingMarion: false, canEmit: true,
     reply, text: reply, answer: reply, output: reply, response: reply, message: reply, displayReply: reply, visibleReply: reply, directReply: reply, finalReply: reply,
-    spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain,
+    spokenText: reply, intent, domain, primaryDomain: domain, selectedDomain: domain,
     memoryPatch, sessionPatch: { ...obj(result.sessionPatch), ...memoryPatch },
     payload: { ...obj(result.payload), reply, text: reply, message: reply, final: true, marionFinal: true },
-    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: firstText(obj(result).spokenText, reply), intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
+    finalEnvelope: { ...obj(result.finalEnvelope), ok: true, final: true, marionFinal: true, handled: true, reply, text: reply, answer: reply, output: reply, response: reply, message: reply, spokenText: reply, intent, domain, primaryDomain: domain, selectedDomain: domain, signature: "MARION_FINAL_AUTHORITY", contractVersion: "nyx.marion.final/1.0", canEmit: true, awaitingMarion: false, conversationFlowState },
     conversationFlow, conversationFlowState, outcomeFlow, outcomeFlowState, outcomeAwareness: obj(conversationFlow.outcomeAwareness), commitmentTracking: obj(conversationFlow.commitmentTracking), anticipatoryGuidance: obj(conversationFlow.anticipatoryGuidance), strategicFlow, strategicFlowState, objectiveAlignment: obj(conversationFlow.objectiveAlignment), predictiveRisk: obj(conversationFlow.predictiveRisk), pathwaySynthesis: obj(conversationFlow.pathwaySynthesis), completionFlow, completionFlowState, crossDomainContext: obj(conversationFlow.crossDomainContext), goalRealignment: obj(conversationFlow.goalRealignment), decisionClosure: obj(conversationFlow.decisionClosure), conversationStage: firstText(conversationFlow.stage), contextPivot: obj(conversationFlow.contextPivot), interactionCalibration: obj(conversationFlow.interactionCalibration),
     meta: { ...obj(result.meta), privateRuntimeAdapterVersion: VERSION, recoveryUsed: degraded, semanticHealth: degraded ? "recovered" : "ready", conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], conversationStage: firstText(conversationFlow.stage), conversationDirection: firstText(conversationFlow.direction), strategicMetadataPrivate: true, completionMetadataPrivate: true, hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false }
   };
@@ -376,9 +391,11 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
 
 async function invokePrivateRuntime(input = {}, context = {}) {
   const source = obj(input), ctx = obj(context);
-  const authorized = ctx.adminVerified === true || ctx.verified === true || source.adminVerified === true || source.verified === true ||
-    ((ctx.passwordFreeTestChat === true || source.passwordFreeTestChat === true) && (ctx.sessionVerified === true || source.sessionVerified === true || source.testChatVerified === true));
+  // Only server-verified context may authorize a private conversation.
+  // Request-body booleans, including passwordFreeTestChat, are not credentials.
+  const authorized = ctx.adminVerified === true && (ctx.sessionVerified === true || ctx.verified === true);
   if (!authorized) return { ok: false, statusCode: 401, stage: "private_runtime_authorization_required", reason: "verified_operator_required", reply: "", adapterVersion: VERSION, responseFinalized: true };
+  if (ctx.sessionId && source.sessionId && safeText(ctx.sessionId) !== safeText(source.sessionId)) return { ok:false, statusCode:403, stage:"private_runtime_session_mismatch", reason:"session_binding_mismatch", reply:"", adapterVersion:VERSION, responseFinalized:true };
 
   const normalized = normalizeInput(input, context), prompt = normalized.prompt, state = getSession(normalized.sessionId);
   if (!prompt) return { ok: false, statusCode: 400, stage: "prompt_required", reason: "prompt_required", reply: "", adapterVersion: VERSION, responseFinalized: true };
@@ -405,7 +422,8 @@ async function invokePrivateRuntime(input = {}, context = {}) {
 
   if (bridge) {
     try {
-      result = await Promise.resolve(bridge.processWithMarion(normalized));
+      // The configured owner-only Neon advisory wrapper lives on this handler, not processWithMarion.
+       result = await Promise.resolve(bridge.handleMarionAdminConversation(normalized, ctx));
       reply = reconcileReplyToConversationFlow(extractReply(result), obj(normalized.conversationFlow));
       attempts.push({ kind: "canonical_bridge", ok: !!reply, domain: resultDomain(result), replyPresent: !!reply });
     } catch (err) {
@@ -417,10 +435,23 @@ async function invokePrivateRuntime(input = {}, context = {}) {
     attempts.push({ kind: "canonical_bridge", ok: false, reason });
   }
 
+  const runtimeTrace = {
+    version: "marion.privateRuntime.adapterTrace/1.0",
+    bridgeAttempted: !!bridge,
+    bridgeReturnedReply: !!reply,
+    bridgeDomain: resultDomain(result).slice(0, 40),
+    knownWrongTaskReply: wrongTaskReply(reply, prompt),
+    expectedDomain: obj(normalized.privateRuntimeContext).expectedDomain || "general",
+    reasonCode: reason ? "bridge_error" : "none"
+  };
+  if (process.env.SB_MARION_PRIVATE_TRACE === "true") {
+    try { console.info("[Sandblast][marion-adapter-trace]", { stage: "bridge_result", ...runtimeTrace }); } catch (_) {}
+  }
   const expectedDomain = obj(normalized.privateRuntimeContext).expectedDomain || "general";
   const progressionOverride = isContextualFollowup(prompt) && !!obj(normalized.privateRuntimeContext).activeSubject && expectedDomain !== "general";
   const activeSubject = firstText(obj(normalized.privateRuntimeContext).activeSubject, obj(normalized.conversationFlow).activeSubject);
   const semanticMismatch = !reply || runtimeFailureReply(reply) ||
+    wrongTaskReply(reply, prompt) ||
     (progressionOverride ? progressionReplyMismatch(reply, expectedDomain, activeSubject) : domainReplyMismatch(reply, expectedDomain)) ||
     (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
   if (progressionOverride && semanticMismatch) {
@@ -435,6 +466,7 @@ async function invokePrivateRuntime(input = {}, context = {}) {
   }
 
   const packet = finalPacket(normalized, result, reply, degraded ? "private_runtime_recovered" : "private_runtime_complete", reason, degraded, attempts);
+  packet.diagnosticTrace = { ...runtimeTrace, recovered: degraded, finalReplyKind: wrongTaskReply(reply, prompt) ? "known_wrong_task" : reply ? "reply" : "empty" };
   updateContinuity(normalized, packet.result, reply);
   return packet;
 }
@@ -444,7 +476,8 @@ function getStatus() {
   return {
     version: VERSION, contract: CONTRACT,
     available: true,
-    canonicalBridgeAvailable: !!(bridge && typeof bridge.processWithMarion === "function"),
+    canonicalBridgeAvailable: !!(bridge && typeof bridge.handleMarionAdminConversation === "function"),
+    neonPrivateHandlerAvailable: !!(bridge && typeof bridge.handleMarionAdminConversation === "function"),
     recoveryKernelAvailable: true,
     handler: "invokePrivateRuntime",
     requested: "./marionBridge.js",
@@ -470,7 +503,7 @@ Object.assign(module.exports, {
   getStatus,
   resetSession,
   conversationLayers,
-  _internal: { promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, subjectAnchor, subjectReplyMismatch, progressionReplyMismatch, anchorReplyToSubject, reconcileReplyToConversationFlow, sessionContinuity }
+  _internal: { wrongTaskReply, explicitBusinessStrategy, classifyExpectedDomain, promptOf, isGreeting, isContextualFollowup, isOutcomeFlowTurn, explicitTechnical, explicitLegal, extractReply, resultDomain, normalizeInput, recoveryReply, domainReplyMismatch, subjectAnchor, subjectReplyMismatch, progressionReplyMismatch, anchorReplyToSubject, reconcileReplyToConversationFlow, sessionContinuity }
 });
 
 /* MARION_NUANCE_PHASE_A_PRIVATE_RUNTIME_INTEGRATION_V2_START */
