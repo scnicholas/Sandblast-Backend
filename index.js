@@ -25553,9 +25553,17 @@ async function handleMarionAdminTextRuntime(req, res) {
     const reply = runtime.ok === true && !marionAdminInvalidPrivateFinal(runtime.reply)
       ? (priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || "") : "";
     const bridgeStatus = marionAdminBridgeStatusProjection(runtime.bridgeStatus);
-    return res.status(statusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
+    // MARION_PRIVATE_FINAL_CONTRACT_V1: A successful transport does not make an
+    // irrelevant conversation placeholder a successful answer. No synthetic model
+    // content, no fallback to public Nyx, no leaking Neon evidence to the client.
+    const privatePlaceholder = marionAdminSubstantivePrompt(runtimePrompt) &&
+      /(?:what would you like me to focus on|share the relevant context and any constraints|tell me what you want to work through|i(?:'|’)?m here,? mac|i received your business-strategy question, but the private reasoning path did not produce|private reasoning path did not produce a verified response)/i.test(reply);
+    const finalPrivateReply = privatePlaceholder ? "" : reply;
+    const privateResponseOk = runtime.ok === true && !!finalPrivateReply;
+    const privateStatusCode = privateResponseOk ? statusCode : (statusCode >= 400 ? statusCode : 502);
+    return res.status(privateStatusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
-      ok: !!runtime.ok,
+      ok: privateResponseOk,
       stage: marionAdminRuntimeStrictText(runtime.stage, "", 240),
       reason: marionAdminRuntimeStrictText(runtime.reason, "", 240),
       routeMounted: true,
@@ -25569,12 +25577,18 @@ async function handleMarionAdminTextRuntime(req, res) {
       bridgeReady: bridgeStatus.available === true,
       bridgeHandler: bridgeStatus.handler,
       bridgeVersion: bridgeStatus.version,
-      reply,
-      response: reply,
-      text: reply,
-      message: reply,
-      spokenText: priority9JR1BAdminVisibleReply(runtime.spokenText, runtimePrompt) || reply,
-      speechText: priority9JR1BAdminVisibleReply(runtime.speechText, runtimePrompt) || priority9JR1BAdminVisibleReply(runtime.spokenText, runtimePrompt) || reply,
+      reply: finalPrivateReply,
+      authoritativeReply: finalPrivateReply,
+      publicReply: finalPrivateReply,
+      visibleReply: finalPrivateReply,
+      displayReply: finalPrivateReply,
+      directReply: finalPrivateReply,
+      finalReply: finalPrivateReply,
+      response: finalPrivateReply,
+      text: finalPrivateReply,
+      message: finalPrivateReply,
+      spokenText: finalPrivateReply,
+      speechText: finalPrivateReply,
       voice: marionAdminConsoleRedacted(runtime.voice || {}),
       voicePrivateReceive: marionAdminConsoleRedacted(runtime.voicePrivateReceive || runtime.privateVoiceReceive || {}),
       privateVoiceReceive: marionAdminConsoleRedacted(runtime.privateVoiceReceive || runtime.voicePrivateReceive || {}),
@@ -25585,6 +25599,7 @@ async function handleMarionAdminTextRuntime(req, res) {
       projectedVoiceMode: marionAdminRuntimeStrictText(runtime.projectedVoiceMode, "silent", 40),
       rawVoiceMode: marionAdminRuntimeStrictText(runtime.rawVoiceMode, "silent", 40),
       result: marionAdminConsoleRedacted(runtime.result || {}),
+      privateFinalContract: { version: "marion.privateFinal/1.0", substantiveAccepted: privateResponseOk, rejectionReason: privatePlaceholder ? "non_substantive_private_final" : (privateResponseOk ? "" : "private_final_unavailable") },
       responseFinalized: true
     }));
   } catch (err) {
