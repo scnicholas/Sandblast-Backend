@@ -1,0 +1,13 @@
+"use strict";
+const {test}=require("node:test");const assert=require("node:assert/strict");const fs=require("node:fs");const path=require("node:path");
+const root=path.resolve(__dirname,"..");
+const index=fs.readFileSync(path.join(root,"index.js"),"utf8");
+const adapter=fs.readFileSync(path.join(root,"Data/marion/runtime/marionPrivateRuntimeAdapter.js"),"utf8");
+const composer=fs.readFileSync(path.join(root,"Data/marion/runtime/composeMarionResponse.js"),"utf8");
+test("private response refuses misleading HTTP 200 placeholder",()=>{assert.match(index,/const privatePlaceholder = marionAdminSubstantivePrompt/);assert.match(index,/const privateStatusCode = privateResponseOk \? statusCode : \(statusCode >= 400 \? statusCode : 502\)/);});
+test("private response exposes synchronized primary reply aliases",()=>{const part=index.slice(index.indexOf("MARION_PRIVATE_FINAL_CONTRACT_V1"),index.indexOf("  } catch (err) {",index.indexOf("MARION_PRIVATE_FINAL_CONTRACT_V1"))); for(const k of ["authoritativeReply","publicReply","visibleReply","displayReply","directReply","finalReply","response","text","message","spokenText","speechText"])assert.match(part,new RegExp(k+": finalPrivateReply"));});
+test("adapter catches generic substantive replies",()=>{assert.match(adapter,/prompt.length > 45 && genericNonSubstantiveReply\(reply\)/);});
+test("adapter uses canonical private Neon handler",()=>{assert.match(adapter,/bridge\.handleMarionAdminConversation\(normalized, ctx\)/);});
+test("adapter synchronizes authoritative nested packet fields",()=>{assert.match(adapter,/authoritativeReply: reply, publicReply: reply/);assert.match(adapter,/payload: \{ \.\.\.obj\(result.payload\), authoritativeReply: reply/);assert.match(adapter,/finalEnvelope: \{ \.\.\.obj\(result.finalEnvelope\).*authoritativeReply: reply/);});
+test("composer refuses fabricated generic answer on unrelated prompt",()=>{assert.doesNotMatch(composer,/return"What would you like me to focus on\? Share the relevant context/);assert.match(composer,/private reasoning path did not produce a verified response/);});
+test("owner security and Neon single-use ticket still present",()=>{assert.match(index,/marionNeonPrivateTickets\.set/);assert.match(index,/marionNeonPrivateTickets\.delete/);assert.match(index,/neonOwnerRole && neonBridgeSupported/);});
