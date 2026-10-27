@@ -51,7 +51,8 @@ function promptOf(input = {}) {
 }
 function sessionIdOf(input = {}, context = {}) {
   const source = obj(input), ctx = obj(context), session = obj(source.session);
-  return firstText(source.sessionId, source.conversationId, session.sessionId, ctx.sessionId, ctx.conversationId, "private-marion");
+  // Prefer server session binding; never share one global continuity bucket across owners.
+   return firstText(ctx.sessionId, ctx.conversationId, source.sessionId, session.sessionId, source.conversationId);
 }
 function isGreeting(value = "") { return /^(?:hello|hi|hey|good\s+(?:morning|afternoon|evening))(?:\s*,?\s*marion)?[.!?]*$/i.test(safeText(value)); }
 function followupKind(value = "") {
@@ -126,7 +127,7 @@ function setSession(id, patch) { if (!id) return; sessionContinuity.set(id, { ..
 function clearSession(id) { if (id) sessionContinuity.delete(id); }
 
 function loadBridge(force = false) {
-  if (!force && cachedBridge && typeof cachedBridge.processWithMarion === "function") return cachedBridge;
+  if (!force && cachedBridge && typeof cachedBridge.handleMarionAdminConversation === "function") return cachedBridge;
   bridgeLoadAttempts += 1;
   const candidates = [
     path.join(__dirname, "marionBridge.js"),
@@ -138,7 +139,7 @@ function loadBridge(force = false) {
       const resolved = require.resolve(candidate);
       if (force && require.cache[resolved]) delete require.cache[resolved];
       const mod = require(resolved);
-      if (!mod || typeof mod.processWithMarion !== "function") throw Object.assign(new Error("canonical_processWithMarion_missing"), { code: "CANONICAL_HANDLER_MISSING" });
+      if (!mod || typeof mod.handleMarionAdminConversation !== "function") throw Object.assign(new Error("private_neon_conversation_handler_missing"), { code: "PRIVATE_NEON_HANDLER_MISSING" });
       cachedBridge = mod;
       cachedBridgePath = resolved;
       lastBridgeError = "";
@@ -390,9 +391,11 @@ function finalPacket(normalized, result, reply, stage, reason = "", degraded = f
 
 async function invokePrivateRuntime(input = {}, context = {}) {
   const source = obj(input), ctx = obj(context);
-  const authorized = ctx.adminVerified === true || ctx.verified === true || source.adminVerified === true || source.verified === true ||
-    ((ctx.passwordFreeTestChat === true || source.passwordFreeTestChat === true) && (ctx.sessionVerified === true || source.sessionVerified === true || source.testChatVerified === true));
+  // Only server-verified context may authorize a private conversation.
+  // Request-body booleans, including passwordFreeTestChat, are not credentials.
+  const authorized = ctx.adminVerified === true && (ctx.sessionVerified === true || ctx.verified === true);
   if (!authorized) return { ok: false, statusCode: 401, stage: "private_runtime_authorization_required", reason: "verified_operator_required", reply: "", adapterVersion: VERSION, responseFinalized: true };
+  if (ctx.sessionId && source.sessionId && safeText(ctx.sessionId) !== safeText(source.sessionId)) return { ok:false, statusCode:403, stage:"private_runtime_session_mismatch", reason:"session_binding_mismatch", reply:"", adapterVersion:VERSION, responseFinalized:true };
 
   const normalized = normalizeInput(input, context), prompt = normalized.prompt, state = getSession(normalized.sessionId);
   if (!prompt) return { ok: false, statusCode: 400, stage: "prompt_required", reason: "prompt_required", reply: "", adapterVersion: VERSION, responseFinalized: true };
@@ -419,7 +422,8 @@ async function invokePrivateRuntime(input = {}, context = {}) {
 
   if (bridge) {
     try {
-      result = await Promise.resolve(bridge.processWithMarion(normalized));
+      // The configured owner-only Neon advisory wrapper lives on this handler, not processWithMarion.
+       result = await Promise.resolve(bridge.handleMarionAdminConversation(normalized, ctx));
       reply = reconcileReplyToConversationFlow(extractReply(result), obj(normalized.conversationFlow));
       attempts.push({ kind: "canonical_bridge", ok: !!reply, domain: resultDomain(result), replyPresent: !!reply });
     } catch (err) {
@@ -472,7 +476,8 @@ function getStatus() {
   return {
     version: VERSION, contract: CONTRACT,
     available: true,
-    canonicalBridgeAvailable: !!(bridge && typeof bridge.processWithMarion === "function"),
+    canonicalBridgeAvailable: !!(bridge && typeof bridge.handleMarionAdminConversation === "function"),
+    neonPrivateHandlerAvailable: !!(bridge && typeof bridge.handleMarionAdminConversation === "function"),
     recoveryKernelAvailable: true,
     handler: "invokePrivateRuntime",
     requested: "./marionBridge.js",
