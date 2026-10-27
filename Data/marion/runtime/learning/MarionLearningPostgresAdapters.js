@@ -22,7 +22,9 @@ function stableJson(value) {
   if (value && typeof value === "object") {
     return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
   }
-  return JSON.stringify(value);
+  const encoded = JSON.stringify(value);
+  if (encoded === undefined) throw new TypeError("unsupported_audit_value");
+  return encoded;
 }
 
 function serializeSafeRecord(value, maxBytes = 65536, errorCode = "invalid_learning_record") {
