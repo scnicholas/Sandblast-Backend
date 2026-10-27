@@ -16,7 +16,7 @@
 const path = require("path");
 const conversationLayers = (() => { try { return require("./conversation/marionConversationLayerRegistry.js"); } catch (_) { return null; } })();
 
-const VERSION = "marion.privateRuntime.adapter/20.0-completion-flow-layers-18-19-20";
+const VERSION = "marion.privateRuntime.adapter/20.1-private-neon-fail-closed-trace";
 const CONTRACT = "nyx.marion.privateRuntime/20.0";
 const MAX_SESSIONS = 256;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -276,10 +276,10 @@ function normalizeInput(input = {}, context = {}) {
     authority: "Marion", surfaceAgent: "Marion", source: "marion-private-runtime-adapter", scope: "private_admin", lane: "private", audience: "operator",
     privateAdminConversation: true, directMarionAdminInterface: true, marionAdminConversation: true, marionAdminConversationAllowed: true,
     publicUsersCanAddressMarion: false, publicFallbackBlocked: true,
-    adminVerified: ctx.adminVerified === true || ctx.verified === true || source.adminVerified === true || source.verified === true,
-    verified: ctx.adminVerified === true || ctx.verified === true || source.verified === true || source.adminVerified === true,
-    sessionVerified: ctx.sessionVerified === true || source.sessionVerified === true,
-    passwordFreeTestChat: source.passwordFreeTestChat === true || ctx.passwordFreeTestChat === true,
+    adminVerified: ctx.adminVerified === true,
+    verified: ctx.adminVerified === true && (ctx.sessionVerified === true || ctx.verified === true),
+    sessionVerified: ctx.sessionVerified === true || ctx.verified === true,
+    passwordFreeTestChat: false,
     sessionId, conversationId: firstText(source.conversationId, sessionId), turnId: firstText(source.turnId, ctx.turnId, ctx.traceId, makeId("turn")), traceId: firstText(source.traceId, ctx.traceId),
     previousMemory, requestedDomain: expectedDomain === "general" ? firstText(source.requestedDomain, source.domain, "general") : expectedDomain,
     domain: expectedDomain, continuationRequested: continuation, continuationResolved: continuation, currentTurnOnly: true,
@@ -288,7 +288,16 @@ function normalizeInput(input = {}, context = {}) {
     privateRuntimeContext: { version: CONTRACT, expectedDomain, activeDomain: expectedDomain || state.activeDomain || "", activeSubject, continuationRequested: continuation, followUpDepth: continuation ? Number(state.followUpDepth || 0) + 1 : 0, progressionStage: firstText(state.progressionStage, "analysis") }
   };
   if (!conversationLayers || typeof conversationLayers.applyToInput !== "function") return base;
-  const enriched = conversationLayers.applyToInput(base, state, { reset });
+  let enriched;
+  try { enriched = conversationLayers.applyToInput(base, state, { reset }); }
+  catch (_) { return base; }
+  if (!isObj(enriched)) return base;
+  // A conversation-layer plugin may enrich text but must never restore body-provided authority.
+  enriched.adminVerified = base.adminVerified;
+  enriched.verified = base.verified;
+  enriched.sessionVerified = base.sessionVerified;
+  enriched.passwordFreeTestChat = false;
+  enriched.sessionId = base.sessionId;
   const flow = obj(enriched.conversationFlow), pivot = obj(flow.contextPivot);
   const resumedDomain = firstText(flow.activeDomain, expectedDomain), resumedSubject = firstText(flow.activeSubject, activeSubject);
   if (pivot.direction !== "social_pause" && resumedDomain && resumedDomain !== "general") {
@@ -427,11 +436,11 @@ async function invokePrivateRuntime(input = {}, context = {}) {
       reply = reconcileReplyToConversationFlow(extractReply(result), obj(normalized.conversationFlow));
       attempts.push({ kind: "canonical_bridge", ok: !!reply, domain: resultDomain(result), replyPresent: !!reply });
     } catch (err) {
-      reason = safeText(err && (err.code || err.message || err.name), "bridge_exception");
+      reason = "bridge_exception";
       attempts.push({ kind: "canonical_bridge", ok: false, reason });
     }
   } else {
-    reason = lastBridgeError || "canonical_bridge_unavailable";
+    reason = "canonical_bridge_unavailable";
     attempts.push({ kind: "canonical_bridge", ok: false, reason });
   }
 
@@ -454,20 +463,30 @@ async function invokePrivateRuntime(input = {}, context = {}) {
     wrongTaskReply(reply, prompt) ||
     (progressionOverride ? progressionReplyMismatch(reply, expectedDomain, activeSubject) : domainReplyMismatch(reply, expectedDomain)) ||
     (expectedDomain === "technical" && (resultDomain(result) === "law" || legalFallback(reply)));
-  if (progressionOverride && semanticMismatch) {
-    degraded = true;
-    reply = anchorReplyToSubject(recoveryReply(prompt, expectedDomain, state), activeSubject);
-    result = obj(result);
-    attempts.push({ kind: "progression_recovery", ok: true, domain: expectedDomain, reason: reason || "recognized_followup_bridge_reply_unusable" });
-  } else if (semanticMismatch) {
-    degraded = true;
-    reply = recoveryReply(prompt, expectedDomain, state);
-    result = obj(result);
-    attempts.push({ kind: "bounded_recovery_kernel", ok: true, domain: expectedDomain, reason: reason || "bridge_reply_unusable" });
+  if (semanticMismatch) {
+    // Never turn a failed private intelligence invocation into an accepted 200 final.
+    // No model text or exception messages are put in machine-readable diagnostics.
+    const reasonCode = !bridge ? "canonical_bridge_unavailable" :
+      reason ? "canonical_bridge_exception" :
+      !reply ? "bridge_reply_missing" :
+      genericNonSubstantiveReply(reply) ? "generic_bridge_reply" :
+      "bridge_reply_semantic_mismatch";
+    const diagnosticTrace = { ...runtimeTrace, reasonCode, rejected: true, recovered: false, finalReplyKind: "rejected" };
+    if (process.env.SB_MARION_PRIVATE_TRACE === "true") {
+      try { console.info("[Sandblast][marion-adapter-trace]", { stage: "bridge_rejected", ...diagnosticTrace }); } catch (_) {}
+    }
+    return {
+      ok: false, statusCode: 502, stage: "private_runtime_substantive_unavailable",
+      reason: reasonCode, reply: "", authoritativeReply: "", visibleReply: "", directReply: "", finalReply: "",
+      responseFinalized: true, adapterVersion: VERSION, contract: CONTRACT,
+      diagnosticTrace,
+      // Keep diagnostics small and strictly non-sensitive: no model, prompt, ticket or credentials.
+      bridgeAttempts: attempts.map(attempt => ({ kind: attempt.kind, ok: false, replyPresent: attempt.replyPresent === true }))
+    };
   }
 
-  const packet = finalPacket(normalized, result, reply, degraded ? "private_runtime_recovered" : "private_runtime_complete", reason, degraded, attempts);
-  packet.diagnosticTrace = { ...runtimeTrace, recovered: degraded, finalReplyKind: wrongTaskReply(reply, prompt) ? "known_wrong_task" : reply ? "reply" : "empty" };
+  const packet = finalPacket(normalized, result, reply, "private_runtime_complete", "", false, attempts);
+  packet.diagnosticTrace = { ...runtimeTrace, rejected: false, recovered: false, finalReplyKind: "reply" };
   updateContinuity(normalized, packet.result, reply);
   return packet;
 }
@@ -482,13 +501,13 @@ function getStatus() {
     recoveryKernelAvailable: true,
     handler: "invokePrivateRuntime",
     requested: "./marionBridge.js",
-    resolvedPath: cachedBridgePath,
+    resolvedPath: cachedBridgePath ? path.basename(cachedBridgePath) : "",
     bridgeVersion: safeText(bridge && bridge.VERSION),
-    error: lastBridgeError,
+    error: lastBridgeError ? "bridge_load_failed" : "",
     loadAttempts: bridgeLoadAttempts,
     sessionCount: sessionContinuity.size,
     circularSafe: true, indexIndependent: true, chatEngineIndependent: true, gatewayIndependent: true,
-    neverReturnsRecoverable502: true,
+    neverReturnsRecoverable502: false,
     conversationFlowReady: !!conversationLayers, conversationFlowVersion: conversationLayers && conversationLayers.VERSION || "", outcomeFlowReady: !!(conversationLayers && conversationLayers.outcomeCoordinator), outcomeFlowVersion: conversationLayers && conversationLayers.outcomeCoordinator && conversationLayers.outcomeCoordinator.VERSION || "", strategicFlowReady: !!(conversationLayers && conversationLayers.strategicCoordinator), strategicFlowVersion: conversationLayers && conversationLayers.strategicCoordinator && conversationLayers.strategicCoordinator.VERSION || "", completionFlowReady: !!(conversationLayers && conversationLayers.completionCoordinator), completionFlowVersion: conversationLayers && conversationLayers.completionCoordinator && conversationLayers.completionCoordinator.VERSION || "", conversationLayers: [9,10,11,12,13,14,15,16,17,18,19,20], hardStopLayer: 20, additionalLayerRecommended: false, automaticExecutionAllowed: false
   };
 }
