@@ -2907,9 +2907,10 @@ function marionLearningStorageConfiguration() {
     try {
       const parsed = new URL(process.env.DATABASE_URL);
       const database = decodeURIComponent(parsed.pathname.replace(/^\/+|\/+$/g, ""));
-      const evaluationTarget = parsed.hostname.toLowerCase() === "ep-falling-violet-b5js6sve-pooler.c-7.us-east-2.aws.neon.tech" && database === "neondb";
-      configured = !evaluationEnabled || evaluationTarget;
-      reason = !runtimeEnabled ? "learning_disabled" : !configured ? "evaluation_database_not_allowlisted" :
+      // Normal runtime may use any explicitly configured PostgreSQL endpoint.
+      // The destructive/DDL evaluation initializer retains its own strict allowlist.
+      configured = Boolean(parsed.hostname && database && parsed.username);
+      reason = !runtimeEnabled ? "learning_disabled" : !configured ? "database_url_missing_or_invalid" :
         enabled ? "database_schema_check_required" : "evaluation_runtime_schema_check_required";
     } catch (_) {
       configured = false;
@@ -26352,18 +26353,28 @@ if (marionLearningSchemaInitRequested) {
   startSandblastServer(PORT);
 }
 
+let marionShutdownStarted = false;
 function gracefulShutdown(signal) {
-  try {
-    console.log(`[Sandblast][shutdown] ${signal}`);
-    if (server && typeof server.close === "function") {
-      server.close(() => process.exit(0));
-      setTimeout(() => process.exit(0), 5000).unref();
-      return;
+  if (marionShutdownStarted) return;
+  marionShutdownStarted = true;
+  console.log(`[Sandblast][shutdown] ${signal}`);
+  const forceExit = setTimeout(() => process.exit(1), 8000);
+  if (typeof forceExit.unref === "function") forceExit.unref();
+  (async () => {
+    try {
+      if (server && typeof server.close === "function") {
+        await new Promise(resolve => server.close(() => resolve()));
+      }
+      const pool = app.locals && app.locals.marionLearningPgPool;
+      if (pool && typeof pool.end === "function") {
+        await pool.end();
+        app.locals.marionLearningPgPool = null;
+      }
+      process.exit(0);
+    } catch (_) {
+      process.exit(1);
     }
-    process.exit(0);
-  } catch (_) {
-    process.exit(0);
-  }
+  })();
 }
 
 if (require.main === module || process.env.SB_INDEX_ATTACH_SIGNAL_HANDLERS === "true") {
