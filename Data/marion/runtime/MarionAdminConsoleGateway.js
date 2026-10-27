@@ -4292,3 +4292,67 @@ try {
   api.MARION_UNIFIED_PRIVATE_RUNTIME_GATEWAY_VERSION="nyx.marion.privateRuntime.gateway/8.0";api.getPrivateRuntimeAdapterStatus=()=>{const a=get(false);return a&&typeof a.getStatus==="function"?a.getStatus():{available:false,error}};
 })();
 /* MARION_UNIFIED_PRIVATE_RUNTIME_GATEWAY_V8_END */
+
+
+/* MARION_ADMIN_GATEWAY_PRIVATE_BOUNDARY_HARDENING_V9_START
+ * Route-level session validation is primary; guard privileged gateway entry points
+ * against accidental direct invocation without verified server context.
+ * No Neon credentials, advisory text, or session tickets are logged or promoted here.
+ */
+(function marionAdminGatewayPrivateBoundaryV9() {
+  "use strict";
+  const api = module.exports;
+  const proto = MarionAdminConsoleGateway.prototype;
+  const protectedMethods = ["handleApprove", "handleDeny", "handleEmergency", "releaseSafeMode"];
+  const aliases = {
+    handleApprove: ["handleApprove", "approve", "handleApproval", "approveCommand"],
+    handleDeny: ["handleDeny", "deny", "handleDenial", "denyCommand"],
+    handleEmergency: ["handleEmergency", "emergency", "triggerEmergency", "enterSafeMode", "safeMode"],
+    releaseSafeMode: ["releaseSafeMode"]
+  };
+  function verified(ctx) {
+    return !!ctx && ctx.adminVerified === true &&
+      (ctx.sessionVerified === true || ctx.verified === true);
+  }
+  function denied() {
+    return { ok: false, status: 401, statusCode: 401,
+      stage: "verified_admin_session_required", scope: "private_admin",
+      publicFallbackBlocked: true, reply: "" };
+  }
+  for (const name of protectedMethods) {
+    const original = proto[name];
+    if (typeof original !== "function") continue;
+    const guarded = async function (input = {}, context = {}) {
+      if (!verified(context)) return denied();
+      try { return await original.call(this, input, context); }
+      catch (error) {
+        return { ok: false, status: 500, statusCode: 500,
+          stage: "admin_gateway_action_failed", scope: "private_admin",
+          publicFallbackBlocked: true, reply: "" };
+      }
+    };
+    proto[name] = guarded;
+    for (const alias of aliases[name]) {
+      // Preserve the stable CommonJS export object used by circular consumers.
+      if (alias !== "releaseSafeMode") api[alias] = (input, ctx) => guarded.call(api.defaultGateway, input, ctx);
+      MarionAdminConsoleGateway[alias] = (input, ctx) => guarded.call(api.defaultGateway, input, ctx);
+    }
+  }
+  // executeCommand historically manufactured adminVerified:true for callers;
+  // never permit this bypass as a public instance entry point.
+  const originalExecuteCommand = proto.executeCommand;
+  if (typeof originalExecuteCommand === "function") {
+    proto.executeCommand = async function (_input = {}, _risk, _startedAt, context = {}) {
+      if (!verified(context)) return denied();
+      return originalExecuteCommand.call(this, _input, _risk, _startedAt);
+    };
+  }
+  // Emergency helper must not manufacture authorization or an emergency confirmation.
+  proto.emergencyDisable = async function(input = {}, context = {}) {
+    if (!verified(context)) return denied();
+    return this.handleEmergency(input, context);
+  };
+  api.MARION_ADMIN_GATEWAY_PRIVATE_BOUNDARY_HARDENING_VERSION =
+    "marion.adminGateway.privateBoundary/9.0";
+})();
+/* MARION_ADMIN_GATEWAY_PRIVATE_BOUNDARY_HARDENING_V9_END */
