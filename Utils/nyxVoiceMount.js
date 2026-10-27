@@ -19,11 +19,27 @@
  * - 2 compatibility health registrations
  */
 
-const tts = require("./tts.js");
-const voiceRoute = require("./voiceRoute.js");
+// Dependencies load on demand. A missing optional TTS module must not
+// prevent the canonical voice health endpoint from mounting.
+const dependencyCache = Object.create(null);
+function loadVoiceDependency(name) {
+  if (Object.prototype.hasOwnProperty.call(dependencyCache, name)) return dependencyCache[name];
+  try {
+    const moduleValue = require(name === "tts" ? "./tts.js" : "./voiceRoute.js");
+    dependencyCache[name] = { moduleValue, code: "" };
+  } catch (error) {
+    dependencyCache[name] = { moduleValue: null, code: error && error.code === "MODULE_NOT_FOUND" ? "MODULE_NOT_FOUND" : "DEPENDENCY_LOAD_FAILED" };
+  }
+  return dependencyCache[name];
+}
+function voiceDependency() { return loadVoiceDependency("voiceRoute").moduleValue; }
+function ttsDependency() { return loadVoiceDependency("tts").moduleValue; }
+function unavailableVoiceHandler(_req, res) {
+  return res.status(503).json({ ok: false, error: "nyx_voice_dependency_unavailable" });
+}
 
 const NYX_VOICE_MOUNT_VERSION =
-  "nyx.voice.utilsMount/2.2-route-plan-idempotency-hardlock";
+  "nyx.voice.utilsMount/2.3-dependency-isolation";
 
 const NYX_VOICE_HEALTH_CONTRACT =
   "nyx.voice.health/1.0-strict-allowlist";
@@ -120,33 +136,31 @@ function callable(value) {
 }
 
 function resolveVoiceHandler() {
-  const handler =
+  const voiceRoute = voiceDependency();
+  return (
     callable(voiceRoute && voiceRoute.voiceRoute) ||
     callable(voiceRoute && voiceRoute.route) ||
     callable(voiceRoute && voiceRoute.default) ||
-    callable(voiceRoute);
-
-  if (!handler) {
-    throw new TypeError(
-      "utils/voiceRoute.js does not export a callable route handler."
-    );
-  }
-
-  return handler;
+    callable(voiceRoute) ||
+    unavailableVoiceHandler
+  );
 }
 
 function resolveTtsHandler() {
+  const tts = ttsDependency();
   return (
     callable(tts && tts.handleTts) ||
     callable(tts && tts.ttsHandler) ||
     callable(tts && tts.handler) ||
     callable(tts && tts.default) ||
     callable(tts) ||
-    resolveVoiceHandler()
+    unavailableVoiceHandler
   );
 }
 
 function resolveVoiceHealth() {
+  const voiceRoute = voiceDependency();
+  const tts = ttsDependency();
   return (
     callable(voiceRoute && voiceRoute.health) ||
     callable(voiceRoute && voiceRoute.getHealth) ||
@@ -159,6 +173,8 @@ function resolveVoiceHealth() {
 }
 
 function resolveTtsHealth() {
+  const tts = ttsDependency();
+  const voiceRoute = voiceDependency();
   return (
     callable(tts && tts.health) ||
     callable(tts && tts.getHealth) ||
@@ -168,6 +184,14 @@ function resolveTtsHealth() {
     callable(voiceRoute && voiceRoute.status) ||
     null
   );
+}
+
+function dependencyHealthSnapshot(scope) {
+  const required = scope === "tts_compatibility" ? "tts" : "voiceRoute";
+  const loaded = loadVoiceDependency(required);
+  return { ok: false, enabled: false, ready: false, degraded: true,
+    reason: required + "_dependency_unavailable",
+    loadError: loaded.code || "HANDLER_UNAVAILABLE" };
 }
 
 function normalizeMountOptions(value) {
@@ -358,7 +382,7 @@ function buildHealthPayload(snapshot, scope) {
     sanitizeOperationalHealth(snapshot);
 
   return {
-    ok: sanitized.ok !== false,
+    ok: sanitized.ok === true && sanitized.enabled !== false && sanitized.ready !== false,
     service:
       sanitized.service ||
       (
@@ -463,17 +487,15 @@ function createHealthHandler(
       const health = healthResolver();
       const snapshot = health
         ? await Promise.resolve(health())
-        : {
-            ok: true,
-            enabled: true
-          };
+        : dependencyHealthSnapshot(scope);
 
-      const payload = compactHealthPayload(
-        buildHealthPayload(
-          snapshot,
-          scope
-        )
-      );
+      const requiredModule = scope === "tts_compatibility" ? ttsDependency() : voiceDependency();
+       const usableHandler = scope === "tts_compatibility"
+         ? requiredModule && (callable(requiredModule.handleTts) || callable(requiredModule.ttsHandler) || callable(requiredModule.handler) || callable(requiredModule.default) || callable(requiredModule))
+         : requiredModule && (callable(requiredModule.voiceRoute) || callable(requiredModule.route) || callable(requiredModule.default) || callable(requiredModule));
+       const payload = compactHealthPayload(
+         buildHealthPayload(usableHandler ? snapshot : dependencyHealthSnapshot(scope), scope)
+       );
 
       return res
         .status(payload.ok === false ? 503 : 200)
