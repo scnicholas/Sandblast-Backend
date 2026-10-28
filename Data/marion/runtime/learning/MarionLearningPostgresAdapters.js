@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.2-durable-owner-review-store";
+const VERSION = "marion.learningPostgresAdapters/1.3-probe-diagnostics";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -247,8 +247,14 @@ async function probeMarionLearningPostgres(pool) {
     }
     await pool.query("SELECT review_ref, record FROM public.marion_learning_fixture_reviews LIMIT 0");
     return { ready: true, coreReady: true, reviewStoreReady: true, storage: "postgresql", reason: "evaluation_storage_ready" };
-  } catch (_) {
-    return { ready: false, coreReady: false, reviewStoreReady: false, storage: "postgresql", reason: "postgres_probe_failed" };
+  } catch (error) {
+    const code = error && typeof error.code === "string" ? error.code : "";
+    const reason = ["28P01", "28000"].includes(code) ? "postgres_authentication_failed"
+      : ["ENOTFOUND", "EAI_AGAIN"].includes(code) ? "postgres_dns_failure"
+      : ["ECONNREFUSED", "ETIMEDOUT", "ECONNRESET", "57P01"].includes(code) ? "postgres_connection_failed"
+      : ["42P01", "42501", "3F000"].includes(code) ? "postgres_schema_or_permission_error"
+      : "postgres_probe_failed";
+    return { ready: false, coreReady: false, reviewStoreReady: false, storage: "postgresql", reason };
   }
 }
 
