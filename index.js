@@ -3181,6 +3181,7 @@ function marionLearningSetupDiagnosticReason(error) {
     ["trusted manifestRegistry methods are required", "manifest_registry_contract_invalid"],
     ["registered Marion learning runtime manifest methods are required", "admin_learning_handlers_contract_invalid"],
     ["server middleware owner-context resolver is required", "owner_context_resolver_missing"],
+    ["learning_admin_runtime_contract_invalid", "learning_admin_runtime_contract_invalid"],
     ["fixture directory must be an absolute path", "fixture_directory_invalid"],
     ["manifest directory must be an absolute path", "manifest_directory_invalid"]
   ]);
@@ -3218,24 +3219,33 @@ function ensureMarionLearningRuntime() {
       return { ready: false, status: "learning_admin_handlers_unavailable" };
     }
   }
+  let setupStage = "learning_runtime_start";
   try {
+    setupStage = "fixture_store_load";
     const learningRoot = path.join(__dirname, "Data/marion/runtime/learning");
     const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "fixture_store"));
     const fixtureModule = require("./Data/marion/runtime/learning/MarionLearningFixtureStore.js");
+    setupStage = "fixture_store_create";
     const fixtureStore = fixtureModule.createMarionLearningFixtureStore({ directory: fixtureDirectory });
+    setupStage = "fixture_contract_load";
     const contract = require("./Data/marion/runtime/learning/MarionLearningFixtureContract.js");
+    setupStage = "manifest_registry_load";
     const manifestModule = require("./Data/marion/runtime/learning/MarionLearningManifestRegistry.js");
+    setupStage = "manifest_source_create";
     const manifestSource = manifestModule.createFileManifestSource({ directory: path.join(learningRoot, "manifests") });
     app.locals.marionLearningFixtureStore = fixtureStore;
     app.locals.marionLearningManifestSource = manifestSource;
     app.locals.marionLearningOfflineVersions = app.locals.marionLearningOfflineVersions instanceof Map
       ? app.locals.marionLearningOfflineVersions : new Map();
+    setupStage = "postgres_pool_acquire";
     const pgPool = getMarionLearningPostgresPool();
     if (!pgPool) return { ready: false, status: "database_url_missing_or_invalid" };
+    setupStage = "postgres_adapter_load";
     const adapterModule = require("./Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
     let trust = app.locals.marionLearningTrust;
     let adapters = app.locals.marionLearningAdapters;
     if (!adapters) {
+      setupStage = "postgres_adapter_create";
       adapters = adapterModule.createMarionLearningPostgresAdapters({
         pool: pgPool,
         resolveVersion: (...args) => {
@@ -3248,10 +3258,12 @@ function ensureMarionLearningRuntime() {
       app.locals.marionLearningAdapters = adapters;
     }
     if (!trust) {
+      setupStage = "trusted_hooks_load";
       const trustedHooks = require("./Data/marion/runtime/learning/MarionLearningTrustedHooks.js");
       const offlineVersions = app.locals.marionLearningOfflineVersions instanceof Map
         ? app.locals.marionLearningOfflineVersions : new Map();
       app.locals.marionLearningOfflineVersions = offlineVersions;
+      setupStage = "trusted_hooks_create";
       trust = trustedHooks.createMarionLearningTrustedHooks({
         versionRegistry: offlineVersions,
         reviewStore: adapters.reviewStore,
@@ -3261,15 +3273,17 @@ function ensureMarionLearningRuntime() {
     }
     if (typeof trust.resolveVersion !== "function" || typeof trust.verifyFixtureReview !== "function" ||
         typeof trust.issueFixtureReview !== "function") {
-      return { ready: false, status: "trusted_resolver_or_review_issuer_missing" };
+      return { ready: false, status: "trusted_resolver_or_review_issuer_missing", setupStage: "trusted_hooks_contract" };
     }
     if (trust.configured === false) {
       const configReason = /^[a-z0-9_]+$/i.test(String(trust.configurationReason || ""))
         ? String(trust.configurationReason)
         : "review_trust_config_missing";
-      return { ready: false, status: configReason };
+      return { ready: false, status: configReason, diagnosticReason: configReason, setupStage: "trusted_hooks_configuration" };
     }
+    setupStage = "backend_setup_load";
     const setup = require("./Data/marion/runtime/learning/MarionLearningBackendSetup.js");
+    setupStage = "backend_registration";
     const backend = setup.createAndRegisterMarionLearningBackend({
       ...adapters,
       manifestSource,
@@ -3280,28 +3294,38 @@ function ensureMarionLearningRuntime() {
       captureEnabled: storageConfig.enabled,
       gateway: require("./Data/marion/runtime/MarionVoiceGateway.js")
     });
+    setupStage = "admin_handlers_load";
     const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
-    app.locals.marionLearningBackend = backend;
-    app.locals.marionLearningAdminHandlers = admin.createMarionLearningAdminHandlers({
+    setupStage = "admin_handlers_create";
+    const adminHandlers = admin.createMarionLearningAdminHandlers({
       runtime: backend.runtime,
       getVerifiedOwnerContext: marionLearningVerifiedOwnerContext
     });
+    // Publish the runtime and admin interface together only after validation.
+    if (!backend || !backend.runtime || !adminHandlers || typeof adminHandlers.issueReview !== "function") {
+      throw new TypeError("learning_admin_runtime_contract_invalid");
+    }
+    app.locals.marionLearningBackend = backend;
+    app.locals.marionLearningAdminHandlers = adminHandlers;
     registerMarionLearningOfflineComposerVersions();
     delete app.locals.marionLearningSetupDiagnostic;
+    delete app.locals.marionLearningSetupStage;
     return { ready: true, status: marionLearningOfflineHandlersReady() ? "ready" : "ready_review_only" };
   } catch (error) {
     const message = String(error && error.message || "");
     const status = /Cannot find module ['\"]pg/.test(message) ? "postgres_dependency_missing" : "postgres_learning_setup_failed";
     const diagnosticReason = marionLearningSetupDiagnosticReason(error);
     app.locals.marionLearningSetupDiagnostic = diagnosticReason;
-    if (app.locals.marionLearningLastLoggedSetupDiagnostic !== diagnosticReason) {
+    app.locals.marionLearningSetupStage = setupStage;
+    if (app.locals.marionLearningLastLoggedSetupDiagnostic !== `${setupStage}:${diagnosticReason}`) {
       console.warn("[Sandblast][marion-learning-runtime]", {
         status: "setup_failed",
-        reason: diagnosticReason
+        reason: diagnosticReason,
+        stage: setupStage
       });
-      app.locals.marionLearningLastLoggedSetupDiagnostic = diagnosticReason;
+      app.locals.marionLearningLastLoggedSetupDiagnostic = `${setupStage}:${diagnosticReason}`;
     }
-    return { ready: false, status, diagnosticReason };
+    return { ready: false, status, diagnosticReason, setupStage };
   }
 }
 
@@ -4539,6 +4563,7 @@ app.get(MARION_ADMIN_CONVERSATION_HEALTH_ROUTES, async (req, res) => {
       offlineEvaluationReady,
       offlineEvaluationReason,
       setupDiagnostic: marionLearning.diagnosticReason || app.locals.marionLearningSetupDiagnostic || null,
+      setupStage: marionLearning.setupStage || app.locals.marionLearningSetupStage || null,
       status: marionLearning.status,
       storage: learningStorage,
       requiresExplicitOwnerConsent: true,
@@ -26291,6 +26316,8 @@ function startSandblastServer(port = PORT) {
         learningEnabled: learningStorage.enabled,
         evaluationEnabled: learningStorage.evaluationEnabled,
         runtimeStatus: learningSetup.status,
+        runtimeSetupStage: learningSetup.setupStage || app.locals.marionLearningSetupStage || undefined,
+        runtimeSetupReason: learningSetup.diagnosticReason || app.locals.marionLearningSetupDiagnostic || undefined,
         liveActivationEnabled: false
       });
       return readiness;
