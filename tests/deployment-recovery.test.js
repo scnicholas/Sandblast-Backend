@@ -1,0 +1,11 @@
+"use strict";
+const test=require("node:test"), assert=require("node:assert/strict"), path=require("node:path"), fs=require("node:fs");
+const root=path.resolve(__dirname,"..");
+const policy=require("../Data/marion/runtime/learning/MarionLearningPolicy.js");
+const adapter=require("../Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+const mount=require("../utils/nyxVoiceMount.js");
+test("exact case-sensitive deployment paths",()=>{for(const rel of ["utils/nyxVoiceMount.js","utils/tts.js","utils/voiceRoute.js","Data/marion/runtime/learning/MarionLearningPostgresAdapters.js","Data/marion/runtime/learning/MarionLearningPolicy.js"]) assert.ok(fs.statSync(path.join(root,rel)).isFile());});
+test("learning module contract intact",()=>{assert.equal(typeof adapter.createMarionLearningPostgresAdapters,"function");assert.equal(typeof adapter.probeMarionLearningPostgres,"function");assert.equal(typeof adapter.initializeMarionLearningPostgresSchema,"function");});
+test("policy rejects protected content",()=>{assert.equal(policy.validateSafeRecord({secret:"no"}).ok,false);assert.equal(policy.validateSafeRecord({a:1}).ok,true);});
+test("missing DB pool fails closed",async()=>{const result=await adapter.probeMarionLearningPostgres(null);assert.equal(result.ready,false);assert.equal(result.reason,"postgres_pool_unavailable");});
+test("voice mounting remains idempotent",()=>{const entries=[];const app={locals:{},get:(...a)=>entries.push(["GET",...a]),post:(...a)=>entries.push(["POST",...a]),options:(...a)=>entries.push(["OPTIONS",...a])};mount(app);const first=entries.length;assert.equal(first,16);mount(app);assert.equal(entries.length,first);});
