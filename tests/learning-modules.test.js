@@ -1,0 +1,14 @@
+"use strict";
+const test=require("node:test"), assert=require("node:assert/strict");
+const Policy=require("../Data/marion/runtime/learning/MarionLearningPolicy.js");
+const Adapter=require("../Data/marion/runtime/learning/MarionLearningPostgresAdapters.js");
+test("module exports",()=>{assert.equal(typeof Adapter.probeMarionLearningPostgres,"function");assert.equal(typeof Policy.validateSafeRecord,"function")});
+test("safe object accepted",()=>assert.equal(Policy.validateSafeRecord({scope:"routing",score:0.5}).ok,true));
+test("protected fields rejected",()=>assert.equal(Policy.validateSafeRecord({secret:"x"}).ok,false));
+test("nonfinite numbers rejected",()=>assert.equal(Policy.validateSafeRecord({score:NaN}).ok,false));
+test("undefined rejected",()=>assert.equal(Policy.validateSafeRecord({score:undefined}).ok,false));
+test("getter rejected without invocation",()=>{let n=0;const r={};Object.defineProperty(r,"value",{enumerable:true,get(){n++;return 1}});assert.equal(Policy.validateSafeRecord(r).ok,false);assert.equal(n,0)});
+test("cycles rejected",()=>{const a={};a.self=a;assert.equal(Policy.validateSafeRecord(a).ok,false)});
+test("shared object without cycle permitted",()=>{const v={x:1};assert.equal(Policy.validateSafeRecord({a:v,b:v}).ok,true)});
+test("missing pool fails closed",async()=>{const r=await Adapter.probeMarionLearningPostgres(null);assert.equal(r.ready,false)});
+test("postgres authentication reason redacted",async()=>{const r=await Adapter.probeMarionLearningPostgres({query:async()=>{const e=new Error("password omitted");e.code="28P01";throw e}});assert.equal(r.reason,"postgres_authentication_failed")});
