@@ -23,7 +23,7 @@
 // prevent the canonical voice health endpoint from mounting.
 const dependencyCache = Object.create(null);
 function loadVoiceDependency(name) {
-  if (Object.prototype.hasOwnProperty.call(dependencyCache, name)) return dependencyCache[name];
+  if (Object.prototype.hasOwnProperty.call(dependencyCache, name) && dependencyCache[name].moduleValue) return dependencyCache[name];
   try {
     const moduleValue = require(name === "tts" ? "./tts.js" : "./voiceRoute.js");
     dependencyCache[name] = { moduleValue, code: "" };
@@ -39,7 +39,7 @@ function unavailableVoiceHandler(_req, res) {
 }
 
 const NYX_VOICE_MOUNT_VERSION =
-  "nyx.voice.utilsMount/2.3-dependency-isolation";
+  "nyx.voice.utilsMount/2.3.1-dependency-retry";
 
 const NYX_VOICE_HEALTH_CONTRACT =
   "nyx.voice.health/1.0-strict-allowlist";
