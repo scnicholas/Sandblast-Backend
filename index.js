@@ -3221,6 +3221,14 @@ function ensureMarionLearningRuntime() {
   }
   let setupStage = "learning_runtime_start";
   try {
+    // Resolve the gateway before learning modules to avoid partially initialized
+    // CommonJS exports when the learning setup and gateway import one another.
+    setupStage = "gateway_registration_module_load";
+    const learningGateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
+    setupStage = "gateway_registration_hook_check";
+    if (!learningGateway || typeof learningGateway.registerMarionLearningRuntime !== "function") {
+      throw new Error("Gateway learning registration hook is unavailable");
+    }
     setupStage = "fixture_store_load";
     const learningRoot = path.join(__dirname, "Data/marion/runtime/learning");
     const fixtureDirectory = path.resolve(process.env.SB_MARION_LEARNING_FIXTURE_DIR || path.join(learningRoot, "fixture_store"));
@@ -3292,7 +3300,7 @@ function ensureMarionLearningRuntime() {
       issueFixtureReview: trust.issueFixtureReview,
       offlineEvaluationReady: () => marionLearningOfflineHandlersReady(),
       captureEnabled: storageConfig.enabled,
-      gateway: require("./Data/marion/runtime/MarionVoiceGateway.js")
+      gateway: learningGateway
     });
     setupStage = "admin_handlers_load";
     const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
