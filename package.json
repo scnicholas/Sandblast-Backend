@@ -6,13 +6,15 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
+    "start": "node index.js",
     "check:syntax": "node scripts/check-syntax.js",
     "test:gateway": "node tests/gateway-contract.test.js",
     "test:authority": "node tests/runtime-authority.test.js",
     "test:widget": "node tests/widget-contract.test.js",
     "test:learning": "node tests/learning-adapters.test.js",
     "test": "npm run check:syntax && npm run test:gateway && npm run test:authority && npm run test:widget && npm run test:learning",
-    "verify": "npm test"
+    "verify": "npm test",
+    "diagnose:postgres": "node scripts/check-postgres-dependency.js"
   },
   "dependencies": {
     "ably": "^2.22.0",
