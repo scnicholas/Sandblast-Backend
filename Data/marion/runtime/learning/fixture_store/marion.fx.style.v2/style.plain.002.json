@@ -1,0 +1,49 @@
+{
+  "caseId": "style.plain.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.1.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "plain_language",
+  "input": {
+    "request": "Explain the supplied term to a new learner in no more than two short sentences. Keep the meaning accurate and use plain language.",
+    "evidence": {
+      "Term": "two-factor authentication",
+      "Plain meaning": "an extra sign-in step that checks a second proof of identity"
+    }
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "plain_language"
+      ]
+    },
+    "criterion": "Preserve accuracy and explain terms the intended audience may not know.",
+    "caseCategory": "plain_language",
+    "rubric": {
+      "version": "1.0",
+      "checks": [
+        {
+          "type": "definition_of_term",
+          "term": "two-factor authentication"
+        },
+        {
+          "type": "contains_all",
+          "values": [
+            "second proof"
+          ]
+        },
+        {
+          "type": "sentence_count_max",
+          "value": 2
+        },
+        {
+          "type": "sentence_words_max",
+          "value": 24
+        }
+      ]
+    }
+  },
+  "fixtureSetHash": "eaf25375ff2e87239c1f5c884dc0e8e1f217a02e17b4a554a391929978f36e9e"
+}

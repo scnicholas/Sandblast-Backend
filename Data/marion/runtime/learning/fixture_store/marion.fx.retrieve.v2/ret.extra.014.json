@@ -1,0 +1,34 @@
+{
+  "caseId": "ret.extra.014",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "multi_hop",
+  "input": {
+    "request": "Which station hosts the team assigned to shipment 064? Synthetic scenario ret.extra.014.",
+    "evidence": {
+      "records": [
+        {
+          "shipment": 64,
+          "team": "TEAM-064"
+        },
+        {
+          "team": "TEAM-064",
+          "station": "STATION-064"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "STATION-064",
+      "grounded": true,
+      "unsupportedClaims": 0
+    },
+    "criterion": "Use only supported links and identify uncertainty when a required link is absent.",
+    "caseCategory": "multi_hop"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

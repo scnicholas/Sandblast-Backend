@@ -1,0 +1,41 @@
+{
+  "caseId": "style.clarifying.005",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.1.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "clarifying_response",
+  "input": {
+    "request": "The request is ambiguous. Ask exactly one focused question to resolve the important choice. Which meeting should I move: the 10 AM planning meeting or the 2 PM review?",
+    "evidence": {
+      "Matching meetings": "Planning — 10 AM; Review — 2 PM"
+    }
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "focused_clarification"
+      ]
+    },
+    "criterion": "Ask only for the detail that materially changes the answer.",
+    "caseCategory": "clarifying_response",
+    "rubric": {
+      "version": "1.0",
+      "checks": [
+        {
+          "type": "question_count_exact",
+          "value": 1
+        },
+        {
+          "type": "contains_any",
+          "values": [
+            "planning",
+            "review"
+          ]
+        }
+      ]
+    }
+  },
+  "fixtureSetHash": "eaf25375ff2e87239c1f5c884dc0e8e1f217a02e17b4a554a391929978f36e9e"
+}

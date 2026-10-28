@@ -1,0 +1,36 @@
+{
+  "caseId": "ret.version.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "version_boundary",
+  "input": {
+    "request": "Use only the latest registered version of synthetic record ORBIT-048. Synthetic scenario ret.version.003.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-048",
+          "version": 2,
+          "value": "value-048"
+        },
+        {
+          "item": "ORBIT-048",
+          "version": 1,
+          "value": "stale"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-048",
+      "recordVersion": 2,
+      "grounded": true
+    },
+    "criterion": "Return the version matching the requested boundary and identify version/date when relevant.",
+    "caseCategory": "version_boundary"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

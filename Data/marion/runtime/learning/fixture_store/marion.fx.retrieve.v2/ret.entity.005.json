@@ -1,0 +1,36 @@
+{
+  "caseId": "ret.entity.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "entity_disambiguation",
+  "input": {
+    "request": "Choose the entry with code 010: is it LUMA-010 or LUMA-110? Synthetic scenario ret.entity.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "LUMA-010",
+          "code": 10,
+          "value": "value-010"
+        },
+        {
+          "item": "LUMA-110",
+          "code": 110,
+          "value": "other-010"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "selectedId": "LUMA-010",
+      "grounded": true,
+      "clarificationRequired": false
+    },
+    "criterion": "Select only when the distinguishing evidence is sufficient; otherwise ask a focused question.",
+    "caseCategory": "entity_disambiguation"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

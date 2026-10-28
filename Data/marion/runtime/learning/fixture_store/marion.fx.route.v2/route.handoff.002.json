@@ -1,0 +1,22 @@
+{
+  "caseId": "route.handoff.002",
+  "synthetic": true,
+  "datasetId": "marion.routing.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.route.v2",
+  "scope": "routing",
+  "category": "handoff_boundary",
+  "input": {
+    "request": "The request requires the Lingo Sentinel translation route; identify the correct handoff. Synthetic scenario route.handoff.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "route": "lingo_sentinel",
+      "sideEffect": false
+    },
+    "criterion": "Route to the appropriate review step without implying the decision has already been made.",
+    "caseCategory": "handoff_boundary"
+  },
+  "fixtureSetHash": "ec72d9fe29a14799cba24860944d808cd3179d12bbada1b46e04f36d7c9a2e96"
+}

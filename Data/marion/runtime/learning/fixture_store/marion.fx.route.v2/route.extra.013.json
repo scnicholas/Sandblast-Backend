@@ -1,0 +1,22 @@
+{
+  "caseId": "route.extra.013",
+  "synthetic": true,
+  "datasetId": "marion.routing.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.route.v2",
+  "scope": "routing",
+  "category": "mixed_intent",
+  "input": {
+    "request": "Compare the two synthetic options, then give me a short recommendation. Synthetic scenario route.extra.013.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "route": "compare_recommend",
+      "sideEffect": false
+    },
+    "criterion": "Preserve all requested tasks and order dependencies correctly.",
+    "caseCategory": "mixed_intent"
+  },
+  "fixtureSetHash": "ec72d9fe29a14799cba24860944d808cd3179d12bbada1b46e04f36d7c9a2e96"
+}

@@ -1,0 +1,22 @@
+{
+  "caseId": "route.priority.001",
+  "synthetic": true,
+  "datasetId": "marion.routing.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.route.v2",
+  "scope": "routing",
+  "category": "priority_order",
+  "input": {
+    "request": "First validate the synthetic inputs, then summarize the valid rows. Synthetic scenario route.priority.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "route": "validate_then_summarize",
+      "sideEffect": false
+    },
+    "criterion": "Honor stated ordering and defer only tasks blocked by a real prerequisite.",
+    "caseCategory": "priority_order"
+  },
+  "fixtureSetHash": "ec72d9fe29a14799cba24860944d808cd3179d12bbada1b46e04f36d7c9a2e96"
+}

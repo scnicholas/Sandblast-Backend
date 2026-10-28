@@ -1,0 +1,35 @@
+{
+  "caseId": "ret.conflict.004",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "source_conflict",
+  "input": {
+    "request": "Two synthetic sources disagree about ORBIT-029; report the authoritative value. Synthetic scenario ret.conflict.004.",
+    "evidence": {
+      "records": [
+        {
+          "source": "older",
+          "rank": 1,
+          "value": "old-029"
+        },
+        {
+          "source": "current",
+          "rank": 2,
+          "value": "value-029"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-029",
+      "sourceRuleApplied": true
+    },
+    "criterion": "Apply the registered source precedence rule or expose unresolved conflict.",
+    "caseCategory": "source_conflict"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

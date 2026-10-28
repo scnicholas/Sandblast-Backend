@@ -1,0 +1,29 @@
+{
+  "caseId": "ret.paraphrase.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "paraphrase_robustness",
+  "input": {
+    "request": "Tell me whether ORBIT-045 is ready. Synthetic scenario ret.paraphrase.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-045",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "ready",
+      "grounded": true
+    },
+    "criterion": "Preserve the user’s constraints and retrieve the same supported target.",
+    "caseCategory": "paraphrase_robustness"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

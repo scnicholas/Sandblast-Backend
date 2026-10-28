@@ -1,0 +1,37 @@
+{
+  "caseId": "ret.rank.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "relevance_ranking",
+  "input": {
+    "request": "Rank the catalog matches for the exact code ORBIT-032. Synthetic scenario ret.rank.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-032",
+          "match": "exact",
+          "rank": 1
+        },
+        {
+          "item": "ORBIT-132",
+          "match": "partial",
+          "rank": 2
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "rankedIds": [
+        "ORBIT-032",
+        "ORBIT-132"
+      ]
+    },
+    "criterion": "Place the best-supported relevant candidate first and avoid ranking distractors as answers.",
+    "caseCategory": "relevance_ranking"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

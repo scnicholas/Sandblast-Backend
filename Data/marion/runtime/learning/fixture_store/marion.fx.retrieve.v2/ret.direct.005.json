@@ -1,0 +1,30 @@
+{
+  "caseId": "ret.direct.005",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "direct_lookup",
+  "input": {
+    "request": "For catalog item ORBIT-005, what is its status? Synthetic scenario ret.direct.005.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-005",
+          "status": "value-005"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-005",
+      "grounded": true,
+      "found": true
+    },
+    "criterion": "Return the matching synthetic reference; do not add unsupported facts.",
+    "caseCategory": "direct_lookup"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

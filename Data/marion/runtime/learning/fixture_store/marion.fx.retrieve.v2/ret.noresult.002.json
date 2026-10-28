@@ -1,0 +1,29 @@
+{
+  "caseId": "ret.noresult.002",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "no_result",
+  "input": {
+    "request": "What is the status of catalog item ABSENT-022? Synthetic scenario ret.noresult.002.",
+    "evidence": {
+      "records": [
+        {
+          "item": "ORBIT-022",
+          "status": "ready"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "found": false,
+      "unsupportedGuess": false
+    },
+    "criterion": "State that no match was found; do not fabricate or substitute silently.",
+    "caseCategory": "no_result"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

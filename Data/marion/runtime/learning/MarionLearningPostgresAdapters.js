@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.3-probe-diagnostics";
+const VERSION = "marion.learningPostgresAdapters/1.3.1-probe-pool-diagnostics";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -230,7 +230,7 @@ async function verifyAuditChain(pool) {
 }
 
 async function probeMarionLearningPostgres(pool) {
-  if (!pool || typeof pool.query !== "function") return { ready: false, storage: "postgresql" };
+  if (!pool || typeof pool.query !== "function") return { ready: false, coreReady: false, reviewStoreReady: false, storage: "postgresql", reason: "postgres_pool_unavailable" };
   try {
     await pool.query("SELECT 1");
     const schema = await readSchemaPresence(pool);

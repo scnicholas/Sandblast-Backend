@@ -1,0 +1,49 @@
+{
+  "caseId": "style.access.001",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.1.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "accessibility",
+  "input": {
+    "request": "Define the uncommon term in the supplied facts in no more than two short sentences. Use direct wording.",
+    "evidence": {
+      "Term": "escrow",
+      "Plain definition": "money held by a neutral third party until an agreement is complete"
+    }
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "accessible"
+      ]
+    },
+    "criterion": "Use direct wording and readable formatting without changing meaning.",
+    "caseCategory": "accessibility",
+    "rubric": {
+      "version": "1.0",
+      "checks": [
+        {
+          "type": "definition_of_term",
+          "term": "escrow"
+        },
+        {
+          "type": "contains_all",
+          "values": [
+            "third party"
+          ]
+        },
+        {
+          "type": "sentence_count_max",
+          "value": 2
+        },
+        {
+          "type": "sentence_words_max",
+          "value": 22
+        }
+      ]
+    }
+  },
+  "fixtureSetHash": "eaf25375ff2e87239c1f5c884dc0e8e1f217a02e17b4a554a391929978f36e9e"
+}

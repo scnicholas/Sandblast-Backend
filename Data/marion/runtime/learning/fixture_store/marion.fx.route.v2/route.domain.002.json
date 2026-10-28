@@ -1,0 +1,22 @@
+{
+  "caseId": "route.domain.002",
+  "synthetic": true,
+  "datasetId": "marion.routing.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.route.v2",
+  "scope": "routing",
+  "category": "domain_mapping",
+  "input": {
+    "request": "Route this synthetic request about the sandbox calendar connector. Synthetic scenario route.domain.002.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "route": "calendar_connector",
+      "sideEffect": false
+    },
+    "criterion": "Route to the best supported domain; do not infer regulated advice or capabilities.",
+    "caseCategory": "domain_mapping"
+  },
+  "fixtureSetHash": "ec72d9fe29a14799cba24860944d808cd3179d12bbada1b46e04f36d7c9a2e96"
+}

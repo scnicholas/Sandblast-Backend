@@ -1,0 +1,45 @@
+{
+  "caseId": "style.extra.015",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.1.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "structure",
+  "input": {
+    "request": "Return one short heading and exactly two bullet points, covering the status and next action in the supplied facts.",
+    "evidence": {
+      "Status": "The budget is confirmed",
+      "Next action": "Send the purchase request"
+    }
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "requested_structure"
+      ]
+    },
+    "criterion": "Use a structure that makes the information easy to scan and act on.",
+    "caseCategory": "structure",
+    "rubric": {
+      "version": "1.0",
+      "checks": [
+        {
+          "type": "heading_present"
+        },
+        {
+          "type": "bullet_count_exact",
+          "value": 2
+        },
+        {
+          "type": "contains_all",
+          "values": [
+            "confirmed",
+            "purchase"
+          ]
+        }
+      ]
+    }
+  },
+  "fixtureSetHash": "eaf25375ff2e87239c1f5c884dc0e8e1f217a02e17b4a554a391929978f36e9e"
+}

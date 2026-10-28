@@ -1,0 +1,27 @@
+{
+  "caseId": "ret.followup.003",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "follow_up",
+  "input": {
+    "request": "And what is the status for ORBIT-038? Synthetic scenario ret.followup.003.",
+    "evidence": {
+      "context": {
+        "item": "ORBIT-038",
+        "status": "value-038"
+      }
+    }
+  },
+  "reference": {
+    "expected": {
+      "answer": "value-038",
+      "contextUsed": true
+    },
+    "criterion": "Resolve only unambiguous references; request clarification when context is insufficient.",
+    "caseCategory": "follow_up"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

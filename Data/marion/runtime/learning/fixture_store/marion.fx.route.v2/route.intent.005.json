@@ -1,0 +1,22 @@
+{
+  "caseId": "route.intent.005",
+  "synthetic": true,
+  "datasetId": "marion.routing.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.route.v2",
+  "scope": "routing",
+  "category": "intent_classification",
+  "input": {
+    "request": "Summarize the synthetic note and then extract its three labels. Synthetic scenario route.intent.005.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "route": "summarize_extract",
+      "sideEffect": false
+    },
+    "criterion": "Choose the registered route matching the user’s primary intent.",
+    "caseCategory": "intent_classification"
+  },
+  "fixtureSetHash": "ec72d9fe29a14799cba24860944d808cd3179d12bbada1b46e04f36d7c9a2e96"
+}

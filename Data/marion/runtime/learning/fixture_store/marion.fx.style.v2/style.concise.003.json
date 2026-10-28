@@ -1,0 +1,44 @@
+{
+  "caseId": "style.concise.003",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.1.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "conciseness",
+  "input": {
+    "request": "Using the supplied synthetic facts, answer in exactly one sentence: What time does registration close? Do not add another fact.",
+    "evidence": {
+      "Registration closes": "10:30 AM"
+    }
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "concise"
+      ]
+    },
+    "criterion": "Meet the requested length without omitting the direct answer.",
+    "caseCategory": "conciseness",
+    "rubric": {
+      "version": "1.0",
+      "checks": [
+        {
+          "type": "sentence_count_max",
+          "value": 1
+        },
+        {
+          "type": "contains_all",
+          "values": [
+            "10:30 AM"
+          ]
+        },
+        {
+          "type": "max_words",
+          "value": 24
+        }
+      ]
+    }
+  },
+  "fixtureSetHash": "eaf25375ff2e87239c1f5c884dc0e8e1f217a02e17b4a554a391929978f36e9e"
+}

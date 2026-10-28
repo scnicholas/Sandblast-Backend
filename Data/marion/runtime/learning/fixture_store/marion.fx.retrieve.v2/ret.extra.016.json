@@ -1,0 +1,33 @@
+{
+  "caseId": "ret.extra.016",
+  "synthetic": true,
+  "datasetId": "marion.retrieval.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.retrieve.v2",
+  "scope": "retrieval",
+  "category": "query_ambiguity",
+  "input": {
+    "request": "Find the Delta record from the requested period. Synthetic scenario ret.extra.016.",
+    "evidence": {
+      "records": [
+        {
+          "title": "Delta",
+          "period": "north"
+        },
+        {
+          "title": "Delta",
+          "period": "south"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "expected": {
+      "clarificationRequired": true,
+      "unsupportedGuess": false
+    },
+    "criterion": "Ask a concise clarification or return clearly separated interpretations.",
+    "caseCategory": "query_ambiguity"
+  },
+  "fixtureSetHash": "b57f1ebadaab25cad79127ee39d6480ab165abfa91d3004c6031c83c47a13e4f"
+}

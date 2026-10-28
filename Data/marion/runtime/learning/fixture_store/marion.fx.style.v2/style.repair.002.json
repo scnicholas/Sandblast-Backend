@@ -1,0 +1,45 @@
+{
+  "caseId": "style.repair.002",
+  "synthetic": true,
+  "datasetId": "marion.response-style.synthetic.v2",
+  "datasetVersion": "2.1.0",
+  "fixtureStore": "marion.fx.style.v2",
+  "scope": "response_style",
+  "category": "repair_and_correction",
+  "input": {
+    "request": "The earlier value is wrong. Correct it directly using the verified value from the supplied facts. Keep the correction brief.",
+    "evidence": {
+      "Earlier value": "$46",
+      "Verified corrected value": "$64"
+    }
+  },
+  "reference": {
+    "expected": {
+      "styleChecks": [
+        "direct_correction"
+      ]
+    },
+    "criterion": "State the correction plainly, give the corrected information, and continue the task.",
+    "caseCategory": "repair_and_correction",
+    "rubric": {
+      "version": "1.0",
+      "checks": [
+        {
+          "type": "correction_present",
+          "value": "$64",
+          "cues": [
+            "Correction",
+            "The correct value",
+            "It should be",
+            "The corrected value"
+          ]
+        },
+        {
+          "type": "sentence_count_max",
+          "value": 2
+        }
+      ]
+    }
+  },
+  "fixtureSetHash": "eaf25375ff2e87239c1f5c884dc0e8e1f217a02e17b4a554a391929978f36e9e"
+}

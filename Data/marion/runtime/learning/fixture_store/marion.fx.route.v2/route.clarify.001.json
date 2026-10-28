@@ -1,0 +1,22 @@
+{
+  "caseId": "route.clarify.001",
+  "synthetic": true,
+  "datasetId": "marion.routing.synthetic.v2",
+  "datasetVersion": "2.0.0",
+  "fixtureStore": "marion.fx.route.v2",
+  "scope": "routing",
+  "category": "clarification_route",
+  "input": {
+    "request": "Send it to the right place. Synthetic scenario route.clarify.001.",
+    "evidence": {}
+  },
+  "reference": {
+    "expected": {
+      "route": "clarify",
+      "sideEffect": false
+    },
+    "criterion": "Ask the smallest question that resolves the routing ambiguity.",
+    "caseCategory": "clarification_route"
+  },
+  "fixtureSetHash": "ec72d9fe29a14799cba24860944d808cd3179d12bbada1b46e04f36d7c9a2e96"
+}
