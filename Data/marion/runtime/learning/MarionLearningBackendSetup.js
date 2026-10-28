@@ -45,7 +45,12 @@ function createAndRegisterMarionLearningBackend({
   if (!gatewayModule || typeof gatewayModule.registerMarionLearningRuntime !== "function") {
     throw new Error("Gateway learning registration hook is unavailable");
   }
+  // Registration must complete before the caller publishes the runtime. Do not
+  // substitute a no-op; it would falsely claim that learning is registered.
   const registration = gatewayModule.registerMarionLearningRuntime(runtime);
+  if (registration === false || (registration && registration.ok === false)) {
+    throw new Error("gateway_learning_registration_rejected");
+  }
   return Object.freeze({ VERSION, runtime, auditStore, signalAdapter, evaluator, approvalGate, manifestRegistry, offlineRunner, registration });
 }
 
