@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningPolicy/1.0";
+const VERSION = "marion.learningPolicy/1.1-safe-json-validation";
 const ALLOWED_SCOPES = Object.freeze(["retrieval", "routing", "response_style"]);
 const PROTECTED_SCOPES = Object.freeze(["safety", "authorization", "identity", "system_prompt", "model_weights", "tool_execution"]);
 const ALLOWED_SIGNAL_CLASSES = Object.freeze(["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"]);
@@ -32,25 +32,37 @@ function isBlockedKey(key) {
   return BLOCKED_KEYS.some(term => normalized.includes(term));
 }
 
-function containsBlockedKeys(value, depth = 0, counter = { nodes: 0 }) {
+function containsBlockedKeys(value, depth = 0, counter = { nodes: 0, ancestors: new WeakSet() }) {
   if (depth > MAX_SAFE_RECORD_DEPTH || ++counter.nodes > MAX_SAFE_RECORD_NODES) return true;
-  if (Array.isArray(value)) return value.some(item => containsBlockedKeys(item, depth + 1, counter));
-  if (!isPlainObject(value)) return value !== null && typeof value === "object";
-  for (const key of Object.keys(value)) {
-    if (isBlockedKey(key) || containsBlockedKeys(value[key], depth + 1, counter)) return true;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return false;
+  if (typeof value === "number") return !Number.isFinite(value);
+  if (!value || typeof value !== "object") return true;
+  if (!Array.isArray(value) && !isPlainObject(value)) return true;
+  if (counter.ancestors.has(value)) return true;
+  counter.ancestors.add(value);
+  try {
+    for (const key of Object.keys(value)) {
+      if (isBlockedKey(key) || key === "__proto__" || key === "constructor" || key === "prototype") return true;
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) return true;
+      if (containsBlockedKeys(descriptor.value, depth + 1, counter)) return true;
+    }
+    // Symbol properties would be silently dropped during JSON serialization.
+    if (Object.getOwnPropertySymbols(value).length) return true;
+    return false;
+  } catch (_) {
+    return true;
+  } finally {
+    counter.ancestors.delete(value);
   }
-  return false;
 }
 
 function validateSafeRecord(value, maxBytes = 65536) {
   if (!isPlainObject(value)) return { ok: false, reason: "record_must_be_plain_object" };
-  if (containsBlockedKeys(value)) return { ok: false, reason: "sensitive_field_present" };
+  if (containsBlockedKeys(value)) return { ok: false, reason: "sensitive_or_unsupported_field_present" };
   let serialized;
-  try {
-    serialized = JSON.stringify(value);
-  } catch (_) {
-    return { ok: false, reason: "record_not_json_serializable" };
-  }
+  try { serialized = JSON.stringify(value); }
+  catch (_) { return { ok: false, reason: "record_not_json_serializable" }; }
   if (typeof serialized !== "string" || Buffer.byteLength(serialized, "utf8") > maxBytes) {
     return { ok: false, reason: "record_size_limit_exceeded" };
   }
