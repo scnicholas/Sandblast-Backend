@@ -1691,6 +1691,21 @@ try {
   if (!api || api.__marionSelfLearningAdminCaptureV1) return;
   let integration = null;
   try { integration = require("./learning/MarionLearningIntegration.js"); } catch (_) { integration = null; }
+  // Registration is a required gateway contract. Capture remains optional.
+  // Do not silently omit the hook when the capture integration cannot load.
+  const registerMarionLearningRuntime = function registerMarionLearningRuntime(runtime) {
+    if (!integration || typeof integration.registerRuntime !== "function") {
+      throw new Error("learning_integration_registration_unavailable");
+    }
+    return integration.registerRuntime(runtime);
+  };
+  api.registerMarionLearningRuntime = registerMarionLearningRuntime;
+  api.getMarionLearningIntegrationStatus = function getMarionLearningIntegrationStatus() {
+    if (!integration || typeof integration.status !== "function") {
+      return { ready: false, reason: "learning_integration_unavailable" };
+    }
+    return integration.status();
+  };
   if (!integration) return;
   let composer = null;
   function acceptedFinal(result) {
@@ -1713,8 +1728,6 @@ try {
       // Learning persistence failures must not alter or suppress Marion's reply.
     }
   }
-  function registerMarionLearningRuntime(runtime) { return integration.registerRuntime(runtime); }
-  function getMarionLearningIntegrationStatus() { return integration.status(); }
 
   const original = api.handleMarionAdminConversation || handleMarionAdminConversation;
   if (typeof original !== "function" || original.__marionSelfLearningAdminCaptureV1) return;
@@ -1727,8 +1740,6 @@ try {
   Object.keys(original).forEach(key => { try { wrapped[key] = original[key]; } catch (_) {} });
   wrapped.__marionSelfLearningAdminCaptureV1 = true;
   api.handleMarionAdminConversation = wrapped;
-  api.registerMarionLearningRuntime = registerMarionLearningRuntime;
-  api.getMarionLearningIntegrationStatus = getMarionLearningIntegrationStatus;
   api.MARION_SELF_LEARNING_ADMIN_CAPTURE_VERSION = "marion.selfLearning.adminCapture/1.0";
   api.__marionSelfLearningAdminCaptureV1 = true;
 })();
