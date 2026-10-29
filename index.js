@@ -1298,8 +1298,8 @@ app.locals.lingoSentinelPublicTranslateIndexGuard = Object.freeze({
  * This block must remain after body parsers and before every final 404 guard.
  */
 const NYX_VOICE_UTILS_EARLY_MOUNT_VERSION =
-  "nyx.voice.indexEarlyMount/1.3-Utils-release-verification";
-const NYX_VOICE_RELEASE_MARKER = "SB-NYX-VOICE-UTILS-CASE-11";
+  "nyx.voice.indexEarlyMount/1.4-Utils-failure-observability";
+const NYX_VOICE_RELEASE_MARKER = "SB-NYX-VOICE-UTILS-CASE-12";
 
 function mountNyxVoiceUtilsEarly(appInstance) {
   const status = {
@@ -1356,7 +1356,7 @@ function mountNyxVoiceUtilsEarly(appInstance) {
     status.mountedAt = Date.now();
   } catch (error) {
     status.errorCode = String(error && error.code || 'MOUNT_INIT_FAILED').slice(0, 64);
-    status.error = String(error && error.message || 'nyx_voice_utils_mount_failed').slice(0, 300);
+    status.error = status.errorCode === "NYX_VOICE_MOUNT_FILE_MISSING" ? "mount_file_missing" : status.errorCode === "MODULE_NOT_FOUND" ? "module_dependency_missing" : "mount_initialization_failed";
     console.error("[Sandblast][nyx-voice-utils-early-mount]", status.error);
   }
 
@@ -1366,6 +1366,25 @@ function mountNyxVoiceUtilsEarly(appInstance) {
 }
 
 const NYX_VOICE_UTILS_MOUNT_STATUS = mountNyxVoiceUtilsEarly(app);
+// A missing module must produce a truthful operational failure, not a misleading 404.
+// Only public, non-secret diagnostics are returned. This does not bypass TTS or admin auth.
+if (!NYX_VOICE_UTILS_MOUNT_STATUS.ok) {
+  app.get(["/api/nyx/voice/health", "/nyx/voice/health"], (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(503).json({
+      ok: false,
+      service: "nyx-voice",
+      enabled: false,
+      ready: false,
+      mounted: false,
+      reason: "voice_mount_unavailable",
+      errorCode: NYX_VOICE_UTILS_MOUNT_STATUS.errorCode || "MOUNT_INIT_FAILED",
+      releaseMarker: NYX_VOICE_RELEASE_MARKER,
+      moduleRoot: "Utils"
+    });
+  });
+}
 /* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_END */
 
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_START
@@ -1373,7 +1392,7 @@ const NYX_VOICE_UTILS_MOUNT_STATUS = mountNyxVoiceUtilsEarly(app);
  * not_found guard near the end of the route table.
  */
 try {
-  const nyxEcosystemRoute = require("./utils/nyxEcosystemRoute.js");
+  const nyxEcosystemRoute = require("./Utils/nyxEcosystemRoute.js");
   app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
   app.locals.nyxEcosystemSpine = {
     mounted: true,
