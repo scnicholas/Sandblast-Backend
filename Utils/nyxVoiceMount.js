@@ -37,9 +37,19 @@ function ttsDependency() { return loadVoiceDependency("tts").moduleValue; }
 function unavailableVoiceHandler(_req, res) {
   return res.status(503).json({ ok: false, error: "nyx_voice_dependency_unavailable" });
 }
+// Route registration is permanent in Express. Resolve optional handlers at request
+// time so an initially missing dependency cannot permanently capture the route.
+function lateBoundHandler(resolver) {
+  return function nyxLateBoundVoiceHandler(req, res, next) {
+    let handler;
+    try { handler = resolver(); } catch (_) { handler = unavailableVoiceHandler; }
+    try { return handler(req, res, next); }
+    catch (error) { return typeof next === "function" ? next(error) : unavailableVoiceHandler(req, res); }
+  };
+}
 
 const NYX_VOICE_MOUNT_VERSION =
-  "nyx.voice.utilsMount/2.3.1-dependency-retry";
+  "nyx.voice.utilsMount/2.4-path-resolution-late-dependency-bind";
 
 const NYX_VOICE_HEALTH_CONTRACT =
   "nyx.voice.health/1.0-strict-allowlist";
