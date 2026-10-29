@@ -2759,17 +2759,11 @@ function marionAdminVoiceRequestAuth(req, body) {
     { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] }
   ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
 
-  for (const candidate of candidates) {
-    if (tokens.some((token) => timingSafeTextEqual(candidate.value, token))) {
-      return {
-        verified: true,
-        configured: tokens.length > 0,
-        provided: true,
-        source: candidate.source,
-        adminVoiceRuntimeApproval: false
-      };
-    }
-  }
+  // SECURITY: A static voice token is not a private voice session. It may
+  // identify a legacy caller but must never independently enable delivery.
+  // Require a fresh server-verified admin console session AND a one-use grant.
+  const legacyTokenMatched = candidates.some(candidate =>
+    tokens.some(token => timingSafeTextEqual(candidate.value, token)));
 
   // MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1:
   // A short-lived verified admin console session may consume exactly one
@@ -2778,7 +2772,9 @@ function marionAdminVoiceRequestAuth(req, body) {
   // open a single controlled audible confirmation without exposing tokens.
   try {
     const session = typeof marionAdminConsoleValidateSession === "function" ? marionAdminConsoleValidateSession(req) : null;
-    if (session && session.verified === true) {
+    if (session && session.verified === true && session.testBypass !== true &&
+        session.testingBypass !== true &&
+        ["owner", "admin", "administrator"].includes(String(session.role || (session.session && session.session.role) || "").toLowerCase())) {
       const gatewayStatus = typeof marionAdminConsoleGatewayStatus === "function" ? marionAdminConsoleGatewayStatus() : null;
       const mod = gatewayStatus && gatewayStatus.mod;
       const sessionId = cleanText(session.sessionId || (session.session && session.session.id) || "");
@@ -2786,8 +2782,8 @@ function marionAdminVoiceRequestAuth(req, body) {
       const consumeFn = mod && typeof mod.consumeAdminVoiceRuntimeApproval === "function" ? mod.consumeAdminVoiceRuntimeApproval : null;
       const state = stateFn ? stateFn({ sessionId }) : null;
       const allowed = state && state.adminVoiceDeliveryAllowed === true && (state.sessionMatches !== false);
-      if (allowed) {
-        const consumed = consumeFn ? consumeFn({ sessionId, requestId: cleanText(body && body.requestId || "") }) : state;
+      if (allowed && sessionId) {
+        const consumed = consumeFn ? consumeFn({ sessionId, requestId: cleanText(body && body.requestId || "") }) : null;
         if (consumed && consumed.adminVoiceDeliveryAllowed === true) {
           return {
             verified: true,
@@ -2815,7 +2811,7 @@ function marionAdminVoiceRequestAuth(req, body) {
     verified: false,
     configured: tokens.length > 0,
     provided: candidates.length > 0,
-    source: candidates.length ? "invalid" : "none",
+    source: legacyTokenMatched ? "legacy_voice_token_requires_verified_session_and_grant" : (candidates.length ? "invalid" : "none"),
     adminVoiceRuntimeApproval: false
   };
 }
