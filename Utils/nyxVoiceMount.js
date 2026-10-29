@@ -55,7 +55,7 @@ function lateBoundHandler(resolver) {
 }
 
 const NYX_VOICE_MOUNT_VERSION =
-  "nyx.voice.utilsMount/2.6-capital-Utils-linux-path";
+  "nyx.voice.utilsMount/2.7-capital-Utils-release-verification";
 
 const NYX_VOICE_HEALTH_CONTRACT =
   "nyx.voice.health/1.0-strict-allowlist";
