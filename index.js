@@ -3202,6 +3202,12 @@ function ensureMarionLearningRuntime() {
   if (!storageConfig.configured) return { ready: false, status: storageConfig.reason };
   const current = app.locals.marionLearningBackend;
   if (current && current.runtime) {
+    const gateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
+    const registration = typeof gateway.getMarionLearningIntegrationStatus === "function"
+      ? gateway.getMarionLearningIntegrationStatus() : null;
+    if (!registration || registration.registered !== true) {
+      return { ready: false, status: "gateway_learning_registration_unverified" };
+    }
     registerMarionLearningOfflineComposerVersions();
     if (app.locals.marionLearningAdminHandlers && typeof app.locals.marionLearningAdminHandlers.issueReview === "function") {
       delete app.locals.marionLearningSetupDiagnostic;
@@ -3302,6 +3308,14 @@ function ensureMarionLearningRuntime() {
       captureEnabled: storageConfig.enabled,
       gateway: learningGateway
     });
+    setupStage = "gateway_registration_verification";
+    const registrationState = typeof learningGateway.getMarionLearningIntegrationStatus === "function"
+      ? learningGateway.getMarionLearningIntegrationStatus() : null;
+    if (!backend || !backend.registration || backend.registration.ok !== true ||
+        backend.registration.registered !== true || !registrationState ||
+        registrationState.registered !== true) {
+      throw new Error("gateway_learning_registration_unverified");
+    }
     setupStage = "admin_handlers_load";
     const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
     setupStage = "admin_handlers_create";
