@@ -275,7 +275,7 @@ function isSpeakerAuthorized(speakerHint, options) {
   return authorizedSpeakers
     .map(normalizeName)
     .filter(Boolean)
-    .some((authorized) => speaker === authorized || speaker.includes(authorized));
+    .some((authorized) => speaker === authorized);
 }
 
 function evaluateVoiceAuthorization(envelope, options) {
@@ -316,7 +316,7 @@ function evaluateVoiceAuthorization(envelope, options) {
   const continuityBlocked = speakerIdentity && speakerIdentity.continuityBlocked === true;
   const continuityStatus = normalizeName(speakerIdentity && speakerIdentity.continuityStatus);
   const continuitySatisfied = !continuityBlocked && (!continuityRequired || continuityVerified || continuityStatus === 'active' || continuityStatus === 'verified');
-  const adminAuthorized = adminVoiceVerified || speakerAuthorized;
+  const adminAuthorized = adminVoiceVerified; // speaker names are evidence, never access authority
   const remoteTrustedUserAuthorized = remoteTrustedUserVerified && directRemoteTrustedUserInterface;
   const marionAdminConversationAllowed = directMarionAdminInterface && adminAuthorized;
 
