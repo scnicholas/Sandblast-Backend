@@ -147,10 +147,11 @@ function bridgePrivateRuntimeIdentityProjection(
     directMarionAdminInterface: true,
     marionAdminConversation: true,
     marionAdminConversationAllowed: true,
-    authenticatedOperator: authSource.verified === true,
-    operatorPersonalization: authSource.verified === true,
-    allowPersonalName: authSource.verified === true,
-    allowOperatorMemory: authSource.verified === true,
+    // A private route label is not an authentication proof.
+    authenticatedOperator: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    operatorPersonalization: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    allowPersonalName: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    allowOperatorMemory: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
     memoryPartition: partitionKey,
     partitionKey,
     privateRuntimeContext: {
