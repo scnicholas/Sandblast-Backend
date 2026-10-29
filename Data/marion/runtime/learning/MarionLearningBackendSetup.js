@@ -7,7 +7,7 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/1.4-offline-health-probe";
+const VERSION = "marion.learningBackendSetup/1.5-registration-ack";
 
 function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
@@ -49,6 +49,12 @@ function createAndRegisterMarionLearningBackend({
   if (!registration || typeof registration.then === "function" ||
       registration.ok !== true || registration.registered !== true) {
     throw new Error("gateway_learning_registration_rejected");
+  }
+  if (typeof gatewayModule.getMarionLearningIntegrationStatus === "function") {
+    const gatewayStatus = gatewayModule.getMarionLearningIntegrationStatus();
+    if (!gatewayStatus || gatewayStatus.registered !== true) {
+      throw new Error("gateway_learning_registration_status_unconfirmed");
+    }
   }
   return Object.freeze({ VERSION, runtime, auditStore, signalAdapter, evaluator, approvalGate, manifestRegistry, offlineRunner, registration });
 }
