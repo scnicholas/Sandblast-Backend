@@ -149,7 +149,7 @@ function clipText(value, max = 600) {
 }
 
 function makeId(prefix) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}_${require("node:crypto").randomBytes(16).toString("hex")}`;
 }
 
 function extractHeaders(context) {
@@ -398,24 +398,14 @@ class MarionAdminConsoleGateway {
       }
     }
 
-    const latestId = cleanText(this.lastAdminVoiceApprovalRequestId || "");
-    if (latestId && this.pendingApprovals.has(latestId)) {
-      const latest = this.pendingApprovals.get(latestId);
-      if (latest && latest.approvalType === ADMIN_VOICE_APPROVAL_TYPE) return latest;
-    }
-
-    const voiceEntries = Array.from(this.pendingApprovals.values())
-      .filter((entry) => entry && entry.approvalType === ADMIN_VOICE_APPROVAL_TYPE)
-      .sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
-
-    return voiceEntries[0] || null;
+    // Never select an unrelated approval when the caller supplies an unknown ID.
+    // Explicit identifiers are mandatory for approval/denial decisions.
+    return null;
   }
 
   createAdminVoiceApprovalRequest(request = {}, risk = RISK_LEVELS.LOW, context = {}) {
     const constraints = extractVoiceConstraints(request);
     const sessionId = cleanText(
-      safeObj(request.metadata).sessionId ||
-      safeObj(request.raw).sessionId ||
       safeObj(context).sessionId ||
       ""
     );
@@ -454,10 +444,18 @@ class MarionAdminConsoleGateway {
   }
 
   approveAdminVoiceDelivery(entry = {}, context = {}) {
+    if (context.adminVerified !== true || context.sessionVerified !== true ||
+        !cleanText(context.sessionId || "") ||
+        !["owner", "admin", "administrator"].includes(lower(context.role || context.sessionRole || ""))) {
+      return { approved: false, adminVoiceDeliveryAllowed: false, reason: "verified_admin_session_required" };
+    }
     const source = safeObj(entry);
+    if (!cleanText(source.sessionId || "") || cleanText(source.sessionId) !== cleanText(context.sessionId)) {
+      return { approved: false, adminVoiceDeliveryAllowed: false, reason: "approval_session_mismatch" };
+    }
     const constraints = safeObj(source.constraints);
     const requestId = cleanText(source.requestId || source.approvalId || this.lastAdminVoiceApprovalRequestId || makeId("adminvoice"));
-    const sessionId = cleanText(source.sessionId || safeObj(context).sessionId || "");
+    const sessionId = cleanText(safeObj(context).sessionId || "");
     const maxSeconds = Math.max(1, Math.min(Number(source.maxSeconds || constraints.maxSeconds || ADMIN_VOICE_MAX_SECONDS) || ADMIN_VOICE_MAX_SECONDS, ADMIN_VOICE_MAX_SECONDS));
     const expiresAt = now() + ADMIN_VOICE_APPROVAL_TTL_MS;
     this.pendingApprovals.delete(requestId);
@@ -485,7 +483,8 @@ class MarionAdminConsoleGateway {
     if (state.adminVoiceDeliveryAllowed !== true) return state;
     const expectedSessionId = cleanText(this.adminVoiceApprovalState.sessionId || "");
     const actualSessionId = cleanText(opts.sessionId || "");
-    if (expectedSessionId && actualSessionId && expectedSessionId !== actualSessionId) {
+    if (!expectedSessionId || !actualSessionId || expectedSessionId !== actualSessionId ||
+        opts.sessionVerified !== true || opts.adminVerified !== true) {
       return {
         ...state,
         approval: "NO",
@@ -579,7 +578,8 @@ class MarionAdminConsoleGateway {
 
   async authorizeSession(request = {}, context = {}) {
     const ctx = safeObj(context);
-    if (ctx.adminVerified === true && (ctx.sessionVerified === true || ctx.verified === true)) {
+    if (ctx.adminVerified === true && ctx.sessionVerified === true &&
+        !!cleanText(ctx.sessionId || "") && ["owner", "admin", "administrator"].includes(lower(ctx.role || ctx.sessionRole || ""))) {
       return { allowed: true, reason: "index_admin_verified" };
     }
 
@@ -628,7 +628,7 @@ class MarionAdminConsoleGateway {
 
   createApproval(request, risk) {
     if (isAdminVoiceDeliveryOnceRequest(request)) {
-      return this.createAdminVoiceApprovalRequest(request, risk).approvalId;
+      return this.createAdminVoiceApprovalRequest(request, risk, context).approvalId;
     }
 
     const approvalId = makeId("approval");
@@ -745,7 +745,7 @@ class MarionAdminConsoleGateway {
     const approvalRequired = this.requiresApproval(risk, normalized);
 
     if (approvalRequired && !normalized.approvalToken) {
-      const approvalId = this.createApproval(normalized, risk);
+      const approvalId = this.createApproval(normalized, risk, context);
 
       await this.audit("approval_required", {
         approvalId,
@@ -926,6 +926,11 @@ class MarionAdminConsoleGateway {
 
     const pending = this.pendingApprovals.get(requestId) || this.findPendingAdminVoiceApproval(requestId);
     if (pending) {
+      if (!cleanText(context.sessionId || "") ||
+          (pending.sessionId && pending.sessionId !== cleanText(context.sessionId))) {
+        return this.safeResponse({ ...packet, ok: false, status: 403, statusCode: 403,
+          stage: "approval_session_mismatch", approved: false });
+      }
       pending.status = "approved";
 
       if (pending.approvalType === ADMIN_VOICE_APPROVAL_TYPE || this.isAdminVoiceDeliveryOnce(pending.request)) {
@@ -1034,6 +1039,11 @@ class MarionAdminConsoleGateway {
 
     const pending = this.pendingApprovals.get(requestId) || this.findPendingAdminVoiceApproval(requestId);
     if (pending) {
+      if (!cleanText(context.sessionId || "") ||
+          (pending.sessionId && pending.sessionId !== cleanText(context.sessionId))) {
+        return this.safeResponse({ ...packet, ok: false, status: 403, statusCode: 403,
+          stage: "denial_session_mismatch", denied: false });
+      }
       this.pendingApprovals.delete(pending.approvalId || pending.requestId || requestId);
       if (pending.approvalType === ADMIN_VOICE_APPROVAL_TYPE || this.isAdminVoiceDeliveryOnce(pending.request)) {
         this.adminVoiceApprovalState = {
@@ -4311,8 +4321,9 @@ try {
     releaseSafeMode: ["releaseSafeMode"]
   };
   function verified(ctx) {
-    return !!ctx && ctx.adminVerified === true &&
-      (ctx.sessionVerified === true || ctx.verified === true);
+    return !!ctx && ctx.adminVerified === true && ctx.sessionVerified === true &&
+      !!cleanText(ctx.sessionId || "") &&
+      ["owner", "admin", "administrator"].includes(lower(ctx.role || ctx.sessionRole || ""));
   }
   function denied() {
     return { ok: false, status: 401, statusCode: 401,
@@ -4356,3 +4367,63 @@ try {
     "marion.adminGateway.privateBoundary/9.0";
 })();
 /* MARION_ADMIN_GATEWAY_PRIVATE_BOUNDARY_HARDENING_V9_END */
+
+/* MARION_ADMIN_GATEWAY_SESSION_BOUNDARY_V10_START */
+(function marionAdminGatewaySessionBoundaryV10(){
+  const api=module.exports;
+  const verified=(ctx)=>!!ctx && ctx.adminVerified===true && ctx.sessionVerified===true &&
+    typeof ctx.sessionId==='string' && ctx.sessionId.trim().length>0 &&
+    ['owner','admin','administrator'].includes(String(ctx.role||ctx.sessionRole||'').toLowerCase());
+  const deny=()=>({ok:false,status:401,statusCode:401,stage:'verified_admin_session_required',
+    scope:'private_admin',authenticatedOperator:false,publicFallbackBlocked:true,reply:''});
+  const guard=(fn)=>async function(input={},ctx={}){
+    if(!verified(ctx))return deny();
+    try{return await fn.call(this,input,ctx);}catch(_){return {ok:false,status:503,statusCode:503,
+      stage:'admin_gateway_unavailable',publicFallbackBlocked:true,reply:''};}
+  };
+  for(const name of ['handleMarionAdminTextRuntime','handleAdminConversation','invokeMarionAdminTextRuntime','handleTextRuntime']){
+    if(typeof api[name]==='function')api[name]=guard(api[name]);
+    if(typeof api.MarionAdminConsoleGateway?.[name]==='function')api.MarionAdminConsoleGateway[name]=api[name];
+    if(api.defaultGateway&&typeof api.defaultGateway[name]==='function')api.defaultGateway[name]=api[name];
+  }
+  // The earlier R18B wrapper granted authority for any asserted admin boolean;
+  // final guard overrides that legacy fast path for every console instance.
+  const proto=api.MarionAdminConsoleGateway&&api.MarionAdminConsoleGateway.prototype;
+  if(proto){
+    const originalAuth=proto.authorizeSession;
+    proto.authorizeSession=async function(request={},ctx={}){
+      if(verified(ctx))return {allowed:true,reason:'verified_session_bound_admin'};
+      // An injected provider may be authoritative; its return must be explicitly
+      // verified and bound to the same session and permitted admin role.
+      if(this.authProvider&&typeof this.authProvider.verify==='function'){
+        try {const result=await this.authProvider.verify(request.session||{},request,ctx);
+          if(result&&result.allowed===true&&result.sessionVerified===true&&
+            typeof result.sessionId==='string'&&result.sessionId.length>0&&
+            ['owner','admin','administrator'].includes(String(result.role||'').toLowerCase()))
+            return {allowed:true,reason:'trusted_auth_provider_verified'};
+        }catch(_){}
+      }
+      return {allowed:false,reason:'verified_admin_session_required'};
+    };
+  }
+  // No public export may consume a grant without its session-bound authorization.
+  const oldConsume=api.consumeAdminVoiceRuntimeApproval;
+  if(typeof oldConsume==='function'){
+    api.consumeAdminVoiceRuntimeApproval=function(opts={}){
+      if(!verified(opts))return {ok:false,approved:false,adminVoiceDeliveryAllowed:false,
+        reason:'verified_admin_session_required'};
+      return oldConsume(opts);
+    };
+    if(api.MarionAdminConsoleGateway)api.MarionAdminConsoleGateway.consumeAdminVoiceRuntimeApproval=api.consumeAdminVoiceRuntimeApproval;
+  }
+  const oldPacket=api.buildAdminPrivateVoiceReceivePacket;
+  if(typeof oldPacket==='function')api.buildAdminPrivateVoiceReceivePacket=function(input={}){
+    if(!input||input.adminVoiceVerified!==true||input.sessionVerified!==true||
+      input.consumedForThisTurn!==true||typeof input.sessionId!=='string'||!input.sessionId.trim()){
+      return oldPacket({});
+    }
+    return oldPacket(input);
+  };
+  api.MARION_ADMIN_GATEWAY_SESSION_BOUNDARY_VERSION='marion.adminGateway.sessionBoundary/10.0';
+})();
+/* MARION_ADMIN_GATEWAY_SESSION_BOUNDARY_V10_END */
