@@ -413,7 +413,39 @@ async function _postSynthesize({ endpoint, token, payload, timeoutMs, traceId })
       signal: controller.signal,
     });
 
-    rawText = await res.text();
+    const responseLimit = _clampInt(process.env.SB_TTS_MAX_PROVIDER_RESPONSE_BYTES, 36 * 1024 * 1024, 1024 * 1024, 64 * 1024 * 1024);
+    const declaredLength = Number(_safeHeaderValue(res.headers, "content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > responseLimit) {
+      controller.abort();
+      return { ok: false, reason: "tts_response_too_large", elapsedMs: _now() - started };
+    }
+    if (res.body && typeof res.body.getReader === "function") {
+      const reader = res.body.getReader();
+      const parts = [];
+      let bytes = 0;
+      try {
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          bytes += next.value.byteLength;
+          if (bytes > responseLimit) {
+            controller.abort();
+            return { ok: false, reason: "tts_response_too_large", elapsedMs: _now() - started };
+          }
+          parts.push(Buffer.from(next.value));
+        }
+      } finally { try { reader.releaseLock(); } catch (_) {} }
+      rawText = Buffer.concat(parts, bytes).toString("utf8");
+    } else {
+      // Legacy fetch/polyfill responses need a bounded transport; don't buffer unknown-size bodies.
+      if (!Number.isFinite(declaredLength) || declaredLength < 0) {
+        return { ok: false, reason: "tts_response_length_unavailable", elapsedMs: _now() - started };
+      }
+      rawText = await res.text();
+      if (Buffer.byteLength(rawText, "utf8") > responseLimit) {
+        return { ok: false, reason: "tts_response_too_large", elapsedMs: _now() - started };
+      }
+    }
     const elapsedMs = _now() - started;
 
     // Diagnostic boundary: capture the exact provider response before JSON parsing
@@ -517,7 +549,23 @@ async function synthesize(opts = {}) {
     };
   }
 
+  // Never send a bearer token to an arbitrary caller-controlled endpoint.
+  // Custom provider URLs must be HTTPS and remain under the approved Resemble domain.
   const endpoint = opts.endpoint || process.env.RESEMBLE_SYNTH_URL || DEFAULT_ENDPOINT;
+  let approvedEndpoint;
+  try {
+    const parsedEndpoint = new URL(String(endpoint));
+    if (parsedEndpoint.protocol !== "https:" ||
+        parsedEndpoint.username || parsedEndpoint.password ||
+        parsedEndpoint.hostname.toLowerCase() !== "f.cluster.resemble.ai" ||
+        parsedEndpoint.port && parsedEndpoint.port !== "443" ||
+        parsedEndpoint.pathname !== "/synthesize") {
+      return { ok: false, reason: "tts_endpoint_not_allowlisted", retryable: false, elapsedMs: _now() - started };
+    }
+    approvedEndpoint = parsedEndpoint.toString();
+  } catch (_) {
+    return { ok: false, reason: "tts_endpoint_not_allowlisted", retryable: false, elapsedMs: _now() - started };
+  }
   const outputFormat = (opts.outputFormat || process.env.RESEMBLE_OUTPUT_FORMAT || "mp3").toString().toLowerCase();
   const model = (opts.model || process.env.RESEMBLE_MODEL || "").toString().trim() || undefined;
 
@@ -547,7 +595,7 @@ async function synthesize(opts = {}) {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const r = await _postSynthesize({
-      endpoint,
+      endpoint: approvedEndpoint,
       token,
       payload,
       timeoutMs,
