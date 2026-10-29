@@ -20,7 +20,7 @@ function createCandidate(input) {
     artifactRef: clean(src.artifactRef),
     sampleCount: Number(src.sampleCount)
   };
-  if (!candidate.proposalId || !Policy.ALLOWED_SCOPES.includes(scope) || !candidate.baselineVersion || !candidate.candidateVersion || !candidate.datasetId || !candidate.datasetVersion || !candidate.artifactRef || !Number.isInteger(candidate.sampleCount)) {
+  if (!candidate.proposalId || !Policy.ALLOWED_SCOPES.includes(scope) || !candidate.baselineVersion || !candidate.candidateVersion || !candidate.datasetId || !candidate.datasetVersion || !candidate.artifactRef || (!Number.isSafeInteger(candidate.sampleCount) || candidate.sampleCount < Policy.MINIMUM_EVALUATION_SAMPLES || candidate.sampleCount > 500)) {
     return { ok: false, reason: Policy.PROTECTED_SCOPES.includes(scope) ? "protected_scope" : "invalid_candidate" };
   }
   if (![candidate.proposalId, candidate.baselineVersion, candidate.candidateVersion, candidate.datasetId, candidate.datasetVersion, candidate.artifactRef].every(value => /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/.test(value))) {
