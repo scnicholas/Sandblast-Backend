@@ -1,12 +1,13 @@
 "use strict";
 
-const VERSION = "marion.adminRuntimeSafety/2.2-private-route-primitive-serialization-hardlock-stable-export-private-identity-contract";
+const VERSION = "marion.adminRuntimeSafety/2.3-server-verified-private-partition-serialization-hardlock";
 const MARION_ADMIN_RUNTIME_SAFETY_EXPORTS = module.exports;
 
 function safeRead(source, key, fallback) {
   try {
     if (source === null || source === undefined) return fallback;
-    return source[key];
+    const descriptor = Object.getOwnPropertyDescriptor(Object(source), key);
+    return descriptor && Object.prototype.hasOwnProperty.call(descriptor, "value") ? descriptor.value : fallback;
   } catch (_) {
     return fallback;
   }
@@ -33,7 +34,7 @@ function cleanText(value, fallback = "", max = 12000) {
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return limit > 0 ? text.slice(0, limit) : text;
+  return text.slice(0, limit);
 }
 
 function firstText(values, max = 12000) {
@@ -59,6 +60,10 @@ function objectTag(value) {
   try { return Object.prototype.toString.call(value); } catch (_) { return ""; }
 }
 
+const SENSITIVE_FIELD = /(?:token|secret|password|passwd|api[_-]?key|authorization|cookie|session|credential|private[_-]?key|voiceprint|biometric|raw.?audio|database.?url|connection.?string)/i;
+const SENSITIVE_CONTENT = /(?:\bBearer\s+[^\s,;]+|\bpostgres(?:ql)?:\/\/[^\s"'<>]+|\b(?:api[_-]?key|password|secret|authorization|token)\s*[:=]\s*[^\s,;]+)/gi;
+function redactText(value) { return value.replace(SENSITIVE_CONTENT, "[redacted]"); }
+
 function safeSerializable(value, options = {}, depth = 0, seen) {
   const maxDepthValue = Number(safeRead(options, "maxDepth", NaN));
   const maxKeysValue = Number(safeRead(options, "maxKeys", NaN));
@@ -71,8 +76,9 @@ function safeSerializable(value, options = {}, depth = 0, seen) {
 
   if (value === null || value === undefined) return value;
   const type = typeof value;
-  if (type === "string") return cleanText(value, "", maxString);
-  if (type === "number" || type === "boolean") return value;
+  if (type === "string") return redactText(cleanText(value, "", maxString));
+  if (type === "number") return Number.isFinite(value) ? value : null;
+  if (type === "boolean") return value;
   if (type === "bigint") return primitiveText(value, "");
   if (type === "function" || type === "symbol") return "[unsupported]";
   if (type !== "object") return primitiveText(value, "");
@@ -82,7 +88,7 @@ function safeSerializable(value, options = {}, depth = 0, seen) {
   if (tag === "[object Error]" || tag === "[object DOMException]") {
     return {
       name: cleanText(safeRead(value, "name", "Error"), "Error", 120),
-      message: errorText(value, "runtime_error", maxString)
+      message: redactText(errorText(value, "runtime_error", maxString))
     };
   }
   if (tag === "[object Date]") {
@@ -111,7 +117,7 @@ function safeSerializable(value, options = {}, depth = 0, seen) {
     const length = Math.min(Math.max(0, sourceLength), maxArray);
     for (let index = 0; index < length; index += 1) {
       let item;
-      try { item = value[index]; } catch (_) { item = "[unreadable]"; }
+      try { const descriptor = Object.getOwnPropertyDescriptor(value, String(index)); item = descriptor && Object.prototype.hasOwnProperty.call(descriptor,"value") ? descriptor.value : "[unreadable]"; } catch (_) { item = "[unreadable]"; }
       out.push(safeSerializable(item, options, depth + 1, visited));
     }
     return out;
@@ -119,14 +125,15 @@ function safeSerializable(value, options = {}, depth = 0, seen) {
 
   let keys = [];
   try { keys = Object.keys(value).slice(0, maxKeys); } catch (_) { return "[unreadable]"; }
-  const out = {};
+  const out = Object.create(null);
   for (const key of keys) {
-    if (/(?:token|secret|password|passwd|api[_-]?key|authorization|cookie|session|credential|private[_-]?key)/i.test(key)) {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
+    if (SENSITIVE_FIELD.test(key)) {
       out[key] = "[redacted]";
       continue;
     }
     let item;
-    try { item = value[key]; } catch (_) { item = "[unreadable]"; }
+    try { const descriptor = Object.getOwnPropertyDescriptor(value, key); item = descriptor && Object.prototype.hasOwnProperty.call(descriptor,"value") ? descriptor.value : "[unreadable]"; } catch (_) { item = "[unreadable]"; }
     out[key] = safeSerializable(item, options, depth + 1, visited);
   }
   return out;
@@ -140,19 +147,23 @@ function safeId(value, fallback = "anonymous", max = 160) {
   return text || fallback;
 }
 
-function privatePartitionKey(body = {}, auth = {}) {
-  const sessionId = firstText([
-    safeRead(auth, "sessionId", ""),
-    safeRead(body, "sessionId", ""),
-    safeRead(body, "conversationId", ""),
-    safeRead(body, "traceId", "")
-  ], 160);
-  return `private:admin:${safeId(sessionId, "anonymous", 160)}`;
+function isServerVerifiedOwner(auth) {
+  return safeRead(auth, "verified", false) === true &&
+    safeRead(auth, "sessionVerified", false) === true &&
+    safeRead(auth, "verifiedBy", "") === "server_middleware" &&
+    typeof safeRead(auth, "sessionId", null) === "string" &&
+    safeRead(auth, "sessionId", "").trim().length > 0;
+}
+
+function privatePartitionKey(_body = {}, auth = {}) {
+  // Request-controlled conversation/session IDs are never private memory authority.
+  if (!isServerVerifiedOwner(auth)) return "private:admin:unverified";
+  return `private:admin:${safeId(safeRead(auth, "sessionId", ""), "unverified", 160)}`;
 }
 
 function privateRuntimeIdentity(body = {}, auth = {}, traceId = "") {
+  const verified = isServerVerifiedOwner(auth);
   const partitionKey = privatePartitionKey(body, auth);
-  const verified = safeRead(auth, "verified", false) === true;
   return {
     scope: "private_admin",
     audience: "owner",
@@ -163,11 +174,11 @@ function privateRuntimeIdentity(body = {}, auth = {}, traceId = "") {
     publicSurfaceOnly: false,
     publicFallbackBlocked: true,
     privateAdminConversation: true,
-    privateControlPlane: true,
+    privateControlPlane: verified,
     adminOnly: true,
-    directMarionAdminInterface: true,
+    directMarionAdminInterface: verified,
     marionAdminConversation: true,
-    marionAdminConversationAllowed: true,
+    marionAdminConversationAllowed: verified,
     authenticatedOperator: verified,
     operatorPersonalization: verified,
     allowPersonalName: verified,
@@ -185,16 +196,19 @@ function privateRuntimeIdentity(body = {}, auth = {}, traceId = "") {
 }
 
 function isPrivateRuntimeIdentity(value) {
-  const identity = value && typeof value === "object" && !Array.isArray(value)
-    ? value
-    : {};
-  return identity.scope === "private_admin" &&
-    identity.audience === "owner" &&
-    identity.surfaceAgent === "Marion" &&
-    identity.publicSurfaceOnly === false &&
-    identity.publicFallbackBlocked === true &&
-    typeof identity.memoryPartition === "string" &&
-    identity.memoryPartition.startsWith("private:admin:");
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const partition = safeRead(value, "memoryPartition", null);
+  return safeRead(value, "scope", "") === "private_admin" &&
+    safeRead(value, "audience", "") === "owner" &&
+    safeRead(value, "surfaceAgent", "") === "Marion" &&
+    safeRead(value, "publicSurfaceOnly", true) === false &&
+    safeRead(value, "publicFallbackBlocked", false) === true &&
+    safeRead(value, "authenticatedOperator", false) === true &&
+    safeRead(value, "allowOperatorMemory", false) === true &&
+    safeRead(value, "marionAdminConversationAllowed", false) === true &&
+    typeof partition === "string" && partition.startsWith("private:admin:") &&
+    partition !== "private:admin:unverified" &&
+    safeRead(value, "partitionKey", "") === partition;
 }
 
 Object.assign(MARION_ADMIN_RUNTIME_SAFETY_EXPORTS, {
@@ -205,6 +219,7 @@ Object.assign(MARION_ADMIN_RUNTIME_SAFETY_EXPORTS, {
   firstText,
   errorText,
   safeSerializable,
+  isServerVerifiedOwner,
   privatePartitionKey,
   privateRuntimeIdentity,
   isPrivateRuntimeIdentity,
