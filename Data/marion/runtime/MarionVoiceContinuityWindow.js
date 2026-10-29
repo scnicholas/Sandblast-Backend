@@ -58,6 +58,11 @@ function openContinuityWindow(input,context){
   if(!verified||verified.ok!==true||verified.liveChallengeVerified!==true)return{ok:false,statusCode:403,stage:'voice_continuity_attested_challenge_required',reason:'fresh_challenge_and_trusted_speech_capture_attestation_required',challenge:verified||null,trustedVoiceWindowActive:false,continuityWindowVerified:false,health:health()};
   for(const e of windows.values())if(e.sessionId===sid&&e.speakerId===spk)return{ok:false,statusCode:409,stage:'voice_continuity_window_exists',reason:'active_window_already_exists_for_session_and_speaker',health:health()};
   if(windows.size>=MAX_WINDOWS)return{ok:false,statusCode:429,stage:'voice_continuity_capacity_reached',reason:'active_window_capacity_reached',health:health()};
+  // Commit one-time challenge consumption only after window availability is
+  // known; rejected capacity/duplicate requests must not burn the proof.
+  const consumed=challengeVerifierMod.verifyChallengeProof(proof,ctx,{speakerId:spk,consume:true});
+  if(!consumed||consumed.ok!==true||consumed.liveChallengeVerified!==true)
+    return{ok:false,statusCode:409,stage:'voice_continuity_challenge_replayed',reason:'challenge_proof_consumed_or_unattested',health:health()};
   const t=now(),id=newId(),plain=newToken(),ttlRaw=Number(own(src,'ttlMs')),ttl=Number.isFinite(ttlRaw)?Math.max(30000,Math.min(900000,ttlRaw)):DEFAULT_TTL_MS;
   const e={windowId:id,tokenHash:sha256(plain),speakerId:spk,sessionId:sid,roleBinding:role(ctx),challengeId:verified.challengeId||'',state:STATES.OPEN,
     openedAt:iso(t),lastSeenAt:iso(t),expiresAtMs:t+ttl,idleExpiresAtMs:t+Math.min(DEFAULT_IDLE_MS,ttl)};
