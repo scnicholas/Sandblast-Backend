@@ -1,6 +1,6 @@
 "use strict";
 
-const VERSION = "marion.learningApprovalGate/1.0";
+const VERSION = "marion.learningApprovalGate/1.1-atomic-review";
 
 function clean(value, limit = 120) {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -19,8 +19,12 @@ function createApprovalGate({ proposalStore, auditStore, clock = () => new Date(
     const proposalId = clean(report.proposalId);
     if (!proposalId) return { ok: false, reason: "proposal_id_required" };
     const record = Object.freeze({ ...report, state: "awaiting_owner_approval", submittedAt: clock() });
-    await proposalStore.set(proposalId, record);
-    await auditStore.append({ type: "learning_proposal_submitted", proposalId, candidateVersion: clean(report.candidateVersion), state: record.state });
+    if (typeof proposalStore.insertWithAudit !== "function") return { ok: false, reason: "atomic_proposal_storage_required" };
+    const inserted = await proposalStore.insertWithAudit(proposalId, record, {
+      type: "learning_proposal_submitted", proposalId,
+      candidateVersion: clean(report.candidateVersion), state: record.state
+    });
+    if (!inserted) return { ok: false, reason: "proposal_already_exists" };
     return { ok: true, proposalId, state: record.state, liveBehaviorChanged: false };
   }
 
@@ -30,16 +34,21 @@ function createApprovalGate({ proposalStore, auditStore, clock = () => new Date(
     const authorized = !!(authContext && authContext.authenticated === true && authContext.role === "owner" && authContext.verifiedBy === "server_middleware" && actorId);
     if (!authorized) return { ok: false, reason: "owner_authentication_required" };
     if (!id || !["approve", "reject"].includes(decision)) return { ok: false, reason: "invalid_decision" };
+    if (typeof proposalStore.decideWithAudit !== "function") return { ok: false, reason: "atomic_proposal_storage_required" };
     const proposal = await proposalStore.get(id);
     if (!proposal || proposal.state !== "awaiting_owner_approval" || proposal.validated !== true) return { ok: false, reason: "proposal_not_decidable" };
     const resolvedState = decision === "approve" ? "approved_for_release_review" : "rejected_by_owner";
     const updated = Object.freeze({ ...proposal, state: resolvedState, decidedAt: clock(), decision, approvalId: clean(approvalId), decisionReason: clean(reason, 300), decidedBy: actorId });
-    await proposalStore.set(id, updated);
-    await auditStore.append({
+    const auditEvent = {
       type: "learning_owner_decision", proposalId: id, decision, state: resolvedState,
       candidateVersion: proposal.candidateVersion, actorId, approvalId: clean(approvalId), at: clock(),
       activationMode: "separate_release_pipeline", liveBehaviorChanged: false
-    });
+    };
+    const changed = await proposalStore.decideWithAudit(id, decision, {
+      state: updated.state, decidedAt: updated.decidedAt, decision: updated.decision,
+      approvalId: updated.approvalId, decisionReason: updated.decisionReason, decidedBy: updated.decidedBy
+    }, auditEvent);
+    if (!changed) return { ok: false, reason: "proposal_decision_conflict" };
     return { ok: true, proposalId: id, state: resolvedState, liveBehaviorChanged: false, releaseRequired: decision === "approve" };
   }
 
