@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.3.1-probe-pool-diagnostics";
+const VERSION = "marion.learningPostgresAdapters/1.4-atomic-proposal-audit";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -276,6 +276,8 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
   });
 
   const proposalStore = Object.freeze({
+    insertWithAudit: insertProposalWithAudit,
+    decideWithAudit: decideProposalWithAudit,
     async get(id) {
       const key = String(id || "");
       if (!ID_RE.test(key)) return null;
@@ -295,6 +297,55 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
         SET record = EXCLUDED.record, updated_at = NOW()`, [key, serialized]);
     }
   });
+
+  // Atomic proposal state and audit persistence: all writes use the same
+  // PostgreSQL transaction and a row lock. Never commit an unaudited approval.
+  async function insertProposalWithAudit(id, record, auditEvent) {
+    if (!ID_RE.test(id)) throw new TypeError("invalid_learning_proposal_id");
+    const serialized = serializeSafeRecord(record, 65536, "invalid_learning_proposal");
+    const safeAudit = JSON.parse(serializeSafeRecord(auditEvent, 16384, "invalid_learning_audit_event"));
+    await assertSchema(pool);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const inserted = await client.query(
+        "INSERT INTO public.marion_learning_proposals (proposal_id, record) VALUES ($1, $2::jsonb) ON CONFLICT (proposal_id) DO NOTHING RETURNING proposal_id",
+        [id, serialized]);
+      if (inserted.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+      await appendAuditWithClient(client, safeAudit);
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch (_) {}
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async function decideProposalWithAudit(id, decision, change, auditEvent) {
+    if (!ID_RE.test(id) || !["approve", "reject"].includes(decision)) throw new TypeError("invalid_learning_decision");
+    await assertSchema(pool);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await client.query(
+        "SELECT record FROM public.marion_learning_proposals WHERE proposal_id = $1 FOR UPDATE", [id]);
+      if (current.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+      const proposal = validateStoredRecord(current.rows[0].record);
+      if (proposal.state !== "awaiting_owner_approval" || proposal.validated !== true || proposal.liveBehaviorChanged === true) {
+        await client.query("ROLLBACK"); return false;
+      }
+      const updated = Object.freeze({ ...proposal, ...change });
+      const serialized = serializeSafeRecord(updated, 65536, "invalid_learning_proposal");
+      const safeAudit = JSON.parse(serializeSafeRecord(auditEvent, 16384, "invalid_learning_audit_event"));
+      await client.query("UPDATE public.marion_learning_proposals SET record = $2::jsonb, updated_at = NOW() WHERE proposal_id = $1", [id, serialized]);
+      await appendAuditWithClient(client, safeAudit);
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch (_) {}
+      throw error;
+    } finally { client.release(); }
+  }
 
   const manifestRegistryStore = Object.freeze({
     async get(key) {
