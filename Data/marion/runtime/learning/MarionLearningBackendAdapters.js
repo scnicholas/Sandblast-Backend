@@ -9,9 +9,8 @@ const fsp = require("node:fs/promises");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
-const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
 
-const VERSION = "marion.learningBackendAdapters/1.0";
+const VERSION = "marion.learningBackendAdapters/1.1-durable-manifest-registry";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 
 function stableJson(value) {
@@ -84,7 +83,11 @@ function createMarionLearningBackendAdapters({
   const signalsPath = path.join(root, "signals.jsonl");
   const auditPath = path.join(root, "audit.jsonl");
   const proposalsDir = path.join(root, "proposals");
+  const registrationsDir = path.join(root, "manifest-registrations");
+  const revocationsDir = path.join(root, "manifest-revocations");
   ensurePrivateDir(proposalsDir);
+  ensurePrivateDir(registrationsDir);
+  ensurePrivateDir(revocationsDir);
   assertRegularFile(signalsPath);
   assertRegularFile(auditPath);
 
@@ -148,6 +151,62 @@ function createMarionLearningBackendAdapters({
     }
   });
 
+  function registrationFile(directory, key) {
+    const digest = crypto.createHash("sha256").update(String(key)).digest("hex");
+    return path.join(directory, `${digest}.json`);
+  }
+
+  async function atomicPutIfAbsent(target, record) {
+    assertRegularFile(target);
+    const temporary = path.join(path.dirname(target), `.record.${crypto.randomBytes(12).toString("hex")}.tmp`);
+    const handle = await fsp.open(temporary, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+    try { await handle.writeFile(JSON.stringify(record)); await handle.sync(); }
+    finally { await handle.close(); }
+    try {
+      await fsp.link(temporary, target);
+      await fsp.chmod(target, 0o600);
+      await fsp.unlink(temporary);
+      return true;
+    } catch (error) {
+      try { await fsp.unlink(temporary); } catch (_) {}
+      if (error && error.code === "EEXIST") return false;
+      throw error;
+    }
+  }
+
+  const manifestRegistryStore = Object.freeze({
+    async get(key) {
+      const filePath = registrationFile(registrationsDir, key);
+      if (!assertRegularFile(filePath)) return null;
+      return JSON.parse(await fsp.readFile(filePath, "utf8"));
+    },
+    async putIfAbsent(key, record) {
+      if (typeof key !== "string" || !record || record.status !== "approved" || !Array.isArray(record.caseIds)) throw new TypeError("invalid_manifest_registration");
+      return atomicPutIfAbsent(registrationFile(registrationsDir, key), record);
+    },
+    async getRevocation(key) {
+      const filePath = registrationFile(revocationsDir, key);
+      if (!assertRegularFile(filePath)) return null;
+      return JSON.parse(await fsp.readFile(filePath, "utf8"));
+    },
+    async putRevocationIfAbsent(key, record) {
+      if (typeof key !== "string" || !record || record.status !== "revoked") throw new TypeError("invalid_manifest_revocation");
+      return atomicPutIfAbsent(registrationFile(revocationsDir, key), record);
+    },
+    async listApproved(scope) {
+      const names = await fsp.readdir(registrationsDir);
+      const records = [];
+      for (const name of names) {
+        if (!name.endsWith(".json")) continue;
+        const filePath = path.join(registrationsDir, name);
+        if (!assertRegularFile(filePath)) continue;
+        const record = JSON.parse(await fsp.readFile(filePath, "utf8"));
+        if (record && record.status === "approved" && (!scope || record.scope === scope)) records.push(record);
+      }
+      return records;
+    }
+  });
+
   async function durableAuditAppend(event) {
     if (!event || typeof event !== "object" || Array.isArray(event)) throw new TypeError("invalid_learning_audit_event");
     const sequence = auditState.sequence + 1;
@@ -162,22 +221,21 @@ function createMarionLearningBackendAdapters({
     auditState.hash = envelope.eventHash;
   }
 
-  const offlineRunner = createMarionLearningOfflineRunner({ resolveVersion, loadFixture, scoreFixture });
   async function probe() {
     try {
       if (typeof healthProbe === "function") {
         const result = await healthProbe();
         if (!result || result.ready !== true) return { ready: false };
       }
-      const [rootStat, signalsStat, auditStat, proposalStat] = await Promise.all([
+      const [rootStat, signalsStat, auditStat, proposalStat, registrationStat, revocationStat] = await Promise.all([
         fsp.stat(root), fsp.stat(signalsPath).catch(error => error.code === "ENOENT" ? null : Promise.reject(error)),
         fsp.stat(auditPath).catch(error => error.code === "ENOENT" ? null : Promise.reject(error)),
-        fsp.stat(proposalsDir)
+        fsp.stat(proposalsDir), fsp.stat(registrationsDir), fsp.stat(revocationsDir)
       ]);
       const mode = rootStat.mode & 0o777;
-      const proposalMode = proposalStat.mode & 0o777;
+      const directoriesPrivate = [proposalStat, registrationStat, revocationStat].every(stat => (stat.mode & 0o777) === 0o700);
       const filesPrivate = [signalsStat, auditStat].filter(Boolean).every(stat => (stat.mode & 0o077) === 0);
-      return { ready: mode === 0o700 && proposalMode === 0o700 && filesPrivate, storage: "private_persistent_files" };
+      return { ready: mode === 0o700 && directoriesPrivate && filesPrivate, storage: "private_persistent_files" };
     } catch (_) {
       return { ready: false };
     }
@@ -188,9 +246,9 @@ function createMarionLearningBackendAdapters({
     signalStore,
     proposalStore,
     durableAuditAppend,
-    runVersion: offlineRunner.runVersion,
+    manifestRegistryStore,
+    resolveVersion, loadFixture, scoreFixture,
     healthProbe: probe,
-    offlineRunner,
     dataDir: root
   });
 }
