@@ -1305,7 +1305,7 @@ function mountNyxVoiceUtilsEarly(appInstance) {
     ok: false,
     mounted: false,
     version: NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
-    requestedPath: "./utils/nyxVoiceMount.js",
+    requestedPath: "./Utils/nyxVoiceMount.js",
     resolvedPath: "",
     moduleRoot: "utils",
     pathHardlock: true,
@@ -1317,7 +1317,7 @@ function mountNyxVoiceUtilsEarly(appInstance) {
   };
 
   try {
-    const requestedPath = "./utils/nyxVoiceMount.js";
+    const requestedPath = "./Utils/nyxVoiceMount.js";
     const resolvedPath = require.resolve(requestedPath);
     const loaded = require(resolvedPath);
     const mount =
@@ -1329,7 +1329,7 @@ function mountNyxVoiceUtilsEarly(appInstance) {
 
     if (!mount) {
       throw new TypeError(
-        "utils/nyxVoiceMount.js does not export mountNyxVoice(app, options)."
+        "Utils/nyxVoiceMount.js does not export mountNyxVoice(app, options)."
       );
     }
 
