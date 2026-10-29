@@ -127,6 +127,14 @@ function verifyChallengeProof(proof,context,expected={}) {
     sid!==sessionId(context)||sid!==entry.sessionId||speaker!==entry.speakerId||
     (own(expected,'speakerId')&&normalizeSpeakerId(own(expected,'speakerId'))!==speaker)) return {ok:false,challengeResponseVerified:false,liveChallengeVerified:false,status:'expired_replayed_or_mismatched'};
   const capture=trustedCaptureAttestation(context,entry);
+  // A proof remains queryable for status checks, but may authorize a continuity
+  // window only once. Consume only after an attested server-side check.
+  if (own(expected,'consume')===true) {
+    if (!capture || entry.proofConsumed===true) return {ok:false,challengeResponseVerified:true,liveChallengeVerified:false,status:'attestation_required_or_proof_consumed'};
+    entry.proofConsumed=true;
+    entry.state=STATES.USED;
+    store.set(id,entry);
+  }
   return {ok:true,challengeId:id,speakerId:speaker,sessionId:sid,challengeResponseVerified:true,liveChallengeVerified:capture,
     requiresSpeechCaptureAttestation:!capture,status:capture?'verified':'response_verified_unattested',expiresAt:iso(exp),challengeIsAuthority:false,identityIsAuthority:false};
 }
