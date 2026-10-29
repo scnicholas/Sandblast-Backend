@@ -22936,7 +22936,11 @@ function marionAdminConsoleMfaTokens() {
 
 const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.5-phase7-voice-continuity-window";
 const MARION_ADMIN_CONSOLE_ROUTE_CONTRACT_VERSION = "marion.adminConsole.routes/1.1-check-post-alias-contract";
-const MARION_ADMIN_CONSOLE_REQUIRE_SESSION_FOR_MUTATIONS = process.env.SB_MARION_ADMIN_REQUIRE_SESSION_FOR_MUTATIONS !== "false";
+// Never allow production configuration to downgrade privileged mutations to
+// long-lived bearer credentials. Development may opt out for legacy tests.
+const MARION_ADMIN_CONSOLE_REQUIRE_SESSION_FOR_MUTATIONS =
+  process.env.NODE_ENV === "production" ||
+  process.env.SB_MARION_ADMIN_REQUIRE_SESSION_FOR_MUTATIONS !== "false";
 const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
   OWNER: "owner",
   ADMIN_OPERATOR: "admin_operator",
@@ -23227,9 +23231,8 @@ function marionAdminConsoleMasterRequestAuth(req) {
     { source: "x-sb-marion-admin-console-token", value: headers["x-sb-marion-admin-console-token"] },
     { source: "x-marion-admin-token", value: headers["x-marion-admin-token"] },
     { source: "x-sb-lingosentinel-marion-admin-token", value: headers["x-sb-lingosentinel-marion-admin-token"] },
-    { source: "x-sb-marion-admin-delivery-token", value: headers["x-sb-marion-admin-delivery-token"] },
-    { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
-    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] },
+    // BATCH 8: delivery and voice-specific headers cannot authenticate the
+    // master admin control plane or mint privileged admin sessions.
     { source: "x-sb-marion-admin-operator-token", value: headers["x-sb-marion-admin-operator-token"] },
     { source: "x-sb-marion-remote-trusted-user-token", value: headers["x-sb-marion-remote-trusted-user-token"] },
     { source: "x-sb-marion-remote-user-token", value: headers["x-sb-marion-remote-user-token"] },
@@ -25153,7 +25156,13 @@ function marionAdminRuntimeErrorPublicDetail(err) {
 // MARION_ADMIN_PRIVATE_VOICE_RECEIVE_V1_START
 function marionAdminRuntimePrivateVoiceApproval(req, body, auth) {
   const base = safeObj(auth);
-  if (base.verified !== true) {
+  // A permanent admin token can authenticate some text operations, but voice
+  // delivery requires an already validated, non-testing admin session.
+  const verifiedSessionId = cleanText(base.sessionId || "");
+  const verifiedRole = cleanText(base.role || "").toLowerCase();
+  if (base.verified !== true || base.sessionVerified !== true || !verifiedSessionId ||
+      base.testBypass === true || base.testingBypass === true ||
+      !["owner", "admin", "administrator"].includes(verifiedRole)) {
     return {
       verified: false,
       adminVerified: false,
@@ -25171,7 +25180,10 @@ function marionAdminRuntimePrivateVoiceApproval(req, body, auth) {
     const approval = typeof marionAdminVoiceRequestAuth === "function"
       ? marionAdminVoiceRequestAuth(req, body)
       : null;
-    const approved = approval && approval.verified === true && approval.adminVoiceRuntimeApproval === true;
+    const approved = approval && approval.verified === true && approval.adminVoiceRuntimeApproval === true &&
+      approval.sessionVerified === true &&
+      cleanText(approval.sessionId || "") === verifiedSessionId &&
+      ["owner", "admin", "administrator"].includes(cleanText(approval.role || "").toLowerCase());
     if (approved) {
       return {
         ...base,
