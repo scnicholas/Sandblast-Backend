@@ -735,7 +735,7 @@ async function health() {
     const info = ttsHealth ? await Promise.resolve(ttsHealth()) : null;
     const upstream = sanitizeTtsHealth(info);
     const upstreamOk =
-      typeof upstream.ok === "boolean" ? upstream.ok : true;
+      typeof upstream.ok === "boolean" ? upstream.ok : false;
 
     return {
       ok: !!delegateTts && upstreamOk,
