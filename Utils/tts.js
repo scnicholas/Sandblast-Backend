@@ -57,6 +57,7 @@ const TTS_VERSION = 'tts.js v2.19.0 VOICE-TEXT-PARITY + VERIFIED-BINARY-HANDOFF 
  */
 
 const path = require('path');
+const fs = require('fs');
 
 let _resembleProviderPath = '';
 let _resembleProviderResolvedPath = '';
@@ -77,8 +78,13 @@ const _resembleProvider = (() => {
     'providersResemble',
   ];
 
-  for (const basename of candidates) {
-    const absolutePath = path.join(__dirname, basename);
+  // Do not assume the provider lives in utils. The private Marion adapter may
+  // be deployed under Data/marion/runtime; only these explicitly trusted paths
+  // may be loaded. Never resolve a provider path from request data.
+  const providerDirs = [__dirname, path.resolve(__dirname, '..'), path.resolve(__dirname, '../Data/marion/runtime')];
+  for (const providerDir of providerDirs) for (const basename of candidates) {
+    const absolutePath = path.join(providerDir, basename);
+    if (!fs.existsSync(absolutePath)) continue;
     try {
       // eslint-disable-next-line global-require, import/no-dynamic-require
       const mod = require(absolutePath);
@@ -86,7 +92,7 @@ const _resembleProvider = (() => {
         ? mod
         : (mod && mod.default && typeof mod.default.synthesize === 'function' ? mod.default : null);
       if (provider) {
-        _resembleProviderPath = `./${basename}`;
+        _resembleProviderPath = path.relative(path.resolve(__dirname, '..'), absolutePath).replace(/\\/g, '/');
         try { _resembleProviderResolvedPath = require.resolve(absolutePath); } catch (_) { _resembleProviderResolvedPath = absolutePath; }
         try {
           console.log('[TTS_PROVIDER_LOADED]', JSON.stringify({
@@ -97,10 +103,10 @@ const _resembleProvider = (() => {
         } catch (_) {}
         return provider;
       }
-      _resembleProviderLoadErrors.push({ path: `./${basename}`, code: 'INVALID_EXPORT' });
+      _resembleProviderLoadErrors.push({ path: path.relative(path.resolve(__dirname, '..'), absolutePath), code: 'INVALID_EXPORT' });
     } catch (err) {
       _resembleProviderLoadErrors.push({
-        path: `./${basename}`,
+        path: path.relative(path.resolve(__dirname, '..'), absolutePath),
         code: String(err && err.code || 'REQUIRE_FAILED').slice(0, 60),
         message: String(err && err.message || err || 'require failed').replace(/\s+/g, ' ').slice(0, 240),
       });
@@ -111,7 +117,8 @@ const _resembleProvider = (() => {
     console.error('[TTS_PROVIDER_LOAD_FAILURE]', JSON.stringify({
       version: TTS_VERSION,
       dirname: __dirname,
-      attempted: candidates.map((name) => `./${name}`),
+      attemptedDirectories: ['utils', 'repository_root', 'Data/marion/runtime'],
+      candidateNames: candidates,
       errors: _resembleProviderLoadErrors,
     }));
   } catch (_) {}
@@ -963,6 +970,10 @@ function health() {
     version: TTS_VERSION,
     provider: 'resemble',
     providerLoaded: !!resembleSynthesize,
+    ready: !!resembleSynthesize && tokenConfigured && voiceConfigured,
+    enabled: !!resembleSynthesize && tokenConfigured && voiceConfigured,
+    reason: !resembleSynthesize ? 'resemble_provider_module_unavailable' : !tokenConfigured || !voiceConfigured ? 'resemble_credentials_missing' : '',
+    loadErrorCode: !resembleSynthesize ? (_resembleProviderLoadErrors[0] && _resembleProviderLoadErrors[0].code || 'PROVIDER_FILE_NOT_FOUND') : '',
     providerPath: _resembleProviderPath || '',
     providerResolvedPath: _resembleProviderResolvedPath || '',
     tokenConfigured,
