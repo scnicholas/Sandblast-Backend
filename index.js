@@ -1298,7 +1298,7 @@ app.locals.lingoSentinelPublicTranslateIndexGuard = Object.freeze({
  * This block must remain after body parsers and before every final 404 guard.
  */
 const NYX_VOICE_UTILS_EARLY_MOUNT_VERSION =
-  "nyx.voice.indexEarlyMount/1.0-utils-path-hardlock";
+  "nyx.voice.indexEarlyMount/1.1-resolution-diagnostics";
 
 function mountNyxVoiceUtilsEarly(appInstance) {
   const status = {
@@ -1318,7 +1318,14 @@ function mountNyxVoiceUtilsEarly(appInstance) {
 
   try {
     const requestedPath = "./utils/nyxVoiceMount.js";
-    const resolvedPath = require.resolve(requestedPath);
+    // Resolve against this index.js directory, not process.cwd(). Linux is case-sensitive.
+    const absolutePath = path.join(__dirname, 'utils', 'nyxVoiceMount.js');
+    if (!fs.existsSync(absolutePath)) {
+      const e = new Error('NYX_VOICE_MOUNT_FILE_MISSING: expected utils/nyxVoiceMount.js in deployed repository');
+      e.code = 'NYX_VOICE_MOUNT_FILE_MISSING';
+      throw e;
+    }
+    const resolvedPath = require.resolve(absolutePath);
     const loaded = require(resolvedPath);
     const mount =
       typeof loaded === "function"
@@ -1346,10 +1353,8 @@ function mountNyxVoiceUtilsEarly(appInstance) {
     status.mountVersion = String(loaded.VERSION || "");
     status.mountedAt = Date.now();
   } catch (error) {
-    status.error = String(
-      (error && (error.code || error.message || error)) ||
-        "nyx_voice_utils_mount_failed"
-    ).slice(0, 500);
+    status.errorCode = String(error && error.code || 'MOUNT_INIT_FAILED').slice(0, 64);
+    status.error = String(error && error.message || 'nyx_voice_utils_mount_failed').slice(0, 300);
     console.error("[Sandblast][nyx-voice-utils-early-mount]", status.error);
   }
 
@@ -26411,6 +26416,7 @@ function startSandblastServer(port = PORT) {
         canonicalVoiceRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalVoiceRoute,
         canonicalHealthRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalHealthRoute,
         compatibilityTtsOwnedByIndex: true,
+        errorCode: NYX_VOICE_UTILS_MOUNT_STATUS.errorCode || "",
         error: NYX_VOICE_UTILS_MOUNT_STATUS.error || ""
       });
     } catch (_) {}
