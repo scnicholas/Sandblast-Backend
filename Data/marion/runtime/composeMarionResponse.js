@@ -132,15 +132,13 @@ function marionPrivateRuntimeIdentityProjection(
     160
   );
 
+  // Only the explicitly supplied server-authenticated context may confer authority.
+  // Request/source flags and nested body credentials are descriptive, not proof.
   const internalVerification =
     privateTurn &&
-    (
-      marionPrivateIdentityRead(source, "verified", false) === true ||
-      marionPrivateIdentityRead(source, "adminVerified", false) === true ||
-      marionPrivateIdentityRead(source, "authenticatedOperator", false) === true ||
-      marionPrivateIdentityRead(source, "serverSideAdminVoiceAuth", false) === true ||
-      marionPrivateIdentityRead(source, "trustedServerAuth", false) === true
-    );
+    marionPrivateIdentityRead(explicitAuth, "verified", false) === true &&
+    marionPrivateIdentityRead(explicitAuth, "sessionVerified", false) === true &&
+    marionPrivateIdentityRead(explicitAuth, "verifiedBy", "") === "server_middleware";
 
   const normalizedBody = {
     ...nestedBody,
@@ -153,8 +151,6 @@ function marionPrivateRuntimeIdentityProjection(
     ...explicitAuth,
     sessionId,
     verified:
-      marionPrivateIdentityRead(explicitAuth, "verified", false) === true ||
-      marionPrivateIdentityRead(sourceAuth, "verified", false) === true ||
       internalVerification
   };
   const resolvedTraceId = marionPrivateIdentityText(
@@ -185,7 +181,7 @@ function marionPrivateRuntimeIdentityProjection(
     const cleanSession =
       sessionId.replace(/[^a-zA-Z0-9._:-]+/g, "-") || "anonymous";
     const partitionKey = `private:admin:${cleanSession}`;
-    const verified = normalizedAuth.verified === true;
+    const verified = internalVerification === true;
     identity = {
       scope: "private_admin",
       audience: "owner",
