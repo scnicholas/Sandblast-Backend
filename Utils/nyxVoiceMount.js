@@ -43,13 +43,19 @@ function lateBoundHandler(resolver) {
   return function nyxLateBoundVoiceHandler(req, res, next) {
     let handler;
     try { handler = resolver(); } catch (_) { handler = unavailableVoiceHandler; }
-    try { return handler(req, res, next); }
-    catch (error) { return typeof next === "function" ? next(error) : unavailableVoiceHandler(req, res); }
+    try {
+      return Promise.resolve(handler(req, res, next)).catch((error) => {
+        if (typeof next === 'function') return next(error);
+        if (!res.headersSent) return unavailableVoiceHandler(req, res);
+      });
+    } catch (error) {
+      return typeof next === "function" ? next(error) : unavailableVoiceHandler(req, res);
+    }
   };
 }
 
 const NYX_VOICE_MOUNT_VERSION =
-  "nyx.voice.utilsMount/2.4-path-resolution-late-dependency-bind";
+  "nyx.voice.utilsMount/2.5-async-handler-recovery";
 
 const NYX_VOICE_HEALTH_CONTRACT =
   "nyx.voice.health/1.0-strict-allowlist";
