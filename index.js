@@ -1298,16 +1298,16 @@ app.locals.lingoSentinelPublicTranslateIndexGuard = Object.freeze({
  * This block must remain after body parsers and before every final 404 guard.
  */
 const NYX_VOICE_UTILS_EARLY_MOUNT_VERSION =
-  "nyx.voice.indexEarlyMount/1.1-resolution-diagnostics";
+  "nyx.voice.indexEarlyMount/1.2-capital-Utils-linux-path";
 
 function mountNyxVoiceUtilsEarly(appInstance) {
   const status = {
     ok: false,
     mounted: false,
     version: NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
-    requestedPath: "./utils/nyxVoiceMount.js",
+    requestedPath: "./Utils/nyxVoiceMount.js",
     resolvedPath: "",
-    moduleRoot: "utils",
+    moduleRoot: "Utils",
     pathHardlock: true,
     canonicalVoiceRoute: "/api/nyx/voice",
     canonicalHealthRoute: "/api/nyx/voice/health",
@@ -1317,11 +1317,11 @@ function mountNyxVoiceUtilsEarly(appInstance) {
   };
 
   try {
-    const requestedPath = "./utils/nyxVoiceMount.js";
+    const requestedPath = "./Utils/nyxVoiceMount.js";
     // Resolve against this index.js directory, not process.cwd(). Linux is case-sensitive.
-    const absolutePath = path.join(__dirname, 'utils', 'nyxVoiceMount.js');
+    const absolutePath = path.join(__dirname, 'Utils', 'nyxVoiceMount.js');
     if (!fs.existsSync(absolutePath)) {
-      const e = new Error('NYX_VOICE_MOUNT_FILE_MISSING: expected utils/nyxVoiceMount.js in deployed repository');
+      const e = new Error('NYX_VOICE_MOUNT_FILE_MISSING: expected Utils/nyxVoiceMount.js in deployed repository');
       e.code = 'NYX_VOICE_MOUNT_FILE_MISSING';
       throw e;
     }
@@ -1336,7 +1336,7 @@ function mountNyxVoiceUtilsEarly(appInstance) {
 
     if (!mount) {
       throw new TypeError(
-        "utils/nyxVoiceMount.js does not export mountNyxVoice(app, options)."
+        "Utils/nyxVoiceMount.js does not export mountNyxVoice(app, options)."
       );
     }
 
@@ -1594,7 +1594,7 @@ const NYX_GUIDE_RUNTIME_FILES = Object.freeze([
   "utils/chatEngine.js",
   "utils/domainRouter.js",
   "utils/stateSpine.js",
-  "utils/voiceRoute.js",
+  "Utils/voiceRoute.js",
   "Data/marion/runtime/composeMarionResponse.js",
   "Data/marion/runtime/DomainConcierge.js",
   "utils/nyx_state_controller.js",
@@ -2515,7 +2515,7 @@ app.locals.nyxGuideSteps789 = {
   function guardedLoad(paths){let error="";for(const p of paths){try{const mod=require(p);if(mod)return{ok:true,path:p,mod};}catch(e){error=text(e&&e.code||e&&e.message,80);}}return{ok:false,path:"",mod:null,error};}
   const moduleChecks=Object.freeze({
     stateSpine:guardedLoad(["./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
-    voiceRoute:guardedLoad(["./utils/voiceRoute.js"]),
+    voiceRoute:guardedLoad(["./Utils/voiceRoute.js"]),
     chatEngine:guardedLoad(["./utils/chatEngine.js"]),
     domainRouter:guardedLoad(["./Utils/domainRouter.js","./utils/domainRouter.js"]),
     domainConcierge:guardedLoad(["./DomainConcierge.js","./Data/marion/runtime/DomainConcierge.js"]),
@@ -10852,11 +10852,11 @@ const supportResponseMod = tryRequireMany([
 ]);
 
 const voiceRouteMod = tryRequireMany([
-  "./utils/voiceRoute.js"
+  "./Utils/voiceRoute.js"
 ]);
 
 const ttsLoadStatus = tryRequireManyWithStatus([
-  "./utils/tts.js"
+  "./Utils/tts.js"
 ]);
 const ttsMod = ttsLoadStatus.mod;
 try {
