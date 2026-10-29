@@ -2772,8 +2772,9 @@ function marionAdminVoiceRequestAuth(req, body) {
   // open a single controlled audible confirmation without exposing tokens.
   try {
     const session = typeof marionAdminConsoleValidateSession === "function" ? marionAdminConsoleValidateSession(req) : null;
-    if (session && session.verified === true && session.testBypass !== true &&
-        session.testingBypass !== true &&
+    if (session && session.verified === true && session.sessionVerified === true &&
+        session.testBypass !== true && session.testingBypass !== true &&
+        session.session && session.session.testingBypass !== true && session.session.testBypass !== true &&
         ["owner", "admin", "administrator"].includes(String(session.role || (session.session && session.session.role) || "").toLowerCase())) {
       const gatewayStatus = typeof marionAdminConsoleGatewayStatus === "function" ? marionAdminConsoleGatewayStatus() : null;
       const mod = gatewayStatus && gatewayStatus.mod;
@@ -2781,10 +2782,22 @@ function marionAdminVoiceRequestAuth(req, body) {
       const stateFn = mod && typeof mod.getAdminVoiceRuntimeState === "function" ? mod.getAdminVoiceRuntimeState : null;
       const consumeFn = mod && typeof mod.consumeAdminVoiceRuntimeApproval === "function" ? mod.consumeAdminVoiceRuntimeApproval : null;
       const state = stateFn ? stateFn({ sessionId }) : null;
-      const allowed = state && state.adminVoiceDeliveryAllowed === true && (state.sessionMatches !== false);
-      if (allowed && sessionId) {
-        const consumed = consumeFn ? consumeFn({ sessionId, requestId: cleanText(body && body.requestId || "") }) : null;
-        if (consumed && consumed.adminVoiceDeliveryAllowed === true) {
+      // Batch 7: Batch 6 gateway requires an explicit server-verified, role-bound
+      // session context to consume a single-use voice grant. Never infer it from
+      // a caller-controlled request body or a standalone legacy voice token.
+      const allowed = state && state.adminVoiceDeliveryAllowed === true &&
+        state.sessionMatches === true && state.singleUtterance !== false;
+      if (allowed && sessionId && consumeFn) {
+        const consumed = consumeFn({
+          sessionId,
+          sessionVerified: true,
+          adminVerified: true,
+          role: String(session.role || (session.session && session.session.role) || "owner").toLowerCase(),
+          requestId: cleanText(state.requestId || "")
+        });
+        if (consumed && consumed.adminVoiceDeliveryAllowed === true &&
+            consumed.sessionMatches === true && consumed.consumedForThisTurn === true &&
+            cleanText(consumed.requestId || "") === cleanText(state.requestId || "")) {
           return {
             verified: true,
             configured: true,
