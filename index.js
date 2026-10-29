@@ -2,7 +2,7 @@
 
 // NYX-VOICE-TEXT-PARITY-TRANSPORT-ISOLATION-V1: keep canonical Nyx/TTS synthesis JSON outside global conversation projection.
 // NYX-VOICE-OPERATIONAL-HEALTH-ISOLATION-V1: keep machine-readable Nyx/TTS health contracts outside global conversation projection.
-// NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./utils before all final not_found guards.
+// NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./Utils before all final not_found guards.
 
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: public media discovery bypasses all R18C law projection and response-edge mutation.
 // NYX-PUBLIC-MEDIA-RESPONSE-CONTRACT-R5.1: preserve explicit answer-only action metadata through final public projection.
@@ -1298,7 +1298,8 @@ app.locals.lingoSentinelPublicTranslateIndexGuard = Object.freeze({
  * This block must remain after body parsers and before every final 404 guard.
  */
 const NYX_VOICE_UTILS_EARLY_MOUNT_VERSION =
-  "nyx.voice.indexEarlyMount/1.2-capital-Utils-linux-path";
+  "nyx.voice.indexEarlyMount/1.3-Utils-release-verification";
+const NYX_VOICE_RELEASE_MARKER = "SB-NYX-VOICE-UTILS-CASE-11";
 
 function mountNyxVoiceUtilsEarly(appInstance) {
   const status = {
@@ -1309,6 +1310,7 @@ function mountNyxVoiceUtilsEarly(appInstance) {
     resolvedPath: "",
     moduleRoot: "Utils",
     pathHardlock: true,
+    releaseMarker: NYX_VOICE_RELEASE_MARKER,
     canonicalVoiceRoute: "/api/nyx/voice",
     canonicalHealthRoute: "/api/nyx/voice/health",
     compatibilityTtsOwnedByIndex: true,
@@ -26408,6 +26410,8 @@ function startSandblastServer(port = PORT) {
     } catch (_) {}
     try {
       console.log("[Sandblast][nyx-voice-utils-mount]", {
+        releaseMarker: NYX_VOICE_RELEASE_MARKER,
+        mountVersion: NYX_VOICE_UTILS_MOUNT_STATUS.mountVersion || "",
         ok: NYX_VOICE_UTILS_MOUNT_STATUS.ok === true,
         mounted: NYX_VOICE_UTILS_MOUNT_STATUS.mounted === true,
         requestedPath: NYX_VOICE_UTILS_MOUNT_STATUS.requestedPath,
