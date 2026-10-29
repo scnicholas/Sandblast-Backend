@@ -1,16 +1,16 @@
 "use strict";
 
 /**
- * utils/nyxVoiceMount.js
+ * Utils/nyxVoiceMount.js
  *
  * Canonical path:
- *   C:\Users\User\Desktop\sandblast backend\utils\nyxVoiceMount.js
+ *   C:\Users\User\Desktop\sandblast backend\Utils\nyxVoiceMount.js
  *
  * Responsibilities:
  * - Register the approved Nyx voice and TTS compatibility route plan.
  * - Mount each method/path pair at most once per Express app/router.
  * - Preserve the strict operational health allowlist.
- * - Keep all voice dependencies hardlocked to this lowercase utils folder.
+ * - Keep all voice dependencies hardlocked to this capital-U Utils folder.
  *
  * The default route plan contains 16 unique method/path registrations:
  * - 6 canonical Nyx voice registrations
@@ -55,7 +55,7 @@ function lateBoundHandler(resolver) {
 }
 
 const NYX_VOICE_MOUNT_VERSION =
-  "nyx.voice.utilsMount/2.5-async-handler-recovery";
+  "nyx.voice.utilsMount/2.6-capital-Utils-linux-path";
 
 const NYX_VOICE_HEALTH_CONTRACT =
   "nyx.voice.health/1.0-strict-allowlist";
@@ -425,7 +425,7 @@ function buildHealthPayload(snapshot, scope) {
     ttsModuleResolvedPath:
       sanitized.ttsModuleResolvedPath,
     ttsModuleRoot:
-      sanitized.ttsModuleRoot || "utils",
+      sanitized.ttsModuleRoot || "Utils",
     ttsDelegateBound:
       sanitized.ttsDelegateBound,
     ttsHealthBound:
@@ -449,7 +449,7 @@ function buildHealthPayload(snapshot, scope) {
     canonicalHealthRoute:
       "/api/nyx/voice/health",
     moduleRoot:
-      "utils",
+      "Utils",
     pathHardlock:
       true,
     timestamp:
@@ -545,7 +545,7 @@ function createHealthHandler(
             canonicalHealthRoute:
               "/api/nyx/voice/health",
             moduleRoot:
-              "utils",
+              "Utils",
             pathHardlock:
               true,
             timestamp:
@@ -689,7 +689,7 @@ function mirrorMountState(
       healthContract:
         NYX_VOICE_HEALTH_CONTRACT,
       moduleRoot:
-        "utils",
+        "Utils",
       pathHardlock:
         true,
       options:
