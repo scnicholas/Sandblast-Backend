@@ -72,7 +72,7 @@ async function handle(envelope = {}) {
     sessionId,
     lead,
     scoring,
-    analysis.ok ? 'review_ready' : 'analysis_failed'
+    analysis.ok ? (analysis.degraded ? 'review_degraded' : 'review_ready') : 'analysis_failed'
   );
 
   Telemetry.record('crm_lead_processed', {
@@ -82,7 +82,7 @@ async function handle(envelope = {}) {
     source: 'crm',
     target: 'marion',
     eventType: envelope.eventType,
-    status: analysis.ok ? 'review_ready' : 'failed',
+    status: analysis.ok ? (analysis.degraded ? 'review_degraded' : 'review_ready') : 'failed',
     durationMs: Date.now() - startedAt
   });
 
@@ -146,11 +146,10 @@ function install() {
 }
 
 async function route(input = {}) {
-  install();
+  const installation = install();
+  if (!installation.ok) return { ok:false, stage:'initialization', errors:['crm_handler_install_failed'] };
 
-  const eventType = Contract.EVENT_TYPES.includes(input.eventType)
-    ? input.eventType
-    : 'lead.updated';
+  const eventType = input.eventType === 'lead.created' ? 'lead.created' : 'lead.updated';
 
   return EventRouter.route({
     requestId: input.requestId,
