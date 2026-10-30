@@ -12,6 +12,8 @@ let booted = false;
 let bootedAt = 0;
 
 function bootstrap(options = {}) {
+  if(booted)return {...getHealth(),alreadyBooted:true};
+  try {
   if (options.chronicleProvider) {
     ChronicleProvider.registerProvider(
       options.chronicleProvider
@@ -35,9 +37,7 @@ function bootstrap(options = {}) {
   const chronicle = Chronicle.register();
   const guardians = Guardians.register();
 
-  booted =
-    chronicle.ok === true &&
-    guardians.ok === true;
+  booted = chronicle.ok === true && guardians.ok === true && Router.getHealth().ok === true;
 
   if (booted && !bootedAt) {
     bootedAt = Date.now();
@@ -59,6 +59,7 @@ function bootstrap(options = {}) {
       automaticExecutionAllowed: false
     }
   };
+  }catch(_){booted=false;return{ok:false,service:'MarionEcosystemPhase5Bootstrap',version:VERSION,booted:false,error:'domain_bootstrap_failed'};}
 }
 
 function getHealth() {
@@ -67,7 +68,7 @@ function getHealth() {
   const router = Router.getHealth();
 
   return {
-    ok: booted && chronicle.ok && guardians.ok,
+    ok: booted && chronicle.ok && guardians.ok && router.ok,
     service: 'MarionEcosystemPhase5Bootstrap',
     version: VERSION,
     booted,
