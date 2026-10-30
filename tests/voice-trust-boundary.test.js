@@ -1,0 +1,17 @@
+'use strict';
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const root = path.join(__dirname, '..', 'Data', 'marion', 'runtime');
+const identity = require(path.join(root, 'MarionAdminVoiceIdentityGate.js'));
+const authGate = require(path.join(root, 'MarionVoiceAuthorizationGate.js'));
+const principal = {verified: true, sessionVerified: true, verifiedBy:'server_middleware', sessionId:'server-issued-session', role:'administrator'};
+const denied = {speakerHint:'sean', adminVerified:true, serverSideAdminVoiceAuth:true, authorization:{trustedServerAuth:true, adminVoiceVerified:true}};
+assert.equal(identity.hasTrustedServerAdminProof(denied, {}), false, 'body privilege spoof must fail');
+assert.equal(identity.evaluateAdminVoiceIdentity(denied, {}).authorized, false, 'body privilege spoof must not allow voice');
+assert.equal(identity.hasTrustedServerAdminProof(denied, {serverVerifiedAuth:{...principal,sessionVerified:false}}), false, 'expired/invalid verification must fail');
+assert.equal(identity.hasTrustedServerAdminProof({}, {serverVerifiedAuth:principal}), true, 'verified admin principal accepted');
+assert.equal(identity.evaluateAdminVoiceIdentity({speakerHint:'sean'}, {serverVerifiedAuth:principal}).authorized, true, 'verified admin speaker accepted');
+assert.equal(identity.evaluateAdminVoiceIdentity({speakerHint:'unknown'}, {serverVerifiedAuth:principal}).authorized, false, 'unrecognized speaker blocked');
+assert.equal(authGate.hasTrustedAdminVoiceProof({adminVoiceVerified:true,authorization:{adminVoiceVerified:true}}, {}), false, 'envelope proof spoof rejected');
+assert.equal(authGate.hasTrustedAdminVoiceProof({}, {adminVoiceVerified:true}), true, 'server-side legacy options accepted');
+console.log('PASS: 8/8 targeted voice authorization assertions');
