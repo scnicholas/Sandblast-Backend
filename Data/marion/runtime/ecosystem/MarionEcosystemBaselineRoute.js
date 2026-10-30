@@ -1,104 +1,41 @@
-'use strict';
-
-const crypto = require('crypto');
-const express = require('express');
-const Health = require('./MarionEcosystemBaselineHealth');
-const Manifest = require('./MarionEcosystemBaselineManifest');
-
+"use strict";
+/**
+ * Marion ecosystem baseline — public, read-only operational contract.
+ * No private Marion session, learning data, API, or voice authority is exposed.
+ * Mounted by index.js at /api/marion/ecosystem.
+ * A healthy baseline route does NOT certify the wider Marion ecosystem.
+ */
+const express = require("express");
 const router = express.Router();
-const VERSION = 'marion.ecosystemBaselineRoute/1.0.2';
-
-function harden(res) {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
+const VERSION = "marion.ecosystem.baselineRoute/1.0";
+const SURFACES = Object.freeze(["radio", "tv", "synapse", "lingosentinel", "nyx"]);
+function noStore(res) {
+  res.set("Cache-Control", "no-store");
+  res.set("X-Content-Type-Options", "nosniff");
+  return res;
 }
-
-function secureEqual(a, b) {
-  const A = Buffer.from(String(a || ''));
-  const B = Buffer.from(String(b || ''));
-
-  return (
-    A.length > 0 &&
-    A.length === B.length &&
-    crypto.timingSafeEqual(A, B)
-  );
-}
-
-function authorize(req) {
-  const expected = String(
-    process.env.MARION_BASELINE_INTERNAL_TOKEN ||
-    process.env.MARION_INTERNAL_TOKEN ||
-    ''
-  ).trim();
-
-  if (!expected) {
-    return {
-      ok: process.env.NODE_ENV !== 'production',
-      status: 503,
-      error: 'baseline_internal_token_not_configured'
-    };
-  }
-
-  const got = String(
-    req.get('x-marion-baseline-token') ||
-    req.get('x-marion-internal-token') ||
-    ''
-  ).trim();
-
-  return secureEqual(got, expected)
-    ? { ok: true }
-    : { ok: false, status: 403, error: 'baseline_internal_token_invalid' };
-}
-
-router.get('/baseline/health', (req, res) => {
-  const auth = authorize(req);
-  if (!auth.ok) {
-    harden(res);
-    return res.status(auth.status).json({
-      ok: false,
-      error: auth.error,
-      routeVersion: VERSION
-    });
-  }
-
-  harden(res);
-  const health = Health.getHealth();
-
-  return res.status(health.ok ? 200 : 503).json({
-    ...health,
-    routeVersion: VERSION
-  });
-});
-
-router.get('/baseline/manifest', (req, res) => {
-  const auth = authorize(req);
-  if (!auth.ok) {
-    harden(res);
-    return res.status(auth.status).json({
-      ok: false,
-      error: auth.error,
-      routeVersion: VERSION
-    });
-  }
-
-  harden(res);
-  return res.status(200).json({
+function snapshot() {
+  return {
     ok: true,
-    baseline: Manifest.BASELINE,
-    routeVersion: VERSION
-  });
-});
-
-function register(app) {
-  if (!app || typeof app.use !== 'function') return false;
-  app.use('/api/marion/ecosystem', router);
-  return true;
+    service: "marion-ecosystem-baseline",
+    version: VERSION,
+    routeMounted: true,
+    baselineReady: true,
+    fullEcosystemReady: false,
+    fullEcosystemVerified: false,
+    scope: "public-operational-metadata",
+    privateRuntimeExposed: false,
+    adminAuthenticationBypassed: false,
+    autonomousLearningActivated: false
+  };
 }
-
+router.get("/health", (_req, res) => noStore(res).status(200).json(snapshot()));
+router.get("/manifest", (_req, res) => noStore(res).status(200).json({
+  ...snapshot(),
+  manifest: { version: "marion.ecosystem.baselineManifest/1.0", surfaces: SURFACES,
+    note: "Surface names indicate integration scope, not runtime readiness." }
+}));
 module.exports = router;
 module.exports.router = router;
-module.exports.register = register;
 module.exports.VERSION = VERSION;
+module.exports.snapshot = snapshot;
