@@ -35,18 +35,18 @@ async function route(input={},options={}){
   if(!Registry.has(envelope.source)){Telemetry.record('route_reject',{...envelope,stage:'source_registry'});return{ok:false,stage:'source_registry',errors:['source_component_not_registered'],envelope};}
   if(!Registry.has(envelope.target)){Telemetry.record('route_reject',{...envelope,stage:'target_registry'});return{ok:false,stage:'target_registry',errors:['target_component_not_registered'],envelope};}
   const requirement=permissionRequirement(envelope);
-  if(requirement&&options.skipPermission!==true){
+  if(requirement){
     const decision=Permissions.authorize(envelope.source,requirement.action,requirement.resource);
     if(!decision.ok){Telemetry.record('permission_deny',{...envelope,stage:'permission'});return{ok:false,stage:'permission',errors:[decision.reason],decision,envelope};}
   }
-  if(envelope.eventType==='component.state'&&envelope.sessionId){StateSpine.setSession(envelope.sessionId,envelope.source,{...envelope.state,roomId:envelope.roomId,conversationId:envelope.conversationId});}
+  if(envelope.eventType==='component.state'&&envelope.sessionId){const written=StateSpine.setSession(envelope.sessionId,envelope.source,{...envelope.state,roomId:envelope.roomId,conversationId:envelope.conversationId});if(!written||written.ok!==true)return{ok:false,stage:'state',errors:[written&&written.error||'state_update_failed']};}
   const exact=handlers.get(handlerKey(envelope.target,envelope.eventType))||null;
-  const wildcard=handlers.get(handlerKey(envelope.target,'telemetry.event'))||null;
+  const wildcard=envelope.eventType==='telemetry.event'?handlers.get(handlerKey(envelope.target,'telemetry.event'))||null:null;
   const handler=exact||wildcard;
-  if(!handler){Telemetry.record('route_unhandled',{...envelope,status:'accepted',durationMs:Date.now()-startedAt});return{ok:true,handled:false,envelope,context:envelope.sessionId?StateSpine.createContext(envelope.sessionId):null};}
+  if(!handler){Telemetry.record('route_unhandled',{...envelope,status:'accepted',durationMs:Date.now()-startedAt});return{ok:envelope.eventType==='component.state',handled:false,stage:'unhandled',errors:envelope.eventType==='component.state'?[]:['handler_not_registered'],envelope,context:envelope.sessionId?StateSpine.createContext(envelope.sessionId):null};}
   try{
     const result=await handler(envelope,{context:envelope.sessionId?StateSpine.createContext(envelope.sessionId):null,registry:Registry,permissions:Permissions,state:StateSpine});
-    Telemetry.record('route_success',{...envelope,status:'handled',durationMs:Date.now()-startedAt});return{ok:true,handled:true,envelope,result};
+    const accepted=!!result&&result.ok===true;Telemetry.record(accepted?'route_success':'route_handler_reject',{...envelope,status:accepted?'handled':'rejected',durationMs:Date.now()-startedAt});return{ok:accepted,handled:true,stage:accepted?undefined:(result&&result.stage||'handler'),errors:accepted?undefined:(result&&result.errors||['handler_rejected']),envelope,result};
   }catch(error){
     Telemetry.record('route_error',{...envelope,stage:'handler',durationMs:Date.now()-startedAt});return{ok:false,stage:'handler',errors:[String(error&&(error.code||error.message||error.name)||'handler_error').slice(0,180)],envelope};
   }
