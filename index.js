@@ -1,5 +1,7 @@
 "use strict";
 
+// MARION-SESSION-ISSUER-BOUNDARY-AUDIT-V1: owner/voice credential separation, redacted auth diagnosis, default-role hygiene.
+
 // NYX-VOICE-TEXT-PARITY-TRANSPORT-ISOLATION-V1: keep canonical Nyx/TTS synthesis JSON outside global conversation projection.
 // NYX-VOICE-OPERATIONAL-HEALTH-ISOLATION-V1: keep machine-readable Nyx/TTS health contracts outside global conversation projection.
 // NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./Utils before all final not_found guards.
@@ -22944,11 +22946,9 @@ function marionAdminConsoleEnvTokens() {
     process.env.MARION_ADMIN_TOKEN,
     process.env.SB_MARION_ADMIN_TOKEN,
     process.env.SB_MARION_ADMIN_CONSOLE_TOKEN,
-    process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN,
-    process.env.SB_MARION_ADMIN_DELIVERY_TOKEN,
-    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
-    process.env.SB_ADMIN_VOICE_TOKEN,
-    process.env.MARION_ADMIN_VOICE_TOKEN
+    process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN
+    // Voice and delivery credentials are deliberately NOT owner credentials.
+    // An authenticated voice lane must never mint an owner control-plane session.
   ].map((item) => cleanText(item || "")).filter(Boolean));
 }
 
@@ -23139,8 +23139,7 @@ function marionAdminConsoleRoleTokenEntries() {
       role: MARION_ADMIN_CONSOLE_ROLES.OWNER,
       names: [
         "MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_CONSOLE_TOKEN",
-        "SB_LINGOSENTINEL_MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_DELIVERY_TOKEN",
-        "SB_MARION_ADMIN_VOICE_TOKEN", "SB_ADMIN_VOICE_TOKEN", "MARION_ADMIN_VOICE_TOKEN"
+        "SB_LINGOSENTINEL_MARION_ADMIN_TOKEN"
       ],
       values: ownerValues
     },
@@ -23185,13 +23184,14 @@ function marionAdminConsoleCanAssumeRole(auth, requestedRole) {
 function marionAdminConsoleRequestedSessionRole(req, bodyValue) {
   const body = safeObj(bodyValue || (req && req.body));
   const headers = req && req.headers ? req.headers : {};
-  return marionAdminConsoleNormalizeRole(firstString([
+  const rawRole = firstString([
     headers["x-sb-marion-admin-role"],
     headers["x-sb-marion-session-role"],
     body.role,
     body.sessionRole,
     safeObj(body.session).role
-  ]));
+  ]);
+  return rawRole ? marionAdminConsoleNormalizeRole(rawRole) : "";
 }
 
 function marionAdminConsoleResolveSessionRole(auth, requestedRole) {
@@ -23308,6 +23308,11 @@ function marionAdminConsoleMasterRequestAuth(req) {
     remoteTrustedUserVerified: remoteTrusted,
     remoteTrustedUserBoundary: remoteTrusted,
     authMode: verifiedCandidate ? (remoteTrusted ? "remote_trusted_user" : "master") : "none",
+    // Non-secret diagnostics distinguish absent credentials, failed comparison,
+    // and configured MFA. No supplied credential material is returned.
+    reason: !candidates.length ? "admin_credential_missing" :
+      !verifiedCandidate ? "admin_credential_not_accepted" :
+      !mfaVerified ? "admin_mfa_verification_required" : "authenticated",
     hotfix: "MARION_SESSION_ISSUE_RESPONSE_FINALIZATION_HOTFIX_V1 + MARION_ASYNC_TOPLEVEL_BOOT_HOTFIX_V1"
   };
 }
@@ -23468,6 +23473,11 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     reason: errorCode,
     authSource: cleanText(auth && auth.source || ""),
     authReason: cleanText(auth && (auth.testingBypassReason || auth.sessionReason || auth.reason) || ""),
+    // Redacted operator guidance; does not disclose valid tokens or values.
+    credentialHeaderAccepted: Object.freeze([
+      "authorization: Bearer", "x-sb-marion-admin-token", "x-sb-marion-admin-console-token"
+    ]),
+    tokenValuesExposed: false,
     routeMounted: true,
     privateControlPlane: true,
     adminRequired: true,
