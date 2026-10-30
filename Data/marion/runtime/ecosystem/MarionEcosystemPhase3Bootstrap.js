@@ -12,22 +12,23 @@ let booted = false;
 let bootedAt = 0;
 
 function bootstrap(options = {}) {
-  const crm = Crm.register();
+  if(booted)return {...getHealth(),alreadyBooted:true};
+  let crm,routes;try{crm = Crm.register();}catch(_){return {ok:false,service:'MarionEcosystemPhase3Bootstrap',version:VERSION,booted:false,error:'crm_registration_failed'};}
 
-  Permissions.setPolicy('crm', {
+  const permission = Permissions.setPolicy('crm', {
     read: ['crm.leads', 'crm.metrics'],
     write: ['crm.telemetry'],
     request: ['marion.analysis', 'marion.recommendation'],
     execute: []
   });
 
-  const routes = CrmRouter.install();
+  try{routes = CrmRouter.install();}catch(_){return {ok:false,service:'MarionEcosystemPhase3Bootstrap',version:VERSION,booted:false,error:'crm_router_install_failed'};}
 
   if (options.goHighLevelProvider) {
-    GoHighLevel.registerProvider(options.goHighLevelProvider);
+    try{GoHighLevel.registerProvider(options.goHighLevelProvider);}catch(_){return {ok:false,service:'MarionEcosystemPhase3Bootstrap',version:VERSION,booted:false,error:'crm_provider_registration_failed'};}
   }
 
-  booted = crm.ok === true && routes.ok === true;
+  booted = crm.ok === true && routes.ok === true && permission.ok === true;
   bootedAt = booted ? Date.now() : bootedAt;
 
   return {
@@ -39,6 +40,7 @@ function bootstrap(options = {}) {
 
     crm: Registry.get('crm'),
     routes,
+    permission,
 
     controls: {
       crmWriteAuthority: false,
@@ -54,7 +56,7 @@ function getHealth() {
   const ghl = GoHighLevel.getHealth();
 
   return {
-    ok: booted && crm.ok && routes.ok,
+    ok: booted && crm.ok && routes.ok && !!Permissions.getPolicy('crm'),
     service: 'MarionEcosystemPhase3Bootstrap',
     version: VERSION,
     booted,
