@@ -11,6 +11,9 @@ const sessionState = new Map();
 
 function clean(value,max=160){return String(value==null?'':value).replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max);}
 function object(value){return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}
+function safeData(value){const input=object(value);let data;try{data=JSON.parse(JSON.stringify(input));}catch(_){return null;}if(!data||typeof data!=='object'||Array.isArray(data))return null;const encoded=JSON.stringify(data);if(Buffer.byteLength(encoded,'utf8')>65536)return null;return data;}
+function mergeData(a,b){return Object.assign(Object.create(null),safeData(a)||{},safeData(b)||{});}
+function validId(id){return !!id&&!['__proto__','constructor','prototype'].includes(id);}
 function clone(value){return value==null?value:JSON.parse(JSON.stringify(value));}
 function prune(now=Date.now()){
   for(const [key,record] of sessionState) if(!record||now-record.updatedAt>SESSION_TTL_MS) sessionState.delete(key);
@@ -32,15 +35,16 @@ function normalizePatch(component,patch={}){
     roomId:clean(source.roomId,128),
     conversationId:clean(source.conversationId,128),
     status:clean(source.status,48),
-    data:object(source.data),
+    data:safeData(source.data)||{},
     updatedAt:Date.now()
   };
 }
 function setGlobal(component,patch={}){
   const id=Contract.normalizeComponent(component);
-  if(!id||!Registry.has(id)) return {ok:false,error:'component_not_registered'};
+  if(!validId(id)||!Registry.has(id)) return {ok:false,error:'component_not_registered'};
+  if(patch&&Object.prototype.hasOwnProperty.call(object(patch),'data')&&!safeData(patch.data))return{ok:false,error:'state_data_invalid_or_too_large'};
   const current=globalState.get(id)||{};
-  const next={...current,...normalizePatch(id,patch),data:{...object(current.data),...object(patch.data)},updatedAt:Date.now()};
+  const next={...current,...normalizePatch(id,patch),data:mergeData(current.data,patch.data),updatedAt:Date.now()};
   globalState.set(id,next);return {ok:true,state:clone(next)};
 }
 function getGlobal(component){return clone(globalState.get(Contract.normalizeComponent(component))||null);}
@@ -48,16 +52,17 @@ function setSession(sessionId,component,patch={}){
   prune();
   const sid=clean(sessionId,128),id=Contract.normalizeComponent(component);
   if(!sid)return{ok:false,error:'sessionId_required'};
-  if(!Registry.has(id))return{ok:false,error:'component_not_registered'};
-  const current=sessionState.get(sid)||{sessionId:sid,components:{},createdAt:Date.now(),updatedAt:Date.now()};
+  if(!validId(id)||!Registry.has(id))return{ok:false,error:'component_not_registered'};
+  if(patch&&Object.prototype.hasOwnProperty.call(object(patch),'data')&&!safeData(patch.data))return{ok:false,error:'state_data_invalid_or_too_large'};
+  const current=sessionState.get(sid)||{sessionId:sid,components:Object.create(null),createdAt:Date.now(),updatedAt:Date.now()};
   const prior=object(current.components[id]);
-  current.components[id]={...prior,...normalizePatch(id,patch),data:{...object(prior.data),...object(patch.data)}};
-  current.updatedAt=Date.now();sessionState.set(sid,current);return{ok:true,session:clone(current)};
+  current.components[id]={...prior,...normalizePatch(id,patch),data:mergeData(prior.data,patch.data)};
+  current.updatedAt=Date.now();sessionState.set(sid,current);prune();return{ok:true,session:clone(current)};
 }
 function getSession(sessionId){prune();return clone(sessionState.get(clean(sessionId,128))||null);}
 function getComponentSession(sessionId,component){const session=getSession(sessionId);return session?clone(session.components[Contract.normalizeComponent(component)]||null):null;}
 function createContext(sessionId){
-  const session=getSession(sessionId),global={};
+  const session=getSession(sessionId),global=Object.create(null);
   for(const [key,value] of globalState)global[key]=clone(value);
   return{contract:'sandblast.marion.ecosystem-state/1.0',sessionId:clean(sessionId,128),session:session||{sessionId:clean(sessionId,128),components:{}},global,generatedAt:Date.now()};
 }
