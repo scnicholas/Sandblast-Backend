@@ -11,7 +11,7 @@
  * - Unknown public speakers are blocked from Marion voice delivery.
  */
 
-const VERSION = 'marion.voiceAuthorizationGate/2.6-phase6-challenge-verification';
+const VERSION = 'marion.voiceAuthorizationGate/2.7-envelope-proof-isolation';
 
 const RESTRICTED_INTENTS = new Set([
   'command'
@@ -118,39 +118,24 @@ function isRestrictedTranscript(transcript) {
 }
 
 function hasTrustedAdminVoiceProof(envelope, options) {
-  const env = envelope && typeof envelope === 'object' ? envelope : {};
   const opts = options && typeof options === 'object' ? options : {};
-  const auth = env.authorization && typeof env.authorization === 'object' ? env.authorization : {};
-
-  // SECURITY HARDLOCK:
-  // - Options are server-side/contextual and may carry verified admin proof.
-  // - Envelope flags are not trusted by default because they may originate from
-  //   request bodies in weaker callers.
-  // - Envelope proof is accepted only when the server explicitly marks that
-  //   envelope as trusted.
-  const optionProof =
-    opts.adminVoiceVerified === true ||
-    opts.adminVoiceTokenVerified === true ||
-    opts.serverSideAdminVoiceAuth === true ||
-    opts.trustedServerAuth === true;
-
-  const envelopeProofTrusted =
-    opts.trustEnvelopeAdminVoiceProof === true ||
-    opts.allowEnvelopeAdminVoiceProof === true ||
-    opts.serverSideAdminVoiceAuth === true ||
-    opts.trustedServerAuth === true;
-
-  const envelopeProof =
-    env.adminVoiceVerified === true ||
-    env.adminVoiceTokenVerified === true ||
-    env.adminVoiceDeliveryAllowed === true ||
-    auth.adminVoiceVerified === true ||
-    auth.adminVoiceTokenVerified === true ||
-    auth.adminVoiceDeliveryAllowed === true;
-
-  return optionProof || (envelopeProofTrusted && envelopeProof);
+  // Legacy caller options are trusted only when supplied by authenticated
+  // server-side routing code. Request/envelope booleans NEVER grant access.
+  // A server-bound verified principal can authorize this path explicitly.
+  const principal = opts.serverVerifiedAuth;
+  if (principal && typeof principal === 'object' &&
+      principal.verified === true && principal.sessionVerified === true &&
+      principal.verifiedBy === 'server_middleware' &&
+      typeof principal.sessionId === 'string' && principal.sessionId.trim() &&
+      (principal.role === 'administrator' || principal.role === 'admin' || principal.adminVoiceAuthorized === true)) {
+    return opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
+      opts.serverSideAdminVoiceAuth === true;
+  }
+  // Compatibility: upstream server-originated routes currently pass verified
+  // flags via options. Never read these flags from an untrusted envelope.
+  return opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
+    opts.serverSideAdminVoiceAuth === true;
 }
-
 
 function hasTrustedRemoteUserVoiceProof(envelope, options) {
   const env = envelope && typeof envelope === 'object' ? envelope : {};
