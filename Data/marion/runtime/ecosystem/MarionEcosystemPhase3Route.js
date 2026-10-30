@@ -46,7 +46,7 @@ function authorize(req) {
 
   if (!expected) {
     return {
-      ok: process.env.NODE_ENV !== 'production',
+      ok: false,
       status: 503,
       error: 'crm_ingest_token_not_configured'
     };
@@ -85,9 +85,7 @@ function statusFor(result) {
 router.get('/crm/health', (req, res) => {
   harden(res);
 
-  if (!Bootstrap.getHealth().booted) {
-    Bootstrap.bootstrap();
-  }
+  // Health checks are read-only; bootstrapping must occur through controlled startup.
 
   const health = Bootstrap.getHealth();
 
@@ -105,7 +103,7 @@ router.post('/crm/preview', (req, res) => {
 
   harden(res);
 
-  const lead = Normalizer.normalize(body(req));
+  let lead;try{lead = Normalizer.normalize(body(req));}catch(_){return res.status(400).json({ok:false,error:'lead_normalization_failed',routeVersion:VERSION});}
   const validation = Normalizer.validate(lead);
 
   if (!validation.ok) {
@@ -117,8 +115,7 @@ router.post('/crm/preview', (req, res) => {
     });
   }
 
-  const scoring = Scorer.score(lead);
-  const recommendation = Recommendation.recommend(lead, scoring);
+  let scoring,recommendation;try{scoring = Scorer.score(lead);recommendation = Recommendation.recommend(lead, scoring);}catch(_){return res.status(503).json({ok:false,error:'lead_preview_failed',routeVersion:VERSION});}
 
   return res.status(200).json({
     ok: true,
@@ -140,9 +137,7 @@ router.post('/crm/lead', async (req, res) => {
 
   harden(res);
 
-  if (!Bootstrap.getHealth().booted) {
-    Bootstrap.bootstrap();
-  }
+  if (!Bootstrap.getHealth().ok) return res.status(503).json({ok:false,error:'crm_not_ready',routeVersion:VERSION});
 
   const input = body(req);
 
@@ -212,10 +207,12 @@ router.post('/crm/gohighlevel/read', async (req, res) => {
   }
 });
 
+const installedApps=new WeakSet();
 function register(app) {
   if (!app || typeof app.use !== 'function') return false;
 
-  app.use('/api/marion/ecosystem', router);
+  if(installedApps.has(app))return true;
+  app.use('/api/marion/ecosystem', router);installedApps.add(app);
   return true;
 }
 
