@@ -14,8 +14,9 @@ function obj(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}
 function ids(input){const e=Contract.normalizeEnvelope({requestId:input.requestId,traceId:input.traceId,sessionId:input.sessionId,source:input.source||'nyx',target:'marion',eventType:'conversation.message',text:input.text||input.message});return{requestId:e.requestId,traceId:e.traceId};}
 
 async function route(input={},options={}){
-  if(!Bootstrap.getHealth().booted)Bootstrap.bootstrap();
+  if(!Bootstrap.getHealth().booted){const ready=Bootstrap.bootstrap();if(!ready||ready.ok!==true)return{ok:false,stage:'initialization',errors:['phase2_bootstrap_failed'],version:VERSION};}
   const started=Date.now(),id=ids(input),normalized={...input,...id,source:Contract.normalizeComponent(input.source||'nyx')};
+  if(!['nyx','lingosentinel'].includes(normalized.source))return{ok:false,stage:'permission',errors:['unsupported_public_conversation_source'],version:VERSION};
   if(!clean(normalized.sessionId,128))return{ok:false,stage:'contract',errors:['sessionId_required'],version:VERSION};
   if(!clean(normalized.text||normalized.message,4000))return{ok:false,stage:'contract',errors:['message_required'],version:VERSION};
 
@@ -44,5 +45,5 @@ async function route(input={},options={}){
   return{ok:true,requestId:id.requestId,traceId:id.traceId,path:['nyx','marion','nyx'],context:ctx,response,version:VERSION};
 }
 
-function getHealth(){const b=Bootstrap.getHealth();return{ok:b.booted&&b.nyx.ok,service:'MarionEcosystemConversationRouter',version:VERSION,bootstrap:b,context:Context.getHealth(),nyx:Nyx.getHealth(),lingosentinel:Lingo.getHealth()};}
+function getHealth(){const b=Bootstrap.getHealth();return{ok:b.ok===true&&b.booted&&b.nyx.ok&&b.lingosentinel.ok,service:'MarionEcosystemConversationRouter',version:VERSION,bootstrap:b,context:Context.getHealth(),nyx:Nyx.getHealth(),lingosentinel:Lingo.getHealth()};}
 module.exports=Object.freeze({VERSION,route,getHealth});
