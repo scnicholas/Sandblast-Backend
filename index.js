@@ -1,8 +1,15 @@
 "use strict";
 
+// ECOSYSTEM-BASELINE-INTEGRATION-V4: isolate operational Marion responses, preserve private runtime boundary.
+
+// ECOSYSTEM-MOUNT-OBSERVABILITY-V3: fail-closed public diagnostics for missing Nyx/Marion ecosystem routes; no authority changes.
+
+// MARION-ADMIN-AUTH-COHESION-AND-REGRESSION-V2: session/console/conversation coherence, rejection reasons, test contract.
+// MARION-SESSION-ISSUER-BOUNDARY-AUDIT-V1: owner/voice credential separation, redacted auth diagnosis, default-role hygiene.
+
 // NYX-VOICE-TEXT-PARITY-TRANSPORT-ISOLATION-V1: keep canonical Nyx/TTS synthesis JSON outside global conversation projection.
 // NYX-VOICE-OPERATIONAL-HEALTH-ISOLATION-V1: keep machine-readable Nyx/TTS health contracts outside global conversation projection.
-// NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./utils before all final not_found guards.
+// NYX-VOICE-UTILS-EARLY-MOUNT-HARDLOCK-V1: mount canonical Nyx voice routes from ./Utils before all final not_found guards.
 
 // NYX-MEDIA-CURRENT-TURN-AUTHORITY-R5: public media discovery bypasses all R18C law projection and response-edge mutation.
 // NYX-PUBLIC-MEDIA-RESPONSE-CONTRACT-R5.1: preserve explicit answer-only action metadata through final public projection.
@@ -1298,7 +1305,8 @@ app.locals.lingoSentinelPublicTranslateIndexGuard = Object.freeze({
  * This block must remain after body parsers and before every final 404 guard.
  */
 const NYX_VOICE_UTILS_EARLY_MOUNT_VERSION =
-  "nyx.voice.indexEarlyMount/1.0-utils-path-hardlock";
+  "nyx.voice.indexEarlyMount/1.4-Utils-failure-observability";
+const NYX_VOICE_RELEASE_MARKER = "SB-NYX-VOICE-UTILS-CASE-12";
 
 function mountNyxVoiceUtilsEarly(appInstance) {
   const status = {
@@ -1307,8 +1315,9 @@ function mountNyxVoiceUtilsEarly(appInstance) {
     version: NYX_VOICE_UTILS_EARLY_MOUNT_VERSION,
     requestedPath: "./Utils/nyxVoiceMount.js",
     resolvedPath: "",
-    moduleRoot: "utils",
+    moduleRoot: "Utils",
     pathHardlock: true,
+    releaseMarker: NYX_VOICE_RELEASE_MARKER,
     canonicalVoiceRoute: "/api/nyx/voice",
     canonicalHealthRoute: "/api/nyx/voice/health",
     compatibilityTtsOwnedByIndex: true,
@@ -1318,7 +1327,14 @@ function mountNyxVoiceUtilsEarly(appInstance) {
 
   try {
     const requestedPath = "./Utils/nyxVoiceMount.js";
-    const resolvedPath = require.resolve(requestedPath);
+    // Resolve against this index.js directory, not process.cwd(). Linux is case-sensitive.
+    const absolutePath = path.join(__dirname, 'Utils', 'nyxVoiceMount.js');
+    if (!fs.existsSync(absolutePath)) {
+      const e = new Error('NYX_VOICE_MOUNT_FILE_MISSING: expected Utils/nyxVoiceMount.js in deployed repository');
+      e.code = 'NYX_VOICE_MOUNT_FILE_MISSING';
+      throw e;
+    }
+    const resolvedPath = require.resolve(absolutePath);
     const loaded = require(resolvedPath);
     const mount =
       typeof loaded === "function"
@@ -1346,10 +1362,8 @@ function mountNyxVoiceUtilsEarly(appInstance) {
     status.mountVersion = String(loaded.VERSION || "");
     status.mountedAt = Date.now();
   } catch (error) {
-    status.error = String(
-      (error && (error.code || error.message || error)) ||
-        "nyx_voice_utils_mount_failed"
-    ).slice(0, 500);
+    status.errorCode = String(error && error.code || 'MOUNT_INIT_FAILED').slice(0, 64);
+    status.error = status.errorCode === "NYX_VOICE_MOUNT_FILE_MISSING" ? "mount_file_missing" : status.errorCode === "MODULE_NOT_FOUND" ? "module_dependency_missing" : "mount_initialization_failed";
     console.error("[Sandblast][nyx-voice-utils-early-mount]", status.error);
   }
 
@@ -1359,29 +1373,89 @@ function mountNyxVoiceUtilsEarly(appInstance) {
 }
 
 const NYX_VOICE_UTILS_MOUNT_STATUS = mountNyxVoiceUtilsEarly(app);
+// A missing module must produce a truthful operational failure, not a misleading 404.
+// Only public, non-secret diagnostics are returned. This does not bypass TTS or admin auth.
+if (!NYX_VOICE_UTILS_MOUNT_STATUS.ok) {
+  app.get(["/api/nyx/voice/health", "/nyx/voice/health"], (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(503).json({
+      ok: false,
+      service: "nyx-voice",
+      enabled: false,
+      ready: false,
+      mounted: false,
+      reason: "voice_mount_unavailable",
+      errorCode: NYX_VOICE_UTILS_MOUNT_STATUS.errorCode || "MOUNT_INIT_FAILED",
+      releaseMarker: NYX_VOICE_RELEASE_MARKER,
+      moduleRoot: "Utils"
+    });
+  });
+}
 /* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_END */
 
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_START
- * This specific public router must be registered before the generic /api
- * not_found guard near the end of the route table.
+ * Mount before generic /api 404. Resolve the exact deployed case-sensitive path.
+ * Failure is explicit 503 instead of an ambiguous not_found response.
  */
+const NYX_ECOSYSTEM_ROUTE_PATH = "./Utils/nyxEcosystemRoute.js";
+const NYX_ECOSYSTEM_REQUIRED_FILES = Object.freeze([
+  "Utils/nyxEcosystemRoute.js",
+  "Utils/nyxEcosystemSpine.js",
+  "Utils/nyxContentDataRegistry.js",
+  "public/Nyx/nyx-surface-bridge.js"
+]);
+function nyxEcosystemMissingFiles() {
+  return NYX_ECOSYSTEM_REQUIRED_FILES.filter((relative) =>
+    !fs.existsSync(path.join(__dirname, ...relative.split("/")))
+  );
+}
 try {
-  const nyxEcosystemRoute = require("./utils/nyxEcosystemRoute.js");
+  const nyxEcosystemRoute = require(NYX_ECOSYSTEM_ROUTE_PATH);
+  if (typeof nyxEcosystemRoute !== "function") {
+    const problem = new TypeError("NYX_ECOSYSTEM_ROUTER_EXPORT_INVALID");
+    problem.code = "ROUTER_EXPORT_INVALID";
+    throw problem;
+  }
   app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
-  app.locals.nyxEcosystemSpine = {
+  app.locals.nyxEcosystemSpine = Object.freeze({
     mounted: true,
     mountPath: "/api/nyx/ecosystem",
-    version: nyxEcosystemRoute.VERSION || "unknown"
-  };
+    version: nyxEcosystemRoute.VERSION || "unknown",
+    missingFiles: nyxEcosystemMissingFiles()
+  });
   module.exports.NYX_ECOSYSTEM_SPINE_VERSION = nyxEcosystemRoute.VERSION;
   module.exports.NYX_ECOSYSTEM_SPINE_MOUNTED = true;
 } catch (error) {
-  app.locals.nyxEcosystemSpine = {
+  const missingFiles = nyxEcosystemMissingFiles();
+  const errorCode = missingFiles.length ? "MISSING_DEPLOYMENT_FILES" :
+    error && error.code === "MODULE_NOT_FOUND" ? "MODULE_DEPENDENCY_UNAVAILABLE" :
+    error && error.code === "ROUTER_EXPORT_INVALID" ? "ROUTER_EXPORT_INVALID" :
+    "ROUTER_INITIALIZATION_FAILED";
+  app.locals.nyxEcosystemSpine = Object.freeze({
     mounted: false,
     mountPath: "/api/nyx/ecosystem",
-    error: error && error.message ? error.message : "mount_failed"
-  };
-  console.error("[Sandblast][NYX ecosystem spine early mount]", error && error.message);
+    errorCode,
+    missingFiles
+  });
+  console.error("[Sandblast][nyx-ecosystem-route]", {
+    mounted: false,
+    errorCode,
+    missingFiles
+  });
+  app.get("/api/nyx/ecosystem/health", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(503).json({
+      ok: false,
+      service: "nyx-ecosystem",
+      mounted: false,
+      ready: false,
+      error: "ecosystem_route_unavailable",
+      errorCode,
+      missingFiles
+    });
+  });
 }
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_END */
 
@@ -1542,10 +1616,7 @@ function mountSandblastEcosystemBaselineRouteOnce(appInstance) {
       baselineRouter.VERSION ||
       ""
     );
-    status.error = cleanText(
-      error && (error.code || error.message || error) ||
-      "baseline_route_mount_failed"
-    ).slice(0, 300);
+    status.error = "baseline_route_mount_failed";
 
     appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
       Object.freeze({ ...status });
@@ -1565,6 +1636,23 @@ function mountSandblastEcosystemBaselineRouteOnce(appInstance) {
 
 const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS =
   mountSandblastEcosystemBaselineRouteOnce(app);
+
+// Explicit diagnostic when the optional baseline module cannot be mounted.
+// Do not fabricate the missing route or make private runtime APIs public.
+if (!SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS.ok) {
+  app.get("/api/marion/ecosystem/health", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(503).json({
+      ok: false,
+      service: "marion-ecosystem-baseline",
+      mounted: false,
+      ready: false,
+      error: SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS.error || "baseline_route_unavailable",
+      expectedModules: ["Data/marion/runtime/ecosystem/MarionEcosystemBaselineRoute.js"]
+    });
+  });
+}
 
 /* SANDBLAST_ECOSYSTEM_BASELINE_1_0_ROUTE_MOUNT_END */
 
@@ -1589,7 +1677,7 @@ const NYX_GUIDE_RUNTIME_FILES = Object.freeze([
   "utils/chatEngine.js",
   "utils/domainRouter.js",
   "utils/stateSpine.js",
-  "utils/voiceRoute.js",
+  "Utils/voiceRoute.js",
   "Data/marion/runtime/composeMarionResponse.js",
   "Data/marion/runtime/DomainConcierge.js",
   "utils/nyx_state_controller.js",
@@ -2510,7 +2598,7 @@ app.locals.nyxGuideSteps789 = {
   function guardedLoad(paths){let error="";for(const p of paths){try{const mod=require(p);if(mod)return{ok:true,path:p,mod};}catch(e){error=text(e&&e.code||e&&e.message,80);}}return{ok:false,path:"",mod:null,error};}
   const moduleChecks=Object.freeze({
     stateSpine:guardedLoad(["./utils/stateSpine.js","./Data/marion/runtime/stateSpine.js"]),
-    voiceRoute:guardedLoad(["./utils/voiceRoute.js"]),
+    voiceRoute:guardedLoad(["./Utils/voiceRoute.js"]),
     chatEngine:guardedLoad(["./utils/chatEngine.js"]),
     domainRouter:guardedLoad(["./Utils/domainRouter.js","./utils/domainRouter.js"]),
     domainConcierge:guardedLoad(["./DomainConcierge.js","./Data/marion/runtime/DomainConcierge.js"]),
@@ -2759,17 +2847,11 @@ function marionAdminVoiceRequestAuth(req, body) {
     { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] }
   ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
 
-  for (const candidate of candidates) {
-    if (tokens.some((token) => timingSafeTextEqual(candidate.value, token))) {
-      return {
-        verified: true,
-        configured: tokens.length > 0,
-        provided: true,
-        source: candidate.source,
-        adminVoiceRuntimeApproval: false
-      };
-    }
-  }
+  // SECURITY: A static voice token is not a private voice session. It may
+  // identify a legacy caller but must never independently enable delivery.
+  // Require a fresh server-verified admin console session AND a one-use grant.
+  const legacyTokenMatched = candidates.some(candidate =>
+    tokens.some(token => timingSafeTextEqual(candidate.value, token)));
 
   // MARION-ADMIN-VOICE-RUNTIME-HANDLER-CONNECTION-V1:
   // A short-lived verified admin console session may consume exactly one
@@ -2778,17 +2860,32 @@ function marionAdminVoiceRequestAuth(req, body) {
   // open a single controlled audible confirmation without exposing tokens.
   try {
     const session = typeof marionAdminConsoleValidateSession === "function" ? marionAdminConsoleValidateSession(req) : null;
-    if (session && session.verified === true) {
+    if (session && session.verified === true && session.sessionVerified === true &&
+        session.testBypass !== true && session.testingBypass !== true &&
+        session.session && session.session.testingBypass !== true && session.session.testBypass !== true &&
+        ["owner", "admin", "administrator"].includes(String(session.role || (session.session && session.session.role) || "").toLowerCase())) {
       const gatewayStatus = typeof marionAdminConsoleGatewayStatus === "function" ? marionAdminConsoleGatewayStatus() : null;
       const mod = gatewayStatus && gatewayStatus.mod;
       const sessionId = cleanText(session.sessionId || (session.session && session.session.id) || "");
       const stateFn = mod && typeof mod.getAdminVoiceRuntimeState === "function" ? mod.getAdminVoiceRuntimeState : null;
       const consumeFn = mod && typeof mod.consumeAdminVoiceRuntimeApproval === "function" ? mod.consumeAdminVoiceRuntimeApproval : null;
       const state = stateFn ? stateFn({ sessionId }) : null;
-      const allowed = state && state.adminVoiceDeliveryAllowed === true && (state.sessionMatches !== false);
-      if (allowed) {
-        const consumed = consumeFn ? consumeFn({ sessionId, requestId: cleanText(body && body.requestId || "") }) : state;
-        if (consumed && consumed.adminVoiceDeliveryAllowed === true) {
+      // Batch 7: Batch 6 gateway requires an explicit server-verified, role-bound
+      // session context to consume a single-use voice grant. Never infer it from
+      // a caller-controlled request body or a standalone legacy voice token.
+      const allowed = state && state.adminVoiceDeliveryAllowed === true &&
+        state.sessionMatches === true && state.singleUtterance !== false;
+      if (allowed && sessionId && consumeFn) {
+        const consumed = consumeFn({
+          sessionId,
+          sessionVerified: true,
+          adminVerified: true,
+          role: String(session.role || (session.session && session.session.role) || "owner").toLowerCase(),
+          requestId: cleanText(state.requestId || "")
+        });
+        if (consumed && consumed.adminVoiceDeliveryAllowed === true &&
+            consumed.sessionMatches === true && consumed.consumedForThisTurn === true &&
+            cleanText(consumed.requestId || "") === cleanText(state.requestId || "")) {
           return {
             verified: true,
             configured: true,
@@ -2815,7 +2912,7 @@ function marionAdminVoiceRequestAuth(req, body) {
     verified: false,
     configured: tokens.length > 0,
     provided: candidates.length > 0,
-    source: candidates.length ? "invalid" : "none",
+    source: legacyTokenMatched ? "legacy_voice_token_requires_verified_session_and_grant" : (candidates.length ? "invalid" : "none"),
     adminVoiceRuntimeApproval: false
   };
 }
@@ -2832,31 +2929,32 @@ function marionAdminConversationEnvTokens() {
 }
 
 function marionAdminConversationRequestAuth(req) {
+  // Reuse the single canonical private-control-plane validator. A conversation
+  // may use an owner/operator admin session or approved master credential;
+  // voice/remote/observer permissions must never be promoted to admin text.
+  let canonical = null;
   try {
-    if (typeof marionAdminConsoleValidateSession === "function") {
-      const session = marionAdminConsoleValidateSession(req);
-      if (session && session.verified) {
-        const role = typeof marionAdminConsoleNormalizeRole === "function"
-          ? marionAdminConsoleNormalizeRole(session.role || (session.session && session.session.role) || "blocked")
-          : cleanText(session.role || "");
+    if (typeof marionAdminConsoleRequestAuth === "function") {
+      canonical = marionAdminConsoleRequestAuth(req);
+      if (canonical && canonical.verified === true) {
+        const role = marionAdminConsoleAuthRole(canonical);
+        const permitted = role === MARION_ADMIN_CONSOLE_ROLES.OWNER ||
+          role === MARION_ADMIN_CONSOLE_ROLES.ADMIN_OPERATOR;
         return {
-          verified: true,
+          ...canonical,
+          verified: permitted,
           configured: true,
           provided: true,
-          source: "x-sb-marion-admin-session-token",
-          sessionVerified: true,
-          sessionProvided: true,
-          sessionId: session.sessionId,
-          session: session.session,
-          role,
-          capabilities: session.capabilities || (typeof marionAdminConsoleCapabilitiesForRole === "function" ? marionAdminConsoleCapabilitiesForRole(role) : []),
-          authMode: session.authMode || "admin_console_session",
-          testBypass: session.testBypass === true,
-          testingBypass: session.testingBypass === true
+          reason: permitted ? "admin_conversation_authenticated" : "admin_conversation_role_denied"
         };
       }
     }
-  } catch (_) {}
+  } catch (_) {
+    // Fail closed; never turn a verifier exception into access.
+  }
+
+  // Legacy dedicated conversation bearer tokens are supported only for the
+  // explicitly configured conversation lane (not voice or delivery tokens).
   const headers = req && req.headers ? req.headers : {};
   const tokens = marionAdminConversationEnvTokens();
   const candidates = [
@@ -2864,14 +2962,23 @@ function marionAdminConversationRequestAuth(req) {
     { source: "x-sb-marion-admin-token", value: headers["x-sb-marion-admin-token"] },
     { source: "x-marion-admin-token", value: headers["x-marion-admin-token"] }
   ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
-
   for (const candidate of candidates) {
     if (tokens.some((token) => timingSafeTextEqual(candidate.value, token))) {
-      return { verified: true, configured: tokens.length > 0, provided: true, source: candidate.source };
+      return { verified: true, configured: true, provided: true, source: candidate.source,
+        reason: "dedicated_admin_conversation_credential_verified" };
     }
   }
-
-  return { verified: false, configured: tokens.length > 0, provided: candidates.length > 0, source: candidates.length ? "invalid" : "none" };
+  const sessionReason = canonical && canonical.sessionReason || "";
+  const safeSessionReason = ["session_token_missing", "session_token_malformed",
+    "session_not_found_or_expired", "session_expired", "session_client_binding_mismatch"].includes(sessionReason)
+    ? sessionReason : "";
+  return { verified: false, configured: tokens.length > 0 || !!(canonical && canonical.configured),
+    provided: candidates.length > 0 || !!(canonical && canonical.provided),
+    source: canonical && canonical.authMode === "session_failed" ? "session_failed" :
+      (candidates.length ? "invalid" : "none"),
+    sessionProvided: !!(canonical && canonical.sessionProvided),
+    sessionVerified: false,
+    reason: safeSessionReason || (candidates.length ? "admin_credential_not_accepted" : "admin_credential_missing") };
 }
 
 function marionAdminConversationRuntimeDiagnostics() {
@@ -3202,6 +3309,12 @@ function ensureMarionLearningRuntime() {
   if (!storageConfig.configured) return { ready: false, status: storageConfig.reason };
   const current = app.locals.marionLearningBackend;
   if (current && current.runtime) {
+    const gateway = require("./Data/marion/runtime/MarionVoiceGateway.js");
+    const registration = typeof gateway.getMarionLearningIntegrationStatus === "function"
+      ? gateway.getMarionLearningIntegrationStatus() : null;
+    if (!registration || registration.registered !== true) {
+      return { ready: false, status: "gateway_learning_registration_unverified" };
+    }
     registerMarionLearningOfflineComposerVersions();
     if (app.locals.marionLearningAdminHandlers && typeof app.locals.marionLearningAdminHandlers.issueReview === "function") {
       delete app.locals.marionLearningSetupDiagnostic;
@@ -3302,6 +3415,14 @@ function ensureMarionLearningRuntime() {
       captureEnabled: storageConfig.enabled,
       gateway: learningGateway
     });
+    setupStage = "gateway_registration_verification";
+    const registrationState = typeof learningGateway.getMarionLearningIntegrationStatus === "function"
+      ? learningGateway.getMarionLearningIntegrationStatus() : null;
+    if (!backend || !backend.registration || backend.registration.ok !== true ||
+        backend.registration.registered !== true || !registrationState ||
+        registrationState.registered !== true) {
+      throw new Error("gateway_learning_registration_unverified");
+    }
     setupStage = "admin_handlers_load";
     const admin = require("./Data/marion/runtime/learning/MarionLearningAdminHandlers.js");
     setupStage = "admin_handlers_create";
@@ -4660,6 +4781,10 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       source: "marion_admin_conversation",
       route: "/api/marion/admin/conversation",
       error: "MARION_ADMIN_CONVERSATION_AUTH_REQUIRED",
+      // Diagnostic codes only; never return bearer values or full header contents.
+      reason: cleanText(auth.reason || "admin_authorization_required").slice(0, 80),
+      sessionTokenProvided: auth.sessionProvided === true,
+      sessionVerified: auth.sessionVerified === true,
       privateAdminConversation: true,
       adminConversationAllowed: false,
       transcriptOnly: true,
@@ -10824,11 +10949,11 @@ const supportResponseMod = tryRequireMany([
 ]);
 
 const voiceRouteMod = tryRequireMany([
-  "./utils/voiceRoute.js"
+  "./Utils/voiceRoute.js"
 ]);
 
 const ttsLoadStatus = tryRequireManyWithStatus([
-  "./utils/tts.js"
+  "./Utils/tts.js"
 ]);
 const ttsMod = ttsLoadStatus.mod;
 try {
@@ -22895,11 +23020,9 @@ function marionAdminConsoleEnvTokens() {
     process.env.MARION_ADMIN_TOKEN,
     process.env.SB_MARION_ADMIN_TOKEN,
     process.env.SB_MARION_ADMIN_CONSOLE_TOKEN,
-    process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN,
-    process.env.SB_MARION_ADMIN_DELIVERY_TOKEN,
-    process.env.SB_MARION_ADMIN_VOICE_TOKEN,
-    process.env.SB_ADMIN_VOICE_TOKEN,
-    process.env.MARION_ADMIN_VOICE_TOKEN
+    process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN
+    // Voice and delivery credentials are deliberately NOT owner credentials.
+    // An authenticated voice lane must never mint an owner control-plane session.
   ].map((item) => cleanText(item || "")).filter(Boolean));
 }
 
@@ -22913,7 +23036,11 @@ function marionAdminConsoleMfaTokens() {
 
 const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.5-phase7-voice-continuity-window";
 const MARION_ADMIN_CONSOLE_ROUTE_CONTRACT_VERSION = "marion.adminConsole.routes/1.1-check-post-alias-contract";
-const MARION_ADMIN_CONSOLE_REQUIRE_SESSION_FOR_MUTATIONS = process.env.SB_MARION_ADMIN_REQUIRE_SESSION_FOR_MUTATIONS !== "false";
+// Never allow production configuration to downgrade privileged mutations to
+// long-lived bearer credentials. Development may opt out for legacy tests.
+const MARION_ADMIN_CONSOLE_REQUIRE_SESSION_FOR_MUTATIONS =
+  process.env.NODE_ENV === "production" ||
+  process.env.SB_MARION_ADMIN_REQUIRE_SESSION_FOR_MUTATIONS !== "false";
 const MARION_ADMIN_CONSOLE_ROLES = Object.freeze({
   OWNER: "owner",
   ADMIN_OPERATOR: "admin_operator",
@@ -23086,8 +23213,7 @@ function marionAdminConsoleRoleTokenEntries() {
       role: MARION_ADMIN_CONSOLE_ROLES.OWNER,
       names: [
         "MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_CONSOLE_TOKEN",
-        "SB_LINGOSENTINEL_MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_DELIVERY_TOKEN",
-        "SB_MARION_ADMIN_VOICE_TOKEN", "SB_ADMIN_VOICE_TOKEN", "MARION_ADMIN_VOICE_TOKEN"
+        "SB_LINGOSENTINEL_MARION_ADMIN_TOKEN"
       ],
       values: ownerValues
     },
@@ -23132,13 +23258,14 @@ function marionAdminConsoleCanAssumeRole(auth, requestedRole) {
 function marionAdminConsoleRequestedSessionRole(req, bodyValue) {
   const body = safeObj(bodyValue || (req && req.body));
   const headers = req && req.headers ? req.headers : {};
-  return marionAdminConsoleNormalizeRole(firstString([
+  const rawRole = firstString([
     headers["x-sb-marion-admin-role"],
     headers["x-sb-marion-session-role"],
     body.role,
     body.sessionRole,
     safeObj(body.session).role
-  ]));
+  ]);
+  return rawRole ? marionAdminConsoleNormalizeRole(rawRole) : "";
 }
 
 function marionAdminConsoleResolveSessionRole(auth, requestedRole) {
@@ -23204,9 +23331,8 @@ function marionAdminConsoleMasterRequestAuth(req) {
     { source: "x-sb-marion-admin-console-token", value: headers["x-sb-marion-admin-console-token"] },
     { source: "x-marion-admin-token", value: headers["x-marion-admin-token"] },
     { source: "x-sb-lingosentinel-marion-admin-token", value: headers["x-sb-lingosentinel-marion-admin-token"] },
-    { source: "x-sb-marion-admin-delivery-token", value: headers["x-sb-marion-admin-delivery-token"] },
-    { source: "x-sb-marion-admin-voice-token", value: headers["x-sb-marion-admin-voice-token"] },
-    { source: "x-sb-admin-voice-token", value: headers["x-sb-admin-voice-token"] },
+    // BATCH 8: delivery and voice-specific headers cannot authenticate the
+    // master admin control plane or mint privileged admin sessions.
     { source: "x-sb-marion-admin-operator-token", value: headers["x-sb-marion-admin-operator-token"] },
     { source: "x-sb-marion-remote-trusted-user-token", value: headers["x-sb-marion-remote-trusted-user-token"] },
     { source: "x-sb-marion-remote-user-token", value: headers["x-sb-marion-remote-user-token"] },
@@ -23256,6 +23382,11 @@ function marionAdminConsoleMasterRequestAuth(req) {
     remoteTrustedUserVerified: remoteTrusted,
     remoteTrustedUserBoundary: remoteTrusted,
     authMode: verifiedCandidate ? (remoteTrusted ? "remote_trusted_user" : "master") : "none",
+    // Non-secret diagnostics distinguish absent credentials, failed comparison,
+    // and configured MFA. No supplied credential material is returned.
+    reason: !candidates.length ? "admin_credential_missing" :
+      !verifiedCandidate ? "admin_credential_not_accepted" :
+      !mfaVerified ? "admin_mfa_verification_required" : "authenticated",
     hotfix: "MARION_SESSION_ISSUE_RESPONSE_FINALIZATION_HOTFIX_V1 + MARION_ASYNC_TOPLEVEL_BOOT_HOTFIX_V1"
   };
 }
@@ -23416,6 +23547,11 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     reason: errorCode,
     authSource: cleanText(auth && auth.source || ""),
     authReason: cleanText(auth && (auth.testingBypassReason || auth.sessionReason || auth.reason) || ""),
+    // Redacted operator guidance; does not disclose valid tokens or values.
+    credentialHeaderAccepted: Object.freeze([
+      "authorization: Bearer", "x-sb-marion-admin-token", "x-sb-marion-admin-console-token"
+    ]),
+    tokenValuesExposed: false,
     routeMounted: true,
     privateControlPlane: true,
     adminRequired: true,
@@ -25130,7 +25266,13 @@ function marionAdminRuntimeErrorPublicDetail(err) {
 // MARION_ADMIN_PRIVATE_VOICE_RECEIVE_V1_START
 function marionAdminRuntimePrivateVoiceApproval(req, body, auth) {
   const base = safeObj(auth);
-  if (base.verified !== true) {
+  // A permanent admin token can authenticate some text operations, but voice
+  // delivery requires an already validated, non-testing admin session.
+  const verifiedSessionId = cleanText(base.sessionId || "");
+  const verifiedRole = cleanText(base.role || "").toLowerCase();
+  if (base.verified !== true || base.sessionVerified !== true || !verifiedSessionId ||
+      base.testBypass === true || base.testingBypass === true ||
+      !["owner", "admin", "administrator"].includes(verifiedRole)) {
     return {
       verified: false,
       adminVerified: false,
@@ -25148,7 +25290,10 @@ function marionAdminRuntimePrivateVoiceApproval(req, body, auth) {
     const approval = typeof marionAdminVoiceRequestAuth === "function"
       ? marionAdminVoiceRequestAuth(req, body)
       : null;
-    const approved = approval && approval.verified === true && approval.adminVoiceRuntimeApproval === true;
+    const approved = approval && approval.verified === true && approval.adminVoiceRuntimeApproval === true &&
+      approval.sessionVerified === true &&
+      cleanText(approval.sessionId || "") === verifiedSessionId &&
+      ["owner", "admin", "administrator"].includes(cleanText(approval.role || "").toLowerCase());
     if (approved) {
       return {
         ...base,
@@ -26368,6 +26513,8 @@ function startSandblastServer(port = PORT) {
     } catch (_) {}
     try {
       console.log("[Sandblast][nyx-voice-utils-mount]", {
+        releaseMarker: NYX_VOICE_RELEASE_MARKER,
+        mountVersion: NYX_VOICE_UTILS_MOUNT_STATUS.mountVersion || "",
         ok: NYX_VOICE_UTILS_MOUNT_STATUS.ok === true,
         mounted: NYX_VOICE_UTILS_MOUNT_STATUS.mounted === true,
         requestedPath: NYX_VOICE_UTILS_MOUNT_STATUS.requestedPath,
@@ -26376,6 +26523,7 @@ function startSandblastServer(port = PORT) {
         canonicalVoiceRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalVoiceRoute,
         canonicalHealthRoute: NYX_VOICE_UTILS_MOUNT_STATUS.canonicalHealthRoute,
         compatibilityTtsOwnedByIndex: true,
+        errorCode: NYX_VOICE_UTILS_MOUNT_STATUS.errorCode || "",
         error: NYX_VOICE_UTILS_MOUNT_STATUS.error || ""
       });
     } catch (_) {}
@@ -29730,7 +29878,10 @@ function isSandblastTvOperationalResponseV2(req) {
   const sandblastTvOperational = requestPath === "/api/sandblast-tv/v1" ||
     requestPath.startsWith("/api/sandblast-tv/v1/");
 
-  return sandblastTvOperational ||
+  const marionBaselineOperational = requestPath === "/api/marion/ecosystem" ||
+    requestPath.startsWith("/api/marion/ecosystem/");
+
+  return sandblastTvOperational || marionBaselineOperational ||
     isNyxEcosystemOperationalResponseV1(req) ||
     isNyxOperationalHealthResponseV1(req) ||
     isNyxOperationalVoiceResponseV2(req);
