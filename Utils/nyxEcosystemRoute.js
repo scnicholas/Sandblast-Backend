@@ -11,7 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const router = express.Router();
 const BRIDGE_PATH = path.resolve(__dirname, "..", "public", "Nyx", "nyx-surface-bridge.js");
-const VERSION = "nyx.ecosystem.route/1.1-guarded-dependencies";
+const VERSION = "nyx.ecosystem.route/1.2-dependency-readiness";
 
 function loadLocal(modulePath, requiredFunctions) {
   try {
@@ -63,6 +63,7 @@ router.get("/bridge.js", wrap((_req, res) => {
   return res.sendFile(BRIDGE_PATH);
 }));
 router.get("/health", wrap((_req, res) => {
+  res.set("Cache-Control", "no-store");
   const status = dependencyStatus();
   const ok = status.spine && status.contentRegistry && status.bridge;
   return res.status(ok ? 200 : 503).json({
@@ -74,6 +75,7 @@ router.get("/health", wrap((_req, res) => {
 }));
 router.get("/content/status", wrap((_req, res) => content ? res.json(content.status()) : unavailable(res, "contentRegistry")));
 router.get("/content/catalog/:source", wrap((req, res) => {
+  res.set("Cache-Control", "no-store");
   if (!content) return unavailable(res, "contentRegistry");
   const result = content.catalog(String(req.params.source || "").toLowerCase());
   if (!result || typeof result !== "object") return res.status(503).json({ ok: false, error: "ECOSYSTEM_INVALID_CATALOG_RESULT" });
