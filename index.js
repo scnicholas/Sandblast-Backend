@@ -1,5 +1,6 @@
 "use strict";
 
+// MARION-ADMIN-AUTH-COHESION-AND-REGRESSION-V2: session/console/conversation coherence, rejection reasons, test contract.
 // MARION-SESSION-ISSUER-BOUNDARY-AUDIT-V1: owner/voice credential separation, redacted auth diagnosis, default-role hygiene.
 
 // NYX-VOICE-TEXT-PARITY-TRANSPORT-ISOLATION-V1: keep canonical Nyx/TTS synthesis JSON outside global conversation projection.
@@ -2869,31 +2870,32 @@ function marionAdminConversationEnvTokens() {
 }
 
 function marionAdminConversationRequestAuth(req) {
+  // Reuse the single canonical private-control-plane validator. A conversation
+  // may use an owner/operator admin session or approved master credential;
+  // voice/remote/observer permissions must never be promoted to admin text.
+  let canonical = null;
   try {
-    if (typeof marionAdminConsoleValidateSession === "function") {
-      const session = marionAdminConsoleValidateSession(req);
-      if (session && session.verified) {
-        const role = typeof marionAdminConsoleNormalizeRole === "function"
-          ? marionAdminConsoleNormalizeRole(session.role || (session.session && session.session.role) || "blocked")
-          : cleanText(session.role || "");
+    if (typeof marionAdminConsoleRequestAuth === "function") {
+      canonical = marionAdminConsoleRequestAuth(req);
+      if (canonical && canonical.verified === true) {
+        const role = marionAdminConsoleAuthRole(canonical);
+        const permitted = role === MARION_ADMIN_CONSOLE_ROLES.OWNER ||
+          role === MARION_ADMIN_CONSOLE_ROLES.ADMIN_OPERATOR;
         return {
-          verified: true,
+          ...canonical,
+          verified: permitted,
           configured: true,
           provided: true,
-          source: "x-sb-marion-admin-session-token",
-          sessionVerified: true,
-          sessionProvided: true,
-          sessionId: session.sessionId,
-          session: session.session,
-          role,
-          capabilities: session.capabilities || (typeof marionAdminConsoleCapabilitiesForRole === "function" ? marionAdminConsoleCapabilitiesForRole(role) : []),
-          authMode: session.authMode || "admin_console_session",
-          testBypass: session.testBypass === true,
-          testingBypass: session.testingBypass === true
+          reason: permitted ? "admin_conversation_authenticated" : "admin_conversation_role_denied"
         };
       }
     }
-  } catch (_) {}
+  } catch (_) {
+    // Fail closed; never turn a verifier exception into access.
+  }
+
+  // Legacy dedicated conversation bearer tokens are supported only for the
+  // explicitly configured conversation lane (not voice or delivery tokens).
   const headers = req && req.headers ? req.headers : {};
   const tokens = marionAdminConversationEnvTokens();
   const candidates = [
@@ -2901,14 +2903,23 @@ function marionAdminConversationRequestAuth(req) {
     { source: "x-sb-marion-admin-token", value: headers["x-sb-marion-admin-token"] },
     { source: "x-marion-admin-token", value: headers["x-marion-admin-token"] }
   ].map((item) => ({ source: item.source, value: String(item.value || "").trim() })).filter((item) => item.value);
-
   for (const candidate of candidates) {
     if (tokens.some((token) => timingSafeTextEqual(candidate.value, token))) {
-      return { verified: true, configured: tokens.length > 0, provided: true, source: candidate.source };
+      return { verified: true, configured: true, provided: true, source: candidate.source,
+        reason: "dedicated_admin_conversation_credential_verified" };
     }
   }
-
-  return { verified: false, configured: tokens.length > 0, provided: candidates.length > 0, source: candidates.length ? "invalid" : "none" };
+  const sessionReason = canonical && canonical.sessionReason || "";
+  const safeSessionReason = ["session_token_missing", "session_token_malformed",
+    "session_not_found_or_expired", "session_expired", "session_client_binding_mismatch"].includes(sessionReason)
+    ? sessionReason : "";
+  return { verified: false, configured: tokens.length > 0 || !!(canonical && canonical.configured),
+    provided: candidates.length > 0 || !!(canonical && canonical.provided),
+    source: canonical && canonical.authMode === "session_failed" ? "session_failed" :
+      (candidates.length ? "invalid" : "none"),
+    sessionProvided: !!(canonical && canonical.sessionProvided),
+    sessionVerified: false,
+    reason: safeSessionReason || (candidates.length ? "admin_credential_not_accepted" : "admin_credential_missing") };
 }
 
 function marionAdminConversationRuntimeDiagnostics() {
@@ -4711,6 +4722,10 @@ app.post(MARION_ADMIN_CONVERSATION_ROUTES, async (req, res) => {
       source: "marion_admin_conversation",
       route: "/api/marion/admin/conversation",
       error: "MARION_ADMIN_CONVERSATION_AUTH_REQUIRED",
+      // Diagnostic codes only; never return bearer values or full header contents.
+      reason: cleanText(auth.reason || "admin_authorization_required").slice(0, 80),
+      sessionTokenProvided: auth.sessionProvided === true,
+      sessionVerified: auth.sessionVerified === true,
       privateAdminConversation: true,
       adminConversationAllowed: false,
       transcriptOnly: true,
