@@ -1,5 +1,7 @@
 "use strict";
 
+// ECOSYSTEM-BASELINE-INTEGRATION-V4: isolate operational Marion responses, preserve private runtime boundary.
+
 // ECOSYSTEM-MOUNT-OBSERVABILITY-V3: fail-closed public diagnostics for missing Nyx/Marion ecosystem routes; no authority changes.
 
 // MARION-ADMIN-AUTH-COHESION-AND-REGRESSION-V2: session/console/conversation coherence, rejection reasons, test contract.
@@ -29876,7 +29878,10 @@ function isSandblastTvOperationalResponseV2(req) {
   const sandblastTvOperational = requestPath === "/api/sandblast-tv/v1" ||
     requestPath.startsWith("/api/sandblast-tv/v1/");
 
-  return sandblastTvOperational ||
+  const marionBaselineOperational = requestPath === "/api/marion/ecosystem" ||
+    requestPath.startsWith("/api/marion/ecosystem/");
+
+  return sandblastTvOperational || marionBaselineOperational ||
     isNyxEcosystemOperationalResponseV1(req) ||
     isNyxOperationalHealthResponseV1(req) ||
     isNyxOperationalVoiceResponseV2(req);
