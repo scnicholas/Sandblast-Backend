@@ -37,7 +37,7 @@ function authorize(req) {
 
   if (!expected) {
     return {
-      ok: process.env.NODE_ENV !== 'production',
+      ok: false,
       status: 503,
       error: 'domain_internal_token_not_configured'
     };
@@ -86,9 +86,7 @@ function statusFor(result) {
 router.get('/domain/health', (req, res) => {
   harden(res);
 
-  if (!Bootstrap.getHealth().booted) {
-    Bootstrap.bootstrap();
-  }
+  // Health is observational only; startup owns initialization.
 
   const health = Bootstrap.getHealth();
 
@@ -106,9 +104,7 @@ router.post('/domain/request', async (req, res) => {
 
   harden(res);
 
-  if (!Bootstrap.getHealth().booted) {
-    Bootstrap.bootstrap();
-  }
+  if(!Bootstrap.getHealth().ok)return res.status(503).json({ok:false,error:'domain_not_ready',routeVersion:VERSION});
 
   const result = await Router.route({
     ...body(req),
@@ -129,9 +125,7 @@ router.post('/domain/chronicle', async (req, res) => {
 
   harden(res);
 
-  if (!Bootstrap.getHealth().booted) {
-    Bootstrap.bootstrap();
-  }
+  if(!Bootstrap.getHealth().ok)return res.status(503).json({ok:false,error:'domain_not_ready',routeVersion:VERSION});
 
   const result = await Router.route({
     ...body(req),
@@ -153,9 +147,7 @@ router.post('/domain/guardians', async (req, res) => {
 
   harden(res);
 
-  if (!Bootstrap.getHealth().booted) {
-    Bootstrap.bootstrap();
-  }
+  if(!Bootstrap.getHealth().ok)return res.status(503).json({ok:false,error:'domain_not_ready',routeVersion:VERSION});
 
   const result = await Router.route({
     ...body(req),
@@ -171,9 +163,11 @@ router.post('/domain/guardians', async (req, res) => {
     });
 });
 
+const installedApps=new WeakSet();
 function register(app) {
   if (!app || typeof app.use !== 'function') return false;
-  app.use('/api/marion/ecosystem', router);
+  if(installedApps.has(app))return true;
+  app.use('/api/marion/ecosystem', router);installedApps.add(app);
   return true;
 }
 
