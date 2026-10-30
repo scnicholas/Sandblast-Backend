@@ -103,12 +103,14 @@ function register() {
     }
   });
 
-  Permissions.setPolicy('crm', {
+  const policyResult = Permissions.setPolicy('crm', {
     read: ['crm.leads', 'crm.metrics'],
     write: ['crm.telemetry'],
     request: ['marion.analysis', 'marion.recommendation'],
     execute: []
   });
+
+  if (!result || result.ok !== true || !policyResult || policyResult.ok !== true) return { ok: false, error: 'crm_registration_or_policy_failed' };
 
   Registry.updateStatus('crm', 'ready', {
     ecosystemPhase: 3,
@@ -313,7 +315,7 @@ async function analyzeLead(input = {}) {
         risks: ['marion_analysis_failed']
       },
       recommendation,
-      warning: clean(error && (error.code || error.message || error.name) || 'marion_error', 180),
+      warning: 'marion_analysis_failed',
       version: VERSION
     };
   }
