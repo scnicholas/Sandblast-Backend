@@ -1,5 +1,7 @@
 "use strict";
 
+// ECOSYSTEM-MOUNT-OBSERVABILITY-V3: fail-closed public diagnostics for missing Nyx/Marion ecosystem routes; no authority changes.
+
 // MARION-ADMIN-AUTH-COHESION-AND-REGRESSION-V2: session/console/conversation coherence, rejection reasons, test contract.
 // MARION-SESSION-ISSUER-BOUNDARY-AUDIT-V1: owner/voice credential separation, redacted auth diagnosis, default-role hygiene.
 
@@ -1391,26 +1393,67 @@ if (!NYX_VOICE_UTILS_MOUNT_STATUS.ok) {
 /* NYX_VOICE_UTILS_EARLY_MOUNT_HARDLOCK_V1_END */
 
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_START
- * This specific public router must be registered before the generic /api
- * not_found guard near the end of the route table.
+ * Mount before generic /api 404. Resolve the exact deployed case-sensitive path.
+ * Failure is explicit 503 instead of an ambiguous not_found response.
  */
+const NYX_ECOSYSTEM_ROUTE_PATH = "./Utils/nyxEcosystemRoute.js";
+const NYX_ECOSYSTEM_REQUIRED_FILES = Object.freeze([
+  "Utils/nyxEcosystemRoute.js",
+  "Utils/nyxEcosystemSpine.js",
+  "Utils/nyxContentDataRegistry.js",
+  "public/Nyx/nyx-surface-bridge.js"
+]);
+function nyxEcosystemMissingFiles() {
+  return NYX_ECOSYSTEM_REQUIRED_FILES.filter((relative) =>
+    !fs.existsSync(path.join(__dirname, ...relative.split("/")))
+  );
+}
 try {
-  const nyxEcosystemRoute = require("./Utils/nyxEcosystemRoute.js");
+  const nyxEcosystemRoute = require(NYX_ECOSYSTEM_ROUTE_PATH);
+  if (typeof nyxEcosystemRoute !== "function") {
+    const problem = new TypeError("NYX_ECOSYSTEM_ROUTER_EXPORT_INVALID");
+    problem.code = "ROUTER_EXPORT_INVALID";
+    throw problem;
+  }
   app.use("/api/nyx/ecosystem", nyxEcosystemRoute);
-  app.locals.nyxEcosystemSpine = {
+  app.locals.nyxEcosystemSpine = Object.freeze({
     mounted: true,
     mountPath: "/api/nyx/ecosystem",
-    version: nyxEcosystemRoute.VERSION || "unknown"
-  };
+    version: nyxEcosystemRoute.VERSION || "unknown",
+    missingFiles: nyxEcosystemMissingFiles()
+  });
   module.exports.NYX_ECOSYSTEM_SPINE_VERSION = nyxEcosystemRoute.VERSION;
   module.exports.NYX_ECOSYSTEM_SPINE_MOUNTED = true;
 } catch (error) {
-  app.locals.nyxEcosystemSpine = {
+  const missingFiles = nyxEcosystemMissingFiles();
+  const errorCode = missingFiles.length ? "MISSING_DEPLOYMENT_FILES" :
+    error && error.code === "MODULE_NOT_FOUND" ? "MODULE_DEPENDENCY_UNAVAILABLE" :
+    error && error.code === "ROUTER_EXPORT_INVALID" ? "ROUTER_EXPORT_INVALID" :
+    "ROUTER_INITIALIZATION_FAILED";
+  app.locals.nyxEcosystemSpine = Object.freeze({
     mounted: false,
     mountPath: "/api/nyx/ecosystem",
-    error: error && error.message ? error.message : "mount_failed"
-  };
-  console.error("[Sandblast][NYX ecosystem spine early mount]", error && error.message);
+    errorCode,
+    missingFiles
+  });
+  console.error("[Sandblast][nyx-ecosystem-route]", {
+    mounted: false,
+    errorCode,
+    missingFiles
+  });
+  app.get("/api/nyx/ecosystem/health", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(503).json({
+      ok: false,
+      service: "nyx-ecosystem",
+      mounted: false,
+      ready: false,
+      error: "ecosystem_route_unavailable",
+      errorCode,
+      missingFiles
+    });
+  });
 }
 /* NYX_ECOSYSTEM_SPINE_PHASES_1_2_EARLY_MOUNT_END */
 
@@ -1571,10 +1614,7 @@ function mountSandblastEcosystemBaselineRouteOnce(appInstance) {
       baselineRouter.VERSION ||
       ""
     );
-    status.error = cleanText(
-      error && (error.code || error.message || error) ||
-      "baseline_route_mount_failed"
-    ).slice(0, 300);
+    status.error = "baseline_route_mount_failed";
 
     appInstance.locals.__sandblastEcosystemBaselineRouteMounted =
       Object.freeze({ ...status });
@@ -1594,6 +1634,23 @@ function mountSandblastEcosystemBaselineRouteOnce(appInstance) {
 
 const SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS =
   mountSandblastEcosystemBaselineRouteOnce(app);
+
+// Explicit diagnostic when the optional baseline module cannot be mounted.
+// Do not fabricate the missing route or make private runtime APIs public.
+if (!SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS.ok) {
+  app.get("/api/marion/ecosystem/health", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.status(503).json({
+      ok: false,
+      service: "marion-ecosystem-baseline",
+      mounted: false,
+      ready: false,
+      error: SANDBLAST_ECOSYSTEM_BASELINE_ROUTE_MOUNT_STATUS.error || "baseline_route_unavailable",
+      expectedModules: ["Data/marion/runtime/ecosystem/MarionEcosystemBaselineRoute.js"]
+    });
+  });
+}
 
 /* SANDBLAST_ECOSYSTEM_BASELINE_1_0_ROUTE_MOUNT_END */
 
