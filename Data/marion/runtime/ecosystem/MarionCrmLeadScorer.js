@@ -30,6 +30,7 @@ function score(lead = {}, options = {}) {
   const reasons = [];
 
   const engagement = lead.engagement || {};
+  const count = (value) => {const n=Number(value);return Number.isFinite(n)?Math.max(0,Math.min(100000,Math.floor(n))):0;};
   const interests = lead.interests || {};
   const location = lead.location || {};
 
@@ -41,28 +42,28 @@ function score(lead = {}, options = {}) {
     ? options.targetRegions.map(value => clean(value, 100).toLowerCase()).filter(Boolean)
     : listEnv('CRM_PHASE3_TARGET_REGIONS');
 
-  if ((engagement.formSubmissions || 0) > 0) {
-    points += Math.min(25, 15 + (engagement.formSubmissions - 1) * 5);
+  if (count(engagement.formSubmissions) > 0) {
+    points += Math.min(25, 15 + (count(engagement.formSubmissions) - 1) * 5);
     reasons.push('form_submission');
   }
 
-  if ((engagement.replies || 0) > 0) {
-    points += Math.min(25, 15 + (engagement.replies - 1) * 5);
+  if (count(engagement.replies) > 0) {
+    points += Math.min(25, 15 + (count(engagement.replies) - 1) * 5);
     reasons.push('reply_engagement');
   }
 
-  if ((engagement.appointments || 0) > 0) {
+  if (count(engagement.appointments) > 0) {
     points += 25;
     reasons.push('appointment_signal');
   }
 
-  if ((engagement.calls || 0) > 0) {
-    points += Math.min(15, 8 + (engagement.calls - 1) * 3);
+  if (count(engagement.calls) > 0) {
+    points += Math.min(15, 8 + (count(engagement.calls) - 1) * 3);
     reasons.push('call_signal');
   }
 
-  if ((engagement.pageViews || 0) >= 3) {
-    points += Math.min(12, 4 + Math.floor(engagement.pageViews / 3) * 2);
+  if (count(engagement.pageViews) >= 3) {
+    points += Math.min(12, 4 + Math.floor(count(engagement.pageViews) / 3) * 2);
     reasons.push('repeat_site_engagement');
   }
 
