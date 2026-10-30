@@ -103,8 +103,10 @@ function validateEnvelope(value = {}) {
   if (!cleanText(value.source, 64)) errors.push('source_required');
   if (!cleanText(value.target, 64)) errors.push('target_required');
   if (!EVENT_TYPES.includes(value.eventType)) errors.push('eventType_invalid');
-  const bytes = Buffer.byteLength(JSON.stringify(value.payload || {}), 'utf8');
-  if (bytes > MAX_PAYLOAD_BYTES) errors.push('payload_too_large');
+  try {
+    const bytes = Buffer.byteLength(JSON.stringify(value.payload || {}), 'utf8');
+    if (bytes > MAX_PAYLOAD_BYTES) errors.push('payload_too_large');
+  } catch (_) { errors.push('payload_not_serializable'); }
   return { ok: errors.length === 0, errors };
 }
 
