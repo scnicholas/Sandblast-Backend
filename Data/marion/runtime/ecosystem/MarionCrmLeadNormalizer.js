@@ -74,6 +74,24 @@ function normalizeEvents(value) {
 
 function normalize(input = {}) {
   const root = obj(input);
+  // Preserve canonical references when already normalized; never hash them twice.
+  if (root.contract === 'sandblast.marion.crm-lead/3.0' && /^lead-[0-9a-f]{20}$/.test(String(root.leadRef || ''))) {
+    return {
+      contract: 'sandblast.marion.crm-lead/3.0', version: VERSION,
+      leadRef: root.leadRef,
+      accountRef: /^acct-[0-9a-f]{20}$/.test(String(root.accountRef || '')) ? root.accountRef : '',
+      company: clean(root.company, 160), industry: clean(root.industry, 100),
+      location: { city: clean(obj(root.location).city, 100), region: clean(obj(root.location).region, 100), country: clean(obj(root.location).country, 100) },
+      source: clean(root.source, 100), stage: clean(root.stage, 100),
+      tags: normalizeTags(root.tags),
+      engagement: { ...Object.fromEntries(['formSubmissions','pageViews','replies','calls','appointments'].map(k => [k, Math.max(0, Math.min(100000, number(obj(root.engagement)[k])))])), events: normalizeEvents(obj(root.engagement).events) },
+      interests: { advertising: bool(obj(root.interests).advertising), radio: bool(obj(root.interests).radio), tv: bool(obj(root.interests).tv) },
+      notes: clean(root.notes, 800),
+      consent: { marketingConsentKnown: bool(obj(root.consent).marketingConsentKnown), marketingConsent: bool(obj(root.consent).marketingConsent) },
+      dataMinimization: { directEmailIncluded: false, directPhoneIncluded: false, rawContactIdIncluded: false },
+      receivedAt: Number.isFinite(Number(root.receivedAt)) ? Number(root.receivedAt) : Date.now()
+    };
+  }
   const contact = obj(root.contact || root.lead || root.person);
   const opportunity = obj(root.opportunity || root.deal);
   const attribution = obj(root.attribution || root.source);
@@ -122,7 +140,7 @@ function normalize(input = {}) {
 
   const sourceName = clean(first(
     root.sourceName,
-    root.source,
+    typeof root.source === 'string' ? root.source : '',
     attribution.name,
     attribution.source,
     contact.source,
