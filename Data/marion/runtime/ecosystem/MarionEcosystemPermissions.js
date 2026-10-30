@@ -19,14 +19,14 @@ const DEFAULT_POLICY = Object.freeze({
 const policy=new Map();
 function clean(value,max=120){return String(value==null?'':value).replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,max);}
 function unique(values){return Array.from(new Set((Array.isArray(values)?values:[]).map(value=>clean(value,120)).filter(Boolean)));}
-function normalizeRule(rule={}){return{read:unique(rule.read),write:unique(rule.write),request:unique(rule.request),execute:unique(rule.execute)};}
+function normalizeRule(rule={}){const r=rule&&typeof rule==='object'&&!Array.isArray(rule)?rule:{};return{read:unique(r.read),write:unique(r.write),request:unique(r.request),execute:unique(r.execute)};}
 function setPolicy(component,rule={}){
   const id=Contract.normalizeComponent(component);
   if(!Registry.has(id))return{ok:false,error:'component_not_registered'};
-  const normalized=normalizeRule(rule);policy.set(id,normalized);return{ok:true,component:id,policy:{...normalized}};
+  const normalized=normalizeRule(rule);policy.set(id,normalized);return{ok:true,component:id,policy:getPolicy(id)};
 }
 function getPolicy(component){const value=policy.get(Contract.normalizeComponent(component));return value?{read:[...value.read],write:[...value.write],request:[...value.request],execute:[...value.execute]}:null;}
-function matches(granted,requested){if(granted==='*'||granted===requested)return true;if(granted.endsWith('.*'))return requested.startsWith(granted.slice(0,-1));return false;}
+function matches(granted,requested){if(!requested)return false;if(granted==='*'||granted===requested)return true;if(granted.endsWith('.*'))return requested.startsWith(granted.slice(0,-1));return false;}
 function authorize(component,action,resource){
   const id=Contract.normalizeComponent(component),act=clean(action,24).toLowerCase(),target=clean(resource,120);
   if(!Registry.has(id))return{ok:false,decision:'deny',reason:'component_not_registered'};
@@ -34,8 +34,8 @@ function authorize(component,action,resource){
   const rules=policy.get(id)||normalizeRule({}),allowed=rules[act].some(grant=>matches(grant,target));
   return{ok:allowed,decision:allowed?'allow':'deny',component:id,action:act,resource:target,reason:allowed?'policy_match':'policy_no_match'};
 }
-function bootstrapDefaults(){for(const [component,rule] of Object.entries(DEFAULT_POLICY))setPolicy(component,rule);return true;}
-function getHealth(){return{ok:true,service:'MarionEcosystemPermissions',version:VERSION,policies:policy.size};}
+function bootstrapDefaults(){let applied=0;const pending=[];for(const [component,rule] of Object.entries(DEFAULT_POLICY)){if(policy.has(component))continue;const result=setPolicy(component,rule);if(result.ok)applied++;else pending.push(component);}return{ok:pending.length===0,applied,pending};}
+function getHealth(){return{ok:true,service:'MarionEcosystemPermissions',version:VERSION,policies:policy.size,defaultPoliciesRegistered:Object.keys(DEFAULT_POLICY).filter(id=>policy.has(id)).length};}
 function resetForTests(){policy.clear();bootstrapDefaults();}
 bootstrapDefaults();
 module.exports=Object.freeze({VERSION,DEFAULT_POLICY,setPolicy,getPolicy,authorize,bootstrapDefaults,getHealth,resetForTests});
