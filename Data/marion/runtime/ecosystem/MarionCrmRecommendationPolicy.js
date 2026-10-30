@@ -53,10 +53,18 @@ function recommend(lead = {}, scoring = {}, marion = {}) {
     80
   );
 
-  if (marionAction && ALLOWED_ACTIONS.includes(marionAction)) {
+  const onHold = /(lost|disqualified|spam|invalid)/.test(stage);
+  if (!onHold && marionAction && ALLOWED_ACTIONS.includes(marionAction)) {
     action = marionAction;
   }
 
+  // Preparation remains advisory, but prohibit outreach recommendations without affirmative consent.
+  const consent = lead && lead.consent || {};
+  if ((action === 'prepare_personalized_outreach' || action === 'prepare_follow_up') &&
+      !(consent.marketingConsentKnown === true && consent.marketingConsent === true)) {
+    action = 'review_now';
+    rationale = 'Confirm outreach consent and eligibility before preparing contact.';
+  }
   return {
     version: VERSION,
     action,
