@@ -4,7 +4,7 @@ const crypto = require("crypto");
 let cleanText = null;
 try { ({ cleanText } = require("./MarionVoiceIntentClasses.js")); } catch (_err) { cleanText = function(value){ return value == null ? "" : String(value).replace(/\s+/g," ").trim(); }; }
 
-const VERSION = "marion.adminVoiceIdentityGate/1.0-adminOnlyDelivery";
+const VERSION = "marion.adminVoiceIdentityGate/1.1-trusted-server-proof-boundary";
 
 function envList(name, fallback) {
   const raw = cleanText(process.env[name] || "");
@@ -34,19 +34,16 @@ function boolish(value) {
 }
 
 function hasTrustedServerAdminProof(input = {}, options = {}) {
-  const auth = input && typeof input.authorization === "object" ? input.authorization : {};
-  return boolish(options.serverSideAdminVoiceAuth) ||
-    boolish(options.trustedServerAuth) ||
-    boolish(options.adminVoiceVerified) ||
-    boolish(options.adminVerified) ||
-    boolish(input.serverSideAdminVoiceAuth) ||
-    boolish(input.trustedServerAuth) ||
-    boolish(input.adminVoiceVerified) ||
-    boolish(input.adminVerified) ||
-    boolish(auth.serverSideAdminVoiceAuth) ||
-    boolish(auth.trustedServerAuth) ||
-    boolish(auth.adminVoiceVerified) ||
-    boolish(auth.adminVerified);
+  // Transport-originated input and input.authorization are untrusted. Only the
+  // separate server-supplied options object may provide proof, and a bare
+  // boolean is not a credential. The calling route must already have validated
+  // session ownership, expiration and authorization before constructing proof.
+  const proof = options && typeof options === "object" ? options.serverVerifiedAuth : null;
+  return !!(proof && typeof proof === "object" &&
+    proof.verified === true && proof.sessionVerified === true &&
+    proof.verifiedBy === "server_middleware" &&
+    typeof proof.sessionId === "string" && proof.sessionId.trim().length > 0 &&
+    (proof.role === "administrator" || proof.role === "admin" || proof.adminVoiceAuthorized === true));
 }
 
 function evaluateAdminVoiceIdentity(input = {}, options = {}) {
