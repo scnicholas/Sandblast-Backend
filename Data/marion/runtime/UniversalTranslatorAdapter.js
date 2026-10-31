@@ -1200,8 +1200,19 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
       ? translationResult.text
       : sourceText;
 
+  // A provider returning the original text is not proof of translation.
+  // For a requested cross-language translation, do not report success if no
+  // translation actually occurred. Preserve original text for safe fallback.
+  const sourceLanguage = meta.sourceLanguage || normalizeLanguageCode(payload.sourceLanguage || payload.detectedLanguage || payload.language);
+  const targetLanguage = meta.targetLanguage || normalizeLanguageCode(payload.targetLanguage || payload.responseLanguage || "en");
+  const crossLanguage = sourceLanguage !== targetLanguage && targetLanguage !== "auto" && targetLanguage !== "unknown";
+  const translated = meta.translated === true && translatedText.trim() !== sourceText.trim();
+  const unavailable = crossLanguage && !translated;
+
   return {
-    ok: true,
+    ok: !unavailable,
+    ...(unavailable ? { error: "TRANSLATION_UNAVAILABLE", status: "unavailable" } :
+      { status: translated ? "translated" : "not_required" }),
     authority: "marion",
     publicAgent: LANGUAGE_SPHERE_PUBLIC_AGENT,
     userFacingAgent: LANGUAGE_SPHERE_PUBLIC_AGENT,
@@ -1214,8 +1225,8 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
     targetLanguage: meta.targetLanguage || normalizeLanguageCode(payload.targetLanguage || payload.responseLanguage || "en"),
     detectedLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.detectedLanguage || payload.sourceLanguage || "auto"),
     confidence: typeof meta.sourceConfidence === "number" ? meta.sourceConfidence : null,
-    translationAvailable: meta.translated === true,
-    fallbackUsed: meta.fallbackUsed === true || meta.translated !== true,
+    translationAvailable: translated,
+    fallbackUsed: meta.fallbackUsed === true || !translated,
     marionAuthorityRequired: true,
     finalAnswerAuthorized: false,
     translationGate: true,
@@ -1227,8 +1238,8 @@ function adapterResultFromTranslation(sourceText, translationResult, payload = {
       displayAuthority: LANGUAGE_SPHERE_PUBLIC_AGENT,
       sourceLanguage: meta.sourceLanguage || normalizeLanguageCode(payload.sourceLanguage || payload.detectedLanguage || payload.language),
       targetLanguage: meta.targetLanguage || normalizeLanguageCode(payload.targetLanguage || payload.responseLanguage || "en"),
-      translated: meta.translated === true,
-      fallbackUsed: meta.fallbackUsed === true || meta.translated !== true,
+      translated,
+      fallbackUsed: meta.fallbackUsed === true || !translated,
       marionAuthorityRequired: true,
       finalAnswerAuthorized: false,
       translationGate: true,
