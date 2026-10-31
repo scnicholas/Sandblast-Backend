@@ -12,7 +12,7 @@ const Permissions = require('./MarionEcosystemPermissions');
 const StateSpine = require('./MarionEcosystemStateSpine');
 const EventRouter = require('./MarionEcosystemEventRouter');
 const Telemetry = require('./MarionEcosystemTelemetry');
-const VERSION = 'marion.ecosystemGateway/1.2-phase-failure-cohesion';
+const VERSION = 'marion.ecosystemGateway/1.1-staged-init';
 
 const PHASES = Object.freeze([
   ['phase2', './MarionEcosystemComponentBootstrap'],
@@ -57,15 +57,6 @@ function extractMarionText(value) {
     .find(x => typeof x === 'string' && x.trim());
   return candidate ? candidate.trim() : '';
 }
-// Only bounded machine-readable codes may enter readiness logs.
-function safeCode(code, fallback = 'phase_unhealthy') {
-  return typeof code === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(code)
-    ? code.toLowerCase() : fallback;
-}
-function nestedFailure(value) {
-  if (!value || typeof value !== 'object') return null;
-  return value.error || value.failureReason || null;
-}
 function safePhase(name, modulePath) {
   try {
     const instance = require(modulePath);
@@ -84,7 +75,7 @@ function phaseHealth() {
     if (!phase.module) { phases[name] = { ok:false, booted:false, error:phase.error }; continue; }
     try {
       const health = phase.module.getHealth();
-      phases[name] = { ok:health && health.ok === true, booted:health && health.booted === true, version:health && health.version || null, ...(health && health.error ? {error:safeCode(health.error)} : {}) };
+      phases[name] = { ok:health && health.ok === true, booted:health && health.booted === true, version:health && health.version || null };
     } catch (_) { phases[name] = { ok:false, booted:false, error:'phase_health_failed' }; }
   }
   return phases;
@@ -120,25 +111,17 @@ function initializeEcosystem(options = {}) {
         const result = previous && previous.ok === true && previous.booted === true
           ? {ok:true,alreadyBooted:true} : phase.module.bootstrap(options[name] || {});
         const health = phase.module.getHealth();
-        const passed = !!(result && result.ok === true && health && health.ok === true && health.booted === true);
-        const failureCode = !passed ? safeCode(nestedFailure(result) || nestedFailure(health) || 'phase_unhealthy') : null;
-        results[name] = { ok:passed, booted:health && health.booted === true,
-          ...(failureCode ? {error:failureCode} : {}),
-          // Diagnostic identifiers only. No private response data or file paths.
-          ...(result && result.failedComponent ? {failedComponent:safeCode(result.failedComponent,'component_unknown')} : {}) };
+        results[name] = { ok: result && result.ok === true && health && health.ok === true && health.booted === true,
+          booted:health && health.booted === true,
+          error:result && result.error ? String(result.error).slice(0,100) : undefined };
       } catch (_) { results[name] = {ok:false,error:'phase_initialization_failed'}; }
       if (!results[name].ok) break;
     }
     const readiness = phaseReadiness();
     if (readiness.phasesReady && readiness.marionReady) initializedAt = initializedAt || Date.now();
     const updated = phaseReadiness();
-    const firstFailedPhase = PHASES.map(p => p[0]).find(name => results[name] && results[name].ok === false) || null;
-    const firstFailureReason = firstFailedPhase ? results[firstFailedPhase].error || 'phase_unhealthy'
-      : (!updated.marionReady ? 'marion_runner_unavailable' : (!updated.fullEcosystemVerified ? 'ecosystem_not_verified' : null));
-    lastInitialization = {ok:updated.fullEcosystemVerified, phases:results,
-      firstFailedPhase,firstFailureReason,initializedAt:updated.initializedAt};
-    return {ok:updated.fullEcosystemVerified, service:'MarionEcosystemGateway',version:VERSION,
-      results,firstFailedPhase,firstFailureReason,readiness:updated};
+    lastInitialization = {ok:updated.fullEcosystemVerified, phases:results, initializedAt:updated.initializedAt};
+    return {ok:updated.fullEcosystemVerified, service:'MarionEcosystemGateway',version:VERSION,results,readiness:updated};
   } finally { initializing = false; }
 }
 async function runMarion(envelope) {
@@ -200,8 +183,6 @@ function getHealth() {
     contract:Contract.CONTRACT,marionReady:readiness.marionReady,
     fullEcosystemReady:readiness.fullEcosystemReady,fullEcosystemVerified:readiness.fullEcosystemVerified,
     initializedAt:readiness.initializedAt,phases:readiness.phases,
-    firstFailedPhase:lastInitialization && lastInitialization.firstFailedPhase || null,
-    firstFailureReason:lastInitialization && lastInitialization.firstFailureReason || null,
     registry:guarded(()=>Registry.getHealth()),permissions:guarded(()=>Permissions.getHealth()),
     state:guarded(()=>StateSpine.getHealth()),router:guarded(()=>EventRouter.getHealth()),
     telemetry:guarded(()=>Telemetry.snapshot()),
