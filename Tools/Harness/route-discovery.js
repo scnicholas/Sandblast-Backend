@@ -1,0 +1,6 @@
+'use strict';
+// Read-only: locate possible existing routes and relevant mounts without modifying index.js.
+const fs=require('node:fs'),path=require('node:path');const root=path.resolve(process.argv[2]||process.cwd());
+const skip=new Set(['node_modules','.git','dist','build','coverage']);const hits=[];let scanned=0;
+function walk(dir,depth){if(depth>12||scanned>50000)return;let entries;try{entries=fs.readdirSync(dir,{withFileTypes:true})}catch{return};for(const e of entries){if(skip.has(e.name))continue;const p=path.join(dir,e.name);if(e.isDirectory()){walk(p,depth+1);continue}if(!e.isFile()||!e.name.endsWith('.js'))continue;scanned++;const rel=path.relative(root,p).replace(/\\/g,'/');if(/lingo|translation|boundary/i.test(rel)){hits.push({path:rel,reason:'matching filename'});continue}if(/^(index|server|app)\.js$/.test(e.name)){let s='';try{s=fs.readFileSync(p,'utf8')}catch{}if(/lingosentinelPublicTranslationBoundaryRoutes|optional_translation_route_module_unavailable/.test(s))hits.push({path:rel,reason:'mentions missing boundary route'});}}}
+walk(root,0);console.log(JSON.stringify({root,scanned,hits,expected:'Data/marion/routes/lingosentinelPublicTranslationBoundaryRoutes.js',instruction:'Inspect real handler signatures, authentication, and mount contract before redirecting or implementing the route.'},null,2));
