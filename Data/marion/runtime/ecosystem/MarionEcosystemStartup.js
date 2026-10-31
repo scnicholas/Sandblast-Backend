@@ -5,7 +5,7 @@
  * No import-time side effects, HTTP mounts, environment mutations, execution
  * permissions or learning activation. Call start() only from trusted startup.
  */
-const VERSION = 'marion.ecosystemStartup/1.1-diagnostics';
+const VERSION = 'marion.ecosystemStartup/1.2-integrated-failure-reporting';
 const GATEWAY_PATH = './MarionEcosystemGateway';
 const PHASES = Object.freeze(['phase2', 'phase3', 'phase4', 'phase5']);
 let state = 'idle';
@@ -119,6 +119,13 @@ function fail(reason, results, health) {
   const selected = identifyFailure(results, health);
   firstFailedPhase = selected.phase;
   firstFailureReason = selected.reason;
+  // One bounded diagnostic line per failed attempt. Never log payloads or credentials.
+  if (process.env.SB_MARION_STARTUP_FAILURE_LOG !== 'false') {
+    console.error('[Sandblast][marion-ecosystem-failure]', {
+      error:lastError, firstFailedPhase, firstFailureReason,
+      attemptedPhases:results && results.phases || {}
+    });
+  }
   return {ok:false,error:lastError,firstFailedPhase,firstFailureReason,
     phaseStatus:health && health.phases || {},
     initialization:lastResults,health:getHealth()};
