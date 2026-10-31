@@ -26504,6 +26504,38 @@ function startSandblastServer(port = PORT) {
   app.locals.marionLearningPostgresReadinessPromise = storageReadinessPromise;
   server = app.listen(port, () => {
     console.log(`[Sandblast] ${INDEX_VERSION} listening on :${port}`);
+    /* MARION_ECOSYSTEM_TRUSTED_STARTUP_HOOK_V1_START
+     * Trusted server lifecycle only. The Marion ecosystem startup coordinator
+     * controls Phase 2-5 initialization and performs its own readiness checks.
+     * Do not expose start() through any HTTP endpoint or modify baseline health.
+     * Optional integration failure must not disrupt existing Sandblast routes.
+     */
+    try {
+      const ecosystemStartup = require("./Data/marion/runtime/ecosystem/MarionEcosystemStartup.js");
+      if (!ecosystemStartup || typeof ecosystemStartup.start !== "function" ||
+          typeof ecosystemStartup.getHealth !== "function") {
+        console.error("[Sandblast][marion-ecosystem-startup]", {
+          ok: false, error: "startup_contract_unavailable"
+        });
+      } else {
+        const result = ecosystemStartup.start();
+        const health = ecosystemStartup.getHealth();
+        console.log("[Sandblast][marion-ecosystem-startup]", {
+          ok: result && result.ok === true && health && health.ok === true,
+          state: health && health.state || "unknown",
+          fullEcosystemReady: health && health.fullEcosystemReady === true,
+          fullEcosystemVerified: health && health.fullEcosystemVerified === true,
+          phases: health && health.gateway && health.gateway.phases || {},
+          error: health && health.lastError || ""
+        });
+      }
+    } catch (_) {
+      console.error("[Sandblast][marion-ecosystem-startup]", {
+        ok: false, error: "startup_integration_failed"
+      });
+    }
+    /* MARION_ECOSYSTEM_TRUSTED_STARTUP_HOOK_V1_END */
+
     try {
       console.log("[Sandblast][nyx-tts-readiness]", {
         ...getNyxTtsRuntimeConfigStatus(),
