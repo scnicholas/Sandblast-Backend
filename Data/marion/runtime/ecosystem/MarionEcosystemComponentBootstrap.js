@@ -10,7 +10,7 @@ const Permissions = require('./MarionEcosystemPermissions');
 const Nyx = require('./MarionNyxEcosystemAdapter');
 const Lingo = require('./MarionLingoSentinelEcosystemAdapter');
 
-const VERSION = 'marion.ecosystemComponentBootstrap/2.1-readiness-hardening';
+const VERSION = 'marion.ecosystemComponentBootstrap/2.2-specific-failure-codes';
 const SERVICE = 'MarionEcosystemComponentBootstrap';
 const POLICIES = Object.freeze({
   nyx: Object.freeze({
@@ -31,6 +31,7 @@ let booted = false;
 let bootedAt = null;
 let lastError = null;
 let inProgress = false;
+let lastFailedComponent = null;
 
 function safeError(error) {
   // Never expose stack traces, filesystem paths, or credentials in diagnostics.
@@ -76,7 +77,8 @@ function healthSnapshot() {
     registered,
     nyx,
     lingosentinel,
-    ...(lastError ? { error: lastError } : {})
+    ...(lastError ? { error: lastError } : {}),
+    ...(lastFailedComponent ? { failedComponent: lastFailedComponent } : {})
   };
 }
 
@@ -99,6 +101,7 @@ function bootstrap(options = {}) {
 
   inProgress = true;
   lastError = null;
+  lastFailedComponent = null;
   const results = {};
   try {
     if (!Registry || typeof Registry.get !== 'function' ||
@@ -109,11 +112,13 @@ function bootstrap(options = {}) {
     }
 
     results.nyx = Nyx.register();
-    if (results.nyx && results.nyx.ok === false) {
+    if (!results.nyx || results.nyx.ok !== true) {
+      lastFailedComponent = 'nyx';
       throw Object.assign(new Error('Nyx registration failed'), { code: 'NYX_REGISTRATION_FAILED' });
     }
     results.lingo = Lingo.register();
-    if (results.lingo && results.lingo.ok === false) {
+    if (!results.lingo || results.lingo.ok !== true) {
+      lastFailedComponent = 'lingosentinel';
       throw Object.assign(new Error('LingoSentinel registration failed'), { code: 'LINGO_REGISTRATION_FAILED' });
     }
 
@@ -122,15 +127,21 @@ function bootstrap(options = {}) {
       const source = POLICIES[id];
       const policy = Object.fromEntries(Object.entries(source).map(([key, values]) => [key, [...values]]));
       const applied = Permissions.setPolicy(id, policy);
-      if (applied === false || (applied && applied.ok === false)) {
+      if (!applied || applied.ok !== true) {
+        lastFailedComponent = id;
         throw Object.assign(new Error('Permission registration failed'), { code: 'POLICY_REGISTRATION_FAILED' });
       }
     }
 
     const nyxHealth = safeHealth(Nyx);
     const lingoHealth = safeHealth(Lingo);
-    if (!isRegistered('nyx') || !isRegistered('lingosentinel') || !nyxHealth.ok || !lingoHealth.ok) {
-      throw Object.assign(new Error('Component readiness failed'), { code: 'COMPONENT_NOT_READY' });
+    if (!isRegistered('nyx') || !nyxHealth.ok) {
+      lastFailedComponent = 'nyx';
+      throw Object.assign(new Error('Nyx readiness failed'), { code: 'NYX_NOT_READY' });
+    }
+    if (!isRegistered('lingosentinel') || !lingoHealth.ok) {
+      lastFailedComponent = 'lingosentinel';
+      throw Object.assign(new Error('LingoSentinel readiness failed'), { code: 'LINGO_NOT_READY' });
     }
 
     booted = true;
@@ -173,6 +184,7 @@ function resetForTests() {
   booted = false;
   bootedAt = null;
   lastError = null;
+  lastFailedComponent = null;
   inProgress = false;
 }
 
