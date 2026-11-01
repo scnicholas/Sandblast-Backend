@@ -25540,6 +25540,36 @@ function marionPrivateRuntimeTrace(traceId, stage, fields = {}) {
   try { console.info("[Sandblast][marion-private-runtime-trace]", record); } catch (_) {}
   return record;
 }
+/* MARION_PRIVATE_GENERATOR_BOUNDARY_DIAGNOSTICS_V1
+ * Diagnostics contain only classifications and booleans, never model output,
+ * prompts, session credentials, tickets or response text.
+ */
+const MARION_PRIVATE_GENERATOR_DIAGNOSTICS_VERSION = "marion.privateGeneratorBoundary/1.0";
+function marionPrivateGeneratorPacketShape(packet) {
+  const src = safeObj(packet);
+  const nested = safeObj(src.result);
+  const payload = safeObj(src.payload);
+  const envelope = safeObj(src.finalEnvelope || payload.finalEnvelope || nested.finalEnvelope);
+  const synthesis = safeObj(src.synthesis || payload.synthesis || nested.synthesis);
+  const classify = (value) => {
+    if (typeof value !== "string") return "non_text";
+    return marionPrivateRuntimeReplyKind(value);
+  };
+  return {
+    version: MARION_PRIVATE_GENERATOR_DIAGNOSTICS_VERSION,
+    packetOk: src.ok === true,
+    topLevelKind: classify(src.reply || src.finalReply || src.authoritativeReply),
+    finalEnvelopeKind: classify(envelope.reply || envelope.finalReply || envelope.authoritativeReply),
+    synthesisKind: classify(synthesis.reply || synthesis.finalReply || synthesis.text),
+    resultKind: classify(nested.reply || nested.finalReply || nested.authoritativeReply),
+    payloadKind: classify(payload.reply || payload.finalReply || payload.authoritativeReply),
+    envelopeDeclaredFinal: envelope.final === true && envelope.marionFinal === true,
+    packetRetryRequired: src.requiresRetry === true || envelope.requiresRetry === true,
+    packetCanEmit: src.canEmit === true || envelope.canEmit === true,
+    packetInvocationClaimPresent: src.neonInvocationVerified === true ||
+      safeObj(src.neonAdvisoryMeta).invocationVerified === true
+  };
+}
 function marionPrivateRuntimeReplyKind(reply) {
   if (typeof reply !== "string" || !reply.trim()) return "empty";
   if (marionAdminInvalidPrivateFinal(reply)) return "known_fallback";
@@ -25701,6 +25731,7 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     advisoryObserved: neonAdvisoryObserved,
     invocationVerified: false
   });
+  marionPrivateRuntimeTrace(traceId, "generator_packet_shape", marionPrivateGeneratorPacketShape(packet));
   marionPrivateRuntimeTrace(traceId, "after_bridge", {
     durationMs: Date.now() - startedRuntimeAt,
     packetOk: packet && packet.ok === true,
@@ -25717,6 +25748,17 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   const approvedReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
   const candidateFinalReply = marionAdminSubstantiveReplyGuard(approvedReply, prompt, packet);
   const reply = marionAdminSubstantivePrompt(prompt) && marionPrivateRuntimeReplyKind(candidateFinalReply) !== "candidate" ? "" : candidateFinalReply;
+  marionPrivateRuntimeTrace(traceId, "generator_reply_guards", {
+    version: MARION_PRIVATE_GENERATOR_DIAGNOSTICS_VERSION,
+    selectedKind: marionPrivateRuntimeReplyKind(selectedPacketReply),
+    rawKind: marionPrivateRuntimeReplyKind(rawPacketReply),
+    guardedKind: marionPrivateRuntimeReplyKind(packetReply),
+    approvedKind: marionPrivateRuntimeReplyKind(approvedReply),
+    finalCandidateKind: marionPrivateRuntimeReplyKind(candidateFinalReply),
+    finalKind: marionPrivateRuntimeReplyKind(reply),
+    substantivePrompt: marionAdminSubstantivePrompt(prompt),
+    selectionLostCandidate: marionPrivateRuntimeReplyKind(selectedPacketReply) === "candidate" && !reply
+  });
   marionPrivateRuntimeTrace(traceId, "after_reply_selection", {
     durationMs: Date.now() - startedRuntimeAt,
     selectedKind: marionPrivateRuntimeReplyKind(selectedPacketReply),
@@ -25824,6 +25866,10 @@ async function handleMarionAdminTextRuntime(req, res) {
       statusCode: privateStatusCode,
       runtimeOk: runtime.ok === true,
       runtimeReplyKind: marionPrivateRuntimeReplyKind(runtime.reply),
+      acceptedRuntimeReplyKind: marionPrivateRuntimeReplyKind(acceptedRuntimeReply),
+      projectedReplyKind: marionPrivateRuntimeReplyKind(projectedReply),
+      responseReplyKind: marionPrivateRuntimeReplyKind(reply),
+      finalPrivateReplyKind: marionPrivateRuntimeReplyKind(finalPrivateReply),
       presentationProjectionAccepted: !!projectedReply && reply === projectedReply,
       validatedReplyRecovered: !!acceptedRuntimeReply && reply === acceptedRuntimeReply && !projectedReply,
       privatePlaceholderRejected: privatePlaceholder,
