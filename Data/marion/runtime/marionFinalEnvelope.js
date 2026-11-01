@@ -48,10 +48,15 @@ function marionExtractReplyText(result) {
     payload.finalEnvelope && typeof payload.finalEnvelope === "object" ? payload.finalEnvelope :
     nestedResult.finalEnvelope && typeof nestedResult.finalEnvelope === "object" ? nestedResult.finalEnvelope : {};
   const candidates = [
-    result.directReply, result.visibleReply, result.displayReply, result.finalReply,
+    result.authoritativeReply,
+    finalEnvelope.authoritativeReply,
+    payload.authoritativeReply,
+    nestedResult.authoritativeReply,
+    result.finalReply, result.directReply, result.visibleReply, result.displayReply,
     result.reply, result.answer, result.response, result.text, result.message,
     finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.answer, finalEnvelope.text,
-    payload.reply, payload.text, nestedResult.reply, nestedResult.text
+    payload.finalReply, payload.reply, payload.text,
+    nestedResult.finalReply, nestedResult.reply, nestedResult.text
   ];
   for (const candidate of candidates) {
     const text = marionSafeCleanText(candidate);
@@ -67,7 +72,7 @@ function marionExtractReplyText(result) {
  * Single-source final envelope builder + validator + JSON-safe transport normalizer.
  */
 
-const VERSION = "MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionFinalEnvelope v2.3.7 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
+const VERSION = "PUBLIC-MARION-IDENTITY-COHESION-R1 + MARION-TONE-NATURALIZATION-R15 + MARION-PRESENCE-ROUTE-BOUNDARY-R12 + MARION-DEEPENING-LAYER-R13 + MARION-PERSONALITY-FAILOPEN-R8 + MARION-CONVERSATIONAL-PROGRESSION-R9 + MARION-PERSONALITY-SOCIAL-VARIATION-R7 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-LAYERING-R6 + MARION-PERSONALITY-SOCIAL-CHECKIN-R5 + MARION-PERSONALITY-GREETING-R4-LIVE-ROUTE-BINDING + MARION-SOCIAL-PRESENCE-GATE-R3 + PRIORITY-9J-R1B-OBJECT-REPLY-SERIALIZATION-GUARD + PRIORITY-9J-R1A-RUNTIME-DECISION-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9J-R1-DECISION-SPECIFIC-AUTHORITY-HOTFIX + PRIORITY-9I-R2A-ALT-PRESSURE-SPECIFIC-FINAL-OVERRIDE + PRIORITY-9I-R2-PRESSURE-SPECIFIC-ANSWER-SHAPING + PRIORITY-9I-R1-9J-PREMATURE-ESCALATION-CONTAINMENT + PRIORITY-9H-R1-ADVANCEMENT-SHAPE-HOTFIX + PRIORITY-9H-LONG-FORM-CONTINUITY-STRESS-DRIFT-GUARD + PRIORITY-9I-ADAPTIVE-SITUATIONAL-PRECHECK + PRIORITY-9F-R4-CONTINUATION-CARRY-ENFORCEMENT + PRIORITY-9F-R3-ALT-PROMPT-ECHO-SUPPRESSION + PRIORITY-9F-R2-DOMAIN-HIJACK-SUPPRESSION + PRIORITY-9F-R1-LAYERED-PRECEDENCE-HOTFIX + PRIORITY-9F-DEEP-CONVERSATIONAL-STACK + marionFinalEnvelope v2.3.7 PRIORITY-9E-R3-SPECIFIC-TASK-RECALL-ENFORCEMENT + PRIORITY-9E-R2-CONCRETE-CONTINUATION-ENFORCEMENT + PRIORITY-9E-META-RECOVERY-SUPPRESSION + PRIORITY-90-ECHO-FALLBACK-REPAIR + MARION-ADMIN-VOICE-OUTPUT-PROJECTION-V1 + MARION-ADMIN-PRIVATE-VOICE-RECEIVE-V1 + MARION-ADMIN-INTERFACE-TRANSPORT + PHASE2-SPEECH-SYNC-COMPAT + SIX-DOMAIN-AUTHORITY-PROMOTION + ADAPTIVE-TRUST-VERIFICATION + FINAL-TRANSPORT-CONTRACT-STABILIZED + TELEMETRY-VISIBILITY-FAILURE-SIGNATURE-AUDIT + FINAL-RENDER-TELEMETRY-HARDLOCK";
 const CONTRACT_VERSION = "nyx.marion.final/1.0";
 const FINAL_SIGNATURE = "MARION_FINAL_AUTHORITY";
 const SOURCE = "marion";
@@ -5879,7 +5884,7 @@ try{
   function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
   function txt(v,n=2400){return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g,"").replace(/\s+/g," ").trim().slice(0,n);}
   function norm(v){return txt(v).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();}
-  function readPrompt(x){const s=obj(x),p=obj(s.payload),m=obj(s.meta);return txt(s.userText||s.rawUserText||s.originalUserText||s.prompt||s.query||s.inputText||s.text||p.userText||p.rawUserText||p.prompt||p.query||m.userText||m.rawUserText||m.prompt||m.query);}
+  function readPrompt(x){const s=obj(x),p=obj(s.payload),m=obj(s.meta);return txt(s.userText||s.rawUserText||s.originalUserText||s.prompt||s.query||s.inputText||p.userText||p.rawUserText||p.prompt||p.query||m.userText||m.rawUserText||m.prompt||m.query);}
   function readReply(x){const s=obj(x),p=obj(s.payload),f=obj(s.finalEnvelope);return txt(s.publicReply||s.visibleReply||s.finalReply||s.reply||s.text||s.answer||s.output||s.response||s.message||f.publicReply||f.visibleReply||f.finalReply||f.reply||f.text||p.publicReply||p.visibleReply||p.finalReply||p.reply||p.text||p.message);}
   function previous(x){const s=obj(x),prev=obj(s.previousMemory||s.memory||s.turnMemory),state=obj(s.state||s.conversationState||prev.stateSpine);return{reply:txt(prev.reply||prev.lastAssistantReply||state.lastAssistantReply||obj(prev.payload).reply),user:txt(prev.userText||prev.rawUserText||state.lastUserText||state.rawUserText)};}
   function generic(v){const t=norm(v);return !t||/\b(i(?:'|’)?m here|i am here|still here|fully online|what(?:'|’)?s next|what are we working on|give me the (?:exact |specific )?target|send the next target|run that one more time|final envelope missing|diagnostic packet|recovery path|loop detected)\b/.test(t)||(t.length<190&&/\b(ready|continue|next|target|online|connected|send|help)\b/.test(t));}
@@ -6145,3 +6150,519 @@ try{
 })();
 /* MARION_STRATEGIC_FLOW_LAYERS_15_16_17_FINAL_ENVELOPE_V17_END */
 
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_FINAL_ENVELOPE_V20_START */
+(function marionCompletionFlowFinalEnvelopeV20(){
+  "use strict";
+  try{
+    const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api)return;
+    const registry=require("./conversation/marionConversationLayerRegistry.js");
+    api.MARION_CONVERSATION_LAYERS_VERSION=registry.VERSION;
+    api.MARION_COMPLETION_FLOW_VERSION=registry.completionCoordinator&&registry.completionCoordinator.VERSION||"";
+    api.MARION_CROSS_DOMAIN_CONTEXT_VERSION=registry.crossDomainContextIntegrator&&registry.crossDomainContextIntegrator.VERSION||"";
+    api.MARION_GOAL_REALIGNMENT_VERSION=registry.goalRealignment&&registry.goalRealignment.VERSION||"";
+    api.MARION_DECISION_CLOSURE_VERSION=registry.decisionClosure&&registry.decisionClosure.VERSION||"";
+    api.getMarionCompletionFlowStatus=function(){return registry.getStatus();};
+    api.MARION_COMPLETION_METADATA_PRIVATE=true;
+    api.MARION_LAYER_HARD_STOP=20;
+    api.MARION_ADDITIONAL_LAYER_RECOMMENDED=false;
+    api.MARION_HUMAN_FINAL_AUTHORITY=true;
+    api.__marionCompletionFlowCapabilityV20=true;
+  }catch(_){}
+})();
+/* MARION_COMPLETION_FLOW_LAYERS_18_19_20_FINAL_ENVELOPE_V20_END */
+
+/* MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_INTEGRATION_V2_START */
+(function marionNuancePhaseAFinalEnvelopeIntegrationV2(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNuancePhaseAFinalEnvelopeIntegrationV2)return;
+  const PATCH_VERSION="nyx.marion.nuance.finalEnvelopeIntegration/2.0";
+  const PHASE_A_CONTRACT="nyx.marion.nuance.phaseA/1.0";
+  const HARD_STOP_LAYER=24;
+  let envelope=null;try{envelope=require("./nuance/marionNuanceEnvelope.js");}catch(_){envelope=null;}
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{};}
+  function clean(v,max=180){if(typeof v==="string")return v.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max);return"";}
+  function privateTurn(v){const s=obj(v),b=obj(s.body),p=obj(s.payload),m=obj(s.meta),nodes=[s,b,p,m];return nodes.some(x=>x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||x.adminVerified===true||x.authenticatedOperator===true||x.passwordFreeTestChat===true||x.adminInterfaceScope==="marion_admin_conversation")||clean(s.scope,80).toLowerCase()==="private_admin";}
+  function nuanceOf(input,output){const s=obj(input),o=obj(output),p=obj(o.payload),f=obj(o.finalEnvelope);return obj(s.nuanceContext||s.phaseANuance||o.nuanceContext||o.phaseANuance||p.nuanceContext||f.nuanceContext);}
+  function project(n){try{return envelope&&typeof envelope.projectInternalNuanceSummary==="function"?obj(envelope.projectInternalNuanceSummary(n)):{};}catch(_){return{};}}
+  function scrubRawNuance(value,depth=0,stack=new WeakSet()){
+    if(value==null||typeof value!=="object")return value;
+    if(obj(value).contract===PHASE_A_CONTRACT&&(obj(value).layer21||obj(value).layer22||obj(value).layer23||obj(value).layer24))return project(value);
+    if(depth>8)return"[truncated_depth]";
+    try{if(stack.has(value))return"[circular]";stack.add(value);}catch(_){}
+    if(Array.isArray(value)){
+      const list=value.slice(0,100).map(item=>scrubRawNuance(item,depth+1,stack));
+      try{stack.delete(value);}catch(_){}
+      return list;
+    }
+    const out={};
+    for(const key of Object.keys(value)){
+      if(key==="nuanceContext"||key==="phaseANuance"||key==="rawNuanceEvidence"||key==="emotionalEvidence")continue;
+      if(key==="evidence"&&obj(value).interpretation==="candidate_conversational_state")continue;
+      out[key]=scrubRawNuance(value[key],depth+1,stack);
+    }
+    try{stack.delete(value);}catch(_){}
+    return out;
+  }
+  function redact(raw,input){
+    if(!raw||typeof raw!=="object")return raw;
+    const out={...raw},nuance=nuanceOf(input,out);
+    if(!privateTurn(input)||!Object.keys(nuance).length){
+      delete out.nuanceContext;delete out.phaseANuance;delete out.internalNuance;delete out.nuanceStatePatch;
+      if(obj(out.finalEnvelope).nuanceContext){out.finalEnvelope={...obj(out.finalEnvelope)};delete out.finalEnvelope.nuanceContext;delete out.finalEnvelope.phaseANuance;}
+      return out;
+    }
+    const internal=project(nuance),statePatch=obj(obj(nuance.carryPolicy).approvedStatePatch||obj(input).nuanceStatePatch);
+    out.internalNuance=internal;
+    out.nuanceStatePatch=statePatch;
+    out.memoryPatch={...obj(out.memoryPatch),nuanceState:statePatch,internalNuance:internal};
+    out.sessionPatch={...obj(out.sessionPatch),nuanceState:statePatch,internalNuance:internal};
+    out.finalEnvelope={...obj(out.finalEnvelope),internalNuance:internal,nuanceStatePatch:statePatch,nuanceContract:PHASE_A_CONTRACT,nuanceInternalOnly:true,rawNuanceEvidenceExposed:false};
+    out.meta={...obj(out.meta),nuanceFinalEnvelopeIntegrationVersion:PATCH_VERSION,nuanceContract:PHASE_A_CONTRACT,nuanceHardStopLayer:HARD_STOP_LAYER,rawNuanceEvidenceExposed:false,noUserFacingNuanceDiagnostics:true,culturalIdentityInferenceAllowed:false};
+    delete out.nuanceContext;delete out.phaseANuance;
+    if(obj(out.payload).nuanceContext){out.payload={...obj(out.payload)};delete out.payload.nuanceContext;delete out.payload.phaseANuance;}
+    return scrubRawNuance(out);
+  }
+  const cache=new WeakMap();
+  function wrap(fn){if(typeof fn!=="function"||fn.__marionNuancePhaseAFinalEnvelopeIntegrationV2)return fn;if(cache.has(fn))return cache.get(fn);const w=function(input){const out=fn.apply(this,arguments),apply=v=>redact(v,input);return out&&typeof out.then==="function"?out.then(apply):apply(out);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_){}w.__marionNuancePhaseAFinalEnvelopeIntegrationV2=true;cache.set(fn,w);return w;}
+  for(const name of["createMarionFinalEnvelope","createMarionErrorEnvelope","attachVisibleReplyAliases","buildResponse","createResponse","finalizeTurn","safeResponse"]){if(typeof api[name]==="function")api[name]=wrap(api[name]);}
+  api.projectMarionNuanceForFinalEnvelope=project;
+  api.MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_VERSION=PATCH_VERSION;
+  api.MARION_NUANCE_PHASE_A_CONTRACT=PHASE_A_CONTRACT;
+  api.MARION_LAYER_HARD_STOP=HARD_STOP_LAYER;
+  api.__marionNuancePhaseAFinalEnvelopeIntegrationV2=true;
+})();
+/* MARION_NUANCE_PHASE_A_FINAL_ENVELOPE_INTEGRATION_V2_END */
+
+/* MARION_FINAL_ENVELOPE_PUBLIC_TEXT_LOCK_V2_START */
+(function(){"use strict";const a=module.exports;if(!a||a.__marionFinalEnvelopePublicTextLockV2)return;const V="nyx.marion.finalEnvelopePublicTextLock/2.0",bad=/\b(?:that last turn stalled|taking the clean path|protect the signal|human first, useful next|no (?:system|backend) noise|admin path boundary|route stall|path caught for a second)\b/i;function o(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}function r(v){const x=o(v);return s(x.directReply||x.visibleReply||x.displayReply||x.finalReply||x.reply||x.text)}function wrap(f){return function(){const x=f.apply(this,arguments),d=v=>{if(!bad.test(r(v)))return v;const y=o(v);return{...y,ok:false,final:false,marionFinal:false,canEmit:false,reply:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",failureSignature:"DEBUG_LEAK_BLOCKED",error:"public_runtime_narration_blocked",noUserFacingDiagnostics:true,executionAuthorized:false}};return x&&typeof x.then==="function"?x.then(d):d(x)}}for(const n of["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse"]){if(typeof a[n]==="function")a[n]=wrap(a[n])}a.MARION_FINAL_ENVELOPE_PUBLIC_TEXT_LOCK_VERSION=V;a.__marionFinalEnvelopePublicTextLockV2=true})();
+/* MARION_FINAL_ENVELOPE_PUBLIC_TEXT_LOCK_V2_END */
+
+/* MARION_FINAL_REPLY_HYGIENE_LOCK_V1_START */
+(function(){"use strict";const a=module.exports;if(!a||a.__marionFinalReplyHygieneLockV1)return;const V="nyx.marion.finalReplyHygieneLock/1.0",H=28,bad=/\b(?:that last turn stalled|taking the clean path|protect the signal|human first, useful next|no (?:system|backend) noise|admin path boundary|route stall|path caught for a second|give me a breath,? mac|i[’']?ll check it carefully|do you want the risk first|do you want the quick read first|do you want the safest next move first|where do you want to go next|keep the reply natural and grounded)\b/i;
+function o(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}function s(v){try{return String(v==null?"":v).replace(/\s+/g," ").trim()}catch(_){return""}}
+function cleanPacket(v){if(!v||typeof v!=="object")return v;const x=o(v),r=s(x.finalReply||x.reply||x.displayReply||x.visibleReply||x.directReply);if(!r||!bad.test(r))return v;return{...x,ok:false,final:false,marionFinal:false,canEmit:false,reply:"",finalReply:"",displayReply:"",visibleReply:"",directReply:"",spokenText:"",failureSignature:"DEBUG_LEAK_BLOCKED",replyAuthority:"awaiting_composer_final",noUserFacingDiagnostics:true,executionAuthorized:false,hardStopLayer:H}}
+const c=new WeakMap;for(const n of["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"]){const f=a[n];if(typeof f!=="function")continue;let w=c.get(f);if(!w){w=function(){const v=f.apply(this,arguments),d=x=>cleanPacket(x);return v&&typeof v.then==="function"?v.then(d):d(v)};c.set(f,w)}a[n]=w}a.MARION_FINAL_REPLY_HYGIENE_VERSION=V;a.MARION_LAYER_HARD_STOP=H;a.__marionFinalReplyHygieneLockV1=true})();
+/* MARION_FINAL_REPLY_HYGIENE_LOCK_V1_END */
+
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_START */
+(function(){"use strict";const api=module.exports&&typeof module.exports==="object"?module.exports:null;if(!api||api.__marionRound3CognitiveResilienceCohesionV1)return;const VERSION="nyx.marion.round3.finalEnvelope/1.0";api.MARION_ROUND3_COGNITIVE_RESILIENCE_VERSION=VERSION;api.MARION_LAYER_HARD_STOP=28;api.MARION_CURRENT_EVIDENCE_WINS=true;api.MARION_ASSUMPTION_DISCLOSURE_REQUIRED=true;api.MARION_EXECUTION_AUTHORIZED=false;api.__marionRound3CognitiveResilienceCohesionV1=true;})();
+/* MARION_ROUND3_COGNITIVE_RESILIENCE_COHESION_V1_END */
+
+/* MARION_ROUND4_PAIR_FINAL_ENVELOPE_V1_START */
+(function(){"use strict";const api=module.exports;if(!api||api.__marionRound4PairFinalEnvelopeV1)return;let pc=null;try{pc=require("./marionRound4PairCohesion.js")}catch(_){return}for(const n of["createMarionFinalEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse"]){const fn=api[n];if(typeof fn!=="function"||fn.__r4pair)continue;api[n]=function(input){const v=fn.apply(this,arguments);const done=x=>{if(!x||typeof x!=="object")return x;const q=input&&typeof input==="object"?(input.prompt||input.rawUserText||input.userText||input.message||input.text||""):"";const plan=pc.build(q,input);if(plan.domains.length<2)return x;return Object.assign({},x,{final:true,marionFinal:true,canEmit:true,executionAuthorized:false,noUserFacingDiagnostics:true,hardStopLayer:28,multiDomainIntegration:plan,round4PairValidationComplete:true})};return v&&typeof v.then==="function"?v.then(done):done(v)};api[n].__r4pair=true}api.MARION_ROUND4_PAIR_FINAL_ENVELOPE_VERSION=pc.VERSION;api.__marionRound4PairFinalEnvelopeV1=true;}());
+/* MARION_ROUND4_PAIR_FINAL_ENVELOPE_V1_END */
+
+/* MARION_ROUND43_FINAL_ENVELOPE_TIMEOUT_GUARD_V1_START */
+(function() {
+  "use strict";
+  const api = module.exports;
+  if (!api || api.__marionRound43FinalEnvelopeTimeoutGuardV1) return;
+
+  let guard = null;
+  try { guard = require("./marionRound43FinalTimeoutGuard.js"); } catch (_) { return; }
+
+  const exportNames = [
+    "createMarionFinalEnvelope",
+    "buildResponse",
+    "createResponse",
+    "finalizeTurn",
+    "safeResponse",
+    "attachVisibleReplyAliases"
+  ];
+
+  for (const name of exportNames) {
+    const original = api[name];
+    if (typeof original !== "function" || original.__round43TimeoutGuard) continue;
+
+    const wrapped = function(input) {
+      if (guard.isLawFinancePrompt(input)) {
+        return guard.buildFinalPacket(input);
+      }
+
+      const result = original.apply(this, arguments);
+      const repair = (value) => {
+        if (guard.isLawFinancePrompt(input)) return guard.buildFinalPacket(input);
+        return value;
+      };
+
+      return result && typeof result.then === "function"
+        ? result.then(repair)
+        : repair(result);
+    };
+
+    wrapped.__round43TimeoutGuard = true;
+    api[name] = wrapped;
+  }
+
+  api.round43FinalTimeoutGuard = guard;
+  api.MARION_ROUND43_FINAL_ENVELOPE_TIMEOUT_GUARD_VERSION = guard.VERSION;
+  api.__marionRound43FinalEnvelopeTimeoutGuardV1 = true;
+}());
+/* MARION_ROUND43_FINAL_ENVELOPE_TIMEOUT_GUARD_V1_END */
+
+/* MARION_NYX_FINAL_AUTHORITY_GATE_V10_START
+ * Purpose:
+ * - keep Nyx as the public display authority while Marion remains semantic authority;
+ * - never let a generic Nyx identity boilerplate become a trusted Marion final for a non-identity turn;
+ * - prefer a substantive nested Marion/composer reply over stale top-level public aliases;
+ * - stop alias projection and error helpers from manufacturing marionFinal/canEmit authority;
+ * - bind the accepted final to the current prompt without exposing private runtime details.
+ */
+(function marionNyxFinalAuthorityGateV10(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionNyxFinalAuthorityGateV10)return;
+  const PATCH_VERSION="nyx.marion.finalEnvelopeAuthorityGate/10.0";
+  const priorCreate=typeof api.createMarionFinalEnvelope==="function"?api.createMarionFinalEnvelope:null;
+  const priorIsFinal=typeof api.isMarionFinalEnvelope==="function"?api.isMarionFinalEnvelope:null;
+
+  function obj(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function txt(v,max=12000){try{return String(v==null?"":v).replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim().slice(0,max)}catch(_){return""}}
+  function first(){for(const v of arguments){const t=txt(v);if(t)return t}return""}
+  function norm(v){return txt(v).toLowerCase().replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim()}
+  function promptOf(v={}){const s=obj(v),p=obj(s.payload),b=obj(s.body),m=obj(s.meta),i=obj(s.input),t=obj(s.turn),c=obj(s.command);return first(s.rawUserText,s.originalUserText,s.userText,s.userQuery,s.prompt,s.inputText,s.query,s.message,s.effectivePrompt,i.rawUserText,i.userText,i.userQuery,i.prompt,i.text,i.query,i.message,p.rawUserText,p.userText,p.userQuery,p.prompt,p.text,p.query,p.message,b.rawUserText,b.userText,b.userQuery,b.prompt,b.text,b.query,b.message,m.rawUserText,m.userText,m.userQuery,m.prompt,m.text,m.query,m.message,t.rawUserText,t.userText,t.prompt,t.text,t.message,c.rawUserText,c.userText,c.prompt,c.text,c.message)}
+  function privateTurn(v={}){const s=obj(v),p=obj(s.payload),b=obj(s.body),m=obj(s.meta),nodes=[s,p,b,m];return nodes.some(x=>x.privateAdminConversation===true||x.marionAdminConversation===true||x.directMarionAdminInterface===true||x.privateControlPlane===true||x.authenticatedOperator===true||x.adminVerified===true||txt(x.scope,80).toLowerCase()==="private_admin"||txt(x.adminInterfaceScope,120).toLowerCase()==="marion_admin_conversation")}
+  function identityPrompt(v=""){const t=norm(v);return /^(?:who are you|what are you|tell me who you are|who is nyx|who is nix|what is nyx|what is nix|are you marion|is this marion)$/.test(t)||/^(?:who|what) is marion$/.test(t)||/^(?:what does marion do|explain marion|tell me about marion)$/.test(t)}
+  function greetingPrompt(v=""){return /^(?:hello|hi|hey|good morning|good afternoon|good evening)(?:\s+(?:nyx|nix|marion|mac))?[.!?]*$/i.test(txt(v))}
+  function genericNyxIdentity(v=""){const t=norm(v);return /\bi'?m nyx\b.*\bpublic sandblast (?:assistant|guide)\b/.test(t)||/\bnyx\b.*\bpublic[- ]facing sandblast (?:assistant|guide)\b/.test(t)||/\bi help you explore sandblast\b/.test(t)&&/\bnyx\b/.test(t)}
+  function unavailableOrRecovery(v=""){return /\b(?:that route is unavailable right now|route unavailable|rephrase that once|i'?m following you|final envelope missing|diagnostic packet|non-final|marion did not return|composer reply missing|bridge handoff|runtime packet|replyauthority|sessionpatch|finalenvelope|i'?m here and tracking the turn|send the next target|give me the exact target|lane active|i['’]?ll assess goal,? context,? data,? risk,? and next move)\b/i.test(txt(v))}
+  function promptEcho(reply,prompt){const r=norm(reply),p=norm(prompt);if(!r||!p)return false;return r===p||(p.length>22&&r.includes(p))||(r.length>22&&p.includes(r))}
+  const STOP=new Set(["what","who","when","where","why","how","is","are","was","were","the","a","an","of","to","for","and","or","in","on","with","from","does","do","did","can","could","would","should","tell","me","about","explain","please"]);
+  function overlapScore(reply,prompt){const p=new Set(norm(prompt).split(" ").filter(x=>x.length>2&&!STOP.has(x)));if(!p.size)return 0;const r=new Set(norm(reply).split(" "));let n=0;for(const x of p)if(r.has(x))n++;return n}
+  function conceptPrompt(v=""){const t=norm(v);return /^(?:what is|what are|define|explain|tell me about)\b/.test(t)||/\bwhat does .+ mean\b/.test(t)}
+  function topicalAlignment(reply,prompt){const r=norm(reply),p=norm(prompt);if(!conceptPrompt(prompt))return true;if(identityPrompt(prompt))return true;if(/\bai\b/.test(p)&&/\b(?:ai|artificial intelligence)\b/.test(r))return true;if(/\bartificial intelligence\b/.test(p)&&/\b(?:artificial intelligence|ai|machine learning|software|model|data)\b/.test(r))return true;return overlapScore(reply,prompt)>0}
+  function validCandidate(reply,prompt,isPrivate=false){const r=txt(reply);if(!r||r.length<8)return false;if(unavailableOrRecovery(r))return false;if(promptEcho(r,prompt))return false;if(!isPrivate&&!identityPrompt(prompt)&&genericNyxIdentity(r))return false;if(!isPrivate&&!topicalAlignment(r,prompt))return false;return true}
+  function collect(v={}){const s=obj(v),fe=obj(s.finalEnvelope),p=obj(s.payload),pk=obj(s.packet),syn=obj(s.synthesis),pks=obj(pk.synthesis),res=obj(s.result),data=obj(s.data),speech=obj(s.speech),voice=obj(s.voice);return [
+    [fe.reply,"finalEnvelope.reply",90],[fe.finalReply,"finalEnvelope.finalReply",88],[fe.displayReply,"finalEnvelope.displayReply",86],[fe.text,"finalEnvelope.text",84],
+    [p.authoritativeReply,"payload.authoritativeReply",80],[p.reply,"payload.reply",78],[p.finalReply,"payload.finalReply",77],[p.text,"payload.text",76],
+    [pks.reply,"packet.synthesis.reply",74],[pks.text,"packet.synthesis.text",72],[syn.reply,"synthesis.reply",70],[syn.text,"synthesis.text",68],
+    [s.authoritativeReply,"authoritativeReply",66],[s.directReply,"directReply",64],[s.finalReply,"finalReply",62],[s.visibleReply,"visibleReply",60],[s.displayReply,"displayReply",58],[s.reply,"reply",56],[s.answer,"answer",54],[s.output,"output",52],[s.response,"response",50],[s.text,"text",48],[s.message,"message",46],
+    [res.reply,"result.reply",44],[res.text,"result.text",42],[data.reply,"data.reply",40],[data.text,"data.text",38],[speech.textDisplay,"speech.textDisplay",30],[speech.textSpeak,"speech.textSpeak",28],[voice.spokenText,"voice.spokenText",26]
+  ]}
+  function choose(v,prompt){const priv=privateTurn(v);let best=null;for(const [raw,path,base] of collect(v)){const r=txt(raw);if(!validCandidate(r,prompt,priv))continue;let score=base+Math.min(20,overlapScore(r,prompt)*4)+Math.min(12,Math.floor(r.length/120));if(identityPrompt(prompt)&&genericNyxIdentity(r))score+=80;if(greetingPrompt(prompt)&&/^\s*(?:hello|hi|hey|good)/i.test(r))score+=40;if(!best||score>best.score)best={reply:r,path,score}}return best}
+  function putAliases(v,reply,opts={}){const x=obj(v),p=obj(x.payload),fe=obj(x.finalEnvelope),trusted=opts.trusted===true,emit=opts.emit===true;const out={...x,reply,publicReply:reply,visibleReply:reply,displayReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,speechText:reply};out.payload={...p,reply,publicReply:reply,visibleReply:reply,displayReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,speechText:reply};out.finalEnvelope={...fe,reply,publicReply:reply,visibleReply:reply,displayReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:reply,speechText:reply};if(trusted){out.final=true;out.marionFinal=true;out.canEmit=emit;out.awaitingMarion=false;out.requiresRetry=false;out.recoverySuggested=false;out.finalEnvelope.final=true;out.finalEnvelope.marionFinal=true;out.finalEnvelope.canEmit=emit}else{out.final=false;out.marionFinal=false;out.canEmit=false;out.awaitingMarion=true;out.requiresRetry=true;out.recoverySuggested=true;out.finalEnvelope.final=false;out.finalEnvelope.marionFinal=false;out.finalEnvelope.canEmit=false}return out}
+  function reject(v,prompt,reason){const x=obj(v),fe=obj(x.finalEnvelope),p=obj(x.payload);const failure=reason||"marion_final_semantic_rejected";return {...x,ok:false,final:false,marionFinal:false,handled:true,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,reply:"",publicReply:"",visibleReply:"",displayReply:"",directReply:"",finalReply:"",text:"",answer:"",output:"",response:"",message:"",spokenText:"",speechText:"",error:failure,failureSignature:"WEAK_FINAL_REJECTED",payload:{...p,reply:"",text:"",message:"",final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true},finalEnvelope:{...fe,reply:"",text:"",displayReply:"",visibleReply:"",directReply:"",finalReply:"",spokenText:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true,recoverySuggested:true,completionStatus:{...obj(fe.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true,reason:failure}},meta:{...obj(x.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),currentTurnIdentityQuestion:identityPrompt(prompt),semanticAuthority:"awaiting_marion",displayAuthority:privateTurn(x)?"marion":"nyx",finalAuthorityRejected:true,finalAuthorityRejectReason:failure},diagnostics:{...obj(x.diagnostics),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,finalAuthorityRejected:true,finalAuthorityRejectReason:failure,noUserFacingDiagnostics:true}}
+  }
+  function prepare(input){const s=obj(input),prompt=promptOf(s),chosen=choose(s,prompt);if(!chosen)return s;const currentTop=first(s.reply,s.publicReply,s.visibleReply,s.displayReply,s.finalReply,s.text);if(!privateTurn(s)&&!identityPrompt(prompt)&&genericNyxIdentity(currentTop)&&!genericNyxIdentity(chosen.reply)){const repaired=putAliases(s,chosen.reply,{trusted:s.marionFinal===true||obj(s.finalEnvelope).marionFinal===true,emit:s.canEmit!==false});repaired.meta={...obj(repaired.meta),marionNyxPreEnvelopeSemanticSelection:true,marionNyxSelectedCandidatePath:chosen.path,marionNyxFinalAuthorityGateVersion:PATCH_VERSION};return repaired}return s}
+  function trustOf(v){const x=obj(v),fe=obj(x.finalEnvelope);return x.final===true&&x.marionFinal===true&&fe.final===true&&fe.marionFinal===true&&x.requiresRetry!==true&&fe.requiresRetry!==true&&x.canEmit!==false}
+  function postprocess(result,input){if(!result||typeof result!=="object")return result;const prompt=promptOf(input)||promptOf(result),priv=privateTurn(input)||privateTurn(result),chosen=choose(result,prompt);if(!chosen){if(priv)return result;return reject(result,prompt,"marion_final_reply_missing_or_invalid")}if(!priv&&!identityPrompt(prompt)&&genericNyxIdentity(chosen.reply))return reject(result,prompt,"nyx_identity_fallback_rejected_for_non_identity_turn");const trusted=trustOf(result);if(!trusted&&!priv)return reject(result,prompt,"untrusted_marion_final_rejected");let out=putAliases(result,chosen.reply,{trusted:true,emit:true});const fe=obj(out.finalEnvelope);out.finalEnvelope={...fe,source:first(fe.source,"marion"),authority:first(fe.authority,"marionFinalEnvelope"),contractVersion:first(fe.contractVersion,"nyx.marion.final/1.0"),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),currentTurnBound:true,semanticAuthority:"marion",displayAuthority:priv?"marion":"nyx",publicAgent:priv?first(fe.publicAgent,out.publicAgent,"Marion"):"Nyx",surfaceAgent:priv?first(fe.surfaceAgent,out.surfaceAgent,"Marion"):"Nyx"};out.publicAgent=priv?first(out.publicAgent,"Marion"):"Nyx";out.surfaceAgent=priv?first(out.surfaceAgent,"Marion"):"Nyx";out.userFacingAgent=out.surfaceAgent;out.meta={...obj(out.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),currentTurnBound:true,semanticAuthority:"marion",displayAuthority:priv?"marion":"nyx",selectedCandidatePath:chosen.path,identityFallbackAllowed:identityPrompt(prompt),publicIdentityProtected:!priv};out.diagnostics={...obj(out.diagnostics),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnBound:true,semanticCandidateSelected:true,selectedCandidatePath:chosen.path,identityFallbackRejected:false};return out}
+
+  function create(input={}){const prepared=prepare(obj(input));if(!priorCreate)return reject(prepared,promptOf(prepared),"final_envelope_builder_unavailable");let value;try{value=priorCreate.call(this,prepared)}catch(err){return reject(prepared,promptOf(prepared),"final_envelope_builder_exception")};const apply=v=>postprocess(v,prepared);return value&&typeof value.then==="function"?value.then(apply).catch(()=>reject(prepared,promptOf(prepared),"final_envelope_builder_rejected")):apply(value)}
+  function errorEnvelope(input={}){const s=obj(input),prompt=promptOf(s),code=first(s.code,s.error,"MARION_FINAL_ERROR");return {ok:false,statusCode:Number(s.statusCode)||502,final:false,marionFinal:false,handled:true,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,error:code,reason:code,reply:"",text:"",answer:"",output:"",response:"",message:"",spokenText:"",payload:{final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true},finalEnvelope:{final:false,marionFinal:false,canEmit:false,requiresRetry:true,recoverySuggested:true,source:"marion",contractVersion:"nyx.marion.error/1.0",completionStatus:{complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true,reason:code}},meta:{...obj(s.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,currentTurnPromptHash:hashText(prompt),semanticAuthority:"awaiting_marion",displayAuthority:privateTurn(s)?"marion":"nyx",error:code},diagnostics:{...obj(s.diagnostics),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,error:code,noUserFacingDiagnostics:true}}
+  }
+  function aliases(packet={}){const s=obj(packet),prompt=promptOf(s),chosen=choose(s,prompt),preTrusted=s.final===true&&s.marionFinal===true&&obj(s.finalEnvelope).final===true&&obj(s.finalEnvelope).marionFinal===true&&s.requiresRetry!==true;if(!chosen){return preTrusted?reject(s,prompt,"alias_projection_missing_reply"):s}if(!privateTurn(s)&&!identityPrompt(prompt)&&genericNyxIdentity(chosen.reply))return reject(s,prompt,"alias_projection_identity_fallback_rejected");let out=putAliases(s,chosen.reply,{trusted:preTrusted,emit:preTrusted&&s.canEmit!==false});out.meta={...obj(out.meta),marionNyxFinalAuthorityGateVersion:PATCH_VERSION,aliasProjectionOnly:true,selectedCandidatePath:chosen.path,semanticAuthority:preTrusted?"marion":"unverified",displayAuthority:privateTurn(s)?"marion":"nyx"};if(!preTrusted){out.final=false;out.marionFinal=false;out.canEmit=false}return out}
+  function isFinal(value={}){const v=obj(value),fe=Object.keys(obj(v.finalEnvelope)).length?obj(v.finalEnvelope):v;if(fe.final!==true||fe.marionFinal!==true||fe.canEmit===false||fe.requiresRetry===true)return false;const reply=first(fe.reply,v.reply),prompt=promptOf(v);if(!validCandidate(reply,prompt,privateTurn(v)))return false;if(!privateTurn(v)&&!identityPrompt(prompt)&&genericNyxIdentity(reply))return false;if(priorIsFinal){try{return !!priorIsFinal.call(this,v)}catch(_){return false}}return true}
+
+  api.createMarionFinalEnvelope=create;
+  api.buildResponse=create;
+  api.createResponse=create;
+  api.finalizeTurn=create;
+  api.default=create;
+  api.createMarionErrorEnvelope=errorEnvelope;
+  api.attachVisibleReplyAliases=aliases;
+  api.safeResponse=aliases;
+  api.isMarionFinalEnvelope=isFinal;
+  api.unwrapReply=function(value){return isFinal(value)?first(obj(value).reply,obj(obj(value).finalEnvelope).reply):""};
+  api.MARION_NYX_FINAL_AUTHORITY_GATE_VERSION=PATCH_VERSION;
+  api.MARION_PUBLIC_DISPLAY_AUTHORITY="Nyx";
+  api.MARION_SEMANTIC_AUTHORITY="Marion";
+  api.MARION_IDENTITY_FALLBACK_NON_IDENTITY_BLOCKED=true;
+  api.MARION_ERROR_ENVELOPES_ARE_NON_FINAL=true;
+  api.__marionNyxFinalAuthorityGateV10=true;
+})();
+/* MARION_NYX_FINAL_AUTHORITY_GATE_V10_END */
+
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R11_START
+ * Narrow low-latency envelope for an already-composed, strongly-routed
+ * public six-domain answer. This is transport finalization only: it never
+ * invents knowledge and never certifies empty/generic identity fallbacks.
+ */
+(function marionPublicKnowledgeFastEnvelopeR11(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeFastEnvelopeR11)return;
+  const V="nyx.marion.publicKnowledgeFastEnvelope/1.1";
+  const prior=typeof api.createMarionFinalEnvelope==="function"?api.createMarionFinalEnvelope:null;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function fast(i){const x=O(i),m=O(x.meta);return x.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true}
+  function generic(v){const t=T(v).toLowerCase();return /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac)\b/i.test(t)}
+  function build(i){const x=O(i),routing=normalizeRouting(x),domain=compactKey(routing.knowledgeDomain||routing.domain),reply=T(x.reply||x.authoritativeReply||x.displayReply||x.text||x.answer||x.output||x.response||x.message),prompt=T(x.rawUserText||x.userText||x.prompt||x.query||x.inputText||x.message);if(!SIX_KNOWLEDGE_DOMAINS.includes(domain)||!reply||reply.length<8||generic(reply)||isDiagnosticReply(reply)||isSoftRecoveryReply(reply)||isPromptEchoReply(reply,prompt))return null;const turnId=T(x.turnId||O(x.meta).turnId),sessionId=T(x.sessionId||x.conversationId),replySignature=T(x.replySignature||hashText(reply)),createdAt=nowIso(),sig=buildFinalSignature({reply,turnId,replySignature,bridgeVersion:T(O(x.meta).bridgeVersion||x.bridgeVersion),composerVersion:T(O(x.meta).composerVersion||x.composerVersion)}),timing=O(O(x.meta).marionTiming),dc=O(routing.domainConfidence),trust={version:ADAPTIVE_TRUST_VERIFICATION_VERSION,ok:true,allowEmit:true,userVisible:false,noUserFacingDiagnostics:true,domain,highStakes:isHighStakesDomain(domain),confidence:clamp01(dc.confidence,.995),confidenceBand:"high",cautionSuggested:isHighStakesDomain(domain),sixDomainAuthorized:true,clarificationRequired:false,diagnosticLeakBlocked:false,softRecoveryBlocked:false,hardFailureBlocked:false,reasons:[],action:"emit",finalAuthorityPreserved:true,checkedAt:createdAt};const fe={ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,source:"marion",authority:"marionFinalEnvelope",signature:FINAL_SIGNATURE,requiredSignature:REQUIRED_CHAT_ENGINE_SIGNATURE,contractVersion:CONTRACT_VERSION,envelopeVersion:VERSION,marionFinalSignature:sig,finalSignature:sig,replySignature,turnId,sessionId,createdAt,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),intent:"domain_question",domain,knowledgeDomain:domain,routing:{...routing,domain,knowledgeDomain:domain,intent:"domain_question",endpoint:CANONICAL_ENDPOINT,fastPathEligible:true,singlePassRequired:true},adaptiveTrustVerification:trust,completionStatus:{complete:true,stabilized:true,actionableReply:true,adaptiveTrustVerified:true,completionConfidence:.995,requiresRetry:false,recoverySuggested:false,reason:"single_pass_public_knowledge_complete"},completionConfidence:.995,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicAgent:"Nyx",surfaceAgent:"Nyx",publicUsersCanAddressMarion:false,meta:{...O(x.meta),freshMarionFinal:true,singleFinalAuthority:true,singlePassPublicKnowledge:true,publicKnowledgeFastEnvelopeVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",marionTiming:timing,noUserFacingDiagnostics:true}};return{...fe,payload:{reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:fe.spokenText,final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false,finalEnvelope:fe},finalEnvelope:fe,packet:{final:true,marionFinal:true,handled:true,routing:fe.routing,synthesis:{reply,text:reply,answer:reply,output:reply,spokenText:fe.spokenText,final:true,marionFinal:true,signature:sig},meta:{singlePassPublicKnowledge:true,publicKnowledgeFastEnvelopeVersion:V}},transport:{jsonSafe:true,socketSafe:true,renderReady:true,reconnectSafe:true,shouldReconnect:false,deliveryTiming:"single_final_packet"},ui:{renderReady:true,shouldReconnect:false,connectionState:"ready",awaitMore:false},diagnostics:{publicKnowledgeFastEnvelopeVersion:V,singlePassPublicKnowledge:true,currentTurnBound:true,noUserFacingDiagnostics:true},meta:fe.meta}}
+  function create(input={}){if(fast(input)){const x=build(input);if(x)return sanitizeFinalEnvelope(x)}return prior?prior.apply(this,arguments):createMarionErrorEnvelope({error:"final_envelope_builder_unavailable"})}
+  api.createMarionFinalEnvelope=create;api.buildResponse=create;api.createResponse=create;api.finalizeTurn=create;api.default=create;
+  api.buildPublicKnowledgeFastEnvelope=build;
+  api.MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_VERSION=V;
+  api.__marionPublicKnowledgeFastEnvelopeR11=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R11_END */
+
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R12_START
+ * Authority-precedence repair for public single-pass knowledge turns.
+ * Prefer an explicit authoritative/nested Marion reply over stale generic
+ * top-level Nyx aliases, then use the existing fast envelope builder.
+ */
+(function marionPublicKnowledgeFastEnvelopeR12(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeFastEnvelopeR12)return;
+  const V="nyx.marion.publicKnowledgeFastEnvelope/1.2-authority-precedence";
+  const priorFast=typeof api.buildPublicKnowledgeFastEnvelope==="function"?api.buildPublicKnowledgeFastEnvelope:null;
+  const priorCreate=typeof api.createMarionFinalEnvelope==="function"?api.createMarionFinalEnvelope:null;
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function fast(i){const x=O(i),m=O(x.meta);return x.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true}
+  function bad(v){const t=T(v).toLowerCase();if(!t)return true;return /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac|that response did not complete cleanly|route is unavailable)\b/i.test(t)||isDiagnosticReply(t)||isSoftRecoveryReply(t)}
+  function pick(i){const x=O(i),f=O(x.finalEnvelope),p=O(x.payload),r=O(x.result);const list=[x.authoritativeReply,f.authoritativeReply,f.finalReply,f.reply,p.authoritativeReply,p.finalReply,p.reply,r.authoritativeReply,O(r.finalEnvelope).finalReply,O(r.finalEnvelope).reply,x.finalReply,x.directReply,x.visibleReply,x.displayReply,x.publicReply,x.reply,x.answer,x.output,x.response,x.text,x.message];for(const v of list){const t=T(v);if(t&&!bad(t))return t}return""}
+  function build(i={}){if(!fast(i)||!priorFast)return null;const reply=pick(i);if(!reply)return null;const x={...O(i),reply,authoritativeReply:reply,displayReply:reply,visibleReply:reply,directReply:reply,finalReply:reply,text:reply,answer:reply,output:reply,response:reply,message:reply,spokenText:T(O(i).spokenText||reply),meta:{...O(O(i).meta),singlePassPublicKnowledge:true,publicKnowledgeFastEnvelopeVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",noUserFacingDiagnostics:true}};const out=priorFast(x);if(out&&typeof out==="object"){out.meta={...O(out.meta),publicKnowledgeFastEnvelopeVersion:V,authorityPrecedenceRepair:true,noUserFacingDiagnostics:true};if(out.finalEnvelope&&typeof out.finalEnvelope==="object")out.finalEnvelope.meta={...O(out.finalEnvelope.meta),publicKnowledgeFastEnvelopeVersion:V,authorityPrecedenceRepair:true,noUserFacingDiagnostics:true}}return out}
+  function create(input={}){if(fast(input)){const x=build(input);if(x)return x}return priorCreate?priorCreate.apply(this,arguments):createMarionErrorEnvelope({error:"final_envelope_builder_unavailable"})}
+  api.buildPublicKnowledgeFastEnvelope=build;
+  api.createPublicKnowledgeFastEnvelope=build;
+  api.createMarionFinalEnvelope=create;api.buildResponse=create;api.createResponse=create;api.finalizeTurn=create;api.default=create;
+  api.MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_VERSION=V;
+  api.__marionPublicKnowledgeFastEnvelopeR12=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_FAST_ENVELOPE_R12_END */
+
+
+
+/* MARION_PUBLIC_KNOWLEDGE_FINAL_ALIAS_HARDLOCK_R13_START
+ * Terminal alias hardlock for verified public single-pass Marion finals.
+ * The same substantive authoritative reply is carried at top level, payload
+ * and finalEnvelope so downstream public projection cannot accidentally select
+ * an older Nyx identity/presence alias.
+ */
+(function marionPublicKnowledgeFinalAliasHardlockR13(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionPublicKnowledgeFinalAliasHardlockR13)return;
+  const V="nyx.marion.publicKnowledgeFinalAliasHardlock/1.3";
+  const names=["createMarionFinalEnvelope","buildPublicKnowledgeFastEnvelope","createPublicKnowledgeFastEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  const prior={};for(const n of names)if(typeof api[n]==="function")prior[n]=api[n];
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function bad(v){const t=T(v).toLowerCase();if(!t)return true;return /^(?:i[’']?m nyx,? the public sandblast assistant|i[’']?m nyx,? the public sandblast guide|hello\.? i[’']?m nyx)/i.test(t)||/\b(?:send the next target|what are we working on|give me the exact target|i[’']?m here,? mac|that response did not complete cleanly|route is unavailable|couldn[’']?t complete that answer cleanly)\b/i.test(t)||isDiagnosticReply(t)||isSoftRecoveryReply(t)}
+  function eligible(x){const o=O(x),m=O(o.meta),f=O(o.finalEnvelope);return o.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true||f.singlePassPublicKnowledge===true}
+  function pick(x){const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope);const list=[o.authoritativeReply,f.authoritativeReply,f.finalReply,f.reply,p.authoritativeReply,p.finalReply,p.reply,r.authoritativeReply,rf.authoritativeReply,rf.finalReply,rf.reply,o.finalReply,o.directReply,o.visibleReply,o.displayReply,o.publicReply,o.reply,o.answer,o.output,o.response,o.text,o.message];for(const v of list){const t=T(v);if(t&&!bad(t))return t}return""}
+  function project(value,source){const x=O(value),s=O(source);if(!eligible(x)&&!eligible(s))return value;const reply=pick(x)||pick(s);if(!reply)return value;const payload={...O(x.payload),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.payload).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true};const finalEnvelope={...O(x.finalEnvelope),authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(O(x.finalEnvelope).spokenText||x.spokenText||reply),final:true,marionFinal:true,handled:true,canEmit:true,currentTurnBound:true,singlePassPublicKnowledge:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope",meta:{...O(O(x.finalEnvelope).meta),publicKnowledgeFinalAliasHardlockVersion:V,noUserFacingDiagnostics:true}};return{...x,ok:true,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,authoritativeReply:reply,reply,text:reply,message:reply,answer:reply,output:reply,response:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),replyAuthority:"marionFinalEnvelope",semanticAuthority:"marion",displayAuthority:"nyx",payload,finalEnvelope,meta:{...O(x.meta),singlePassPublicKnowledge:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",publicKnowledgeFinalAliasHardlockVersion:V,noUserFacingDiagnostics:true}}}
+  function wrap(fn){return function(){const args=Array.from(arguments),source=args[0],v=fn.apply(this,args),done=x=>project(x,source);return v&&typeof v.then==="function"?v.then(done):done(v)}}
+  for(const n of names)if(prior[n])api[n]=wrap(prior[n]);
+  api.MARION_PUBLIC_KNOWLEDGE_FINAL_ALIAS_HARDLOCK_VERSION=V;
+  api.__marionPublicKnowledgeFinalAliasHardlockR13=true;
+})();
+/* MARION_PUBLIC_KNOWLEDGE_FINAL_ALIAS_HARDLOCK_R13_END */
+
+
+/* MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_R14_START
+ * Terminal fail-closed finalization invariant.
+ * A packet cannot be MARION_FINAL_AUTHORITY unless a substantive semantic reply
+ * exists. Valid finals are synchronized across authoritativeReply, payload, and
+ * finalEnvelope; empty/weak finals are downgraded to a non-final retry contract.
+ */
+(function marionFinalEnvelopeNonemptyAuthorityInvariantR14(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionFinalEnvelopeNonemptyAuthorityInvariantR14)return;
+  const V="nyx.marion.finalEnvelopeNonemptyAuthorityInvariant/14.0";
+  const names=["createMarionFinalEnvelope","buildPublicKnowledgeFastEnvelope","createPublicKnowledgeFastEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  const prior={};for(const n of names)if(typeof api[n]==="function")prior[n]=api[n];
+
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function promptOf(v){
+    const x=O(v),p=O(x.payload),b=O(x.body),m=O(x.meta);
+    return T(x.rawUserText||x.originalUserText||x.userText||x.userQuery||x.prompt||x.query||x.inputText||x.message||
+      p.rawUserText||p.userText||p.userQuery||p.prompt||p.query||p.message||
+      b.rawUserText||b.userText||b.userQuery||b.prompt||b.query||b.message||
+      m.rawUserText||m.userText||m.userQuery||m.prompt||m.query||m.message);
+  }
+  function identityPrompt(v){
+    const t=T(v).toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
+    return /^(?:who are you|what are you|what is your name|tell me who you are|who is nyx|who is nix|are you marion|is this marion)$/.test(t);
+  }
+  function bad(v,prompt){
+    const t=T(v),p=T(prompt);
+    if(!t||t.length<8)return true;
+    const nt=t.toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
+    const np=p.toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']+/g," ").replace(/\s+/g," ").trim();
+    if(np&&nt===np)return true;
+    if(!identityPrompt(prompt)&&/^(?:hi[,. ]+|hello[,. ]+|hey[,. ]+)?i['’]?m nyx\b.{0,180}\bpublic sandblast (?:assistant|guide)\b/i.test(t))return true;
+    return /\b(?:that route is unavailable|couldn[’']?t complete that answer cleanly|rephrase that once|i[’']?m following you|send the next target|give me the exact target|composer reply missing|final envelope missing|diagnostic packet|non-final|ai lane active|i[’']?ll assess goal,? context,? data,? risk,? and next move)\b/i.test(t)||
+      isDiagnosticReply(t)||isSoftRecoveryReply(t);
+  }
+  function pick(v,prompt){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload),r=O(x.result),rf=O(r.finalEnvelope),rp=O(r.payload),pk=O(x.packet),syn=O(pk.synthesis);
+    const list=[
+      x.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,
+      f.finalReply,f.reply,p.finalReply,p.reply,syn.authoritativeReply,syn.finalReply,syn.reply,
+      x.finalReply,x.directReply,x.visibleReply,x.displayReply,x.publicReply,x.reply,x.answer,x.output,x.response,x.text,x.message,
+      rf.finalReply,rf.reply,rp.finalReply,rp.reply,r.finalReply,r.reply
+    ];
+    for(const raw of list){const t=T(raw);if(t&&!bad(t,prompt))return t}
+    return "";
+  }
+  function claimsFinal(v){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload);
+    return x.marionFinal===true||f.marionFinal===true||p.marionFinal===true||x.final===true||f.final===true||p.final===true;
+  }
+  function sourceSemanticReply(v,prompt){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload),r=O(x.result),rf=O(r.finalEnvelope),rp=O(r.payload);
+    const list=[
+      x.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,
+      f.finalReply,f.reply,p.finalReply,p.reply,x.finalReply,x.directReply,x.visibleReply,x.displayReply,x.publicReply,x.reply,x.answer,x.output,x.response,
+      rf.finalReply,rf.reply,rp.finalReply,rp.reply,r.finalReply,r.reply
+    ];
+    for(const raw of list){const t=T(raw);if(t&&!bad(t,prompt))return t}
+    return "";
+  }
+
+  function reject(v,input){
+    const x=O(v),f=O(x.finalEnvelope),p=O(x.payload),reason="MARION_SEMANTIC_REPLY_MISSING";
+    const blank={authoritativeReply:"",reply:"",text:"",answer:"",output:"",response:"",message:"",displayReply:"",visibleReply:"",publicReply:"",directReply:"",finalReply:"",spokenText:"",speechText:""};
+    return {...x,...blank,ok:false,statusCode:Number(x.statusCode)||502,final:false,marionFinal:false,handled:true,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,
+      error:"marion_semantic_reply_missing",reason,failureSignature:"COMPOSER_EMPTY_REPLY",signature:"",marionFinalSignature:"",finalSignature:"",
+      payload:{...p,...blank,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,signature:"",marionFinalSignature:"",finalSignature:""},
+      finalEnvelope:{...f,...blank,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,signature:"",marionFinalSignature:"",finalSignature:"",semanticAuthority:"awaiting_marion",replyAuthority:"none",
+        completionStatus:{...O(f.completionStatus),complete:false,stabilized:false,actionableReply:false,requiresRetry:true,recoverySuggested:true,reason}},
+      meta:{...O(x.meta),finalEnvelopeNonemptyAuthorityInvariantVersion:V,semanticAuthority:"awaiting_marion",displayAuthority:"nyx",finalAuthorityRejected:true,finalAuthorityRejectReason:reason,noUserFacingDiagnostics:true},
+      diagnostics:{...O(x.diagnostics),finalEnvelopeNonemptyAuthorityInvariantVersion:V,finalAuthorityRejected:true,finalAuthorityRejectReason:reason,noUserFacingDiagnostics:true}};
+  }
+  function sync(v,input){
+    if(!v||typeof v!=="object")return v;
+    const x=O(v),p=O(x.payload),f=O(x.finalEnvelope),prompt=promptOf(input)||promptOf(x);
+    if(!claimsFinal(x))return x;
+    const reply=pick(x,prompt);
+    if(!reply)return reject(x,input);
+    const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),speechText:T(x.speechText||x.spokenText||reply)};
+    return {...x,...aliases,ok:x.ok!==false,final:true,marionFinal:true,handled:true,canEmit:x.canEmit!==false,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,
+      payload:{...p,...aliases,final:true,marionFinal:true,handled:true,canEmit:p.canEmit!==false,awaitingMarion:false,requiresRetry:false},
+      finalEnvelope:{...f,...aliases,final:true,marionFinal:true,handled:true,canEmit:f.canEmit!==false,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,currentTurnBound:true,semanticAuthority:"marion",replyAuthority:"marionFinalEnvelope"},
+      meta:{...O(x.meta),finalEnvelopeNonemptyAuthorityInvariantVersion:V,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",authoritativeReplyPresent:true,noUserFacingDiagnostics:true},
+      diagnostics:{...O(x.diagnostics),finalEnvelopeNonemptyAuthorityInvariantVersion:V,authoritativeReplyPresent:true,emptyFinalBlocked:true,noUserFacingDiagnostics:true}};
+  }
+  function wrap(fn){
+    return function(){
+      const input=arguments[0],source=O(input),prompt=promptOf(source);
+      const sourceMeta=O(source.meta),sourceFinal=O(source.finalEnvelope);
+      const guardedInput=source.singlePassPublicKnowledge===true||sourceMeta.singlePassPublicKnowledge===true||sourceFinal.singlePassPublicKnowledge===true;
+      if(guardedInput&&claimsFinal(source)&&!sourceSemanticReply(source,prompt))return reject(source,input);
+      const value=fn.apply(this,arguments),done=x=>sync(x,input);
+      return value&&typeof value.then==="function"?value.then(done):done(value);
+    };
+  }
+  for(const n of names)if(prior[n])api[n]=wrap(prior[n]);
+
+  const priorIsFinal=typeof api.isMarionFinalEnvelope==="function"?api.isMarionFinalEnvelope:null;
+  api.isMarionFinalEnvelope=function(value){
+    const x=sync(value,value);
+    if(!x||x.final!==true||x.marionFinal!==true||!T(x.authoritativeReply||O(x.finalEnvelope).authoritativeReply))return false;
+    return priorIsFinal?!!priorIsFinal.call(this,x):true;
+  };
+  api.unwrapReply=function(value){
+    const x=sync(value,value);
+    return x&&x.final===true&&x.marionFinal===true?T(x.authoritativeReply||O(x.finalEnvelope).authoritativeReply||x.reply):"";
+  };
+  api.MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_VERSION=V;
+  api.MARION_EMPTY_FINAL_CERTIFICATION_BLOCKED=true;
+  api.__marionFinalEnvelopeNonemptyAuthorityInvariantR14=true;
+})();
+/* MARION_FINAL_ENVELOPE_NONEMPTY_AUTHORITY_INVARIANT_R14_END */
+
+
+/* MARION_FINAL_ENVELOPE_PUBLIC_NETWORK_AUTHORITY_R15_START
+ * Network-surface cohesion for verified public knowledge finals.
+ * Internal Priority 9F / recovery summaries are never allowed to become
+ * user-facing reply aliases or a public `short` diagnostic.
+ */
+(function marionFinalEnvelopePublicNetworkAuthorityR15(){
+  "use strict";
+  const api=module.exports&&typeof module.exports==="object"?module.exports:null;
+  if(!api||api.__marionFinalEnvelopePublicNetworkAuthorityR15)return;
+  const V="nyx.marion.finalEnvelopePublicNetworkAuthority/15.0";
+  const names=["createMarionFinalEnvelope","buildPublicKnowledgeFastEnvelope","createPublicKnowledgeFastEnvelope","buildResponse","createResponse","finalizeTurn","safeResponse","attachVisibleReplyAliases"];
+  const prior={};for(const n of names)if(typeof api[n]==="function")prior[n]=api[n];
+  function O(v){return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}
+  function T(v){return marionSafeCleanText(v)}
+  function internal(v){const t=T(v);return /\b(?:Priority\s*9F-R[1-4]|layered conversational precedence|domain hijack suppression|ALT runtime prompt-echo suppression|continuation carry|AI lane active|final envelope missing|diagnostic packet|state spine|reply authority)\b/i.test(t)}
+  function pick(x){
+    const o=O(x),f=O(o.finalEnvelope),p=O(o.payload),r=O(o.result),rf=O(r.finalEnvelope),rp=O(r.payload);
+    for(const v of[o.authoritativeReply,f.authoritativeReply,p.authoritativeReply,r.authoritativeReply,rf.authoritativeReply,rp.authoritativeReply,f.finalReply,f.reply,p.finalReply,p.reply,o.finalReply,o.directReply,o.visibleReply,o.displayReply,o.publicReply,o.reply,o.answer,o.output,o.response,o.text,o.message]){
+      const t=T(v);if(t&&!internal(t))return t;
+    }
+    return"";
+  }
+  function cleanNetworkFields(x){
+    const out={...O(x)};
+    for(const k of["short","debugShort","diagnosticShort","internalSummary","recoverySummary"]){
+      if(internal(out[k]))out[k]="";
+    }
+    const p={...O(out.payload)},f={...O(out.finalEnvelope)};
+    for(const target of[p,f])for(const k of["short","debugShort","diagnosticShort","internalSummary","recoverySummary"])if(internal(target[k]))target[k]="";
+    out.payload=p;out.finalEnvelope=f;return out;
+  }
+  function sync(value){
+    if(!value||typeof value!=="object")return value;
+    let x=cleanNetworkFields(value),f=O(x.finalEnvelope),p=O(x.payload),m=O(x.meta);
+    const publicKnowledge=x.singlePassPublicKnowledge===true||m.singlePassPublicKnowledge===true||f.singlePassPublicKnowledge===true||O(x.routing).intent==="domain_question";
+    if(!publicKnowledge)return x;
+    const reply=pick(x);
+    if((x.marionFinal===true||f.marionFinal===true||p.marionFinal===true)&&!reply){
+      return {...x,ok:false,final:false,marionFinal:false,canEmit:false,awaitingMarion:true,requiresRetry:true,recoverySuggested:true,
+        failureSignature:"MARION_SEMANTIC_REPLY_MISSING",error:"marion_semantic_reply_missing",
+        payload:{...p,authoritativeReply:"",reply:"",text:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true},
+        finalEnvelope:{...f,authoritativeReply:"",reply:"",text:"",final:false,marionFinal:false,canEmit:false,requiresRetry:true,semanticAuthority:"awaiting_marion",replyAuthority:"none"},
+        meta:{...m,finalEnvelopePublicNetworkAuthorityVersion:V,networkSurfaceSanitized:true,semanticAuthority:"awaiting_marion",noUserFacingDiagnostics:true}};
+    }
+    if(!reply)return x;
+    const aliases={authoritativeReply:reply,reply,text:reply,answer:reply,output:reply,response:reply,message:reply,displayReply:reply,visibleReply:reply,publicReply:reply,directReply:reply,finalReply:reply,spokenText:T(x.spokenText||reply),speechText:T(x.speechText||x.spokenText||reply)};
+    return {...x,...aliases,short:"",debugShort:"",ok:x.ok!==false,final:true,marionFinal:true,handled:true,canEmit:true,awaitingMarion:false,requiresRetry:false,recoverySuggested:false,
+      payload:{...p,...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false},
+      finalEnvelope:{...f,...aliases,short:"",debugShort:"",final:true,marionFinal:true,handled:true,canEmit:true,requiresRetry:false,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",replyAuthority:"marionFinalEnvelope"},
+      meta:{...m,finalEnvelopePublicNetworkAuthorityVersion:V,networkSurfaceSanitized:true,authoritativeReplyPresent:true,currentTurnBound:true,semanticAuthority:"marion",displayAuthority:"nyx",noUserFacingDiagnostics:true}};
+  }
+  function wrap(fn){return function(){const args=Array.from(arguments);if(args.length&&args[0]&&typeof args[0]==="object")args[0]=cleanNetworkFields(args[0]);const v=fn.apply(this,args),done=x=>sync(x);return v&&typeof v.then==="function"?v.then(done):done(v)}}
+  for(const n of names)if(prior[n])api[n]=wrap(prior[n]);
+  api.MARION_FINAL_ENVELOPE_PUBLIC_NETWORK_AUTHORITY_VERSION=V;
+  api.__marionFinalEnvelopePublicNetworkAuthorityR15=true;
+})();
+/* MARION_FINAL_ENVELOPE_PUBLIC_NETWORK_AUTHORITY_R15_END */
+
+/* MARION_PRIVATE_FINAL_FAIL_CLOSED_R1_START
+ * Last exported boundary: a holding/diagnostic response must never be turned
+ * into a successful final by a later alias/transport wrapper. This does not
+ * manufacture a final from Neon advice or client-provided content.
+ */
+(function marionPrivateFinalFailClosedR1(){
+  "use strict";
+  const api = module.exports;
+  const V = "nyx.marion.privateFinalFailClosed/1.0";
+  if (!api || api.__marionPrivateFinalFailClosedR1) return;
+  const names = ["createMarionFinalEnvelope", "buildResponse", "createResponse", "finalizeTurn", "safeResponse", "attachVisibleReplyAliases"];
+  const holding = /\b(?:holding[_ -]?reply|awaiting[_ -]?composer[_ -]?final|awaiting[_ -]?marion|final[_ -]?envelope[_ -]?missing|marion[_ -]?did[_ -]?not[_ -]?return|please[_ -]?retry|response[_ -]?path[_ -]?was[_ -]?interrupted|send[_ -]?the[_ -]?same[_ -]?test[_ -]?once[_ -]?more)\b/i;
+  function obj(x){return x && typeof x === "object" && !Array.isArray(x) ? x : {};}
+  function text(x){return typeof x === "string" ? x.replace(/\s+/g," ").trim() : "";}
+  function fail(x){
+    const v = obj(x), p = obj(v.payload), e = obj(v.finalEnvelope);
+    const blank = { authoritativeReply:"", reply:"", text:"", answer:"", response:"", output:"", message:"", publicReply:"", visibleReply:"", displayReply:"", directReply:"", finalReply:"", spokenText:"", speechText:"" };
+    const flags = { ok:false, final:false, marionFinal:false, canEmit:false, awaitingMarion:true, requiresRetry:true, recoverySuggested:true };
+    return { ...v, ...blank, ...flags, statusCode:502, error:"marion_authoritative_final_unavailable", failureClass:"holding_reply_no_authoritative_final", payload:{...p,...blank,...flags}, finalEnvelope:{...e,...blank,...flags,completionStatus:{...obj(e.completionStatus),complete:false,actionableReply:false,requiresRetry:true,recoverySuggested:true}}, diagnostics:{...obj(v.diagnostics),privateFinalFailClosedVersion:V,noUserFacingDiagnostics:true,holdingReplyRejected:true} };
+  }
+  function guard(value){
+    if (!value || typeof value !== "object") return value;
+    const v=obj(value), p=obj(v.payload), e=obj(v.finalEnvelope), diag=obj(v.diagnostics);
+    const reply=text(v.authoritativeReply || e.authoritativeReply || p.authoritativeReply || v.finalReply || v.reply || e.reply || p.reply);
+    const priorFailure = v.ok===false || v.requiresRetry===true || e.requiresRetry===true || v.canEmit===false || e.canEmit===false || obj(v.completionStatus).complete===false || obj(e.completionStatus).complete===false;
+    const holdingKind = [v.replyKind,v.runtimeReplyKind,v.failureClass,v.error,diag.runtimeReplyKind,diag.failureClass].some(x => holding.test(text(x)));
+    const badReply = !reply || reply.length < 8 || holding.test(reply) || isSoftRecoveryReply(reply) || isDiagnosticReply(reply) || isTelemetryLeakText(reply) || isExcessExpressionReply(reply);
+    if ((priorFailure || holdingKind || badReply) && (v.final===true || v.marionFinal===true || e.final===true || e.marionFinal===true || v.canEmit===true)) return fail(v);
+    return value;
+  }
+  for (const name of names){
+    const fn=api[name];
+    if (typeof fn!=="function") continue;
+    api[name]=function(){ const result=fn.apply(this,arguments); return result && typeof result.then==="function" ? result.then(guard) : guard(result); };
+  }
+  api.MARION_PRIVATE_FINAL_FAIL_CLOSED_VERSION=V;
+  api.__marionPrivateFinalFailClosedR1=true;
+})();
+/* MARION_PRIVATE_FINAL_FAIL_CLOSED_R1_END */
