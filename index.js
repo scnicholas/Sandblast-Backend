@@ -23555,10 +23555,19 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
   const configured = auth && auth.configured === true;
   const mfaBlocked = configured && auth && auth.mfaRequired === true && auth.mfaVerified !== true;
   const status = configured ? 403 : 503;
-  const errorCode = mfaBlocked ? "admin_mfa_required" : (configured ? "admin_token_required" : "admin_token_not_configured");
+  // MARION-SESSION-ISSUE-DIAGNOSTIC-COHESION-V1:
+  // A supplied but rejected credential is not the same as a missing credential.
+  // Return only generic authorization outcomes; never disclose token values,
+  // expected token length, or which configured environment value matched.
+  const credentialProvided = !!(auth && auth.provided);
+  const errorCode = mfaBlocked ? "admin_mfa_required" :
+    !configured ? "admin_token_not_configured" :
+    credentialProvided ? "admin_credential_rejected" : "admin_token_required";
   const message = mfaBlocked
     ? "A valid Marion admin MFA token is required."
-    : (configured ? "A valid Marion admin token or session is required." : "Marion admin authentication is not configured on this server.");
+    : !configured ? "Marion admin authentication is not configured on this server."
+    : credentialProvided ? "The supplied Marion admin credentials were not accepted."
+    : "A valid Marion admin token or session is required.";
   return res.status(status).json({
     ok: false,
     error: errorCode,
