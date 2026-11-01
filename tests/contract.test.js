@@ -1,0 +1,24 @@
+'use strict';
+const assert=require('assert');
+const fs=require('fs');
+const path=require('path');
+const root=path.resolve(__dirname,'..');
+const bridge=fs.readFileSync(path.join(root,'Data/marion/runtime/marionBridge.js'),'utf8');
+const composer=fs.readFileSync(path.join(root,'Data/marion/runtime/composeMarionResponse.js'),'utf8');
+const neon=require('../Utils/marionNeonIntelligence.js');
+assert(bridge.includes('delete cleanInput.neonAdvisoryUntrusted;'));
+assert(bridge.includes('privateNeonInvocationVerified:modelUsed'));
+assert(bridge.includes('responseModel:responseModel || null'));
+assert(composer.includes('privateNeonAdvisoryUsed:false'));
+assert(composer.includes('Advisory cannot independently be promoted'));
+assert.strictEqual(neon.trustedPrivateSession({source:'server-verified-session',authorized:true,scope:'private_admin',audience:'owner',sessionId:'session-123456'}),true);
+assert.strictEqual(neon.trustedPrivateSession({source:'browser',authorized:true,scope:'private_admin',audience:'owner',sessionId:'session-123456'}),false);
+(async()=>{
+ const env={NEON_AI_GATEWAY_TOKEN:'test-token',NEON_AI_GATEWAY_BASE_URL:'https://gateway.example.com',NEON_AI_GATEWAY_MODEL:'gpt-5-mini'};
+ const session={source:'server-verified-session',authorized:true,scope:'private_admin',audience:'owner',sessionId:'session-123456'};
+ const success=await neon.requestIntelligence({prompt:'Explain the architecture',session},{env,fetchImpl:async()=>({ok:true,status:200,headers:{get:()=>null},json:async()=>({model:'gpt-5-mini',choices:[{message:{content:'The evidence assists Marion but cannot decide for Marion.'},finish_reason:'stop'}]})})});
+ assert.strictEqual(success.ok,true);assert.strictEqual(success.invocationVerified,true);assert.strictEqual(success.finalAuthority,false);
+ const fail=await neon.requestIntelligence({prompt:'Explain the architecture',session},{env,fetchImpl:async()=>({ok:false,status:502})});
+ assert.strictEqual(fail.ok,false);assert.notStrictEqual(fail.invocationVerified,true);
+ console.log('PASS: 10 generation/security contract assertions');
+})().catch(e=>{console.error(e);process.exitCode=1});
