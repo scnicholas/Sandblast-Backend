@@ -11566,7 +11566,10 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     if (!placeholder(existing)) return output;
     const candidate=safeAdvisory(evidence,q);
     if (!candidate) return output;
-    return harmonize(output,candidate);
+    // Advisory cannot independently be promoted to an authoritative Marion answer.
+    // Preserve generation result; report evidence only in protected diagnostics.
+    const packet = object(output);
+    return {...packet, diagnostics:{...object(packet.diagnostics),privateNeonAdvisoryConsidered:true,privateNeonAdvisoryAvailable:true,privateNeonAdvisoryUsed:false,privateNeonAdvisoryVersion:VERSION}};
   }
   const wrapper = function marionComposeWithPrivateNeonAdvisory(routed={},input={}) {
     const out=original.apply(this,arguments);
