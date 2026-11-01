@@ -25774,21 +25774,37 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   voiceProjection.deliveryChannel = voiceProjection.speakAllowed ? "marion_admin_private_voice" : "marion_admin_interface";
   voiceProjection.capability = voiceProjection.speakAllowed ? "voice.private.receive" : "";
   const privateVoiceReceive = marionAdminBuildPrivateVoiceReceivePacket(reply, voiceProjection, speechSync, voiceApproval, traceId);
+  // Private identity projections are metadata, never a source of response text.
+  // Apply the authoritative reply fields AFTER identity so no upstream shape can
+  // silently overwrite the already-guarded candidate during object construction.
+  const runtimeReplyAccepted = typeof reply === "string" && !!reply.trim() &&
+    !marionAdminInvalidPrivateFinal(reply) && !marionAdminHoldingReply(reply) &&
+    !hasUserVisibleDebugLeak(reply) &&
+    !isPromptEchoReply(reply, { prompt, text: prompt, message: prompt });
+  const authoritativeRuntimeReply = runtimeReplyAccepted ? reply : "";
+  marionPrivateRuntimeTrace(traceId, "runtime_response_construction", {
+    selectedKind: marionPrivateRuntimeReplyKind(reply),
+    constructedKind: marionPrivateRuntimeReplyKind(authoritativeRuntimeReply),
+    authorizedFinal: runtimeReplyAccepted,
+    identityReplyFieldPresent: Object.prototype.hasOwnProperty.call(safeObj(privateIdentity), "reply"),
+    identityStatusFieldPresent: Object.prototype.hasOwnProperty.call(safeObj(privateIdentity), "statusCode")
+  });
   return {
-    ok: !!reply,
-    statusCode: reply ? 200 : 502,
-    stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing",
-    reason: reply ? "" : "clean_private_reply_missing",
+    ...privateIdentity,
+    ok: runtimeReplyAccepted,
+    statusCode: runtimeReplyAccepted ? 200 : 502,
+    stage: runtimeReplyAccepted ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing",
+    reason: runtimeReplyAccepted ? "" : "clean_private_reply_missing",
     reply,
-    publicReply: reply,
-    visibleReply: reply,
-    finalReply: reply,
-    displayReply: reply,
-    spokenText: voiceProjection.spokenText || reply,
-    speechText: voiceProjection.speechText || reply,
-    response: reply,
-    text: reply,
-    message: reply,
+    publicReply: authoritativeRuntimeReply,
+    visibleReply: authoritativeRuntimeReply,
+    finalReply: authoritativeRuntimeReply,
+    displayReply: authoritativeRuntimeReply,
+    spokenText: runtimeReplyAccepted ? (voiceProjection.spokenText || authoritativeRuntimeReply) : "",
+    speechText: runtimeReplyAccepted ? (voiceProjection.speechText || authoritativeRuntimeReply) : "",
+    response: authoritativeRuntimeReply,
+    text: authoritativeRuntimeReply,
+    message: authoritativeRuntimeReply,
     voice: voiceProjection,
     voicePrivateReceive: privateVoiceReceive,
     privateVoiceReceive,
@@ -25802,11 +25818,10 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
       neonEligible: !!allowedNeon, neonAdvisoryObserved,
       neonFeatureEnabled: neonFlagEnabled,
       neonBridgeSupported, neonGatewayConfigured, neonOwnerRole,
-      neonSessionVerified, finalKind: marionPrivateRuntimeReplyKind(reply),
+      neonSessionVerified, finalKind: marionPrivateRuntimeReplyKind(authoritativeRuntimeReply),
       bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply) },
     result: marionAdminConsoleRedacted(packet),
     bridgeStatus: marionAdminBridgeStatusProjection(bridgeStatus),
-    ...privateIdentity,
     runtimeSafetyVersion: MARION_ADMIN_RUNTIME_SAFETY_VERSION
   };
 }
@@ -25837,6 +25852,7 @@ async function handleMarionAdminTextRuntime(req, res) {
     // runtime has already accepted a substantive final. Recover that SAME
     // validated reply, never synthesize a new answer or trust model advice.
     const acceptedRuntimeReply = runtime.ok === true &&
+      runtime.statusCode === 200 &&
       typeof runtime.reply === "string" &&
       !marionAdminInvalidPrivateFinal(runtime.reply) &&
       !marionAdminHoldingReply(runtime.reply) &&
