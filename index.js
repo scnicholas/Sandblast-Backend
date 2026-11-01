@@ -25540,36 +25540,6 @@ function marionPrivateRuntimeTrace(traceId, stage, fields = {}) {
   try { console.info("[Sandblast][marion-private-runtime-trace]", record); } catch (_) {}
   return record;
 }
-/* MARION_PRIVATE_GENERATOR_BOUNDARY_DIAGNOSTICS_V1
- * Diagnostics contain only classifications and booleans, never model output,
- * prompts, session credentials, tickets or response text.
- */
-const MARION_PRIVATE_GENERATOR_DIAGNOSTICS_VERSION = "marion.privateGeneratorBoundary/1.0";
-function marionPrivateGeneratorPacketShape(packet) {
-  const src = safeObj(packet);
-  const nested = safeObj(src.result);
-  const payload = safeObj(src.payload);
-  const envelope = safeObj(src.finalEnvelope || payload.finalEnvelope || nested.finalEnvelope);
-  const synthesis = safeObj(src.synthesis || payload.synthesis || nested.synthesis);
-  const classify = (value) => {
-    if (typeof value !== "string") return "non_text";
-    return marionPrivateRuntimeReplyKind(value);
-  };
-  return {
-    version: MARION_PRIVATE_GENERATOR_DIAGNOSTICS_VERSION,
-    packetOk: src.ok === true,
-    topLevelKind: classify(src.reply || src.finalReply || src.authoritativeReply),
-    finalEnvelopeKind: classify(envelope.reply || envelope.finalReply || envelope.authoritativeReply),
-    synthesisKind: classify(synthesis.reply || synthesis.finalReply || synthesis.text),
-    resultKind: classify(nested.reply || nested.finalReply || nested.authoritativeReply),
-    payloadKind: classify(payload.reply || payload.finalReply || payload.authoritativeReply),
-    envelopeDeclaredFinal: envelope.final === true && envelope.marionFinal === true,
-    packetRetryRequired: src.requiresRetry === true || envelope.requiresRetry === true,
-    packetCanEmit: src.canEmit === true || envelope.canEmit === true,
-    packetInvocationClaimPresent: src.neonInvocationVerified === true ||
-      safeObj(src.neonAdvisoryMeta).invocationVerified === true
-  };
-}
 function marionPrivateRuntimeReplyKind(reply) {
   if (typeof reply !== "string" || !reply.trim()) return "empty";
   if (marionAdminInvalidPrivateFinal(reply)) return "known_fallback";
@@ -25691,13 +25661,6 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   });
   let marionNeonTicket = "";
   if (allowedNeon) {
-    // Expired tickets must not accumulate indefinitely if advisory calls stall.
-    if (marionNeonPrivateTickets.size > 256) {
-      const now = Date.now();
-      for (const [key, value] of marionNeonPrivateTickets) {
-        if (!value || value.expiresAt < now) marionNeonPrivateTickets.delete(key);
-      }
-    }
     marionNeonTicket = crypto.randomBytes(24).toString("hex");
     marionNeonPrivateTickets.set(marionNeonTicket, {
       sessionId: cleanText(auth.sessionId), expiresAt: Date.now() + 15000
@@ -25722,22 +25685,12 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     delete input.__marionNeonPrivateTicket;
   }
   const bridgeReply = marionAdminConversationSafeReply(packet, prompt);
-  const neonAdvisoryObserved = !!(packet &&
-    (packet.neonModelAdvisory || (packet.result && packet.result.neonModelAdvisory)));
-  // Eligibility is NOT evidence of a completed remote model invocation.
-  // Keep advisory evidence private, untrusted, and non-authoritative.
-  marionPrivateRuntimeTrace(traceId, "neon_advisory_observation", {
-    eligible: !!allowedNeon,
-    advisoryObserved: neonAdvisoryObserved,
-    invocationVerified: false
-  });
-  marionPrivateRuntimeTrace(traceId, "generator_packet_shape", marionPrivateGeneratorPacketShape(packet));
   marionPrivateRuntimeTrace(traceId, "after_bridge", {
     durationMs: Date.now() - startedRuntimeAt,
     packetOk: packet && packet.ok === true,
     packetStage: packet && typeof packet.stage === "string" ? packet.stage.slice(0, 100) : "",
     bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply),
-    hasNeonAdvisory: neonAdvisoryObserved,
+    hasNeonAdvisory: !!(packet && (packet.neonModelAdvisory || (packet.result && packet.result.neonModelAdvisory))),
     packetDomain: packet && typeof packet.primaryDomain === "string" ? packet.primaryDomain.slice(0, 60) : ""
   });
   const selectedPacketReply = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
@@ -25748,17 +25701,6 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   const approvedReply = priority9JR1BAdminVisibleReply(marionAdminApprovedVoicePromptReply(prompt, packetReply, voiceApproval), prompt) || packetReply;
   const candidateFinalReply = marionAdminSubstantiveReplyGuard(approvedReply, prompt, packet);
   const reply = marionAdminSubstantivePrompt(prompt) && marionPrivateRuntimeReplyKind(candidateFinalReply) !== "candidate" ? "" : candidateFinalReply;
-  marionPrivateRuntimeTrace(traceId, "generator_reply_guards", {
-    version: MARION_PRIVATE_GENERATOR_DIAGNOSTICS_VERSION,
-    selectedKind: marionPrivateRuntimeReplyKind(selectedPacketReply),
-    rawKind: marionPrivateRuntimeReplyKind(rawPacketReply),
-    guardedKind: marionPrivateRuntimeReplyKind(packetReply),
-    approvedKind: marionPrivateRuntimeReplyKind(approvedReply),
-    finalCandidateKind: marionPrivateRuntimeReplyKind(candidateFinalReply),
-    finalKind: marionPrivateRuntimeReplyKind(reply),
-    substantivePrompt: marionAdminSubstantivePrompt(prompt),
-    selectionLostCandidate: marionPrivateRuntimeReplyKind(selectedPacketReply) === "candidate" && !reply
-  });
   marionPrivateRuntimeTrace(traceId, "after_reply_selection", {
     durationMs: Date.now() - startedRuntimeAt,
     selectedKind: marionPrivateRuntimeReplyKind(selectedPacketReply),
@@ -25774,37 +25716,21 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   voiceProjection.deliveryChannel = voiceProjection.speakAllowed ? "marion_admin_private_voice" : "marion_admin_interface";
   voiceProjection.capability = voiceProjection.speakAllowed ? "voice.private.receive" : "";
   const privateVoiceReceive = marionAdminBuildPrivateVoiceReceivePacket(reply, voiceProjection, speechSync, voiceApproval, traceId);
-  // Private identity projections are metadata, never a source of response text.
-  // Apply the authoritative reply fields AFTER identity so no upstream shape can
-  // silently overwrite the already-guarded candidate during object construction.
-  const runtimeReplyAccepted = typeof reply === "string" && !!reply.trim() &&
-    !marionAdminInvalidPrivateFinal(reply) && !marionAdminHoldingReply(reply) &&
-    !hasUserVisibleDebugLeak(reply) &&
-    !isPromptEchoReply(reply, { prompt, text: prompt, message: prompt });
-  const authoritativeRuntimeReply = runtimeReplyAccepted ? reply : "";
-  marionPrivateRuntimeTrace(traceId, "runtime_response_construction", {
-    selectedKind: marionPrivateRuntimeReplyKind(reply),
-    constructedKind: marionPrivateRuntimeReplyKind(authoritativeRuntimeReply),
-    authorizedFinal: runtimeReplyAccepted,
-    identityReplyFieldPresent: Object.prototype.hasOwnProperty.call(safeObj(privateIdentity), "reply"),
-    identityStatusFieldPresent: Object.prototype.hasOwnProperty.call(safeObj(privateIdentity), "statusCode")
-  });
   return {
-    ...privateIdentity,
-    ok: runtimeReplyAccepted,
-    statusCode: runtimeReplyAccepted ? 200 : 502,
-    stage: runtimeReplyAccepted ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing",
-    reason: runtimeReplyAccepted ? "" : "clean_private_reply_missing",
+    ok: !!reply,
+    statusCode: reply ? 200 : 502,
+    stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing",
+    reason: reply ? "" : "clean_private_reply_missing",
     reply,
-    publicReply: authoritativeRuntimeReply,
-    visibleReply: authoritativeRuntimeReply,
-    finalReply: authoritativeRuntimeReply,
-    displayReply: authoritativeRuntimeReply,
-    spokenText: runtimeReplyAccepted ? (voiceProjection.spokenText || authoritativeRuntimeReply) : "",
-    speechText: runtimeReplyAccepted ? (voiceProjection.speechText || authoritativeRuntimeReply) : "",
-    response: authoritativeRuntimeReply,
-    text: authoritativeRuntimeReply,
-    message: authoritativeRuntimeReply,
+    publicReply: reply,
+    visibleReply: reply,
+    finalReply: reply,
+    displayReply: reply,
+    spokenText: voiceProjection.spokenText || reply,
+    speechText: voiceProjection.speechText || reply,
+    response: reply,
+    text: reply,
+    message: reply,
     voice: voiceProjection,
     voicePrivateReceive: privateVoiceReceive,
     privateVoiceReceive,
@@ -25815,13 +25741,13 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     projectedVoiceMode: voiceProjection.projectedVoiceMode || voiceProjection.voiceMode || "silent",
     rawVoiceMode: voiceProjection.rawVoiceMode || "silent",
     diagnosticTrace: { version: MARION_PRIVATE_RUNTIME_TRACE_VERSION, bridgeInvoked: true, elapsedMs: Date.now() - startedRuntimeAt,
-      neonEligible: !!allowedNeon, neonAdvisoryObserved,
-      neonFeatureEnabled: neonFlagEnabled,
+      neonEligible: !!allowedNeon, neonFeatureEnabled: neonFlagEnabled,
       neonBridgeSupported, neonGatewayConfigured, neonOwnerRole,
-      neonSessionVerified, finalKind: marionPrivateRuntimeReplyKind(authoritativeRuntimeReply),
+      neonSessionVerified, finalKind: marionPrivateRuntimeReplyKind(reply),
       bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply) },
     result: marionAdminConsoleRedacted(packet),
     bridgeStatus: marionAdminBridgeStatusProjection(bridgeStatus),
+    ...privateIdentity,
     runtimeSafetyVersion: MARION_ADMIN_RUNTIME_SAFETY_VERSION
   };
 }
@@ -25848,54 +25774,17 @@ async function handleMarionAdminTextRuntime(req, res) {
     runtimeFailureStage = "response_projection";
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
     const runtimePrompt = marionAdminTextRuntimeExtractPrompt(body);
-    // A second presentation pass may return empty even after the private
-    // runtime has already accepted a substantive final. Recover that SAME
-    // validated reply, never synthesize a new answer or trust model advice.
-    const acceptedRuntimeReply = runtime.ok === true &&
-      runtime.statusCode === 200 &&
-      typeof runtime.reply === "string" &&
-      !marionAdminInvalidPrivateFinal(runtime.reply) &&
-      !marionAdminHoldingReply(runtime.reply) &&
-      !hasUserVisibleDebugLeak(runtime.reply) &&
-      !isPromptEchoReply(runtime.reply, { prompt: runtimePrompt, text: runtimePrompt, message: runtimePrompt })
-        ? marionAdminProjectionCleanReply(runtime.reply) : "";
-    const projectedReply = acceptedRuntimeReply
-      ? priority9JR1BAdminVisibleReply(acceptedRuntimeReply, runtimePrompt) : "";
-    const reply = projectedReply &&
-      !marionAdminInvalidPrivateFinal(projectedReply) &&
-      !marionAdminHoldingReply(projectedReply) &&
-      !hasUserVisibleDebugLeak(projectedReply)
-        ? projectedReply : acceptedRuntimeReply;
+    const reply = runtime.ok === true && !marionAdminInvalidPrivateFinal(runtime.reply)
+      ? (priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || "") : "";
     const bridgeStatus = marionAdminBridgeStatusProjection(runtime.bridgeStatus);
     // MARION_PRIVATE_FINAL_CONTRACT_V1: A successful transport does not make an
     // irrelevant conversation placeholder a successful answer. No synthetic model
     // content, no fallback to public Nyx, no leaking Neon evidence to the client.
     const privatePlaceholder = marionAdminSubstantivePrompt(runtimePrompt) &&
       /(?:what would you like me to focus on|share the relevant context and any constraints|tell me what you want to work through|i(?:'|’)?m here,? mac|i received your business-strategy question, but the private reasoning path did not produce|private reasoning path did not produce a verified response)/i.test(reply);
-    const finalPrivateReply = privatePlaceholder ||
-      (marionAdminSubstantivePrompt(runtimePrompt) &&
-       (marionAdminInvalidPrivateFinal(reply) || marionAdminHoldingReply(reply)))
-      ? "" : reply;
+    const finalPrivateReply = privatePlaceholder ? "" : reply;
     const privateResponseOk = runtime.ok === true && !!finalPrivateReply;
     const privateStatusCode = privateResponseOk ? statusCode : (statusCode >= 400 ? statusCode : 502);
-    marionPrivateRuntimeTrace(traceId, "response_finalization", {
-      statusCode: privateStatusCode,
-      runtimeOk: runtime.ok === true,
-      runtimeReplyKind: marionPrivateRuntimeReplyKind(runtime.reply),
-      acceptedRuntimeReplyKind: marionPrivateRuntimeReplyKind(acceptedRuntimeReply),
-      projectedReplyKind: marionPrivateRuntimeReplyKind(projectedReply),
-      responseReplyKind: marionPrivateRuntimeReplyKind(reply),
-      finalPrivateReplyKind: marionPrivateRuntimeReplyKind(finalPrivateReply),
-      presentationProjectionAccepted: !!projectedReply && reply === projectedReply,
-      validatedReplyRecovered: !!acceptedRuntimeReply && reply === acceptedRuntimeReply && !projectedReply,
-      privatePlaceholderRejected: privatePlaceholder,
-      privateResponseOk,
-      neonEligible: runtime.diagnosticTrace && runtime.diagnosticTrace.neonEligible === true,
-      neonAdvisoryObserved: runtime.diagnosticTrace && runtime.diagnosticTrace.neonAdvisoryObserved === true,
-      // A held or missing Marion final stays a failure regardless of Neon eligibility.
-      failureClass: privateResponseOk ? "none" : (marionPrivateRuntimeReplyKind(runtime.reply) === "holding_reply" ? "holding_reply_no_authoritative_final" : "private_final_not_accepted"),
-      advisoryIsFinalAuthority: false
-    });
     return res.status(privateStatusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
       ok: privateResponseOk,
@@ -31376,28 +31265,7 @@ try {
     if(typeof express!=="undefined"&&express&&express.response&&!express.response.__nyxPrivateOperatorBoundaryLockPatched){
       const oldJson=express.response.json;
       const oldSend=express.response.send;
-      function reqCtx(req,body){
-        // Authentication proof comes from the canonical session validator, never
-        // from body, headers-as-flags, or response metadata. Do not mutate req.
-        let proof=null;
-        try {
-          const route=String(req&&(req.originalUrl||req.path||req.url)||"").split("?")[0];
-          if(/^\/(?:api\/)?private\/marion\/admin\/(?:conversation|runtime)(?:\/|$)/i.test(route)) {
-            const auth=marionAdminConsoleRequestAuth(req);
-            if(auth&&auth.verified===true&&auth.sessionVerified===true&&
-                auth.testBypass!==true&&auth.testingBypass!==true&&
-                ["owner","admin","administrator"].includes(String(auth.role||"").toLowerCase())&&
-                typeof auth.sessionId==="string"&&auth.sessionId.length>0) {
-              proof={verifiedBy:"server_middleware",verified:true,sessionVerified:true,
-                adminVerified:true,sessionId:auth.sessionId,role:auth.role};
-            }
-          }
-        } catch (_) { proof=null; }
-        const safeReq={originalUrl:req&&req.originalUrl,path:req&&req.path,url:req&&req.url,
-          auth:proof||null};
-        return {req:safeReq,body:req&&req.body,headers:req&&req.headers,
-          payload:body,route:(req&&(req.originalUrl||req.path||req.url))||""};
-      }
+      function reqCtx(req,body){return{req:req,body:req&&req.body,headers:req&&req.headers,payload:body,route:(req&&(req.path||req.originalUrl||req.url))||""};}
       function project(req,body){try{const c=reqCtx(req,body);return lock.isVerifiedOperatorContext(c)?lock.projectPrivateOperatorFields(body,c):body;}catch(_err){return body;}}
       express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
       express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{const req=this&&this.req;if(body&&typeof body==="object")body=project(req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(req,JSON.parse(s)));}catch(_parseErr){}}}}catch(_err){}return oldSend.call(this,body);};
@@ -31415,28 +31283,8 @@ try {
   let lock=null;try{lock=require("./Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
   if(!lock||!lock.projectResult||typeof express==="undefined"||!express.response||express.response.__phase3dVoiceTextParityHardlock)return;
   const oldJson=express.response.json; const oldSend=express.response.send;
-  function parityContext(req){
-    // Keep parity classification in the same server-authenticated trust domain
-    // as the private operator response projector.
-    let proof=null;
-    try {
-      const route=String(req&&(req.originalUrl||req.path||req.url)||"").split("?")[0];
-      if(/^\/(?:api\/)?private\/marion\/admin\/(?:conversation|runtime)(?:\/|$)/i.test(route)) {
-        const auth=marionAdminConsoleRequestAuth(req);
-        if(auth&&auth.verified===true&&auth.sessionVerified===true&&
-            auth.testBypass!==true&&auth.testingBypass!==true&&
-            ["owner","admin","administrator"].includes(String(auth.role||"").toLowerCase())&&
-            typeof auth.sessionId==="string"&&auth.sessionId.length>0)
-          proof={verifiedBy:"server_middleware",verified:true,sessionVerified:true,
-            adminVerified:true,sessionId:auth.sessionId,role:auth.role};
-      }
-    } catch (_) { proof=null; }
-    return {req:{originalUrl:req&&req.originalUrl,path:req&&req.path,url:req&&req.url,auth:proof},
-      body:req&&req.body,headers:req&&req.headers,
-      route:req&&(req.originalUrl||req.path||req.url)};
-  }
-  express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,parityContext(this&&this.req));}catch(_){}return oldJson.call(this,body);};
-  express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,parityContext(this&&this.req));}catch(_){}return oldSend.call(this,body);};
+  express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
+  express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
   express.response.__phase3dVoiceTextParityHardlock=true;
   try{module.exports=Object.assign(module.exports||{},{PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_VERSION:V});}catch(_){}
 }catch(_){}})();
