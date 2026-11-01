@@ -129,9 +129,12 @@ async function requestIntelligence(input = {}, options = {}) {
     const advisory = extractAdvisory(data);
     if (!advisory) return { ok: false, reason: 'empty_model_answer' };
     const reportedModel = clean(data && data.model, 120);
+    const finishReason = clean(data && data.choices && data.choices[0] && data.choices[0].finish_reason, 40);
     return {
       ok: true,
       advisory,
+      invocationVerified: true,
+      ...(finishReason ? { finishReason } : {}),
       model: gateway.model, // requested/configured model
       ...(MODEL_PATTERN.test(reportedModel) ? { responseModel: reportedModel } : {}),
       source: VERSION,
