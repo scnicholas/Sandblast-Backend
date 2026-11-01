@@ -1,5 +1,5 @@
 {
-  "version": "0.3.4-lingolink-aster-gateway",
+  "version": "0.3.5-lingolink-aster-phrase-coverage",
   "enabled": true,
   "defaultSourceLanguage": "auto",
   "defaultTargetLanguage": "en",
@@ -33,7 +33,9 @@
       "enabled": true,
       "failClosedOnMiss": true,
       "caseInsensitiveLookup": true,
-      "punctuationTolerantLookup": true
+      "punctuationTolerantLookup": true,
+      "scope": "exact-known-phrases-only",
+      "supportsFreeFormTranslation": false
     },
     "identity": {
       "enabled": true,
