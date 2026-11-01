@@ -25829,7 +25829,10 @@ async function handleMarionAdminTextRuntime(req, res) {
       privatePlaceholderRejected: privatePlaceholder,
       privateResponseOk,
       neonEligible: runtime.diagnosticTrace && runtime.diagnosticTrace.neonEligible === true,
-      neonAdvisoryObserved: runtime.diagnosticTrace && runtime.diagnosticTrace.neonAdvisoryObserved === true
+      neonAdvisoryObserved: runtime.diagnosticTrace && runtime.diagnosticTrace.neonAdvisoryObserved === true,
+      // A held or missing Marion final stays a failure regardless of Neon eligibility.
+      failureClass: privateResponseOk ? "none" : (marionPrivateRuntimeReplyKind(runtime.reply) === "holding_reply" ? "holding_reply_no_authoritative_final" : "private_final_not_accepted"),
+      advisoryIsFinalAuthority: false
     });
     return res.status(privateStatusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
