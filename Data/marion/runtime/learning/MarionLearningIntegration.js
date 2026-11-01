@@ -53,11 +53,12 @@ async function captureAcceptedAdminFinal({ runtime = activeRuntime, result, opti
   }
   const s = context.signal;
   try {
-    return await runtime.captureFinalOutcome(Object.freeze({
+    const captureResult = await runtime.captureFinalOutcome(Object.freeze({
       finalAccepted: true, learningConsent: true, signalId: s.signalId.trim(),
       signalClass: s.signalClass, scope: s.scope, sourceSubsystem: s.sourceSubsystem.trim(),
       outcomeScore: s.outcomeScore, occurredAt: s.occurredAt || ""
     }));
+    return record(captureResult) ? captureResult : { ok: false, reason: "learning_capture_result_invalid" };
   } catch (_) {
     // Do not leak database/authorization error details or interfere with a final reply.
     return { ok: false, reason: "learning_capture_failed" };
