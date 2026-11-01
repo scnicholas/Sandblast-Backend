@@ -1,0 +1,17 @@
+'use strict';
+const assert = require('node:assert/strict');
+const b = require('../Data/marion/runtime/privateOperatorBoundaryLock.js');
+const route = '/api/private/marion/admin/runtime';
+const proof = { verifiedBy: 'server_middleware', verified:true, sessionVerified:true, adminVerified:true, sessionId:'session-test', role:'owner' };
+assert.equal(b.isVerifiedOperatorContext({route,adminVerified:true,sessionVerified:true}),false,'body route/flags cannot authenticate');
+assert.equal(b.isVerifiedOperatorContext({req:{originalUrl:route,auth:{...proof,verifiedBy:'client'}}}),false,'client proof rejected');
+assert.equal(b.isVerifiedOperatorContext({req:{originalUrl:route,auth:{...proof,sessionId:''}}}),false,'missing session rejected');
+assert.equal(b.isVerifiedOperatorContext({req:{originalUrl:route,auth:{...proof,role:'viewer'}}}),false,'viewer rejected');
+assert.equal(b.isVerifiedOperatorContext({req:{originalUrl:'/api/chat',auth:proof}}),false,'public route rejected');
+assert.equal(b.isVerifiedOperatorContext({req:{originalUrl:route,auth:proof},audience:'public'}),false,'public markers rejected');
+assert.equal(b.isVerifiedOperatorContext({req:{originalUrl:route,auth:proof}}),true,'server verified private route accepted');
+assert.equal(b.operatorNameFrom({operatorName:'spoofed'}),b.OPERATOR_NAME,'operator name not user controlled');
+const stripped=b.projectRuntimeContext({authenticatedOperator:true,operatorName:'spoofed',reply:'hello'}, {route,adminVerified:true});
+assert.equal(stripped.authenticatedOperator,false,'unauthorized personalization stripped');
+assert.equal(Object.hasOwn(stripped,'operatorName'),false,'unauthorized operator name removed');
+console.log('PASS: 10 boundary assertions');
