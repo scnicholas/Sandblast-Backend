@@ -147,10 +147,11 @@ function bridgePrivateRuntimeIdentityProjection(
     directMarionAdminInterface: true,
     marionAdminConversation: true,
     marionAdminConversationAllowed: true,
-    authenticatedOperator: authSource.verified === true,
-    operatorPersonalization: authSource.verified === true,
-    allowPersonalName: authSource.verified === true,
-    allowOperatorMemory: authSource.verified === true,
+    // A private route label is not an authentication proof.
+    authenticatedOperator: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    operatorPersonalization: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    allowPersonalName: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    allowOperatorMemory: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
     memoryPartition: partitionKey,
     partitionKey,
     privateRuntimeContext: {
@@ -3434,6 +3435,10 @@ function classifyRound3CognitiveResilience(prompt=""){
     // Never forward the ticket or a credential to a model or final response.
     const cleanInput = {...v};
     delete cleanInput.__marionNeonPrivateTicket;
+    // These fields are trusted only when created by this verified server-side call.
+    // Do not allow request bodies to impersonate an AI Gateway advisory.
+    delete cleanInput.neonModelAdvisory;
+    delete cleanInput.marionNeonAdvisory;
     let modelUsed = false, advisoryStatus = 'ineligible';
     if (session && process.env.SB_MARION_NEON_PRIVATE_ADVISORY === 'true') {
       const mod = loadAdvisory();
