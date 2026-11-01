@@ -3319,6 +3319,8 @@ function composeMarionResponse(routed = {}, input = {}) {
   const normalizedArgs = normalizeComposeArguments(routed, input);
   const safeRouted = normalizedArgs.routed;
   const safeInput = normalizedArgs.input;
+  // Advisory is untrusted context; do not replace Marion's final or mark a holding reply successful.
+  const privateAdvisory = marionNeonAdvisoryEvidence(safeInput);
   try {
     const result = composeMarionResponseUnsafe(safeRouted, safeInput);
     const publicReply = firstText(
@@ -3338,6 +3340,9 @@ function composeMarionResponse(routed = {}, input = {}) {
     }
     if (!publicReply && deterministicComposerKnowledgeReply(extractPromptForReferenceRecovery(safeInput, safeRouted))) {
       return buildReferenceErrorRecoveredComposeResult(new Error("compose_reply_missing_or_blocked"), safeRouted, safeInput);
+    }
+    if (privateAdvisory && result && typeof result === "object" && !Array.isArray(result)) {
+      return { ...result, diagnostics: { ...marionPrivateIdentityObject(result.diagnostics), neonEvidenceRecognized: true, neonEvidenceTrusted: false, neonEvidenceFinalAuthority: false } };
     }
     return result;
   } catch (err) {
