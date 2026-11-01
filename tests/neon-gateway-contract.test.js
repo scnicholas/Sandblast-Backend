@@ -1,0 +1,21 @@
+"use strict";
+const assert = require('node:assert/strict');
+const api = require('../Utils/marionNeonIntelligence.js');
+const env = { NEON_AI_GATEWAY_BASE_URL: 'https://gateway.example.com', NEON_AI_GATEWAY_TOKEN: 'test-only', MARION_NEON_MODEL: 'gpt-5-mini' };
+const session = {source:'server-verified-session',authorized:true,scope:'private_admin',audience:'owner',sessionId:'owner-123456'};
+(async () => {
+ assert.equal(api.config(env).endpoint,'https://gateway.example.com/v1/chat/completions');
+ for (const bad of ['https://localhost','https://127.0.0.1','https://[::1]','https://host.local','http://gateway.example.com','https://gateway.example.com@localhost','https://gateway.example.com/anything']) assert.equal(api.config({...env, NEON_AI_GATEWAY_BASE_URL:bad}),null,bad);
+ assert.equal(api.trustedPrivateSession({...session,authorized:false}),false);
+ assert.equal((await api.requestIntelligence({prompt:'hi'}, {env})).reason,'private_authorization_required');
+ assert.equal((await api.requestIntelligence({session,prompt:'x'.repeat(3501)},{env})).reason,'prompt_too_large');
+ let captured;
+ const success = await api.requestIntelligence({session,prompt:'test'}, {env,fetchImpl:async(url,opts)=>{captured={url,opts};return {ok:true,headers:{get:()=>null},json:async()=>({choices:[{message:{content:'Verified advisory'}}],model:'gpt-5-mini'})}}});
+ assert.equal(success.ok,true); assert.equal(success.advisory,'Verified advisory'); assert.equal(success.finalAuthority,false); assert.equal(captured.opts.redirect,'error');
+ assert.equal((await api.requestIntelligence({session,prompt:'test'},{env,fetchImpl:async()=>({ok:false,status:401})})).status,401);
+ assert.equal((await api.requestIntelligence({session,prompt:'test'},{env,fetchImpl:async()=>({ok:true,headers:{get:()=> '300000'},json:async()=>({})})})).reason,'upstream_response_too_large');
+ const tooLargeStream = new ReadableStream({start(c){c.enqueue(new Uint8Array(270000));c.close()}});
+ assert.equal((await api.requestIntelligence({session,prompt:'test'},{env,fetchImpl:async()=>({ok:true,headers:{get:()=>null},body:tooLargeStream})})).reason,'upstream_response_too_large');
+ const health=api.getHealth(env); assert.equal(health.configured,true); assert.equal(health.liveInvocationVerified,false);
+ console.log('PASS: gateway URL, private authorization, prompt limits, success, HTTP errors, response limits, health');
+})().catch(err=>{console.error(err);process.exitCode=1});
