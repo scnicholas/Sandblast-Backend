@@ -1,0 +1,13 @@
+"use strict";
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const code = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
+assert.match(code, /function marionAdminConsoleSessionIssueRequestAuth\(req\)/);
+assert.match(code, /function marionAdminConsoleMasterRequestAuth\(req\)/);
+assert.match(code, /process\.env\.SB_MARION_ADMIN_CONSOLE_TOKEN/);
+assert.match(code, /"x-sb-marion-admin-token"/);
+assert.match(code, /credentialProvided \? "admin_credential_rejected" : "admin_token_required"/);
+assert.match(code, /timingSafeTextEqual\(candidate\.value, entry\.value\)/);
+assert.match(code, /const issued = marionAdminConsoleCreateSession\(req, auth, roleDecision\.role\)/);
+console.log("7 targeted static assertions passed; live authentication not proven.");
