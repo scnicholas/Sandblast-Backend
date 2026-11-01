@@ -31265,7 +31265,28 @@ try {
     if(typeof express!=="undefined"&&express&&express.response&&!express.response.__nyxPrivateOperatorBoundaryLockPatched){
       const oldJson=express.response.json;
       const oldSend=express.response.send;
-      function reqCtx(req,body){return{req:req,body:req&&req.body,headers:req&&req.headers,payload:body,route:(req&&(req.path||req.originalUrl||req.url))||""};}
+      function reqCtx(req,body){
+        // Authentication proof comes from the canonical session validator, never
+        // from body, headers-as-flags, or response metadata. Do not mutate req.
+        let proof=null;
+        try {
+          const route=String(req&&(req.originalUrl||req.path||req.url)||"").split("?")[0];
+          if(/^\/(?:api\/)?private\/marion\/admin\/(?:conversation|runtime)(?:\/|$)/i.test(route)) {
+            const auth=marionAdminConsoleRequestAuth(req);
+            if(auth&&auth.verified===true&&auth.sessionVerified===true&&
+                auth.testBypass!==true&&auth.testingBypass!==true&&
+                ["owner","admin","administrator"].includes(String(auth.role||"").toLowerCase())&&
+                typeof auth.sessionId==="string"&&auth.sessionId.length>0) {
+              proof={verifiedBy:"server_middleware",verified:true,sessionVerified:true,
+                adminVerified:true,sessionId:auth.sessionId,role:auth.role};
+            }
+          }
+        } catch (_) { proof=null; }
+        const safeReq={originalUrl:req&&req.originalUrl,path:req&&req.path,url:req&&req.url,
+          auth:proof||null};
+        return {req:safeReq,body:req&&req.body,headers:req&&req.headers,
+          payload:body,route:(req&&(req.originalUrl||req.path||req.url))||""};
+      }
       function project(req,body){try{const c=reqCtx(req,body);return lock.isVerifiedOperatorContext(c)?lock.projectPrivateOperatorFields(body,c):body;}catch(_err){return body;}}
       express.response.json=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldJson.call(this,body);try{body=project(this&&this.req,body);}catch(_err){}return oldJson.call(this,body);};
       express.response.send=function(body){if(isSandblastTvOperationalResponseV2(this&&this.req))return oldSend.call(this,body);try{const req=this&&this.req;if(body&&typeof body==="object")body=project(req,body);else if(typeof body==="string"){const s=body.trim();if((s[0]==="{"||s[0]==="[")&&s.length<1000000){try{body=JSON.stringify(project(req,JSON.parse(s)));}catch(_parseErr){}}}}catch(_err){}return oldSend.call(this,body);};
@@ -31283,8 +31304,28 @@ try {
   let lock=null;try{lock=require("./Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_){lock=null;}
   if(!lock||!lock.projectResult||typeof express==="undefined"||!express.response||express.response.__phase3dVoiceTextParityHardlock)return;
   const oldJson=express.response.json; const oldSend=express.response.send;
-  express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldJson.call(this,body);};
-  express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,{body:this&&this.req&&this.req.body,headers:this&&this.req&&this.req.headers,route:this&&this.req&&(this.req.originalUrl||this.req.path||this.req.url)});}catch(_){}return oldSend.call(this,body);};
+  function parityContext(req){
+    // Keep parity classification in the same server-authenticated trust domain
+    // as the private operator response projector.
+    let proof=null;
+    try {
+      const route=String(req&&(req.originalUrl||req.path||req.url)||"").split("?")[0];
+      if(/^\/(?:api\/)?private\/marion\/admin\/(?:conversation|runtime)(?:\/|$)/i.test(route)) {
+        const auth=marionAdminConsoleRequestAuth(req);
+        if(auth&&auth.verified===true&&auth.sessionVerified===true&&
+            auth.testBypass!==true&&auth.testingBypass!==true&&
+            ["owner","admin","administrator"].includes(String(auth.role||"").toLowerCase())&&
+            typeof auth.sessionId==="string"&&auth.sessionId.length>0)
+          proof={verifiedBy:"server_middleware",verified:true,sessionVerified:true,
+            adminVerified:true,sessionId:auth.sessionId,role:auth.role};
+      }
+    } catch (_) { proof=null; }
+    return {req:{originalUrl:req&&req.originalUrl,path:req&&req.path,url:req&&req.url,auth:proof},
+      body:req&&req.body,headers:req&&req.headers,
+      route:req&&(req.originalUrl||req.path||req.url)};
+  }
+  express.response.json=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldJson.call(this,body);try{body=lock.projectResult(body,parityContext(this&&this.req));}catch(_){}return oldJson.call(this,body);};
+  express.response.send=function(body){if(isGlobalResponseProjectionBypass(this&&this.req))return oldSend.call(this,body);try{if(body&&typeof body==="object")body=lock.projectResult(body,parityContext(this&&this.req));}catch(_){}return oldSend.call(this,body);};
   express.response.__phase3dVoiceTextParityHardlock=true;
   try{module.exports=Object.assign(module.exports||{},{PHASE3D_INDEX_RESPONSE_PARITY_HARDLOCK_VERSION:V});}catch(_){}
 }catch(_){}})();
