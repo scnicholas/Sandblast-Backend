@@ -1,0 +1,17 @@
+"use strict";
+const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const root=path.resolve(__dirname,'..');const bridge=fs.readFileSync(path.join(root,'Data/marion/runtime/marionBridge.js'),'utf8');
+const composer=fs.readFileSync(path.join(root,'Data/marion/runtime/composeMarionResponse.js'),'utf8');
+const index=fs.readFileSync(path.join(root,'index.js'),'utf8');
+assert.match(bridge,/cleanInput\.neonAdvisoryUntrusted = true/);
+assert.match(bridge,/neonAdvisoryUntrusted: original\.neonAdvisoryUntrusted === true && original\.privateAdminConversation === true/);
+assert.match(bridge,/neonModelAdvisory: original\.neonAdvisoryUntrusted === true && original\.privateAdminConversation === true/);
+assert.match(bridge,/delete cleanInput\.__marionNeonPrivateTicket/);
+assert.match(bridge,/verifySession/);
+assert.match(composer,/const privateAdvisory = marionNeonAdvisoryEvidence\(safeInput\)/);
+assert.match(composer,/neonEvidenceTrusted: false/);
+assert.match(composer,/neonEvidenceFinalAuthority: false/);
+assert.match(index,/holding_reply_no_authoritative_final/);
+assert.match(index,/advisoryIsFinalAuthority: false/);
+assert.match(index,/privateResponseOk = runtime\.ok === true && !!finalPrivateReply/);
+console.log('11 targeted source-contract assertions passed');
