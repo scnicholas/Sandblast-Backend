@@ -23295,10 +23295,12 @@ function marionAdminConsoleRequestedSessionRole(req, bodyValue) {
 function marionAdminConsoleResolveSessionRole(auth, requestedRole) {
   const currentRole = marionAdminConsoleNormalizeRole(auth && auth.role);
   const requested = marionAdminConsoleNormalizeRole(requestedRole || currentRole);
-  const requestedEffective = requested === MARION_ADMIN_CONSOLE_ROLES.BLOCKED ? currentRole : requested;
-  const allowed = marionAdminConsoleCanAssumeRole(auth, requestedEffective);
-  const role = allowed ? requestedEffective : currentRole;
-  return { allowed, role, requestedRole: requestedEffective, currentRole };
+  // Explicit unknown/blocked roles must fail closed. Only an omitted role may
+  // inherit the already verified caller's role (handled by requestedRole || currentRole).
+  const allowed = requested !== MARION_ADMIN_CONSOLE_ROLES.BLOCKED &&
+    marionAdminConsoleCanAssumeRole(auth, requested);
+  const role = allowed ? requested : currentRole;
+  return { allowed, role, requestedRole: requested, currentRole };
 }
 
 function marionAdminConsoleCapabilityForAction(action) {
@@ -23568,6 +23570,18 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     : !configured ? "Marion admin authentication is not configured on this server."
     : credentialProvided ? "The supplied Marion admin credentials were not accepted."
     : "A valid Marion admin token or session is required.";
+  // Structured, redacted rejection telemetry. Do NOT log header/body/token values,
+  // request IP, or the credential source. This allows Render operators to correlate
+  // a rejected HTTP request with its actual decision without exposing secrets.
+  try { console.warn("[Sandblast][marion-admin-auth-rejected]", {
+    traceId: cleanText(traceId || "").slice(0, 100),
+    statusCode: status,
+    reason: errorCode,
+    adminTokenConfigured: configured,
+    adminTokenProvided: credentialProvided,
+    mfaRequired: !!(auth && auth.mfaRequired),
+    mfaVerified: !!(auth && auth.mfaVerified)
+  }); } catch (_) {}
   return res.status(status).json({
     ok: false,
     error: errorCode,
