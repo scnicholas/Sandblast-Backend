@@ -1700,6 +1700,9 @@ try {
     return integration.registerRuntime(runtime);
   };
   api.registerMarionLearningRuntime = registerMarionLearningRuntime;
+  api.getMarionLearningRuntime = function getMarionLearningRuntime() {
+    return integration && typeof integration.getRuntime === "function" ? integration.getRuntime() : null;
+  };
   api.getMarionLearningIntegrationStatus = function getMarionLearningIntegrationStatus() {
     if (!integration || typeof integration.status !== "function") {
       return { ready: false, reason: "learning_integration_unavailable" };
@@ -1717,9 +1720,16 @@ try {
   }
   function gatewayAdminVerified(options) {
     const opts = options && typeof options === "object" ? options : {};
-    return opts.adminVerified === true || opts.adminVoiceVerified === true || opts.adminVoiceTokenVerified === true ||
-      opts.adminVoiceDeliveryAllowed === true || opts.serverSideAdminVoiceAuth === true || opts.trustedServerAuth === true ||
-      (typeof hasOptionAdminVoiceProof === "function" && (hasOptionAdminVoiceProof(opts.authorization || {}) || hasOptionAdminVoiceProof(opts.output || {})));
+    const context = opts.marionLearningContext && typeof opts.marionLearningContext === "object"
+      ? opts.marionLearningContext : null;
+    // A voice-delivery flag, role hint or request-supplied admin flag is NOT
+    // proof that a learning signal originated in verified owner middleware.
+    // This is intentionally stricter than authorization to deliver voice.
+    return Boolean(context && opts.adminVerified === true &&
+      opts.sessionVerified === true && opts.verifiedBy === "server_middleware" &&
+      context.authenticated === true && context.ownerAuthenticated === true &&
+      context.verifiedBy === "server_middleware" && context.role === "owner" &&
+      context.learningConsent === true);
   }
   async function capture(result, options) {
     try {
