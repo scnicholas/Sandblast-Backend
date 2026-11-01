@@ -11467,7 +11467,11 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     const x = value && typeof value === "object" ? value : {};
     const f = x.finalEnvelope && typeof x.finalEnvelope === "object" ? x.finalEnvelope : {};
     const reply = [x.authoritativeReply, x.reply, x.finalReply, x.text, f.authoritativeReply, f.reply, f.finalReply, f.text].some(v => typeof v === "string" && v.trim());
-    return x.ok === true && x.final === true && x.marionFinal === true && f.final === true && f.marionFinal === true && reply && x.blocked !== true && x.awaitingMarion !== true;
+    return x.ok === true && x.final === true && x.marionFinal === true &&
+      x.blocked !== true && x.awaitingMarion !== true && x.canEmit !== false &&
+      x.degraded !== true && x.requiresRetry !== true &&
+      f.final === true && f.marionFinal === true && f.blocked !== true &&
+      f.awaitingMarion !== true && f.canEmit !== false && reply;
   }
   api.MARION_SELF_LEARNING_FINAL_CONTRACT_VERSION = "marion.selfLearning.finalContract/1.0";
   api.isAcceptedMarionLearningFinal = isAcceptedMarionLearningFinal;
