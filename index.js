@@ -25661,6 +25661,13 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
   });
   let marionNeonTicket = "";
   if (allowedNeon) {
+    // Expired tickets must not accumulate indefinitely if advisory calls stall.
+    if (marionNeonPrivateTickets.size > 256) {
+      const now = Date.now();
+      for (const [key, value] of marionNeonPrivateTickets) {
+        if (!value || value.expiresAt < now) marionNeonPrivateTickets.delete(key);
+      }
+    }
     marionNeonTicket = crypto.randomBytes(24).toString("hex");
     marionNeonPrivateTickets.set(marionNeonTicket, {
       sessionId: cleanText(auth.sessionId), expiresAt: Date.now() + 15000
@@ -25685,12 +25692,21 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     delete input.__marionNeonPrivateTicket;
   }
   const bridgeReply = marionAdminConversationSafeReply(packet, prompt);
+  const neonAdvisoryObserved = !!(packet &&
+    (packet.neonModelAdvisory || (packet.result && packet.result.neonModelAdvisory)));
+  // Eligibility is NOT evidence of a completed remote model invocation.
+  // Keep advisory evidence private, untrusted, and non-authoritative.
+  marionPrivateRuntimeTrace(traceId, "neon_advisory_observation", {
+    eligible: !!allowedNeon,
+    advisoryObserved: neonAdvisoryObserved,
+    invocationVerified: false
+  });
   marionPrivateRuntimeTrace(traceId, "after_bridge", {
     durationMs: Date.now() - startedRuntimeAt,
     packetOk: packet && packet.ok === true,
     packetStage: packet && typeof packet.stage === "string" ? packet.stage.slice(0, 100) : "",
     bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply),
-    hasNeonAdvisory: !!(packet && (packet.neonModelAdvisory || (packet.result && packet.result.neonModelAdvisory))),
+    hasNeonAdvisory: neonAdvisoryObserved,
     packetDomain: packet && typeof packet.primaryDomain === "string" ? packet.primaryDomain.slice(0, 60) : ""
   });
   const selectedPacketReply = marionAdminTextRuntimeReplyFromPacket(packet, prompt, input);
@@ -25741,7 +25757,8 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     projectedVoiceMode: voiceProjection.projectedVoiceMode || voiceProjection.voiceMode || "silent",
     rawVoiceMode: voiceProjection.rawVoiceMode || "silent",
     diagnosticTrace: { version: MARION_PRIVATE_RUNTIME_TRACE_VERSION, bridgeInvoked: true, elapsedMs: Date.now() - startedRuntimeAt,
-      neonEligible: !!allowedNeon, neonFeatureEnabled: neonFlagEnabled,
+      neonEligible: !!allowedNeon, neonAdvisoryObserved,
+      neonFeatureEnabled: neonFlagEnabled,
       neonBridgeSupported, neonGatewayConfigured, neonOwnerRole,
       neonSessionVerified, finalKind: marionPrivateRuntimeReplyKind(reply),
       bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply) },
@@ -25774,17 +25791,46 @@ async function handleMarionAdminTextRuntime(req, res) {
     runtimeFailureStage = "response_projection";
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
     const runtimePrompt = marionAdminTextRuntimeExtractPrompt(body);
-    const reply = runtime.ok === true && !marionAdminInvalidPrivateFinal(runtime.reply)
-      ? (priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || "") : "";
+    // A second presentation pass may return empty even after the private
+    // runtime has already accepted a substantive final. Recover that SAME
+    // validated reply, never synthesize a new answer or trust model advice.
+    const acceptedRuntimeReply = runtime.ok === true &&
+      typeof runtime.reply === "string" &&
+      !marionAdminInvalidPrivateFinal(runtime.reply) &&
+      !marionAdminHoldingReply(runtime.reply) &&
+      !hasUserVisibleDebugLeak(runtime.reply) &&
+      !isPromptEchoReply(runtime.reply, { prompt: runtimePrompt, text: runtimePrompt, message: runtimePrompt })
+        ? marionAdminProjectionCleanReply(runtime.reply) : "";
+    const projectedReply = acceptedRuntimeReply
+      ? priority9JR1BAdminVisibleReply(acceptedRuntimeReply, runtimePrompt) : "";
+    const reply = projectedReply &&
+      !marionAdminInvalidPrivateFinal(projectedReply) &&
+      !marionAdminHoldingReply(projectedReply) &&
+      !hasUserVisibleDebugLeak(projectedReply)
+        ? projectedReply : acceptedRuntimeReply;
     const bridgeStatus = marionAdminBridgeStatusProjection(runtime.bridgeStatus);
     // MARION_PRIVATE_FINAL_CONTRACT_V1: A successful transport does not make an
     // irrelevant conversation placeholder a successful answer. No synthetic model
     // content, no fallback to public Nyx, no leaking Neon evidence to the client.
     const privatePlaceholder = marionAdminSubstantivePrompt(runtimePrompt) &&
       /(?:what would you like me to focus on|share the relevant context and any constraints|tell me what you want to work through|i(?:'|’)?m here,? mac|i received your business-strategy question, but the private reasoning path did not produce|private reasoning path did not produce a verified response)/i.test(reply);
-    const finalPrivateReply = privatePlaceholder ? "" : reply;
+    const finalPrivateReply = privatePlaceholder ||
+      (marionAdminSubstantivePrompt(runtimePrompt) &&
+       (marionAdminInvalidPrivateFinal(reply) || marionAdminHoldingReply(reply)))
+      ? "" : reply;
     const privateResponseOk = runtime.ok === true && !!finalPrivateReply;
     const privateStatusCode = privateResponseOk ? statusCode : (statusCode >= 400 ? statusCode : 502);
+    marionPrivateRuntimeTrace(traceId, "response_finalization", {
+      statusCode: privateStatusCode,
+      runtimeOk: runtime.ok === true,
+      runtimeReplyKind: marionPrivateRuntimeReplyKind(runtime.reply),
+      presentationProjectionAccepted: !!projectedReply && reply === projectedReply,
+      validatedReplyRecovered: !!acceptedRuntimeReply && reply === acceptedRuntimeReply && !projectedReply,
+      privatePlaceholderRejected: privatePlaceholder,
+      privateResponseOk,
+      neonEligible: runtime.diagnosticTrace && runtime.diagnosticTrace.neonEligible === true,
+      neonAdvisoryObserved: runtime.diagnosticTrace && runtime.diagnosticTrace.neonAdvisoryObserved === true
+    });
     return res.status(privateStatusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
       ok: privateResponseOk,
