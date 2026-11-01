@@ -1244,9 +1244,33 @@ app.post(
 
       const translatedText = lingoSentinelIndexTranslateExtract(result);
 
-      if (!translatedText) {
-        lingoSentinelIndexTranslateLastError = "translation_result_empty";
-        return next();
+      // Do not turn provider fallbacks into successful translations.
+      // UniversalTranslatorAdapter may preserve the source text with ok:false
+      // when the provider is disabled, timed out or produced no translation.
+      const resultObject = result && typeof result === "object" && !Array.isArray(result) ? result : {};
+      const resultMeta = resultObject.meta && typeof resultObject.meta === "object"
+        ? resultObject.meta
+        : resultObject.translationMeta && typeof resultObject.translationMeta === "object"
+          ? resultObject.translationMeta : {};
+      const providerRejected = resultObject.ok === false ||
+        resultObject.translationAvailable === false ||
+        resultObject.status === "unavailable" ||
+        resultMeta.translated === false || resultMeta.fallbackUsed === true;
+      const unchanged = !translatedText || translatedText.trim() === text.trim();
+      if (providerRejected || unchanged) {
+        lingoSentinelIndexTranslateLastError = "translation_unavailable";
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(503).json({
+          ok: false,
+          error: "TRANSLATION_UNAVAILABLE",
+          status: "unavailable",
+          sourceLanguage,
+          targetLanguage,
+          requestId,
+          applied: false,
+          service: "lingosentinel-public-translate-index-guard",
+          marionFinal: false
+        });
       }
 
       lingoSentinelIndexTranslateLastSuccessAt = Date.now();
@@ -2632,44 +2656,45 @@ try {
 // LINGOSENTINEL_SPONTANEITY_50LANG_MOUNT_END
 
 // PHASE4B_LINGOSENTINEL_HARD_MOUNT_START
-// Reuse the existing public translation route module and mount it at most once.
-// Retain this health endpoint for compatibility; report actual mount state.
+// Internal LingoSentinel translation routes.
+// Mounted immediately after Express body middleware.
+// Nyx untouched.
 try {
-  const lingoSentinelRouteMount = mountLingoSentinelTranslationRoutesOnce(app, "phase4b-hard-mount");
   app.get("/internal/lingosentinel/_mount", (req, res) => {
-    const mount = app.locals && app.locals.__lingoSentinelTranslationRoutesMounted;
     return res.status(200).json({
-      ok: Boolean(mount),
+      ok: true,
       service: "lingosentinel-internal-routes",
-      mounted: Boolean(mount),
+      mounted: true,
       marker: "PHASE4B_LINGOSENTINEL_HARD_MOUNT",
       at: Date.now()
     });
   });
-  console.log("[LingoSentinel][Phase4B] TRANSLATION MOUNT", {
-    ok: lingoSentinelRouteMount && lingoSentinelRouteMount.ok === true,
-    mounted: lingoSentinelRouteMount && lingoSentinelRouteMount.mounted === true,
-    alreadyMounted: lingoSentinelRouteMount && lingoSentinelRouteMount.alreadyMounted === true,
-    reason: lingoSentinelRouteMount && lingoSentinelRouteMount.reason || null
-  });
+
+  const lingoSentinelRouteMount = mountLingoSentinelTranslationRoutesOnce(app, "phase4b-hard-mount");
+
+  if (lingoSentinelRouteMount && lingoSentinelRouteMount.ok === true) {
+    console.log("[LingoSentinel][Phase4B] HARD MOUNT OK", lingoSentinelRouteMount);
+  } else {
+    console.log("[LingoSentinel][Phase4B] HARD MOUNT DEGRADED", lingoSentinelRouteMount);
+  }
 } catch (err) {
-  console.log("[LingoSentinel][Phase4B] TRANSLATION MOUNT FAILED", err && err.code || "mount_exception");
+  console.log("[LingoSentinel][Phase4B] HARD MOUNT FAILED", err && (err.stack || err.message || err));
 }
 // PHASE4B_LINGOSENTINEL_HARD_MOUNT_END
 // PHASE5A_LINGOSENTINEL_PUBLIC_BOUNDARY_START
-// The existing lingosentinelTranslationRoutes.js already owns
-// POST /api/lingosentinel/translate. Avoid a second handler and avoid loading
-// the nonexistent public-boundary module. Phase5A reuses the canonical mount.
-// No changes to private Marion authority or authentication.
+// App-facing LingoSentinel translation boundary.
+// Disabled by default unless LINGOSENTINEL_PUBLIC_TRANSLATION_ENABLED=true.
+// Internal routes and tokens are never exposed. Nyx untouched.
 try {
-  const lingoSentinelPublicBoundaryMount = mountLingoSentinelTranslationRoutesOnce(app, "phase5a-public-translation");
-  console.log("[LingoSentinel][Phase5A] PUBLIC TRANSLATION STATUS", {
-    ok: lingoSentinelPublicBoundaryMount && lingoSentinelPublicBoundaryMount.ok === true,
-    alreadyMounted: lingoSentinelPublicBoundaryMount && lingoSentinelPublicBoundaryMount.alreadyMounted === true,
-    reason: lingoSentinelPublicBoundaryMount && lingoSentinelPublicBoundaryMount.reason || null
-  });
+  const {
+    registerLingoSentinelPublicTranslationBoundaryRoutes,
+  } = require("./Data/marion/routes/lingosentinelPublicTranslationBoundaryRoutes");
+
+  const lingoSentinelPublicBoundaryMount = registerLingoSentinelPublicTranslationBoundaryRoutes(app);
+
+  console.log("[LingoSentinel][Phase5A] PUBLIC BOUNDARY MOUNT OK", lingoSentinelPublicBoundaryMount);
 } catch (err) {
-  console.log("[LingoSentinel][Phase5A] PUBLIC TRANSLATION FAILED", err && err.code || "mount_exception");
+  console.log("[LingoSentinel][Phase5A] PUBLIC BOUNDARY MOUNT FAILED", err && (err.stack || err.message || err));
 }
 // PHASE5A_LINGOSENTINEL_PUBLIC_BOUNDARY_END
 
