@@ -3439,7 +3439,8 @@ function classifyRound3CognitiveResilience(prompt=""){
     // Do not allow request bodies to impersonate an AI Gateway advisory.
     delete cleanInput.neonModelAdvisory;
     delete cleanInput.marionNeonAdvisory;
-    let modelUsed = false, advisoryStatus = 'ineligible';
+    delete cleanInput.neonAdvisoryUntrusted;
+    let modelUsed = false, advisoryStatus = 'ineligible', invokedModel = '', responseModel = '';
     if (session && process.env.SB_MARION_NEON_PRIVATE_ADVISORY === 'true') {
       const mod = loadAdvisory();
       const prompt = promptFrom(v);
@@ -3453,6 +3454,8 @@ function classifyRound3CognitiveResilience(prompt=""){
           cleanInput.marionNeonAdvisory = cleanInput.neonModelAdvisory;
           cleanInput.neonAdvisoryUntrusted = true; // Explicit evidence marker; never a final authority.
           modelUsed = true;
+          invokedModel = text(result.model,120);
+          responseModel = text(result.responseModel,120);
           advisoryStatus = 'available';
         } else advisoryStatus = text(result && result.reason,60)||'unavailable';
       } else advisoryStatus = mod ? 'empty_prompt':'adapter_unavailable';
@@ -3461,8 +3464,8 @@ function classifyRound3CognitiveResilience(prompt=""){
     // Diagnostic-only metadata. No advisory text, session ID or token is returned.
     if (response && typeof response === 'object' && !Array.isArray(response)) {
       const out = {...response};
-      out.neonModelAdvisory = { available:modelUsed, usedAsFinalAuthority:false, reason:advisoryStatus };
-      out.diagnostics = { ...obj(response.diagnostics), privateNeonAdvisoryAvailable:modelUsed, privateNeonAdvisoryStatus:advisoryStatus };
+      out.neonModelAdvisory = { available:modelUsed, invocationVerified:modelUsed, model:invokedModel || null, responseModel:responseModel || null, usedAsFinalAuthority:false, reason:advisoryStatus };
+      out.diagnostics = { ...obj(response.diagnostics), privateNeonAdvisoryAvailable:modelUsed, privateNeonInvocationVerified:modelUsed, privateNeonResponseModel:responseModel || null, privateNeonAdvisoryStatus:advisoryStatus };
       return out;
     }
     return response;
