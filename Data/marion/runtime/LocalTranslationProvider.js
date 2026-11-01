@@ -19,7 +19,7 @@ const http = require("http");
 const https = require("https");
 const net = require("net");
 
-const VERSION = "0.2.3 + LINGOLINK-ASTER-GATEWAY";
+const VERSION = "0.2.4 + LINGOSENTINEL-PHRASE-COVERAGE";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_CHARACTERS = 4500;
 const DEFAULT_MAX_RESPONSE_BYTES = 1024 * 512;
@@ -76,6 +76,11 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0"]);
 
 const MANUAL_DICTIONARY = {
   "en:fr": {
+    "Hello": "Bonjour",
+    "Good morning": "Bonjour",
+    "How are you?": "Comment ça va ?",
+    "Thank you": "Merci",
+    "Goodbye": "Au revoir",
     "Start Reading": "Commencer la lecture",
     "Open Feed": "Ouvrir le flux",
     "Canada Feed": "Flux Canada",
@@ -93,6 +98,10 @@ const MANUAL_DICTIONARY = {
     "Nyx is ready.": "Nyx est prête."
   },
   "fr:en": {
+    "Bonjour": "Hello",
+    "Comment ça va ?": "How are you?",
+    "Merci": "Thank you",
+    "Au revoir": "Goodbye",
     "Commencer la lecture": "Start Reading",
     "Ouvrir le flux": "Open Feed",
     "Flux Canada": "Canada Feed",
@@ -110,6 +119,13 @@ const MANUAL_DICTIONARY = {
     "Nyx est prête.": "Nyx is ready."
   },
   "en:es": {
+    "Hello": "Hola",
+    "Good morning": "Buenos días",
+    "Good morning, how are you today?": "Buenos días, ¿cómo estás hoy?",
+    "How are you?": "¿Cómo estás?",
+    "Thank you": "Gracias",
+    "Goodbye": "Adiós",
+    "Help me start a friendly conversation in Spanish.": "Ayúdame a iniciar una conversación amistosa en español.",
     "Start Reading": "Comenzar a leer",
     "Open Feed": "Abrir fuente",
     "Canada Feed": "Canal de Canadá",
@@ -127,6 +143,13 @@ const MANUAL_DICTIONARY = {
     "Nyx is ready.": "Nyx está lista."
   },
   "es:en": {
+    "Hola": "Hello",
+    "Buenos días": "Good morning",
+    "Buenos días, ¿cómo estás hoy?": "Good morning, how are you today?",
+    "¿Cómo estás?": "How are you?",
+    "Gracias": "Thank you",
+    "Adiós": "Goodbye",
+    "Ayúdame a iniciar una conversación amistosa en español.": "Help me start a friendly conversation in Spanish.",
     "Comenzar a leer": "Start Reading",
     "Abrir fuente": "Open Feed",
     "Canal de Canadá": "Canada Feed",
@@ -144,6 +167,9 @@ const MANUAL_DICTIONARY = {
     "Nyx está lista.": "Nyx is ready."
   },
   "fr:es": {
+    "Bonjour": "Hola",
+    "Merci": "Gracias",
+    "Au revoir": "Adiós",
     "Commencer la lecture": "Comenzar a leer",
     "Ouvrir le flux": "Abrir fuente",
     "Flux Canada": "Canal de Canadá",
@@ -153,6 +179,9 @@ const MANUAL_DICTIONARY = {
     "Langue": "Idioma"
   },
   "es:fr": {
+    "Hola": "Bonjour",
+    "Gracias": "Merci",
+    "Adiós": "Au revoir",
     "Comenzar a leer": "Commencer la lecture",
     "Abrir fuente": "Ouvrir le flux",
     "Canal de Canadá": "Flux Canada",
@@ -480,7 +509,7 @@ function translateWithManualDictionary(text, sourceLanguage, targetLanguage) {
   const target = normalizeLanguageCode(targetLanguage);
   const hit = lookupManualDictionary(text, source, target);
 
-  if (!hit || !hit.translatedText) {
+  if (!hit || !hit.translatedText || hit.translatedText === text) {
     return {
       text,
       translated: false,
