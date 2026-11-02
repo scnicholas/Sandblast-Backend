@@ -7,7 +7,7 @@ const { createMarionLearningAuditStore } = require("./MarionLearningAuditStore")
 const { createMarionLearningRuntime } = require("./MarionLearningRuntime");
 const { createMarionLearningManifestRegistry } = require("./MarionLearningManifestRegistry");
 const { createMarionLearningOfflineRunner } = require("./MarionLearningOfflineRunner");
-const VERSION = "marion.learningBackendSetup/1.5-registration-ack";
+const VERSION = "marion.learningBackendSetup/1.6-registration-contract-hardened";
 
 function createAndRegisterMarionLearningBackend({
   signalStore, proposalStore, durableAuditAppend, manifestSource, manifestRegistryStore,
@@ -41,7 +41,9 @@ function createAndRegisterMarionLearningBackend({
   const approvalGate = createApprovalGate({ proposalStore, auditStore });
   const runtime = createMarionLearningRuntime({ signalAdapter, evaluator, approvalGate, manifestRegistry,
     healthProbe, offlineEvaluationReady, captureEnabled });
-  const gatewayModule = gateway || require("../MarionVoiceGateway.js");
+  // Explicitly supplied gateway is authoritative. Do not fall back to another
+  // gateway instance after a failed registration or silently switch module state.
+  const gatewayModule = gateway == null ? require("../MarionVoiceGateway.js") : gateway;
   if (!gatewayModule || typeof gatewayModule.registerMarionLearningRuntime !== "function") {
     throw new Error("Gateway learning registration hook is unavailable");
   }
@@ -50,14 +52,20 @@ function createAndRegisterMarionLearningBackend({
       registration.ok !== true || registration.registered !== true) {
     throw new Error("gateway_learning_registration_rejected");
   }
-  if (typeof gatewayModule.getMarionLearningIntegrationStatus === "function") {
-    const gatewayStatus = gatewayModule.getMarionLearningIntegrationStatus();
-    if (!gatewayStatus || gatewayStatus.registered !== true ||
-        (typeof gatewayModule.getMarionLearningRuntime === "function" &&
-         gatewayModule.getMarionLearningRuntime() !== runtime)) {
-      throw new Error("gateway_learning_registration_status_unconfirmed");
-    }
+  // The bootstrap in index.js requires a synchronous, confirmed registration.
+  // Both confirmation hooks are mandatory: a reported status alone does not
+  // prove that the gateway holds the runtime constructed above.
+  if (typeof gatewayModule.getMarionLearningIntegrationStatus !== "function" ||
+      typeof gatewayModule.getMarionLearningRuntime !== "function") {
+    throw new Error("gateway_learning_registration_confirmation_unavailable");
   }
+  const gatewayStatus = gatewayModule.getMarionLearningIntegrationStatus();
+  if (!gatewayStatus || gatewayStatus.registered !== true ||
+      gatewayModule.getMarionLearningRuntime() !== runtime) {
+    throw new Error("gateway_learning_registration_status_unconfirmed");
+  }
+  // A capture-enabled runtime must not masquerade as activated self-learning.
+  // Evaluation and capture remain under their existing private authorization gates.
   return Object.freeze({ VERSION, runtime, auditStore, signalAdapter, evaluator, approvalGate, manifestRegistry, offlineRunner, registration });
 }
 
