@@ -25263,11 +25263,11 @@ function marionAdminTextRuntimeReplyFromPacket(packet, promptText, source) {
   const synthesis = safeObj(src.synthesis || payload.synthesis || result.synthesis);
   const norm = { prompt: promptText, userText: promptText, rawUserText: promptText, text: promptText, message: promptText };
   const candidates = [
-    finalEnvelope.final, finalEnvelope.finalAnswer, finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.message, finalEnvelope.spokenText,
-    synthesis.final, synthesis.finalAnswer, synthesis.finalReply, synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.displayReply, synthesis.answer, synthesis.output, synthesis.response, synthesis.text, synthesis.message, synthesis.spokenText,
-    result.final, result.finalAnswer, result.finalReply, result.reply, result.publicReply, result.visibleReply, result.displayReply, result.answer, result.output, result.response, result.text, result.message,
-    payload.final, payload.finalAnswer, payload.finalReply, payload.reply, payload.publicReply, payload.visibleReply, payload.displayReply, payload.answer, payload.output, payload.response, payload.text, payload.message,
-    src.final, src.finalAnswer, src.finalReply, src.reply, src.publicReply, src.visibleReply, src.displayReply, src.answer, src.output, src.response, src.text, src.message
+    finalEnvelope.finalAnswer, finalEnvelope.finalReply, finalEnvelope.reply, finalEnvelope.publicReply, finalEnvelope.visibleReply, finalEnvelope.displayReply, finalEnvelope.answer, finalEnvelope.output, finalEnvelope.response, finalEnvelope.text, finalEnvelope.message, finalEnvelope.spokenText,
+    synthesis.finalAnswer, synthesis.finalReply, synthesis.reply, synthesis.publicReply, synthesis.visibleReply, synthesis.displayReply, synthesis.answer, synthesis.output, synthesis.response, synthesis.text, synthesis.message, synthesis.spokenText,
+    result.finalAnswer, result.finalReply, result.reply, result.publicReply, result.visibleReply, result.displayReply, result.answer, result.output, result.response, result.text, result.message,
+    payload.finalAnswer, payload.finalReply, payload.reply, payload.publicReply, payload.visibleReply, payload.displayReply, payload.answer, payload.output, payload.response, payload.text, payload.message,
+    src.finalAnswer, src.finalReply, src.reply, src.publicReply, src.visibleReply, src.displayReply, src.answer, src.output, src.response, src.text, src.message
   ];
   for (const value of candidates) {
     const candidateText = marionAdminRuntimeStrictText(value, "", 12000);
@@ -25798,6 +25798,9 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
       neonSessionVerified, finalKind: marionPrivateRuntimeReplyKind(reply),
       bridgeReplyKind: marionPrivateRuntimeReplyKind(bridgeReply) },
     result: marionAdminConsoleRedacted(packet),
+    // Internal-only: consumed by the authenticated private HTTP handler.
+    // Not serialized to clients and never sourced from request body fields.
+    __privateFinalPacket: packet,
     bridgeStatus: marionAdminBridgeStatusProjection(bridgeStatus),
     ...privateIdentity,
     runtimeSafetyVersion: MARION_ADMIN_RUNTIME_SAFETY_VERSION
@@ -25830,7 +25833,19 @@ async function handleMarionAdminTextRuntime(req, res) {
     // string. The upstream runtime selected this candidate through the private
     // substantive guard; only that same string may be recovered here. Never
     // extract from Neon advisory, an arbitrary packet, or a failed runtime.
-    const upstreamCandidate = runtime.ok === true &&
+    // A transport-level candidate classification is not a final-authority proof.
+    // Require the actual bridge packet's canonical envelope to validate, and
+    // require the emitted text to agree with that envelope. No client flags or
+    // untrusted Neon advisory can satisfy this check.
+    const rawPacket = runtime && runtime.__privateFinalPacket;
+    const envelopeModule = (() => { try { return require("./Data/marion/runtime/marionFinalEnvelope.js"); } catch (_) { return null; } })();
+    const canonicalEnvelope = rawPacket && typeof rawPacket === "object" && rawPacket.finalEnvelope && typeof rawPacket.finalEnvelope === "object" ? rawPacket.finalEnvelope : null;
+    const contractCheck = canonicalEnvelope && envelopeModule && typeof envelopeModule.validateReplyContract === "function"
+      ? envelopeModule.validateReplyContract(canonicalEnvelope) : { ok: false, reasons: ["verified_envelope_unavailable"] };
+    const envelopeReply = canonicalEnvelope && typeof canonicalEnvelope.reply === "string" ? canonicalEnvelope.reply.trim() : "";
+    const authorityMatches = !!(contractCheck.ok === true && envelopeReply &&
+      typeof runtime.reply === "string" && runtime.reply.trim() === envelopeReply);
+    const upstreamCandidate = runtime.ok === true && authorityMatches &&
       marionPrivateRuntimeReplyKind(runtime.reply) === "candidate" &&
       !marionAdminInvalidPrivateFinal(runtime.reply)
         ? marionAdminSubstantiveReplyGuard(runtime.reply, runtimePrompt, runtime)
@@ -25857,6 +25872,9 @@ async function handleMarionAdminTextRuntime(req, res) {
     marionPrivateRuntimeTrace(traceId, "response_finalization", {
       statusCode: privateStatusCode,
       runtimeOk: runtime.ok === true,
+      envelopeContractOk: contractCheck.ok === true,
+      envelopeContractReasons: Array.isArray(contractCheck.reasons) ? contractCheck.reasons.slice(0, 10) : [],
+      authorityMatches,
       runtimeReplyKind: marionPrivateRuntimeReplyKind(runtime.reply),
       projectedReplyKind: marionPrivateRuntimeReplyKind(projectedCandidate),
       presentationProjectionAccepted: projectionAccepted,
@@ -25866,7 +25884,7 @@ async function handleMarionAdminTextRuntime(req, res) {
       privateResponseOk,
       failureClass: privateResponseOk ? "none" :
         (runtime.ok !== true ? "runtime_returned_failure" :
-        (!reply ? "candidate_rejected_by_projection" : "private_final_rejected"))
+        (!authorityMatches ? "authoritative_envelope_not_verified" : (!reply ? "candidate_rejected_by_projection" : "private_final_rejected")))
     });
     return res.status(privateStatusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
