@@ -25751,6 +25751,15 @@ async function invokeMarionAdminTextRuntime(body, auth, traceId, voiceApproval =
     fallbackRejected: !!selectedPacketReply && !reply,
     neonEligible: !!allowedNeon
   });
+  marionPrivateRuntimeTrace(traceId, "runtime_response_construction", {
+    packetOk: !!(packet && packet.ok === true),
+    selectedKind: marionPrivateRuntimeReplyKind(selectedPacketReply),
+    packetReplyKind: marionPrivateRuntimeReplyKind(packetReply),
+    approvedKind: marionPrivateRuntimeReplyKind(approvedReply),
+    finalCandidateKind: marionPrivateRuntimeReplyKind(candidateFinalReply),
+    responseReplyKind: marionPrivateRuntimeReplyKind(reply),
+    replySelectionLost: marionPrivateRuntimeReplyKind(selectedPacketReply) === "candidate" && !reply
+  });
   const voiceProjection = marionAdminProjectVoiceEnvelope(reply, input, { stage: reply ? "marion_runtime_handler_invoked" : "marion_runtime_reply_missing" });
   const speechSync = marionAdminBuildSpeechSyncEnvelope(reply, voiceProjection, input);
   voiceProjection.speechSync = speechSync;
@@ -25828,6 +25837,20 @@ async function handleMarionAdminTextRuntime(req, res) {
     const finalPrivateReply = privatePlaceholder ? "" : reply;
     const privateResponseOk = runtime.ok === true && !!finalPrivateReply;
     const privateStatusCode = privateResponseOk ? statusCode : (statusCode >= 400 ? statusCode : 502);
+    // MARION_PRIVATE_FINAL_HANDOFF_AUDIT_R1: classifications only; never log
+    // private prompts, candidate text, session tokens, or Neon advisory evidence.
+    marionPrivateRuntimeTrace(traceId, "response_finalization", {
+      statusCode: privateStatusCode,
+      runtimeOk: runtime.ok === true,
+      runtimeReplyKind: marionPrivateRuntimeReplyKind(runtime.reply),
+      projectedReplyKind: marionPrivateRuntimeReplyKind(reply),
+      finalPrivateReplyKind: marionPrivateRuntimeReplyKind(finalPrivateReply),
+      privatePlaceholderRejected: !!privatePlaceholder,
+      privateResponseOk,
+      failureClass: privateResponseOk ? "none" :
+        (runtime.ok !== true ? "runtime_returned_failure" :
+        (!reply ? "candidate_rejected_by_projection" : "private_final_rejected"))
+    });
     return res.status(privateStatusCode).json(marionAdminConsoleBaseResponse("runtime", traceId, auth, {
       ...privateIdentity,
       ok: privateResponseOk,
