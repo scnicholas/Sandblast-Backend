@@ -1,7 +1,7 @@
 "use strict";
 
-// Private, metadata-only learning bridge. No gateway imports: avoids CommonJS cycles.
-const VERSION = "marion.learningIntegration/1.1-registration-contract-hardening";
+// Private metadata-only runtime registry; intentionally no gateway import.
+const VERSION = "marion.learningIntegration/1.2-registration-capture-guard";
 const SIGNAL_CLASSES = new Set(["task_success", "task_failure", "owner_correction", "owner_confirmation", "translation_quality", "ad_outcome"]);
 const SCOPES = new Set(["retrieval", "routing", "response_style"]);
 let activeRuntime = null;
@@ -21,10 +21,10 @@ function isAcceptedMarionFinal(value) {
 }
 function trustedLearningContext(value) {
   if (!record(value) || !record(value.signal)) return false;
-  const ctx = value, s = ctx.signal;
-  return ctx.authenticated === true && ctx.ownerAuthenticated === true && ctx.role === "owner" &&
-    ctx.verifiedBy === "server_middleware" && ctx.learningConsent === true &&
-    text(ctx.actorId, 256) && text(s.signalId, 256) && text(s.sourceSubsystem, 128) &&
+  const s = value.signal;
+  return value.authenticated === true && value.ownerAuthenticated === true && value.role === "owner" &&
+    value.verifiedBy === "server_middleware" && value.learningConsent === true &&
+    text(value.actorId, 256) && text(s.signalId, 256) && text(s.sourceSubsystem, 128) &&
     SIGNAL_CLASSES.has(s.signalClass) && SCOPES.has(s.scope) &&
     typeof s.outcomeScore === "number" && Number.isFinite(s.outcomeScore) && s.outcomeScore >= 0 && s.outcomeScore <= 1 &&
     (s.occurredAt === undefined || (text(s.occurredAt, 64) && !Number.isNaN(Date.parse(s.occurredAt))));
@@ -33,9 +33,7 @@ function registerRuntime(runtime) {
   if (!record(runtime) || typeof runtime.captureFinalOutcome !== "function") {
     throw new TypeError("learning_runtime_capture_contract_invalid");
   }
-  if (activeRuntime && activeRuntime !== runtime) {
-    throw new Error("learning_runtime_already_registered");
-  }
+  if (activeRuntime && activeRuntime !== runtime) throw new Error("learning_runtime_already_registered");
   const alreadyRegistered = activeRuntime === runtime;
   activeRuntime = runtime;
   return Object.freeze({ ok: true, registered: true, version: VERSION, alreadyRegistered });
@@ -46,9 +44,16 @@ async function captureAcceptedAdminFinal({ runtime = activeRuntime, result, opti
     return { ok: false, reason: "learning_runtime_not_registered" };
   }
   const context = record(options) ? options.marionLearningContext : null;
-  if (gatewayAdminVerified !== true || !trustedLearningContext(context)) return { ok: false, reason: "trusted_owner_consent_required" };
-  // A custom validator may add constraints, never replace the base final check.
-  if (!isAcceptedMarionFinal(result) || typeof finalValidator !== "function" || !finalValidator(result)) {
+  if (gatewayAdminVerified !== true || !trustedLearningContext(context)) {
+    return { ok: false, reason: "trusted_owner_consent_required" };
+  }
+  // A supplied validator can only tighten the standard final-envelope contract.
+  try {
+    if (!isAcceptedMarionFinal(result) || typeof finalValidator !== "function" ||
+        (await finalValidator(result)) !== true) {
+      return { ok: false, reason: "accepted_marion_final_required" };
+    }
+  } catch (_) {
     return { ok: false, reason: "accepted_marion_final_required" };
   }
   const s = context.signal;
@@ -60,12 +65,11 @@ async function captureAcceptedAdminFinal({ runtime = activeRuntime, result, opti
     }));
     return record(captureResult) ? captureResult : { ok: false, reason: "learning_capture_result_invalid" };
   } catch (_) {
-    // Do not leak database/authorization error details or interfere with a final reply.
     return { ok: false, reason: "learning_capture_failed" };
   }
 }
 function status() {
-  return Object.freeze({ version: VERSION, registered: !!activeRuntime,
+  return Object.freeze({ version: VERSION, ready: !!activeRuntime, registered: !!activeRuntime,
     captureRequiresServerVerifiedOwner: true, explicitConsentRequired: true,
     finalResponseRequired: true, rawConversationStored: false });
 }
