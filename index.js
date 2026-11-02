@@ -23039,6 +23039,18 @@ function marionAdminConsoleRevokeEscalation(req, auth) {
   return { ok: true, provided: true, escalation: marionAdminConsolePublicEscalation(entry) };
 }
 
+// MARION-ADMIN-EXACT-CREDENTIAL-CONTRACT-V1: credentials are not conversational text.
+// Reject control characters rather than silently changing bearer material.
+function marionAdminConsoleCredential(value) {
+  if (typeof value !== "string") return "";
+  if (!value || /[\x00-\x1f\x7f]/.test(value)) return "";
+  return value;
+}
+function marionAdminConsoleConfiguredCredential(value) {
+  // A leading/trailing space in a configured token is significant; fail closed.
+  return marionAdminConsoleCredential(value);
+}
+
 function marionAdminConsoleEnvTokens() {
   return uniq([
     process.env.MARION_ADMIN_TOKEN,
@@ -23047,7 +23059,7 @@ function marionAdminConsoleEnvTokens() {
     process.env.SB_LINGOSENTINEL_MARION_ADMIN_TOKEN
     // Voice and delivery credentials are deliberately NOT owner credentials.
     // An authenticated voice lane must never mint an owner control-plane session.
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleConfiguredCredential(item)).filter(Boolean));
 }
 
 function marionAdminConsoleMfaTokens() {
@@ -23055,7 +23067,7 @@ function marionAdminConsoleMfaTokens() {
     process.env.SB_MARION_ADMIN_MFA_TOKEN,
     process.env.SB_MARION_ADMIN_CONSOLE_MFA_TOKEN,
     process.env.MARION_ADMIN_MFA_TOKEN
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleConfiguredCredential(item)).filter(Boolean));
 }
 
 const MARION_ADMIN_CONSOLE_RBAC_VERSION = "marion.adminConsole.rbac/1.5-phase7-voice-continuity-window";
@@ -23227,7 +23239,7 @@ function marionAdminConsoleHasCapability(auth, capability) {
 }
 
 function marionAdminConsoleEnvTokensForNames(names) {
-  return uniq((Array.isArray(names) ? names : []).map((name) => cleanText(process.env[name] || "")).filter(Boolean));
+  return uniq((Array.isArray(names) ? names : []).map((name) => marionAdminConsoleConfiguredCredential(process.env[name])).filter(Boolean));
 }
 
 function marionAdminConsoleRoleTokenEntries() {
@@ -23340,16 +23352,17 @@ function marionAdminConsolePermissionDenied(res, action, traceId, auth, decision
 }
 
 function marionAdminConsoleBearerValue(req) {
-  const raw = cleanText(req && req.headers && req.headers.authorization || "");
-  const match = raw.match(/^Bearer\s+(.+)$/i);
-  return match ? cleanText(match[1]) : "";
+  const raw = req && req.headers && req.headers.authorization;
+  if (typeof raw !== "string" || /[\x00-\x1f\x7f]/.test(raw)) return "";
+  const match = raw.match(/^Bearer[ \t]+([^ \t]+)$/i);
+  return match ? marionAdminConsoleCredential(match[1]) : "";
 }
 
 
 function marionAdminConsoleMasterRequestAuth(req) {
   const headers = req && req.headers ? req.headers : {};
   const tokenEntries = marionAdminConsoleRoleTokenEntries();
-  const tokens = uniq(tokenEntries.map((entry) => cleanText(entry.value || "")).filter(Boolean));
+  const tokens = uniq(tokenEntries.map((entry) => marionAdminConsoleCredential(entry.value)).filter(Boolean));
   const mfaTokens = marionAdminConsoleMfaTokens();
   const candidates = [
     { source: "authorization", value: marionAdminConsoleBearerValue(req) },
@@ -23365,7 +23378,7 @@ function marionAdminConsoleMasterRequestAuth(req) {
     { source: "x-sb-marion-voice-user-token", value: headers["x-sb-marion-voice-user-token"] },
     { source: "x-sb-marion-observer-token", value: headers["x-sb-marion-observer-token"] },
     { source: "x-sb-marion-readonly-token", value: headers["x-sb-marion-readonly-token"] }
-  ].map((item) => ({ source: item.source, value: cleanText(item.value || "") })).filter((item) => item.value);
+  ].map((item) => ({ source: item.source, value: marionAdminConsoleCredential(item.value) })).filter((item) => item.value);
 
   let verifiedCandidate = null;
   let verifiedRole = MARION_ADMIN_CONSOLE_ROLES.BLOCKED;
@@ -23381,7 +23394,7 @@ function marionAdminConsoleMasterRequestAuth(req) {
     headers["x-sb-marion-admin-mfa-token"],
     headers["x-sb-marion-admin-console-mfa-token"],
     headers["x-marion-admin-mfa-token"]
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleCredential(item)).filter(Boolean));
   const mfaRequired = mfaTokens.length > 0;
   const mfaVerified = !mfaRequired || mfaCandidates.some((candidate) =>
     mfaTokens.some((token) => timingSafeTextEqual(candidate, token))
@@ -23427,7 +23440,7 @@ function marionAdminConsoleRemoteTrustedUserEnvTokens() {
     process.env.SB_LINGOSENTINEL_MARION_REMOTE_TRUSTED_TOKEN,
     process.env.MARION_REMOTE_TRUSTED_USER_TOKEN,
     process.env.MARION_REMOTE_TRUSTED_TOKEN
-  ].map((item) => cleanText(item || "")).filter(Boolean));
+  ].map((item) => marionAdminConsoleConfiguredCredential(item)).filter(Boolean));
 }
 
 function marionAdminConsoleRemoteTrustedUserRequestAuth(req) {
@@ -23580,7 +23593,9 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     adminTokenConfigured: configured,
     adminTokenProvided: credentialProvided,
     mfaRequired: !!(auth && auth.mfaRequired),
-    mfaVerified: !!(auth && auth.mfaVerified)
+    mfaVerified: !!(auth && auth.mfaVerified),
+    authFailureCategory: (["admin_credential_missing", "admin_credential_not_accepted", "admin_mfa_verification_required"].includes(auth && auth.reason) ? auth.reason : "other"),
+    ownerTokenConfigured: marionAdminConsoleEnvTokens().length > 0
   }); } catch (_) {}
   return res.status(status).json({
     ok: false,
