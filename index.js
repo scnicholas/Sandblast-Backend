@@ -25826,8 +25826,23 @@ async function handleMarionAdminTextRuntime(req, res) {
     runtimeFailureStage = "response_projection";
     const statusCode = clamp(Number(runtime.statusCode || (runtime.ok ? 200 : 502)), 200, 599);
     const runtimePrompt = marionAdminTextRuntimeExtractPrompt(body);
-    const reply = runtime.ok === true && !marionAdminInvalidPrivateFinal(runtime.reply)
-      ? (priority9JR1BAdminVisibleReply(runtime.reply, runtimePrompt) || "") : "";
+    // Private projection must not silently discard an already-guarded runtime
+    // string. The upstream runtime selected this candidate through the private
+    // substantive guard; only that same string may be recovered here. Never
+    // extract from Neon advisory, an arbitrary packet, or a failed runtime.
+    const upstreamCandidate = runtime.ok === true &&
+      marionPrivateRuntimeReplyKind(runtime.reply) === "candidate" &&
+      !marionAdminInvalidPrivateFinal(runtime.reply)
+        ? marionAdminSubstantiveReplyGuard(runtime.reply, runtimePrompt, runtime)
+        : "";
+    const projectedCandidate = upstreamCandidate
+      ? priority9JR1BAdminVisibleReply(upstreamCandidate, runtimePrompt)
+      : "";
+    const projectionAccepted = !!(projectedCandidate &&
+      marionPrivateRuntimeReplyKind(projectedCandidate) === "candidate");
+    const recoveredCandidate = upstreamCandidate &&
+      marionPrivateRuntimeReplyKind(upstreamCandidate) === "candidate" ? upstreamCandidate : "";
+    const reply = projectionAccepted ? projectedCandidate : recoveredCandidate;
     const bridgeStatus = marionAdminBridgeStatusProjection(runtime.bridgeStatus);
     // MARION_PRIVATE_FINAL_CONTRACT_V1: A successful transport does not make an
     // irrelevant conversation placeholder a successful answer. No synthetic model
@@ -25843,7 +25858,9 @@ async function handleMarionAdminTextRuntime(req, res) {
       statusCode: privateStatusCode,
       runtimeOk: runtime.ok === true,
       runtimeReplyKind: marionPrivateRuntimeReplyKind(runtime.reply),
-      projectedReplyKind: marionPrivateRuntimeReplyKind(reply),
+      projectedReplyKind: marionPrivateRuntimeReplyKind(projectedCandidate),
+      presentationProjectionAccepted: projectionAccepted,
+      validatedReplyRecovered: !projectionAccepted && !!recoveredCandidate,
       finalPrivateReplyKind: marionPrivateRuntimeReplyKind(finalPrivateReply),
       privatePlaceholderRejected: !!privatePlaceholder,
       privateResponseOk,
