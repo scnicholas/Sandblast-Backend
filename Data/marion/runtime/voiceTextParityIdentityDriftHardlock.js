@@ -4,7 +4,7 @@
  * from a server-created, session-verified options context. Request bodies,
  * headers, role labels, and delivery booleans never authenticate an operator. */
 const crypto=require('crypto');
-const VERSION='nyx.marion.phase3d.voiceTextParityIdentityDriftHardlock/2.0-phase4-server-context';
+const VERSION='nyx.marion.phase3d.voiceTextParityIdentityDriftHardlock/2.1-cycle-safe-dependencies';
 const PUBLIC_AGENT='Nyx',PRIVATE_AGENT='Marion',OPERATOR_NAME='Mac';
 const REPLY_KEYS=['reply','text','answer','response','message','output','displayReply','publicReply','visibleReply','finalReply','authoritativeReply','spokenText','speechText'];
 const SPOKEN_KEYS=new Set(['spokenText','speechText']);
@@ -16,9 +16,31 @@ const IDENTITY_RE=/\b(?:do\s+you\s+know\s+(?:mac|sean|the\s+operator|the\s+owner
 const PRIVATE_SPOOF_RE=/\b(?:i\s+am\s+(?:mac|sean|the\s+operator|the\s+owner)|this\s+is\s+(?:mac|sean|the\s+operator|the\s+owner)|operator\s+command|admin\s+command|marion\s*,?\s*respond|switch\s+to\s+marion|use\s+private\s+memory|open\s+operator\s+mode|authenticatedOperator|operatorPersonalization|allowPersonalName|private\s+memory)\b/i;
 const INTERNAL_LEAK_RE=/\b(?:state spine|session patch|reply authority|final envelope|runtimeTelemetry|finalRenderTelemetry|diagnostic packet|greeting lane|testing the greeting lane|loop detected|fallback|operator personalization|admin route|private operator|serverSideAdminAuth|trustedServerAuth|MARION::FINAL::|CHATENGINE_COORDINATOR_ONLY_ACTIVE)\b/i;
 
-let identityRefinement=null,privateLock=null;
-try{identityRefinement=require('./publicIdentityQuestionRefinement.js');}catch(_){identityRefinement=null;}
-try{privateLock=require('./privateOperatorBoundaryLock.js');}catch(_){privateLock=null;}
+// Do not eagerly require the public-identity façade: it also references this module.
+// Resolve dependencies only when needed, after CommonJS module initialization.
+let identityRefinement=null, privateLock=null;
+function resolveIdentityRefinement(){
+  if(identityRefinement && typeof identityRefinement.cleanPublicIdentityReply==='function') return identityRefinement;
+  try {
+    const resolved=require.resolve('./publicIdentityQuestionRefinement.js');
+    const cached=require.cache[resolved];
+    if(cached && !cached.loaded) return null; // Never consume unfinished exports.
+    const mod=require(resolved);
+    if(mod && typeof mod.cleanPublicIdentityReply==='function') identityRefinement=mod;
+  } catch (_) { /* Conservative Nyx public reply below. */ }
+  return identityRefinement;
+}
+function resolvePrivateLock(){
+  if(privateLock && typeof privateLock.isVerifiedOperatorContext==='function') return privateLock;
+  try {
+    const resolved=require.resolve('./privateOperatorBoundaryLock.js');
+    const cached=require.cache[resolved];
+    if(cached && !cached.loaded) return null; // Authentication fails closed.
+    const mod=require(resolved);
+    if(mod && typeof mod.isVerifiedOperatorContext==='function') privateLock=mod;
+  } catch (_) { /* Absence never authenticates a private operator. */ }
+  return privateLock;
+}
 function isObj(v){return !!v&&typeof v==='object'&&!Array.isArray(v);}
 function own(o,k){if(!isObj(o))return undefined;try{const d=Object.getOwnPropertyDescriptor(o,k);return d&&Object.prototype.hasOwnProperty.call(d,'value')?d.value:undefined;}catch(_){return undefined;}}
 function safeObj(v){return isObj(v)?v:{ };}
@@ -34,8 +56,8 @@ function isVerifiedOperatorContext(input){
   // actual protected request route. Never accept caller-supplied options as
   // authentication, even if they contain a session-looking value.
   try {
-    return !!(privateLock && typeof privateLock.isVerifiedOperatorContext === 'function' &&
-      privateLock.isVerifiedOperatorContext(input) === true);
+    const verifier=resolvePrivateLock();
+    return !!(verifier && verifier.isVerifiedOperatorContext(input) === true);
   } catch (_) { return false; }
 }
 function collectContext(input){
@@ -63,7 +85,8 @@ function isPublicContext(input){return !isVerifiedOperatorContext(input);}
 function answerClassForPrompt(prompt){const t=cleanText(prompt);if(!t)return 'public_general';if(PRESENCE_RE.test(t))return 'public_presence_check';if(IDENTITY_RE.test(t))return 'public_identity_sensitive';return 'public_general';}
 function publicReplyForClass(cls,prompt){
   if(cls==='public_presence_check')return 'I’m here. You can ask about Sandblast, radio, TV, media, AI, or business tools.';
-  if(identityRefinement&&typeof identityRefinement.cleanPublicIdentityReply==='function'&&cls==='public_identity_sensitive'){try{const r=identityRefinement.cleanPublicIdentityReply(prompt);if(typeof r==='string'&&r)return clip(r);}catch(_){}}
+  const refinement=cls==='public_identity_sensitive'?resolveIdentityRefinement():null;
+  if(refinement&&cls==='public_identity_sensitive'){try{const r=refinement.cleanPublicIdentityReply(prompt);if(typeof r==='string'&&r)return clip(r);}catch(_){}}
   if(cls==='public_identity_sensitive')return 'I’m Nyx, the public Sandblast assistant. I don’t confirm private identity on this public surface, but I can help you explore Sandblast, radio, TV, media, AI, or business tools.';
   return 'I’m Nyx, the public Sandblast assistant. I can help you explore Sandblast, radio, TV, media, AI, or business tools.';
 }
