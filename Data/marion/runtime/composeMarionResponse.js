@@ -11571,9 +11571,21 @@ if(/\b(?:artificial intelligence|what is ai|deep learning|generative ai|machine 
     const packet = object(output);
     return {...packet, diagnostics:{...object(packet.diagnostics),privateNeonAdvisoryConsidered:true,privateNeonAdvisoryAvailable:true,privateNeonAdvisoryUsed:false,privateNeonAdvisoryVersion:VERSION}};
   }
+  function validatePrivateComposerOutput(output, routed, input) {
+    const result = reconcile(output, routed, input);
+    const x = object(input), p = object(result);
+    if (x.privateAdminConversation !== true || x.marionAdminConversation !== true) return result;
+    const selected = selectedText(p);
+    const invalid = !selected || placeholder(selected) || p.ok === false || p.blocked === true || p.awaitingMarion === true;
+    if (!invalid) return result;
+    // Do not turn a generic, missing, or advisory-only response into a final.
+    return { ...p, ok: false, canEmit: false, final: false, marionFinal: false,
+      diagnostics: { ...object(p.diagnostics), privateComposerFinalRejected: true,
+        privateComposerRejectionClass: !selected ? "reply_missing" : "non_substantive_or_failed" } };
+  }
   const wrapper = function marionComposeWithPrivateNeonAdvisory(routed={},input={}) {
     const out=original.apply(this,arguments);
-    return out && typeof out.then === "function" ? out.then(v=>reconcile(v,routed,input)) : reconcile(out,routed,input);
+    return out && typeof out.then === "function" ? out.then(v=>validatePrivateComposerOutput(v,routed,input)) : validatePrivateComposerOutput(out,routed,input);
   };
   // The bridge asks for composeMarionResponse. Do not wrap unrelated exports,
   // avoiding another layer of recursion in this already-deep composer.
