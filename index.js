@@ -23062,6 +23062,33 @@ function marionAdminConsoleEnvTokens() {
   ].map((item) => marionAdminConsoleConfiguredCredential(item)).filter(Boolean));
 }
 
+// MARION-AUTH-EFFECTIVE-CONFIG-DIAGNOSTIC-V1
+// Log only configuration presence and formatting validity. Never log values,
+// secret lengths, fingerprints, submitted credentials, or equality oracles.
+const MARION_ADMIN_AUTH_ENV_SOURCE_NAMES = Object.freeze([
+  "MARION_ADMIN_TOKEN", "SB_MARION_ADMIN_TOKEN",
+  "SB_MARION_ADMIN_CONSOLE_TOKEN", "SB_LINGOSENTINEL_MARION_ADMIN_TOKEN"
+]);
+function marionAdminConsoleEffectiveCredentialDiagnostics() {
+  const sourceConfigured = Object.create(null);
+  const sourceValidFormat = Object.create(null);
+  for (const key of MARION_ADMIN_AUTH_ENV_SOURCE_NAMES) {
+    const raw = process.env[key];
+    const present = typeof raw === "string" && raw.length > 0;
+    sourceConfigured[key] = present;
+    sourceValidFormat[key] = present && !!marionAdminConsoleConfiguredCredential(raw);
+  }
+  return {
+    version: "marion.authEffectiveConfig/1.0",
+    sourceConfigured,
+    sourceValidFormat,
+    configuredSourceCount: MARION_ADMIN_AUTH_ENV_SOURCE_NAMES.filter((key) => sourceConfigured[key]).length,
+    acceptedSourceCount: MARION_ADMIN_AUTH_ENV_SOURCE_NAMES.filter((key) => sourceValidFormat[key]).length,
+    consoleTokenReady: sourceValidFormat.SB_MARION_ADMIN_CONSOLE_TOKEN === true,
+    malformedConfiguredSourcePresent: MARION_ADMIN_AUTH_ENV_SOURCE_NAMES.some((key) => sourceConfigured[key] && !sourceValidFormat[key])
+  };
+}
+
 function marionAdminConsoleMfaTokens() {
   return uniq([
     process.env.SB_MARION_ADMIN_MFA_TOKEN,
@@ -23595,7 +23622,8 @@ function marionAdminConsoleAuthRequired(res, traceId, auth) {
     mfaRequired: !!(auth && auth.mfaRequired),
     mfaVerified: !!(auth && auth.mfaVerified),
     authFailureCategory: (["admin_credential_missing", "admin_credential_not_accepted", "admin_mfa_verification_required"].includes(auth && auth.reason) ? auth.reason : "other"),
-    ownerTokenConfigured: marionAdminConsoleEnvTokens().length > 0
+    ownerTokenConfigured: marionAdminConsoleEnvTokens().length > 0,
+    effectiveCredentialConfig: marionAdminConsoleEffectiveCredentialDiagnostics()
   }); } catch (_) {}
   return res.status(status).json({
     ok: false,
