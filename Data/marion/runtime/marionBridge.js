@@ -129,7 +129,13 @@ function bridgePrivateRuntimeIdentityProjection(
       source.traceId ||
       "anonymous"
   ).replace(/[^a-zA-Z0-9._:-]+/g, "-") || "anonymous";
-  const partitionKey = `private:admin:${sessionId}`;
+  // Never trust body-provided session IDs to open private memory/control-plane.
+  const serverVerified = authSource.verified === true &&
+    authSource.sessionVerified === true &&
+    authSource.verifiedBy === "server_middleware" &&
+    typeof authSource.sessionId === "string" &&
+    authSource.sessionId.trim().length > 0;
+  const partitionKey = serverVerified ? `private:admin:${sessionId}` : "private:admin:unverified";
 
   return {
     version: MARION_BRIDGE_PRIVATE_IDENTITY_PROJECTION_VERSION,
@@ -142,16 +148,16 @@ function bridgePrivateRuntimeIdentityProjection(
     publicSurfaceOnly: false,
     publicFallbackBlocked: true,
     privateAdminConversation: true,
-    privateControlPlane: true,
+    privateControlPlane: serverVerified,
     adminOnly: true,
-    directMarionAdminInterface: true,
+    directMarionAdminInterface: serverVerified,
     marionAdminConversation: true,
-    marionAdminConversationAllowed: true,
+    marionAdminConversationAllowed: serverVerified,
     // A private route label is not an authentication proof.
-    authenticatedOperator: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
-    operatorPersonalization: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
-    allowPersonalName: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
-    allowOperatorMemory: authSource.verified === true && authSource.sessionVerified === true && authSource.verifiedBy === "server_middleware",
+    authenticatedOperator: serverVerified,
+    operatorPersonalization: serverVerified,
+    allowPersonalName: serverVerified,
+    allowOperatorMemory: serverVerified,
     memoryPartition: partitionKey,
     partitionKey,
     privateRuntimeContext: {
