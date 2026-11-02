@@ -9,7 +9,7 @@
  * - Never confirm private operator identity on public Nyx surfaces.
  * - Never expose Marion/private routing as a public speaker.
  */
-const VERSION = "nyx.publicIdentityQuestionRefinement/3C.1";
+const VERSION = "nyx.publicIdentityQuestionRefinement/3C.2-cycle-guard";
 const PUBLIC_AGENT = "Nyx";
 const PUBLIC_GENERAL_REPLY = "I’m Nyx, the public Sandblast assistant. I can help you explore Sandblast, radio, TV, media, AI, or business tools.";
 const PUBLIC_WHO_REPLY = "You’re speaking with Nyx, the public Sandblast assistant for media, radio, TV, discovery, and business tools.";
@@ -120,16 +120,197 @@ module.exports = {
 };
 
 
-/* PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_START */
-(function(){try{
-  const V="nyx.marion.phase3d.voiceTextParityIdentityDrift.runtimeWrapper/1.0";
-  let lock=null;try{lock=require("./voiceTextParityIdentityDriftHardlock.js");}catch(_e){try{lock=require("../Data/marion/runtime/voiceTextParityIdentityDriftHardlock.js");}catch(_e2){lock=null;}}
-  if(!lock||!lock.projectResult||typeof module==="undefined"||!module.exports)return;
-  function ctx(value,args){args=Array.prototype.slice.call(args||[]);return Object.assign({},(args[0]&&typeof args[0]==="object"?args[0]:{}),{payload:value,body:args[0],options:args[1],headers:(args[0]&&args[0].headers)||(args[1]&&args[1].headers)||{},route:(args[0]&&args[0].route)||(args[0]&&args[0].path)||""});}
-  function project(value,args){try{return lock.projectResult(value,ctx(value,args));}catch(_e){return value;}}
-  function wrap(fn,name){if(typeof fn!=="function"||fn.__phase3dVoiceTextParity)return fn;const w=function(){const args=arguments;const r=fn.apply(this,args);if(r&&typeof r.then==="function")return r.then(v=>project(v,args));return project(r,args);};try{Object.keys(fn).forEach(k=>{w[k]=fn[k];});}catch(_e){}try{Object.defineProperty(w,"name",{value:fn.name||name||"phase3dVoiceTextParityWrapped"});}catch(_e){}w.__phase3dVoiceTextParity=true;return w;}
-  if(typeof module.exports==="function")module.exports=wrap(module.exports,"default");
-  const obj=module.exports&&typeof module.exports==="object"?module.exports:null;
-  if(obj){["processWithMarion","route","maybeResolve","ask","handle","handleMessage","handleVoiceTranscript","handleVoiceInput","default","composeMarionResponse","compose","buildReply","run","handler","createMarionFinalEnvelope","finalize","buildFinalEnvelope","toFinalEnvelope","normalizeFinalEnvelope","handleMarionAdminConversation","handleMarionAdminTextRuntime","invokeMarionAdminTextRuntime","handleTextRuntime","handleAdminConversation","safeResponse","buildResponse","createResponse","finalizeTurn"].forEach(n=>{if(typeof obj[n]==="function")obj[n]=wrap(obj[n],n);});obj.PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_VERSION=V;obj.phase3dVoiceTextParityProject=lock.projectResult;obj.phase3dVoiceTextParityCompare=lock.compareVoiceTextParity;}
-}catch(_){}})();
-/* PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_END */
+/* PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_LAZY_FACADE_START */
+(function () {
+  "use strict";
+
+  const api =
+    module.exports &&
+    typeof module.exports === "object"
+      ? module.exports
+      : null;
+
+  if (!api) return;
+
+  const FACADE_VERSION =
+    "nyx.marion.phase3d.voiceTextParityIdentityDrift.lazyFacade/2.0";
+
+  let cachedHardlock = null;
+  let resolvingHardlock = false;
+
+  function ownFunction(target, name) {
+    if (
+      !target ||
+      (
+        typeof target !== "object" &&
+        typeof target !== "function"
+      )
+    ) {
+      return null;
+    }
+
+    try {
+      const descriptor =
+        Object.getOwnPropertyDescriptor(
+          target,
+          name
+        );
+
+      return descriptor &&
+        typeof descriptor.value === "function"
+        ? descriptor.value
+        : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function resolveHardlock() {
+    if (
+      cachedHardlock &&
+      ownFunction(
+        cachedHardlock,
+        "projectResult"
+      )
+    ) {
+      return cachedHardlock;
+    }
+
+    if (resolvingHardlock) {
+      return null;
+    }
+
+    resolvingHardlock = true;
+
+    try {
+      // Do not consume a partially initialized CommonJS export. This check
+      // avoids one direction of the cycle without importing at module load.
+      const resolvedPath = require.resolve("./voiceTextParityIdentityDriftHardlock.js");
+      const cacheEntry = require.cache[resolvedPath];
+      if (cacheEntry && cacheEntry.loaded !== true) return null;
+      const candidate = require(resolvedPath);
+
+      if (
+        candidate !== api &&
+        ownFunction(
+          candidate,
+          "projectResult"
+        )
+      ) {
+        cachedHardlock = candidate;
+      }
+    } catch (_) {
+      cachedHardlock = null;
+    } finally {
+      resolvingHardlock = false;
+    }
+
+    return cachedHardlock;
+  }
+
+  function projectResultLazy(
+    value,
+    context
+  ) {
+    const hardlock =
+      resolveHardlock();
+
+    const projector =
+      ownFunction(
+        hardlock,
+        "projectResult"
+      );
+
+    if (!projector) {
+      return value;
+    }
+
+    try {
+      return projector(
+        value,
+        context
+      );
+    } catch (_) {
+      return value;
+    }
+  }
+
+  function compareVoiceTextParityLazy(
+    textInput,
+    voiceInput,
+    context
+  ) {
+    const hardlock =
+      resolveHardlock();
+
+    const compare =
+      ownFunction(
+        hardlock,
+        "compareVoiceTextParity"
+      );
+
+    if (!compare) {
+      return {
+        version:
+          FACADE_VERSION,
+        available: false,
+        drift: false,
+        driftBlocked: true
+      };
+    }
+
+    try {
+      return compare(
+        textInput,
+        voiceInput,
+        context
+      );
+    } catch (_) {
+      return {
+        version:
+          FACADE_VERSION,
+        available: false,
+        drift: false,
+        driftBlocked: true
+      };
+    }
+  }
+
+  api.PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_HARDLOCK_VERSION =
+    FACADE_VERSION;
+
+  api.phase3dVoiceTextParityProject =
+    projectResultLazy;
+
+  api.phase3dVoiceTextParityCompare =
+    compareVoiceTextParityLazy;
+
+  // Compatibility for existing callers that request the canonical projector
+  // directly. No eager import, no new projector authority or circular require.
+  api.projectResult = projectResultLazy;
+  api.compareVoiceTextParity = compareVoiceTextParityLazy;
+
+  Object.defineProperty(
+    api,
+    "phase3dVoiceTextParityDependencyStatus",
+    {
+      configurable: false,
+      enumerable: true,
+
+      get() {
+        return {
+          version:
+            FACADE_VERSION,
+          loaded:
+            !!cachedHardlock,
+          resolving:
+            resolvingHardlock,
+          // Only an observed export counts as ready. Do not claim readiness
+          // merely because a file exists or has an entry in require.cache.
+          projectorReady: !!ownFunction(cachedHardlock, "projectResult")
+        };
+      }
+    }
+  );
+})();
+/* PHASE3D_VOICE_TEXT_PARITY_IDENTITY_DRIFT_LAZY_FACADE_END */
