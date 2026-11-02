@@ -1,0 +1,28 @@
+'use strict';
+const assert = require('node:assert/strict');
+const api = require('./learning/MarionLearningIntegration');
+(async () => {
+  assert.equal(api.status().registered, false);
+  assert.throws(() => api.registerRuntime({}), /learning_runtime_capture_contract_invalid/);
+  const saved = [];
+  const runtime = { captureFinalOutcome: async x => { saved.push(x); return {ok:true}; } };
+  const registered = api.registerRuntime(runtime);
+  assert.equal(registered.ok, true);
+  assert.equal(api.getRuntime(), runtime);
+  assert.equal(api.status().registered, true);
+  assert.equal(api.registerRuntime(runtime).alreadyRegistered, true);
+  assert.throws(() => api.registerRuntime({captureFinalOutcome(){}}), /learning_runtime_already_registered/);
+  const final = {ok:true,final:true,marionFinal:true,reply:'Accepted reply',finalEnvelope:{final:true,marionFinal:true}};
+  const context = {authenticated:true,ownerAuthenticated:true,role:'owner',verifiedBy:'server_middleware',learningConsent:true,actorId:'owner1',signal:{signalId:'s1',sourceSubsystem:'test',signalClass:'task_success',scope:'routing',outcomeScore:0.8}};
+  const opts = {marionLearningContext:context};
+  assert.equal((await api.captureAcceptedAdminFinal({result:final,options:opts,gatewayAdminVerified:false})).ok,false);
+  assert.equal((await api.captureAcceptedAdminFinal({result:{...final,blocked:true},options:opts,gatewayAdminVerified:true})).ok,false);
+  assert.equal((await api.captureAcceptedAdminFinal({result:final,options:opts,gatewayAdminVerified:true,finalValidator:()=>false})).ok,false);
+  assert.equal((await api.captureAcceptedAdminFinal({result:final,options:opts,gatewayAdminVerified:true,finalValidator:async()=>false})).ok,false);
+  assert.equal((await api.captureAcceptedAdminFinal({result:final,options:opts,gatewayAdminVerified:true,finalValidator:async()=>{throw Error('internal')}})).ok,false);
+  assert.equal((await api.captureAcceptedAdminFinal({result:final,options:opts,gatewayAdminVerified:true,finalValidator:async()=>true})).ok,true);
+  assert.equal(saved.length,1);
+  assert.deepEqual(Object.keys(saved[0]).sort(), ['finalAccepted','learningConsent','signalId','signalClass','scope','sourceSubsystem','outcomeScore','occurredAt'].sort());
+  assert.equal(api.trustedLearningContext({...context,verifiedBy:'client'}),false);
+  console.log('PASS: registration contract and 10 capture authorization/final-envelope assertions');
+})().catch(e=>{console.error(e);process.exitCode=1});
