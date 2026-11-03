@@ -5,7 +5,7 @@
 const crypto = require("node:crypto");
 const Policy = require("./MarionLearningPolicy");
 
-const VERSION = "marion.learningPostgresAdapters/1.5-registry-key-and-write-ack";
+const VERSION = "marion.learningPostgresAdapters/1.5-confirmed-signal-persistence";
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$/;
 const HASH_RE = /^[a-f0-9]{64}$/;
 const OWNER_ACTOR_RE = /^owner:[a-f0-9]{24}$/;
@@ -38,12 +38,7 @@ function validateStoredRecord(value, maxBytes = 65536) {
 }
 
 function validateRegistryKey(key) {
-  // ManifestRegistry.registrationKey() emits datasetId@version, not a bare ID.
-  // Validate the two segments separately and disallow extra delimiters.
-  if (typeof key !== "string") return false;
-  const boundary = key.indexOf("@");
-  return boundary > 0 && boundary === key.lastIndexOf("@") &&
-    ID_RE.test(key.slice(0, boundary)) && ID_RE.test(key.slice(boundary + 1));
+  return typeof key === "string" && ID_RE.test(key);
 }
 
 function validateStoredReviewRecord(value) {
@@ -277,8 +272,10 @@ function createMarionLearningPostgresAdapters({ pool, resolveVersion, loadFixtur
       if (!checked.ok) throw new TypeError(`invalid_learning_signal:${checked.reason}`);
       await assertSchema(pool);
       const inserted = await pool.query("INSERT INTO public.marion_learning_signals (signal) VALUES ($1::jsonb)", [JSON.stringify(checked.signal)]);
-      if (!inserted || inserted.rowCount !== 1) throw new Error("learning_signal_persistence_unconfirmed");
-      return Object.freeze({ ok: true, persisted: true });
+      if (!inserted || inserted.rowCount !== 1) {
+        return { ok: false, persisted: false, signalId: checked.signal.signalId };
+      }
+      return { ok: true, persisted: true, signalId: checked.signal.signalId };
     }
   });
 
