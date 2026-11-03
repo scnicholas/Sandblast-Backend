@@ -1,7 +1,7 @@
 "use strict";
 
 const Policy = require("./MarionLearningPolicy");
-const VERSION = "marion.learningSignalAdapter/1.0";
+const VERSION = "marion.learningSignalAdapter/1.1-persistence-ack";
 
 function createMarionLearningSignalAdapter({ signalStore, clock = () => new Date().toISOString() } = {}) {
   if (!signalStore || typeof signalStore.appendSignal !== "function") {
@@ -12,7 +12,10 @@ function createMarionLearningSignalAdapter({ signalStore, clock = () => new Date
     const checked = Policy.validateSignal(input);
     if (!checked.ok) return { ok: false, accepted: false, reason: checked.reason };
     const signal = Object.freeze({ ...checked.signal, recordedAt: clock() });
-    await signalStore.appendSignal(signal);
+    const saved = await signalStore.appendSignal(signal);
+    if (saved === false || (saved && (saved.ok === false || saved.persisted === false))) {
+      return { ok: false, accepted: false, reason: "learning_signal_persistence_rejected" };
+    }
     return { ok: true, accepted: true, signalId: signal.signalId, scope: signal.scope, transcriptStored: false, audioStored: false };
   }
 
