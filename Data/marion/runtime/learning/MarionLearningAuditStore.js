@@ -2,8 +2,10 @@
 
 const crypto = require("node:crypto");
 
-const VERSION = "marion.learningAuditStore/2.0-durable-safe";
-const MAX_EVENT_BYTES = 64 * 1024;
+const VERSION = "marion.learningAuditStore/2.1-postgres-size-alignment";
+// PostgreSQL durableAuditAppend enforces a 16 KiB event ceiling.
+// Reserve room for generated audit metadata and hashes.
+const MAX_EVENT_BYTES = 15 * 1024;
 const MAX_DEPTH = 24;
 const MAX_NODES = 10000;
 const REDACTED = "[REDACTED]";
